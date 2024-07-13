@@ -4,39 +4,80 @@ VULTURE is designed to detect 1-day vulnerabilities arise from vulnerable TPL re
 
 It is constructed of three modules: ***TPLFILTER Construction*, *TPL Reuse Identification* and *1-day Vulnerability Detection*.** Each realized in a directory with the corresponding name.
 
-![](C:\Users\mxu49\PycharmProjects\Vulture\vulture.png)
+![](vulture.png)
 
 
 
 #### Environment
 
-The environment file is provided with `environment.yml`, which can help to create the conda environment by executing:
+The pip environment requirements are provided with `requirments.txt`, you can run the following command:
 
- `conda evn create -f environment.yml`.
+ `pip install -r requirements.txt`.
 
+Other tools required:
 
-
-#### Settings
-
-This tool relies on GitHub API access and NVD API access, also with employing OpenAI API for analysis. Correspondingly, the following API keys are required, which are suggested to add to the environment variables.
-
-* ``GITHUB_API_KEY = "your_github_access_api_key"``
-* ``NVD_API_KEY = "your_nvd_access_api_key"``
-* ``OPENAI_API_KEY = "your_openai_api_key"``
-
-
-
-#### Security Patch Collection
-
-Set arguments regarding specific CVE in `collect_patch.py`; then run `collect_patch.py`
-
-For instance (for `CVE-2016-7178`):
-
-```python
-# set target CVE info
-
-str_vendor = "wireshark"
-str_product = "wireshark"
-tuple_version = ("wireshark-2.0.5", "wireshark-2.0.6")
-str_cve_description = "epan/dissectors/packet-umts_fp.c in the UMTS FP dissector in Wireshark 2.x before 2.0.6 does not ensure that memory is allocated for certain data structures, which allows remote attackers to cause a denial of service (invalid write access and application crash) via a crafted packe"
 ```
+sudo apt install clang-format
+```
+
+and install *ctags* [here](https://github.com/universal-ctags/ctags).
+
+#### Steps
+
+##### TPLFilter Construction
+
+TPL construction is developed based on [Centris](https://github.com/WOOSEUNGHOON/Centris-public?tab=readme-ov-file#software). You can select your target platform and utilize TPLFilter for building a database that includes TPL function hashing, versions, related CVEs, and corresponding patches. For this example, we focus on the IoT platform.
+
+###### Collect keywords list related to your target platform & exclude unwanted repos:
+
+1. You can initially collect all of the repos on GitHub with specific languages by running:
+
+   ```shell
+   cd TPLselection
+   python3 git_all_spider.py C cpp --stars 100 500
+   ```
+
+   **Languages**: Specify the target languages as arguments. In the example above, `C` and `cpp` are used.
+
+   **Star Range**: Use the `--stars` option followed by two numbers to set the minimum and maximum star count for the repositories you want to collect. In the example, repositories with 100 to 500 stars are targeted.
+
+2. Then you can filter out and exclude unwanted TPL by keywords matching, an example of keywords is in `TPLFilter/src/TPLselection/keywordsList`
+
+
+
+###### Collect TPLs & generate code hashing
+
+1. Put the urls you collect above into `TPLFilter/src/osscollector/targetTPLs`
+2. `cd ../osscollector `and run `python3 OSS_Collector.py` to collect TPLs. You can run it with single process or using multiprocessing .
+3. Then `cd ../preprocessor` and run `python3 Preprocessor_lite.py` for redundant elimination.
+
+
+
+###### Vulnerability & Patch collection
+
+Please refer to [THIS](TPLFilter/src/patchcollector/README.md) for more information
+
+
+
+##### TPL Reuse detection
+
+1. You can now `cd ../TPLReuseDetector` and run `python3 Detector.py /path/of/the/target/software`. The reused TPLs and their version can be found at `res/result_your_software_name`
+2. Then you can run `python3 fp_eliminator.py res/result__your_software_name` to eliminate false positive. The final result can be found at `modified_result_without_funcyour_software_name`
+
+
+
+##### 1-day Vulnerability Detection
+
+Just run `python3 VersionBasedDetection.py /path/of/the/target/software`  you'll get the result directly
+
+The result will show which CVE might affect your software and what you have patched like the following
+
+```
+Vulnerable CVEs Exact: set('freetype_freetype/CVE-2014-9666')
+Vulnerable CVEs Modified: set('curl_curl/CVE-2023-28322')
+Patched CVEs Exact: set('freetype_freetype/CVE-2014-9660')
+Patched CVEs Modified: set('curl_curl/CVE-2022-27781')
+Version Detection: set('curl_curl/CVE-2016-0754', 'freetype_freetype/CVE-2017-8287', 'mbed-tls_mbedtls/CVE-2020-36477', 'freetype_freetype/CVE-2010-3311')
+```
+
+

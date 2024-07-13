@@ -1,0 +1,64 @@
+typedef struct spiffs_t {
+  // file system configuration
+  spiffs_config cfg;
+  // number of logical blocks
+  u32_t block_count;
+
+  // cursor for free blocks, block index
+  spiffs_block_ix free_cursor_block_ix;
+  // cursor for free blocks, entry index
+  int free_cursor_obj_lu_entry;
+  // cursor when searching, block index
+  spiffs_block_ix cursor_block_ix;
+  // cursor when searching, entry index
+  int cursor_obj_lu_entry;
+
+  // primary work buffer, size of a logical page
+  u8_t *lu_work;
+  // secondary work buffer, size of a logical page
+  u8_t *work;
+  // file descriptor memory area
+  u8_t *fd_space;
+  // available file descriptors
+  u32_t fd_count;
+
+  // last error
+  s32_t err_code;
+
+  // current number of free blocks
+  u32_t free_blocks;
+  // current number of busy pages
+  u32_t stats_p_allocated;
+  // current number of deleted pages
+  u32_t stats_p_deleted;
+  // flag indicating that garbage collector is cleaning
+  u8_t cleaning;
+  // max erase count amongst all blocks
+  spiffs_obj_id max_erase_count;
+
+#if SPIFFS_GC_STATS
+  u32_t stats_gc_runs;
+#endif
+
+#if SPIFFS_CACHE
+  // cache memory
+  void *cache;
+  // cache size
+  u32_t cache_size;
+#if SPIFFS_CACHE_STATS
+  u32_t cache_hits;
+  u32_t cache_misses;
+#endif
+#endif
+
+  // check callback function
+  spiffs_check_callback check_cb_f;
+  // file callback function
+  spiffs_file_callback file_cb_f;
+  // mounted flag
+  u8_t mounted;
+  // user data
+  void *user_data;
+  // config magic
+  u32_t config_magic;
+} spiffs;

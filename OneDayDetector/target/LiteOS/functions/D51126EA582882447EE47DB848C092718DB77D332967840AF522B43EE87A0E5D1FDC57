@@ -1,0 +1,56 @@
+LITE_OS_SEC_TEXT_INIT UINT32 LOS_TaskSuspend(UINT32 taskId)
+{
+    UINT32 intSave;
+    LosTaskCB *taskCB = NULL;
+    LosTaskCB *runTask = NULL;
+    UINT16 tempStatus;
+    UINT32 errRet;
+
+    if (OS_TASK_ID_CHECK_INVALID(taskId)) {
+        return LOS_ERRNO_TSK_ID_INVALID;
+    }
+
+    taskCB = OS_TCB_FROM_TID(taskId);
+    if (taskCB->taskFlags & OS_TASK_FLAG_SYSTEM) {
+        return LOS_ERRNO_TSK_OPERATE_SYSTEM_TASK;
+    }
+
+    SCHEDULER_LOCK(intSave);
+    tempStatus = taskCB->taskStatus;
+    if (tempStatus & OS_TASK_STATUS_UNUSED) {
+        errRet = LOS_ERRNO_TSK_NOT_CREATED;
+        OS_GOTO_ERREND();
+    }
+
+    if (tempStatus & OS_TASK_STATUS_SUSPEND) {
+        errRet = LOS_ERRNO_TSK_ALREADY_SUSPENDED;
+        OS_GOTO_ERREND();
+    }
+
+    if ((tempStatus & OS_TASK_STATUS_RUNNING) &&
+        !OsTaskSuspendCheckOnRun(taskCB, &errRet)) {
+        OS_GOTO_ERREND();
+    }
+
+    if (tempStatus & OS_TASK_STATUS_READY) {
+        OsPriQueueDequeue(&taskCB->pendList);
+        taskCB->taskStatus &= ~OS_TASK_STATUS_READY;
+    }
+
+    taskCB->taskStatus |= OS_TASK_STATUS_SUSPEND;
+
+    runTask = OsCurrTaskGet();
+
+    LOS_TRACE(TASK_SUSPEND, taskCB->taskId, taskCB->taskStatus, runTask->taskId);
+
+    if (taskId == runTask->taskId) {
+        OsSchedResched();
+    }
+
+    SCHEDULER_UNLOCK(intSave);
+    return LOS_OK;
+
+LOS_ERREND:
+    SCHEDULER_UNLOCK(intSave);
+    return errRet;
+}

@@ -1,0 +1,34 @@
+void lv_dropdown_set_options(lv_obj_t * ddlist, const char * options)
+{
+    LV_ASSERT_OBJ(ddlist, LV_OBJX_NAME);
+    LV_ASSERT_STR(options);
+
+    lv_dropdown_ext_t * ext = lv_obj_get_ext_attr(ddlist);
+
+    /*Count the '\n'-s to determine the number of options*/
+    ext->option_cnt = 0;
+    uint16_t i;
+    for(i = 0; options[i] != '\0'; i++) {
+        if(options[i] == '\n') ext->option_cnt++;
+    }
+    ext->option_cnt++;   /*Last option has no `\n`*/
+    ext->sel_opt_id      = 0;
+    ext->sel_opt_id_orig = 0;
+
+    /*Allocate space for the new text*/
+    size_t len = strlen(options) + 1;
+    if(ext->options != NULL && ext->static_txt == 0) {
+        lv_mem_free(ext->options);
+        ext->options = NULL;
+    }
+
+    ext->options = lv_mem_alloc(len);
+
+    LV_ASSERT_MEM(ext->options);
+    if(ext->options == NULL) return;
+
+    strcpy(ext->options, options);
+
+    /*Now the text is dynamically allocated*/
+    ext->static_txt = 0;
+}

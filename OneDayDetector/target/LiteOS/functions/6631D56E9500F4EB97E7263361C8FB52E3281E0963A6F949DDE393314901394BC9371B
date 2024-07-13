@@ -1,0 +1,63 @@
+HAL_StatusTypeDef FMC_SDRAM_Timing_Init(FMC_SDRAM_TypeDef *Device, FMC_SDRAM_TimingTypeDef *Timing, uint32_t Bank)
+{
+  uint32_t tmpr1 = 0U;
+  uint32_t tmpr2 = 0U;
+    
+  /* Check the parameters */
+  assert_param(IS_FMC_SDRAM_DEVICE(Device));
+  assert_param(IS_FMC_LOADTOACTIVE_DELAY(Timing->LoadToActiveDelay));
+  assert_param(IS_FMC_EXITSELFREFRESH_DELAY(Timing->ExitSelfRefreshDelay));
+  assert_param(IS_FMC_SELFREFRESH_TIME(Timing->SelfRefreshTime));
+  assert_param(IS_FMC_ROWCYCLE_DELAY(Timing->RowCycleDelay));
+  assert_param(IS_FMC_WRITE_RECOVERY_TIME(Timing->WriteRecoveryTime));
+  assert_param(IS_FMC_RP_DELAY(Timing->RPDelay));
+  assert_param(IS_FMC_RCD_DELAY(Timing->RCDDelay));
+  assert_param(IS_FMC_SDRAM_BANK(Bank));
+  
+  /* Set SDRAM device timing parameters */ 
+  if (Bank != FMC_SDRAM_BANK2) 
+  { 
+    tmpr1 = Device->SDTR[FMC_SDRAM_BANK1];
+    
+    /* Clear TMRD, TXSR, TRAS, TRC, TWR, TRP and TRCD bits */
+    tmpr1 &= ((uint32_t)~(FMC_SDTR1_TMRD  | FMC_SDTR1_TXSR | FMC_SDTR1_TRAS | \
+                          FMC_SDTR1_TRC  | FMC_SDTR1_TWR | FMC_SDTR1_TRP | \
+                          FMC_SDTR1_TRCD));
+    
+    tmpr1 |= (uint32_t)(((Timing->LoadToActiveDelay)-1U)           |\
+                       (((Timing->ExitSelfRefreshDelay)-1U) << 4U) |\
+                       (((Timing->SelfRefreshTime)-1U) << 8U)      |\
+                       (((Timing->RowCycleDelay)-1U) << 12U)       |\
+                       (((Timing->WriteRecoveryTime)-1U) <<16U)    |\
+                       (((Timing->RPDelay)-1U) << 20U)             |\
+                       (((Timing->RCDDelay)-1U) << 24U));
+    Device->SDTR[FMC_SDRAM_BANK1] = tmpr1;
+  }
+   else /* FMC_Bank2_SDRAM */
+  {
+    tmpr1 = Device->SDTR[FMC_SDRAM_BANK1];
+    
+    /* Clear TRC and TRP bits */
+    tmpr1 &= ((uint32_t)~(FMC_SDTR1_TRC | FMC_SDTR1_TRP));
+    
+    tmpr1 |= (uint32_t)((((Timing->RowCycleDelay)-1U) << 12U)       |\
+                        (((Timing->RPDelay)-1U) << 20U)); 
+    
+    tmpr2 = Device->SDTR[FMC_SDRAM_BANK2];
+    
+    /* Clear TMRD, TXSR, TRAS, TRC, TWR, TRP and TRCD bits */
+    tmpr2 &= ((uint32_t)~(FMC_SDTR1_TMRD  | FMC_SDTR1_TXSR | FMC_SDTR1_TRAS | \
+                          FMC_SDTR1_TRC  | FMC_SDTR1_TWR | FMC_SDTR1_TRP | \
+                          FMC_SDTR1_TRCD));
+    
+    tmpr2 |= (uint32_t)((((Timing->LoadToActiveDelay)-1U)           |\
+                       (((Timing->ExitSelfRefreshDelay)-1U) << 4U)  |\
+                       (((Timing->SelfRefreshTime)-1U) << 8U)       |\
+                       (((Timing->WriteRecoveryTime)-1U) <<16U)     |\
+                       (((Timing->RCDDelay)-1U) << 24U)));   
+
+    Device->SDTR[FMC_SDRAM_BANK1] = tmpr1;
+    Device->SDTR[FMC_SDRAM_BANK2] = tmpr2;
+  }
+  return HAL_OK;
+}

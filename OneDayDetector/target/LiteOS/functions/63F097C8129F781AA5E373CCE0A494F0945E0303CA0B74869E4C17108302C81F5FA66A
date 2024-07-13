@@ -1,0 +1,25 @@
+igmp_stop(struct netif *netif)
+{
+  struct igmp_group *group = netif_igmp_data(netif);
+
+  netif_set_client_data(netif, LWIP_NETIF_CLIENT_DATA_INDEX_IGMP, NULL);
+
+  while (group != NULL) {
+    struct igmp_group *next = group->next; /* avoid use-after-free below */
+
+    /* disable the group at the MAC level */
+    if (netif->igmp_mac_filter != NULL) {
+      LWIP_DEBUGF(IGMP_DEBUG, ("igmp_stop: igmp_mac_filter(DEL "));
+      ip4_addr_debug_print_val(IGMP_DEBUG, group->group_address);
+      LWIP_DEBUGF(IGMP_DEBUG, (") on if %p\n", (void *)netif));
+      netif->igmp_mac_filter(netif, &(group->group_address), NETIF_DEL_MAC_FILTER);
+    }
+
+    /* free group */
+    memp_free(MEMP_IGMP_GROUP, group);
+
+    /* move to "next" */
+    group = next;
+  }
+  return ERR_OK;
+}

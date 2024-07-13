@@ -1,0 +1,15 @@
+  float aspect_ratios[PRIOR_BOX_MAX_NUM];
+  int32_t aspect_ratios_size;
+  bool clip;
+  bool flip;
+  int32_t image_size_h;
+  int32_t image_size_w;
+  int32_t max_sizes[PRIOR_BOX_MAX_NUM];
+  int32_t max_sizes_size;
+  int32_t min_sizes[PRIOR_BOX_MAX_NUM];
+  int32_t min_sizes_size;
+  float offset;
+  OpParameter op_parameter_;
+  float step_h;
+  float step_w;
+  float variances[PRIOR_BOX_VAR_NUM];

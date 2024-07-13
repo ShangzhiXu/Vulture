@@ -1,0 +1,50 @@
+static int x509_get_crl_entry_ext( unsigned char **p,
+                             const unsigned char *end,
+                             mbedtls_x509_buf *ext )
+{
+    int ret;
+    size_t len = 0;
+
+    /* OPTIONAL */
+    if( end <= *p )
+        return( 0 );
+
+    ext->tag = **p;
+    ext->p = *p;
+
+    /*
+     * Get CRL-entry extension sequence header
+     * crlEntryExtensions      Extensions OPTIONAL  -- if present, MUST be v2
+     */
+    if( ( ret = mbedtls_asn1_get_tag( p, end, &ext->len,
+            MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ) ) != 0 )
+    {
+        if( ret == MBEDTLS_ERR_ASN1_UNEXPECTED_TAG )
+        {
+            ext->p = NULL;
+            return( 0 );
+        }
+        return( MBEDTLS_ERR_X509_INVALID_EXTENSIONS + ret );
+    }
+
+    end = *p + ext->len;
+
+    if( end != *p + ext->len )
+        return( MBEDTLS_ERR_X509_INVALID_EXTENSIONS +
+                MBEDTLS_ERR_ASN1_LENGTH_MISMATCH );
+
+    while( *p < end )
+    {
+        if( ( ret = mbedtls_asn1_get_tag( p, end, &len,
+                MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ) ) != 0 )
+            return( MBEDTLS_ERR_X509_INVALID_EXTENSIONS + ret );
+
+        *p += len;
+    }
+
+    if( *p != end )
+        return( MBEDTLS_ERR_X509_INVALID_EXTENSIONS +
+                MBEDTLS_ERR_ASN1_LENGTH_MISMATCH );
+
+    return( 0 );
+}

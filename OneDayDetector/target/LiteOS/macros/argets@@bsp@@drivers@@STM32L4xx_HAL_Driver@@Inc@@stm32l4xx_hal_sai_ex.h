@@ -1,0 +1,1 @@
+#define IS_SAI_PDM_MIC_DELAY(VALUE)   ((VALUE) <= 7U)

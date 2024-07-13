@@ -1,0 +1,55 @@
+netif_ip6_addr_set_state(struct netif *netif, s8_t addr_idx, u8_t state)
+{
+  u8_t old_state;
+  LWIP_ASSERT_CORE_LOCKED();
+  LWIP_ASSERT("netif != NULL", netif != NULL);
+  LWIP_ASSERT("invalid index", addr_idx < LWIP_IPV6_NUM_ADDRESSES);
+
+  old_state = netif_ip6_addr_state(netif, addr_idx);
+  /* state is actually being changed? */
+  if (old_state != state) {
+    u8_t old_valid = old_state & IP6_ADDR_VALID;
+    u8_t new_valid = state & IP6_ADDR_VALID;
+    LWIP_DEBUGF(NETIF_DEBUG | LWIP_DBG_STATE, ("netif_ip6_addr_set_state: netif address state being changed\n"));
+
+#if LWIP_IPV6_MLD
+    /* Reevaluate solicited-node multicast group membership. */
+    if (netif->flags & NETIF_FLAG_MLD6) {
+      nd6_adjust_mld_membership(netif, addr_idx, state);
+    }
+#endif /* LWIP_IPV6_MLD */
+
+    if (old_valid && !new_valid) {
+      /* address about to be removed by setting invalid */
+      netif_do_ip_addr_changed(netif_ip_addr6(netif, addr_idx), NULL);
+      /* @todo: remove mib2 ip6 entries? */
+    }
+    netif->ip6_addr_state[addr_idx] = state;
+
+    if (!old_valid && new_valid) {
+      /* address added by setting valid */
+      /* This is a good moment to check that the address is properly zoned. */
+      IP6_ADDR_ZONECHECK_NETIF(netif_ip6_addr(netif, addr_idx), netif);
+      /* @todo: add mib2 ip6 entries? */
+      netif_issue_reports(netif, NETIF_REPORT_TYPE_IPV6);
+    }
+    if ((old_state & ~IP6_ADDR_TENTATIVE_COUNT_MASK) !=
+        (state     & ~IP6_ADDR_TENTATIVE_COUNT_MASK)) {
+      /* address state has changed -> call the callback function */
+      NETIF_STATUS_CALLBACK(netif);
+    }
+
+#if LWIP_NETIF_EXT_STATUS_CALLBACK
+    {
+      netif_ext_callback_args_t args;
+      args.ipv6_addr_state_changed.addr_index = addr_idx;
+      args.ipv6_addr_state_changed.old_state  = old_state;
+      args.ipv6_addr_state_changed.address    = netif_ip_addr6(netif, addr_idx);
+      netif_invoke_ext_callback(netif, LWIP_NSC_IPV6_ADDR_STATE_CHANGED, &args);
+    }
+#endif
+  }
+  LWIP_DEBUGF(NETIF_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("netif: IPv6 address %d of interface %c%c set to %s/0x%"X8_F"\n",
+              addr_idx, netif->name[0], netif->name[1], ip6addr_ntoa(netif_ip6_addr(netif, addr_idx)),
+              netif_ip6_addr_state(netif, addr_idx)));
+}

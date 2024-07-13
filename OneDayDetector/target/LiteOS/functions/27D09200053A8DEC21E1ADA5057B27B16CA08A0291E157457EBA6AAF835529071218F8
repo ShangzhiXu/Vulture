@@ -1,0 +1,21 @@
+raw_remove(struct raw_pcb *pcb)
+{
+  struct raw_pcb *pcb2;
+  LWIP_ASSERT_CORE_LOCKED();
+  /* pcb to be removed is first in list? */
+  if (raw_pcbs == pcb) {
+    /* make list start at 2nd pcb */
+    raw_pcbs = raw_pcbs->next;
+    /* pcb not 1st in list */
+  } else {
+    for (pcb2 = raw_pcbs; pcb2 != NULL; pcb2 = pcb2->next) {
+      /* find pcb in raw_pcbs list */
+      if (pcb2->next != NULL && pcb2->next == pcb) {
+        /* remove pcb from list */
+        pcb2->next = pcb->next;
+        break;
+      }
+    }
+  }
+  memp_free(MEMP_RAW_PCB, pcb);
+}

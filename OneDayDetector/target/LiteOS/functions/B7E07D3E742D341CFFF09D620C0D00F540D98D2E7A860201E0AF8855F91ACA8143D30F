@@ -1,0 +1,15 @@
+mem_malloc(mem_size_t size)
+{
+  void *ret = mem_clib_malloc(size + MEM_LIBC_STATSHELPER_SIZE);
+  if (ret == NULL) {
+    MEM_STATS_INC_LOCKED(err);
+  } else {
+    LWIP_ASSERT("malloc() must return aligned memory", LWIP_MEM_ALIGN(ret) == ret);
+#if LWIP_STATS && MEM_STATS
+    *(mem_size_t *)ret = size;
+    ret = (u8_t *)ret + MEM_LIBC_STATSHELPER_SIZE;
+    MEM_STATS_INC_USED_LOCKED(used, size);
+#endif
+  }
+  return ret;
+}

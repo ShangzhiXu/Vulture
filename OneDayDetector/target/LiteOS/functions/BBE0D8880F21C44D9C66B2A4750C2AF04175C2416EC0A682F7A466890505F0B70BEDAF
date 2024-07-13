@@ -1,0 +1,22 @@
+uint32_t HAL_CAN_GetTxTimestamp(CAN_HandleTypeDef *hcan, uint32_t TxMailbox)
+{
+  uint32_t timestamp = 0U;
+  uint32_t transmitmailbox;
+  HAL_CAN_StateTypeDef state = hcan->State;
+
+  /* Check function parameters */
+  assert_param(IS_CAN_TX_MAILBOX(TxMailbox));
+
+  if ((state == HAL_CAN_STATE_READY) ||
+      (state == HAL_CAN_STATE_LISTENING))
+  {
+    /* Select the Tx mailbox */
+    transmitmailbox = POSITION_VAL(TxMailbox);
+
+    /* Get timestamp */
+    timestamp = (hcan->Instance->sTxMailBox[transmitmailbox].TDTR & CAN_TDT0R_TIME) >> CAN_TDT0R_TIME_Pos;
+  }
+
+  /* Return the timestamp */
+  return timestamp;
+}

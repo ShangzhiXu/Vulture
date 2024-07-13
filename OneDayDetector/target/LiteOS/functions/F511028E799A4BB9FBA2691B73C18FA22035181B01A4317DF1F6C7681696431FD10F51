@@ -1,0 +1,75 @@
+static int hmac_drbg_reseed_core( mbedtls_hmac_drbg_context *ctx,
+                                  const unsigned char *additional, size_t len,
+                                  int use_nonce )
+{
+    unsigned char seed[MBEDTLS_HMAC_DRBG_MAX_SEED_INPUT];
+    size_t seedlen = 0;
+    int ret;
+
+    {
+        size_t total_entropy_len;
+
+        if( use_nonce == 0 )
+            total_entropy_len = ctx->entropy_len;
+        else
+            total_entropy_len = ctx->entropy_len * 3 / 2;
+
+        /* III. Check input length */
+        if( len > MBEDTLS_HMAC_DRBG_MAX_INPUT ||
+            total_entropy_len + len > MBEDTLS_HMAC_DRBG_MAX_SEED_INPUT )
+        {
+            return( MBEDTLS_ERR_HMAC_DRBG_INPUT_TOO_BIG );
+        }
+    }
+
+    memset( seed, 0, MBEDTLS_HMAC_DRBG_MAX_SEED_INPUT );
+
+    /* IV. Gather entropy_len bytes of entropy for the seed */
+    if( ( ret = ctx->f_entropy( ctx->p_entropy,
+                                seed, ctx->entropy_len ) ) != 0 )
+    {
+        return( MBEDTLS_ERR_HMAC_DRBG_ENTROPY_SOURCE_FAILED );
+    }
+    seedlen += ctx->entropy_len;
+
+    /* For initial seeding, allow adding of nonce generated
+     * from the entropy source. See Sect 8.6.7 in SP800-90A. */
+    if( use_nonce )
+    {
+        /* Note: We don't merge the two calls to f_entropy() in order
+         *       to avoid requesting too much entropy from f_entropy()
+         *       at once. Specifically, if the underlying digest is not
+         *       SHA-1, 3 / 2 * entropy_len is at least 36 Bytes, which
+         *       is larger than the maximum of 32 Bytes that our own
+         *       entropy source implementation can emit in a single
+         *       call in configurations disabling SHA-512. */
+        if( ( ret = ctx->f_entropy( ctx->p_entropy,
+                                    seed + seedlen,
+                                    ctx->entropy_len / 2 ) ) != 0 )
+        {
+            return( MBEDTLS_ERR_HMAC_DRBG_ENTROPY_SOURCE_FAILED );
+        }
+
+        seedlen += ctx->entropy_len / 2;
+    }
+
+
+    /* 1. Concatenate entropy and additional data if any */
+    if( additional != NULL && len != 0 )
+    {
+        memcpy( seed + seedlen, additional, len );
+        seedlen += len;
+    }
+
+    /* 2. Update state */
+    if( ( ret = mbedtls_hmac_drbg_update_ret( ctx, seed, seedlen ) ) != 0 )
+        goto exit;
+
+    /* 3. Reset reseed_counter */
+    ctx->reseed_counter = 1;
+
+exit:
+    /* 4. Done */
+    mbedtls_platform_zeroize( seed, seedlen );
+    return( ret );
+}

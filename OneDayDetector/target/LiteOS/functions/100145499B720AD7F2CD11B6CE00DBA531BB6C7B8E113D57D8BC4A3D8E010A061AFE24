@@ -1,0 +1,37 @@
+static void chap_handle_status(ppp_pcb *pcb, int code, int id,
+		   unsigned char *pkt, int len) {
+	const char *msg = NULL;
+	LWIP_UNUSED_ARG(id);
+
+	if ((pcb->chap_client.flags & (AUTH_DONE|AUTH_STARTED|LOWERUP))
+	    != (AUTH_STARTED|LOWERUP))
+		return;
+	pcb->chap_client.flags |= AUTH_DONE;
+
+	if (code == CHAP_SUCCESS) {
+		/* used for MS-CHAP v2 mutual auth, yuck */
+		if (pcb->chap_client.digest->check_success != NULL) {
+			if (!(*pcb->chap_client.digest->check_success)(pcb, pkt, len, pcb->chap_client.priv))
+				code = CHAP_FAILURE;
+		} else
+			msg = "CHAP authentication succeeded";
+	} else {
+		if (pcb->chap_client.digest->handle_failure != NULL)
+			(*pcb->chap_client.digest->handle_failure)(pcb, pkt, len);
+		else
+			msg = "CHAP authentication failed";
+	}
+	if (msg) {
+		if (len > 0)
+			ppp_info("%s: %.*v", msg, len, pkt);
+		else
+			ppp_info("%s", msg);
+	}
+	if (code == CHAP_SUCCESS)
+		auth_withpeer_success(pcb, PPP_CHAP, pcb->chap_client.digest->code);
+	else {
+		pcb->chap_client.flags |= AUTH_FAILED;
+		ppp_error("CHAP authentication failed");
+		auth_withpeer_fail(pcb, PPP_CHAP);
+	}
+}

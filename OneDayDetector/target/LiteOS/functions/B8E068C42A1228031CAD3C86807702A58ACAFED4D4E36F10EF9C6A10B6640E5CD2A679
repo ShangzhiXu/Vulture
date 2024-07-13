@@ -1,0 +1,28 @@
+static HAL_StatusTypeDef FLASH_OB_ProgramData(uint32_t Address, uint8_t Data)
+{
+  HAL_StatusTypeDef status = HAL_ERROR;
+  
+  /* Check the parameters */
+  assert_param(IS_OB_DATA_ADDRESS(Address));
+  
+  /* Wait for last operation to be completed */
+  status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+  
+  if(status == HAL_OK)
+  {
+    /* Clean the error context */
+    pFlash.ErrorCode = HAL_FLASH_ERROR_NONE;
+
+    /* Enables the Option Bytes Programming operation */
+    SET_BIT(FLASH->CR, FLASH_CR_OPTPG); 
+    *(__IO uint16_t*)Address = Data;
+    
+    /* Wait for last operation to be completed */
+    status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+    
+    /* If the program operation is completed, disable the OPTPG Bit */
+    CLEAR_BIT(FLASH->CR, FLASH_CR_OPTPG);
+  }
+  /* Return the Option Byte Data Program Status */
+  return status;
+}

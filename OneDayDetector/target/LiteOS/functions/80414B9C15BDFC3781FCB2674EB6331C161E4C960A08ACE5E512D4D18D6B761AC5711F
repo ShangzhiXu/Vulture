@@ -1,0 +1,113 @@
+lwip_poll(struct pollfd *fds, nfds_t nfds, int timeout)
+{
+  u32_t waitres = 0;
+  int nready;
+  u32_t msectimeout;
+#if LWIP_NETCONN_SEM_PER_THREAD
+  int waited = 0;
+#endif
+
+  LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_poll(%p, %d, %d)\n",
+                  (void*)fds, (int)nfds, timeout));
+  LWIP_ERROR("lwip_poll: invalid fds", ((fds != NULL && nfds > 0) || (fds == NULL && nfds == 0)),
+             set_errno(EINVAL); return -1;);
+
+  lwip_poll_inc_sockets_used(fds, nfds);
+
+  /* Go through each struct pollfd to count number of structures
+     which currently match */
+  nready = lwip_pollscan(fds, nfds, LWIP_POLLSCAN_CLEAR);
+
+  if (nready < 0) {
+    lwip_poll_dec_sockets_used(fds, nfds);
+    return -1;
+  }
+
+  /* If we don't have any current events, then suspend if we are supposed to */
+  if (!nready) {
+    API_SELECT_CB_VAR_DECLARE(select_cb);
+
+    if (timeout == 0) {
+      LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_poll: no timeout, returning 0\n"));
+      goto return_success;
+    }
+    API_SELECT_CB_VAR_ALLOC(select_cb, set_errno(EAGAIN); lwip_poll_dec_sockets_used(fds, nfds); return -1);
+    memset(&API_SELECT_CB_VAR_REF(select_cb), 0, sizeof(struct lwip_select_cb));
+
+    /* None ready: add our semaphore to list:
+       We don't actually need any dynamic memory. Our entry on the
+       list is only valid while we are in this function, so it's ok
+       to use local variables. */
+
+    API_SELECT_CB_VAR_REF(select_cb).poll_fds = fds;
+    API_SELECT_CB_VAR_REF(select_cb).poll_nfds = nfds;
+#if LWIP_NETCONN_SEM_PER_THREAD
+    API_SELECT_CB_VAR_REF(select_cb).sem = LWIP_NETCONN_THREAD_SEM_GET();
+#else /* LWIP_NETCONN_SEM_PER_THREAD */
+    if (sys_sem_new(&API_SELECT_CB_VAR_REF(select_cb).sem, 0) != ERR_OK) {
+      /* failed to create semaphore */
+      set_errno(EAGAIN);
+      lwip_poll_dec_sockets_used(fds, nfds);
+      API_SELECT_CB_VAR_FREE(select_cb);
+      return -1;
+    }
+#endif /* LWIP_NETCONN_SEM_PER_THREAD */
+
+    lwip_link_select_cb(&API_SELECT_CB_VAR_REF(select_cb));
+
+    /* Increase select_waiting for each socket we are interested in.
+       Also, check for events again: there could have been events between
+       the last scan (without us on the list) and putting us on the list! */
+    nready = lwip_pollscan(fds, nfds, LWIP_POLLSCAN_INC_WAIT);
+
+    if (!nready) {
+      /* Still none ready, just wait to be woken */
+      if (timeout < 0) {
+        /* Wait forever */
+        msectimeout = 0;
+      } else {
+        /* timeout == 0 would have been handled earlier. */
+        LWIP_ASSERT("timeout > 0", timeout > 0);
+        msectimeout = timeout;
+      }
+      waitres = sys_arch_sem_wait(SELECT_SEM_PTR(API_SELECT_CB_VAR_REF(select_cb).sem), msectimeout);
+#if LWIP_NETCONN_SEM_PER_THREAD
+      waited = 1;
+#endif
+    }
+
+    /* Decrease select_waiting for each socket we are interested in,
+       and check which events occurred while we waited. */
+    nready = lwip_pollscan(fds, nfds, LWIP_POLLSCAN_DEC_WAIT);
+
+    lwip_unlink_select_cb(&API_SELECT_CB_VAR_REF(select_cb));
+
+#if LWIP_NETCONN_SEM_PER_THREAD
+    if (select_cb.sem_signalled && (!waited || (waitres == SYS_ARCH_TIMEOUT))) {
+      /* don't leave the thread-local semaphore signalled */
+      sys_arch_sem_wait(API_SELECT_CB_VAR_REF(select_cb).sem, 1);
+    }
+#else /* LWIP_NETCONN_SEM_PER_THREAD */
+    sys_sem_free(&API_SELECT_CB_VAR_REF(select_cb).sem);
+#endif /* LWIP_NETCONN_SEM_PER_THREAD */
+    API_SELECT_CB_VAR_FREE(select_cb);
+
+    if (nready < 0) {
+      /* This happens when a socket got closed while waiting */
+      lwip_poll_dec_sockets_used(fds, nfds);
+      return -1;
+    }
+
+    if (waitres == SYS_ARCH_TIMEOUT) {
+      /* Timeout */
+      LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_poll: timeout expired\n"));
+      goto return_success;
+    }
+  }
+
+  LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_poll: nready=%d\n", nready));
+return_success:
+  lwip_poll_dec_sockets_used(fds, nfds);
+  set_errno(0);
+  return nready;
+}

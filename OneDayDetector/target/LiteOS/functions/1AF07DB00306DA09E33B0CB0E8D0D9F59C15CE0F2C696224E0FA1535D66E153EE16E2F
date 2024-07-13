@@ -1,0 +1,42 @@
+static UINT32 Example_TaskHi(VOID)
+{
+    UINT32 ret;
+
+    printf("Enter TaskHi Handler.\n");
+
+    /* task delay 5 ticks, task will be suspend */
+    ret = LOS_TaskDelay(5);
+    if (ret != LOS_OK) {
+        printf("Delay Task Failed.\n");
+        return LOS_NOK;
+    }
+
+    /* task resumed */
+    printf("TaskHi LOS_TaskDelay Done.\n");
+
+    /* suspend self */
+    ret = LOS_TaskSuspend(g_demoTaskHiId);
+    if (ret != LOS_OK) {
+        printf("Suspend TaskHi Failed.\n");
+        ret = LOS_InspectStatusSetById(LOS_INSPECT_TASK, LOS_INSPECT_STU_ERROR);
+        if (ret != LOS_OK) {
+            printf("Set Inspect Status Err.\n");
+        }
+        return LOS_NOK;
+    }
+
+    printf("TaskHi LOS_TaskResume ok.\n");
+
+    ret = LOS_InspectStatusSetById(LOS_INSPECT_TASK, LOS_INSPECT_STU_SUCCESS);
+    if (ret != LOS_OK) {
+        printf("Set Inspect Status Err.\n");
+    }
+
+    /* delete self */
+    if (LOS_TaskDelete(g_demoTaskHiId) != LOS_OK) {
+        printf("Delete TaskHi failed.\n");
+        return LOS_NOK;
+    }
+
+    return LOS_OK;
+}

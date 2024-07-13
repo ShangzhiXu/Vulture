@@ -1,0 +1,31 @@
+pbuf_take(struct pbuf *buf, const void *dataptr, u16_t len)
+{
+  struct pbuf *p;
+  size_t buf_copy_len;
+  size_t total_copy_len = len;
+  size_t copied_total = 0;
+
+  LWIP_ERROR("pbuf_take: invalid buf", (buf != NULL), return ERR_ARG;);
+  LWIP_ERROR("pbuf_take: invalid dataptr", (dataptr != NULL), return ERR_ARG;);
+  LWIP_ERROR("pbuf_take: buf not large enough", (buf->tot_len >= len), return ERR_MEM;);
+
+  if ((buf == NULL) || (dataptr == NULL) || (buf->tot_len < len)) {
+    return ERR_ARG;
+  }
+
+  /* Note some systems use byte copy if dataptr or one of the pbuf payload pointers are unaligned. */
+  for (p = buf; total_copy_len != 0; p = p->next) {
+    LWIP_ASSERT("pbuf_take: invalid pbuf", p != NULL);
+    buf_copy_len = total_copy_len;
+    if (buf_copy_len > p->len) {
+      /* this pbuf cannot hold all remaining data */
+      buf_copy_len = p->len;
+    }
+    /* copy the necessary parts of the buffer */
+    MEMCPY(p->payload, &((const char *)dataptr)[copied_total], buf_copy_len);
+    total_copy_len -= buf_copy_len;
+    copied_total += buf_copy_len;
+  }
+  LWIP_ASSERT("did not copy all data", total_copy_len == 0 && copied_total == len);
+  return ERR_OK;
+}

@@ -1,0 +1,231 @@
+static void eap_send_request(ppp_pcb *pcb) {
+	struct pbuf *p;
+	u_char *outp;
+	u_char *lenloc;
+	int outlen;
+	int len;
+	const char *str;
+#ifdef USE_SRP
+	struct t_server *ts;
+	u_char clear[8], cipher[8], dig[SHA_DIGESTSIZE], *optr, *cp;
+	int i, j;
+	struct b64state b64;
+	SHA1_CTX ctxt;
+#endif /* USE_SRP */
+
+	/* Handle both initial auth and restart */
+	if (pcb->eap.es_server.ea_state < eapIdentify &&
+	    pcb->eap.es_server.ea_state != eapInitial) {
+		pcb->eap.es_server.ea_state = eapIdentify;
+#if PPP_REMOTENAME
+		if (pcb->settings.explicit_remote && pcb->remote_name) {
+			/*
+			 * If we already know the peer's
+			 * unauthenticated name, then there's no
+			 * reason to ask.  Go to next state instead.
+			 */
+			int len = (int)strlen(pcb->remote_name);
+			if (len > MAXNAMELEN) {
+				len = MAXNAMELEN;
+			}
+			MEMCPY(pcb->eap.es_server.ea_peer, pcb->remote_name, len);
+			pcb->eap.es_server.ea_peer[len] = '\0';
+			pcb->eap.es_server.ea_peerlen = len;
+			eap_figure_next_state(pcb, 0);
+		}
+#endif /* PPP_REMOTENAME */
+	}
+
+	if (pcb->settings.eap_max_transmits > 0 &&
+	    pcb->eap.es_server.ea_requests >= pcb->settings.eap_max_transmits) {
+		if (pcb->eap.es_server.ea_responses > 0)
+			ppp_error("EAP: too many Requests sent");
+		else
+			ppp_error("EAP: no response to Requests");
+		eap_send_failure(pcb);
+		return;
+	}
+
+	p = pbuf_alloc(PBUF_RAW, (u16_t)(PPP_CTRL_PBUF_MAX_SIZE), PPP_CTRL_PBUF_TYPE);
+	if(NULL == p)
+		return;
+	if(p->tot_len != p->len) {
+		pbuf_free(p);
+		return;
+	}
+
+	outp = (u_char*)p->payload;
+    
+	MAKEHEADER(outp, PPP_EAP);
+
+	PUTCHAR(EAP_REQUEST, outp);
+	PUTCHAR(pcb->eap.es_server.ea_id, outp);
+	lenloc = outp;
+	INCPTR(2, outp);
+
+	switch (pcb->eap.es_server.ea_state) {
+	case eapIdentify:
+		PUTCHAR(EAPT_IDENTITY, outp);
+		str = "Name";
+		len = strlen(str);
+		MEMCPY(outp, str, len);
+		INCPTR(len, outp);
+		break;
+
+	case eapMD5Chall:
+		PUTCHAR(EAPT_MD5CHAP, outp);
+		/*
+		 * pick a random challenge length between
+		 * EAP_MIN_CHALLENGE_LENGTH and EAP_MAX_CHALLENGE_LENGTH
+		 */
+		pcb->eap.es_challen = EAP_MIN_CHALLENGE_LENGTH +
+		    magic_pow(EAP_MIN_MAX_POWER_OF_TWO_CHALLENGE_LENGTH);
+		PUTCHAR(pcb->eap.es_challen, outp);
+		magic_random_bytes(pcb->eap.es_challenge, pcb->eap.es_challen);
+		MEMCPY(outp, pcb->eap.es_challenge, pcb->eap.es_challen);
+		INCPTR(pcb->eap.es_challen, outp);
+		MEMCPY(outp, pcb->eap.es_server.ea_name, pcb->eap.es_server.ea_namelen);
+		INCPTR(pcb->eap.es_server.ea_namelen, outp);
+		break;
+
+#ifdef USE_SRP
+	case eapSRP1:
+		PUTCHAR(EAPT_SRP, outp);
+		PUTCHAR(EAPSRP_CHALLENGE, outp);
+
+		PUTCHAR(pcb->eap.es_server.ea_namelen, outp);
+		MEMCPY(outp, pcb->eap.es_server.ea_name, pcb->eap.es_server.ea_namelen);
+		INCPTR(pcb->eap.es_server.ea_namelen, outp);
+
+		ts = (struct t_server *)pcb->eap.es_server.ea_session;
+		assert(ts != NULL);
+		PUTCHAR(ts->s.len, outp);
+		MEMCPY(outp, ts->s.data, ts->s.len);
+		INCPTR(ts->s.len, outp);
+
+		if (ts->g.len == 1 && ts->g.data[0] == 2) {
+			PUTCHAR(0, outp);
+		} else {
+			PUTCHAR(ts->g.len, outp);
+			MEMCPY(outp, ts->g.data, ts->g.len);
+			INCPTR(ts->g.len, outp);
+		}
+
+		if (ts->n.len != sizeof (wkmodulus) ||
+		    BCMP(ts->n.data, wkmodulus, sizeof (wkmodulus)) != 0) {
+			MEMCPY(outp, ts->n.data, ts->n.len);
+			INCPTR(ts->n.len, outp);
+		}
+		break;
+
+	case eapSRP2:
+		PUTCHAR(EAPT_SRP, outp);
+		PUTCHAR(EAPSRP_SKEY, outp);
+
+		ts = (struct t_server *)pcb->eap.es_server.ea_session;
+		assert(ts != NULL);
+		MEMCPY(outp, ts->B.data, ts->B.len);
+		INCPTR(ts->B.len, outp);
+		break;
+
+	case eapSRP3:
+		PUTCHAR(EAPT_SRP, outp);
+		PUTCHAR(EAPSRP_SVALIDATOR, outp);
+		PUTLONG(SRPVAL_EBIT, outp);
+		ts = (struct t_server *)pcb->eap.es_server.ea_session;
+		assert(ts != NULL);
+		MEMCPY(outp, t_serverresponse(ts), SHA_DIGESTSIZE);
+		INCPTR(SHA_DIGESTSIZE, outp);
+
+		if (pncrypt_setkey(0)) {
+			/* Generate pseudonym */
+			optr = outp;
+			cp = (unsigned char *)pcb->eap.es_server.ea_peer;
+			if ((j = i = pcb->eap.es_server.ea_peerlen) > 7)
+				j = 7;
+			clear[0] = i;
+			MEMCPY(clear + 1, cp, j);
+			i -= j;
+			cp += j;
+			/* FIXME: if we want to do SRP, we need to find a way to pass the PolarSSL des_context instead of using static memory */
+			if (!DesEncrypt(clear, cipher)) {
+				ppp_dbglog("no DES here; not generating pseudonym");
+				break;
+			}
+			BZERO(&b64, sizeof (b64));
+			outp++;		/* space for pseudonym length */
+			outp += b64enc(&b64, cipher, 8, outp);
+			while (i >= 8) {
+				/* FIXME: if we want to do SRP, we need to find a way to pass the PolarSSL des_context instead of using static memory */
+				(void) DesEncrypt(cp, cipher);
+				outp += b64enc(&b64, cipher, 8, outp);
+				cp += 8;
+				i -= 8;
+			}
+			if (i > 0) {
+				MEMCPY(clear, cp, i);
+				cp += i;
+				magic_random_bytes(cp, 8-i);
+				/* FIXME: if we want to do SRP, we need to find a way to pass the PolarSSL des_context instead of using static memory */
+				(void) DesEncrypt(clear, cipher);
+				outp += b64enc(&b64, cipher, 8, outp);
+			}
+			outp += b64flush(&b64, outp);
+
+			/* Set length and pad out to next 20 octet boundary */
+			i = outp - optr - 1;
+			*optr = i;
+			i %= SHA_DIGESTSIZE;
+			if (i != 0) {
+				magic_random_bytes(outp, SHA_DIGESTSIZE-i);
+				INCPTR(SHA_DIGESTSIZE-i, outp);
+			}
+
+			/* Obscure the pseudonym with SHA1 hash */
+			SHA1Init(&ctxt);
+			SHA1Update(&ctxt, &pcb->eap.es_server.ea_id, 1);
+			SHA1Update(&ctxt, pcb->eap.es_server.ea_skey,
+			    SESSION_KEY_LEN);
+			SHA1Update(&ctxt, pcb->eap.es_server.ea_peer,
+			    pcb->eap.es_server.ea_peerlen);
+			while (optr < outp) {
+				SHA1Final(dig, &ctxt);
+				cp = dig;
+				while (cp < dig + SHA_DIGESTSIZE)
+					*optr++ ^= *cp++;
+				SHA1Init(&ctxt);
+				SHA1Update(&ctxt, &pcb->eap.es_server.ea_id, 1);
+				SHA1Update(&ctxt, pcb->eap.es_server.ea_skey,
+				    SESSION_KEY_LEN);
+				SHA1Update(&ctxt, optr - SHA_DIGESTSIZE,
+				    SHA_DIGESTSIZE);
+			}
+		}
+		break;
+
+	case eapSRP4:
+		PUTCHAR(EAPT_SRP, outp);
+		PUTCHAR(EAPSRP_LWRECHALLENGE, outp);
+		pcb->eap.es_challen = EAP_MIN_CHALLENGE_LENGTH +
+		    magic_pow(EAP_MIN_MAX_POWER_OF_TWO_CHALLENGE_LENGTH);
+		magic_random_bytes(pcb->eap.es_challenge, pcb->eap.es_challen);
+		MEMCPY(outp, pcb->eap.es_challenge, pcb->eap.es_challen);
+		INCPTR(pcb->eap.es_challen, outp);
+		break;
+#endif /* USE_SRP */
+
+	default:
+		return;
+	}
+
+	outlen = (outp - (unsigned char*)p->payload) - PPP_HDRLEN;
+	PUTSHORT(outlen, lenloc);
+
+	pbuf_realloc(p, outlen + PPP_HDRLEN);
+	ppp_write(pcb, p);
+
+	pcb->eap.es_server.ea_requests++;
+
+	if (pcb->settings.eap_timeout_time > 0)
+		TIMEOUT(eap_server_timeout, pcb, pcb->settings.eap_timeout_time);
+}

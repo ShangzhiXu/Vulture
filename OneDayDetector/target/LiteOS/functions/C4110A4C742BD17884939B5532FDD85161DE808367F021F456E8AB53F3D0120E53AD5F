@@ -1,0 +1,56 @@
+netif_create_ip6_linklocal_address(struct netif *netif, u8_t from_mac_48bit)
+{
+  u8_t i, addr_index;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  LWIP_ASSERT("netif_create_ip6_linklocal_address: invalid netif", netif != NULL);
+
+  /* Link-local prefix. */
+  ip_2_ip6(&netif->ip6_addr[0])->addr[0] = PP_HTONL(0xfe800000ul);
+  ip_2_ip6(&netif->ip6_addr[0])->addr[1] = 0;
+
+  /* Generate interface ID. */
+  if (from_mac_48bit) {
+    /* Assume hwaddr is a 48-bit IEEE 802 MAC. Convert to EUI-64 address. Complement Group bit. */
+    ip_2_ip6(&netif->ip6_addr[0])->addr[2] = lwip_htonl((((u32_t)(netif->hwaddr[0] ^ 0x02)) << 24) |
+        ((u32_t)(netif->hwaddr[1]) << 16) |
+        ((u32_t)(netif->hwaddr[2]) << 8) |
+        (0xff));
+    ip_2_ip6(&netif->ip6_addr[0])->addr[3] = lwip_htonl((u32_t)(0xfeul << 24) |
+        ((u32_t)(netif->hwaddr[3]) << 16) |
+        ((u32_t)(netif->hwaddr[4]) << 8) |
+        (netif->hwaddr[5]));
+  } else {
+    /* Use hwaddr directly as interface ID. */
+    ip_2_ip6(&netif->ip6_addr[0])->addr[2] = 0;
+    ip_2_ip6(&netif->ip6_addr[0])->addr[3] = 0;
+
+    addr_index = 3;
+    for (i = 0; (i < 8) && (i < netif->hwaddr_len); i++) {
+      if (i == 4) {
+        addr_index--;
+      }
+      ip_2_ip6(&netif->ip6_addr[0])->addr[addr_index] |= lwip_htonl(((u32_t)(netif->hwaddr[netif->hwaddr_len - i - 1])) << (8 * (i & 0x03)));
+    }
+  }
+
+  /* Set a link-local zone. Even though the zone is implied by the owning
+   * netif, setting the zone anyway has two important conceptual advantages:
+   * 1) it avoids the need for a ton of exceptions in internal code, allowing
+   *    e.g. ip6_addr_cmp() to be used on local addresses;
+   * 2) the properly zoned address is visible externally, e.g. when any outside
+   *    code enumerates available addresses or uses one to bind a socket.
+   * Any external code unaware of address scoping is likely to just ignore the
+   * zone field, so this should not create any compatibility problems. */
+  ip6_addr_assign_zone(ip_2_ip6(&netif->ip6_addr[0]), IP6_UNICAST, netif);
+
+  /* Set address state. */
+#if LWIP_IPV6_DUP_DETECT_ATTEMPTS
+  /* Will perform duplicate address detection (DAD). */
+  netif_ip6_addr_set_state(netif, 0, IP6_ADDR_TENTATIVE);
+#else
+  /* Consider address valid. */
+  netif_ip6_addr_set_state(netif, 0, IP6_ADDR_PREFERRED);
+#endif /* LWIP_IPV6_AUTOCONFIG */
+}

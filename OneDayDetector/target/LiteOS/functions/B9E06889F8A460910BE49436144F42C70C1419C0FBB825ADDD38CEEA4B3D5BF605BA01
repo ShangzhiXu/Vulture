@@ -1,0 +1,31 @@
+dns_alloc_pcb(void)
+{
+  u8_t i;
+  u8_t idx;
+
+  for (i = 0; i < DNS_MAX_SOURCE_PORTS; i++) {
+    if (dns_pcbs[i] == NULL) {
+      break;
+    }
+  }
+  if (i < DNS_MAX_SOURCE_PORTS) {
+    dns_pcbs[i] = dns_alloc_random_port();
+    if (dns_pcbs[i] != NULL) {
+      /* succeeded */
+      dns_last_pcb_idx = i;
+      return i;
+    }
+  }
+  /* if we come here, creating a new UDP pcb failed, so we have to use
+     an already existing one (so overflow is no issue) */
+  for (i = 0, idx = (u8_t)(dns_last_pcb_idx + 1); i < DNS_MAX_SOURCE_PORTS; i++, idx++) {
+    if (idx >= DNS_MAX_SOURCE_PORTS) {
+      idx = 0;
+    }
+    if (dns_pcbs[idx] != NULL) {
+      dns_last_pcb_idx = idx;
+      return idx;
+    }
+  }
+  return DNS_MAX_SOURCE_PORTS;
+}

@@ -1,0 +1,46 @@
+LITE_OS_SEC_TEXT_MINOR VOID OsShellStatisticsStart(VOID)
+{
+    LosTaskCB *taskCB = NULL;
+    UINT32 loop;
+    UINT32 cpuId = 0;
+    UINT32 intSave;
+
+    SCHEDULER_LOCK(intSave);
+
+    if (g_statisticsStartFlag) {
+        PRINT_WARN("mp static has started\n");
+        SCHEDULER_UNLOCK(intSave);
+        return;
+    }
+
+    g_statisticsStartTime = LOS_CurrNanosec();
+
+    for (loop = 0; loop < g_taskMaxNum; loop++) {
+        taskCB = (((LosTaskCB *)g_taskCBArray) + loop);
+        if (taskCB->taskStatus & OS_TASK_STATUS_RUNNING) {
+#ifdef LOSCFG_KERNEL_SMP
+            cpuId = taskCB->currCpu;
+#endif
+            if ((UINT32)(OS_TASK_INVALID_CPUID) == cpuId) {
+                continue;
+            }
+            if (!strcmp(taskCB->taskName, "IdleCore000")) {
+                g_statPercpu[cpuId].idleStarttime = g_statisticsStartTime;
+            }
+            if (taskCB->priority < HIGHTASKPRI) {
+                g_statPercpu[cpuId].highTaskStarttime = g_statisticsStartTime;
+                g_statPercpu[cpuId].highTaskSwitch++;
+            }
+            if (strcmp(taskCB->taskName, "IdleCore000")) {
+                g_statPercpu[cpuId].sumPriority += taskCB->priority;
+                g_statPercpu[cpuId].prioritySwitch++;
+            }
+        }
+    }
+    g_statisticsStartFlag = TRUE;
+    SCHEDULER_UNLOCK(intSave);
+
+    PRINTK("mp static start\n");
+
+    return;
+}

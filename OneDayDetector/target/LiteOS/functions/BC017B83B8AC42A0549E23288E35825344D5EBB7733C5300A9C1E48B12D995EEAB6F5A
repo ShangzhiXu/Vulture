@@ -1,0 +1,31 @@
+int mq_getattr(mqd_t personal, struct mq_attr *mqAttr)
+{
+    struct mqarray *mqueueCB = NULL;
+    struct mqpersonal *privateMqPersonal = NULL;
+
+    if ((personal == (mqd_t)NULL) || (personal == (mqd_t)-1)) {
+        errno = EBADF;
+        return -1;
+    }
+
+    if (mqAttr == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    (VOID)pthread_mutex_lock(&g_mqueueMutex);
+    privateMqPersonal = (struct mqpersonal *)personal;
+    if (privateMqPersonal->mq_status != MQ_USE_MAGIC) {
+        errno = EBADF;
+        (VOID)pthread_mutex_unlock(&g_mqueueMutex);
+        return -1;
+    }
+
+    mqueueCB = privateMqPersonal->mq_posixdes;
+    mqAttr->mq_maxmsg = mqueueCB->mqcb->queueLen;
+    mqAttr->mq_msgsize = mqueueCB->mqcb->queueSize - sizeof(UINT32);
+    mqAttr->mq_curmsgs = mqueueCB->mqcb->readWriteableCnt[OS_QUEUE_READ];
+    mqAttr->mq_flags = privateMqPersonal->mq_flags;
+    (VOID)pthread_mutex_unlock(&g_mqueueMutex);
+    return 0;
+}

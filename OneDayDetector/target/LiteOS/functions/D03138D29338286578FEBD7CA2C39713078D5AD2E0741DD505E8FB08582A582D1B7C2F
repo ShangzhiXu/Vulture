@@ -1,0 +1,117 @@
+HAL_StatusTypeDef HAL_TIM_ConfigOCrefClear(TIM_HandleTypeDef *htim, TIM_ClearInputConfigTypeDef * sClearInputConfig, uint32_t Channel)
+{
+  uint32_t tmpsmcr = 0;
+
+  /* Check the parameters */
+  assert_param(IS_TIM_OCXREF_CLEAR_INSTANCE(htim->Instance));
+  assert_param(IS_TIM_CLEARINPUT_SOURCE(sClearInputConfig->ClearInputSource));
+  assert_param(IS_TIM_CLEARINPUT_POLARITY(sClearInputConfig->ClearInputPolarity));
+  assert_param(IS_TIM_CLEARINPUT_PRESCALER(sClearInputConfig->ClearInputPrescaler));
+  assert_param(IS_TIM_CLEARINPUT_FILTER(sClearInputConfig->ClearInputFilter));
+
+  /* Process Locked */
+  __HAL_LOCK(htim);
+
+  htim->State = HAL_TIM_STATE_BUSY;
+
+  switch (sClearInputConfig->ClearInputSource)
+  {
+    case TIM_CLEARINPUTSOURCE_NONE:
+    {
+      /* Clear the OCREF clear selection bit */
+      tmpsmcr &= ~TIM_SMCR_OCCS;
+
+      /* Clear the ETR Bits */
+      tmpsmcr &= ~(TIM_SMCR_ETF | TIM_SMCR_ETPS | TIM_SMCR_ECE | TIM_SMCR_ETP);
+
+      /* Set TIMx_SMCR */
+      htim->Instance->SMCR = tmpsmcr;
+   }
+    break;
+
+    case TIM_CLEARINPUTSOURCE_ETR:
+    {
+      TIM_ETR_SetConfig(htim->Instance,
+                        sClearInputConfig->ClearInputPrescaler,
+                        sClearInputConfig->ClearInputPolarity,
+                        sClearInputConfig->ClearInputFilter);
+
+      /* Set the OCREF clear selection bit */
+      htim->Instance->SMCR |= TIM_SMCR_OCCS;
+    }
+    break;
+    default:
+    break;
+  }
+
+  switch (Channel)
+  {
+    case TIM_CHANNEL_1:
+      {
+        if(sClearInputConfig->ClearInputState != RESET)
+        {
+          /* Enable the Ocref clear feature for Channel 1 */
+          htim->Instance->CCMR1 |= TIM_CCMR1_OC1CE;
+        }
+        else
+        {
+          /* Disable the Ocref clear feature for Channel 1 */
+        htim->Instance->CCMR1 &= ~TIM_CCMR1_OC1CE;
+        }
+      }
+      break;
+    case TIM_CHANNEL_2:
+      {
+        assert_param(IS_TIM_CC2_INSTANCE(htim->Instance));
+        if(sClearInputConfig->ClearInputState != RESET)
+        {
+          /* Enable the Ocref clear feature for Channel 2 */
+          htim->Instance->CCMR1 |= TIM_CCMR1_OC2CE;
+        }
+        else
+        {
+          /* Disable the Ocref clear feature for Channel 2 */
+          htim->Instance->CCMR1 &= ~TIM_CCMR1_OC2CE;
+        }
+      }
+    break;
+    case TIM_CHANNEL_3:
+      {
+        assert_param(IS_TIM_CC3_INSTANCE(htim->Instance));
+        if(sClearInputConfig->ClearInputState != RESET)
+        {
+          /* Enable the Ocref clear feature for Channel 3 */
+          htim->Instance->CCMR2 |= TIM_CCMR2_OC3CE;
+        }
+        else
+        {
+          /* Disable the Ocref clear feature for Channel 3 */
+        htim->Instance->CCMR2 &= ~TIM_CCMR2_OC3CE;
+        }
+      }
+    break;
+    case TIM_CHANNEL_4:
+      {
+        assert_param(IS_TIM_CC4_INSTANCE(htim->Instance));
+        if(sClearInputConfig->ClearInputState != RESET)
+        {
+          /* Enable the Ocref clear feature for Channel 4 */
+          htim->Instance->CCMR2 |= TIM_CCMR2_OC4CE;
+        }
+        else
+        {
+          /* Disable the Ocref clear feature for Channel 4 */
+        htim->Instance->CCMR2 &= ~TIM_CCMR2_OC4CE;
+        }
+      }
+    break;
+    default:
+    break;
+  }
+
+  htim->State = HAL_TIM_STATE_READY;
+
+  __HAL_UNLOCK(htim);
+
+  return HAL_OK;
+}

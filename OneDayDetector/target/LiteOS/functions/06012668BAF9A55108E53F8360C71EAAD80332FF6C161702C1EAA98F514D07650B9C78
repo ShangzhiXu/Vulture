@@ -1,0 +1,85 @@
+struct mount_point *los_mp_find(const char *path, const char **path_in_mp)
+{
+    struct mount_point *mp = mount_points;
+    struct mount_point *best_mp = NULL;
+    int best_matches = 0;
+
+    if (path == NULL) {
+        return NULL;
+    }
+
+    if (path_in_mp != NULL) {
+        *path_in_mp = NULL;
+    }
+
+    while (mp != NULL) {
+        const char *m_path = mp->m_path; /* mount point path */
+        const char *i_path = path;       /* input path */
+        int matches = 0;
+        const char *t;
+
+        do {
+            while (*m_path == '/') {
+                m_path++;
+            }
+            while (*i_path == '/') {
+                i_path++;
+            }
+
+            t = strchr(m_path, '/');
+
+            if (t == NULL) {
+                /*
+                 * m_path now is as follows:
+                 * 1) string like "abc"
+                 * 2) empty string "\0"
+                 * if it is empty string, means current mp matched
+                 */
+
+                t = strchr(m_path, '\0');
+
+                if (t == m_path) {
+                    break;
+                }
+            }
+
+            if (strncmp(m_path, i_path, t - m_path) != 0) {
+                goto next; /* this mount point do not match, check next */
+            }
+
+            /*
+             * if m_path is "abc", i_path maybe:
+             * 1) "abc"
+             * 2) "abc/"
+             * 3) "abcd..."
+             * if it is not 1) or 2), this mp does not match, just goto next one
+             */
+
+            i_path += (t - m_path);
+
+            if ((*i_path != '\0') && (*i_path != '/')) {
+                goto next;
+            }
+
+            matches += (t - m_path);
+            m_path += (t - m_path);
+        } while (*m_path != '\0');
+
+        if (matches > best_matches) {
+            best_matches = matches;
+            best_mp = mp;
+            while (*i_path == '/') {
+                i_path++;
+            }
+
+            if (path_in_mp != NULL) {
+                *path_in_mp = i_path;
+            }
+        }
+
+    next:
+        mp = mp->m_next;
+    }
+
+    return best_mp;
+}

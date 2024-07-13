@@ -1,0 +1,67 @@
+static const char *method_name(ccp_options *opt, ccp_options *opt2) {
+    static char result[64];
+#if !DEFLATE_SUPPORT && !BSDCOMPRESS_SUPPORT
+    LWIP_UNUSED_ARG(opt2);
+#endif /* !DEFLATE_SUPPORT && !BSDCOMPRESS_SUPPORT */
+
+    if (!ccp_anycompress(opt))
+	return "(none)";
+    switch (opt->method) {
+#if MPPE_SUPPORT
+    case CI_MPPE:
+    {
+	char *p = result;
+	char *q = result + sizeof(result); /* 1 past result */
+
+	ppp_slprintf(p, q - p, "MPPE ");
+	p += 5;
+	if (opt->mppe & MPPE_OPT_128) {
+	    ppp_slprintf(p, q - p, "128-bit ");
+	    p += 8;
+	}
+	if (opt->mppe & MPPE_OPT_40) {
+	    ppp_slprintf(p, q - p, "40-bit ");
+	    p += 7;
+	}
+	if (opt->mppe & MPPE_OPT_STATEFUL)
+	    ppp_slprintf(p, q - p, "stateful");
+	else
+	    ppp_slprintf(p, q - p, "stateless");
+
+	break;
+    }
+#endif /* MPPE_SUPPORT */
+#if DEFLATE_SUPPORT
+    case CI_DEFLATE:
+    case CI_DEFLATE_DRAFT:
+	if (opt2 != NULL && opt2->deflate_size != opt->deflate_size)
+	    ppp_slprintf(result, sizeof(result), "Deflate%s (%d/%d)",
+		     (opt->method == CI_DEFLATE_DRAFT? "(old#)": ""),
+		     opt->deflate_size, opt2->deflate_size);
+	else
+	    ppp_slprintf(result, sizeof(result), "Deflate%s (%d)",
+		     (opt->method == CI_DEFLATE_DRAFT? "(old#)": ""),
+		     opt->deflate_size);
+	break;
+#endif /* DEFLATE_SUPPORT */
+#if BSDCOMPRESS_SUPPORT
+    case CI_BSD_COMPRESS:
+	if (opt2 != NULL && opt2->bsd_bits != opt->bsd_bits)
+	    ppp_slprintf(result, sizeof(result), "BSD-Compress (%d/%d)",
+		     opt->bsd_bits, opt2->bsd_bits);
+	else
+	    ppp_slprintf(result, sizeof(result), "BSD-Compress (%d)",
+		     opt->bsd_bits);
+	break;
+#endif /* BSDCOMPRESS_SUPPORT */
+#if PREDICTOR_SUPPORT
+    case CI_PREDICTOR_1:
+	return "Predictor 1";
+    case CI_PREDICTOR_2:
+	return "Predictor 2";
+#endif /* PREDICTOR_SUPPORT */
+    default:
+	ppp_slprintf(result, sizeof(result), "Method %d", opt->method);
+    }
+    return result;
+}

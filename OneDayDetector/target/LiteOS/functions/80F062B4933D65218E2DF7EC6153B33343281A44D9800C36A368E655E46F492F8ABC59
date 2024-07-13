@@ -1,0 +1,53 @@
+HAL_StatusTypeDef HAL_TIMEx_PWMN_Stop_IT(TIM_HandleTypeDef *htim, uint32_t Channel)
+{
+  uint32_t tmpccer;
+
+  /* Check the parameters */
+  assert_param(IS_TIM_CCXN_INSTANCE(htim->Instance, Channel));
+
+  switch (Channel)
+  {
+    case TIM_CHANNEL_1:
+    {
+      /* Disable the TIM Capture/Compare 1 interrupt */
+      __HAL_TIM_DISABLE_IT(htim, TIM_IT_CC1);
+      break;
+    }
+
+    case TIM_CHANNEL_2:
+    {
+      /* Disable the TIM Capture/Compare 2 interrupt */
+      __HAL_TIM_DISABLE_IT(htim, TIM_IT_CC2);
+      break;
+    }
+
+    case TIM_CHANNEL_3:
+    {
+      /* Disable the TIM Capture/Compare 3 interrupt */
+      __HAL_TIM_DISABLE_IT(htim, TIM_IT_CC3);
+      break;
+    }
+
+    default:
+      break;
+  }
+
+  /* Disable the complementary PWM output  */
+  TIM_CCxNChannelCmd(htim->Instance, Channel, TIM_CCxN_DISABLE);
+
+  /* Disable the TIM Break interrupt (only if no more channel is active) */
+  tmpccer = htim->Instance->CCER;
+  if ((tmpccer & (TIM_CCER_CC1NE | TIM_CCER_CC2NE | TIM_CCER_CC3NE)) == (uint32_t)RESET)
+  {
+    __HAL_TIM_DISABLE_IT(htim, TIM_IT_BREAK);
+  }
+
+  /* Disable the Main Output */
+  __HAL_TIM_MOE_DISABLE(htim);
+
+  /* Disable the Peripheral */
+  __HAL_TIM_DISABLE(htim);
+
+  /* Return function status */
+  return HAL_OK;
+}

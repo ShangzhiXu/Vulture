@@ -1,0 +1,31 @@
+static void USART_TxISR_16BIT_FIFOEN(USART_HandleTypeDef *husart)
+{
+  uint16_t* tmp;
+  uint8_t   nb_tx_data;
+  
+  /* Check that a Tx process is ongoing */
+  if ((husart->State == HAL_USART_STATE_BUSY_TX) ||
+      (husart->State == HAL_USART_STATE_BUSY_TX_RX))
+  {
+    for(nb_tx_data = husart->NbTxDataToProcess ; nb_tx_data > 0 ; nb_tx_data--)
+    {    
+      if(husart->TxXferCount == 0)
+      {
+        /* Disable the TX FIFO threshold interrupt */
+        __HAL_USART_DISABLE_IT(husart, USART_IT_TXFT);
+        
+        /* Enable the USART Transmit Complete Interrupt */
+        __HAL_USART_ENABLE_IT(husart, USART_IT_TC);
+        
+        break; /* force exit loop */
+      }
+      else if (__HAL_USART_GET_FLAG(husart, USART_FLAG_TXFNF) == SET)
+      {
+        tmp = (uint16_t*) husart->pTxBuffPtr;
+        husart->Instance->TDR = (*tmp & (uint16_t)0x01FF);
+        husart->pTxBuffPtr += 2;      
+        husart->TxXferCount--;
+      }
+    }
+  }
+}

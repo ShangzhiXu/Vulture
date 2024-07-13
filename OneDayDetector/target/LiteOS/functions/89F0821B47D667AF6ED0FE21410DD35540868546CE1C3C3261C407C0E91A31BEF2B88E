@@ -1,0 +1,36 @@
+HAL_StatusTypeDef HAL_USART_DeInit(USART_HandleTypeDef *husart)
+{
+  /* Check the USART handle allocation */
+  if (husart == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_USART_INSTANCE(husart->Instance));
+
+  husart->State = HAL_USART_STATE_BUSY;
+
+  /* Disable the Peripheral */
+  __HAL_USART_DISABLE(husart);
+
+#if (USE_HAL_USART_REGISTER_CALLBACKS == 1)
+  if (husart->MspDeInitCallback == NULL)
+  {
+    husart->MspDeInitCallback = HAL_USART_MspDeInit;
+  }
+  /* DeInit the low level hardware */
+  husart->MspDeInitCallback(husart);
+#else
+  /* DeInit the low level hardware */
+  HAL_USART_MspDeInit(husart);
+#endif /* USE_HAL_USART_REGISTER_CALLBACKS */
+
+  husart->ErrorCode = HAL_USART_ERROR_NONE;
+  husart->State = HAL_USART_STATE_RESET;
+
+  /* Release Lock */
+  __HAL_UNLOCK(husart);
+
+  return HAL_OK;
+}

@@ -1,0 +1,27 @@
+static int ecjpake_mul_secret( mbedtls_mpi *R, int sign,
+                               const mbedtls_mpi *X,
+                               const mbedtls_mpi *S,
+                               const mbedtls_mpi *N,
+                               int (*f_rng)(void *, unsigned char *, size_t),
+                               void *p_rng )
+{
+    int ret;
+    mbedtls_mpi b; /* Blinding value, then s + N * blinding */
+
+    mbedtls_mpi_init( &b );
+
+    /* b = s + rnd-128-bit * N */
+    MBEDTLS_MPI_CHK( mbedtls_mpi_fill_random( &b, 16, f_rng, p_rng ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( &b, &b, N ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_add_mpi( &b, &b, S ) );
+
+    /* R = sign * X * b mod N */
+    MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( R, X, &b ) );
+    R->s *= sign;
+    MBEDTLS_MPI_CHK( mbedtls_mpi_mod_mpi( R, R, N ) );
+
+cleanup:
+    mbedtls_mpi_free( &b );
+
+    return( ret );
+}

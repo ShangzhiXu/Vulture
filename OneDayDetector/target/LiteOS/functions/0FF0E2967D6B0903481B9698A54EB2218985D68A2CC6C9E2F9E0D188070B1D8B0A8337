@@ -1,0 +1,23 @@
+static void tft_flush_cb(lv_disp_drv_t * drv, const lv_area_t * area, lv_color_t * color_p)
+{
+    SCB_CleanInvalidateDCache();
+
+    /*Truncate the area to the screen*/
+    int32_t act_x1 = area->x1 < 0 ? 0 : area->x1;
+    int32_t act_y1 = area->y1 < 0 ? 0 : area->y1;
+    int32_t act_x2 = area->x2 > TFT_HOR_RES - 1 ? TFT_HOR_RES - 1 : area->x2;
+    int32_t act_y2 = area->y2 > TFT_VER_RES - 1 ? TFT_VER_RES - 1 : area->y2;
+
+    x1_flush = act_x1;
+    y1_flush = act_y1;
+    x2_flush = act_x2;
+    y2_flush = act_y2;
+    y_flush_act = act_y1;
+    buf_to_flush = color_p;
+
+    CopyBuffer((const uint32_t *)color_p, (uint32_t *)my_fb, area->x1, area->y1, area->x2 - area->x1 + 1, area->y2 - area->y1 + 1);
+
+    HAL_DSI_Refresh(&hdsi_discovery);
+    lv_disp_flush_ready(drv);
+    return;
+}

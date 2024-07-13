@@ -1,0 +1,113 @@
+HAL_StatusTypeDef HAL_FMPSMBUS_Init(FMPSMBUS_HandleTypeDef *hfmpsmbus)
+{
+  /* Check the FMPSMBUS handle allocation */
+  if (hfmpsmbus == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_FMPSMBUS_ALL_INSTANCE(hfmpsmbus->Instance));
+  assert_param(IS_FMPSMBUS_ANALOG_FILTER(hfmpsmbus->Init.AnalogFilter));
+  assert_param(IS_FMPSMBUS_OWN_ADDRESS1(hfmpsmbus->Init.OwnAddress1));
+  assert_param(IS_FMPSMBUS_ADDRESSING_MODE(hfmpsmbus->Init.AddressingMode));
+  assert_param(IS_FMPSMBUS_DUAL_ADDRESS(hfmpsmbus->Init.DualAddressMode));
+  assert_param(IS_FMPSMBUS_OWN_ADDRESS2(hfmpsmbus->Init.OwnAddress2));
+  assert_param(IS_FMPSMBUS_OWN_ADDRESS2_MASK(hfmpsmbus->Init.OwnAddress2Masks));
+  assert_param(IS_FMPSMBUS_GENERAL_CALL(hfmpsmbus->Init.GeneralCallMode));
+  assert_param(IS_FMPSMBUS_NO_STRETCH(hfmpsmbus->Init.NoStretchMode));
+  assert_param(IS_FMPSMBUS_PEC(hfmpsmbus->Init.PacketErrorCheckMode));
+  assert_param(IS_FMPSMBUS_PERIPHERAL_MODE(hfmpsmbus->Init.PeripheralMode));
+
+  if (hfmpsmbus->State == HAL_FMPSMBUS_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hfmpsmbus->Lock = HAL_UNLOCKED;
+
+#if (USE_HAL_FMPSMBUS_REGISTER_CALLBACKS == 1)
+    hfmpsmbus->MasterTxCpltCallback = HAL_FMPSMBUS_MasterTxCpltCallback; /* Legacy weak MasterTxCpltCallback */
+    hfmpsmbus->MasterRxCpltCallback = HAL_FMPSMBUS_MasterRxCpltCallback; /* Legacy weak MasterRxCpltCallback */
+    hfmpsmbus->SlaveTxCpltCallback  = HAL_FMPSMBUS_SlaveTxCpltCallback;  /* Legacy weak SlaveTxCpltCallback  */
+    hfmpsmbus->SlaveRxCpltCallback  = HAL_FMPSMBUS_SlaveRxCpltCallback;  /* Legacy weak SlaveRxCpltCallback  */
+    hfmpsmbus->ListenCpltCallback   = HAL_FMPSMBUS_ListenCpltCallback;   /* Legacy weak ListenCpltCallback   */
+    hfmpsmbus->ErrorCallback        = HAL_FMPSMBUS_ErrorCallback;        /* Legacy weak ErrorCallback        */
+    hfmpsmbus->AddrCallback         = HAL_FMPSMBUS_AddrCallback;         /* Legacy weak AddrCallback         */
+
+    if (hfmpsmbus->MspInitCallback == NULL)
+    {
+      hfmpsmbus->MspInitCallback = HAL_FMPSMBUS_MspInit; /* Legacy weak MspInit  */
+    }
+
+    /* Init the low level hardware : GPIO, CLOCK, CORTEX...etc */
+    hfmpsmbus->MspInitCallback(hfmpsmbus);
+#else
+    /* Init the low level hardware : GPIO, CLOCK, NVIC */
+    HAL_FMPSMBUS_MspInit(hfmpsmbus);
+#endif /* USE_HAL_FMPSMBUS_REGISTER_CALLBACKS */
+  }
+
+  hfmpsmbus->State = HAL_FMPSMBUS_STATE_BUSY;
+
+  /* Disable the selected FMPSMBUS peripheral */
+  __HAL_FMPSMBUS_DISABLE(hfmpsmbus);
+
+  /*---------------------------- FMPSMBUSx TIMINGR Configuration ------------------------*/
+  /* Configure FMPSMBUSx: Frequency range */
+  hfmpsmbus->Instance->TIMINGR = hfmpsmbus->Init.Timing & TIMING_CLEAR_MASK;
+
+  /*---------------------------- FMPSMBUSx TIMEOUTR Configuration ------------------------*/
+  /* Configure FMPSMBUSx: Bus Timeout  */
+  hfmpsmbus->Instance->TIMEOUTR &= ~FMPI2C_TIMEOUTR_TIMOUTEN;
+  hfmpsmbus->Instance->TIMEOUTR &= ~FMPI2C_TIMEOUTR_TEXTEN;
+  hfmpsmbus->Instance->TIMEOUTR = hfmpsmbus->Init.SMBusTimeout;
+
+  /*---------------------------- FMPSMBUSx OAR1 Configuration -----------------------*/
+  /* Configure FMPSMBUSx: Own Address1 and ack own address1 mode */
+  hfmpsmbus->Instance->OAR1 &= ~FMPI2C_OAR1_OA1EN;
+
+  if (hfmpsmbus->Init.OwnAddress1 != 0UL)
+  {
+    if (hfmpsmbus->Init.AddressingMode == FMPSMBUS_ADDRESSINGMODE_7BIT)
+    {
+      hfmpsmbus->Instance->OAR1 = (FMPI2C_OAR1_OA1EN | hfmpsmbus->Init.OwnAddress1);
+    }
+    else /* FMPSMBUS_ADDRESSINGMODE_10BIT */
+    {
+      hfmpsmbus->Instance->OAR1 = (FMPI2C_OAR1_OA1EN | FMPI2C_OAR1_OA1MODE | hfmpsmbus->Init.OwnAddress1);
+    }
+  }
+
+  /*---------------------------- FMPSMBUSx CR2 Configuration ------------------------*/
+  /* Configure FMPSMBUSx: Addressing Master mode */
+  if (hfmpsmbus->Init.AddressingMode == FMPSMBUS_ADDRESSINGMODE_10BIT)
+  {
+    hfmpsmbus->Instance->CR2 = (FMPI2C_CR2_ADD10);
+  }
+  /* Enable the AUTOEND by default, and enable NACK (should be disable only during Slave process) */
+  /* AUTOEND and NACK bit will be manage during Transfer process */
+  hfmpsmbus->Instance->CR2 |= (FMPI2C_CR2_AUTOEND | FMPI2C_CR2_NACK);
+
+  /*---------------------------- FMPSMBUSx OAR2 Configuration -----------------------*/
+  /* Configure FMPSMBUSx: Dual mode and Own Address2 */
+  hfmpsmbus->Instance->OAR2 = (hfmpsmbus->Init.DualAddressMode | hfmpsmbus->Init.OwnAddress2 | (hfmpsmbus->Init.OwnAddress2Masks << 8U));
+
+  /*---------------------------- FMPSMBUSx CR1 Configuration ------------------------*/
+  /* Configure FMPSMBUSx: Generalcall and NoStretch mode */
+  hfmpsmbus->Instance->CR1 = (hfmpsmbus->Init.GeneralCallMode | hfmpsmbus->Init.NoStretchMode | hfmpsmbus->Init.PacketErrorCheckMode | hfmpsmbus->Init.PeripheralMode | hfmpsmbus->Init.AnalogFilter);
+
+  /* Enable Slave Byte Control only in case of Packet Error Check is enabled and FMPSMBUS Peripheral is set in Slave mode */
+  if ((hfmpsmbus->Init.PacketErrorCheckMode == FMPSMBUS_PEC_ENABLE)
+      && ((hfmpsmbus->Init.PeripheralMode == FMPSMBUS_PERIPHERAL_MODE_FMPSMBUS_SLAVE) || (hfmpsmbus->Init.PeripheralMode == FMPSMBUS_PERIPHERAL_MODE_FMPSMBUS_SLAVE_ARP)))
+  {
+    hfmpsmbus->Instance->CR1 |= FMPI2C_CR1_SBC;
+  }
+
+  /* Enable the selected FMPSMBUS peripheral */
+  __HAL_FMPSMBUS_ENABLE(hfmpsmbus);
+
+  hfmpsmbus->ErrorCode = HAL_FMPSMBUS_ERROR_NONE;
+  hfmpsmbus->PreviousState = HAL_FMPSMBUS_STATE_READY;
+  hfmpsmbus->State = HAL_FMPSMBUS_STATE_READY;
+
+  return HAL_OK;
+}

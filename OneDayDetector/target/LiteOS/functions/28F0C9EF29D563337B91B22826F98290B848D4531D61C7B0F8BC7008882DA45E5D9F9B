@@ -1,0 +1,46 @@
+HAL_StatusTypeDef USB_DeactivateEndpoint(USB_TypeDef *USBx, USB_EPTypeDef *ep)
+{
+  if (ep->doublebuffer == 0U)
+  {
+    if (ep->is_in != 0U)
+    {
+      PCD_CLEAR_TX_DTOG(USBx, ep->num);
+      /* Configure DISABLE status for the Endpoint*/
+      PCD_SET_EP_TX_STATUS(USBx, ep->num, USB_EP_TX_DIS);
+    }
+    else
+    {
+      PCD_CLEAR_RX_DTOG(USBx, ep->num);
+      /* Configure DISABLE status for the Endpoint*/
+      PCD_SET_EP_RX_STATUS(USBx, ep->num, USB_EP_RX_DIS);
+    }
+  }
+  /*Double Buffer*/
+  else
+  {
+    if (ep->is_in == 0U)
+    {
+      /* Clear the data toggle bits for the endpoint IN/OUT*/
+      PCD_CLEAR_RX_DTOG(USBx, ep->num);
+      PCD_CLEAR_TX_DTOG(USBx, ep->num);
+
+      /* Reset value of the data toggle bits for the endpoint out*/
+      PCD_TX_DTOG(USBx, ep->num);
+
+      PCD_SET_EP_RX_STATUS(USBx, ep->num, USB_EP_RX_DIS);
+      PCD_SET_EP_TX_STATUS(USBx, ep->num, USB_EP_TX_DIS);
+    }
+    else
+    {
+      /* Clear the data toggle bits for the endpoint IN/OUT*/
+      PCD_CLEAR_RX_DTOG(USBx, ep->num);
+      PCD_CLEAR_TX_DTOG(USBx, ep->num);
+      PCD_RX_DTOG(USBx, ep->num);
+      /* Configure DISABLE status for the Endpoint*/
+      PCD_SET_EP_TX_STATUS(USBx, ep->num, USB_EP_TX_DIS);
+      PCD_SET_EP_RX_STATUS(USBx, ep->num, USB_EP_RX_DIS);
+    }
+  }
+
+  return HAL_OK;
+}

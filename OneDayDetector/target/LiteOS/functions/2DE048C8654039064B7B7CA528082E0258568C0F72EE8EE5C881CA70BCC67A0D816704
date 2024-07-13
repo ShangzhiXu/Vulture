@@ -1,0 +1,27 @@
+HAL_StatusTypeDef FSMC_NORSRAM_DeInit(FSMC_NORSRAM_TypeDef *Device, FSMC_NORSRAM_EXTENDED_TypeDef *ExDevice, uint32_t Bank)
+{
+  /* Check the parameters */
+  assert_param(IS_FSMC_NORSRAM_DEVICE(Device));
+  assert_param(IS_FSMC_NORSRAM_EXTENDED_DEVICE(ExDevice));
+  assert_param(IS_FSMC_NORSRAM_BANK(Bank));
+
+  /* Disable the FSMC_NORSRAM device */
+  __FSMC_NORSRAM_DISABLE(Device, Bank);
+
+  /* De-initialize the FSMC_NORSRAM device */
+  /* FSMC_NORSRAM_BANK1 */
+  if (Bank == FSMC_NORSRAM_BANK1)
+  {
+    Device->BTCR[Bank] = 0x000030DB;
+  }
+  /* FSMC_NORSRAM_BANK2, FSMC_NORSRAM_BANK3 or FSMC_NORSRAM_BANK4 */
+  else
+  {
+    Device->BTCR[Bank] = 0x000030D2;
+  }
+
+  Device->BTCR[Bank + 1] = 0x0FFFFFFF;
+  ExDevice->BWTR[Bank]   = 0x0FFFFFFF;
+
+  return HAL_OK;
+}

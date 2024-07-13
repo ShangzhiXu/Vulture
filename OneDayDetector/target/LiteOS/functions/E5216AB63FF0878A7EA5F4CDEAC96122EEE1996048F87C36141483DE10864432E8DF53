@@ -1,0 +1,45 @@
+LITE_OS_SEC_TEXT_MINOR VOID OsStatisticsShow(UINT64 statisticsPastTime)
+{
+    UINT32 cpuId;
+    PRINTK("\n");
+    PRINTK("Passed Time: %+16lf ms\n", ((DOUBLE)statisticsPastTime / NS_PER_MS));
+    PRINTK("--------------------------------\n");
+    PRINTK("CPU       Idle(%%)      ContexSwitch    HwiNum       "
+           "Avg Pri      HiTask(%%)	   HiTask SwiNum       HiTask P(ms)"
+#ifdef LOSCFG_KERNEL_SMP
+           "      MP Hwi\n");
+#else
+           "\n");
+#endif
+    PRINTK("----    ---------      -----------    --------    ---------     "
+           "----------         ------------       ----------"
+#ifdef LOSCFG_KERNEL_SMP
+           "        ------\n");
+#else
+           "\n");
+#endif
+
+    for (cpuId = 0; cpuId < LOSCFG_KERNEL_CORE_NUM; cpuId++) {
+#ifdef LOSCFG_KERNEL_SMP
+        PRINTK("CPU%d   %+10lf%14d%14d   %+11lf   %+11lf%14d              %+11lf  %11d\n", cpuId,
+#else
+        PRINTK("CPU%d   %+10lf%14d%14d   %+11lf   %+11lf%14d              %+11lf\n", cpuId,
+#endif
+               ((DOUBLE)(g_statPercpu[cpuId].idleRuntime) / statisticsPastTime) * DECIMAL_TO_PERCENTAGE,
+               g_statPercpu[cpuId].contexSwitch,
+               g_statPercpu[cpuId].hwiNum,
+               (g_statPercpu[cpuId].prioritySwitch == 0) ? OS_TASK_PRIORITY_LOWEST :
+               ((DOUBLE)(g_statPercpu[cpuId].sumPriority) / (g_statPercpu[cpuId].prioritySwitch)),
+               ((DOUBLE)(g_statPercpu[cpuId].highTaskRuntime) / statisticsPastTime) * DECIMAL_TO_PERCENTAGE,
+               g_statPercpu[cpuId].highTaskSwitch,
+               (g_statPercpu[cpuId].highTaskSwitch == 0) ? 0 :
+               ((DOUBLE)(g_statPercpu[cpuId].highTaskRuntime) / (g_statPercpu[cpuId].highTaskSwitch)) / NS_PER_MS
+#ifdef LOSCFG_KERNEL_SMP
+               , g_statPercpu[cpuId].ipiIrqNum);
+#else
+               );
+#endif
+    }
+
+    PRINTK("\n");
+}

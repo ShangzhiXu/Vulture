@@ -1,0 +1,77 @@
+zepif_init(struct netif *netif)
+{
+  err_t err;
+  struct zepif_init *init_state = (struct zepif_init *)netif->state;
+  struct zepif_state *state = (struct zepif_state *)mem_malloc(sizeof(struct zepif_state));
+
+  LWIP_ASSERT("zepif needs an input callback", netif->input != NULL);
+
+  if (state == NULL) {
+    return ERR_MEM;
+  }
+  memset(state, 0, sizeof(struct zepif_state));
+  if (init_state != NULL) {
+    memcpy(&state->init, init_state, sizeof(struct zepif_init));
+  }
+  if (state->init.zep_src_udp_port == 0) {
+    state->init.zep_src_udp_port = ZEPIF_DEFAULT_UDP_PORT;
+  }
+  if (state->init.zep_dst_udp_port == 0) {
+    state->init.zep_dst_udp_port = ZEPIF_DEFAULT_UDP_PORT;
+  }
+#if LWIP_IPV4
+  if (state->init.zep_dst_ip_addr == NULL) {
+    /* With IPv4 enabled, default to broadcasting packets if no address is set */
+    state->init.zep_dst_ip_addr = IP_ADDR_BROADCAST;
+  }
+#endif /* LWIP_IPV4 */
+
+  netif->state = NULL;
+
+  state->pcb = udp_new_ip_type(IPADDR_TYPE_ANY);
+  if (state->pcb == NULL) {
+    err = ERR_MEM;
+    goto err_ret;
+  }
+  err = udp_bind(state->pcb, state->init.zep_src_ip_addr, state->init.zep_src_udp_port);
+  if (err != ERR_OK) {
+    goto err_ret;
+  }
+  if (state->init.zep_netif != NULL) {
+    udp_bind_netif(state->pcb, state->init.zep_netif);
+  }
+  LWIP_ASSERT("udp_bind(lowpan6_broadcast_pcb) failed", err == ERR_OK);
+  ip_set_option(state->pcb, SOF_BROADCAST);
+  udp_recv(state->pcb, zepif_udp_recv, netif);
+
+  err = lowpan6_if_init(netif);
+  LWIP_ASSERT("lowpan6_if_init set a state", netif->state == NULL);
+  if (err == ERR_OK) {
+    netif->state = state;
+    netif->hwaddr_len = 6;
+    if (init_state != NULL) {
+      memcpy(netif->hwaddr, init_state->addr, 6);
+    } else {
+      u8_t i;
+      for (i = 0; i < 6; i++) {
+        netif->hwaddr[i] = i;
+      }
+      netif->hwaddr[0] &= 0xfc;
+    }
+    netif->linkoutput = zepif_linkoutput;
+
+    if (!zep_lowpan_timer_running) {
+      sys_timeout(LOWPAN6_TMR_INTERVAL, zep_lowpan_timer, NULL);
+      zep_lowpan_timer_running = 1;
+    }
+
+    return ERR_OK;
+  }
+
+err_ret:
+  if (state->pcb != NULL) {
+    udp_remove(state->pcb);
+  }
+  mem_free(state);
+  return err;
+}

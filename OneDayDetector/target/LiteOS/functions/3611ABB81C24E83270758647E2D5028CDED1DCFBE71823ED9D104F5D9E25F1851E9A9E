@@ -1,0 +1,53 @@
+SECUREC_INLINE void SecUpdatePointFlags(SecFormatAttr *attr)
+{
+    attr->flags |= SECUREC_FLAG_POINTER;
+#if SECUREC_IN_KERNEL
+    SecUpdatePointFlagsForKernel(attr);
+#else
+#if (defined(SECUREC_COMPATIBLE_LINUX_FORMAT) || defined(SECUREC_VXWORKS_PLATFORM)) && (!defined(SECUREC_ON_UNIX))
+#if defined(SECUREC_VXWORKS_PLATFORM)
+    attr->precision = 1;
+#else
+    attr->precision = 0;
+#endif
+    attr->flags |= SECUREC_FLAG_ALTERNATE; /* "0x" is not default prefix in UNIX */
+    attr->digits = g_itoaLowerDigits;
+#else /* On unix or win */
+#if defined(_AIX) || defined(SECUREC_ON_SOLARIS)
+    attr->precision = 1;
+#else
+    attr->precision = 2 * sizeof(void *);  /* 2 x byte number is the length of hex */
+#endif
+#if defined(SECUREC_ON_UNIX)
+    attr->digits = g_itoaLowerDigits;
+#else
+    attr->digits = g_itoaUpperDigits;
+#endif
+#endif
+
+#if defined(SECUREC_COMPATIBLE_WIN_FORMAT)
+    attr->flags &= ~SECUREC_FLAG_LEADZERO;
+#endif
+
+#ifdef SECUREC_ON_64BITS
+    attr->flags |= SECUREC_FLAG_I64;   /* Converting an int64 */
+#else
+    attr->flags |= SECUREC_FLAG_LONG;  /* Converting a long */
+#endif
+    /* Set up for %#p on different system */
+    if ((attr->flags & SECUREC_FLAG_ALTERNATE) != 0) {
+        /* Alternate form means '0x' prefix */
+        attr->prefix[0] = SECUREC_CHAR('0');
+#if (defined(SECUREC_COMPATIBLE_LINUX_FORMAT) || defined(SECUREC_VXWORKS_PLATFORM))
+        attr->prefix[1] = SECUREC_CHAR('x');
+#else
+        attr->prefix[1] = (SecChar)(attr->digits[16]); /* 16 for 'x' or 'X' */
+#endif
+#if defined(_AIX) || defined(SECUREC_ON_SOLARIS)
+        attr->prefixLen = 0;
+#else
+        attr->prefixLen = SECUREC_PREFIX_LEN;
+#endif
+    }
+#endif
+}

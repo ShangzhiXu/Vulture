@@ -1,0 +1,67 @@
+HAL_StatusTypeDef HAL_NAND_Read_ID(NAND_HandleTypeDef *hnand, NAND_IDTypeDef *pNAND_ID)
+{
+  __IO uint32_t data = 0U;
+  __IO uint32_t data1 = 0U;
+  uint32_t deviceaddress = 0U;
+
+  /* Process Locked */
+  __HAL_LOCK(hnand);  
+  
+  /* Check the NAND controller state */
+  if(hnand->State == HAL_NAND_STATE_BUSY)
+  {
+     return HAL_BUSY;
+  }
+  
+  /* Identify the device address */
+  if(hnand->Init.NandBank == FMC_NAND_BANK2)
+  {
+    deviceaddress = NAND_DEVICE1;
+  }
+  else
+  {
+    deviceaddress = NAND_DEVICE2;
+  }
+  
+  /* Update the NAND controller state */ 
+  hnand->State = HAL_NAND_STATE_BUSY;
+  
+  /* Send Read ID command sequence */   
+  *(__IO uint8_t *)((uint32_t)(deviceaddress | CMD_AREA))  = NAND_CMD_READID;
+  *(__IO uint8_t *)((uint32_t)(deviceaddress | ADDR_AREA)) = 0x00;
+
+  /* Read the electronic signature from NAND flash */
+#ifdef FSMC_PCR2_PWID
+  if (hnand->Init.MemoryDataWidth == FSMC_NAND_PCC_MEM_BUS_WIDTH_8)
+#else /* FMC_PCR2_PWID is defined */
+  if (hnand->Init.MemoryDataWidth == FMC_NAND_PCC_MEM_BUS_WIDTH_8)
+#endif
+  {
+    data = *(__IO uint32_t *)deviceaddress;
+
+    /* Return the data read */
+    pNAND_ID->Maker_Id   = ADDR_1ST_CYCLE(data);
+    pNAND_ID->Device_Id  = ADDR_2ND_CYCLE(data);
+    pNAND_ID->Third_Id   = ADDR_3RD_CYCLE(data);
+    pNAND_ID->Fourth_Id  = ADDR_4TH_CYCLE(data);
+  }
+  else
+  {
+    data = *(__IO uint32_t *)deviceaddress;
+    data1 = *((__IO uint32_t *)deviceaddress + 4U);
+    
+    /* Return the data read */
+    pNAND_ID->Maker_Id   = ADDR_1ST_CYCLE(data);
+    pNAND_ID->Device_Id  = ADDR_3RD_CYCLE(data);
+    pNAND_ID->Third_Id   = ADDR_1ST_CYCLE(data1);
+    pNAND_ID->Fourth_Id  = ADDR_3RD_CYCLE(data1);
+  }
+  
+  /* Update the NAND controller state */ 
+  hnand->State = HAL_NAND_STATE_READY;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hnand);
+   
+  return HAL_OK;
+}

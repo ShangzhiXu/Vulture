@@ -1,0 +1,255 @@
+static lv_res_t lv_btnmatrix_signal(lv_obj_t * btnm, lv_signal_t sign, void * param)
+{
+    lv_res_t res;
+    if(sign == LV_SIGNAL_GET_STYLE) {
+        lv_get_style_info_t * info = param;
+        info->result = lv_btnmatrix_get_style(btnm, info->part);
+        if(info->result != NULL) return LV_RES_OK;
+        else return ancestor_signal(btnm, sign, param);
+    }
+
+    /* Include the ancient signal function */
+    res = ancestor_signal(btnm, sign, param);
+    if(res != LV_RES_OK) return res;
+    if(sign == LV_SIGNAL_GET_TYPE) return lv_obj_handle_get_type_signal(param, LV_OBJX_NAME);
+
+    lv_btnmatrix_ext_t * ext = lv_obj_get_ext_attr(btnm);
+    lv_point_t p;
+    if(sign == LV_SIGNAL_CLEANUP) {
+        lv_obj_clean_style_list(btnm, LV_BTNMATRIX_PART_BTN);
+        lv_mem_free(ext->button_areas);
+        lv_mem_free(ext->ctrl_bits);
+    }
+    else if(sign == LV_SIGNAL_STYLE_CHG) {
+        lv_btnmatrix_set_map(btnm, ext->map_p);
+    }
+    else if(sign == LV_SIGNAL_COORD_CHG) {
+        if(lv_obj_get_width(btnm) != lv_area_get_width(param) || lv_obj_get_height(btnm) != lv_area_get_height(param)) {
+            lv_btnmatrix_set_map(btnm, ext->map_p);
+        }
+    }
+    else if(sign == LV_SIGNAL_PRESSED) {
+        invalidate_button_area(btnm, ext->btn_id_pr);
+
+        lv_indev_type_t indev_type = lv_indev_get_type(lv_indev_get_act());
+        if(indev_type == LV_INDEV_TYPE_POINTER || indev_type == LV_INDEV_TYPE_BUTTON) {
+            uint16_t btn_pr;
+            /*Search the pressed area*/
+            lv_indev_get_point(param, &p);
+            btn_pr = get_button_from_point(btnm, &p);
+            /*Handle the case where there is no button there*/
+            if(btn_pr != LV_BTNMATRIX_BTN_NONE) {
+                if(button_is_inactive(ext->ctrl_bits[btn_pr]) == false &&
+                   button_is_hidden(ext->ctrl_bits[btn_pr]) == false) {
+                    invalidate_button_area(btnm, ext->btn_id_pr) /*Invalidate the old area*/;
+                    ext->btn_id_pr = btn_pr;
+                    ext->btn_id_act = btn_pr;
+                    invalidate_button_area(btnm, ext->btn_id_pr); /*Invalidate the new area*/
+                }
+            }
+        }
+#if LV_USE_GROUP
+        else if(indev_type == LV_INDEV_TYPE_KEYPAD || (indev_type == LV_INDEV_TYPE_ENCODER &&
+                                                       lv_group_get_editing(lv_obj_get_group(btnm)))) {
+            ext->btn_id_pr = ext->btn_id_focused;
+            invalidate_button_area(btnm, ext->btn_id_focused);
+        }
+#endif
+
+        if(ext->btn_id_act != LV_BTNMATRIX_BTN_NONE) {
+            if(button_is_click_trig(ext->ctrl_bits[ext->btn_id_act]) == false &&
+               button_is_inactive(ext->ctrl_bits[ext->btn_id_act]) == false &&
+               button_is_hidden(ext->ctrl_bits[ext->btn_id_act]) == false) {
+                uint32_t b = ext->btn_id_act;
+                res        = lv_event_send(btnm, LV_EVENT_VALUE_CHANGED, &b);
+            }
+        }
+    }
+    else if(sign == LV_SIGNAL_PRESSING) {
+        uint16_t btn_pr = LV_BTNMATRIX_BTN_NONE;
+        /*Search the pressed area*/
+        lv_indev_t * indev = lv_indev_get_act();
+        lv_indev_type_t indev_type = lv_indev_get_type(indev);
+        if(indev_type == LV_INDEV_TYPE_ENCODER || indev_type == LV_INDEV_TYPE_KEYPAD) return LV_RES_OK;
+
+        lv_indev_get_point(indev, &p);
+        btn_pr = get_button_from_point(btnm, &p);
+        /*Invalidate to old and the new areas*/
+        if(btn_pr != ext->btn_id_pr) {
+            if(ext->btn_id_pr != LV_BTNMATRIX_BTN_NONE) {
+                invalidate_button_area(btnm, ext->btn_id_pr);
+            }
+            lv_indev_reset_long_press(param); /*Start the log press time again on the new button*/
+            if(btn_pr != LV_BTNMATRIX_BTN_NONE &&
+               button_is_inactive(ext->ctrl_bits[btn_pr]) == false &&
+               button_is_hidden(ext->ctrl_bits[btn_pr]) == false) {
+                /* Send VALUE_CHANGED for the newly pressed button */
+                uint32_t b = ext->btn_id_act;
+                res        = lv_event_send(btnm, LV_EVENT_VALUE_CHANGED, &b);
+                if(res == LV_RES_OK) {
+                    invalidate_button_area(btnm, btn_pr);
+                }
+            }
+        }
+
+        ext->btn_id_pr  = btn_pr;
+        ext->btn_id_act = btn_pr;
+    }
+    else if(sign == LV_SIGNAL_RELEASED) {
+        if(ext->btn_id_pr != LV_BTNMATRIX_BTN_NONE) {
+            /*Toggle the button if enabled*/
+            if(button_is_tgl_enabled(ext->ctrl_bits[ext->btn_id_pr]) &&
+               !button_is_inactive(ext->ctrl_bits[ext->btn_id_pr])) {
+                if(button_get_tgl_state(ext->ctrl_bits[ext->btn_id_pr])) {
+                    ext->ctrl_bits[ext->btn_id_pr] &= (~LV_BTNMATRIX_CTRL_CHECK_STATE);
+                }
+                else {
+                    ext->ctrl_bits[ext->btn_id_pr] |= LV_BTNMATRIX_CTRL_CHECK_STATE;
+                }
+                if(ext->one_check) make_one_button_toggled(btnm, ext->btn_id_pr);
+            }
+
+            /*Invalidate to old pressed area*/;
+            invalidate_button_area(btnm, ext->btn_id_pr);
+            invalidate_button_area(btnm, ext->btn_id_focused);
+
+
+            lv_indev_type_t indev_type = lv_indev_get_type(lv_indev_get_act());
+            if(indev_type == LV_INDEV_TYPE_KEYPAD || indev_type == LV_INDEV_TYPE_ENCODER) {
+                ext->btn_id_focused = ext->btn_id_pr;
+            }
+
+            ext->btn_id_pr = LV_BTNMATRIX_BTN_NONE;
+
+            if(button_is_click_trig(ext->ctrl_bits[ext->btn_id_act]) == true &&
+               button_is_inactive(ext->ctrl_bits[ext->btn_id_act]) == false &&
+               button_is_hidden(ext->ctrl_bits[ext->btn_id_act]) == false) {
+                uint32_t b = ext->btn_id_act;
+                res        = lv_event_send(btnm, LV_EVENT_VALUE_CHANGED, &b);
+            }
+        }
+    }
+    else if(sign == LV_SIGNAL_LONG_PRESS_REP) {
+        if(ext->btn_id_act != LV_BTNMATRIX_BTN_NONE) {
+            if(button_is_repeat_disabled(ext->ctrl_bits[ext->btn_id_act]) == false &&
+               button_is_inactive(ext->ctrl_bits[ext->btn_id_act]) == false &&
+               button_is_hidden(ext->ctrl_bits[ext->btn_id_act]) == false) {
+                uint32_t b = ext->btn_id_act;
+                res        = lv_event_send(btnm, LV_EVENT_VALUE_CHANGED, &b);
+            }
+        }
+    }
+    else if(sign == LV_SIGNAL_PRESS_LOST) {
+        ext->btn_id_pr  = LV_BTNMATRIX_BTN_NONE;
+        ext->btn_id_act = LV_BTNMATRIX_BTN_NONE;
+        lv_obj_invalidate(btnm);
+    }
+    else if(sign == LV_SIGNAL_FOCUS) {
+#if LV_USE_GROUP
+        lv_indev_t * indev         = lv_indev_get_act();
+        lv_indev_type_t indev_type = lv_indev_get_type(indev);
+
+        /*If not focused by an input device assume the last input device*/
+        if(indev == NULL) {
+            indev = lv_indev_get_next(NULL);
+            indev_type = lv_indev_get_type(indev);
+        }
+
+        if(indev_type == LV_INDEV_TYPE_ENCODER) {
+            /*In navigation mode don't select any button but in edit mode select the fist*/
+            if(lv_group_get_editing(lv_obj_get_group(btnm))) {
+                ext->btn_id_focused = 0;
+            }
+            else {
+                ext->btn_id_focused = LV_BTNMATRIX_BTN_NONE;
+            }
+        }
+        else if(indev_type == LV_INDEV_TYPE_KEYPAD) {
+            ext->btn_id_focused = 0;
+        }
+
+        ext->btn_id_act = ext->btn_id_focused;
+#endif
+    }
+    else if(sign == LV_SIGNAL_DEFOCUS || sign == LV_SIGNAL_LEAVE) {
+        if(ext->btn_id_focused != LV_BTNMATRIX_BTN_NONE) invalidate_button_area(btnm, ext->btn_id_focused);
+        if(ext->btn_id_pr != LV_BTNMATRIX_BTN_NONE) invalidate_button_area(btnm, ext->btn_id_pr);
+        ext->btn_id_focused = LV_BTNMATRIX_BTN_NONE;
+        ext->btn_id_pr = LV_BTNMATRIX_BTN_NONE;
+        ext->btn_id_act = LV_BTNMATRIX_BTN_NONE;
+    }
+    else if(sign == LV_SIGNAL_CONTROL) {
+        char c = *((char *)param);
+        if(c == LV_KEY_RIGHT) {
+            if(ext->btn_id_focused == LV_BTNMATRIX_BTN_NONE)
+                ext->btn_id_focused = 0;
+            else
+                ext->btn_id_focused++;
+            if(ext->btn_id_focused >= ext->btn_cnt - 1) ext->btn_id_focused = ext->btn_cnt - 1;
+            ext->btn_id_act = ext->btn_id_focused;
+            lv_obj_invalidate(btnm);
+        }
+        else if(c == LV_KEY_LEFT) {
+            if(ext->btn_id_focused == LV_BTNMATRIX_BTN_NONE) ext->btn_id_focused = 0;
+            if(ext->btn_id_focused > 0) ext->btn_id_focused--;
+            ext->btn_id_act = ext->btn_id_focused;
+            lv_obj_invalidate(btnm);
+        }
+        else if(c == LV_KEY_DOWN) {
+            lv_style_int_t pad_inner = lv_obj_get_style_pad_inner(btnm, LV_BTNMATRIX_PART_BG);
+            /*Find the area below the the current*/
+            if(ext->btn_id_focused == LV_BTNMATRIX_BTN_NONE) {
+                ext->btn_id_focused = 0;
+            }
+            else {
+                uint16_t area_below;
+                lv_coord_t pr_center =
+                    ext->button_areas[ext->btn_id_focused].x1 + (lv_area_get_width(&ext->button_areas[ext->btn_id_focused]) >> 1);
+
+                for(area_below = ext->btn_id_focused; area_below < ext->btn_cnt; area_below++) {
+                    if(ext->button_areas[area_below].y1 > ext->button_areas[ext->btn_id_focused].y1 &&
+                       pr_center >= ext->button_areas[area_below].x1 &&
+                       pr_center <= ext->button_areas[area_below].x2 + pad_inner &&
+                       button_is_inactive(ext->ctrl_bits[area_below]) == false &&
+                       button_is_hidden(ext->ctrl_bits[area_below]) == false) {
+                        break;
+                    }
+                }
+
+                if(area_below < ext->btn_cnt) ext->btn_id_focused = area_below;
+            }
+            ext->btn_id_act = ext->btn_id_focused;
+            lv_obj_invalidate(btnm);
+        }
+        else if(c == LV_KEY_UP) {
+            lv_style_int_t pad_inner = lv_obj_get_style_pad_inner(btnm, LV_BTNMATRIX_PART_BG);
+            /*Find the area below the the current*/
+            if(ext->btn_id_focused == LV_BTNMATRIX_BTN_NONE) {
+                ext->btn_id_focused = 0;
+            }
+            else {
+                int16_t area_above;
+                lv_coord_t pr_center =
+                    ext->button_areas[ext->btn_id_focused].x1 + (lv_area_get_width(&ext->button_areas[ext->btn_id_focused]) >> 1);
+
+                for(area_above = ext->btn_id_focused; area_above >= 0; area_above--) {
+                    if(ext->button_areas[area_above].y1 < ext->button_areas[ext->btn_id_focused].y1 &&
+                       pr_center >= ext->button_areas[area_above].x1 - pad_inner &&
+                       pr_center <= ext->button_areas[area_above].x2 &&
+                       button_is_inactive(ext->ctrl_bits[area_above]) == false &&
+                       button_is_hidden(ext->ctrl_bits[area_above]) == false) {
+                        break;
+                    }
+                }
+                if(area_above >= 0) ext->btn_id_focused = area_above;
+            }
+            ext->btn_id_act = ext->btn_id_focused;
+            lv_obj_invalidate(btnm);
+        }
+    }
+    else if(sign == LV_SIGNAL_GET_EDITABLE) {
+        bool * editable = (bool *)param;
+        *editable       = true;
+    }
+    return res;
+}

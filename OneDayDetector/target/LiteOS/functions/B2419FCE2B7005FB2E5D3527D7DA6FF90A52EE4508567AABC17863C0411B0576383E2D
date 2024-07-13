@@ -1,0 +1,130 @@
+HAL_StatusTypeDef HAL_I2SEx_TransmitReceive_DMA(I2S_HandleTypeDef *hi2s, uint16_t *pTxData, uint16_t *pRxData,
+                                                uint16_t Size)
+{
+  uint32_t *tmp = NULL;
+  uint32_t tmp1 = 0U;
+  HAL_StatusTypeDef errorcode = HAL_OK;
+
+  if (hi2s->State != HAL_I2S_STATE_READY)
+  {
+    errorcode = HAL_BUSY;
+    goto error;
+  }
+
+  if ((pTxData == NULL) || (pRxData == NULL) || (Size == 0U))
+  {
+    return  HAL_ERROR;
+  }
+
+  /* Process Locked */
+  __HAL_LOCK(hi2s);
+
+  hi2s->pTxBuffPtr = pTxData;
+  hi2s->pRxBuffPtr = pRxData;
+
+  tmp1 = hi2s->Instance->I2SCFGR & (SPI_I2SCFGR_DATLEN | SPI_I2SCFGR_CHLEN);
+  /* Check the Data format: When a 16-bit data frame or a 16-bit data frame extended
+  is selected during the I2S configuration phase, the Size parameter means the number
+  of 16-bit data length in the transaction and when a 24-bit data frame or a 32-bit data
+  frame is selected the Size parameter means the number of 16-bit data length. */
+  if ((tmp1 == I2S_DATAFORMAT_24B) || (tmp1 == I2S_DATAFORMAT_32B))
+  {
+    hi2s->TxXferSize  = (Size << 1U);
+    hi2s->TxXferCount = (Size << 1U);
+    hi2s->RxXferSize  = (Size << 1U);
+    hi2s->RxXferCount = (Size << 1U);
+  }
+  else
+  {
+    hi2s->TxXferSize  = Size;
+    hi2s->TxXferCount = Size;
+    hi2s->RxXferSize  = Size;
+    hi2s->RxXferCount = Size;
+  }
+
+  hi2s->ErrorCode = HAL_I2S_ERROR_NONE;
+  hi2s->State     = HAL_I2S_STATE_BUSY_TX_RX;
+
+  /* Set the I2S Rx DMA Half transfer complete callback */
+  hi2s->hdmarx->XferHalfCpltCallback = I2SEx_TxRxDMAHalfCplt;
+
+  /* Set the I2S Rx DMA transfer complete callback */
+  hi2s->hdmarx->XferCpltCallback  = I2SEx_TxRxDMACplt;
+
+  /* Set the I2S Rx DMA error callback */
+  hi2s->hdmarx->XferErrorCallback = I2SEx_TxRxDMAError;
+
+  /* Set the I2S Tx DMA Half transfer complete callback */
+  hi2s->hdmatx->XferHalfCpltCallback  = I2SEx_TxRxDMAHalfCplt;
+
+  /* Set the I2S Tx DMA transfer complete callback */
+  hi2s->hdmatx->XferCpltCallback  = I2SEx_TxRxDMACplt;
+
+  /* Set the I2S Tx DMA error callback */
+  hi2s->hdmatx->XferErrorCallback = I2SEx_TxRxDMAError;
+
+  tmp1 = hi2s->Instance->I2SCFGR & SPI_I2SCFGR_I2SCFG;
+  /* Check if the I2S_MODE_MASTER_TX or I2S_MODE_SLAVE_TX Mode is selected */
+  if ((tmp1 == I2S_MODE_MASTER_TX) || (tmp1 == I2S_MODE_SLAVE_TX))
+  {
+    /* Enable the Rx DMA Stream */
+    tmp = (uint32_t *)&pRxData;
+    HAL_DMA_Start_IT(hi2s->hdmarx, (uint32_t)&I2SxEXT(hi2s->Instance)->DR, *(uint32_t *)tmp, hi2s->RxXferSize);
+
+    /* Enable Rx DMA Request */
+    SET_BIT(I2SxEXT(hi2s->Instance)->CR2, SPI_CR2_RXDMAEN);
+
+    /* Enable the Tx DMA Stream */
+    tmp = (uint32_t *)&pTxData;
+    HAL_DMA_Start_IT(hi2s->hdmatx, *(uint32_t *)tmp, (uint32_t)&hi2s->Instance->DR, hi2s->TxXferSize);
+
+    /* Enable Tx DMA Request */
+    SET_BIT(hi2s->Instance->CR2, SPI_CR2_TXDMAEN);
+
+    /* Check if the I2S is already enabled */
+    if ((hi2s->Instance->I2SCFGR & SPI_I2SCFGR_I2SE) != SPI_I2SCFGR_I2SE)
+    {
+      /* Enable I2Sext(receiver) before enabling I2Sx peripheral */
+      __HAL_I2SEXT_ENABLE(hi2s);
+
+      /* Enable I2S peripheral after the I2Sext */
+      __HAL_I2S_ENABLE(hi2s);
+    }
+  }
+  else
+  {
+    /* Check if Master Receiver mode is selected */
+    if ((hi2s->Instance->I2SCFGR & SPI_I2SCFGR_I2SCFG) == I2S_MODE_MASTER_RX)
+    {
+      /* Clear the Overrun Flag by a read operation on the SPI_DR register followed by a read
+      access to the SPI_SR register. */
+      __HAL_I2S_CLEAR_OVRFLAG(hi2s);
+    }
+    /* Enable the Tx DMA Stream */
+    tmp = (uint32_t *)&pTxData;
+    HAL_DMA_Start_IT(hi2s->hdmatx, *(uint32_t *)tmp, (uint32_t)&I2SxEXT(hi2s->Instance)->DR, hi2s->TxXferSize);
+
+    /* Enable Tx DMA Request */
+    SET_BIT(I2SxEXT(hi2s->Instance)->CR2, SPI_CR2_TXDMAEN);
+
+    /* Enable the Rx DMA Stream */
+    tmp = (uint32_t *)&pRxData;
+    HAL_DMA_Start_IT(hi2s->hdmarx, (uint32_t)&hi2s->Instance->DR, *(uint32_t *)tmp, hi2s->RxXferSize);
+
+    /* Enable Rx DMA Request */
+    SET_BIT(hi2s->Instance->CR2, SPI_CR2_RXDMAEN);
+
+    /* Check if the I2S is already enabled */
+    if ((hi2s->Instance->I2SCFGR & SPI_I2SCFGR_I2SE) != SPI_I2SCFGR_I2SE)
+    {
+      /* Enable I2Sext(transmitter) before enabling I2Sx peripheral */
+      __HAL_I2SEXT_ENABLE(hi2s);
+      /* Enable I2S peripheral before the I2Sext */
+      __HAL_I2S_ENABLE(hi2s);
+    }
+  }
+
+error :
+  __HAL_UNLOCK(hi2s);
+  return errorcode;
+}

@@ -1,0 +1,28 @@
+HAL_StatusTypeDef HAL_HalfDuplex_EnableTransmitter(UART_HandleTypeDef *huart)
+{
+  uint32_t tmpreg = 0x00U;
+
+  /* Process Locked */
+  __HAL_LOCK(huart);
+
+  huart->gState = HAL_UART_STATE_BUSY;
+
+  /*-------------------------- USART CR1 Configuration -----------------------*/
+  tmpreg = huart->Instance->CR1;
+
+  /* Clear TE and RE bits */
+  tmpreg &= (uint32_t)~((uint32_t)(USART_CR1_TE | USART_CR1_RE));
+
+  /* Enable the USART's transmit interface by setting the TE bit in the USART CR1 register */
+  tmpreg |= (uint32_t)USART_CR1_TE;
+
+  /* Write to USART CR1 */
+  WRITE_REG(huart->Instance->CR1, (uint32_t)tmpreg);
+
+  huart->gState = HAL_UART_STATE_READY;
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(huart);
+
+  return HAL_OK;
+}

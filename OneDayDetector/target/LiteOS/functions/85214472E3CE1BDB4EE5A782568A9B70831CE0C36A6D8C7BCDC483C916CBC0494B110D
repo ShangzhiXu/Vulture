@@ -1,0 +1,73 @@
+static void JPEG_DMA_EndProcess(JPEG_HandleTypeDef *hjpeg)
+{
+  uint32_t tmpContext;
+  hjpeg->JpegOutCount = hjpeg->OutDataLength - ((hjpeg->hdmaout->Instance->NDTR & DMA_SxNDT) << 2);
+
+  /*if Output Buffer is full, call HAL_JPEG_DataReadyCallback*/
+  if (hjpeg->JpegOutCount == hjpeg->OutDataLength)
+  {
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+    hjpeg->DataReadyCallback(hjpeg, hjpeg->pJpegOutBuffPtr, hjpeg->JpegOutCount);
+#else
+    HAL_JPEG_DataReadyCallback(hjpeg, hjpeg->pJpegOutBuffPtr, hjpeg->JpegOutCount);
+#endif /* USE_HAL_JPEG_REGISTER_CALLBACKS */
+
+    hjpeg->JpegOutCount = 0;
+  }
+
+  /*Check if remaining data in the output FIFO*/
+  if (__HAL_JPEG_GET_FLAG(hjpeg, JPEG_FLAG_OFNEF) == 0UL)
+  {
+    if (hjpeg->JpegOutCount > 0UL)
+    {
+      /*Output Buffer is not empty, call DecodedDataReadyCallback*/
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+      hjpeg->DataReadyCallback(hjpeg, hjpeg->pJpegOutBuffPtr, hjpeg->JpegOutCount);
+#else
+      HAL_JPEG_DataReadyCallback(hjpeg, hjpeg->pJpegOutBuffPtr, hjpeg->JpegOutCount);
+#endif /* USE_HAL_JPEG_REGISTER_CALLBACKS */
+
+      hjpeg->JpegOutCount = 0;
+    }
+
+    /*Stop Encoding/Decoding*/
+    hjpeg->Instance->CONFR0 &=  ~JPEG_CONFR0_START;
+
+    tmpContext = hjpeg->Context;
+    /*Clear all context fileds execpt JPEG_CONTEXT_CONF_ENCODING and JPEG_CONTEXT_CUSTOM_TABLES*/
+    hjpeg->Context &= (JPEG_CONTEXT_CONF_ENCODING | JPEG_CONTEXT_CUSTOM_TABLES);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hjpeg);
+
+    /* Change the JPEG state */
+    hjpeg->State = HAL_JPEG_STATE_READY;
+
+    /*Call End of Encoding/Decoding callback */
+    if ((tmpContext & JPEG_CONTEXT_OPERATION_MASK) == JPEG_CONTEXT_DECODE)
+    {
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+      hjpeg->DecodeCpltCallback(hjpeg);
+#else
+      HAL_JPEG_DecodeCpltCallback(hjpeg);
+#endif /* USE_HAL_JPEG_REGISTER_CALLBACKS */
+    }
+    else /* JPEG_CONTEXT_ENCODE */
+    {
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+      hjpeg->EncodeCpltCallback(hjpeg);
+#else
+      HAL_JPEG_EncodeCpltCallback(hjpeg);
+#endif /* USE_HAL_JPEG_REGISTER_CALLBACKS */
+    }
+  }
+  else if ((hjpeg->Context &  JPEG_CONTEXT_PAUSE_OUTPUT) == 0UL)
+  {
+    JPEG_DMA_PollResidualData(hjpeg);
+  }
+  else
+  {
+    /* Nothing to do */
+  }
+
+}

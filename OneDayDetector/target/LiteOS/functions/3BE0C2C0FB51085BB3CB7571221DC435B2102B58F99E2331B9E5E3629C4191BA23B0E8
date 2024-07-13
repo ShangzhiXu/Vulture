@@ -1,0 +1,24 @@
+__STATIC_INLINE uint32_t LL_USART_GetBaudRate(USART_TypeDef *USARTx, uint32_t PeriphClk, uint32_t OverSampling)
+{
+  register uint32_t usartdiv = 0x0U;
+  register uint32_t brrresult = 0x0U;
+
+  usartdiv = USARTx->BRR;
+
+  if (OverSampling == LL_USART_OVERSAMPLING_8)
+  {
+    if ((usartdiv & 0xFFF7U) != 0U)
+    {
+      usartdiv = (uint16_t)((usartdiv & 0xFFF0U) | ((usartdiv & 0x0007U) << 1U)) ;
+      brrresult = (PeriphClk * 2U) / usartdiv;
+    }
+  }
+  else
+  {
+    if ((usartdiv & 0xFFFFU) != 0U)
+    {
+      brrresult = PeriphClk / usartdiv;
+    }
+  }
+  return (brrresult);
+}

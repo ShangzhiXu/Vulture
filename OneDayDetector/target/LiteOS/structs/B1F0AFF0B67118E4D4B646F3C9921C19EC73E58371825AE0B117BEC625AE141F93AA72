@@ -1,0 +1,42 @@
+struct protent {
+    u_short protocol;		/* PPP protocol number */
+    /* Initialization procedure */
+    void (*init) (ppp_pcb *pcb);
+    /* Process a received packet */
+    void (*input) (ppp_pcb *pcb, u_char *pkt, int len);
+    /* Process a received protocol-reject */
+    void (*protrej) (ppp_pcb *pcb);
+    /* Lower layer has come up */
+    void (*lowerup) (ppp_pcb *pcb);
+    /* Lower layer has gone down */
+    void (*lowerdown) (ppp_pcb *pcb);
+    /* Open the protocol */
+    void (*open) (ppp_pcb *pcb);
+    /* Close the protocol */
+    void (*close) (ppp_pcb *pcb, const char *reason);
+#if PRINTPKT_SUPPORT
+    /* Print a packet in readable form */
+    int  (*printpkt) (const u_char *pkt, int len,
+			  void (*printer) (void *, const char *, ...),
+			  void *arg);
+#endif /* PRINTPKT_SUPPORT */
+#if PPP_DATAINPUT
+    /* Process a received data packet */
+    void (*datainput) (ppp_pcb *pcb, u_char *pkt, int len);
+#endif /* PPP_DATAINPUT */
+#if PRINTPKT_SUPPORT
+    const char *name;		/* Text name of protocol */
+    const char *data_name;	/* Text name of corresponding data protocol */
+#endif /* PRINTPKT_SUPPORT */
+#if PPP_OPTIONS
+    option_t *options;		/* List of command-line options */
+    /* Check requested options, assign defaults */
+    void (*check_options) (void);
+#endif /* PPP_OPTIONS */
+#if DEMAND_SUPPORT
+    /* Configure interface for demand-dial */
+    int  (*demand_conf) (int unit);
+    /* Say whether to bring up link for this pkt */
+    int  (*active_pkt) (u_char *pkt, int len);
+#endif /* DEMAND_SUPPORT */
+};

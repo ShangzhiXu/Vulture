@@ -1,0 +1,79 @@
+HAL_StatusTypeDef HAL_LPTIM_PWM_Start_IT(LPTIM_HandleTypeDef *hlptim, uint32_t Period, uint32_t Pulse)
+{
+  /* Check the parameters */
+  assert_param(IS_LPTIM_INSTANCE(hlptim->Instance));
+  assert_param(IS_LPTIM_PERIOD(Period));
+  assert_param(IS_LPTIM_PULSE(Pulse));
+
+  /* Set the LPTIM state */
+  hlptim->State = HAL_LPTIM_STATE_BUSY;
+
+  /* Reset WAVE bit to set PWM mode */
+  hlptim->Instance->CFGR &= ~LPTIM_CFGR_WAVE;
+
+  /* Enable the Peripheral */
+  __HAL_LPTIM_ENABLE(hlptim);
+
+  /* Clear flag */
+  __HAL_LPTIM_CLEAR_FLAG(hlptim, LPTIM_FLAG_ARROK);
+
+  /* Load the period value in the autoreload register */
+  __HAL_LPTIM_AUTORELOAD_SET(hlptim, Period);
+
+  /* Wait for the completion of the write operation to the LPTIM_ARR register */
+  if (LPTIM_WaitForFlag(hlptim, LPTIM_FLAG_ARROK) == HAL_TIMEOUT)
+  {
+    return HAL_TIMEOUT;
+  }
+
+  /* Clear flag */
+  __HAL_LPTIM_CLEAR_FLAG(hlptim, LPTIM_FLAG_CMPOK);
+
+  /* Load the pulse value in the compare register */
+  __HAL_LPTIM_COMPARE_SET(hlptim, Pulse);
+
+  /* Wait for the completion of the write operation to the LPTIM_CMP register */
+  if (LPTIM_WaitForFlag(hlptim, LPTIM_FLAG_CMPOK) == HAL_TIMEOUT)
+  {
+    return HAL_TIMEOUT;
+  }
+
+  /* Disable the Peripheral */
+  __HAL_LPTIM_DISABLE(hlptim);
+
+  if (HAL_LPTIM_GetState(hlptim) == HAL_LPTIM_STATE_TIMEOUT)
+  {
+    return HAL_TIMEOUT;
+  }
+
+  /* Enable Autoreload write complete interrupt */
+  __HAL_LPTIM_ENABLE_IT(hlptim, LPTIM_IT_ARROK);
+
+  /* Enable Compare write complete interrupt */
+  __HAL_LPTIM_ENABLE_IT(hlptim, LPTIM_IT_CMPOK);
+
+  /* Enable Autoreload match interrupt */
+  __HAL_LPTIM_ENABLE_IT(hlptim, LPTIM_IT_ARRM);
+
+  /* Enable Compare match interrupt */
+  __HAL_LPTIM_ENABLE_IT(hlptim, LPTIM_IT_CMPM);
+
+  /* If external trigger source is used, then enable external trigger interrupt */
+  if ((hlptim->Init.Trigger.Source) != LPTIM_TRIGSOURCE_SOFTWARE)
+  {
+    /* Enable external trigger interrupt */
+    __HAL_LPTIM_ENABLE_IT(hlptim, LPTIM_IT_EXTTRIG);
+  }
+
+  /* Enable the Peripheral */
+  __HAL_LPTIM_ENABLE(hlptim);
+
+  /* Start timer in continuous mode */
+  __HAL_LPTIM_START_CONTINUOUS(hlptim);
+
+  /* Change the TIM state*/
+  hlptim->State = HAL_LPTIM_STATE_READY;
+
+  /* Return function status */
+  return HAL_OK;
+}

@@ -1,0 +1,227 @@
+s32_t spiffs_object_modify(spiffs_fd *fd, u32_t offset, u8_t *data, u32_t len)
+{
+    spiffs *fs = fd->fs;
+    s32_t res = SPIFFS_OK;
+    u32_t written = 0;
+
+    res = spiffs_gc_check(fs, len + SPIFFS_DATA_PAGE_SIZE(fs));
+    SPIFFS_CHECK_RES(res);
+
+    spiffs_page_object_ix_header *objix_hdr = (spiffs_page_object_ix_header *)fs->work;
+    spiffs_page_object_ix *objix = (spiffs_page_object_ix *)fs->work;
+    spiffs_page_header p_hdr;
+
+    spiffs_span_ix cur_objix_spix = 0;
+    spiffs_span_ix prev_objix_spix = (spiffs_span_ix) - 1;
+    spiffs_page_ix cur_objix_pix = fd->objix_hdr_pix;
+    spiffs_page_ix new_objix_hdr_pix;
+
+    spiffs_span_ix data_spix = offset / SPIFFS_DATA_PAGE_SIZE(fs);
+    spiffs_page_ix data_pix;
+    u32_t page_offs = offset % SPIFFS_DATA_PAGE_SIZE(fs);
+
+
+    // write all data
+    while (res == SPIFFS_OK && written < len)
+    {
+        // calculate object index page span index
+        cur_objix_spix = SPIFFS_OBJ_IX_ENTRY_SPAN_IX(fs, data_spix);
+
+        // handle storing and loading of object indices
+        if (cur_objix_spix != prev_objix_spix)
+        {
+            // new object index page
+            // within this clause we return directly if something fails, object index mess-up
+            if (written > 0)
+            {
+                // store previous object index (header) page, unless first pass
+                if (prev_objix_spix == 0)
+                {
+                    // store previous object index header page
+                    res = spiffs_object_update_index_hdr(fs, fd, fd->obj_id,
+                                                         fd->objix_hdr_pix, fs->work, 0, 0, 0, &new_objix_hdr_pix);
+                    SPIFFS_DBG("modify: store modified objix_hdr page, "_SPIPRIpg":"_SPIPRIsp", written "_SPIPRIi"\n", new_objix_hdr_pix, 0, written);
+                    SPIFFS_CHECK_RES(res);
+                }
+                else
+                {
+                    // store new version of previous object index page
+                    spiffs_page_ix new_objix_pix;
+
+                    res = spiffs_page_index_check(fs, fd, cur_objix_pix, prev_objix_spix);
+                    SPIFFS_CHECK_RES(res);
+
+                    res = spiffs_page_move(fs, fd->file_nbr, (u8_t *)objix, fd->obj_id, 0, cur_objix_pix, &new_objix_pix);
+                    SPIFFS_DBG("modify: store previous modified objix page, "_SPIPRIid":"_SPIPRIsp", written "_SPIPRIi"\n", new_objix_pix, objix->p_hdr.span_ix, written);
+                    SPIFFS_CHECK_RES(res);
+                    spiffs_cb_object_event(fs, (spiffs_page_object_ix *)objix,
+                                           SPIFFS_EV_IX_UPD, fd->obj_id, objix->p_hdr.span_ix, new_objix_pix, 0);
+                }
+            }
+
+            // load next object index page
+            if (cur_objix_spix == 0)
+            {
+                // load object index header page, must exist
+                SPIFFS_DBG("modify: load objixhdr page "_SPIPRIpg":"_SPIPRIsp"\n", cur_objix_pix, cur_objix_spix);
+                res = _spiffs_rd(fs, SPIFFS_OP_T_OBJ_IX | SPIFFS_OP_C_READ,
+                                 fd->file_nbr, SPIFFS_PAGE_TO_PADDR(fs, cur_objix_pix), SPIFFS_CFG_LOG_PAGE_SZ(fs), fs->work);
+                SPIFFS_CHECK_RES(res);
+                SPIFFS_VALIDATE_OBJIX(objix_hdr->p_hdr, fd->obj_id, cur_objix_spix);
+            }
+            else
+            {
+                // load existing object index page on first pass
+                spiffs_page_ix pix;
+                SPIFFS_DBG("modify: find objix span_ix:"_SPIPRIsp"\n", cur_objix_spix);
+                if (fd->cursor_objix_spix == cur_objix_spix)
+                {
+                    pix = fd->cursor_objix_pix;
+                }
+                else
+                {
+                    res = spiffs_obj_lu_find_id_and_span(fs, fd->obj_id | SPIFFS_OBJ_ID_IX_FLAG, cur_objix_spix, 0, &pix);
+                    SPIFFS_CHECK_RES(res);
+                }
+                SPIFFS_DBG("modify: found object index at page "_SPIPRIpg"\n", pix);
+                res = _spiffs_rd(fs, SPIFFS_OP_T_OBJ_IX | SPIFFS_OP_C_READ,
+                                 fd->file_nbr, SPIFFS_PAGE_TO_PADDR(fs, pix), SPIFFS_CFG_LOG_PAGE_SZ(fs), fs->work);
+                SPIFFS_CHECK_RES(res);
+                SPIFFS_VALIDATE_OBJIX(objix_hdr->p_hdr, fd->obj_id, cur_objix_spix);
+                cur_objix_pix = pix;
+            }
+            fd->cursor_objix_pix = cur_objix_pix;
+            fd->cursor_objix_spix = cur_objix_spix;
+            fd->offset = offset + written;
+            prev_objix_spix = cur_objix_spix;
+        }
+
+        // write partial data
+        u32_t to_write = MIN(len - written, SPIFFS_DATA_PAGE_SIZE(fs) - page_offs);
+        spiffs_page_ix orig_data_pix;
+        if (cur_objix_spix == 0)
+        {
+            // get data page from object index header page
+            orig_data_pix = ((spiffs_page_ix *)((u8_t *)objix_hdr + sizeof(spiffs_page_object_ix_header)))[data_spix];
+        }
+        else
+        {
+            // get data page from object index page
+            orig_data_pix = ((spiffs_page_ix *)((u8_t *)objix + sizeof(spiffs_page_object_ix)))[SPIFFS_OBJ_IX_ENTRY(fs, data_spix)];
+        }
+
+        p_hdr.obj_id = fd->obj_id & ~SPIFFS_OBJ_ID_IX_FLAG;
+        p_hdr.span_ix = data_spix;
+        p_hdr.flags = 0xff;
+        if (page_offs == 0 && to_write == SPIFFS_DATA_PAGE_SIZE(fs))
+        {
+            // a full page, allocate and write a new page of data
+            res = spiffs_page_allocate_data(fs, fd->obj_id & ~SPIFFS_OBJ_ID_IX_FLAG,
+                                            &p_hdr, &data[written], to_write, page_offs, 1, &data_pix);
+            SPIFFS_DBG("modify: store new data page, "_SPIPRIpg":"_SPIPRIsp" offset:"_SPIPRIi", len "_SPIPRIi", written "_SPIPRIi"\n", data_pix, data_spix, page_offs, to_write, written);
+        }
+        else
+        {
+            // write to existing page, allocate new and copy unmodified data
+
+            res = spiffs_page_data_check(fs, fd, orig_data_pix, data_spix);
+            SPIFFS_CHECK_RES(res);
+
+            res = spiffs_page_allocate_data(fs, fd->obj_id & ~SPIFFS_OBJ_ID_IX_FLAG,
+                                            &p_hdr, 0, 0, 0, 0, &data_pix);
+            if (res != SPIFFS_OK) break;
+
+            // copy unmodified data
+            if (page_offs > 0)
+            {
+                // before modification
+                res = spiffs_phys_cpy(fs, fd->file_nbr,
+                                      SPIFFS_PAGE_TO_PADDR(fs, data_pix) + sizeof(spiffs_page_header),
+                                      SPIFFS_PAGE_TO_PADDR(fs, orig_data_pix) + sizeof(spiffs_page_header),
+                                      page_offs);
+                if (res != SPIFFS_OK) break;
+            }
+            if (page_offs + to_write < SPIFFS_DATA_PAGE_SIZE(fs))
+            {
+                // after modification
+                res = spiffs_phys_cpy(fs, fd->file_nbr,
+                                      SPIFFS_PAGE_TO_PADDR(fs, data_pix) + sizeof(spiffs_page_header) + page_offs + to_write,
+                                      SPIFFS_PAGE_TO_PADDR(fs, orig_data_pix) + sizeof(spiffs_page_header) + page_offs + to_write,
+                                      SPIFFS_DATA_PAGE_SIZE(fs) - (page_offs + to_write));
+                if (res != SPIFFS_OK) break;
+            }
+
+            res = _spiffs_wr(fs, SPIFFS_OP_T_OBJ_DA | SPIFFS_OP_C_UPDT,
+                             fd->file_nbr,
+                             SPIFFS_PAGE_TO_PADDR(fs, data_pix) + sizeof(spiffs_page_header) + page_offs, to_write, &data[written]);
+            if (res != SPIFFS_OK) break;
+            p_hdr.flags &= ~SPIFFS_PH_FLAG_FINAL;
+            res = _spiffs_wr(fs, SPIFFS_OP_T_OBJ_DA | SPIFFS_OP_C_UPDT,
+                             fd->file_nbr,
+                             SPIFFS_PAGE_TO_PADDR(fs, data_pix) + offsetof(spiffs_page_header, flags),
+                             sizeof(u8_t),
+                             (u8_t *)&p_hdr.flags);
+            if (res != SPIFFS_OK) break;
+
+            SPIFFS_DBG("modify: store to existing data page, src:"_SPIPRIpg", dst:"_SPIPRIpg":"_SPIPRIsp" offset:"_SPIPRIi", len "_SPIPRIi", written "_SPIPRIi"\n", orig_data_pix, data_pix, data_spix, page_offs, to_write, written);
+        }
+
+        // delete original data page
+        res = spiffs_page_delete(fs, orig_data_pix);
+        if (res != SPIFFS_OK) break;
+        // update memory representation of object index page with new data page
+        if (cur_objix_spix == 0)
+        {
+            // update object index header page
+            ((spiffs_page_ix *)((u8_t *)objix_hdr + sizeof(spiffs_page_object_ix_header)))[data_spix] = data_pix;
+            SPIFFS_DBG("modify: wrote page "_SPIPRIpg" to objix_hdr entry "_SPIPRIsp" in mem\n", data_pix, data_spix);
+        }
+        else
+        {
+            // update object index page
+            ((spiffs_page_ix *)((u8_t *)objix + sizeof(spiffs_page_object_ix)))[SPIFFS_OBJ_IX_ENTRY(fs, data_spix)] = data_pix;
+            SPIFFS_DBG("modify: wrote page "_SPIPRIpg" to objix entry "_SPIPRIsp" in mem\n", data_pix, (spiffs_span_ix)SPIFFS_OBJ_IX_ENTRY(fs, data_spix));
+        }
+
+        // update internals
+        page_offs = 0;
+        data_spix++;
+        written += to_write;
+    } // while all data
+
+    fd->offset = offset + written;
+    fd->cursor_objix_pix = cur_objix_pix;
+    fd->cursor_objix_spix = cur_objix_spix;
+
+    // finalize updated object indices
+    s32_t res2 = SPIFFS_OK;
+    if (cur_objix_spix != 0)
+    {
+        // wrote beyond object index header page
+        // write last modified object index page
+        // move and update page
+        spiffs_page_ix new_objix_pix;
+
+        res2 = spiffs_page_index_check(fs, fd, cur_objix_pix, cur_objix_spix);
+        SPIFFS_CHECK_RES(res2);
+
+        res2 = spiffs_page_move(fs, fd->file_nbr, (u8_t *)objix, fd->obj_id, 0, cur_objix_pix, &new_objix_pix);
+        SPIFFS_DBG("modify: store modified objix page, "_SPIPRIpg":"_SPIPRIsp", written "_SPIPRIi"\n", new_objix_pix, cur_objix_spix, written);
+        fd->cursor_objix_pix = new_objix_pix;
+        fd->cursor_objix_spix = cur_objix_spix;
+        SPIFFS_CHECK_RES(res2);
+        spiffs_cb_object_event(fs, (spiffs_page_object_ix *)objix,
+                               SPIFFS_EV_IX_UPD, fd->obj_id, objix->p_hdr.span_ix, new_objix_pix, 0);
+
+    }
+    else
+    {
+        // wrote within object index header page
+        res2 = spiffs_object_update_index_hdr(fs, fd, fd->obj_id,
+                                              fd->objix_hdr_pix, fs->work, 0, 0, 0, &new_objix_hdr_pix);
+        SPIFFS_DBG("modify: store modified objix_hdr page, "_SPIPRIpg":"_SPIPRIsp", written "_SPIPRIi"\n", new_objix_hdr_pix, 0, written);
+        SPIFFS_CHECK_RES(res2);
+    }
+
+    return res;
+} // spiffs_object_modify

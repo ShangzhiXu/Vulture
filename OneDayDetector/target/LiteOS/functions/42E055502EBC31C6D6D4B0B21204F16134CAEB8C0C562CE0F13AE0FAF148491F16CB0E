@@ -1,0 +1,37 @@
+HAL_StatusTypeDef HAL_PCD_EP_Open(PCD_HandleTypeDef *hpcd, uint8_t ep_addr, uint16_t ep_mps, uint8_t ep_type)
+{
+  HAL_StatusTypeDef  ret = HAL_OK;
+  PCD_EPTypeDef *ep;
+
+  if ((ep_addr & 0x80U) == 0x80U)
+  {
+    ep = &hpcd->IN_ep[ep_addr & EP_ADDR_MSK];
+    ep->is_in = 1U;
+  }
+  else
+  {
+    ep = &hpcd->OUT_ep[ep_addr & EP_ADDR_MSK];
+    ep->is_in = 0U;
+  }
+
+  ep->num = ep_addr & EP_ADDR_MSK;
+  ep->maxpacket = ep_mps;
+  ep->type = ep_type;
+
+  if (ep->is_in != 0U)
+  {
+    /* Assign a Tx FIFO */
+    ep->tx_fifo_num = ep->num;
+  }
+  /* Set initial data PID. */
+  if (ep_type == EP_TYPE_BULK)
+  {
+    ep->data_pid_start = 0U;
+  }
+
+  __HAL_LOCK(hpcd);
+  (void)USB_ActivateEndpoint(hpcd->Instance, ep);
+  __HAL_UNLOCK(hpcd);
+
+  return ret;
+}

@@ -1,0 +1,27 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 OsShellKeyInit(ShellCB *shellCB)
+{
+    CmdKeyLink *cmdKeyLink = NULL;
+    CmdKeyLink *cmdHistoryLink = NULL;
+
+    cmdKeyLink = (CmdKeyLink *)LOS_MemAlloc(m_aucSysMem0, sizeof(CmdKeyLink));
+    if (cmdKeyLink == NULL) {
+        PRINT_ERR("Shell CmdKeyLink memory alloc error!\n");
+        return OS_ERROR;
+    }
+    cmdHistoryLink = (CmdKeyLink *)LOS_MemAlloc(m_aucSysMem0, sizeof(CmdKeyLink));
+    if (cmdHistoryLink == NULL) {
+        (VOID)LOS_MemFree(m_aucSysMem0, cmdKeyLink);
+        PRINT_ERR("Shell CmdHistoryLink memory alloc error!\n");
+        return OS_ERROR;
+    }
+
+    cmdKeyLink->count = 0;
+    LOS_ListInit(&cmdKeyLink->list);
+    shellCB->cmdKeyLink = (VOID *)cmdKeyLink;
+
+    cmdHistoryLink->count = 0;
+    LOS_ListInit(&cmdHistoryLink->list);
+    shellCB->cmdHistoryKeyLink = (VOID *)cmdHistoryLink;
+    shellCB->cmdMaskKeyLink = (VOID *)cmdHistoryLink;
+    return LOS_OK;
+}

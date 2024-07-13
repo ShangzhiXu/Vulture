@@ -1,0 +1,60 @@
+void HAL_RCCEx_CRS_IRQHandler(void)
+{
+  uint32_t crserror = RCC_CRS_NONE;
+  /* Get current IT flags and IT sources values */
+  uint32_t itflags = READ_REG(CRS->ISR);
+  uint32_t itsources = READ_REG(CRS->CR);
+
+  /* Check CRS SYNCOK flag  */
+  if(((itflags & RCC_CRS_FLAG_SYNCOK) != RESET) && ((itsources & RCC_CRS_IT_SYNCOK) != RESET))
+  {
+    /* Clear CRS SYNC event OK flag */
+    WRITE_REG(CRS->ICR, CRS_ICR_SYNCOKC);
+
+    /* user callback */
+    HAL_RCCEx_CRS_SyncOkCallback();
+  }
+  /* Check CRS SYNCWARN flag  */
+  else if(((itflags & RCC_CRS_FLAG_SYNCWARN) != RESET) && ((itsources & RCC_CRS_IT_SYNCWARN) != RESET))
+  {
+    /* Clear CRS SYNCWARN flag */
+    WRITE_REG(CRS->ICR, CRS_ICR_SYNCWARNC);
+
+    /* user callback */
+    HAL_RCCEx_CRS_SyncWarnCallback();
+  }
+  /* Check CRS Expected SYNC flag  */
+  else if(((itflags & RCC_CRS_FLAG_ESYNC) != RESET) && ((itsources & RCC_CRS_IT_ESYNC) != RESET))
+  {
+    /* frequency error counter reached a zero value */
+    WRITE_REG(CRS->ICR, CRS_ICR_ESYNCC);
+
+    /* user callback */
+    HAL_RCCEx_CRS_ExpectedSyncCallback();
+  }
+  /* Check CRS Error flags  */
+  else
+  {
+    if(((itflags & RCC_CRS_FLAG_ERR) != RESET) && ((itsources & RCC_CRS_IT_ERR) != RESET))
+    {
+      if((itflags & RCC_CRS_FLAG_SYNCERR) != RESET)
+      {
+        crserror |= RCC_CRS_SYNCERR;
+      }
+      if((itflags & RCC_CRS_FLAG_SYNCMISS) != RESET)
+      {
+        crserror |= RCC_CRS_SYNCMISS;
+      }
+      if((itflags & RCC_CRS_FLAG_TRIMOVF) != RESET)
+      {
+        crserror |= RCC_CRS_TRIMOVF;
+      }
+
+      /* Clear CRS Error flags */
+      WRITE_REG(CRS->ICR, CRS_ICR_ERRC);
+    
+      /* user error callback */
+      HAL_RCCEx_CRS_ErrorCallback(crserror);
+    }
+  }
+}

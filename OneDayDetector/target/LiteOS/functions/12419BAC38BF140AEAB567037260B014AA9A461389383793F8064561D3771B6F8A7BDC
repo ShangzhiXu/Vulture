@@ -1,0 +1,99 @@
+lwip_recvmsg(int s, struct msghdr *message, int flags)
+{
+  struct lwip_sock *sock;
+  int i;
+  ssize_t buflen;
+
+  LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_recvmsg(%d, message=%p, flags=0x%x)\n", s, (void *)message, flags));
+  LWIP_ERROR("lwip_recvmsg: invalid message pointer", message != NULL, return ERR_ARG;);
+  LWIP_ERROR("lwip_recvmsg: unsupported flags", (flags & ~(MSG_PEEK|MSG_DONTWAIT)) == 0,
+             set_errno(EOPNOTSUPP); return -1;);
+
+  if ((message->msg_iovlen <= 0) || (message->msg_iovlen > IOV_MAX)) {
+    set_errno(EMSGSIZE);
+    return -1;
+  }
+
+  sock = get_socket(s);
+  if (!sock) {
+    return -1;
+  }
+
+  /* check for valid vectors */
+  buflen = 0;
+  for (i = 0; i < message->msg_iovlen; i++) {
+    if ((message->msg_iov[i].iov_base == NULL) || ((ssize_t)message->msg_iov[i].iov_len <= 0) ||
+        ((size_t)(ssize_t)message->msg_iov[i].iov_len != message->msg_iov[i].iov_len) ||
+        ((ssize_t)(buflen + (ssize_t)message->msg_iov[i].iov_len) <= 0)) {
+      sock_set_errno(sock, err_to_errno(ERR_VAL));
+      done_socket(sock);
+      return -1;
+    }
+    buflen = (ssize_t)(buflen + (ssize_t)message->msg_iov[i].iov_len);
+  }
+
+  if (NETCONNTYPE_GROUP(netconn_type(sock->conn)) == NETCONN_TCP) {
+#if LWIP_TCP
+    int recv_flags = flags;
+    message->msg_flags = 0;
+    /* recv the data */
+    buflen = 0;
+    for (i = 0; i < message->msg_iovlen; i++) {
+      /* try to receive into this vector's buffer */
+      ssize_t recvd_local = lwip_recv_tcp(sock, message->msg_iov[i].iov_base, message->msg_iov[i].iov_len, recv_flags);
+      if (recvd_local > 0) {
+        /* sum up received bytes */
+        buflen += recvd_local;
+      }
+      if ((recvd_local < 0) || (recvd_local < (int)message->msg_iov[i].iov_len) ||
+          (flags & MSG_PEEK)) {
+        /* returned prematurely (or peeking, which might actually be limitated to the first iov) */
+        if (buflen <= 0) {
+          /* nothing received at all, propagate the error */
+          buflen = recvd_local;
+        }
+        break;
+      }
+      /* pass MSG_DONTWAIT to lwip_recv_tcp() to prevent waiting for more data */
+      recv_flags |= MSG_DONTWAIT;
+    }
+    if (buflen > 0) {
+      /* reset socket error since we have received something */
+      sock_set_errno(sock, 0);
+    }
+    /* " If the socket is connected, the msg_name and msg_namelen members shall be ignored." */
+    done_socket(sock);
+    return buflen;
+#else /* LWIP_TCP */
+    sock_set_errno(sock, err_to_errno(ERR_ARG));
+    done_socket(sock);
+    return -1;
+#endif /* LWIP_TCP */
+  }
+  /* else, UDP and RAW NETCONNs */
+#if LWIP_UDP || LWIP_RAW
+  {
+    u16_t datagram_len = 0;
+    err_t err;
+    err = lwip_recvfrom_udp_raw(sock, flags, message, &datagram_len, s);
+    if (err != ERR_OK) {
+      LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_recvmsg[UDP/RAW](%d): buf == NULL, error is \"%s\"!\n",
+                                  s, lwip_strerr(err)));
+      sock_set_errno(sock, err_to_errno(err));
+      done_socket(sock);
+      return -1;
+    }
+    if (datagram_len > buflen) {
+      message->msg_flags |= MSG_TRUNC;
+    }
+
+    sock_set_errno(sock, 0);
+    done_socket(sock);
+    return (int)datagram_len;
+  }
+#else /* LWIP_UDP || LWIP_RAW */
+  sock_set_errno(sock, err_to_errno(ERR_ARG));
+  done_socket(sock);
+  return -1;
+#endif /* LWIP_UDP || LWIP_RAW */
+}

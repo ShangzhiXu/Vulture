@@ -1,0 +1,62 @@
+snmp_send_trap(const struct snmp_obj_id *eoid, s32_t generic_trap, s32_t specific_trap, struct snmp_varbind *varbinds)
+{
+  struct snmp_msg_trap trap_msg;
+  struct snmp_trap_dst *td;
+  struct pbuf *p;
+  u16_t i, tot_len;
+  err_t err = ERR_OK;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  trap_msg.snmp_version = 0;
+
+  for (i = 0, td = &trap_dst[0]; i < SNMP_TRAP_DESTINATIONS; i++, td++) {
+    if ((td->enable != 0) && !ip_addr_isany(&td->dip)) {
+      /* lookup current source address for this dst */
+      if (snmp_get_local_ip_for_dst(snmp_traps_handle, &td->dip, &trap_msg.sip)) {
+        if (eoid == NULL) {
+          trap_msg.enterprise = snmp_get_device_enterprise_oid();
+        } else {
+          trap_msg.enterprise = eoid;
+        }
+
+        trap_msg.gen_trap = generic_trap;
+        if (generic_trap == SNMP_GENTRAP_ENTERPRISE_SPECIFIC) {
+          trap_msg.spc_trap = specific_trap;
+        } else {
+          trap_msg.spc_trap = 0;
+        }
+
+        MIB2_COPY_SYSUPTIME_TO(&trap_msg.ts);
+
+        /* pass 0, calculate length fields */
+        tot_len = snmp_trap_varbind_sum(&trap_msg, varbinds);
+        tot_len = snmp_trap_header_sum(&trap_msg, tot_len);
+
+        /* allocate pbuf(s) */
+        p = pbuf_alloc(PBUF_TRANSPORT, tot_len, PBUF_RAM);
+        if (p != NULL) {
+          struct snmp_pbuf_stream pbuf_stream;
+          snmp_pbuf_stream_init(&pbuf_stream, p, 0, tot_len);
+
+          /* pass 1, encode packet into the pbuf(s) */
+          snmp_trap_header_enc(&trap_msg, &pbuf_stream);
+          snmp_trap_varbind_enc(&trap_msg, &pbuf_stream, varbinds);
+
+          snmp_stats.outtraps++;
+          snmp_stats.outpkts++;
+
+          /** send to the TRAP destination */
+          snmp_sendto(snmp_traps_handle, p, &td->dip, LWIP_IANA_PORT_SNMP_TRAP);
+          pbuf_free(p);
+        } else {
+          err = ERR_MEM;
+        }
+      } else {
+        /* routing error */
+        err = ERR_RTE;
+      }
+    }
+  }
+  return err;
+}

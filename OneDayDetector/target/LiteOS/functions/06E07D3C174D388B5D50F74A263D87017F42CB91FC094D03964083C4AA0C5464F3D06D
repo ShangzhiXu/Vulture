@@ -1,0 +1,33 @@
+HAL_StatusTypeDef HAL_RTCEx_DeactivateTamper(RTC_HandleTypeDef *hrtc, uint32_t Tamper)
+{
+  /* Check input parameters */
+  if(hrtc == NULL)
+  {
+     return HAL_ERROR;
+  }
+  
+  assert_param(IS_RTC_TAMPER(Tamper));
+
+  /* Process Locked */
+  __HAL_LOCK(hrtc);
+
+  hrtc->State = HAL_RTC_STATE_BUSY;
+
+  /* Disable the selected Tamper pin */
+  CLEAR_BIT(BKP->CR, BKP_CR_TPE);
+  
+  /* Disable the Tamper Interrupt in the BKP->CSR */
+  /* Configure the Tamper Interrupt in the BKP->CSR */
+  __HAL_RTC_TAMPER_DISABLE_IT(hrtc, RTC_IT_TAMP1);
+  
+  /* Clear the Tamper interrupt pending bit */
+  __HAL_RTC_TAMPER_CLEAR_FLAG(hrtc, RTC_FLAG_TAMP1F);
+  SET_BIT(BKP->CSR, BKP_CSR_CTE);
+  
+  hrtc->State = HAL_RTC_STATE_READY;
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(hrtc);
+
+  return HAL_OK;
+}

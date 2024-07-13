@@ -1,0 +1,25 @@
+int FreeRTOS_write(Network *n, unsigned char *buffer, int len, int timeout_ms)
+{
+    TickType_t xTicksToWait = timeout_ms / portTICK_PERIOD_MS; /* convert milliseconds to ticks */
+    TimeOut_t xTimeOut;
+    int sentLen = 0;
+
+    vTaskSetTimeOutState(&xTimeOut); /* Record the time at which this function was entered. */
+    do
+    {
+        int rc = 0;
+
+        FreeRTOS_setsockopt(n->my_socket, 0, FREERTOS_SO_RCVTIMEO, &xTicksToWait, sizeof(xTicksToWait));
+        rc = FreeRTOS_send(n->my_socket, buffer + sentLen, len - sentLen, 0);
+        if (rc > 0)
+            sentLen += rc;
+        else if (rc < 0)
+        {
+            sentLen = rc;
+            break;
+        }
+    }
+    while (sentLen < len && xTaskCheckForTimeOut(&xTimeOut, &xTicksToWait) == pdFALSE);
+
+    return sentLen;
+}

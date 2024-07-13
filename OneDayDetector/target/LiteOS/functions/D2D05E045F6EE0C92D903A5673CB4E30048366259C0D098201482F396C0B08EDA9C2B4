@@ -1,0 +1,17 @@
+static void HASH_DMAError(DMA_HandleTypeDef *hdma)
+{
+  HASH_HandleTypeDef* hhash = ( HASH_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+  
+    if (hhash->State != HAL_HASH_STATE_SUSPENDED)
+  {
+  /* Set HASH state to ready to prevent any blocking issue in user code 
+     present in HAL_HASH_ErrorCallback() */
+  hhash->State= HAL_HASH_STATE_READY;
+  /* Set HASH handle status to error */
+  hhash->Status = HAL_ERROR;
+  HAL_HASH_ErrorCallback(hhash);
+  /* After error handling by code user, reset HASH handle HAL status */
+  hhash->Status = HAL_OK;
+  
+  }  
+}

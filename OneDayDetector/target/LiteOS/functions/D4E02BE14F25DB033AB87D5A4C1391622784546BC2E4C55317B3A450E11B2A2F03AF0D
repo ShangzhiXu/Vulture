@@ -1,0 +1,26 @@
+LITE_OS_SEC_TEXT UINT32 LOS_MemboxFree(VOID *pool, VOID *box)
+{
+    LOS_MEMBOX_INFO *boxInfo = (LOS_MEMBOX_INFO *)pool;
+    UINT32 ret = LOS_NOK;
+    UINT32 intSave;
+
+    if ((pool == NULL) || (box == NULL)) {
+        return LOS_NOK;
+    }
+
+    MEMBOX_LOCK(intSave);
+    do {
+        LOS_MEMBOX_NODE *node = OS_MEMBOX_NODE_ADDR(box);
+        if (OsCheckBoxMem(boxInfo, node) != LOS_OK) {
+            break;
+        }
+
+        node->pstNext = boxInfo->stFreeList.pstNext;
+        boxInfo->stFreeList.pstNext = node;
+        boxInfo->uwBlkCnt--;
+        ret = LOS_OK;
+    } while (0);
+    MEMBOX_UNLOCK(intSave);
+
+    return ret;
+}

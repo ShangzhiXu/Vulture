@@ -1,0 +1,64 @@
+HAL_StatusTypeDef HAL_OSPI_Transmit(OSPI_HandleTypeDef *hospi, uint8_t *pData, uint32_t Timeout)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t tickstart = HAL_GetTick();
+  __IO uint32_t *data_reg = &hospi->Instance->DR;
+
+  /* Check the data pointer allocation */
+  if (pData == NULL)
+  {
+    status = HAL_ERROR;
+    hospi->ErrorCode = HAL_OSPI_ERROR_INVALID_PARAM;
+  }
+  else
+  {
+    /* Check the state */
+    if (hospi->State == HAL_OSPI_STATE_CMD_CFG)
+    {
+      /* Configure counters and size */
+      hospi->XferCount = READ_REG(hospi->Instance->DLR) + 1;
+      hospi->XferSize  = hospi->XferCount;
+      hospi->pBuffPtr  = pData;
+      
+      /* Configure CR register with functional mode as indirect write */
+      MODIFY_REG(hospi->Instance->CR, OCTOSPI_CR_FMODE, OSPI_FUNCTIONAL_MODE_INDIRECT_WRITE);
+      
+      do
+      {
+        /* Wait till fifo threshold flag is set to send data */
+        status = OSPI_WaitFlagStateUntilTimeout(hospi, HAL_OSPI_FLAG_FT, SET, tickstart, Timeout);
+        
+        if (status != HAL_OK)
+        {
+          break;
+        }
+
+        *(__IO uint8_t *)((__IO void *)data_reg) = *hospi->pBuffPtr++;
+        hospi->XferCount--;
+      } while (hospi->XferCount > 0);
+      
+      if (status == HAL_OK)
+      {
+        /* Wait till transfer complete flag is set to go back in idle state */
+        status = OSPI_WaitFlagStateUntilTimeout(hospi, HAL_OSPI_FLAG_TC, SET, tickstart, Timeout);
+        
+        if (status == HAL_OK)
+        {
+          /* Clear transfer complete flag */
+          __HAL_OSPI_CLEAR_FLAG(hospi, HAL_OSPI_FLAG_TC);
+          
+          /* Update state */
+          hospi->State = HAL_OSPI_STATE_READY;
+        }
+      }
+    }
+    else
+    {
+      status = HAL_ERROR;
+      hospi->ErrorCode = HAL_OSPI_ERROR_INVALID_SEQUENCE;
+    }
+  }
+
+  /* Return function status */
+  return status;
+}

@@ -1,0 +1,37 @@
+VOID *OsTaskStackInit(UINT32 taskId, UINT32 stackSize, VOID *topStack)
+{
+    UINT32 index;
+    TaskContext *taskContext = NULL;
+
+    OsStackInit(topStack, stackSize);
+    taskContext = (TaskContext *)(((UINTPTR)topStack + stackSize) - sizeof(TaskContext));
+
+    /* initialize the task context */
+    taskContext->NZCV = 0;
+    taskContext->PC = (UINTPTR)OsTaskEntry;
+    taskContext->LR = (UINTPTR)OsTaskExit;  /* LR should be kept, to distinguish it's THUMB or ARM instruction */
+    taskContext->X[0] = taskId;             /* R0 */
+
+    /* 0xAAA0000000000001LL : reg initialed magic word  */
+    for (index = 1; index < GEN_REGS_NUM; index++) {
+        taskContext->X[index] = 0xAAA0000000000001LL + index;  /* R1 -R29 */
+    }
+
+#ifdef LOSCFG_INTERWORK_THUMB
+    taskContext->regSPSR = PSR_MODE_SVC_THUMB; /* CPSR (Enable IRQ and FIQ interrupts, THUMNB-mode) */
+#else
+    taskContext->regSPSR = 0x5;                /* CPSR (Enable IRQ and FIQ interrupts, EL1h) */
+#endif
+
+#ifdef LOSCFG_AARCH64_FPU
+    /* 0xAAA0000000000001LL : float reg initialed magic word */
+    for (index = 0; index < FP_REGS_NUM; index++) {
+        taskContext->Q[index] = 0xAAA0000000000001LL + index;  /* Q1 -Q31 */
+    }
+
+    taskContext->regFPCR = 0;
+    taskContext->regFPSR = 0;
+#endif
+
+    return (VOID *)taskContext;
+}

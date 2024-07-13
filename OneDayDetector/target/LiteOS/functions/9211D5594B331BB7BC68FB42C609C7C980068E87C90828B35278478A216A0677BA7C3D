@@ -1,0 +1,75 @@
+HAL_StatusTypeDef HAL_HalfDuplex_Init(UART_HandleTypeDef *huart)
+{
+  /* Check the UART handle allocation */
+  if (huart == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check UART instance */
+  assert_param(IS_UART_HALFDUPLEX_INSTANCE(huart->Instance));
+
+  if (huart->gState == HAL_UART_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    huart->Lock = HAL_UNLOCKED;
+
+#if (USE_HAL_UART_REGISTER_CALLBACKS == 1)
+    UART_InitCallbacksToDefault(huart);
+
+    if (huart->MspInitCallback == NULL)
+    {
+      huart->MspInitCallback = HAL_UART_MspInit;
+    }
+
+    /* Init the low level hardware */
+    huart->MspInitCallback(huart);
+#else
+    /* Init the low level hardware : GPIO, CLOCK */
+    HAL_UART_MspInit(huart);
+#endif /* (USE_HAL_UART_REGISTER_CALLBACKS) */
+  }
+
+  huart->gState = HAL_UART_STATE_BUSY;
+
+  __HAL_UART_DISABLE(huart);
+
+  /* Set the UART Communication parameters */
+  if (UART_SetConfig(huart) == HAL_ERROR)
+  {
+    return HAL_ERROR;
+  }
+
+  if (huart->AdvancedInit.AdvFeatureInit != UART_ADVFEATURE_NO_INIT)
+  {
+    UART_AdvFeatureConfig(huart);
+  }
+
+  /* In half-duplex mode, the following bits must be kept cleared:
+  - LINEN (if LIN is supported) and CLKEN bits in the USART_CR2 register,
+  - SCEN (if Smartcard is supported) and IREN (if IrDA is supported) bits in the USART_CR3 register.*/
+#if defined (USART_CR2_LINEN)
+  CLEAR_BIT(huart->Instance->CR2, (USART_CR2_LINEN | USART_CR2_CLKEN));
+#else
+  CLEAR_BIT(huart->Instance->CR2, USART_CR2_CLKEN);
+#endif /* USART_CR2_LINEN */
+#if defined (USART_CR3_SCEN)
+#if defined (USART_CR3_IREN)
+  CLEAR_BIT(huart->Instance->CR3, (USART_CR3_IREN | USART_CR3_SCEN));
+#else
+  CLEAR_BIT(huart->Instance->CR3, USART_CR3_SCEN);
+#endif /* USART_CR3_IREN */
+#else
+#if defined (USART_CR3_IREN)
+  CLEAR_BIT(huart->Instance->CR3, USART_CR3_IREN);
+#endif /* USART_CR3_IREN */
+#endif /* USART_CR3_SCEN */
+
+  /* Enable the Half-Duplex mode by setting the HDSEL bit in the CR3 register */
+  SET_BIT(huart->Instance->CR3, USART_CR3_HDSEL);
+
+  __HAL_UART_ENABLE(huart);
+
+  /* TEACK and/or REACK to check before moving huart->gState and huart->RxState to Ready */
+  return (UART_CheckIdleState(huart));
+}

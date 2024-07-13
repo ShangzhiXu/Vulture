@@ -1,0 +1,55 @@
+static int prv_dataStrip(int size,
+                         lwm2m_data_t *dataP,
+                         lwm2m_data_t **resultP)
+{
+    int i;
+    int j;
+    int realSize;
+
+    realSize = 0;
+    for (i = 0 ; i < size ; i++)
+    {
+        if (dataP[i].type != LWM2M_TYPE_UNDEFINED)
+        {
+            realSize++;
+        }
+    }
+
+    *resultP = lwm2m_data_new(realSize);
+    if (*resultP == NULL) return -1;
+
+    j = 0;
+    for (i = 0 ; i < size ; i++)
+    {
+        if (dataP[i].type != LWM2M_TYPE_UNDEFINED)
+        {
+            memcpy((*resultP) + j, dataP + i, sizeof(lwm2m_data_t));
+
+            if (dataP[i].type == LWM2M_TYPE_OBJECT
+                    || dataP[i].type == LWM2M_TYPE_OBJECT_INSTANCE
+                    || dataP[i].type == LWM2M_TYPE_MULTIPLE_RESOURCE)
+            {
+                int childLen;
+
+                childLen = prv_dataStrip(dataP[i].value.asChildren.count, dataP[i].value.asChildren.array, &((*resultP)[j].value.asChildren.array));
+                if (childLen <= 0)
+                {
+                    // skip this one
+                    j--;
+                }
+                else
+                {
+                    (*resultP)[j].value.asChildren.count = childLen;
+                }
+            }
+            else
+            {
+                dataP[i].value.asBuffer.buffer = NULL;
+            }
+
+            j++;
+        }
+    }
+
+    return realSize;
+}

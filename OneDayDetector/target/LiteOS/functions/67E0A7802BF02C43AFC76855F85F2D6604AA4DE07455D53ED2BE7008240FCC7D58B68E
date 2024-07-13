@@ -1,0 +1,30 @@
+HAL_StatusTypeDef HAL_DFSDM_FilterExdStop(DFSDM_Filter_HandleTypeDef *hdfsdm_filter)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  __IO uint32_t     reg1;
+  __IO uint32_t     reg2;
+
+  /* Check parameters */
+  assert_param(IS_DFSDM_FILTER_ALL_INSTANCE(hdfsdm_filter->Instance));
+  
+  /* Check DFSDM filter state */
+  if((hdfsdm_filter->State == HAL_DFSDM_FILTER_STATE_RESET) || \
+     (hdfsdm_filter->State == HAL_DFSDM_FILTER_STATE_ERROR))
+  {
+    /* Return error status */
+    status = HAL_ERROR;
+  }
+  else
+  {
+    /* Reset channels for extreme detector */
+    hdfsdm_filter->Instance->FLTCR2 &= ~(DFSDM_FLTCR2_EXCH);
+
+    /* Clear extreme detector values */
+    reg1 = hdfsdm_filter->Instance->FLTEXMAX;
+    reg2 = hdfsdm_filter->Instance->FLTEXMIN;    
+    UNUSED(reg1); /* To avoid GCC warning */
+    UNUSED(reg2); /* To avoid GCC warning */
+  }
+  /* Return function status */
+  return status;
+}

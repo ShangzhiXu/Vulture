@@ -1,0 +1,38 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 LOS_TaskYield(VOID)
+{
+    UINT32 tskCount;
+    UINT32 intSave;
+    LosTaskCB *runTask = NULL;
+
+    if (OS_INT_ACTIVE) {
+        return LOS_ERRNO_TSK_YIELD_IN_INT;
+    }
+
+    if (!OsPreemptable()) {
+        return LOS_ERRNO_TSK_YIELD_IN_LOCK;
+    }
+
+    runTask = OsCurrTaskGet();
+    if (runTask->taskId >= g_taskMaxNum) {
+        return LOS_ERRNO_TSK_ID_INVALID;
+    }
+
+    SCHEDULER_LOCK(intSave);
+
+#ifdef LOSCFG_BASE_CORE_TIMESLICE
+    /* reset timeslice of yielded task */
+    runTask->timeSlice = 0;
+#endif
+
+    tskCount = OsPriQueueSize(runTask->priority);
+    if (tskCount > 0) {
+        runTask->taskStatus |= OS_TASK_STATUS_READY;
+        OsPriQueueEnqueue(&(runTask->pendList), runTask->priority);
+    } else {
+        SCHEDULER_UNLOCK(intSave);
+        return LOS_ERRNO_TSK_YIELD_NOT_ENOUGH_TASK;
+    }
+    OsSchedResched();
+    SCHEDULER_UNLOCK(intSave);
+    return LOS_OK;
+}

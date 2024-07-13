@@ -1,0 +1,16 @@
+netbuf_ref(struct netbuf *buf, const void *dataptr, u16_t size)
+{
+  LWIP_ERROR("netbuf_ref: invalid buf", (buf != NULL), return ERR_ARG;);
+  if (buf->p != NULL) {
+    pbuf_free(buf->p);
+  }
+  buf->p = pbuf_alloc(PBUF_TRANSPORT, 0, PBUF_REF);
+  if (buf->p == NULL) {
+    buf->ptr = NULL;
+    return ERR_MEM;
+  }
+  ((struct pbuf_rom *)buf->p)->payload = dataptr;
+  buf->p->len = buf->p->tot_len = size;
+  buf->ptr = buf->p;
+  return ERR_OK;
+}

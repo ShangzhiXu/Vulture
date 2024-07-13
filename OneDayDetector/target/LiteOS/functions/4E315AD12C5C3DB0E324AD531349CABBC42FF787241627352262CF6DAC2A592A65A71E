@@ -1,0 +1,75 @@
+get_tag_insert(struct http_state *hs)
+{
+#if LWIP_HTTPD_SSI_RAW
+  const char *tag;
+#else /* LWIP_HTTPD_SSI_RAW */
+  int tag;
+#endif /* LWIP_HTTPD_SSI_RAW */
+  size_t len;
+  struct http_ssi_state *ssi;
+#if LWIP_HTTPD_SSI_MULTIPART
+  u16_t current_tag_part;
+#endif /* LWIP_HTTPD_SSI_MULTIPART */
+
+  LWIP_ASSERT("hs != NULL", hs != NULL);
+  ssi = hs->ssi;
+  LWIP_ASSERT("ssi != NULL", ssi != NULL);
+#if LWIP_HTTPD_SSI_MULTIPART
+  current_tag_part = ssi->tag_part;
+  ssi->tag_part = HTTPD_LAST_TAG_PART;
+#endif /* LWIP_HTTPD_SSI_MULTIPART */
+#if LWIP_HTTPD_SSI_RAW
+  tag = ssi->tag_name;
+#endif
+
+  if (httpd_ssi_handler
+#if !LWIP_HTTPD_SSI_RAW
+      && httpd_tags && httpd_num_tags
+#endif /* !LWIP_HTTPD_SSI_RAW */
+     ) {
+
+    /* Find this tag in the list we have been provided. */
+#if LWIP_HTTPD_SSI_RAW
+    {
+#else /* LWIP_HTTPD_SSI_RAW */
+    for (tag = 0; tag < httpd_num_tags; tag++) {
+      if (strcmp(ssi->tag_name, httpd_tags[tag]) == 0)
+#endif /* LWIP_HTTPD_SSI_RAW */
+      {
+        ssi->tag_insert_len = httpd_ssi_handler(tag, ssi->tag_insert,
+                                              LWIP_HTTPD_MAX_TAG_INSERT_LEN
+#if LWIP_HTTPD_SSI_MULTIPART
+                                              , current_tag_part, &ssi->tag_part
+#endif /* LWIP_HTTPD_SSI_MULTIPART */
+#if LWIP_HTTPD_FILE_STATE
+                                              , (hs->handle ? hs->handle->state : NULL)
+#endif /* LWIP_HTTPD_FILE_STATE */
+                                             );
+#if LWIP_HTTPD_SSI_RAW
+        if (ssi->tag_insert_len != HTTPD_SSI_TAG_UNKNOWN)
+#endif /* LWIP_HTTPD_SSI_RAW */
+        {
+          return;
+        }
+      }
+    }
+  }
+
+  /* If we drop out, we were asked to serve a page which contains tags that
+   * we don't have a handler for. Merely echo back the tags with an error
+   * marker. */
+#define UNKNOWN_TAG1_TEXT "<b>***UNKNOWN TAG "
+#define UNKNOWN_TAG1_LEN  18
+#define UNKNOWN_TAG2_TEXT "***</b>"
+#define UNKNOWN_TAG2_LEN  7
+  len = LWIP_MIN(sizeof(ssi->tag_name), LWIP_MIN(strlen(ssi->tag_name),
+                 LWIP_HTTPD_MAX_TAG_INSERT_LEN - (UNKNOWN_TAG1_LEN + UNKNOWN_TAG2_LEN)));
+  MEMCPY(ssi->tag_insert, UNKNOWN_TAG1_TEXT, UNKNOWN_TAG1_LEN);
+  MEMCPY(&ssi->tag_insert[UNKNOWN_TAG1_LEN], ssi->tag_name, len);
+  MEMCPY(&ssi->tag_insert[UNKNOWN_TAG1_LEN + len], UNKNOWN_TAG2_TEXT, UNKNOWN_TAG2_LEN);
+  ssi->tag_insert[UNKNOWN_TAG1_LEN + len + UNKNOWN_TAG2_LEN] = 0;
+
+  len = strlen(ssi->tag_insert);
+  LWIP_ASSERT("len <= 0xffff", len <= 0xffff);
+  ssi->tag_insert_len = (u16_t)len;
+}

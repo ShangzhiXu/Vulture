@@ -1,0 +1,21 @@
+uint32_t SDMMC_CmdAppOperCommand(SDMMC_TypeDef *SDMMCx, uint32_t Argument)
+{
+  SDMMC_CmdInitTypeDef  sdmmc_cmdinit;
+  uint32_t errorstate = SDMMC_ERROR_NONE;
+  
+#if defined(STM32L4R5xx) || defined(STM32L4R7xx) || defined(STM32L4R9xx) || defined(STM32L4S5xx) || defined(STM32L4S7xx) || defined(STM32L4S9xx)
+  sdmmc_cmdinit.Argument         = Argument;
+#else
+  sdmmc_cmdinit.Argument         = SDMMC_VOLTAGE_WINDOW_SD | Argument;
+#endif /* STM32L4R5xx || STM32L4R7xx || STM32L4R9xx || STM32L4S5xx || STM32L4S7xx || STM32L4S9xx */
+  sdmmc_cmdinit.CmdIndex         = SDMMC_CMD_SD_APP_OP_COND;
+  sdmmc_cmdinit.Response         = SDMMC_RESPONSE_SHORT;
+  sdmmc_cmdinit.WaitForInterrupt = SDMMC_WAIT_NO;
+  sdmmc_cmdinit.CPSM             = SDMMC_CPSM_ENABLE;
+  SDMMC_SendCommand(SDMMCx, &sdmmc_cmdinit);
+  
+  /* Check for error conditions */
+  errorstate = SDMMC_GetCmdResp3(SDMMCx);
+
+  return errorstate;
+}

@@ -1,0 +1,155 @@
+HAL_StatusTypeDef HAL_ADCEx_InjectedConfigChannel(ADC_HandleTypeDef* hadc, ADC_InjectionConfTypeDef* sConfigInjected)
+{
+  
+#ifdef USE_FULL_ASSERT  
+  uint32_t tmp = 0U;
+  
+#endif /* USE_FULL_ASSERT  */
+
+  ADC_Common_TypeDef *tmpADC_Common;
+
+  /* Check the parameters */
+  assert_param(IS_ADC_CHANNEL(sConfigInjected->InjectedChannel));
+  assert_param(IS_ADC_INJECTED_RANK(sConfigInjected->InjectedRank));
+  assert_param(IS_ADC_SAMPLE_TIME(sConfigInjected->InjectedSamplingTime));
+  assert_param(IS_ADC_EXT_INJEC_TRIG(sConfigInjected->ExternalTrigInjecConv));
+  assert_param(IS_ADC_INJECTED_LENGTH(sConfigInjected->InjectedNbrOfConversion));
+  assert_param(IS_FUNCTIONAL_STATE(sConfigInjected->AutoInjectedConv));
+  assert_param(IS_FUNCTIONAL_STATE(sConfigInjected->InjectedDiscontinuousConvMode));
+
+#ifdef USE_FULL_ASSERT
+  tmp = ADC_GET_RESOLUTION(hadc);
+  assert_param(IS_ADC_RANGE(tmp, sConfigInjected->InjectedOffset));
+#endif /* USE_FULL_ASSERT  */
+
+  if(sConfigInjected->ExternalTrigInjecConv != ADC_INJECTED_SOFTWARE_START)
+  {
+    assert_param(IS_ADC_EXT_INJEC_TRIG_EDGE(sConfigInjected->ExternalTrigInjecConvEdge));
+  }
+
+  /* Process locked */
+  __HAL_LOCK(hadc);
+  
+  /* if ADC_Channel_10 ... ADC_Channel_18 is selected */
+  if (sConfigInjected->InjectedChannel > ADC_CHANNEL_9)
+  {
+    /* Clear the old sample time */
+    hadc->Instance->SMPR1 &= ~ADC_SMPR1(ADC_SMPR1_SMP10, sConfigInjected->InjectedChannel);
+    
+    /* Set the new sample time */
+    hadc->Instance->SMPR1 |= ADC_SMPR1(sConfigInjected->InjectedSamplingTime, sConfigInjected->InjectedChannel);
+  }
+  else /* ADC_Channel include in ADC_Channel_[0..9] */
+  {
+    /* Clear the old sample time */
+    hadc->Instance->SMPR2 &= ~ADC_SMPR2(ADC_SMPR2_SMP0, sConfigInjected->InjectedChannel);
+    
+    /* Set the new sample time */
+    hadc->Instance->SMPR2 |= ADC_SMPR2(sConfigInjected->InjectedSamplingTime, sConfigInjected->InjectedChannel);
+  }
+  
+  /*---------------------------- ADCx JSQR Configuration -----------------*/
+  hadc->Instance->JSQR &= ~(ADC_JSQR_JL);
+  hadc->Instance->JSQR |=  ADC_SQR1(sConfigInjected->InjectedNbrOfConversion);
+  
+  /* Rank configuration */
+  
+  /* Clear the old SQx bits for the selected rank */
+  hadc->Instance->JSQR &= ~ADC_JSQR(ADC_JSQR_JSQ1, sConfigInjected->InjectedRank,sConfigInjected->InjectedNbrOfConversion);
+   
+  /* Set the SQx bits for the selected rank */
+  hadc->Instance->JSQR |= ADC_JSQR(sConfigInjected->InjectedChannel, sConfigInjected->InjectedRank,sConfigInjected->InjectedNbrOfConversion);
+
+  /* Enable external trigger if trigger selection is different of software  */
+  /* start.                                                                 */
+  /* Note: This configuration keeps the hardware feature of parameter       */
+  /*       ExternalTrigConvEdge "trigger edge none" equivalent to           */
+  /*       software start.                                                  */ 
+  if(sConfigInjected->ExternalTrigInjecConv != ADC_INJECTED_SOFTWARE_START)
+  {  
+    /* Select external trigger to start conversion */
+    hadc->Instance->CR2 &= ~(ADC_CR2_JEXTSEL);
+    hadc->Instance->CR2 |=  sConfigInjected->ExternalTrigInjecConv;
+    
+    /* Select external trigger polarity */
+    hadc->Instance->CR2 &= ~(ADC_CR2_JEXTEN);
+    hadc->Instance->CR2 |= sConfigInjected->ExternalTrigInjecConvEdge;
+  }
+  else
+  {
+    /* Reset the external trigger */
+    hadc->Instance->CR2 &= ~(ADC_CR2_JEXTSEL);
+    hadc->Instance->CR2 &= ~(ADC_CR2_JEXTEN);  
+  }
+  
+  if (sConfigInjected->AutoInjectedConv != DISABLE)
+  {
+    /* Enable the selected ADC automatic injected group conversion */
+    hadc->Instance->CR1 |= ADC_CR1_JAUTO;
+  }
+  else
+  {
+    /* Disable the selected ADC automatic injected group conversion */
+    hadc->Instance->CR1 &= ~(ADC_CR1_JAUTO);
+  }
+  
+  if (sConfigInjected->InjectedDiscontinuousConvMode != DISABLE)
+  {
+    /* Enable the selected ADC injected discontinuous mode */
+    hadc->Instance->CR1 |= ADC_CR1_JDISCEN;
+  }
+  else
+  {
+    /* Disable the selected ADC injected discontinuous mode */
+    hadc->Instance->CR1 &= ~(ADC_CR1_JDISCEN);
+  }
+  
+  switch(sConfigInjected->InjectedRank)
+  {
+    case 1U:
+      /* Set injected channel 1 offset */
+      hadc->Instance->JOFR1 &= ~(ADC_JOFR1_JOFFSET1);
+      hadc->Instance->JOFR1 |= sConfigInjected->InjectedOffset;
+      break;
+    case 2U:
+      /* Set injected channel 2 offset */
+      hadc->Instance->JOFR2 &= ~(ADC_JOFR2_JOFFSET2);
+      hadc->Instance->JOFR2 |= sConfigInjected->InjectedOffset;
+      break;
+    case 3U:
+      /* Set injected channel 3 offset */
+      hadc->Instance->JOFR3 &= ~(ADC_JOFR3_JOFFSET3);
+      hadc->Instance->JOFR3 |= sConfigInjected->InjectedOffset;
+      break;
+    default:
+      /* Set injected channel 4 offset */
+      hadc->Instance->JOFR4 &= ~(ADC_JOFR4_JOFFSET4);
+      hadc->Instance->JOFR4 |= sConfigInjected->InjectedOffset;
+      break;
+  }
+
+  /* Pointer to the common control register to which is belonging hadc    */
+  /* (Depending on STM32F4 product, there may be up to 3 ADC and 1 common */
+  /* control register)                                                    */
+    tmpADC_Common = ADC_COMMON_REGISTER(hadc);
+
+  /* if ADC1 Channel_18 is selected enable VBAT Channel */
+  if ((hadc->Instance == ADC1) && (sConfigInjected->InjectedChannel == ADC_CHANNEL_VBAT))
+  {
+    /* Enable the VBAT channel*/
+    tmpADC_Common->CCR |= ADC_CCR_VBATE;
+  }
+  
+  /* if ADC1 Channel_16 or Channel_17 is selected enable TSVREFE Channel(Temperature sensor and VREFINT) */
+  if ((hadc->Instance == ADC1) && ((sConfigInjected->InjectedChannel == ADC_CHANNEL_TEMPSENSOR) || (sConfigInjected->InjectedChannel == ADC_CHANNEL_VREFINT)))
+  {
+    /* Enable the TSVREFE channel*/
+    tmpADC_Common->CCR |= ADC_CCR_TSVREFE;
+  }
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+  
+  /* Return function status */
+  return HAL_OK;
+}

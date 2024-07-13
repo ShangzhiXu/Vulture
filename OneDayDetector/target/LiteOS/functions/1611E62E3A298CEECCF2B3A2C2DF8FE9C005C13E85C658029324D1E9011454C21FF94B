@@ -1,0 +1,67 @@
+static void FMPI2C_ITSlaveSeqCplt(FMPI2C_HandleTypeDef *hfmpi2c)
+{
+  uint32_t tmpcr1value = READ_REG(hfmpi2c->Instance->CR1);
+
+  /* Reset FMPI2C handle mode */
+  hfmpi2c->Mode = HAL_FMPI2C_MODE_NONE;
+
+  /* If a DMA is ongoing, Update handle size context */
+  if (FMPI2C_CHECK_IT_SOURCE(tmpcr1value, FMPI2C_CR1_TXDMAEN) != RESET)
+  {
+    /* Disable DMA Request */
+    hfmpi2c->Instance->CR1 &= ~FMPI2C_CR1_TXDMAEN;
+  }
+  else if (FMPI2C_CHECK_IT_SOURCE(tmpcr1value, FMPI2C_CR1_RXDMAEN) != RESET)
+  {
+    /* Disable DMA Request */
+    hfmpi2c->Instance->CR1 &= ~FMPI2C_CR1_RXDMAEN;
+  }
+  else
+  {
+    /* Do nothing */
+  }
+
+  if (hfmpi2c->State == HAL_FMPI2C_STATE_BUSY_TX_LISTEN)
+  {
+    /* Remove HAL_FMPI2C_STATE_SLAVE_BUSY_TX, keep only HAL_FMPI2C_STATE_LISTEN */
+    hfmpi2c->State         = HAL_FMPI2C_STATE_LISTEN;
+    hfmpi2c->PreviousState = FMPI2C_STATE_SLAVE_BUSY_TX;
+
+    /* Disable Interrupts */
+    FMPI2C_Disable_IRQ(hfmpi2c, FMPI2C_XFER_TX_IT);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hfmpi2c);
+
+    /* Call the corresponding callback to inform upper layer of End of Transfer */
+#if (USE_HAL_FMPI2C_REGISTER_CALLBACKS == 1)
+    hfmpi2c->SlaveTxCpltCallback(hfmpi2c);
+#else
+    HAL_FMPI2C_SlaveTxCpltCallback(hfmpi2c);
+#endif /* USE_HAL_FMPI2C_REGISTER_CALLBACKS */
+  }
+
+  else if (hfmpi2c->State == HAL_FMPI2C_STATE_BUSY_RX_LISTEN)
+  {
+    /* Remove HAL_FMPI2C_STATE_SLAVE_BUSY_RX, keep only HAL_FMPI2C_STATE_LISTEN */
+    hfmpi2c->State         = HAL_FMPI2C_STATE_LISTEN;
+    hfmpi2c->PreviousState = FMPI2C_STATE_SLAVE_BUSY_RX;
+
+    /* Disable Interrupts */
+    FMPI2C_Disable_IRQ(hfmpi2c, FMPI2C_XFER_RX_IT);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hfmpi2c);
+
+    /* Call the corresponding callback to inform upper layer of End of Transfer */
+#if (USE_HAL_FMPI2C_REGISTER_CALLBACKS == 1)
+    hfmpi2c->SlaveRxCpltCallback(hfmpi2c);
+#else
+    HAL_FMPI2C_SlaveRxCpltCallback(hfmpi2c);
+#endif /* USE_HAL_FMPI2C_REGISTER_CALLBACKS */
+  }
+  else
+  {
+    /* Nothing to do */
+  }
+}

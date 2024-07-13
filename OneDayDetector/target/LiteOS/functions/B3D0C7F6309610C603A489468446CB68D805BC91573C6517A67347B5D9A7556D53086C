@@ -1,0 +1,16 @@
+http_handle_post_finished(struct http_state *hs)
+{
+#if LWIP_HTTPD_POST_MANUAL_WND
+  /* Prevent multiple calls to httpd_post_finished, since it might have already
+     been called before from httpd_post_data_recved(). */
+  if (hs->post_finished) {
+    return ERR_OK;
+  }
+  hs->post_finished = 1;
+#endif /* LWIP_HTTPD_POST_MANUAL_WND */
+  /* application error or POST finished */
+  /* NULL-terminate the buffer */
+  http_uri_buf[0] = 0;
+  httpd_post_finished(hs, http_uri_buf, LWIP_HTTPD_URI_BUF_LEN);
+  return http_find_file(hs, http_uri_buf, 0);
+}

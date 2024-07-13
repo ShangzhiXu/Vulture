@@ -1,0 +1,30 @@
+HAL_StatusTypeDef FSMC_NAND_AttributeSpace_Timing_Init(FSMC_NAND_TypeDef *Device, FSMC_NAND_PCC_TimingTypeDef *Timing, uint32_t Bank)
+{
+  /* Check the parameters */
+  assert_param(IS_FSMC_NAND_DEVICE(Device));
+  assert_param(IS_FSMC_SETUP_TIME(Timing->SetupTime));
+  assert_param(IS_FSMC_WAIT_TIME(Timing->WaitSetupTime));
+  assert_param(IS_FSMC_HOLD_TIME(Timing->HoldSetupTime));
+  assert_param(IS_FSMC_HIZ_TIME(Timing->HiZSetupTime));
+  assert_param(IS_FSMC_NAND_BANK(Bank));
+
+  /* Set FMC_NAND device timing parameters */
+  if (Bank == FSMC_NAND_BANK2)
+  {
+    /* NAND bank 2 registers configuration */
+    MODIFY_REG(Device->PATT2, PATT_CLEAR_MASK, (Timing->SetupTime                       | \
+                                                ((Timing->WaitSetupTime) << POSITION_VAL(FSMC_PATTx_ATTWAITx))       | \
+                                                ((Timing->HoldSetupTime) << POSITION_VAL(FSMC_PATTx_ATTHOLDx))       | \
+                                                ((Timing->HiZSetupTime) << POSITION_VAL(FSMC_PATTx_ATTHIZx))));
+  }
+  else
+  {
+    /* NAND bank 3 registers configuration */
+    MODIFY_REG(Device->PATT3, PATT_CLEAR_MASK, (Timing->SetupTime                       | \
+                                                ((Timing->WaitSetupTime) << POSITION_VAL(FSMC_PATTx_ATTWAITx))       | \
+                                                ((Timing->HoldSetupTime) << POSITION_VAL(FSMC_PATTx_ATTHOLDx))       | \
+                                                ((Timing->HiZSetupTime) << POSITION_VAL(FSMC_PATTx_ATTHIZx))));
+  }
+
+  return HAL_OK;
+}

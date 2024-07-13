@@ -1,0 +1,51 @@
+LITE_OS_SEC_TEXT_INIT UINT32 LOS_SwtmrCreate(UINT32 interval,
+                                             UINT8 mode,
+                                             SWTMR_PROC_FUNC handler,
+                                             UINT16 *swtmrId,
+                                             UINTPTR arg)
+{
+    LosSwtmrCB *swtmr = NULL;
+    UINT32 intSave;
+    SortLinkList *sortList = NULL;
+
+    if (interval == 0) {
+        return LOS_ERRNO_SWTMR_INTERVAL_NOT_SUITED;
+    }
+
+    if ((mode != LOS_SWTMR_MODE_ONCE) && (mode != LOS_SWTMR_MODE_PERIOD) &&
+        (mode != LOS_SWTMR_MODE_NO_SELFDELETE)) {
+        return LOS_ERRNO_SWTMR_MODE_INVALID;
+    }
+
+    if (handler == NULL) {
+        return LOS_ERRNO_SWTMR_PTR_NULL;
+    }
+
+    if (swtmrId == NULL) {
+        return LOS_ERRNO_SWTMR_RET_PTR_NULL;
+    }
+
+    SWTMR_LOCK(intSave);
+    if (LOS_ListEmpty(&g_swtmrFreeList)) {
+        SWTMR_UNLOCK(intSave);
+        return LOS_ERRNO_SWTMR_MAXSIZE;
+    }
+
+    sortList = LOS_DL_LIST_ENTRY(g_swtmrFreeList.pstNext, SortLinkList, sortLinkNode);
+    swtmr = LOS_DL_LIST_ENTRY(sortList, LosSwtmrCB, sortList);
+    LOS_ListDelete(LOS_DL_LIST_FIRST(&g_swtmrFreeList));
+    SWTMR_UNLOCK(intSave);
+
+    swtmr->handler = handler;
+    swtmr->mode = mode;
+    swtmr->overrun = 0;
+    swtmr->interval = interval;
+    swtmr->expiry = interval;
+    swtmr->arg = arg;
+    swtmr->state = OS_SWTMR_STATUS_CREATED;
+    SET_SORTLIST_VALUE(&(swtmr->sortList), 0);
+    *swtmrId = swtmr->timerId;
+    LOS_TRACE(SWTMR_CREATE, swtmr->timerId);
+
+    return LOS_OK;
+}

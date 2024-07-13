@@ -1,0 +1,103 @@
+get_http_headers(struct http_state *hs, const char *uri)
+{
+  size_t content_type;
+  char *tmp;
+  char *ext;
+  char *vars;
+
+  /* In all cases, the second header we send is the server identification
+     so set it here. */
+  hs->hdrs[HDR_STRINGS_IDX_SERVER_NAME] = g_psHTTPHeaderStrings[HTTP_HDR_SERVER];
+  hs->hdrs[HDR_STRINGS_IDX_CONTENT_LEN_KEEPALIVE] = NULL;
+  hs->hdrs[HDR_STRINGS_IDX_CONTENT_LEN_NR] = NULL;
+
+  /* Is this a normal file or the special case we use to send back the
+     default "404: Page not found" response? */
+  if (uri == NULL) {
+    hs->hdrs[HDR_STRINGS_IDX_HTTP_STATUS] = g_psHTTPHeaderStrings[HTTP_HDR_NOT_FOUND];
+#if LWIP_HTTPD_SUPPORT_11_KEEPALIVE
+    if (hs->keepalive) {
+      hs->hdrs[HDR_STRINGS_IDX_CONTENT_TYPE] = g_psHTTPHeaderStrings[DEFAULT_404_HTML_PERSISTENT];
+    } else
+#endif
+    {
+      hs->hdrs[HDR_STRINGS_IDX_CONTENT_TYPE] = g_psHTTPHeaderStrings[DEFAULT_404_HTML];
+    }
+
+    /* Set up to send the first header string. */
+    hs->hdr_index = 0;
+    hs->hdr_pos = 0;
+    return;
+  }
+  /* We are dealing with a particular filename. Look for one other
+      special case.  We assume that any filename with "404" in it must be
+      indicative of a 404 server error whereas all other files require
+      the 200 OK header. */
+  if (strstr(uri, "404")) {
+    hs->hdrs[HDR_STRINGS_IDX_HTTP_STATUS] = g_psHTTPHeaderStrings[HTTP_HDR_NOT_FOUND];
+  } else if (strstr(uri, "400")) {
+    hs->hdrs[HDR_STRINGS_IDX_HTTP_STATUS] = g_psHTTPHeaderStrings[HTTP_HDR_BAD_REQUEST];
+  } else if (strstr(uri, "501")) {
+    hs->hdrs[HDR_STRINGS_IDX_HTTP_STATUS] = g_psHTTPHeaderStrings[HTTP_HDR_NOT_IMPL];
+  } else {
+    hs->hdrs[HDR_STRINGS_IDX_HTTP_STATUS] = g_psHTTPHeaderStrings[HTTP_HDR_OK];
+  }
+
+  /* Determine if the URI has any variables and, if so, temporarily remove
+      them. */
+  vars = strchr(uri, '?');
+  if (vars) {
+    *vars = '\0';
+  }
+
+  /* Get a pointer to the file extension.  We find this by looking for the
+      last occurrence of "." in the filename passed. */
+  ext = NULL;
+  tmp = strchr(uri, '.');
+  while (tmp) {
+    ext = tmp + 1;
+    tmp = strchr(ext, '.');
+  }
+  if (ext != NULL) {
+    /* Now determine the content type and add the relevant header for that. */
+    for (content_type = 0; content_type < NUM_HTTP_HEADERS; content_type++) {
+      /* Have we found a matching extension? */
+      if (!lwip_stricmp(g_psHTTPHeaders[content_type].extension, ext)) {
+        break;
+      }
+    }
+  } else {
+    content_type = NUM_HTTP_HEADERS;
+  }
+
+  /* Reinstate the parameter marker if there was one in the original URI. */
+  if (vars) {
+    *vars = '?';
+  }
+
+#if LWIP_HTTPD_OMIT_HEADER_FOR_EXTENSIONLESS_URI
+  /* Does the URL passed have any file extension?  If not, we assume it
+     is a special-case URL used for control state notification and we do
+     not send any HTTP headers with the response. */
+  if (!ext) {
+    /* Force the header index to a value indicating that all headers
+       have already been sent. */
+    hs->hdr_index = NUM_FILE_HDR_STRINGS;
+    return;
+  }
+#endif /* LWIP_HTTPD_OMIT_HEADER_FOR_EXTENSIONLESS_URI */
+  /* Did we find a matching extension? */
+  if (content_type < NUM_HTTP_HEADERS) {
+    /* yes, store it */
+    hs->hdrs[HDR_STRINGS_IDX_CONTENT_TYPE] = g_psHTTPHeaders[content_type].content_type;
+  } else if (!ext) {
+    /* no, no extension found -> use binary transfer to prevent the browser adding '.txt' on save */
+    hs->hdrs[HDR_STRINGS_IDX_CONTENT_TYPE] = HTTP_HDR_APP;
+  } else {
+    /* No - use the default, plain text file type. */
+    hs->hdrs[HDR_STRINGS_IDX_CONTENT_TYPE] = HTTP_HDR_DEFAULT_TYPE;
+  }
+  /* Set up to send the first header string. */
+  hs->hdr_index = 0;
+  hs->hdr_pos = 0;
+}

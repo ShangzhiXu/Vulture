@@ -1,0 +1,26 @@
+osStatus osThreadSetPriority(osThreadId thread_id, osPriority priority)
+{
+    LosTaskCB *taskCB = (LosTaskCB *)thread_id;
+    UINT32 ret;
+    UINT16 losPrio;
+
+    if (taskCB == NULL) {
+        return osErrorParameter;
+    }
+    if (OS_INT_ACTIVE) {
+        return osErrorISR;
+    }
+    if ((priority < osPriorityIdle) || (priority > osPriorityRealtime)) {
+        return osErrorValue;
+    }
+
+    losPrio = (UINT16)(PRIORITY_WIN - priority);
+    ret = LOS_TaskPriSet(taskCB->taskId, losPrio);
+    if (ret == LOS_OK) {
+        return osOK;
+    } else if ((ret == LOS_ERRNO_TSK_ID_INVALID) || (ret == LOS_ERRNO_TSK_NOT_CREATED)) {
+        return osErrorParameter;
+    } else {
+        return osErrorResource;
+    }
+}

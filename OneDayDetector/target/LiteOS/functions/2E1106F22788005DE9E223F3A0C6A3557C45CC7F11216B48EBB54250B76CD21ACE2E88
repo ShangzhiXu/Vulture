@@ -1,0 +1,60 @@
+SECUREC_INLINE int SecInputString(SecFileStream *stream, SecScanSpec *spec,
+    const SecBracketTable *bracketTable, int *doneCount)
+{
+    void *startPtr = spec->argPtr;
+    int suppressed = 0;
+    int errNoMem = 0;
+
+    while (SECUREC_FILED_WIDTH_ENOUGH(spec)) {
+        SECUREC_FILED_WIDTH_DEC(spec);
+        spec->ch = SecGetChar(stream, &(spec->charCount));
+        /*
+         * The char condition or string condition and bracket condition.
+         * Only supports wide characters with a maximum length of two bytes
+         */
+        if (spec->ch != SECUREC_EOF && (SecCanInputCharacter(spec->convChr) != 0 ||
+            SecCanInputString(spec->convChr, spec->ch) != 0 ||
+            SecCanInputForBracket(spec->convChr, spec->ch, bracketTable) != 0)) {
+            if (spec->suppress != 0) {
+                /* Used to identify processed data for %*, use argPtr to identify will cause 613, so use suppressed */
+                suppressed = 1;
+                continue;
+            }
+            /* Now suppress is not set */
+            if (spec->arrayWidth == 0) {
+                errNoMem = 1; /* We have exhausted the user's buffer */
+                break;
+            }
+#ifdef SECUREC_FOR_WCHAR
+            errNoMem = SecInputForWchar(spec);
+#else
+            errNoMem = SecInputForChar(spec, stream);
+#endif
+            if (errNoMem != 0) {
+                break;
+            }
+        } else {
+            SecUnGetChar(spec->ch, stream, &(spec->charCount));
+            break;
+        }
+    }
+
+    if (errNoMem != 0) {
+        /* In case of error, blank out the input buffer */
+        SecAddEndingZero(startPtr, spec);
+        return -1;
+    }
+    if ((spec->suppress != 0 && suppressed == 0) ||
+        (spec->suppress == 0 && startPtr == spec->argPtr)) {
+        /* No input was scanned */
+        return -1;
+    }
+    if (spec->convChr != 'c') {
+        /* Add null-terminate for strings */
+        SecAddEndingZero(spec->argPtr, spec);
+    }
+    if (spec->suppress == 0) {
+        *doneCount = *doneCount + 1;
+    }
+    return 0;
+}

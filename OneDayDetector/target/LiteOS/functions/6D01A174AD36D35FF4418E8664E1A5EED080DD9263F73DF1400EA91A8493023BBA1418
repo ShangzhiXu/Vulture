@@ -1,0 +1,47 @@
+nd6_send_q(s8_t i)
+{
+  struct ip6_hdr *ip6hdr;
+  ip6_addr_t dest;
+#if LWIP_ND6_QUEUEING
+  struct nd6_q_entry *q;
+#endif /* LWIP_ND6_QUEUEING */
+
+  if ((i < 0) || (i >= LWIP_ND6_NUM_NEIGHBORS)) {
+    return;
+  }
+
+#if LWIP_ND6_QUEUEING
+  while (neighbor_cache[i].q != NULL) {
+    /* remember first in queue */
+    q = neighbor_cache[i].q;
+    /* pop first item off the queue */
+    neighbor_cache[i].q = q->next;
+    /* Get ipv6 header. */
+    ip6hdr = (struct ip6_hdr *)(q->p->payload);
+    /* Create an aligned copy. */
+    ip6_addr_copy_from_packed(dest, ip6hdr->dest);
+    /* Restore the zone, if applicable. */
+    ip6_addr_assign_zone(&dest, IP6_UNKNOWN, neighbor_cache[i].netif);
+    /* send the queued IPv6 packet */
+    (neighbor_cache[i].netif)->output_ip6(neighbor_cache[i].netif, q->p, &dest);
+    /* free the queued IP packet */
+    pbuf_free(q->p);
+    /* now queue entry can be freed */
+    memp_free(MEMP_ND6_QUEUE, q);
+  }
+#else /* LWIP_ND6_QUEUEING */
+  if (neighbor_cache[i].q != NULL) {
+    /* Get ipv6 header. */
+    ip6hdr = (struct ip6_hdr *)(neighbor_cache[i].q->payload);
+    /* Create an aligned copy. */
+    ip6_addr_copy_from_packed(dest, ip6hdr->dest);
+    /* Restore the zone, if applicable. */
+    ip6_addr_assign_zone(&dest, IP6_UNKNOWN, neighbor_cache[i].netif);
+    /* send the queued IPv6 packet */
+    (neighbor_cache[i].netif)->output_ip6(neighbor_cache[i].netif, neighbor_cache[i].q, &dest);
+    /* free the queued IP packet */
+    pbuf_free(neighbor_cache[i].q);
+    neighbor_cache[i].q = NULL;
+  }
+#endif /* LWIP_ND6_QUEUEING */
+}

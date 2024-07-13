@@ -1,0 +1,20 @@
+netifapi_do_netif_add(struct tcpip_api_call_data *m)
+{
+  /* cast through void* to silence alignment warnings.
+   * We know it works because the structs have been instantiated as struct netifapi_msg */
+  struct netifapi_msg *msg = (struct netifapi_msg *)(void *)m;
+
+  if (!netif_add( msg->netif,
+#if LWIP_IPV4
+                  API_EXPR_REF(msg->msg.add.ipaddr),
+                  API_EXPR_REF(msg->msg.add.netmask),
+                  API_EXPR_REF(msg->msg.add.gw),
+#endif /* LWIP_IPV4 */
+                  msg->msg.add.state,
+                  msg->msg.add.init,
+                  msg->msg.add.input)) {
+    return ERR_IF;
+  } else {
+    return ERR_OK;
+  }
+}

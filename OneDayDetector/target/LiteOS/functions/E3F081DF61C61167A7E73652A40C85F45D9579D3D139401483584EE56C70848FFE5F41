@@ -1,0 +1,29 @@
+snmp_process_getnext_request(struct snmp_request *request)
+{
+  snmp_vb_enumerator_err_t err;
+  struct snmp_varbind vb;
+  vb.value = request->value_buffer;
+
+  LWIP_DEBUGF(SNMP_DEBUG, ("SNMP get-next request\n"));
+
+  while (request->error_status == SNMP_ERR_NOERROR) {
+    err = snmp_vb_enumerator_get_next(&request->inbound_varbind_enumerator, &vb);
+    if (err == SNMP_VB_ENUMERATOR_ERR_OK) {
+      if ((vb.type == SNMP_ASN1_TYPE_NULL) && (vb.value_len == 0)) {
+        snmp_process_varbind(request, &vb, 1);
+      } else {
+        request->error_status = SNMP_ERR_GENERROR;
+      }
+    } else if (err == SNMP_VB_ENUMERATOR_ERR_EOVB) {
+      /* no more varbinds in request */
+      break;
+    } else if (err == SNMP_VB_ENUMERATOR_ERR_ASN1ERROR) {
+      /* malformed ASN.1, don't answer */
+      return ERR_ARG;
+    } else {
+      request->error_status = SNMP_ERR_GENERROR;
+    }
+  }
+
+  return ERR_OK;
+}

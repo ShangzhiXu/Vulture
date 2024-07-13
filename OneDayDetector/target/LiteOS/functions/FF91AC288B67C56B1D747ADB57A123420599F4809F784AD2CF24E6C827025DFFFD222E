@@ -1,0 +1,373 @@
+void HAL_CAN_IRQHandler(CAN_HandleTypeDef *hcan)
+{
+  uint32_t errorcode = HAL_CAN_ERROR_NONE;
+  uint32_t interrupts = READ_REG(hcan->Instance->IER);
+  uint32_t msrflags = READ_REG(hcan->Instance->MSR);
+  uint32_t tsrflags = READ_REG(hcan->Instance->TSR);
+  uint32_t rf0rflags = READ_REG(hcan->Instance->RF0R);
+  uint32_t rf1rflags = READ_REG(hcan->Instance->RF1R);
+  uint32_t esrflags = READ_REG(hcan->Instance->ESR);
+
+  /* Transmit Mailbox empty interrupt management *****************************/
+  if ((interrupts & CAN_IT_TX_MAILBOX_EMPTY) != 0U)
+  {
+    /* Transmit Mailbox 0 management *****************************************/
+    if ((tsrflags & CAN_TSR_RQCP0) != 0U)
+    {
+      /* Clear the Transmission Complete flag (and TXOK0,ALST0,TERR0 bits) */
+      __HAL_CAN_CLEAR_FLAG(hcan, CAN_FLAG_RQCP0);
+
+      if ((tsrflags & CAN_TSR_TXOK0) != 0U)
+      {
+        /* Transmission Mailbox 0 complete callback */
+#if USE_HAL_CAN_REGISTER_CALLBACKS == 1
+        /* Call registered callback*/
+        hcan->TxMailbox0CompleteCallback(hcan);
+#else
+        /* Call weak (surcharged) callback */
+        HAL_CAN_TxMailbox0CompleteCallback(hcan);
+#endif /* USE_HAL_CAN_REGISTER_CALLBACKS */
+      }
+      else
+      {
+        if ((tsrflags & CAN_TSR_ALST0) != 0U)
+        {
+          /* Update error code */
+          errorcode |= HAL_CAN_ERROR_TX_ALST0;
+        }
+        else if ((tsrflags & CAN_TSR_TERR0) != 0U)
+        {
+          /* Update error code */
+          errorcode |= HAL_CAN_ERROR_TX_TERR0;
+        }
+        else
+        {
+          /* Transmission Mailbox 0 abort callback */
+#if USE_HAL_CAN_REGISTER_CALLBACKS == 1
+          /* Call registered callback*/
+          hcan->TxMailbox0AbortCallback(hcan);
+#else
+          /* Call weak (surcharged) callback */
+          HAL_CAN_TxMailbox0AbortCallback(hcan);
+#endif /* USE_HAL_CAN_REGISTER_CALLBACKS */
+        }
+      }
+    }
+
+    /* Transmit Mailbox 1 management *****************************************/
+    if ((tsrflags & CAN_TSR_RQCP1) != 0U)
+    {
+      /* Clear the Transmission Complete flag (and TXOK1,ALST1,TERR1 bits) */
+      __HAL_CAN_CLEAR_FLAG(hcan, CAN_FLAG_RQCP1);
+
+      if ((tsrflags & CAN_TSR_TXOK1) != 0U)
+      {
+        /* Transmission Mailbox 1 complete callback */
+#if USE_HAL_CAN_REGISTER_CALLBACKS == 1
+        /* Call registered callback*/
+        hcan->TxMailbox1CompleteCallback(hcan);
+#else
+        /* Call weak (surcharged) callback */
+        HAL_CAN_TxMailbox1CompleteCallback(hcan);
+#endif /* USE_HAL_CAN_REGISTER_CALLBACKS */
+      }
+      else
+      {
+        if ((tsrflags & CAN_TSR_ALST1) != 0U)
+        {
+          /* Update error code */
+          errorcode |= HAL_CAN_ERROR_TX_ALST1;
+        }
+        else if ((tsrflags & CAN_TSR_TERR1) != 0U)
+        {
+          /* Update error code */
+          errorcode |= HAL_CAN_ERROR_TX_TERR1;
+        }
+        else
+        {
+          /* Transmission Mailbox 1 abort callback */
+#if USE_HAL_CAN_REGISTER_CALLBACKS == 1
+          /* Call registered callback*/
+          hcan->TxMailbox1AbortCallback(hcan);
+#else
+          /* Call weak (surcharged) callback */
+          HAL_CAN_TxMailbox1AbortCallback(hcan);
+#endif /* USE_HAL_CAN_REGISTER_CALLBACKS */
+        }
+      }
+    }
+
+    /* Transmit Mailbox 2 management *****************************************/
+    if ((tsrflags & CAN_TSR_RQCP2) != 0U)
+    {
+      /* Clear the Transmission Complete flag (and TXOK2,ALST2,TERR2 bits) */
+      __HAL_CAN_CLEAR_FLAG(hcan, CAN_FLAG_RQCP2);
+
+      if ((tsrflags & CAN_TSR_TXOK2) != 0U)
+      {
+        /* Transmission Mailbox 2 complete callback */
+#if USE_HAL_CAN_REGISTER_CALLBACKS == 1
+        /* Call registered callback*/
+        hcan->TxMailbox2CompleteCallback(hcan);
+#else
+        /* Call weak (surcharged) callback */
+        HAL_CAN_TxMailbox2CompleteCallback(hcan);
+#endif /* USE_HAL_CAN_REGISTER_CALLBACKS */
+      }
+      else
+      {
+        if ((tsrflags & CAN_TSR_ALST2) != 0U)
+        {
+          /* Update error code */
+          errorcode |= HAL_CAN_ERROR_TX_ALST2;
+        }
+        else if ((tsrflags & CAN_TSR_TERR2) != 0U)
+        {
+          /* Update error code */
+          errorcode |= HAL_CAN_ERROR_TX_TERR2;
+        }
+        else
+        {
+          /* Transmission Mailbox 2 abort callback */
+#if USE_HAL_CAN_REGISTER_CALLBACKS == 1
+          /* Call registered callback*/
+          hcan->TxMailbox2AbortCallback(hcan);
+#else
+          /* Call weak (surcharged) callback */
+          HAL_CAN_TxMailbox2AbortCallback(hcan);
+#endif /* USE_HAL_CAN_REGISTER_CALLBACKS */
+        }
+      }
+    }
+  }
+
+  /* Receive FIFO 0 overrun interrupt management *****************************/
+  if ((interrupts & CAN_IT_RX_FIFO0_OVERRUN) != 0U)
+  {
+    if ((rf0rflags & CAN_RF0R_FOVR0) != 0U)
+    {
+      /* Set CAN error code to Rx Fifo 0 overrun error */
+      errorcode |= HAL_CAN_ERROR_RX_FOV0;
+
+      /* Clear FIFO0 Overrun Flag */
+      __HAL_CAN_CLEAR_FLAG(hcan, CAN_FLAG_FOV0);
+    }
+  }
+
+  /* Receive FIFO 0 full interrupt management ********************************/
+  if ((interrupts & CAN_IT_RX_FIFO0_FULL) != 0U)
+  {
+    if ((rf0rflags & CAN_RF0R_FULL0) != 0U)
+    {
+      /* Clear FIFO 0 full Flag */
+      __HAL_CAN_CLEAR_FLAG(hcan, CAN_FLAG_FF0);
+
+      /* Receive FIFO 0 full Callback */
+#if USE_HAL_CAN_REGISTER_CALLBACKS == 1
+      /* Call registered callback*/
+      hcan->RxFifo0FullCallback(hcan);
+#else
+      /* Call weak (surcharged) callback */
+      HAL_CAN_RxFifo0FullCallback(hcan);
+#endif /* USE_HAL_CAN_REGISTER_CALLBACKS */
+    }
+  }
+
+  /* Receive FIFO 0 message pending interrupt management *********************/
+  if ((interrupts & CAN_IT_RX_FIFO0_MSG_PENDING) != 0U)
+  {
+    /* Check if message is still pending */
+    if ((hcan->Instance->RF0R & CAN_RF0R_FMP0) != 0U)
+    {
+      /* Receive FIFO 0 mesage pending Callback */
+#if USE_HAL_CAN_REGISTER_CALLBACKS == 1
+      /* Call registered callback*/
+      hcan->RxFifo0MsgPendingCallback(hcan);
+#else
+      /* Call weak (surcharged) callback */
+      HAL_CAN_RxFifo0MsgPendingCallback(hcan);
+#endif /* USE_HAL_CAN_REGISTER_CALLBACKS */
+    }
+  }
+
+  /* Receive FIFO 1 overrun interrupt management *****************************/
+  if ((interrupts & CAN_IT_RX_FIFO1_OVERRUN) != 0U)
+  {
+    if ((rf1rflags & CAN_RF1R_FOVR1) != 0U)
+    {
+      /* Set CAN error code to Rx Fifo 1 overrun error */
+      errorcode |= HAL_CAN_ERROR_RX_FOV1;
+
+      /* Clear FIFO1 Overrun Flag */
+      __HAL_CAN_CLEAR_FLAG(hcan, CAN_FLAG_FOV1);
+    }
+  }
+
+  /* Receive FIFO 1 full interrupt management ********************************/
+  if ((interrupts & CAN_IT_RX_FIFO1_FULL) != 0U)
+  {
+    if ((rf1rflags & CAN_RF1R_FULL1) != 0U)
+    {
+      /* Clear FIFO 1 full Flag */
+      __HAL_CAN_CLEAR_FLAG(hcan, CAN_FLAG_FF1);
+
+      /* Receive FIFO 1 full Callback */
+#if USE_HAL_CAN_REGISTER_CALLBACKS == 1
+      /* Call registered callback*/
+      hcan->RxFifo1FullCallback(hcan);
+#else
+      /* Call weak (surcharged) callback */
+      HAL_CAN_RxFifo1FullCallback(hcan);
+#endif /* USE_HAL_CAN_REGISTER_CALLBACKS */
+    }
+  }
+
+  /* Receive FIFO 1 message pending interrupt management *********************/
+  if ((interrupts & CAN_IT_RX_FIFO1_MSG_PENDING) != 0U)
+  {
+    /* Check if message is still pending */
+    if ((hcan->Instance->RF1R & CAN_RF1R_FMP1) != 0U)
+    {
+      /* Receive FIFO 1 mesage pending Callback */
+#if USE_HAL_CAN_REGISTER_CALLBACKS == 1
+      /* Call registered callback*/
+      hcan->RxFifo1MsgPendingCallback(hcan);
+#else
+      /* Call weak (surcharged) callback */
+      HAL_CAN_RxFifo1MsgPendingCallback(hcan);
+#endif /* USE_HAL_CAN_REGISTER_CALLBACKS */
+    }
+  }
+
+  /* Sleep interrupt management *********************************************/
+  if ((interrupts & CAN_IT_SLEEP_ACK) != 0U)
+  {
+    if ((msrflags & CAN_MSR_SLAKI) != 0U)
+    {
+      /* Clear Sleep interrupt Flag */
+      __HAL_CAN_CLEAR_FLAG(hcan, CAN_FLAG_SLAKI);
+
+      /* Sleep Callback */
+#if USE_HAL_CAN_REGISTER_CALLBACKS == 1
+      /* Call registered callback*/
+      hcan->SleepCallback(hcan);
+#else
+      /* Call weak (surcharged) callback */
+      HAL_CAN_SleepCallback(hcan);
+#endif /* USE_HAL_CAN_REGISTER_CALLBACKS */
+    }
+  }
+
+  /* WakeUp interrupt management *********************************************/
+  if ((interrupts & CAN_IT_WAKEUP) != 0U)
+  {
+    if ((msrflags & CAN_MSR_WKUI) != 0U)
+    {
+      /* Clear WakeUp Flag */
+      __HAL_CAN_CLEAR_FLAG(hcan, CAN_FLAG_WKU);
+
+      /* WakeUp Callback */
+#if USE_HAL_CAN_REGISTER_CALLBACKS == 1
+      /* Call registered callback*/
+      hcan->WakeUpFromRxMsgCallback(hcan);
+#else
+      /* Call weak (surcharged) callback */
+      HAL_CAN_WakeUpFromRxMsgCallback(hcan);
+#endif /* USE_HAL_CAN_REGISTER_CALLBACKS */
+    }
+  }
+
+  /* Error interrupts management *********************************************/
+  if ((interrupts & CAN_IT_ERROR) != 0U)
+  {
+    if ((msrflags & CAN_MSR_ERRI) != 0U)
+    {
+      /* Check Error Warning Flag */
+      if (((interrupts & CAN_IT_ERROR_WARNING) != 0U) &&
+          ((esrflags & CAN_ESR_EWGF) != 0U))
+      {
+        /* Set CAN error code to Error Warning */
+        errorcode |= HAL_CAN_ERROR_EWG;
+
+        /* No need for clear of Error Warning Flag as read-only */
+      }
+
+      /* Check Error Passive Flag */
+      if (((interrupts & CAN_IT_ERROR_PASSIVE) != 0U) &&
+          ((esrflags & CAN_ESR_EPVF) != 0U))
+      {
+        /* Set CAN error code to Error Passive */
+        errorcode |= HAL_CAN_ERROR_EPV;
+
+        /* No need for clear of Error Passive Flag as read-only */
+      }
+
+      /* Check Bus-off Flag */
+      if (((interrupts & CAN_IT_BUSOFF) != 0U) &&
+          ((esrflags & CAN_ESR_BOFF) != 0U))
+      {
+        /* Set CAN error code to Bus-Off */
+        errorcode |= HAL_CAN_ERROR_BOF;
+
+        /* No need for clear of Error Bus-Off as read-only */
+      }
+
+      /* Check Last Error Code Flag */
+      if (((interrupts & CAN_IT_LAST_ERROR_CODE) != 0U) &&
+          ((esrflags & CAN_ESR_LEC) != 0U))
+      {
+        switch (esrflags & CAN_ESR_LEC)
+        {
+          case (CAN_ESR_LEC_0):
+            /* Set CAN error code to Stuff error */
+            errorcode |= HAL_CAN_ERROR_STF;
+            break;
+          case (CAN_ESR_LEC_1):
+            /* Set CAN error code to Form error */
+            errorcode |= HAL_CAN_ERROR_FOR;
+            break;
+          case (CAN_ESR_LEC_1 | CAN_ESR_LEC_0):
+            /* Set CAN error code to Acknowledgement error */
+            errorcode |= HAL_CAN_ERROR_ACK;
+            break;
+          case (CAN_ESR_LEC_2):
+            /* Set CAN error code to Bit recessive error */
+            errorcode |= HAL_CAN_ERROR_BR;
+            break;
+          case (CAN_ESR_LEC_2 | CAN_ESR_LEC_0):
+            /* Set CAN error code to Bit Dominant error */
+            errorcode |= HAL_CAN_ERROR_BD;
+            break;
+          case (CAN_ESR_LEC_2 | CAN_ESR_LEC_1):
+            /* Set CAN error code to CRC error */
+            errorcode |= HAL_CAN_ERROR_CRC;
+            break;
+          default:
+            break;
+        }
+
+        /* Clear Last error code Flag */
+        CLEAR_BIT(hcan->Instance->ESR, CAN_ESR_LEC);
+      }
+    }
+
+    /* Clear ERRI Flag */
+    __HAL_CAN_CLEAR_FLAG(hcan, CAN_FLAG_ERRI);
+  }
+
+  /* Call the Error call Back in case of Errors */
+  if (errorcode != HAL_CAN_ERROR_NONE)
+  {
+    /* Update error code in handle */
+    hcan->ErrorCode |= errorcode;
+
+    /* Call Error callback function */
+#if USE_HAL_CAN_REGISTER_CALLBACKS == 1
+    /* Call registered callback*/
+    hcan->ErrorCallback(hcan);
+#else
+    /* Call weak (surcharged) callback */
+    HAL_CAN_ErrorCallback(hcan);
+#endif /* USE_HAL_CAN_REGISTER_CALLBACKS */
+  }
+}

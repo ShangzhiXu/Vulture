@@ -1,0 +1,60 @@
+lv_obj_t * lv_cpicker_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+    LV_LOG_TRACE("color_picker create started");
+
+    lv_obj_t * cpicker = lv_obj_create(par, copy);
+    LV_ASSERT_MEM(cpicker);
+    if(cpicker == NULL) return NULL;
+
+    if(ancestor_signal == NULL) ancestor_signal = lv_obj_get_signal_cb(cpicker);
+    if(ancestor_design == NULL) ancestor_design = lv_obj_get_design_cb(cpicker);
+
+    /*Allocate the extended data*/
+    lv_cpicker_ext_t * ext = lv_obj_allocate_ext_attr(cpicker, sizeof(lv_cpicker_ext_t));
+    LV_ASSERT_MEM(ext);
+    if(ext == NULL) {
+        lv_obj_del(cpicker);
+        return NULL;
+    }
+
+    /*Initialize the allocated 'ext' */
+    ext->type = LV_CPICKER_DEF_TYPE;
+    ext->hsv = LV_CPICKER_DEF_HSV;
+    ext->knob.colored = 1;
+    ext->color_mode = LV_CPICKER_COLOR_MODE_HUE;
+    ext->color_mode_fixed = 0;
+    ext->last_click_time = 0;
+    ext->last_change_time = 0;
+
+    lv_style_list_init(&ext->knob.style_list);
+
+    /*The signal and design functions are not copied so set them here*/
+    lv_obj_set_signal_cb(cpicker, lv_cpicker_signal);
+    lv_obj_set_design_cb(cpicker, lv_cpicker_design);
+
+    /*If no copy do the basic initialization*/
+    if(copy == NULL) {
+        lv_obj_set_size(cpicker, LV_DPI * 2, LV_DPI * 2);
+        lv_obj_add_protect(cpicker, LV_PROTECT_PRESS_LOST);
+        lv_obj_set_adv_hittest(cpicker, true);
+        lv_theme_apply(cpicker, LV_THEME_CPICKER);
+    }
+    /*Copy 'copy'*/
+    else {
+        lv_cpicker_ext_t * copy_ext = lv_obj_get_ext_attr(copy);
+        ext->type = copy_ext->type;
+        ext->color_mode = copy_ext->color_mode;
+        ext->color_mode_fixed = copy_ext->color_mode_fixed;
+        ext->hsv = copy_ext->hsv;
+        ext->knob.colored = copy_ext->knob.colored;
+
+        lv_style_list_copy(&ext->knob.style_list, &copy_ext->knob.style_list);
+        /*Refresh the style with new signal function*/
+        lv_obj_refresh_style(cpicker, LV_STYLE_PROP_ALL);
+    }
+    refr_knob_pos(cpicker);
+
+    LV_LOG_INFO("color_picker created");
+
+    return cpicker;
+}

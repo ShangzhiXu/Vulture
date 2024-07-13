@@ -1,0 +1,32 @@
+VOID OsLockDepRecord(SPIN_LOCK_S *lock)
+{
+    UINT32 intSave;
+    UINT64 cycles;
+    LosTaskCB *current = OsCurrTaskGet();
+    LockDep *lockDep = &current->lockDep;
+    HeldLocks *heldlock = &lockDep->heldLocks[lockDep->lockDepth];
+
+    if (lock == NULL) {
+        return;
+    }
+    OsLockDepRequire(&intSave);
+
+    /*
+     * OsLockDepCheckIn records start time t1, after the lock is obtained, we
+     * get the time t2, (t2 - t1) is the time of waiting for the lock
+     */
+    cycles = OsLockDepGetCycles();
+    heldlock->waitTime = cycles - heldlock->waitTime;
+    heldlock->holdTime = cycles;
+
+    /* record lock info */
+    lock->owner = current;
+    lock->cpuid = ArchCurrCpuid();
+
+    /* record lockdep info */
+    heldlock->lockPtr = lock;
+    lockDep->lockDepth++;
+    lockDep->waitLock = NULL;
+
+    OsLockDepRelease(intSave);
+}

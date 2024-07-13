@@ -1,0 +1,21 @@
+dhcp6_tmr(void)
+{
+  struct netif *netif;
+  /* loop through netif's */
+  NETIF_FOREACH(netif) {
+    struct dhcp6 *dhcp6 = netif_dhcp6_data(netif);
+    /* only act on DHCPv6 configured interfaces */
+    if (dhcp6 != NULL) {
+      /* timer is active (non zero), and is about to trigger now */
+      if (dhcp6->request_timeout > 1) {
+        dhcp6->request_timeout--;
+      } else if (dhcp6->request_timeout == 1) {
+        dhcp6->request_timeout--;
+        /* { dhcp6->request_timeout == 0 } */
+        LWIP_DEBUGF(DHCP6_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("dhcp6_tmr(): request timeout\n"));
+        /* this client's request timeout triggered */
+        dhcp6_timeout(netif, dhcp6);
+      }
+    }
+  }
+}

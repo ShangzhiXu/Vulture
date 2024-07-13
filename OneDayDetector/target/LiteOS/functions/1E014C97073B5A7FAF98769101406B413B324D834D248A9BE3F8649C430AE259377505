@@ -1,0 +1,54 @@
+void HAL_I2S_IRQHandler(I2S_HandleTypeDef *hi2s)
+{
+  uint32_t itsource = hi2s->Instance->CR2;
+  uint32_t itflag   = hi2s->Instance->SR;
+
+  /* I2S in mode Receiver ------------------------------------------------*/
+  if ((I2S_CHECK_FLAG(itflag, I2S_FLAG_OVR) == RESET) &&
+      (I2S_CHECK_FLAG(itflag, I2S_FLAG_RXNE) != RESET) && (I2S_CHECK_IT_SOURCE(itsource, I2S_IT_RXNE) != RESET))
+  {
+    I2S_Receive_IT(hi2s);
+    return;
+  }
+
+  /* I2S in mode Tramitter -----------------------------------------------*/
+  if ((I2S_CHECK_FLAG(itflag, I2S_FLAG_TXE) != RESET) && (I2S_CHECK_IT_SOURCE(itsource, I2S_IT_TXE) != RESET))
+  {
+    I2S_Transmit_IT(hi2s);
+    return;
+  }
+
+  /* I2S interrupt error -------------------------------------------------*/
+  if (I2S_CHECK_IT_SOURCE(itsource, I2S_IT_ERR) != RESET)
+  {
+    /* I2S Overrun error interrupt occurred ---------------------------------*/
+    if (I2S_CHECK_FLAG(itflag, I2S_FLAG_OVR) != RESET)
+    {
+      /* Disable RXNE and ERR interrupt */
+      __HAL_I2S_DISABLE_IT(hi2s, (I2S_IT_RXNE | I2S_IT_ERR));
+
+      /* Set the error code and execute error callback*/
+      SET_BIT(hi2s->ErrorCode, HAL_I2S_ERROR_OVR);
+    }
+
+    /* I2S Underrun error interrupt occurred --------------------------------*/
+    if (I2S_CHECK_FLAG(itflag, I2S_FLAG_UDR) != RESET)
+    {
+      /* Disable TXE and ERR interrupt */
+      __HAL_I2S_DISABLE_IT(hi2s, (I2S_IT_TXE | I2S_IT_ERR));
+
+      /* Set the error code and execute error callback*/
+      SET_BIT(hi2s->ErrorCode, HAL_I2S_ERROR_UDR);
+    }
+
+    /* Set the I2S State ready */
+    hi2s->State = HAL_I2S_STATE_READY;
+
+    /* Call user error callback */
+#if (USE_HAL_I2S_REGISTER_CALLBACKS == 1U)
+    hi2s->ErrorCallback(hi2s);
+#else
+    HAL_I2S_ErrorCallback(hi2s);
+#endif /* USE_HAL_I2S_REGISTER_CALLBACKS */
+  }
+}

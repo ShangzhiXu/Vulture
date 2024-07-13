@@ -1,0 +1,48 @@
+lwip_netconn_do_send(void *m)
+{
+  struct api_msg *msg = (struct api_msg *)m;
+
+  err_t err = netconn_err(msg->conn);
+  if (err == ERR_OK) {
+    if (msg->conn->pcb.tcp != NULL) {
+      switch (NETCONNTYPE_GROUP(msg->conn->type)) {
+#if LWIP_RAW
+        case NETCONN_RAW:
+          if (ip_addr_isany(&msg->msg.b->addr) || IP_IS_ANY_TYPE_VAL(msg->msg.b->addr)) {
+            err = raw_send(msg->conn->pcb.raw, msg->msg.b->p);
+          } else {
+            err = raw_sendto(msg->conn->pcb.raw, msg->msg.b->p, &msg->msg.b->addr);
+          }
+          break;
+#endif
+#if LWIP_UDP
+        case NETCONN_UDP:
+#if LWIP_CHECKSUM_ON_COPY
+          if (ip_addr_isany(&msg->msg.b->addr) || IP_IS_ANY_TYPE_VAL(msg->msg.b->addr)) {
+            err = udp_send_chksum(msg->conn->pcb.udp, msg->msg.b->p,
+                                  msg->msg.b->flags & NETBUF_FLAG_CHKSUM, msg->msg.b->toport_chksum);
+          } else {
+            err = udp_sendto_chksum(msg->conn->pcb.udp, msg->msg.b->p,
+                                    &msg->msg.b->addr, msg->msg.b->port,
+                                    msg->msg.b->flags & NETBUF_FLAG_CHKSUM, msg->msg.b->toport_chksum);
+          }
+#else /* LWIP_CHECKSUM_ON_COPY */
+          if (ip_addr_isany_val(msg->msg.b->addr) || IP_IS_ANY_TYPE_VAL(msg->msg.b->addr)) {
+            err = udp_send(msg->conn->pcb.udp, msg->msg.b->p);
+          } else {
+            err = udp_sendto(msg->conn->pcb.udp, msg->msg.b->p, &msg->msg.b->addr, msg->msg.b->port);
+          }
+#endif /* LWIP_CHECKSUM_ON_COPY */
+          break;
+#endif /* LWIP_UDP */
+        default:
+          err = ERR_CONN;
+          break;
+      }
+    } else {
+      err = ERR_CONN;
+    }
+  }
+  msg->err = err;
+  TCPIP_APIMSG_ACK(msg);
+}

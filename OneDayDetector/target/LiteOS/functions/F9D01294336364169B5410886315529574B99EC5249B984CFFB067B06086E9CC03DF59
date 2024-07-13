@@ -1,0 +1,27 @@
+osEvent osWait(uint32_t millisec)
+{
+    osEvent evt;
+    UINT32 interval;
+    UINT32 ret;
+
+    if (OS_INT_ACTIVE) {
+        evt.status = osErrorISR;
+        return evt;
+    }
+
+    if (millisec == 0) {
+        evt.status = osOK;
+        return evt;
+    }
+
+    /* osEventSignal, osEventMessage, osEventMail */
+    interval = LOS_MS2Tick(millisec);
+
+    ret = LOS_TaskDelay(interval);
+    if (ret == LOS_OK) {
+        evt.status = osEventTimeout;
+    } else {
+        evt.status = osErrorResource;
+    }
+    return evt;
+}

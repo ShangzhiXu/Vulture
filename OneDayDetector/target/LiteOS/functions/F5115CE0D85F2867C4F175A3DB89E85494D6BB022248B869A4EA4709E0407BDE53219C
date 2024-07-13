@@ -1,0 +1,50 @@
+udp_input_local_match(struct udp_pcb *pcb, struct netif *inp, u8_t broadcast)
+{
+  LWIP_UNUSED_ARG(inp);       /* in IPv6 only case */
+  LWIP_UNUSED_ARG(broadcast); /* in IPv6 only case */
+
+  LWIP_ASSERT("udp_input_local_match: invalid pcb", pcb != NULL);
+  LWIP_ASSERT("udp_input_local_match: invalid netif", inp != NULL);
+
+  /* check if PCB is bound to specific netif */
+  if ((pcb->netif_idx != NETIF_NO_INDEX) &&
+      (pcb->netif_idx != netif_get_index(ip_data.current_input_netif))) {
+    return 0;
+  }
+
+  /* Dual-stack: PCBs listening to any IP type also listen to any IP address */
+  if (IP_IS_ANY_TYPE_VAL(pcb->local_ip)) {
+#if LWIP_IPV4 && IP_SOF_BROADCAST_RECV
+    if ((broadcast != 0) && !ip_get_option(pcb, SOF_BROADCAST)) {
+      return 0;
+    }
+#endif /* LWIP_IPV4 && IP_SOF_BROADCAST_RECV */
+    return 1;
+  }
+
+  /* Only need to check PCB if incoming IP version matches PCB IP version */
+  if (IP_ADDR_PCB_VERSION_MATCH_EXACT(pcb, ip_current_dest_addr())) {
+#if LWIP_IPV4
+    /* Special case: IPv4 broadcast: all or broadcasts in my subnet
+     * Note: broadcast variable can only be 1 if it is an IPv4 broadcast */
+    if (broadcast != 0) {
+#if IP_SOF_BROADCAST_RECV
+      if (ip_get_option(pcb, SOF_BROADCAST))
+#endif /* IP_SOF_BROADCAST_RECV */
+      {
+        if (ip4_addr_isany(ip_2_ip4(&pcb->local_ip)) ||
+            ((ip4_current_dest_addr()->addr == IPADDR_BROADCAST)) ||
+            ip4_addr_netcmp(ip_2_ip4(&pcb->local_ip), ip4_current_dest_addr(), netif_ip4_netmask(inp))) {
+          return 1;
+        }
+      }
+    } else
+#endif /* LWIP_IPV4 */
+      /* Handle IPv4 and IPv6: all or exact match */
+      if (ip_addr_isany(&pcb->local_ip) || ip_addr_cmp(&pcb->local_ip, ip_current_dest_addr())) {
+        return 1;
+      }
+  }
+
+  return 0;
+}

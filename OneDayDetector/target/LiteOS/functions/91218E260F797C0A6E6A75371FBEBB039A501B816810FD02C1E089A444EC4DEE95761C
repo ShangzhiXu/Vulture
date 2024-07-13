@@ -1,0 +1,102 @@
+HAL_StatusTypeDef HAL_ADCEx_MultiModeConfigChannel(ADC_HandleTypeDef* hadc, ADC_MultiModeTypeDef* multimode)
+{
+  HAL_StatusTypeDef  tmp_hal_status = HAL_OK;
+  ADC_Common_TypeDef *tmpADC_Common;
+  ADC_HandleTypeDef  tmphadcSlave;
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_MULTIMODE_MASTER_INSTANCE(hadc->Instance));
+  assert_param(IS_ADC_MULTIMODE(multimode->Mode));
+  if(multimode->Mode != ADC_MODE_INDEPENDENT)
+  {
+    assert_param(IS_ADC_DMA_ACCESS_MULTIMODE(multimode->DMAAccessMode));
+    assert_param(IS_ADC_SAMPLING_DELAY(multimode->TwoSamplingDelay));
+  }
+  
+  /* Process locked */
+  __HAL_LOCK(hadc);
+  
+  ADC_MULTI_SLAVE(hadc, &tmphadcSlave);
+  
+  if (tmphadcSlave.Instance == NULL)
+  {
+    /* Update ADC state machine to error */
+    SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_CONFIG);
+    
+    /* Process unlocked */
+    __HAL_UNLOCK(hadc);
+    
+    return HAL_ERROR;
+  }
+  
+  /* Parameters update conditioned to ADC state:                              */
+  /* Parameters that can be updated when ADC is disabled or enabled without   */
+  /* conversion on going on regular group:                                    */
+  /*  - Multimode DMA configuration                                           */
+  /*  - Multimode DMA mode                                                    */
+  if ( (ADC_IS_CONVERSION_ONGOING_REGULAR(hadc) == RESET) 
+    && (ADC_IS_CONVERSION_ONGOING_REGULAR(&tmphadcSlave) == RESET) )
+  {
+    /* Pointer to the common control register */
+    tmpADC_Common = __LL_ADC_COMMON_INSTANCE(hadc->Instance);
+    
+    /* If multimode is selected, configure all multimode paramaters.          */
+    /* Otherwise, reset multimode parameters (can be used in case of          */
+    /* transition from multimode to independent mode).                        */
+    if(multimode->Mode != ADC_MODE_INDEPENDENT)
+    {
+      MODIFY_REG(tmpADC_Common->CCR, ADC_CCR_MDMA | ADC_CCR_DMACFG, 
+                 multimode->DMAAccessMode |
+                 ADC_CCR_MULTI_DMACONTREQ(hadc->Init.DMAContinuousRequests));
+      
+      /* Parameters that can be updated only when ADC is disabled:                */
+      /*  - Multimode mode selection                                              */
+      /*  - Multimode delay                                                       */
+      /*    Note: Delay range depends on selected resolution:                     */
+      /*      from 1 to 12 clock cycles for 12 bits                               */
+      /*      from 1 to 10 clock cycles for 10 bits,                              */
+      /*      from 1 to 8 clock cycles for 8 bits                                 */
+      /*      from 1 to 6 clock cycles for 6 bits                                 */
+      /*    If a higher delay is selected, it will be clipped to maximum delay    */
+      /*    range                                                                 */
+      if ((ADC_IS_ENABLE(hadc) == RESET)                             &&
+          (ADC_IS_ENABLE(&tmphadcSlave) == RESET)  )
+      {
+          MODIFY_REG(tmpADC_Common->CCR,
+                     ADC_CCR_DUAL |
+                     ADC_CCR_DELAY,
+                     multimode->Mode |
+                     multimode->TwoSamplingDelay
+                    );
+      }
+    }
+    else /* ADC_MODE_INDEPENDENT */
+    {
+      CLEAR_BIT(tmpADC_Common->CCR, ADC_CCR_MDMA | ADC_CCR_DMACFG);
+      
+      /* Parameters that can be updated only when ADC is disabled:                */
+      /*  - Multimode mode selection                                              */
+      /*  - Multimode delay                                                       */
+      if ((ADC_IS_ENABLE(hadc) == RESET)                             &&
+          (ADC_IS_ENABLE(&tmphadcSlave) == RESET)  )
+      {
+        CLEAR_BIT(tmpADC_Common->CCR, ADC_CCR_DUAL | ADC_CCR_DELAY);
+      }
+    }
+  }
+  /* If one of the ADC sharing the same common group is enabled, no update    */
+  /* could be done on neither of the multimode structure parameters.          */
+  else
+  {
+    /* Update ADC state machine to error */
+    SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_CONFIG);
+    
+    tmp_hal_status = HAL_ERROR;
+  }
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+  
+  /* Return function status */
+  return tmp_hal_status;
+} 

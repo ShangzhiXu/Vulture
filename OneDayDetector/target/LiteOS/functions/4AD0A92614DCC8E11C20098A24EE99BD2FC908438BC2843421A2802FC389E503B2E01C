@@ -1,0 +1,18 @@
+memp_init(void)
+{
+  u16_t i;
+
+  /* for every pool: */
+  for (i = 0; i < LWIP_ARRAYSIZE(memp_pools); i++) {
+    memp_init_pool(memp_pools[i]);
+
+#if LWIP_STATS && MEMP_STATS
+    lwip_stats.memp[i] = memp_pools[i]->stats;
+#endif
+  }
+
+#if MEMP_OVERFLOW_CHECK >= 2
+  /* check everything a first time to see if it worked */
+  memp_overflow_check_all();
+#endif /* MEMP_OVERFLOW_CHECK >= 2 */
+}

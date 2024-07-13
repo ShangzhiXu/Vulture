@@ -1,0 +1,144 @@
+static int ipcp_ackci(fsm *f, u_char *p, int len) {
+    ppp_pcb *pcb = f->pcb;
+    ipcp_options *go = &pcb->ipcp_gotoptions;
+    u_short cilen, citype;
+    u32_t cilong;
+#if VJ_SUPPORT
+    u_short cishort;
+    u_char cimaxslotindex, cicflag;
+#endif /* VJ_SUPPORT */
+
+    /*
+     * CIs must be in exactly the same order that we sent...
+     * Check packet length and CI length at each step.
+     * If we find any deviations, then this packet is bad.
+     */
+
+#define ACKCIADDRS(opt, neg, val1, val2) \
+    if (neg) { \
+	u32_t l; \
+	if ((len -= CILEN_ADDRS) < 0) \
+	    goto bad; \
+	GETCHAR(citype, p); \
+	GETCHAR(cilen, p); \
+	if (cilen != CILEN_ADDRS || \
+	    citype != opt) \
+	    goto bad; \
+	GETLONG(l, p); \
+	cilong = lwip_htonl(l); \
+	if (val1 != cilong) \
+	    goto bad; \
+	GETLONG(l, p); \
+	cilong = lwip_htonl(l); \
+	if (val2 != cilong) \
+	    goto bad; \
+    }
+
+#if VJ_SUPPORT
+#define ACKCIVJ(opt, neg, val, old, maxslotindex, cflag) \
+    if (neg) { \
+	int vjlen = old? CILEN_COMPRESS : CILEN_VJ; \
+	if ((len -= vjlen) < 0) \
+	    goto bad; \
+	GETCHAR(citype, p); \
+	GETCHAR(cilen, p); \
+	if (cilen != vjlen || \
+	    citype != opt)  \
+	    goto bad; \
+	GETSHORT(cishort, p); \
+	if (cishort != val) \
+	    goto bad; \
+	if (!old) { \
+	    GETCHAR(cimaxslotindex, p); \
+	    if (cimaxslotindex != maxslotindex) \
+		goto bad; \
+	    GETCHAR(cicflag, p); \
+	    if (cicflag != cflag) \
+		goto bad; \
+	} \
+    }
+#endif /* VJ_SUPPORT */
+
+#define ACKCIADDR(opt, neg, val) \
+    if (neg) { \
+	u32_t l; \
+	if ((len -= CILEN_ADDR) < 0) \
+	    goto bad; \
+	GETCHAR(citype, p); \
+	GETCHAR(cilen, p); \
+	if (cilen != CILEN_ADDR || \
+	    citype != opt) \
+	    goto bad; \
+	GETLONG(l, p); \
+	cilong = lwip_htonl(l); \
+	if (val != cilong) \
+	    goto bad; \
+    }
+
+#if LWIP_DNS
+#define ACKCIDNS(opt, neg, addr) \
+    if (neg) { \
+	u32_t l; \
+	if ((len -= CILEN_ADDR) < 0) \
+	    goto bad; \
+	GETCHAR(citype, p); \
+	GETCHAR(cilen, p); \
+	if (cilen != CILEN_ADDR || citype != opt) \
+	    goto bad; \
+	GETLONG(l, p); \
+	cilong = lwip_htonl(l); \
+	if (addr != cilong) \
+	    goto bad; \
+    }
+#endif /* LWIP_DNS */
+
+#if 0 /* UNUSED - WINS */
+#define ACKCIWINS(opt, addr) \
+    if (addr) { \
+	u32_t l; \
+	if ((len -= CILEN_ADDR) < 0) \
+	    goto bad; \
+	GETCHAR(citype, p); \
+	GETCHAR(cilen, p); \
+	if (cilen != CILEN_ADDR || citype != opt) \
+	    goto bad; \
+	GETLONG(l, p); \
+	cilong = lwip_htonl(l); \
+	if (addr != cilong) \
+	    goto bad; \
+    }
+#endif /* UNUSED - WINS */
+
+    ACKCIADDRS(CI_ADDRS, !go->neg_addr && go->old_addrs, go->ouraddr,
+	       go->hisaddr);
+
+#if VJ_SUPPORT
+    ACKCIVJ(CI_COMPRESSTYPE, go->neg_vj, go->vj_protocol, go->old_vj,
+	    go->maxslotindex, go->cflag);
+#endif /* VJ_SUPPORT */
+
+    ACKCIADDR(CI_ADDR, go->neg_addr, go->ouraddr);
+
+#if LWIP_DNS
+    ACKCIDNS(CI_MS_DNS1, go->req_dns1, go->dnsaddr[0]);
+
+    ACKCIDNS(CI_MS_DNS2, go->req_dns2, go->dnsaddr[1]);
+#endif /* LWIP_DNS */
+
+#if 0 /* UNUSED - WINS */
+    ACKCIWINS(CI_MS_WINS1, go->winsaddr[0]);
+
+    ACKCIWINS(CI_MS_WINS2, go->winsaddr[1]);
+#endif /* UNUSED - WINS */
+
+    /*
+     * If there are any remaining CIs, then this packet is bad.
+     */
+    if (len != 0)
+	goto bad;
+    return (1);
+
+bad:
+    IPCPDEBUG(("ipcp_ackci: received bad Ack!"));
+    return (0);
+}

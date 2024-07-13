@@ -1,0 +1,40 @@
+STATIC INLINE VOID OsMemRecord(const VOID *ptr, UINT32 size)
+{
+    UINT64 tickCount = LOS_TickCountGet();
+    UINT32 nodeId;
+    LinkRegNode linkRegNode;
+    AddrNode node;
+    ReqSizeNode reqNode;
+
+    OsMemRecordLR(&linkRegNode);
+    nodeId = OsBinTreeInsert(&linkRegNode, sizeof(linkRegNode), (BinNode **)&g_linkRegRoot, OsGetLRBinNode,
+                             OsCompareLRNode);
+    if (nodeId == OS_INVALID) {
+        PRINT_WARN("LIST g_linkRegRoot insert linkRegNode failed!\n");
+    }
+    g_saveMemRecord[g_memRecordIndex].linkRegId = nodeId;
+
+    node.addr = (UINTPTR)ptr;
+    nodeId = OsBinTreeInsert(&node, sizeof(AddrNode), (BinNode **)&g_addrRoot, OsGetAddrBinNode,
+                             OsCompareAddrNode);
+    if (nodeId == OS_INVALID) {
+        PRINT_WARN("LIST g_addrRoot insert addrNode failed!\n");
+    }
+    g_saveMemRecord[g_memRecordIndex].addrId = nodeId;
+    g_saveMemRecord[g_memRecordIndex].sysTick = tickCount;
+
+    OsMemRecordTaskID();
+
+    reqNode.reqSize = size;
+    nodeId = OsBinTreeInsert(&reqNode, sizeof(ReqSizeNode), (BinNode **)&g_reqSizeRoot, OsGetReqSizeBinNode,
+                             OsCompareReqSizeNode);
+    if (nodeId == OS_INVALID) {
+        PRINT_WARN("LIST g_reqSizeRoot insert reqSizeNode failed!\n");
+    }
+    g_saveMemRecord[g_memRecordIndex].reqSizeId = nodeId;
+
+    g_memRecordIndex++;
+    if (g_memRecordIndex == RECORD_LEN) {
+        OsMemRecordExchange();
+    }
+}

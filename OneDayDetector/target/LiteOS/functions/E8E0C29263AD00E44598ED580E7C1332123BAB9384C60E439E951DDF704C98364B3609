@@ -1,0 +1,16 @@
+static bool prv_check_instance_auth(acc_ctrl_oi_t *accCtrlOiP, uint16_t objId, uint16_t instId,
+                                    uint16_t serverId, OBJ_ACC_OPERATE op)
+{
+    acc_ctrl_oi_t *targetP = NULL;
+    acc_ctrl_ri_t *accCtrlRiP = NULL;
+
+    targetP = prv_get_acc_instance(accCtrlOiP, objId, instId);
+    if (targetP == NULL) {
+        return false;
+    }
+    accCtrlRiP = prv_get_acl_instance(targetP->accCtrlValList, serverId);
+    if (accCtrlRiP == NULL) {
+        return targetP->accCtrlOwner == serverId;
+    }
+    return prv_auth_match(op, accCtrlRiP->accCtrlValue);
+}

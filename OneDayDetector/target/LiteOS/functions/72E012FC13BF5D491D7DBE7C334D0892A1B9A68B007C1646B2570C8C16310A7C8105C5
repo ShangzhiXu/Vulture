@@ -1,0 +1,21 @@
+LITE_OS_SEC_TEXT STATIC UINT32 OsEventParamCheck(const VOID *ptr, UINT32 eventMask, UINT32 mode)
+{
+    if (ptr == NULL) {
+        return LOS_ERRNO_EVENT_PTR_NULL;
+    }
+
+    if (eventMask == 0) {
+        return LOS_ERRNO_EVENT_EVENTMASK_INVALID;
+    }
+
+    if (eventMask & LOS_ERRTYPE_ERROR) {
+        return LOS_ERRNO_EVENT_SETBIT_INVALID;
+    }
+
+    if (((mode & LOS_WAITMODE_OR) && (mode & LOS_WAITMODE_AND)) ||
+        (mode & ~(LOS_WAITMODE_OR | LOS_WAITMODE_AND | LOS_WAITMODE_CLR)) ||
+        !(mode & (LOS_WAITMODE_OR | LOS_WAITMODE_AND))) {
+        return LOS_ERRNO_EVENT_FLAGS_INVALID;
+    }
+    return LOS_OK;
+}

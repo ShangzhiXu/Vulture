@@ -1,0 +1,30 @@
+static void SMARTCARD_DMAError(DMA_HandleTypeDef *hdma)
+{
+  uint32_t dmarequest = 0x00U;
+  SMARTCARD_HandleTypeDef* hsc = ( SMARTCARD_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+  hsc->RxXferCount = 0U;
+  hsc->TxXferCount = 0U;
+  hsc->ErrorCode = HAL_SMARTCARD_ERROR_DMA;
+
+  /* Stop SMARTCARD DMA Tx request if ongoing */
+  dmarequest = HAL_IS_BIT_SET(hsc->Instance->CR3, USART_CR3_DMAT);
+  if((hsc->gState == HAL_SMARTCARD_STATE_BUSY_TX) && dmarequest)
+  {
+    SMARTCARD_EndTxTransfer(hsc);
+  }
+
+  /* Stop SMARTCARD DMA Rx request if ongoing */
+  dmarequest = HAL_IS_BIT_SET(hsc->Instance->CR3, USART_CR3_DMAR);
+  if((hsc->RxState == HAL_SMARTCARD_STATE_BUSY_RX) && dmarequest)
+  {
+    SMARTCARD_EndRxTransfer(hsc);
+  }
+
+#if (USE_HAL_SMARTCARD_REGISTER_CALLBACKS == 1)
+  /* Call registered user error callback */
+  hsc->ErrorCallback(hsc);
+#else
+  /* Call legacy weak user error callback */
+  HAL_SMARTCARD_ErrorCallback(hsc);
+#endif /* USE_HAL_SMARTCARD_REGISTER_CALLBACK */
+}

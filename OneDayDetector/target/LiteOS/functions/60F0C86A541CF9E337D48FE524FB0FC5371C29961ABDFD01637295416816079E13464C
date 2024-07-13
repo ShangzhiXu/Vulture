@@ -1,0 +1,34 @@
+STATIC UINT32 OsDmesgResetMem(VOID *addr, UINT32 size)
+{
+    VOID *temp = NULL;
+    INT32 copyLen;
+    UINT32 intSave;
+
+    if (size <= sizeof(DmesgInfo)) {
+        return LOS_NOK;
+    }
+
+    LOS_SpinLockSave(&g_dmesgSpin, &intSave);
+    temp = g_dmesgInfo;
+    copyLen = OsCopyToNew(addr, size);
+    if (copyLen < 0) {
+        LOS_SpinUnlockRestore(&g_dmesgSpin, intSave);
+        return LOS_NOK;
+    }
+
+    g_logBufSize = size - sizeof(DmesgInfo);
+    g_dmesgInfo = (DmesgInfo *)addr;
+    g_dmesgInfo->logBuf = (CHAR *)addr + sizeof(DmesgInfo);
+    g_dmesgInfo->logSize = copyLen;
+    g_dmesgInfo->logTail = ((copyLen == g_logBufSize) ? 0 : copyLen);
+    g_dmesgInfo->logHead = 0;
+
+    /* if old mem came from malloc */
+    if (temp == g_mallocAddr) {
+        free(temp);
+        g_mallocAddr = NULL;
+    }
+    LOS_SpinUnlockRestore(&g_dmesgSpin, intSave);
+
+    return LOS_OK;
+}

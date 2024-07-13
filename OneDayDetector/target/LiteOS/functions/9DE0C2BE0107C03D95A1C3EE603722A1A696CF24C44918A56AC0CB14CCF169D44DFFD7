@@ -1,0 +1,26 @@
+int32_t sota_callback(void *arg, int8_t* buf, int32_t buflen)
+{
+    int ret;
+    ret = sota_process(arg, g_sota_buf, buflen);
+
+    switch (ret) {
+        case SOTA_UPDATED: {
+            LOS_SwtmrStop(g_sota_timer);
+            atiny_reboot();
+            break;
+        }
+        case SOTA_DOWNLOADING:
+        case SOTA_UPDATING: {
+            LOS_SwtmrStart(g_sota_timer);
+            break;
+        }
+        case SOTA_EXIT:
+        case SOTA_WRITE_FLASH_FAILED: {
+            LOS_SwtmrStop(g_sota_timer);
+            break;
+        }
+        default:
+            break;
+    }
+    return 0;
+}

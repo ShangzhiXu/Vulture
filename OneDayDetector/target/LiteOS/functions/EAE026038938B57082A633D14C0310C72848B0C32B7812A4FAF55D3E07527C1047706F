@@ -1,0 +1,20 @@
+tcp_kill_timewait(void)
+{
+  struct tcp_pcb *pcb, *inactive;
+  u32_t inactivity;
+
+  inactivity = 0;
+  inactive = NULL;
+  /* Go through the list of TIME_WAIT pcbs and get the oldest pcb. */
+  for (pcb = tcp_tw_pcbs; pcb != NULL; pcb = pcb->next) {
+    if ((u32_t)(tcp_ticks - pcb->tmr) >= inactivity) {
+      inactivity = tcp_ticks - pcb->tmr;
+      inactive = pcb;
+    }
+  }
+  if (inactive != NULL) {
+    LWIP_DEBUGF(TCP_DEBUG, ("tcp_kill_timewait: killing oldest TIME-WAIT PCB %p (%"S32_F")\n",
+                            (void *)inactive, inactivity));
+    tcp_abort(inactive);
+  }
+}

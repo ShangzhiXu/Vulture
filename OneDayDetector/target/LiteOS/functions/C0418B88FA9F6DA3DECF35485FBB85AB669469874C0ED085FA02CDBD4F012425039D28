@@ -1,0 +1,93 @@
+void lv_keyboard_def_event_cb(lv_obj_t * kb, lv_event_t event)
+{
+    LV_ASSERT_OBJ(kb, LV_OBJX_NAME);
+
+    if(event != LV_EVENT_VALUE_CHANGED) return;
+
+    lv_keyboard_ext_t * ext = lv_obj_get_ext_attr(kb);
+    uint16_t btn_id   = lv_btnmatrix_get_active_btn(kb);
+    if(btn_id == LV_BTNMATRIX_BTN_NONE) return;
+    if(lv_btnmatrix_get_btn_ctrl(kb, btn_id, LV_BTNMATRIX_CTRL_HIDDEN | LV_BTNMATRIX_CTRL_DISABLED)) return;
+    if(lv_btnmatrix_get_btn_ctrl(kb, btn_id, LV_BTNMATRIX_CTRL_NO_REPEAT) && event == LV_EVENT_LONG_PRESSED_REPEAT) return;
+
+    const char * txt = lv_btnmatrix_get_active_btn_text(kb);
+    if(txt == NULL) return;
+
+    /*Do the corresponding action according to the text of the button*/
+    if(strcmp(txt, "abc") == 0) {
+        ext->mode = LV_KEYBOARD_MODE_TEXT_LOWER;
+        lv_btnmatrix_set_map(kb, kb_map[LV_KEYBOARD_MODE_TEXT_LOWER]);
+        lv_btnmatrix_set_ctrl_map(kb, kb_ctrl[LV_KEYBOARD_MODE_TEXT_LOWER]);
+        return;
+    }
+    else if(strcmp(txt, "ABC") == 0) {
+        ext->mode = LV_KEYBOARD_MODE_TEXT_UPPER;
+        lv_btnmatrix_set_map(kb, kb_map[LV_KEYBOARD_MODE_TEXT_UPPER]);
+        lv_btnmatrix_set_ctrl_map(kb, kb_ctrl[LV_KEYBOARD_MODE_TEXT_UPPER]);
+        return;
+    }
+    else if(strcmp(txt, "1#") == 0) {
+        ext->mode = LV_KEYBOARD_MODE_SPECIAL;
+        lv_btnmatrix_set_map(kb, kb_map[LV_KEYBOARD_MODE_SPECIAL]);
+        lv_btnmatrix_set_ctrl_map(kb, kb_ctrl[LV_KEYBOARD_MODE_SPECIAL]);
+        return;
+    }
+    else if(strcmp(txt, LV_SYMBOL_CLOSE) == 0) {
+        if(kb->event_cb != lv_keyboard_def_event_cb) {
+            lv_res_t res = lv_event_send(kb, LV_EVENT_CANCEL, NULL);
+            if(res != LV_RES_OK) return;
+        }
+        else {
+            lv_keyboard_set_textarea(kb, NULL); /*De-assign the text area  to hide it cursor if needed*/
+            lv_obj_del(kb);
+            return;
+        }
+        return;
+    }
+    else if(strcmp(txt, LV_SYMBOL_OK) == 0) {
+        if(kb->event_cb != lv_keyboard_def_event_cb) {
+            lv_res_t res = lv_event_send(kb, LV_EVENT_APPLY, NULL);
+            if(res != LV_RES_OK) return;
+        }
+        else {
+            lv_keyboard_set_textarea(kb, NULL); /*De-assign the text area to hide it cursor if needed*/
+        }
+        return;
+    }
+
+    /*Add the characters to the text area if set*/
+    if(ext->ta == NULL) return;
+
+    if(strcmp(txt, "Enter") == 0 || strcmp(txt, LV_SYMBOL_NEW_LINE) == 0)
+        lv_textarea_add_char(ext->ta, '\n');
+    else if(strcmp(txt, LV_SYMBOL_LEFT) == 0)
+        lv_textarea_cursor_left(ext->ta);
+    else if(strcmp(txt, LV_SYMBOL_RIGHT) == 0)
+        lv_textarea_cursor_right(ext->ta);
+    else if(strcmp(txt, LV_SYMBOL_BACKSPACE) == 0)
+        lv_textarea_del_char(ext->ta);
+    else if(strcmp(txt, "+/-") == 0) {
+        uint16_t cur        = lv_textarea_get_cursor_pos(ext->ta);
+        const char * ta_txt = lv_textarea_get_text(ext->ta);
+        if(ta_txt[0] == '-') {
+            lv_textarea_set_cursor_pos(ext->ta, 1);
+            lv_textarea_del_char(ext->ta);
+            lv_textarea_add_char(ext->ta, '+');
+            lv_textarea_set_cursor_pos(ext->ta, cur);
+        }
+        else if(ta_txt[0] == '+') {
+            lv_textarea_set_cursor_pos(ext->ta, 1);
+            lv_textarea_del_char(ext->ta);
+            lv_textarea_add_char(ext->ta, '-');
+            lv_textarea_set_cursor_pos(ext->ta, cur);
+        }
+        else {
+            lv_textarea_set_cursor_pos(ext->ta, 0);
+            lv_textarea_add_char(ext->ta, '-');
+            lv_textarea_set_cursor_pos(ext->ta, cur + 1);
+        }
+    }
+    else {
+        lv_textarea_add_text(ext->ta, txt);
+    }
+}

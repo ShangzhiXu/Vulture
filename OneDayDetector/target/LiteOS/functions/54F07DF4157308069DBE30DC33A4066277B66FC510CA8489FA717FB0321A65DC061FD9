@@ -1,0 +1,44 @@
+osEvent osSignalWait(int32_t signals, uint32_t millisec)
+{
+    UINT32 events;
+    UINT32 ret;
+    osEvent evt = {0};
+    UINT32 flags = 0;
+    LosTaskCB *runTask = NULL;
+
+    if (OS_INT_ACTIVE) {
+        evt.status = osErrorISR;
+        return evt;
+    }
+    if ((UINT32)signals & INVALID_EVENT_MASK) {
+        evt.status = osErrorValue;
+        return evt;
+    }
+
+    if (signals != 0) {
+        events = (UINT32)signals;
+        flags |= LOS_WAITMODE_AND;
+    } else {
+        events = VALID_EVENT_MASK;
+        flags |= LOS_WAITMODE_OR;
+    }
+
+    runTask = OsCurrTaskGet();
+    ret = LOS_EventRead(&(runTask->event), events, flags | LOS_WAITMODE_CLR, LOS_MS2Tick(millisec));
+    if (ret & LOS_ERRTYPE_ERROR) {
+        if (ret == LOS_ERRNO_EVENT_READ_TIMEOUT) {
+            evt.status = osEventTimeout;
+        } else {
+            evt.status = osErrorResource;
+        }
+    } else {
+        if (ret == 0) {
+            evt.status = osOK;
+        } else {
+            evt.status = osEventSignal;
+            evt.value.signals = (int32_t)ret;
+        }
+    }
+
+    return evt;
+}

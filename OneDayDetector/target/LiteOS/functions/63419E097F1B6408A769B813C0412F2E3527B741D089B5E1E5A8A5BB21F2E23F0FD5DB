@@ -1,0 +1,134 @@
+int tlv_serialize(bool isResourceInstance,
+                  int size,
+                  lwm2m_data_t *dataP,
+                  uint8_t **bufferP)
+{
+    int length;
+    int index;
+    int i;
+
+    LOG_ARG("isResourceInstance: %s, size: %d", isResourceInstance ? "true" : "false", size);
+
+    *bufferP = NULL;
+    length = prv_getLength(size, dataP);
+    if (length <= 0) return length;
+
+    *bufferP = (uint8_t *)lwm2m_malloc(length);
+    if (*bufferP == NULL) return 0;
+
+    index = 0;
+    for (i = 0 ; i < size && length != 0 ; i++)
+    {
+        int headerLen;
+        bool isInstance;
+
+        isInstance = isResourceInstance;
+        switch (dataP[i].type)
+        {
+        case LWM2M_TYPE_MULTIPLE_RESOURCE:
+            isInstance = true;
+        // fall through
+        case LWM2M_TYPE_OBJECT_INSTANCE:
+        {
+            uint8_t *tmpBuffer;
+            int res;
+
+            res = tlv_serialize(isInstance, dataP[i].value.asChildren.count, dataP[i].value.asChildren.array, &tmpBuffer);
+            if (res < 0)
+            {
+                length = -1;
+            }
+            else
+            {
+                size_t tmpLength;
+
+                tmpLength = (size_t)res;
+                headerLen = prv_createHeader(*bufferP + index, false, dataP[i].type, dataP[i].id, tmpLength);
+                index += headerLen;
+                if (tmpLength > 0)
+                {
+                    memcpy(*bufferP + index, tmpBuffer, tmpLength);
+                    index += tmpLength;
+                    lwm2m_free(tmpBuffer);
+                }
+            }
+        }
+        break;
+
+        case LWM2M_TYPE_OBJECT_LINK:
+        {
+            int k;
+            uint8_t buf[4];
+            uint32_t v = dataP[i].value.asObjLink.objectId;
+            v <<= 16;
+            v |= dataP[i].value.asObjLink.objectInstanceId;
+            for (k = 3; k >= 0; --k)
+            {
+                buf[k] = (uint8_t)(v & 0xFF);
+                v >>= 8;
+            }
+            // keep encoding as buffer
+            headerLen = prv_createHeader(*bufferP + index, isInstance, dataP[i].type, dataP[i].id, 4);
+            index += headerLen;
+            memcpy(*bufferP + index, buf, 4);
+            index += 4;
+        }
+        break;
+
+        case LWM2M_TYPE_STRING:
+        case LWM2M_TYPE_OPAQUE:
+            headerLen = prv_createHeader(*bufferP + index, isInstance, dataP[i].type, dataP[i].id, dataP[i].value.asBuffer.length);
+            index += headerLen;
+            memcpy(*bufferP + index, dataP[i].value.asBuffer.buffer, dataP[i].value.asBuffer.length);
+            index += dataP[i].value.asBuffer.length;
+            break;
+
+        case LWM2M_TYPE_INTEGER:
+        {
+            size_t data_len;
+            uint8_t data_buffer[_PRV_64BIT_BUFFER_SIZE];
+
+            data_len = prv_encodeInt(dataP[i].value.asInteger, data_buffer);
+            headerLen = prv_createHeader(*bufferP + index, isInstance, dataP[i].type, dataP[i].id, data_len);
+            index += headerLen;
+            memcpy(*bufferP + index, data_buffer, data_len);
+            index += data_len;
+        }
+        break;
+
+        case LWM2M_TYPE_FLOAT:
+        {
+            size_t data_len;
+            uint8_t data_buffer[_PRV_64BIT_BUFFER_SIZE];
+
+            data_len = prv_encodeFloat(dataP[i].value.asFloat, data_buffer);
+            headerLen = prv_createHeader(*bufferP + index, isInstance, dataP[i].type, dataP[i].id, data_len);
+            index += headerLen;
+            memcpy(*bufferP + index, data_buffer, data_len);
+            index += data_len;
+        }
+        break;
+
+        case LWM2M_TYPE_BOOLEAN:
+            headerLen = prv_createHeader(*bufferP + index, isInstance, dataP[i].type, dataP[i].id, 1);
+            index += headerLen;
+            (*bufferP)[index] = dataP[i].value.asBoolean ? 1 : 0;
+            index += 1;
+            break;
+
+        default:
+            length = -1;
+            break;
+        }
+    }
+
+    if (length < 0)
+    {
+        lwm2m_free(*bufferP);
+        *bufferP = NULL;
+    }
+
+    LOG_ARG("returning %u", length);
+
+    return length;
+}

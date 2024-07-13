@@ -1,0 +1,17 @@
+int pthread_mutexattr_init(pthread_mutexattr_t *attr)
+{
+    if (attr == NULL) {
+        return EINVAL;
+    }
+
+#if defined POSIX_MUTEX_DEFAULT_INHERIT
+    attr->protocol    = PTHREAD_PRIO_INHERIT;
+#elif defined POSIX_MUTEX_DEFAULT_PROTECT
+    attr->protocol    = PTHREAD_PRIO_PROTECT;
+#else
+    attr->protocol    = PTHREAD_PRIO_NONE;
+#endif
+    attr->prioceiling = OS_TASK_PRIORITY_LOWEST;
+    attr->type        = PTHREAD_MUTEX_DEFAULT;
+    return ENOERR;
+}

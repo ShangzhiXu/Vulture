@@ -1,0 +1,33 @@
+static void CRYP_Authentication_DMAInCplt(DMA_HandleTypeDef *hdma)  
+{
+  uint32_t difflength     = 0;
+  
+  CRYP_HandleTypeDef* hcryp = (CRYP_HandleTypeDef*)((DMA_HandleTypeDef*)hdma)->Parent;
+  
+  /* Disable the DMA transfer for input request  */
+  CLEAR_BIT(hcryp->Instance->CR, AES_CR_DMAINEN);
+
+  if (hcryp->Init.GCMCMACPhase == CRYP_HEADER_PHASE)
+  { 
+  
+    if (hcryp->CrypInCount != 0)
+    {
+      /* Last block is now entered in polling mode, no actual gain in resorting to DMA */
+      difflength = hcryp->CrypInCount;
+      hcryp->CrypInCount = 0;
+      
+      CRYP_Padding(hcryp, difflength, CRYP_POLLING_OFF);      
+    }
+    hcryp->State = HAL_CRYP_STATE_READY;   
+    /* Mark that the header phase is over */
+    hcryp->Phase = HAL_CRYP_PHASE_HEADER_OVER;
+  }
+  /* CCF flag indicating header phase AES processing completion 
+     will be checked at the start of the next phase:
+     - payload phase (GCM or CCM when applicable)
+     - final phase (GMAC or CMAC).
+    This allows to avoid the Wait on Flag within the IRQ handling.  */
+  
+  /* Call input data transfer complete callback */
+  HAL_CRYP_InCpltCallback(hcryp);
+}

@@ -1,0 +1,28 @@
+HAL_StatusTypeDef HAL_LTDC_ProgramLineEvent(LTDC_HandleTypeDef *hltdc, uint32_t Line)
+{
+  /* Check the parameters */
+  assert_param(IS_LTDC_LIPOS(Line));
+
+  /* Process locked */
+  __HAL_LOCK(hltdc);
+
+  /* Change LTDC peripheral state */
+  hltdc->State = HAL_LTDC_STATE_BUSY;
+
+  /* Disable the Line interrupt */
+  __HAL_LTDC_DISABLE_IT(hltdc, LTDC_IT_LI);
+
+  /* Set the Line Interrupt position */
+  LTDC->LIPCR = (uint32_t)Line;
+
+  /* Enable the Line interrupt */
+  __HAL_LTDC_ENABLE_IT(hltdc, LTDC_IT_LI);
+
+  /* Change the LTDC state*/
+  hltdc->State = HAL_LTDC_STATE_READY;
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hltdc);
+
+  return HAL_OK;
+}

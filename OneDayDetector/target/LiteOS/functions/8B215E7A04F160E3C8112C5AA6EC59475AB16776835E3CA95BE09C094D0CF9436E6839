@@ -1,0 +1,54 @@
+snmp_trap_header_sum(struct snmp_msg_trap *trap, u16_t vb_len)
+{
+  u16_t tot_len;
+  u16_t len;
+  u8_t lenlen;
+
+  tot_len = vb_len;
+
+  snmp_asn1_enc_u32t_cnt(trap->ts, &len);
+  snmp_asn1_enc_length_cnt(len, &lenlen);
+  tot_len += 1 + len + lenlen;
+
+  snmp_asn1_enc_s32t_cnt(trap->spc_trap, &len);
+  snmp_asn1_enc_length_cnt(len, &lenlen);
+  tot_len += 1 + len + lenlen;
+
+  snmp_asn1_enc_s32t_cnt(trap->gen_trap, &len);
+  snmp_asn1_enc_length_cnt(len, &lenlen);
+  tot_len += 1 + len + lenlen;
+
+  if (IP_IS_V6_VAL(trap->sip)) {
+#if LWIP_IPV6
+    len = sizeof(ip_2_ip6(&trap->sip)->addr);
+#endif
+  } else {
+#if LWIP_IPV4
+    len = sizeof(ip_2_ip4(&trap->sip)->addr);
+#endif
+  }
+  snmp_asn1_enc_length_cnt(len, &lenlen);
+  tot_len += 1 + len + lenlen;
+
+  snmp_asn1_enc_oid_cnt(trap->enterprise->id, trap->enterprise->len, &len);
+  snmp_asn1_enc_length_cnt(len, &lenlen);
+  tot_len += 1 + len + lenlen;
+
+  trap->pdulen = tot_len;
+  snmp_asn1_enc_length_cnt(trap->pdulen, &lenlen);
+  tot_len += 1 + lenlen;
+
+  trap->comlen = (u16_t)LWIP_MIN(strlen(snmp_community_trap), 0xFFFF);
+  snmp_asn1_enc_length_cnt(trap->comlen, &lenlen);
+  tot_len += 1 + lenlen + trap->comlen;
+
+  snmp_asn1_enc_s32t_cnt(trap->snmp_version, &len);
+  snmp_asn1_enc_length_cnt(len, &lenlen);
+  tot_len += 1 + len + lenlen;
+
+  trap->seqlen = tot_len;
+  snmp_asn1_enc_length_cnt(trap->seqlen, &lenlen);
+  tot_len += 1 + lenlen;
+
+  return tot_len;
+}

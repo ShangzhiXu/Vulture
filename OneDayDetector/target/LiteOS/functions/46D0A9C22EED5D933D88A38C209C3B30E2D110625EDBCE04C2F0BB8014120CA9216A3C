@@ -1,0 +1,18 @@
+HAL_StatusTypeDef USB_WritePacket(USB_OTG_GlobalTypeDef *USBx, uint8_t *src, uint8_t ch_ep_num, uint16_t len, uint8_t dma)
+{
+  uint32_t USBx_BASE = (uint32_t)USBx;
+  uint32_t *pSrc = (uint32_t *)src;
+  uint32_t count32b, i;
+
+  if (dma == 0U)
+  {
+    count32b = ((uint32_t)len + 3U) / 4U;
+    for (i = 0U; i < count32b; i++)
+    {
+      USBx_DFIFO((uint32_t)ch_ep_num) = *((__packed uint32_t *)pSrc);
+      pSrc++;
+    }
+  }
+
+  return HAL_OK;
+}

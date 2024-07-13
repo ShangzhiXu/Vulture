@@ -1,0 +1,46 @@
+static void mpi_montmul( mbedtls_mpi *A, const mbedtls_mpi *B, const mbedtls_mpi *N, mbedtls_mpi_uint mm,
+                         const mbedtls_mpi *T )
+{
+    size_t i, n, m;
+    mbedtls_mpi_uint u0, u1, *d;
+
+    memset( T->p, 0, T->n * ciL );
+
+    d = T->p;
+    n = N->n;
+    m = ( B->n < n ) ? B->n : n;
+
+    for( i = 0; i < n; i++ )
+    {
+        /*
+         * T = (T + u0*B + u1*N) / 2^biL
+         */
+        u0 = A->p[i];
+        u1 = ( d[0] + u0 * B->p[0] ) * mm;
+
+        mpi_mul_hlp( m, B->p, d, u0 );
+        mpi_mul_hlp( n, N->p, d, u1 );
+
+        *d++ = u0; d[n + 1] = 0;
+    }
+
+    /* At this point, d is either the desired result or the desired result
+     * plus N. We now potentially subtract N, avoiding leaking whether the
+     * subtraction is performed through side channels. */
+
+    /* Copy the n least significant limbs of d to A, so that
+     * A = d if d < N (recall that N has n limbs). */
+    memcpy( A->p, d, n * ciL );
+    /* If d >= N then we want to set A to d - N. To prevent timing attacks,
+     * do the calculation without using conditional tests. */
+    /* Set d to d0 + (2^biL)^n - N where d0 is the current value of d. */
+    d[n] += 1;
+    d[n] -= mpi_sub_hlp( n, d, N->p );
+    /* If d0 < N then d < (2^biL)^n
+     * so d[n] == 0 and we want to keep A as it is.
+     * If d0 >= N then d >= (2^biL)^n, and d <= (2^biL)^n + N < 2 * (2^biL)^n
+     * so d[n] == 1 and we want to set A to the result of the subtraction
+     * which is d - (2^biL)^n, i.e. the n least significant limbs of d.
+     * This exactly corresponds to a conditional assignment. */
+    mpi_safe_cond_assign( n, A->p, d, (unsigned char) d[n] );
+}

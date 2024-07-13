@@ -1,0 +1,23 @@
+static int mpi_check_small_factors( const mbedtls_mpi *X )
+{
+    int ret = 0;
+    size_t i;
+    mbedtls_mpi_uint r;
+
+    if( ( X->p[0] & 1 ) == 0 )
+        return( MBEDTLS_ERR_MPI_NOT_ACCEPTABLE );
+
+    for( i = 0; small_prime[i] > 0; i++ )
+    {
+        if( mbedtls_mpi_cmp_int( X, small_prime[i] ) <= 0 )
+            return( 1 );
+
+        MBEDTLS_MPI_CHK( mbedtls_mpi_mod_int( &r, X, small_prime[i] ) );
+
+        if( r == 0 )
+            return( MBEDTLS_ERR_MPI_NOT_ACCEPTABLE );
+    }
+
+cleanup:
+    return( ret );
+}

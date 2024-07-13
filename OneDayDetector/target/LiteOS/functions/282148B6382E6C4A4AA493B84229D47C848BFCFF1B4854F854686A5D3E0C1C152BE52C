@@ -1,0 +1,75 @@
+ErrorStatus LL_PLL_ConfigSystemClock_HSE(uint32_t HSEFrequency, uint32_t HSEBypass,
+                                         LL_UTILS_PLLInitTypeDef *UTILS_PLLInitStruct, LL_UTILS_ClkInitTypeDef *UTILS_ClkInitStruct)
+{
+  ErrorStatus status = SUCCESS;
+  uint32_t pllfreq = 0U;
+#if defined(STM32L4R5xx) || defined(STM32L4R7xx) || defined(STM32L4R9xx) || defined(STM32L4S5xx) || defined(STM32L4S7xx) || defined(STM32L4S9xx)
+  uint32_t hpre = 0U;
+#endif
+
+  /* Check the parameters */
+  assert_param(IS_LL_UTILS_HSE_FREQUENCY(HSEFrequency));
+  assert_param(IS_LL_UTILS_HSE_BYPASS(HSEBypass));
+
+  /* Check if one of the PLL is enabled */
+  if(UTILS_PLL_IsBusy() == SUCCESS)
+  {
+    /* Calculate the new PLL output frequency */
+    pllfreq = UTILS_GetPLLOutputFrequency(HSEFrequency, UTILS_PLLInitStruct);
+
+    /* Enable HSE if not enabled */
+    if(LL_RCC_HSE_IsReady() != 1U)
+    {
+      /* Check if need to enable HSE bypass feature or not */
+      if(HSEBypass == LL_UTILS_HSEBYPASS_ON)
+      {
+        LL_RCC_HSE_EnableBypass();
+      }
+      else
+      {
+        LL_RCC_HSE_DisableBypass();
+      }
+
+      /* Enable HSE */
+      LL_RCC_HSE_Enable();
+      while (LL_RCC_HSE_IsReady() != 1U)
+      {
+        /* Wait for HSE ready */
+      }
+    }
+
+    /* Configure PLL */
+    LL_RCC_PLL_ConfigDomain_SYS(LL_RCC_PLLSOURCE_HSE, UTILS_PLLInitStruct->PLLM, UTILS_PLLInitStruct->PLLN,
+                                UTILS_PLLInitStruct->PLLR);
+
+#if defined(STM32L4R5xx) || defined(STM32L4R7xx) || defined(STM32L4R9xx) || defined(STM32L4S5xx) || defined(STM32L4S7xx) || defined(STM32L4S9xx)
+    /* Prevent undershoot at highest frequency by applying intermediate AHB prescaler 2 */
+    if(pllfreq > 80000000U)
+    {
+      hpre = UTILS_ClkInitStruct->AHBCLKDivider;
+      if(hpre == LL_RCC_SYSCLK_DIV_1)
+      {
+        UTILS_ClkInitStruct->AHBCLKDivider = LL_RCC_SYSCLK_DIV_2;
+      }
+    }
+#endif
+    /* Enable PLL and switch system clock to PLL */
+    status = UTILS_EnablePLLAndSwitchSystem(pllfreq, UTILS_ClkInitStruct);
+
+#if defined(STM32L4R5xx) || defined(STM32L4R7xx) || defined(STM32L4R9xx) || defined(STM32L4S5xx) || defined(STM32L4S7xx) || defined(STM32L4S9xx)
+    /* Apply definitive AHB prescaler value if necessary */
+    if((status == SUCCESS) && (hpre != 0U))
+    {
+      UTILS_ClkInitStruct->AHBCLKDivider = LL_RCC_SYSCLK_DIV_1;
+      LL_RCC_SetAHBPrescaler(UTILS_ClkInitStruct->AHBCLKDivider);
+    }
+#endif
+  }
+  else
+  {
+    /* Current PLL configuration cannot be modified */
+    status = ERROR;
+  }
+
+  return status;
+}

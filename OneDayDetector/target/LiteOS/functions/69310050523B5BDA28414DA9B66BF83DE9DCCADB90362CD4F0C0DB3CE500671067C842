@@ -1,0 +1,101 @@
+static err_t ppp_netif_output(struct netif *netif, struct pbuf *pb, u16_t protocol) {
+  ppp_pcb *pcb = (ppp_pcb*)netif->state;
+  err_t err;
+  struct pbuf *fpb = NULL;
+
+  /* Check that the link is up. */
+  if (0
+#if PPP_IPV4_SUPPORT
+      || (protocol == PPP_IP && !pcb->if4_up)
+#endif /* PPP_IPV4_SUPPORT */
+#if PPP_IPV6_SUPPORT
+      || (protocol == PPP_IPV6 && !pcb->if6_up)
+#endif /* PPP_IPV6_SUPPORT */
+      ) {
+    PPPDEBUG(LOG_ERR, ("ppp_netif_output[%d]: link not up\n", pcb->netif->num));
+    goto err_rte_drop;
+  }
+
+#if MPPE_SUPPORT
+  /* If MPPE is required, refuse any IP packet until we are able to crypt them. */
+  if (pcb->settings.require_mppe && pcb->ccp_transmit_method != CI_MPPE) {
+    PPPDEBUG(LOG_ERR, ("ppp_netif_output[%d]: MPPE required, not up\n", pcb->netif->num));
+    goto err_rte_drop;
+  }
+#endif /* MPPE_SUPPORT */
+
+#if VJ_SUPPORT
+  /*
+   * Attempt Van Jacobson header compression if VJ is configured and
+   * this is an IP packet.
+   */
+  if (protocol == PPP_IP && pcb->vj_enabled) {
+    switch (vj_compress_tcp(&pcb->vj_comp, &pb)) {
+      case TYPE_IP:
+        /* No change...
+           protocol = PPP_IP; */
+        break;
+      case TYPE_COMPRESSED_TCP:
+        /* vj_compress_tcp() returns a new allocated pbuf, indicate we should free
+         * our duplicated pbuf later */
+        fpb = pb;
+        protocol = PPP_VJC_COMP;
+        break;
+      case TYPE_UNCOMPRESSED_TCP:
+        /* vj_compress_tcp() returns a new allocated pbuf, indicate we should free
+         * our duplicated pbuf later */
+        fpb = pb;
+        protocol = PPP_VJC_UNCOMP;
+        break;
+      default:
+        PPPDEBUG(LOG_WARNING, ("ppp_netif_output[%d]: bad IP packet\n", pcb->netif->num));
+        LINK_STATS_INC(link.proterr);
+        LINK_STATS_INC(link.drop);
+        MIB2_STATS_NETIF_INC(pcb->netif, ifoutdiscards);
+        return ERR_VAL;
+    }
+  }
+#endif /* VJ_SUPPORT */
+
+#if CCP_SUPPORT
+  switch (pcb->ccp_transmit_method) {
+  case 0:
+    break; /* Don't compress */
+#if MPPE_SUPPORT
+  case CI_MPPE:
+    if ((err = mppe_compress(pcb, &pcb->mppe_comp, &pb, protocol)) != ERR_OK) {
+      LINK_STATS_INC(link.memerr);
+      LINK_STATS_INC(link.drop);
+      MIB2_STATS_NETIF_INC(netif, ifoutdiscards);
+      goto err;
+    }
+    /* if VJ compressor returned a new allocated pbuf, free it */
+    if (fpb) {
+      pbuf_free(fpb);
+    }
+    /* mppe_compress() returns a new allocated pbuf, indicate we should free
+     * our duplicated pbuf later */
+    fpb = pb;
+    protocol = PPP_COMP;
+    break;
+#endif /* MPPE_SUPPORT */
+  default:
+    PPPDEBUG(LOG_ERR, ("ppp_netif_output[%d]: bad CCP transmit method\n", pcb->netif->num));
+    goto err_rte_drop; /* Cannot really happen, we only negotiate what we are able to do */
+  }
+#endif /* CCP_SUPPORT */
+
+  err = pcb->link_cb->netif_output(pcb, pcb->link_ctx_cb, pb, protocol);
+  goto err;
+
+err_rte_drop:
+  err = ERR_RTE;
+  LINK_STATS_INC(link.rterr);
+  LINK_STATS_INC(link.drop);
+  MIB2_STATS_NETIF_INC(netif, ifoutdiscards);
+err:
+  if (fpb) {
+    pbuf_free(fpb);
+  }
+  return err;
+}

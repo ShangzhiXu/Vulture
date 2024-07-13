@@ -1,0 +1,50 @@
+HAL_StatusTypeDef HAL_NOR_Read(NOR_HandleTypeDef *hnor, uint32_t *pAddress, uint16_t *pData)
+{
+  uint32_t deviceaddress = 0;
+  
+  /* Process Locked */
+  __HAL_LOCK(hnor);
+  
+  /* Check the NOR controller state */
+  if(hnor->State == HAL_NOR_STATE_BUSY)
+  {
+     return HAL_BUSY;
+  }
+  
+  /* Select the NOR device address */
+  if (hnor->Init.NSBank == FMC_NORSRAM_BANK1)
+  {
+    deviceaddress = NOR_MEMORY_ADRESS1;
+  }
+  else if (hnor->Init.NSBank == FMC_NORSRAM_BANK2)
+  {
+    deviceaddress = NOR_MEMORY_ADRESS2;
+  }
+  else if (hnor->Init.NSBank == FMC_NORSRAM_BANK3)
+  {
+    deviceaddress = NOR_MEMORY_ADRESS3;
+  }
+  else /* FMC_NORSRAM_BANK4 */
+  {
+    deviceaddress = NOR_MEMORY_ADRESS4;
+  } 
+    
+  /* Update the NOR controller state */
+  hnor->State = HAL_NOR_STATE_BUSY;
+  
+  /* Send read data command */
+  NOR_WRITE(NOR_ADDR_SHIFT(deviceaddress, uwNORMemoryDataWidth, NOR_CMD_ADDRESS_FIRST), NOR_CMD_DATA_FIRST); 
+  NOR_WRITE(NOR_ADDR_SHIFT(deviceaddress, uwNORMemoryDataWidth, NOR_CMD_ADDRESS_SECOND), NOR_CMD_DATA_SECOND);  
+  NOR_WRITE((uint32_t)pAddress, NOR_CMD_DATA_READ_RESET);
+
+  /* Read the data */
+  *pData = *(__IO uint32_t *)(uint32_t)pAddress;
+  
+  /* Check the NOR controller state */
+  hnor->State = HAL_NOR_STATE_READY;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hnor);
+  
+  return HAL_OK;  
+}

@@ -1,0 +1,58 @@
+static HAL_StatusTypeDef USB_HS_PHYCInit(USB_OTG_GlobalTypeDef *USBx)
+{
+  UNUSED(USBx);
+  uint32_t count = 0U;
+
+  /* Enable LDO */
+  USB_HS_PHYC->USB_HS_PHYC_LDO |= USB_HS_PHYC_LDO_ENABLE;
+
+  /* wait for LDO Ready */
+  while ((USB_HS_PHYC->USB_HS_PHYC_LDO & USB_HS_PHYC_LDO_STATUS) == 0U)
+  {
+    if (++count > 200000U)
+    {
+      return HAL_TIMEOUT;
+    }
+  }
+
+  /* Controls PHY frequency operation selection */
+  if (HSE_VALUE == 12000000U) /* HSE = 12MHz */
+  {
+    USB_HS_PHYC->USB_HS_PHYC_PLL = (0x0U << 1);
+  }
+  else if (HSE_VALUE == 12500000U) /* HSE = 12.5MHz */
+  {
+    USB_HS_PHYC->USB_HS_PHYC_PLL = (0x2U << 1);
+  }
+  else if (HSE_VALUE == 16000000U) /* HSE = 16MHz */
+  {
+    USB_HS_PHYC->USB_HS_PHYC_PLL = (0x3U << 1);
+  }
+  else if (HSE_VALUE == 24000000U) /* HSE = 24MHz */
+  {
+    USB_HS_PHYC->USB_HS_PHYC_PLL = (0x4U << 1);
+  }
+  else if (HSE_VALUE == 25000000U) /* HSE = 25MHz */
+  {
+    USB_HS_PHYC->USB_HS_PHYC_PLL = (0x5U << 1);
+  }
+  else if (HSE_VALUE == 32000000U) /* HSE = 32MHz */
+  {
+    USB_HS_PHYC->USB_HS_PHYC_PLL = (0x7U << 1);
+  }
+  else
+  {
+    /* ... */
+  }
+
+  /* Control the tuning interface of the High Speed PHY */
+  USB_HS_PHYC->USB_HS_PHYC_TUNE |= USB_HS_PHYC_TUNE_VALUE;
+
+  /* Enable PLL internal PHY */
+  USB_HS_PHYC->USB_HS_PHYC_PLL |= USB_HS_PHYC_PLL_PLLEN;
+
+  /* 2ms Delay required to get internal phy clock stable */
+  HAL_Delay(2U);
+
+  return HAL_OK;
+}

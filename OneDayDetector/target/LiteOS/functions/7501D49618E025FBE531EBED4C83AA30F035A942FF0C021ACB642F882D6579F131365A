@@ -1,0 +1,39 @@
+static BOOL OsSlabMemAllocStrollBuckets(VOID *pool, VOID **outMem,
+    OsSlabMem *slabClass)
+{
+    struct LosSlabControlHeader *slabMem = OsSlabCtrlHdrGet(pool);
+    OsSlabMem *slabMemClass = slabClass;
+    OsSlabMemAllocator **bucket = &slabClass->bucket; /* slabMemClass->bucket must not be NULL */
+
+    *outMem = NULL;
+
+    while (*bucket != NULL) {
+        *outMem = OsSlabAllocatorAlloc((*bucket)->slabAlloc);
+        if (*outMem != NULL) {
+            /* alloc success */
+            return TRUE;
+        }
+        bucket = &((*bucket)->next);
+    }
+
+    *bucket = OsSlabAllocatorAlloc(slabMem->allocatorBucket);
+    if (*bucket == NULL) {
+        return FALSE;
+    }
+
+    (*bucket)->slabAlloc =
+        OsSlabAllocatorNew(pool, slabMemClass->blkSz + sizeof(OsSlabBlockNode),
+                           (UINT32)sizeof(CHAR *), slabMemClass->blkCnt);
+    if ((*bucket)->slabAlloc == NULL) {
+        (VOID)OsSlabAllocatorFree(slabMem->allocatorBucket, *bucket);
+        *bucket = NULL;
+        return FALSE;
+    }
+
+    (*bucket)->next = NULL;
+    slabMemClass->allocatorCnt++;
+
+    *outMem = OsSlabAllocatorAlloc((*bucket)->slabAlloc);
+
+    return TRUE;
+}

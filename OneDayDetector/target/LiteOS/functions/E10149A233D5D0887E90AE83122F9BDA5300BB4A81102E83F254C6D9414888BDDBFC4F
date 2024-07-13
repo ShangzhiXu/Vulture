@@ -1,0 +1,53 @@
+HAL_StatusTypeDef HAL_SMARTCARD_Transmit(SMARTCARD_HandleTypeDef *hsc, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+{
+  uint16_t* tmp;
+  uint32_t tickstart = 0U;
+
+  if(hsc->gState == HAL_SMARTCARD_STATE_READY)
+  {
+    if((pData == NULL) || (Size == 0U))
+    {
+      return  HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hsc);
+
+    hsc->ErrorCode = HAL_SMARTCARD_ERROR_NONE;
+    hsc->gState = HAL_SMARTCARD_STATE_BUSY_TX;
+
+    /* Init tickstart for timeout managment */
+    tickstart = HAL_GetTick();
+
+    hsc->TxXferSize = Size;
+    hsc->TxXferCount = Size;
+    while(hsc->TxXferCount > 0U)
+    {
+      hsc->TxXferCount--;
+      if(SMARTCARD_WaitOnFlagUntilTimeout(hsc, SMARTCARD_FLAG_TXE, RESET, tickstart, Timeout) != HAL_OK)
+      {
+        return HAL_TIMEOUT;
+      }
+      tmp = (uint16_t*) pData;
+      hsc->Instance->DR = (*tmp & (uint16_t)0x01FF);
+      pData +=1U;
+    }
+
+    if(SMARTCARD_WaitOnFlagUntilTimeout(hsc, SMARTCARD_FLAG_TC, RESET, tickstart, Timeout) != HAL_OK)
+    {
+      return HAL_TIMEOUT;
+    }
+
+	/* At end of Tx process, restore hsc->gState to Ready */
+    hsc->gState = HAL_SMARTCARD_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hsc);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

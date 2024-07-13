@@ -1,0 +1,32 @@
+void _lv_style_list_add_style(lv_style_list_t * list, lv_style_t * style)
+{
+    LV_ASSERT_STYLE_LIST(list);
+    LV_ASSERT_STYLE(style);
+
+    if(list == NULL) return;
+
+    /*Remove the style first if already exists*/
+    _lv_style_list_remove_style(list, style);
+
+    lv_style_t ** new_classes;
+    if(list->style_cnt == 0) new_classes = lv_mem_alloc(sizeof(lv_style_t *));
+    else new_classes = lv_mem_realloc(list->style_list, sizeof(lv_style_t *) * (list->style_cnt + 1));
+    LV_ASSERT_MEM(new_classes);
+    if(new_classes == NULL) {
+        LV_LOG_WARN("lv_style_list_add_style: couldn't add the class");
+        return;
+    }
+
+    /*Make space for the new style at the beginning. Leave local and trans style if exists*/
+    uint8_t i;
+    uint8_t first_style = 0;
+    if(list->has_trans) first_style++;
+    if(list->has_local) first_style++;
+    for(i = list->style_cnt; i > first_style; i--) {
+        new_classes[i] = new_classes[i - 1];
+    }
+
+    new_classes[first_style] = style;
+    list->style_cnt++;
+    list->style_list = new_classes;
+}

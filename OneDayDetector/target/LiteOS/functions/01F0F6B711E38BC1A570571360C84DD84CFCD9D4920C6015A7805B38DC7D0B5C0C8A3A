@@ -1,0 +1,25 @@
+UINT32 create_trace_task(VOID)
+{
+    UINT32 ret;
+    TSK_INIT_PARAM_S traceDemoTask;
+
+    memset(&traceDemoTask, 0, sizeof(TSK_INIT_PARAM_S));
+    traceDemoTask.pfnTaskEntry = (TSK_ENTRY_FUNC)Example_Trace;
+    traceDemoTask.pcName       = "TraceDemo";
+    traceDemoTask.uwStackSize  = LOSCFG_BASE_CORE_TSK_DEFAULT_STACK_SIZE;
+    traceDemoTask.usTaskPrio   = TRACE_DEMO_TASK_PRIO;
+    traceDemoTask.uwResved     = LOS_TASK_STATUS_DETACHED;
+    ret = LOS_TaskCreate(&g_demoTaskId, &traceDemoTask);
+    if (ret != LOS_OK) {
+        printf("traceDemoTask create failed .\n");
+        return LOS_NOK;
+    }
+
+    /* trace is already started in offline mode, user can stop and reset it before run demo */
+#ifdef LOSCFG_RECORDER_MODE_OFFLINE
+    LOS_TraceStop();
+    // LOS_TraceReset();
+#endif
+    LOS_TraceEventMaskSet(TRACE_TASK_FLAG);
+    return LOS_OK;
+}

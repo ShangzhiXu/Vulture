@@ -1,0 +1,50 @@
+HAL_StatusTypeDef HAL_DFSDM_ChannelScdStart_IT(DFSDM_Channel_HandleTypeDef *hdfsdm_channel,
+                                               uint32_t Threshold,
+                                               uint32_t BreakSignal)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+#if defined(DFSDM2_Channel0)
+  DFSDM_Filter_TypeDef*       filter0Instance;
+#endif /* defined(DFSDM2_Channel0) */ 
+  
+  /* Check parameters */
+  assert_param(IS_DFSDM_CHANNEL_ALL_INSTANCE(hdfsdm_channel->Instance));
+  assert_param(IS_DFSDM_CHANNEL_SCD_THRESHOLD(Threshold));
+  assert_param(IS_DFSDM_BREAK_SIGNALS(BreakSignal));
+  
+  /* Check DFSDM channel state */
+  if(hdfsdm_channel->State != HAL_DFSDM_CHANNEL_STATE_READY)
+  {
+    /* Return error status */
+    status = HAL_ERROR;
+  }
+  else
+  {
+#if defined(DFSDM2_Channel0)
+    /* Get channel counter, channel handle table and channel 0 instance */
+    if(IS_DFSDM1_CHANNEL_INSTANCE(hdfsdm_channel->Instance))
+    {
+      filter0Instance   = DFSDM1_Filter0;
+    }
+    else
+    {
+      filter0Instance   = DFSDM2_Filter0;
+    }
+    /* Activate short circuit detection interrupt */
+    filter0Instance->FLTCR2 |= DFSDM_FLTCR2_SCDIE;
+#else
+    /* Activate short circuit detection interrupt */
+    DFSDM1_Filter0->FLTCR2 |= DFSDM_FLTCR2_SCDIE;
+#endif /* DFSDM2_Channel0 */
+
+    /* Configure threshold and break signals */
+    hdfsdm_channel->Instance->CHAWSCDR &= ~(DFSDM_CHAWSCDR_BKSCD | DFSDM_CHAWSCDR_SCDT);
+    hdfsdm_channel->Instance->CHAWSCDR |= ((BreakSignal << DFSDM_CHAWSCDR_BKSCD_Pos) | \
+                                         Threshold);
+    
+    /* Start short circuit detection */
+    hdfsdm_channel->Instance->CHCFGR1 |= DFSDM_CHCFGR1_SCDEN;
+  }
+  /* Return function status */
+  return status;
+}

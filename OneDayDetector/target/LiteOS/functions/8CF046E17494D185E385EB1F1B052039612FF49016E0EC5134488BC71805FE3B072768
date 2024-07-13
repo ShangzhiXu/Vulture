@@ -1,0 +1,27 @@
+START_TEST(readname_jump_earlier_jump)
+{
+  static const u8_t data[] = {
+      /* Some padding needed, not supported to jump to bytes containing dns header */
+      /* 0x00 */ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      /* 0x08 */ 0x00, 0x00, 0x00, 0x00, 0x03, 0x0b, 0x0a, 0xf2,
+      /* 0x10 */ 0x04, 'c', 'a', 's', 't', 0x00, 0xc0, 0x10,
+      /* 0x18 */ 0x05, 'm', 'u', 'l', 't', 'i', 0xc0, 0x16
+  };
+  static const u8_t fullname[] = {
+      0x05, 'm', 'u', 'l', 't', 'i', 0x04, 'c', 'a', 's', 't', 0x00
+  };
+  struct pbuf *p;
+  struct mdns_domain domain;
+  u16_t offset;
+  LWIP_UNUSED_ARG(_i);
+
+  p = pbuf_alloc(PBUF_RAW, sizeof(data), PBUF_ROM);
+  fail_if(p == NULL);
+  p->payload = (void *)(size_t)data;
+  offset = mdns_readname(p, 0x18, &domain);
+  pbuf_free(p);
+  fail_unless(offset == sizeof(data));
+  fail_unless(domain.length == sizeof(fullname));
+
+  fail_if(memcmp(&domain.name, fullname, sizeof(fullname)));
+}

@@ -1,0 +1,20 @@
+coap_serialize_int_option(unsigned int number, unsigned int current_number, uint8_t *buffer, uint32_t value)
+{
+    size_t i = 0;
+
+    if (0xFF000000 & value) ++i;
+    if (0xFFFF0000 & value) ++i;
+    if (0xFFFFFF00 & value) ++i;
+    if (0xFFFFFFFF & value) ++i;
+
+    PRINTF("OPTION %u (delta %u, len %u)\n", number, number - current_number, i);
+
+    i = coap_set_option_header(number - current_number, i, buffer);
+
+    if (0xFF000000 & value) buffer[i++] = (uint8_t) (value >> 24);
+    if (0xFFFF0000 & value) buffer[i++] = (uint8_t) (value >> 16);
+    if (0xFFFFFF00 & value) buffer[i++] = (uint8_t) (value >> 8);
+    if (0xFFFFFFFF & value) buffer[i++] = (uint8_t) (value);
+
+    return i;
+}

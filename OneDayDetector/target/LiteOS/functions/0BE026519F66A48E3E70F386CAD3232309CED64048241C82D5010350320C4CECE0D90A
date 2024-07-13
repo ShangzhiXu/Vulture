@@ -1,0 +1,29 @@
+HAL_StatusTypeDef HAL_CEC_RegisterRxCpltCallback(CEC_HandleTypeDef *hcec, pCEC_RxCallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    /* Update the error code */
+    hcec->ErrorCode |= HAL_CEC_ERROR_INVALID_CALLBACK;
+    return HAL_ERROR;
+  }
+  /* Process locked */
+  __HAL_LOCK(hcec);
+
+  if (HAL_CEC_STATE_READY == hcec->RxState)
+  {
+    hcec->RxCpltCallback = pCallback;
+  }
+  else
+  {
+    /* Update the error code */
+    hcec->ErrorCode |= HAL_CEC_ERROR_INVALID_CALLBACK;
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hcec);
+  return status;
+}

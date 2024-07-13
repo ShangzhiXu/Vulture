@@ -1,0 +1,22 @@
+LITE_OS_SEC_TEXT_INIT UINT32 OsIdleTaskCreate(VOID)
+{
+    UINT32 ret;
+    TSK_INIT_PARAM_S taskInitParam;
+    Percpu *perCpu = OsPercpuGet();
+    UINT32 *idleTaskId = &perCpu->idleTaskId;
+
+    (VOID)memset_s((VOID *)(&taskInitParam), sizeof(TSK_INIT_PARAM_S), 0, sizeof(TSK_INIT_PARAM_S));
+    taskInitParam.pfnTaskEntry = (TSK_ENTRY_FUNC)OsIdleTask;
+    taskInitParam.uwStackSize = LOSCFG_BASE_CORE_TSK_IDLE_STACK_SIZE;
+    taskInitParam.pcName = "IdleCore000";
+    taskInitParam.usTaskPrio = OS_TASK_PRIORITY_LOWEST;
+#ifdef LOSCFG_KERNEL_SMP
+    taskInitParam.usCpuAffiMask = CPUID_TO_AFFI_MASK(ArchCurrCpuid());
+#endif
+    ret = LOS_TaskCreate(idleTaskId, &taskInitParam);
+    if (ret == LOS_OK) {
+        OS_TCB_FROM_TID(*idleTaskId)->taskFlags |= OS_TASK_FLAG_SYSTEM;
+    }
+
+    return ret;
+}

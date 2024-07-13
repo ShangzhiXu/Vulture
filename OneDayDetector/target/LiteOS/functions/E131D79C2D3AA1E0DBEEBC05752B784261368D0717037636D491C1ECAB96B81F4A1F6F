@@ -1,0 +1,97 @@
+static void test_sockets_allfunctions_basic_domain(int domain)
+{
+  int s, s2, s3, ret;
+  struct sockaddr_storage addr, addr2;
+  socklen_t addrlen, addr2len;
+  char buf[4];
+  /* listen socket */
+  s = lwip_socket(domain, SOCK_STREAM, 0);
+  fail_unless(s >= 0);
+
+  ret = lwip_listen(s, 0);
+  fail_unless(ret == 0);
+
+  addrlen = sizeof(addr);
+  ret = lwip_getsockname(s, (struct sockaddr*)&addr, &addrlen);
+  fail_unless(ret == 0);
+
+  s2 = test_sockets_alloc_socket_nonblocking(domain, SOCK_STREAM);
+  fail_unless(s2 >= 0);
+  /* nonblocking connect s2 to s (but use loopback address) */
+  if (domain == AF_INET) {
+#if LWIP_IPV4
+    struct sockaddr_in *addr4 = (struct sockaddr_in *)&addr;
+    addr4->sin_addr.s_addr = PP_HTONL(INADDR_LOOPBACK);
+#endif
+  } else {
+#if LWIP_IPV6
+    struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)&addr;
+    struct in6_addr lo6 = IN6ADDR_LOOPBACK_INIT;
+    addr6->sin6_addr = lo6;
+#endif
+  }
+  ret = lwip_connect(s2, (struct sockaddr*)&addr, addrlen);
+  fail_unless(ret == -1);
+  fail_unless(errno == EINPROGRESS);
+  ret = lwip_connect(s2, (struct sockaddr*)&addr, addrlen);
+  fail_unless(ret == -1);
+  fail_unless(errno == EALREADY);
+
+  while(tcpip_thread_poll_one());
+
+  s3 = lwip_accept(s, (struct sockaddr*)&addr2, &addr2len);
+  fail_unless(s3 >= 0);
+
+  ret = lwip_connect(s2, (struct sockaddr*)&addr, addrlen);
+  fail_unless(ret == -1);
+  fail_unless(errno == EISCONN);
+
+  /* write from server to client */
+  ret = write(s3, "test", 4);
+  fail_unless(ret == 4);
+
+  ret = lwip_shutdown(s3, SHUT_WR);
+  fail_unless(ret == 0);
+
+  while(tcpip_thread_poll_one());
+
+  ret = lwip_recv(s2, buf, 3, MSG_PEEK);
+  fail_unless(ret == 3);
+
+  ret = lwip_recv(s2, buf, 3, MSG_PEEK);
+  fail_unless(ret == 3);
+
+  ret = lwip_read(s2, buf, 4);
+  fail_unless(ret == 4);
+
+  ret = lwip_read(s2, buf, 1);
+  fail_unless(ret == 0);
+
+  ret = lwip_read(s2, buf, 1);
+  fail_unless(ret == -1);
+
+  ret = lwip_write(s2, "foo", 3);
+  fail_unless(ret == 3);
+
+  ret = lwip_close(s2);
+  fail_unless(ret == 0);
+
+  while(tcpip_thread_poll_one());
+
+  /* read one byte more than available to check handling FIN */
+  ret = lwip_read(s3, buf, 4);
+  fail_unless(ret == 3);
+
+  ret = lwip_read(s3, buf, 1);
+  fail_unless(ret == 0);
+
+  ret = lwip_read(s3, buf, 1);
+  fail_unless(ret == -1);
+
+  while(tcpip_thread_poll_one());
+
+  ret = lwip_close(s);
+  fail_unless(ret == 0);
+  ret = lwip_close(s3);
+  fail_unless(ret == 0);
+}

@@ -1,0 +1,17 @@
+CHAR *ShellGetInputBuf(ShellCB *shellCB)
+{
+    CmdKeyLink *cmdKey = shellCB->cmdKeyLink;
+    CmdKeyLink *cmdNode = NULL;
+
+    (VOID)pthread_mutex_lock(&shellCB->keyMutex);
+    if ((cmdKey == NULL) || LOS_ListEmpty(&cmdKey->list)) {
+        (VOID)pthread_mutex_unlock(&shellCB->keyMutex);
+        return NULL;
+    }
+
+    cmdNode = LOS_DL_LIST_ENTRY(cmdKey->list.pstNext, CmdKeyLink, list);
+    LOS_ListDelete(&(cmdNode->list));
+    (VOID)pthread_mutex_unlock(&shellCB->keyMutex);
+
+    return cmdNode->cmdString;
+}

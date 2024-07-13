@@ -1,0 +1,39 @@
+int mbedtls_chachapoly_auth_decrypt( mbedtls_chachapoly_context *ctx,
+                                     size_t length,
+                                     const unsigned char nonce[12],
+                                     const unsigned char *aad,
+                                     size_t aad_len,
+                                     const unsigned char tag[16],
+                                     const unsigned char *input,
+                                     unsigned char *output )
+{
+    int ret;
+    unsigned char check_tag[16];
+    size_t i;
+    int diff;
+    CHACHAPOLY_VALIDATE_RET( ctx   != NULL );
+    CHACHAPOLY_VALIDATE_RET( nonce != NULL );
+    CHACHAPOLY_VALIDATE_RET( tag   != NULL );
+    CHACHAPOLY_VALIDATE_RET( aad_len == 0 || aad    != NULL );
+    CHACHAPOLY_VALIDATE_RET( length  == 0 || input  != NULL );
+    CHACHAPOLY_VALIDATE_RET( length  == 0 || output != NULL );
+
+    if( ( ret = chachapoly_crypt_and_tag( ctx,
+                        MBEDTLS_CHACHAPOLY_DECRYPT, length, nonce,
+                        aad, aad_len, input, output, check_tag ) ) != 0 )
+    {
+        return( ret );
+    }
+
+    /* Check tag in "constant-time" */
+    for( diff = 0, i = 0; i < sizeof( check_tag ); i++ )
+        diff |= tag[i] ^ check_tag[i];
+
+    if( diff != 0 )
+    {
+        mbedtls_platform_zeroize( output, length );
+        return( MBEDTLS_ERR_CHACHAPOLY_AUTH_FAILED );
+    }
+
+    return( 0 );
+}

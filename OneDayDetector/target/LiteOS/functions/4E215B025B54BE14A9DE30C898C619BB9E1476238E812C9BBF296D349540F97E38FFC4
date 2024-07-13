@@ -1,0 +1,57 @@
+static lv_coord_t get_row_height(lv_obj_t * table, uint16_t row_id, const lv_font_t ** font,
+                                 lv_style_int_t * letter_space, lv_style_int_t * line_space,
+                                 lv_style_int_t * cell_left, lv_style_int_t * cell_right, lv_style_int_t * cell_top, lv_style_int_t * cell_bottom)
+{
+    lv_table_ext_t * ext = lv_obj_get_ext_attr(table);
+    lv_point_t txt_size;
+    lv_coord_t txt_w;
+
+    uint16_t row_start = row_id * ext->col_cnt;
+    uint16_t cell;
+    uint16_t col;
+    lv_coord_t h_max = lv_font_get_line_height(font[0]) + cell_top[0] + cell_bottom[0];
+
+    for(cell = row_start, col = 0; cell < row_start + ext->col_cnt; cell++, col++) {
+        if(ext->cell_data[cell] != NULL) {
+            txt_w              = ext->col_w[col];
+            uint16_t col_merge = 0;
+            for(col_merge = 0; col_merge + col < ext->col_cnt - 1; col_merge++) {
+
+                if(ext->cell_data[cell + col_merge] != NULL) {
+                    lv_table_cell_format_t format;
+                    format.format_byte = ext->cell_data[cell + col_merge][0];
+                    if(format.s.right_merge)
+                        txt_w += ext->col_w[col + col_merge + 1];
+                    else
+                        break;
+                }
+                else {
+                    break;
+                }
+            }
+
+            lv_table_cell_format_t format;
+            format.format_byte = ext->cell_data[cell][0];
+            uint8_t cell_type  = format.s.type;
+
+            /*With text crop assume 1 line*/
+            if(format.s.crop) {
+                h_max = LV_MATH_MAX(lv_font_get_line_height(font[cell_type]) + cell_top[cell_type] + cell_bottom[cell_type],
+                                    h_max);
+            }
+            /*Without text crop calculate the height of the text in the cell*/
+            else {
+                txt_w -= cell_left[cell_type] + cell_right[cell_type];
+
+                _lv_txt_get_size(&txt_size, ext->cell_data[cell] + 1, font[cell_type],
+                                 letter_space[cell_type], line_space[cell_type], txt_w, LV_TXT_FLAG_NONE);
+
+                h_max = LV_MATH_MAX(txt_size.y + cell_top[cell_type] + cell_bottom[cell_type], h_max);
+                cell += col_merge;
+                col += col_merge;
+            }
+        }
+    }
+
+    return h_max;
+}

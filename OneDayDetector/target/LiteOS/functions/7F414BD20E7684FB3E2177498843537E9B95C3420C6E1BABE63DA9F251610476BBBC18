@@ -1,0 +1,169 @@
+void HAL_SAI_IRQHandler(SAI_HandleTypeDef *hsai)
+{
+  if(hsai->State != HAL_SAI_STATE_RESET)
+  {
+    uint32_t itflags = hsai->Instance->SR;
+    uint32_t itsources = hsai->Instance->IMR;
+    uint32_t cr1config = hsai->Instance->CR1;
+    uint32_t tmperror;
+    
+    /* SAI Fifo request interrupt occured ------------------------------------*/
+    if(((itflags & SAI_xSR_FREQ) == SAI_xSR_FREQ) && ((itsources & SAI_IT_FREQ) == SAI_IT_FREQ))
+    {
+      hsai->InterruptServiceRoutine(hsai);
+    }
+    /* SAI Overrun error interrupt occurred ----------------------------------*/
+    else if(((itflags & SAI_FLAG_OVRUDR) == SAI_FLAG_OVRUDR) && ((itsources & SAI_IT_OVRUDR) == SAI_IT_OVRUDR))
+    {
+      /* Clear the SAI Overrun flag */
+      __HAL_SAI_CLEAR_FLAG(hsai, SAI_FLAG_OVRUDR);
+      /* Get the SAI error code */
+      tmperror = ((hsai->State == HAL_SAI_STATE_BUSY_RX) ? HAL_SAI_ERROR_OVR : HAL_SAI_ERROR_UDR);
+      /* Change the SAI error code */
+      hsai->ErrorCode |= tmperror;
+      /* the transfer is not stopped, we will forward the information to the user and we let the user decide what needs to be done */
+      HAL_SAI_ErrorCallback(hsai);
+    }
+    /* SAI mutedet interrupt occurred ----------------------------------*/
+    else if(((itflags & SAI_FLAG_MUTEDET) == SAI_FLAG_MUTEDET) && ((itsources & SAI_IT_MUTEDET) == SAI_IT_MUTEDET))
+    {
+      /* Clear the SAI mutedet flag */
+      __HAL_SAI_CLEAR_FLAG(hsai, SAI_FLAG_MUTEDET);
+      /* call the call back function */
+      if(hsai->mutecallback != (SAIcallback)NULL)
+      {
+        /* inform the user that an RX mute event has been detected */
+        hsai->mutecallback();
+      }
+    }
+    /* SAI AFSDET interrupt occurred ----------------------------------*/
+    else if(((itflags & SAI_FLAG_AFSDET) == SAI_FLAG_AFSDET) && ((itsources & SAI_IT_AFSDET) == SAI_IT_AFSDET))
+    {
+      /* Change the SAI error code */
+      hsai->ErrorCode |= HAL_SAI_ERROR_AFSDET;
+      
+      /* Check SAI DMA is enabled or not */
+      if((cr1config & SAI_xCR1_DMAEN) == SAI_xCR1_DMAEN)
+      {
+        /* Abort the SAI DMA Streams */
+        if(hsai->hdmatx != NULL)
+        {
+          /* Set the DMA Tx abort callback */
+          hsai->hdmatx->XferAbortCallback = SAI_DMAAbort;
+
+          /* Abort DMA in IT mode */
+          HAL_DMA_Abort_IT(hsai->hdmatx);
+        }
+        else if(hsai->hdmarx != NULL)
+        {
+          /* Set the DMA Rx abort callback */
+          hsai->hdmarx->XferAbortCallback = SAI_DMAAbort;
+
+          /* Abort DMA in IT mode */
+          HAL_DMA_Abort_IT(hsai->hdmarx);
+        }
+      }
+      else
+      {
+        /* Abort SAI */ 
+        HAL_SAI_Abort(hsai);
+        
+        /* Set error callback */
+        HAL_SAI_ErrorCallback(hsai);          
+      }
+    }
+    /* SAI LFSDET interrupt occurred ----------------------------------*/
+    else if(((itflags & SAI_FLAG_LFSDET) == SAI_FLAG_LFSDET) && ((itsources & SAI_IT_LFSDET) == SAI_IT_LFSDET))
+    {
+      /* Change the SAI error code */
+      hsai->ErrorCode |= HAL_SAI_ERROR_LFSDET;
+      
+      /* Check SAI DMA is enabled or not */
+      if((cr1config & SAI_xCR1_DMAEN) == SAI_xCR1_DMAEN)
+      {
+        /* Abort the SAI DMA Streams */
+        if(hsai->hdmatx != NULL)
+        {
+          /* Set the DMA Tx abort callback */
+          hsai->hdmatx->XferAbortCallback = SAI_DMAAbort;
+          
+          /* Abort DMA in IT mode */
+          HAL_DMA_Abort_IT(hsai->hdmatx);
+        }
+        else if(hsai->hdmarx != NULL)
+        {
+          /* Set the DMA Rx abort callback */
+          hsai->hdmarx->XferAbortCallback = SAI_DMAAbort;
+          
+          /* Abort DMA in IT mode */
+          HAL_DMA_Abort_IT(hsai->hdmarx);
+        }
+      }
+      else
+      {
+        /* Abort SAI */ 
+        HAL_SAI_Abort(hsai);
+        
+        /* Set error callback */
+        HAL_SAI_ErrorCallback(hsai);
+      }
+    }
+    /* SAI WCKCFG interrupt occurred ----------------------------------*/
+    else if(((itflags & SAI_FLAG_WCKCFG) == SAI_FLAG_WCKCFG) && ((itsources & SAI_IT_WCKCFG) == SAI_IT_WCKCFG))
+    {
+      /* Change the SAI error code */
+      hsai->ErrorCode |= HAL_SAI_ERROR_WCKCFG;
+      
+      /* Check SAI DMA is enabled or not */
+      if((cr1config & SAI_xCR1_DMAEN) == SAI_xCR1_DMAEN)
+      {
+        /* Abort the SAI DMA Streams */
+        if(hsai->hdmatx != NULL)
+        {
+          /* Set the DMA Tx abort callback */
+          hsai->hdmatx->XferAbortCallback = SAI_DMAAbort;
+          
+          /* Abort DMA in IT mode */
+          HAL_DMA_Abort_IT(hsai->hdmatx);
+        }
+        else if(hsai->hdmarx != NULL)
+        {
+          /* Set the DMA Rx abort callback */
+          hsai->hdmarx->XferAbortCallback = SAI_DMAAbort;
+          
+          /* Abort DMA in IT mode */
+          HAL_DMA_Abort_IT(hsai->hdmarx);
+        }
+      }
+      else
+      {
+        /* If WCKCFG occurs, SAI audio block is automatically disabled */
+        /* Disable all interrupts and clear all flags */
+        hsai->Instance->IMR = 0U;
+        hsai->Instance->CLRFR = 0xFFFFFFFFU;
+        /* Set the SAI state to ready to be able to start again the process */
+        hsai->State = HAL_SAI_STATE_READY;
+        
+        /* Initialize XferCount */
+        hsai->XferCount = 0U;
+        
+        /* SAI error Callback */
+        HAL_SAI_ErrorCallback(hsai);        
+      }
+    }
+    /* SAI CNRDY interrupt occurred ----------------------------------*/
+    else if(((itflags & SAI_FLAG_CNRDY) == SAI_FLAG_CNRDY) && ((itsources & SAI_IT_CNRDY) == SAI_IT_CNRDY))
+    {
+      /* Clear the SAI CNRDY flag */
+      __HAL_SAI_CLEAR_FLAG(hsai, SAI_FLAG_CNRDY);
+      /* Change the SAI error code */
+      hsai->ErrorCode |= HAL_SAI_ERROR_CNREADY;
+      /* the transfer is not stopped, we will forward the information to the user and we let the user decide what needs to be done */
+      HAL_SAI_ErrorCallback(hsai);
+    }
+    else
+    {
+      /* Nothing to do */
+    }
+  }
+}

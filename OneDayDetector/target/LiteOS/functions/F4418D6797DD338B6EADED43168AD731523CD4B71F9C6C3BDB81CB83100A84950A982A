@@ -1,0 +1,119 @@
+HAL_StatusTypeDef HAL_JPEG_Init(JPEG_HandleTypeDef *hjpeg)
+{
+  /* These are the sample quantization tables given in JPEG spec ISO/IEC 10918-1 standard , section K.1. */
+  static const uint8_t JPEG_LUM_QuantTable[JPEG_QUANT_TABLE_SIZE] =
+  {
+    16,  11,  10,  16,  24,  40,  51,  61,
+    12,  12,  14,  19,  26,  58,  60,  55,
+    14,  13,  16,  24,  40,  57,  69,  56,
+    14,  17,  22,  29,  51,  87,  80,  62,
+    18,  22,  37,  56,  68, 109, 103,  77,
+    24,  35,  55,  64,  81, 104, 113,  92,
+    49,  64,  78,  87, 103, 121, 120, 101,
+    72,  92,  95,  98, 112, 100, 103,  99
+  };
+  static const uint8_t JPEG_CHROM_QuantTable[JPEG_QUANT_TABLE_SIZE] =
+  {
+    17,  18,  24,  47,  99,  99,  99,  99,
+    18,  21,  26,  66,  99,  99,  99,  99,
+    24,  26,  56,  99,  99,  99,  99,  99,
+    47,  66,  99,  99,  99,  99,  99,  99,
+    99,  99,  99,  99,  99,  99,  99,  99,
+    99,  99,  99,  99,  99,  99,  99,  99,
+    99,  99,  99,  99,  99,  99,  99,  99,
+    99,  99,  99,  99,  99,  99,  99,  99
+  };
+
+  /* Check the JPEG handle allocation */
+  if (hjpeg == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+  if (hjpeg->State == HAL_JPEG_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hjpeg->Lock = HAL_UNLOCKED;
+
+    hjpeg->InfoReadyCallback  = HAL_JPEG_InfoReadyCallback;  /* Legacy weak InfoReadyCallback  */
+    hjpeg->EncodeCpltCallback = HAL_JPEG_EncodeCpltCallback; /* Legacy weak EncodeCpltCallback */
+    hjpeg->DecodeCpltCallback = HAL_JPEG_DecodeCpltCallback; /* Legacy weak DecodeCpltCallback */
+    hjpeg->ErrorCallback      = HAL_JPEG_ErrorCallback;      /* Legacy weak ErrorCallback      */
+    hjpeg->GetDataCallback    = HAL_JPEG_GetDataCallback;    /* Legacy weak GetDataCallback    */
+    hjpeg->DataReadyCallback  = HAL_JPEG_DataReadyCallback;  /* Legacy weak DataReadyCallback  */
+
+    if (hjpeg->MspInitCallback == NULL)
+    {
+      hjpeg->MspInitCallback = HAL_JPEG_MspInit; /* Legacy weak MspInit  */
+    }
+
+    /* Init the low level hardware */
+    hjpeg->MspInitCallback(hjpeg);
+  }
+#else
+  if (hjpeg->State == HAL_JPEG_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hjpeg->Lock = HAL_UNLOCKED;
+
+    /* Init the low level hardware : GPIO, CLOCK */
+    HAL_JPEG_MspInit(hjpeg);
+  }
+#endif /* USE_HAL_JPEG_REGISTER_CALLBACKS */
+
+  /* Change the JPEG state */
+  hjpeg->State = HAL_JPEG_STATE_BUSY;
+
+  /* Start the JPEG Core*/
+  __HAL_JPEG_ENABLE(hjpeg);
+
+  /* Stop the JPEG encoding/decoding process*/
+  hjpeg->Instance->CONFR0 &=  ~JPEG_CONFR0_START;
+
+  /* Disable All Interrupts */
+  __HAL_JPEG_DISABLE_IT(hjpeg, JPEG_INTERRUPT_MASK);
+
+  /* Disable All DMA requests */
+  JPEG_DISABLE_DMA(hjpeg, JPEG_DMA_MASK);
+
+  /* Flush input and output FIFOs*/
+  hjpeg->Instance->CR |= JPEG_CR_IFF;
+  hjpeg->Instance->CR |= JPEG_CR_OFF;
+
+  /* Clear all flags */
+  __HAL_JPEG_CLEAR_FLAG(hjpeg, JPEG_FLAG_ALL);
+
+  /* init default quantization tables*/
+  hjpeg->QuantTable0 = (uint8_t *)((uint32_t)JPEG_LUM_QuantTable);
+  hjpeg->QuantTable1 = (uint8_t *)((uint32_t)JPEG_CHROM_QuantTable);
+  hjpeg->QuantTable2 = NULL;
+  hjpeg->QuantTable3 = NULL;
+
+  /* init the default Huffman tables*/
+  if (JPEG_Set_HuffEnc_Mem(hjpeg) != HAL_OK)
+  {
+    hjpeg->ErrorCode = HAL_JPEG_ERROR_HUFF_TABLE;
+
+    return HAL_ERROR;
+  }
+
+  /* Enable header processing*/
+  hjpeg->Instance->CONFR1 |= JPEG_CONFR1_HDR;
+
+  /* Reset JpegInCount and JpegOutCount */
+  hjpeg->JpegInCount = 0;
+  hjpeg->JpegOutCount = 0;
+
+  /* Change the JPEG state */
+  hjpeg->State = HAL_JPEG_STATE_READY;
+
+  /* Reset the JPEG ErrorCode */
+  hjpeg->ErrorCode = HAL_JPEG_ERROR_NONE;
+
+  /*Clear the context filelds*/
+  hjpeg->Context = 0;
+
+  /* Return function status */
+  return HAL_OK;
+}

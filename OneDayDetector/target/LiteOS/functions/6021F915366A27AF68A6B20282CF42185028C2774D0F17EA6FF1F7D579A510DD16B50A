@@ -1,0 +1,89 @@
+static void I2C_ITAddrCplt(I2C_HandleTypeDef *hi2c, uint32_t ITFlags)
+{
+  uint8_t transferdirection;
+  uint16_t slaveaddrcode;
+  uint16_t ownadd1code;
+  uint16_t ownadd2code;
+
+  /* Prevent unused argument(s) compilation warning */
+  UNUSED(ITFlags);
+
+  /* In case of Listen state, need to inform upper layer of address match code event */
+  if (((uint32_t)hi2c->State & (uint32_t)HAL_I2C_STATE_LISTEN) == (uint32_t)HAL_I2C_STATE_LISTEN)
+  {
+    transferdirection = I2C_GET_DIR(hi2c);
+    slaveaddrcode     = I2C_GET_ADDR_MATCH(hi2c);
+    ownadd1code       = I2C_GET_OWN_ADDRESS1(hi2c);
+    ownadd2code       = I2C_GET_OWN_ADDRESS2(hi2c);
+
+    /* If 10bits addressing mode is selected */
+    if (hi2c->Init.AddressingMode == I2C_ADDRESSINGMODE_10BIT)
+    {
+      if ((slaveaddrcode & SlaveAddr_MSK) == ((ownadd1code >> SlaveAddr_SHIFT) & SlaveAddr_MSK))
+      {
+        slaveaddrcode = ownadd1code;
+        hi2c->AddrEventCount++;
+        if (hi2c->AddrEventCount == 2U)
+        {
+          /* Reset Address Event counter */
+          hi2c->AddrEventCount = 0U;
+
+          /* Clear ADDR flag */
+          __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_ADDR);
+
+          /* Process Unlocked */
+          __HAL_UNLOCK(hi2c);
+
+          /* Call Slave Addr callback */
+#if (USE_HAL_I2C_REGISTER_CALLBACKS == 1)
+          hi2c->AddrCallback(hi2c, transferdirection, slaveaddrcode);
+#else
+          HAL_I2C_AddrCallback(hi2c, transferdirection, slaveaddrcode);
+#endif /* USE_HAL_I2C_REGISTER_CALLBACKS */
+        }
+      }
+      else
+      {
+        slaveaddrcode = ownadd2code;
+
+        /* Disable ADDR Interrupts */
+        I2C_Disable_IRQ(hi2c, I2C_XFER_LISTEN_IT);
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(hi2c);
+
+        /* Call Slave Addr callback */
+#if (USE_HAL_I2C_REGISTER_CALLBACKS == 1)
+        hi2c->AddrCallback(hi2c, transferdirection, slaveaddrcode);
+#else
+        HAL_I2C_AddrCallback(hi2c, transferdirection, slaveaddrcode);
+#endif /* USE_HAL_I2C_REGISTER_CALLBACKS */
+      }
+    }
+    /* else 7 bits addressing mode is selected */
+    else
+    {
+      /* Disable ADDR Interrupts */
+      I2C_Disable_IRQ(hi2c, I2C_XFER_LISTEN_IT);
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hi2c);
+
+      /* Call Slave Addr callback */
+#if (USE_HAL_I2C_REGISTER_CALLBACKS == 1)
+      hi2c->AddrCallback(hi2c, transferdirection, slaveaddrcode);
+#else
+      HAL_I2C_AddrCallback(hi2c, transferdirection, slaveaddrcode);
+#endif /* USE_HAL_I2C_REGISTER_CALLBACKS */
+    }
+  }
+  /* Else clear address flag only */
+  else
+  {
+    /* Clear ADDR flag */
+    __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_ADDR);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2c);
+  }
+}

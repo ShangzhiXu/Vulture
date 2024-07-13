@@ -1,0 +1,28 @@
+uint32_t LL_RCC_GetI2SClockFreq(uint32_t I2SxSource)
+{
+  uint32_t i2s_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_I2S_CLKSOURCE(I2SxSource));
+
+  if (I2SxSource == LL_RCC_I2S1_CLKSOURCE)
+  {
+    /* I2S1 CLK clock frequency */
+    switch (LL_RCC_GetI2SClockSource(I2SxSource))
+    {
+      case LL_RCC_I2S1_CLKSOURCE_PLLI2S:       /* I2S1 Clock is PLLI2S */
+        if (LL_RCC_PLLI2S_IsReady())
+        {
+          i2s_frequency = RCC_PLLI2S_GetFreqDomain_I2S();
+        }
+        break;
+
+      case LL_RCC_I2S1_CLKSOURCE_PIN:          /* I2S1 Clock is External clock */
+      default:
+        i2s_frequency = EXTERNAL_CLOCK_VALUE;
+        break;
+    }
+  }
+
+  return i2s_frequency;
+}

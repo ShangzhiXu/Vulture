@@ -1,0 +1,99 @@
+lwip_recv_tcp(struct lwip_sock *sock, void *mem, size_t len, int flags)
+{
+  u8_t apiflags = NETCONN_NOAUTORCVD;
+  ssize_t recvd = 0;
+  ssize_t recv_left = (len <= SSIZE_MAX) ? (ssize_t)len : SSIZE_MAX;
+
+  LWIP_ASSERT("no socket given", sock != NULL);
+  LWIP_ASSERT("this should be checked internally", NETCONNTYPE_GROUP(netconn_type(sock->conn)) == NETCONN_TCP);
+
+  if (flags & MSG_DONTWAIT) {
+    apiflags |= NETCONN_DONTBLOCK;
+  }
+
+  do {
+    struct pbuf *p;
+    err_t err;
+    u16_t copylen;
+
+    LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_recv_tcp: top while sock->lastdata=%p\n", (void *)sock->lastdata.pbuf));
+    /* Check if there is data left from the last recv operation. */
+    if (sock->lastdata.pbuf) {
+      p = sock->lastdata.pbuf;
+    } else {
+      /* No data was left from the previous operation, so we try to get
+         some from the network. */
+      err = netconn_recv_tcp_pbuf_flags(sock->conn, &p, apiflags);
+      LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_recv_tcp: netconn_recv err=%d, pbuf=%p\n",
+                                  err, (void *)p));
+
+      if (err != ERR_OK) {
+        if (recvd > 0) {
+          /* already received data, return that (this trusts in getting the same error from
+             netconn layer again next time netconn_recv is called) */
+          goto lwip_recv_tcp_done;
+        }
+        /* We should really do some error checking here. */
+        LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_recv_tcp: p == NULL, error is \"%s\"!\n",
+                                    lwip_strerr(err)));
+        sock_set_errno(sock, err_to_errno(err));
+        if (err == ERR_CLSD) {
+          return 0;
+        } else {
+          return -1;
+        }
+      }
+      LWIP_ASSERT("p != NULL", p != NULL);
+      sock->lastdata.pbuf = p;
+    }
+
+    LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_recv_tcp: buflen=%"U16_F" recv_left=%d off=%d\n",
+                                p->tot_len, (int)recv_left, (int)recvd));
+
+    if (recv_left > p->tot_len) {
+      copylen = p->tot_len;
+    } else {
+      copylen = (u16_t)recv_left;
+    }
+    if (recvd + copylen < recvd) {
+      /* overflow */
+      copylen = (u16_t)(SSIZE_MAX - recvd);
+    }
+
+    /* copy the contents of the received buffer into
+    the supplied memory pointer mem */
+    pbuf_copy_partial(p, (u8_t *)mem + recvd, copylen, 0);
+
+    recvd += copylen;
+
+    /* TCP combines multiple pbufs for one recv */
+    LWIP_ASSERT("invalid copylen, len would underflow", recv_left >= copylen);
+    recv_left -= copylen;
+
+    /* Unless we peek the incoming message... */
+    if ((flags & MSG_PEEK) == 0) {
+      /* ... check if there is data left in the pbuf */
+      LWIP_ASSERT("invalid copylen", p->tot_len >= copylen);
+      if (p->tot_len - copylen > 0) {
+        /* If so, it should be saved in the sock structure for the next recv call.
+           We store the pbuf but hide/free the consumed data: */
+        sock->lastdata.pbuf = pbuf_free_header(p, copylen);
+        LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_recv_tcp: lastdata now pbuf=%p\n", (void *)sock->lastdata.pbuf));
+      } else {
+        sock->lastdata.pbuf = NULL;
+        LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_recv_tcp: deleting pbuf=%p\n", (void *)p));
+        pbuf_free(p);
+      }
+    }
+    /* once we have some data to return, only add more if we don't need to wait */
+    apiflags |= NETCONN_DONTBLOCK | NETCONN_NOFIN;
+    /* @todo: do we need to support peeking more than one pbuf? */
+  } while ((recv_left > 0) && !(flags & MSG_PEEK));
+lwip_recv_tcp_done:
+  if ((recvd > 0) && !(flags & MSG_PEEK)) {
+    /* ensure window update after copying all data */
+    netconn_tcp_recvd(sock->conn, (size_t)recvd);
+  }
+  sock_set_errno(sock, 0);
+  return recvd;
+}

@@ -1,0 +1,19 @@
+STATIC VOID OsExcType(UINT32 excType, ExcContext *excBufAddr)
+{
+    /* undefinited exception handling or software interrupt */
+    if ((excType == OS_EXCEPT_UNDEF_INSTR) || (excType == OS_EXCEPT_SWI)) {
+        if ((excBufAddr->regCPSR & INSTR_SET_MASK) == 0) { /* work status: ARM */
+            excBufAddr->PC = excBufAddr->PC - ARM_INSTR_LEN;
+        } else if ((excBufAddr->regCPSR & INSTR_SET_MASK) == 0x20) { /* work status: Thumb */
+            excBufAddr->PC = excBufAddr->PC - THUMB_INSTR_LEN;
+        }
+    }
+
+    if (excType == OS_EXCEPT_PREFETCH_ABORT) {
+        PrintExcInfo("prefetch_abort fault fsr:0x%x, far:0x%0+8x\n", OsGetIFSR(), OsGetIFAR());
+        (VOID)OsDecodeInstructionFSR(OsGetIFSR());
+    } else if (excType == OS_EXCEPT_DATA_ABORT) {
+        PrintExcInfo("data_abort fsr:0x%x, far:0x%0+8x\n", OsGetDFSR(), OsGetDFAR());
+        (VOID)OsDecodeDataFSR(OsGetDFSR());
+    }
+}

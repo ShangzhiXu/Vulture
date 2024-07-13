@@ -1,0 +1,37 @@
+httpc_get_file_to_disk(const ip_addr_t* server_addr, u16_t port, const char* uri, const httpc_connection_t *settings,
+                       void* callback_arg, const char* local_file_name, httpc_state_t **connection)
+{
+  err_t err;
+  httpc_state_t* req;
+  httpc_filestate_t *filestate;
+
+  LWIP_ERROR("invalid parameters", (server_addr != NULL) && (uri != NULL) && (local_file_name != NULL), return ERR_ARG;);
+
+  err = httpc_fs_init(&filestate, local_file_name, settings, callback_arg);
+  if (err != ERR_OK) {
+    return err;
+  }
+
+  err = httpc_init_connection_addr(&req, &filestate->settings, server_addr, port,
+    uri, httpc_fs_tcp_recv, filestate);
+  if (err != ERR_OK) {
+    httpc_fs_free(filestate);
+    return err;
+  }
+
+  if (settings->use_proxy) {
+    err = httpc_get_internal_addr(req, &settings->proxy_addr);
+  } else {
+    err = httpc_get_internal_addr(req, server_addr);
+  }
+  if(err != ERR_OK) {
+    httpc_fs_free(filestate);
+    httpc_free_state(req);
+    return err;
+  }
+
+  if (connection != NULL) {
+    *connection = req;
+  }
+  return ERR_OK;
+}

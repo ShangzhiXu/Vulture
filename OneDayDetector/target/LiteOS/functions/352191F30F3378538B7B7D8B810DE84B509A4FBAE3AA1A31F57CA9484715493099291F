@@ -1,0 +1,57 @@
+static void IRDA_SetConfig(IRDA_HandleTypeDef *hirda)
+{
+  uint32_t pclk;
+
+  /* Check the parameters */
+  assert_param(IS_IRDA_INSTANCE(hirda->Instance));
+  assert_param(IS_IRDA_BAUDRATE(hirda->Init.BaudRate));
+  assert_param(IS_IRDA_WORD_LENGTH(hirda->Init.WordLength));
+  assert_param(IS_IRDA_PARITY(hirda->Init.Parity));
+  assert_param(IS_IRDA_MODE(hirda->Init.Mode));
+  assert_param(IS_IRDA_POWERMODE(hirda->Init.IrDAMode));
+
+  /*-------------------------- USART CR2 Configuration ------------------------*/
+  /* Clear STOP[13:12] bits */
+  CLEAR_BIT(hirda->Instance->CR2, USART_CR2_STOP);
+
+  /*-------------------------- USART CR1 Configuration -----------------------*/
+  /* Clear M, PCE, PS, TE and RE bits */
+  CLEAR_BIT(hirda->Instance->CR1, (USART_CR1_M | USART_CR1_PCE | USART_CR1_PS | USART_CR1_TE | USART_CR1_RE));
+
+  /* Configure the USART Word Length, Parity and mode:
+     Set the M bits according to hirda->Init.WordLength value
+     Set PCE and PS bits according to hirda->Init.Parity value
+     Set TE and RE bits according to hirda->Init.Mode value */
+  /* Write to USART CR1 */
+  SET_BIT(hirda->Instance->CR1, (hirda->Init.WordLength | hirda->Init.Parity | hirda->Init.Mode));
+
+  /*-------------------------- USART CR3 Configuration -----------------------*/
+  /* Clear CTSE and RTSE bits */
+  CLEAR_BIT(hirda->Instance->CR3, (USART_CR3_RTSE | USART_CR3_CTSE));
+
+  /*-------------------------- USART BRR Configuration -----------------------*/
+#if defined(USART6) && defined(UART9) && defined(UART10)
+   if ((hirda->Instance == USART1) || (hirda->Instance == USART6) || (hirda->Instance == UART9) || (hirda->Instance == UART10))
+   {
+    pclk = HAL_RCC_GetPCLK2Freq();
+    SET_BIT(hirda->Instance->BRR, IRDA_BRR(pclk, hirda->Init.BaudRate));
+   }
+#elif defined(USART6)
+  if((hirda->Instance == USART1) || (hirda->Instance == USART6))
+  {
+    pclk = HAL_RCC_GetPCLK2Freq();
+    SET_BIT(hirda->Instance->BRR, IRDA_BRR(pclk, hirda->Init.BaudRate));
+  }
+#else
+  if(hirda->Instance == USART1)
+  {
+    pclk = HAL_RCC_GetPCLK2Freq();
+    SET_BIT(hirda->Instance->BRR, IRDA_BRR(pclk, hirda->Init.BaudRate));
+  }
+#endif /* USART6 */
+  else
+  {
+    pclk = HAL_RCC_GetPCLK1Freq();
+    SET_BIT(hirda->Instance->BRR, IRDA_BRR(pclk, hirda->Init.BaudRate));
+  }
+}

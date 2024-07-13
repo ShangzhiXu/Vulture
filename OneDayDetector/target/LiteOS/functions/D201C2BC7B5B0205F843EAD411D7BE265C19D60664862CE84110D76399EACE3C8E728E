@@ -1,0 +1,77 @@
+ip_RouteTable_get_cell_value_core(struct netif *netif, u8_t default_route, const u32_t *column, union snmp_variant_value *value, u32_t *value_len)
+{
+  switch (*column) {
+    case 1: /* ipRouteDest */
+      if (default_route) {
+        /* default rte has 0.0.0.0 dest */
+        value->u32 = IP4_ADDR_ANY4->addr;
+      } else {
+        /* netifs have netaddress dest */
+        ip4_addr_t tmp;
+        ip4_addr_get_network(&tmp, netif_ip4_addr(netif), netif_ip4_netmask(netif));
+        value->u32 = tmp.addr;
+      }
+      break;
+    case 2: /* ipRouteIfIndex */
+      value->u32 = netif_to_num(netif);
+      break;
+    case 3: /* ipRouteMetric1 */
+      if (default_route) {
+        value->s32 = 1; /* default */
+      } else {
+        value->s32 = 0; /* normal */
+      }
+      break;
+    case 4: /* ipRouteMetric2 */
+    case 5: /* ipRouteMetric3 */
+    case 6: /* ipRouteMetric4 */
+      value->s32 = -1; /* none */
+      break;
+    case 7: /* ipRouteNextHop */
+      if (default_route) {
+        /* default rte: gateway */
+        value->u32 = netif_ip4_gw(netif)->addr;
+      } else {
+        /* other rtes: netif ip_addr  */
+        value->u32 = netif_ip4_addr(netif)->addr;
+      }
+      break;
+    case 8: /* ipRouteType */
+      if (default_route) {
+        /* default rte is indirect */
+        value->u32 = 4; /* indirect */
+      } else {
+        /* other rtes are direct */
+        value->u32 = 3; /* direct */
+      }
+      break;
+    case 9: /* ipRouteProto */
+      /* locally defined routes */
+      value->u32 = 2; /* local */
+      break;
+    case 10: /* ipRouteAge */
+      /* @todo (sysuptime - timestamp last change) / 100 */
+      value->u32 = 0;
+      break;
+    case 11: /* ipRouteMask */
+      if (default_route) {
+        /* default rte use 0.0.0.0 mask */
+        value->u32 = IP4_ADDR_ANY4->addr;
+      } else {
+        /* other rtes use netmask */
+        value->u32 = netif_ip4_netmask(netif)->addr;
+      }
+      break;
+    case 12: /* ipRouteMetric5 */
+      value->s32 = -1; /* none */
+      break;
+    case 13: /* ipRouteInfo */
+      value->const_ptr = snmp_zero_dot_zero.id;
+      *value_len = snmp_zero_dot_zero.len * sizeof(u32_t);
+      break;
+    default:
+      return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  return SNMP_ERR_NOERROR;
+}

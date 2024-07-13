@@ -1,0 +1,37 @@
+uint32_t LL_RCC_GetADCClockFreq(uint32_t ADCxSource)
+{
+  uint32_t adc_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_ADC_CLKSOURCE(ADCxSource));
+
+  /* ADCCLK clock frequency */
+  switch (LL_RCC_GetADCClockSource(ADCxSource))
+  {
+    case LL_RCC_ADC_CLKSOURCE_PLLSAI1:       /* PLLSAI1 clock used as ADC clock source */
+      if (LL_RCC_PLLSAI1_IsReady())
+      {
+        adc_frequency = RCC_PLLSAI1_GetFreqDomain_ADC();
+      }
+      break;
+
+#if defined(RCC_PLLSAI2_SUPPORT) && defined(LL_RCC_ADC_CLKSOURCE_PLLSAI2)
+    case LL_RCC_ADC_CLKSOURCE_PLLSAI2:       /* PLLSAI2 clock used as ADC clock source */
+      if (LL_RCC_PLLSAI2_IsReady())
+      {
+         adc_frequency = RCC_PLLSAI2_GetFreqDomain_ADC();
+      }
+      break;
+#endif /* RCC_PLLSAI2_SUPPORT && LL_RCC_ADC_CLKSOURCE_PLLSAI2 */
+
+    case LL_RCC_ADC_CLKSOURCE_SYSCLK:        /* SYSCLK clock used as ADC clock source */
+      adc_frequency = RCC_GetSystemClockFreq();
+      break;
+    case LL_RCC_ADC_CLKSOURCE_NONE:          /* No clock used as ADC clock source */
+    default:
+      adc_frequency = LL_RCC_PERIPH_FREQUENCY_NA;
+      break;
+  }
+
+  return adc_frequency;
+}

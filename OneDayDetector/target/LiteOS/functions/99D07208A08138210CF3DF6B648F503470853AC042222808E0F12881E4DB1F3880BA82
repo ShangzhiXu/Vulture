@@ -1,0 +1,13 @@
+lwiperf_tcp_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err)
+{
+  lwiperf_state_tcp_t *conn = (lwiperf_state_tcp_t *)arg;
+  LWIP_ASSERT("invalid conn", conn->conn_pcb == tpcb);
+  LWIP_UNUSED_ARG(tpcb);
+  if (err != ERR_OK) {
+    lwiperf_tcp_close(conn, LWIPERF_TCP_ABORTED_REMOTE);
+    return ERR_OK;
+  }
+  conn->poll_count = 0;
+  conn->time_started = sys_now();
+  return lwiperf_tcp_client_send_more(conn);
+}

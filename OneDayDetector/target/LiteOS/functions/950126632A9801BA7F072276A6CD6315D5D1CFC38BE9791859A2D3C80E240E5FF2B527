@@ -1,0 +1,41 @@
+VOID OsDumpMemByte(size_t length, UINTPTR addr)
+{
+    size_t dataLen;
+    UINTPTR *alignAddr = NULL;
+    UINT32 count = 0;
+
+    dataLen = ALIGN(length, sizeof(UINTPTR));
+    alignAddr = (UINTPTR *)TRUNCATE(addr, sizeof(UINTPTR));
+    if ((dataLen == 0) || (alignAddr == NULL)) {
+        return;
+    }
+    while (dataLen) {
+        if (IS_ALIGNED(count, sizeof(CHAR *))) {
+            PRINTK("\n 0x%lx :", alignAddr);
+#ifdef LOSCFG_SHELL_EXCINFO_DUMP
+            WriteExcInfoToBuf("\n 0x%lx :", alignAddr);
+#endif
+        }
+#ifdef __LP64__
+        PRINTK("%0+16lx ", *alignAddr);
+#else
+        PRINTK("%0+8lx ", *alignAddr);
+#endif
+#ifdef LOSCFG_SHELL_EXCINFO_DUMP
+#ifdef __LP64__
+        WriteExcInfoToBuf("0x%0+16x ", *alignAddr);
+#else
+        WriteExcInfoToBuf("0x%0+8x ", *alignAddr);
+#endif
+#endif
+        alignAddr++;
+        dataLen -= sizeof(CHAR *);
+        count++;
+    }
+    PRINTK("\n");
+#ifdef LOSCFG_SHELL_EXCINFO_DUMP
+    WriteExcInfoToBuf("\n");
+#endif
+
+    return;
+}

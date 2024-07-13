@@ -1,0 +1,29 @@
+static int cmac_generate_subkeys( mbedtls_cipher_context_t *ctx,
+                                  unsigned char* K1, unsigned char* K2 )
+{
+    int ret;
+    unsigned char L[MBEDTLS_CIPHER_BLKSIZE_MAX];
+    size_t olen, block_size;
+
+    mbedtls_platform_zeroize( L, sizeof( L ) );
+
+    block_size = ctx->cipher_info->block_size;
+
+    /* Calculate Ek(0) */
+    if( ( ret = mbedtls_cipher_update( ctx, L, block_size, L, &olen ) ) != 0 )
+        goto exit;
+
+    /*
+     * Generate K1 and K2
+     */
+    if( ( ret = cmac_multiply_by_u( K1, L , block_size ) ) != 0 )
+        goto exit;
+
+    if( ( ret = cmac_multiply_by_u( K2, K1 , block_size ) ) != 0 )
+        goto exit;
+
+exit:
+    mbedtls_platform_zeroize( L, sizeof( L ) );
+
+    return( ret );
+}

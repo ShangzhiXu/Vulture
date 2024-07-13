@@ -1,0 +1,21 @@
+int hal_spi_flash_erase(uint32_t addr, int32_t len)
+{
+    uint32_t begin;
+    uint32_t end;
+    int i;
+
+    if ((len < 0) || (addr > SPI_FLASH_TOTAL_SIZE) || (addr + len > SPI_FLASH_TOTAL_SIZE)) {
+        return -1;
+    }
+
+    begin = addr / SPI_FLASH_SECTOR * SPI_FLASH_SECTOR;
+    end = (addr + len - 1) / SPI_FLASH_SECTOR * SPI_FLASH_SECTOR;
+
+    for (i = begin; i <= end; i += SPI_FLASH_SECTOR) {
+        if (prv_spi_flash_erase_sector(i) == -1) {
+            return -1;
+        }
+    }
+
+    return 0;
+}

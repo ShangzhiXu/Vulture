@@ -1,0 +1,31 @@
+static int mqtt_check_device_info(const mqtt_device_info_s *info)
+{
+    if ((info->connection_type >= MQTT_MAX_CONNECTION_TYPE)
+        || (info->codec_mode >= MQTT_MAX_CODEC_MODE)
+        || (info->sign_type >= MQTT_MAX_SIGN_TYPE)
+        || (info->password == NULL)
+        || (!IS_VALID_NAME_LEN(info->password))) {
+        ATINY_LOG(LOG_FATAL, "invalid device info con_type %d codec_mode %d signe type %d",
+            info->connection_type, info->codec_mode, info->sign_type);
+        return ATINY_ARG_INVALID;
+    }
+
+    if ((info->connection_type == MQTT_STATIC_CONNECT)
+        && ((info->u.s_info.deviceid == NULL)
+        || (!IS_VALID_NAME_LEN(info->u.s_info.deviceid)))) {
+        ATINY_LOG(LOG_FATAL, "invalid static device info con_type %d codec_mode %d signe type %d",
+            info->connection_type, info->codec_mode, info->sign_type);
+        return ATINY_ARG_INVALID;
+    }
+
+    if ((info->connection_type == MQTT_DYNAMIC_CONNECT)
+        &&((info->u.d_info.productid == NULL)
+        || (!IS_VALID_NAME_LEN(info->u.d_info.productid))
+        || (info->u.d_info.nodeid == NULL)
+        || !(IS_VALID_NAME_LEN(info->u.d_info.nodeid)))) {
+        ATINY_LOG(LOG_FATAL, "invalid dynamic device info con_type %d codec_mode %d signe type %d",
+            info->connection_type, info->codec_mode, info->sign_type);
+        return ATINY_ARG_INVALID;
+    }
+    return ATINY_OK;
+}

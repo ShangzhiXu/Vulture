@@ -1,0 +1,21 @@
+udp_new(void)
+{
+  struct udp_pcb *pcb;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  pcb = (struct udp_pcb *)memp_malloc(MEMP_UDP_PCB);
+  /* could allocate UDP PCB? */
+  if (pcb != NULL) {
+    /* UDP Lite: by initializing to all zeroes, chksum_len is set to 0
+     * which means checksum is generated over the whole datagram per default
+     * (recommended as default by RFC 3828). */
+    /* initialize PCB to all zeroes */
+    memset(pcb, 0, sizeof(struct udp_pcb));
+    pcb->ttl = UDP_TTL;
+#if LWIP_MULTICAST_TX_OPTIONS
+    udp_set_multicast_ttl(pcb, UDP_TTL);
+#endif /* LWIP_MULTICAST_TX_OPTIONS */
+  }
+  return pcb;
+}

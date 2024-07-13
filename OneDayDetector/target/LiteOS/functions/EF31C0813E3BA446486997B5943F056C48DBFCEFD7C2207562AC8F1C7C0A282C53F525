@@ -1,0 +1,97 @@
+HAL_StatusTypeDef HAL_FLASHEx_Erase(FLASH_EraseInitTypeDef *pEraseInit, uint32_t *PageError)
+{
+  HAL_StatusTypeDef status = HAL_ERROR;
+  uint32_t page_index = 0;
+
+  /* Process Locked */
+  __HAL_LOCK(&pFlash);
+
+  /* Check the parameters */
+  assert_param(IS_FLASH_TYPEERASE(pEraseInit->TypeErase));
+
+  /* Wait for last operation to be completed */
+  status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+
+  if (status == HAL_OK)
+  {
+    pFlash.ErrorCode = HAL_FLASH_ERROR_NONE;
+
+    /* Deactivate the cache if they are activated to avoid data misbehavior */
+    if(READ_BIT(FLASH->ACR, FLASH_ACR_ICEN) != RESET)
+    {
+      /* Disable instruction cache  */
+      __HAL_FLASH_INSTRUCTION_CACHE_DISABLE();
+
+      if(READ_BIT(FLASH->ACR, FLASH_ACR_DCEN) != RESET)
+      {
+        /* Disable data cache  */
+        __HAL_FLASH_DATA_CACHE_DISABLE();
+        pFlash.CacheToReactivate = FLASH_CACHE_ICACHE_DCACHE_ENABLED;
+      }
+      else
+      {
+        pFlash.CacheToReactivate = FLASH_CACHE_ICACHE_ENABLED;
+      }
+    }
+    else if(READ_BIT(FLASH->ACR, FLASH_ACR_DCEN) != RESET)
+    {
+      /* Disable data cache  */
+      __HAL_FLASH_DATA_CACHE_DISABLE();
+      pFlash.CacheToReactivate = FLASH_CACHE_DCACHE_ENABLED;
+    }
+    else
+    {
+      pFlash.CacheToReactivate = FLASH_CACHE_DISABLED;
+    }
+
+    if (pEraseInit->TypeErase == FLASH_TYPEERASE_MASSERASE)
+    {
+      /* Mass erase to be done */
+      FLASH_MassErase(pEraseInit->Banks);
+
+      /* Wait for last operation to be completed */
+      status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+
+#if defined (STM32L471xx) || defined (STM32L475xx) || defined (STM32L476xx) || defined (STM32L485xx) || defined (STM32L486xx) || \
+    defined (STM32L496xx) || defined (STM32L4A6xx) || \
+    defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined (STM32L4S9xx)
+      /* If the erase operation is completed, disable the MER1 and MER2 Bits */
+      CLEAR_BIT(FLASH->CR, (FLASH_CR_MER1 | FLASH_CR_MER2));
+#else
+      /* If the erase operation is completed, disable the MER1 Bit */
+      CLEAR_BIT(FLASH->CR, (FLASH_CR_MER1));
+#endif      
+    }
+    else
+    {
+      /*Initialization of PageError variable*/
+      *PageError = 0xFFFFFFFF;
+      
+      for(page_index = pEraseInit->Page; page_index < (pEraseInit->Page + pEraseInit->NbPages); page_index++)
+      {
+        FLASH_PageErase(page_index, pEraseInit->Banks);
+
+        /* Wait for last operation to be completed */
+        status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+
+        /* If the erase operation is completed, disable the PER Bit */
+        CLEAR_BIT(FLASH->CR, (FLASH_CR_PER | FLASH_CR_PNB));
+
+        if (status != HAL_OK)
+        {
+          /* In case of error, stop erase procedure and return the faulty address */
+          *PageError = page_index;
+          break;
+        }
+      }
+    }
+    
+    /* Flush the caches to be sure of the data consistency */
+    FLASH_FlushCaches();
+  }
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(&pFlash);
+
+  return status;
+}

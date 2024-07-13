@@ -1,0 +1,22 @@
+uint8_t ft5336_TS_DetectTouch(uint16_t DeviceAddr)
+{
+  volatile uint8_t nbTouch = 0;
+
+  /* Read register FT5336_TD_STAT_REG to check number of touches detection */
+  nbTouch = TS_IO_Read(DeviceAddr, FT5336_TD_STAT_REG);
+  nbTouch &= FT5336_TD_STAT_MASK;
+
+  if(nbTouch > FT5336_MAX_DETECTABLE_TOUCH)
+  {
+    /* If invalid number of touch detected, set it to zero */
+    nbTouch = 0;
+  }
+
+  /* Update ft5336 driver internal global : current number of active touches */
+  ft5336_handle.currActiveTouchNb = nbTouch;
+
+  /* Reset current active touch index on which to work on */
+  ft5336_handle.currActiveTouchIdx = 0;
+
+  return(nbTouch);
+}

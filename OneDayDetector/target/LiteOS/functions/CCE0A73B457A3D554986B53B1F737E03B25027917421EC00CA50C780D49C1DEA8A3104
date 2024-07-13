@@ -1,0 +1,28 @@
+HAL_StatusTypeDef HAL_ADCEx_MultiModeConfigChannel(ADC_HandleTypeDef* hadc, ADC_MultiModeTypeDef* multimode)
+{
+  /* Check the parameters */
+  assert_param(IS_ADC_MODE(multimode->Mode));
+  assert_param(IS_ADC_DMA_ACCESS_MODE(multimode->DMAAccessMode));
+  assert_param(IS_ADC_SAMPLING_DELAY(multimode->TwoSamplingDelay));
+  
+  /* Process locked */
+  __HAL_LOCK(hadc);
+  
+  /* Set ADC mode */
+  ADC->CCR &= ~(ADC_CCR_MULTI);
+  ADC->CCR |= multimode->Mode;
+  
+  /* Set the ADC DMA access mode */
+  ADC->CCR &= ~(ADC_CCR_DMA);
+  ADC->CCR |= multimode->DMAAccessMode;
+  
+  /* Set delay between two sampling phases */
+  ADC->CCR &= ~(ADC_CCR_DELAY);
+  ADC->CCR |= multimode->TwoSamplingDelay;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+  
+  /* Return function status */
+  return HAL_OK;
+}

@@ -1,0 +1,8 @@
+#define WCOREDUMP(s) ((s) & 0x80)
+#define WEXITSTATUS(s) (((s) & 0xff00) >> 8)
+#define WIFCONTINUED(s) ((s) == 0xffff)
+#define WIFEXITED(s) (!WTERMSIG(s))
+#define WIFSIGNALED(s) (((s)&0xffff)-1U < 0xffu)
+#define WIFSTOPPED(s) ((short)((((s)&0xffff)*0x10001)>>8) > 0x7f00)
+#define WSTOPSIG(s) WEXITSTATUS(s)
+#define WTERMSIG(s) ((s) & 0x7f)

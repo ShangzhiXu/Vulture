@@ -1,0 +1,14 @@
+smtp_prepare_rcpt(struct smtp_session *s, u16_t *tx_buf_len)
+{
+  char *target = s->tx_buf;
+  LWIP_ASSERT("tx_buf overflow detected", s->to_len <= (SMTP_TX_BUF_LEN - SMTP_CMD_RCPT_1_LEN - SMTP_CMD_RCPT_2_LEN));
+  *tx_buf_len = (u16_t)(SMTP_CMD_RCPT_1_LEN + SMTP_CMD_RCPT_2_LEN + s->to_len);
+  target[*tx_buf_len] = 0;
+
+  SMEMCPY(target, SMTP_CMD_RCPT_1, SMTP_CMD_RCPT_1_LEN);
+  target += SMTP_CMD_RCPT_1_LEN;
+  MEMCPY(target, s->to, s->to_len);
+  target += s->to_len;
+  SMEMCPY(target, SMTP_CMD_RCPT_2, SMTP_CMD_RCPT_2_LEN);
+  return SMTP_RCPT;
+}

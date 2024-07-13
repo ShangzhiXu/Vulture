@@ -1,0 +1,21 @@
+static void chap_generate_challenge(ppp_pcb *pcb) {
+	int clen = 1, nlen, len;
+	unsigned char *p;
+
+	p = pcb->chap_server.challenge;
+	MAKEHEADER(p, PPP_CHAP);
+	p += CHAP_HDRLEN;
+	pcb->chap_server.digest->generate_challenge(pcb, p);
+	clen = *p;
+	nlen = strlen(pcb->chap_server.name);
+	memcpy(p + 1 + clen, pcb->chap_server.name, nlen);
+
+	len = CHAP_HDRLEN + 1 + clen + nlen;
+	pcb->chap_server.challenge_pktlen = PPP_HDRLEN + len;
+
+	p = pcb->chap_server.challenge + PPP_HDRLEN;
+	p[0] = CHAP_CHALLENGE;
+	p[1] = ++pcb->chap_server.id;
+	p[2] = len >> 8;
+	p[3] = len;
+}

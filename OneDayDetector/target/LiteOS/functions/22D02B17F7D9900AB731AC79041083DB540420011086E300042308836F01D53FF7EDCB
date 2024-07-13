@@ -1,0 +1,23 @@
+void LCD_Clear(uint16_t color)
+{
+    uint16_t i, j;
+    uint8_t data[2] = {0};
+
+    data[0] = color >> 8;
+    data[1] = color;
+
+    LCD_Address_Set(0, 0, LCD_Width - 1, LCD_Height - 1);
+
+    for(j = 0; j < LCD_Buf_Size / 2; j++)
+    {
+        lcd_buf[j * 2] =  data[0];
+        lcd_buf[j * 2 + 1] =  data[1];
+    }
+
+    LCD_DC(1);
+
+    for(i = 0; i < (LCD_TOTAL_BUF_SIZE / LCD_Buf_Size); i++)
+    {
+        LCD_SPI_Send(lcd_buf, LCD_Buf_Size);
+    }
+}

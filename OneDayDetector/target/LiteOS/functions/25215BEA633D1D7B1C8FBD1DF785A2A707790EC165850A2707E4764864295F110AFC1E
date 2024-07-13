@@ -1,0 +1,72 @@
+HAL_StatusTypeDef HAL_TIMEx_HallSensor_Init(TIM_HandleTypeDef *htim, TIM_HallSensor_InitTypeDef* sConfig)
+{
+  TIM_OC_InitTypeDef OC_Config;
+
+  /* Check the TIM handle allocation */
+  if(htim == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  assert_param(IS_TIM_XOR_INSTANCE(htim->Instance));
+  assert_param(IS_TIM_COUNTER_MODE(htim->Init.CounterMode));
+  assert_param(IS_TIM_CLOCKDIVISION_DIV(htim->Init.ClockDivision));
+  assert_param(IS_TIM_IC_POLARITY(sConfig->IC1Polarity));
+  assert_param(IS_TIM_IC_PRESCALER(sConfig->IC1Prescaler));
+  assert_param(IS_TIM_IC_FILTER(sConfig->IC1Filter));
+
+  if(htim->State == HAL_TIM_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    htim->Lock = HAL_UNLOCKED;
+    
+    /* Init the low level hardware : GPIO, CLOCK, NVIC and DMA */
+    HAL_TIMEx_HallSensor_MspInit(htim);
+  }
+
+  /* Set the TIM state */
+  htim->State= HAL_TIM_STATE_BUSY;
+
+  /* Configure the Time base in the Encoder Mode */
+  TIM_Base_SetConfig(htim->Instance, &htim->Init);
+
+  /* Configure the Channel 1 as Input Channel to interface with the three Outputs of the  Hall sensor */
+  TIM_TI1_SetConfig(htim->Instance, sConfig->IC1Polarity, TIM_ICSELECTION_TRC, sConfig->IC1Filter);
+
+  /* Reset the IC1PSC Bits */
+  htim->Instance->CCMR1 &= ~TIM_CCMR1_IC1PSC;
+  /* Set the IC1PSC value */
+  htim->Instance->CCMR1 |= sConfig->IC1Prescaler;
+
+  /* Enable the Hall sensor interface (XOR function of the three inputs) */
+  htim->Instance->CR2 |= TIM_CR2_TI1S;
+
+  /* Select the TIM_TS_TI1F_ED signal as Input trigger for the TIM */
+  htim->Instance->SMCR &= ~TIM_SMCR_TS;
+  htim->Instance->SMCR |= TIM_TS_TI1F_ED;
+
+  /* Use the TIM_TS_TI1F_ED signal to reset the TIM counter each edge detection */
+  htim->Instance->SMCR &= ~TIM_SMCR_SMS;
+  htim->Instance->SMCR |= TIM_SLAVEMODE_RESET;
+
+  /* Program channel 2 in PWM 2 mode with the desired Commutation_Delay*/
+  OC_Config.OCFastMode = TIM_OCFAST_DISABLE;
+  OC_Config.OCIdleState = TIM_OCIDLESTATE_RESET;
+  OC_Config.OCMode = TIM_OCMODE_PWM2;
+  OC_Config.OCNIdleState = TIM_OCNIDLESTATE_RESET;
+  OC_Config.OCNPolarity = TIM_OCNPOLARITY_HIGH;
+  OC_Config.OCPolarity = TIM_OCPOLARITY_HIGH;
+  OC_Config.Pulse = sConfig->Commutation_Delay;
+
+  TIM_OC2_SetConfig(htim->Instance, &OC_Config);
+
+  /* Select OC2REF as trigger output on TRGO: write the MMS bits in the TIMx_CR2
+    register to 101 */
+  htim->Instance->CR2 &= ~TIM_CR2_MMS;
+  htim->Instance->CR2 |= TIM_TRGO_OC2REF;
+
+  /* Initialize the TIM state*/
+  htim->State= HAL_TIM_STATE_READY;
+
+  return HAL_OK;
+}

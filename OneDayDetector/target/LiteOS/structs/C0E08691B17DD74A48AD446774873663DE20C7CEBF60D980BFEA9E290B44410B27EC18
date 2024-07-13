@@ -1,0 +1,35 @@
+typedef struct {
+  // the filesystem of this descriptor
+  spiffs *fs;
+  // number of file descriptor - if 0, the file descriptor is closed
+  spiffs_file file_nbr;
+  // object id - if SPIFFS_OBJ_ID_ERASED, the file was deleted
+  spiffs_obj_id obj_id;
+  // size of the file
+  u32_t size;
+  // cached object index header page index
+  spiffs_page_ix objix_hdr_pix;
+  // cached offset object index page index
+  spiffs_page_ix cursor_objix_pix;
+  // cached offset object index span index
+  spiffs_span_ix cursor_objix_spix;
+  // current absolute offset
+  u32_t offset;
+  // current file descriptor offset (cached)
+  u32_t fdoffset;
+  // fd flags
+  spiffs_flags flags;
+#if SPIFFS_CACHE_WR
+  spiffs_cache_page *cache_page;
+#endif
+#if SPIFFS_TEMPORAL_FD_CACHE
+  // djb2 hash of filename
+  u32_t name_hash;
+  // hit score (score == 0 indicates never used fd)
+  u16_t score;
+#endif
+#if SPIFFS_IX_MAP
+  // spiffs index map, if 0 it means unmapped
+  spiffs_ix_map *ix_map;
+#endif
+} spiffs_fd;

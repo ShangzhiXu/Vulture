@@ -1,0 +1,14 @@
+netif_input(struct pbuf *p, struct netif *inp)
+{
+  LWIP_ASSERT_CORE_LOCKED();
+
+  LWIP_ASSERT("netif_input: invalid pbuf", p != NULL);
+  LWIP_ASSERT("netif_input: invalid netif", inp != NULL);
+
+#if LWIP_ETHERNET
+  if (inp->flags & (NETIF_FLAG_ETHARP | NETIF_FLAG_ETHERNET)) {
+    return ethernet_input(p, inp);
+  } else
+#endif /* LWIP_ETHERNET */
+    return ip_input(p, inp);
+}

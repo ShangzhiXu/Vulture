@@ -1,0 +1,92 @@
+int atiny_init_objects(atiny_param_t *atiny_params, const atiny_device_info_t *device_info, handle_data_t *handle)
+{
+    int result;
+    client_data_t *pdata;
+    lwm2m_context_t *lwm2m_context = NULL;
+    uint16_t serverId = SERVER_ID;
+    char *epname = (char *)device_info->endpoint_name;
+
+    pdata = &handle->client_data;
+    memset(pdata, 0, sizeof(client_data_t));
+
+    ATINY_LOG(LOG_INFO, "Trying to init objects");
+
+    lwm2m_context = lwm2m_init(pdata);
+    if (lwm2m_context == NULL) {
+        ATINY_LOG(LOG_FATAL, "lwm2m_init fail");
+        return ATINY_MALLOC_FAILED;
+    }
+    lwm2m_context->observe_mutex = atiny_mutex_create();
+    if (lwm2m_context->observe_mutex == NULL) {
+        ATINY_LOG(LOG_FATAL, "atiny_mutex_create fail");
+        lwm2m_free(lwm2m_context);
+        return ATINY_RESOURCE_NOT_ENOUGH;
+    }
+
+    pdata->lwm2mH = lwm2m_context;
+
+    handle->lwm2m_context = lwm2m_context;
+
+    // even if not in bootstrap sequence mode, still set it NO_BS_SEQUENCE_STATE
+    atiny_set_bootstrap_sequence_state(atiny_params, lwm2m_context);
+
+    handle->obj_array[OBJ_SECURITY_INDEX] = get_security_object(serverId, atiny_params, lwm2m_context);
+
+    if (handle->obj_array[OBJ_SECURITY_INDEX] == NULL) {
+        ATINY_LOG(LOG_FATAL, "Failed to create security object");
+        return ATINY_MALLOC_FAILED;
+    }
+    pdata->securityObjP = handle->obj_array[OBJ_SECURITY_INDEX];
+
+    handle->obj_array[OBJ_SERVER_INDEX] = get_server_object(serverId, atiny_params->server_params.binding,
+        atiny_params->server_params.life_time, atiny_params->server_params.storing_cnt != 0);
+    if (handle->obj_array[OBJ_SERVER_INDEX] == NULL) {
+        ATINY_LOG(LOG_FATAL, "Failed to create server object");
+        return ATINY_MALLOC_FAILED;
+    }
+
+    handle->obj_array[OBJ_ACCESS_CONTROL_INDEX] = acc_ctrl_create_object();
+    if (handle->obj_array[OBJ_ACCESS_CONTROL_INDEX] == NULL) {
+        ATINY_LOG(LOG_FATAL, "Failed to create access control object");
+        return ATINY_MALLOC_FAILED;
+    }
+
+    handle->obj_array[OBJ_DEVICE_INDEX] = get_object_device(atiny_params, device_info->manufacturer);
+    if (handle->obj_array[OBJ_DEVICE_INDEX] == NULL) {
+        ATINY_LOG(LOG_FATAL, "Failed to create device object");
+        return ATINY_MALLOC_FAILED;
+    }
+
+    handle->obj_array[OBJ_CONNECT_INDEX] = get_object_conn_m(atiny_params);
+    if (handle->obj_array[OBJ_CONNECT_INDEX] == NULL) {
+        ATINY_LOG(LOG_FATAL, "Failed to create connect object");
+        return ATINY_MALLOC_FAILED;
+    }
+
+    handle->obj_array[OBJ_FIRMWARE_INDEX] = get_object_firmware(atiny_params);
+#ifdef CONFIG_FEATURE_FOTA
+    if (handle->obj_array[OBJ_FIRMWARE_INDEX] == NULL) {
+        ATINY_LOG(LOG_FATAL, "Failed to create firmware object");
+        return ATINY_MALLOC_FAILED;
+    }
+#endif
+
+    handle->obj_array[OBJ_LOCATION_INDEX] = get_object_location();
+    if (handle->obj_array[OBJ_LOCATION_INDEX] == NULL) {
+        ATINY_LOG(LOG_FATAL, "Failed to create location object");
+        return ATINY_MALLOC_FAILED;
+    }
+
+    handle->obj_array[OBJ_APP_INDEX] = get_binary_app_data_object(atiny_params);
+    if (handle->obj_array[OBJ_APP_INDEX] == NULL) {
+        ATINY_LOG(LOG_FATAL, "Failed to create app object");
+        return ATINY_MALLOC_FAILED;
+    }
+
+    result = lwm2m_configure(lwm2m_context, epname, NULL, NULL, OBJ_MAX_NUM, handle->obj_array);
+    if (result != 0) {
+        return ATINY_RESOURCE_NOT_FOUND;
+    }
+
+    return ATINY_OK;
+}

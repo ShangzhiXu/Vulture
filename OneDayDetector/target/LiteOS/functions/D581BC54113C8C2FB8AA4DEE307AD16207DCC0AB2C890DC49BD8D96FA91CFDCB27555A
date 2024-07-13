@@ -1,0 +1,208 @@
+static void eap_figure_next_state(ppp_pcb *pcb, int status) {
+#ifdef USE_SRP
+	unsigned char secbuf[MAXSECRETLEN], clear[8], *sp, *dp;
+	struct t_pw tpw;
+	struct t_confent *tce, mytce;
+	char *cp, *cp2;
+	struct t_server *ts;
+	int id, i, plen, toffs;
+	u_char vals[2];
+	struct b64state bs;
+#endif /* USE_SRP */
+
+	pcb->settings.eap_timeout_time = pcb->eap.es_savedtime;
+	switch (pcb->eap.es_server.ea_state) {
+	case eapBadAuth:
+		return;
+
+	case eapIdentify:
+#ifdef USE_SRP
+		/* Discard any previous session. */
+		ts = (struct t_server *)pcb->eap.es_server.ea_session;
+		if (ts != NULL) {
+			t_serverclose(ts);
+			pcb->eap.es_server.ea_session = NULL;
+			pcb->eap.es_server.ea_skey = NULL;
+		}
+#endif /* USE_SRP */
+		if (status != 0) {
+			pcb->eap.es_server.ea_state = eapBadAuth;
+			break;
+		}
+#ifdef USE_SRP
+		/* If we've got a pseudonym, try to decode to real name. */
+		if (pcb->eap.es_server.ea_peerlen > SRP_PSEUDO_LEN &&
+		    strncmp(pcb->eap.es_server.ea_peer, SRP_PSEUDO_ID,
+			SRP_PSEUDO_LEN) == 0 &&
+		    (pcb->eap.es_server.ea_peerlen - SRP_PSEUDO_LEN) * 3 / 4 <
+		    sizeof (secbuf)) {
+			BZERO(&bs, sizeof (bs));
+			plen = b64dec(&bs,
+			    pcb->eap.es_server.ea_peer + SRP_PSEUDO_LEN,
+			    pcb->eap.es_server.ea_peerlen - SRP_PSEUDO_LEN,
+			    secbuf);
+			toffs = 0;
+			for (i = 0; i < 5; i++) {
+				pncrypt_setkey(toffs);
+				toffs -= 86400;
+				/* FIXME: if we want to do SRP, we need to find a way to pass the PolarSSL des_context instead of using static memory */
+				if (!DesDecrypt(secbuf, clear)) {
+					ppp_dbglog("no DES here; cannot decode "
+					    "pseudonym");
+					return;
+				}
+				id = *(unsigned char *)clear;
+				if (id + 1 <= plen && id + 9 > plen)
+					break;
+			}
+			if (plen % 8 == 0 && i < 5) {
+				/*
+				 * Note that this is always shorter than the
+				 * original stored string, so there's no need
+				 * to realloc.
+				 */
+				if ((i = plen = *(unsigned char *)clear) > 7)
+					i = 7;
+				pcb->eap.es_server.ea_peerlen = plen;
+				dp = (unsigned char *)pcb->eap.es_server.ea_peer;
+				MEMCPY(dp, clear + 1, i);
+				plen -= i;
+				dp += i;
+				sp = secbuf + 8;
+				while (plen > 0) {
+					/* FIXME: if we want to do SRP, we need to find a way to pass the PolarSSL des_context instead of using static memory */
+					(void) DesDecrypt(sp, dp);
+					sp += 8;
+					dp += 8;
+					plen -= 8;
+				}
+				pcb->eap.es_server.ea_peer[
+					pcb->eap.es_server.ea_peerlen] = '\0';
+				ppp_dbglog("decoded pseudonym to \"%.*q\"",
+				    pcb->eap.es_server.ea_peerlen,
+				    pcb->eap.es_server.ea_peer);
+			} else {
+				ppp_dbglog("failed to decode real name");
+				/* Stay in eapIdentfy state; requery */
+				break;
+			}
+		}
+		/* Look up user in secrets database. */
+		if (get_srp_secret(pcb->eap.es_unit, pcb->eap.es_server.ea_peer,
+		    pcb->eap.es_server.ea_name, (char *)secbuf, 1) != 0) {
+			/* Set up default in case SRP entry is bad */
+			pcb->eap.es_server.ea_state = eapMD5Chall;
+			/* Get t_confent based on index in srp-secrets */
+			id = strtol((char *)secbuf, &cp, 10);
+			if (*cp++ != ':' || id < 0)
+				break;
+			if (id == 0) {
+				mytce.index = 0;
+				mytce.modulus.data = (u_char *)wkmodulus;
+				mytce.modulus.len = sizeof (wkmodulus);
+				mytce.generator.data = (u_char *)"\002";
+				mytce.generator.len = 1;
+				tce = &mytce;
+			} else if ((tce = gettcid(id)) != NULL) {
+				/*
+				 * Client will have to verify this modulus/
+				 * generator combination, and that will take
+				 * a while.  Lengthen the timeout here.
+				 */
+				if (pcb->settings.eap_timeout_time > 0 &&
+				    pcb->settings.eap_timeout_time < 30)
+					pcb->settings.eap_timeout_time = 30;
+			} else {
+				break;
+			}
+			if ((cp2 = strchr(cp, ':')) == NULL)
+				break;
+			*cp2++ = '\0';
+			tpw.pebuf.name = pcb->eap.es_server.ea_peer;
+			tpw.pebuf.password.len = t_fromb64((char *)tpw.pwbuf,
+			    cp);
+			tpw.pebuf.password.data = tpw.pwbuf;
+			tpw.pebuf.salt.len = t_fromb64((char *)tpw.saltbuf,
+			    cp2);
+			tpw.pebuf.salt.data = tpw.saltbuf;
+			if ((ts = t_serveropenraw(&tpw.pebuf, tce)) == NULL)
+				break;
+			pcb->eap.es_server.ea_session = (void *)ts;
+			pcb->eap.es_server.ea_state = eapSRP1;
+			vals[0] = pcb->eap.es_server.ea_id + 1;
+			vals[1] = EAPT_SRP;
+			t_serveraddexdata(ts, vals, 2);
+			/* Generate B; must call before t_servergetkey() */
+			t_servergenexp(ts);
+			break;
+		}
+#endif /* USE_SRP */
+		pcb->eap.es_server.ea_state = eapMD5Chall;
+		break;
+
+	case eapSRP1:
+#ifdef USE_SRP
+		ts = (struct t_server *)pcb->eap.es_server.ea_session;
+		if (ts != NULL && status != 0) {
+			t_serverclose(ts);
+			pcb->eap.es_server.ea_session = NULL;
+			pcb->eap.es_server.ea_skey = NULL;
+		}
+#endif /* USE_SRP */
+		if (status == 1) {
+			pcb->eap.es_server.ea_state = eapMD5Chall;
+		} else if (status != 0 || pcb->eap.es_server.ea_session == NULL) {
+			pcb->eap.es_server.ea_state = eapBadAuth;
+		} else {
+			pcb->eap.es_server.ea_state = eapSRP2;
+		}
+		break;
+
+	case eapSRP2:
+#ifdef USE_SRP
+		ts = (struct t_server *)pcb->eap.es_server.ea_session;
+		if (ts != NULL && status != 0) {
+			t_serverclose(ts);
+			pcb->eap.es_server.ea_session = NULL;
+			pcb->eap.es_server.ea_skey = NULL;
+		}
+#endif /* USE_SRP */
+		if (status != 0 || pcb->eap.es_server.ea_session == NULL) {
+			pcb->eap.es_server.ea_state = eapBadAuth;
+		} else {
+			pcb->eap.es_server.ea_state = eapSRP3;
+		}
+		break;
+
+	case eapSRP3:
+	case eapSRP4:
+#ifdef USE_SRP
+		ts = (struct t_server *)pcb->eap.es_server.ea_session;
+		if (ts != NULL && status != 0) {
+			t_serverclose(ts);
+			pcb->eap.es_server.ea_session = NULL;
+			pcb->eap.es_server.ea_skey = NULL;
+		}
+#endif /* USE_SRP */
+		if (status != 0 || pcb->eap.es_server.ea_session == NULL) {
+			pcb->eap.es_server.ea_state = eapBadAuth;
+		} else {
+			pcb->eap.es_server.ea_state = eapOpen;
+		}
+		break;
+
+	case eapMD5Chall:
+		if (status != 0) {
+			pcb->eap.es_server.ea_state = eapBadAuth;
+		} else {
+			pcb->eap.es_server.ea_state = eapOpen;
+		}
+		break;
+
+	default:
+		pcb->eap.es_server.ea_state = eapBadAuth;
+		break;
+	}
+	if (pcb->eap.es_server.ea_state == eapBadAuth)
+		eap_send_failure(pcb);
+}

@@ -1,0 +1,26 @@
+static void SPI_2linesRxISR_16BIT(struct __SPI_HandleTypeDef *hspi)
+{
+  /* Receive data in 16 Bit mode */
+  *((uint16_t *)hspi->pRxBuffPtr) = (uint16_t)(hspi->Instance->DR);
+  hspi->pRxBuffPtr += sizeof(uint16_t);
+  hspi->RxXferCount--;
+
+  if (hspi->RxXferCount == 0U)
+  {
+#if (USE_SPI_CRC != 0U)
+    if (hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+    {
+      hspi->RxISR =  SPI_2linesRxISR_16BITCRC;
+      return;
+    }
+#endif /* USE_SPI_CRC */
+
+    /* Disable RXNE interrupt */
+    __HAL_SPI_DISABLE_IT(hspi, SPI_IT_RXNE);
+
+    if (hspi->TxXferCount == 0U)
+    {
+      SPI_CloseRxTx_ISR(hspi);
+    }
+  }
+}

@@ -1,0 +1,28 @@
+static HAL_StatusTypeDef FMPSMBUS_WaitOnFlagUntilTimeout(struct __FMPSMBUS_HandleTypeDef *hfmpsmbus, uint32_t Flag, FlagStatus Status, uint32_t Timeout)
+{
+  uint32_t tickstart = HAL_GetTick();
+
+  /* Wait until flag is set */
+  while ((FlagStatus)(__HAL_FMPSMBUS_GET_FLAG(hfmpsmbus, Flag)) == Status)
+  {
+    /* Check for the Timeout */
+    if (Timeout != HAL_MAX_DELAY)
+    {
+      if (((HAL_GetTick() - tickstart) > Timeout) || (Timeout == 0UL))
+      {
+        hfmpsmbus->PreviousState = hfmpsmbus->State;
+        hfmpsmbus->State = HAL_FMPSMBUS_STATE_READY;
+
+        /* Update FMPSMBUS error code */
+        hfmpsmbus->ErrorCode |= HAL_FMPSMBUS_ERROR_HALTIMEOUT;
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(hfmpsmbus);
+
+        return HAL_ERROR;
+      }
+    }
+  }
+
+  return HAL_OK;
+}

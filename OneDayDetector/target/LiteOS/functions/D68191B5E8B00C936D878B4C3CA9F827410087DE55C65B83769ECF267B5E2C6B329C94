@@ -1,0 +1,201 @@
+LV_ATTRIBUTE_FAST_MEM static void fill_normal(const lv_area_t * disp_area, lv_color_t * disp_buf,
+                                              const lv_area_t * draw_area,
+                                              lv_color_t color, lv_opa_t opa,
+                                              const lv_opa_t * mask, lv_draw_mask_res_t mask_res)
+{
+
+#if LV_USE_GPU || LV_COLOR_SCREEN_TRANSP
+    lv_disp_t * disp = _lv_refr_get_disp_refreshing();
+#endif
+
+    /*Get the width of the `disp_area` it will be used to go to the next line*/
+    int32_t disp_w = lv_area_get_width(disp_area);
+
+    int32_t draw_area_w = lv_area_get_width(draw_area);
+    int32_t draw_area_h = lv_area_get_height(draw_area);
+
+    /*Create a temp. disp_buf which always point to the first pixel of the destination area*/
+    lv_color_t * disp_buf_first = disp_buf + disp_w * draw_area->y1 + draw_area->x1;
+
+    int32_t x;
+    int32_t y;
+
+    /*Simple fill (maybe with opacity), no masking*/
+    if(mask_res == LV_DRAW_MASK_RES_FULL_COVER) {
+        if(opa > LV_OPA_MAX) {
+#if LV_USE_GPU
+            if(disp->driver.gpu_fill_cb && lv_area_get_size(draw_area) > GPU_SIZE_LIMIT) {
+                disp->driver.gpu_fill_cb(&disp->driver, disp_buf, disp_w, draw_area, color);
+                return;
+            }
+#if LV_USE_GPU_STM32_DMA2D
+            if(lv_area_get_size(draw_area) >= 240) {
+                lv_gpu_stm32_dma2d_fill(disp_buf_first, disp_w, color, draw_area_w, draw_area_h);
+                return;
+            }
+#endif
+#endif
+            /*Software rendering*/
+            for(y = 0; y < draw_area_h; y++) {
+                lv_color_fill(disp_buf_first, color, draw_area_w);
+                disp_buf_first += disp_w;
+            }
+        }
+        /*No mask with opacity*/
+        else {
+#if LV_USE_GPU
+            if(disp->driver.gpu_blend_cb && lv_area_get_size(draw_area) > GPU_SIZE_LIMIT) {
+                static lv_color_t blend_buf[LV_HOR_RES_MAX];
+                for(x = 0; x < draw_area_w ; x++) blend_buf[x].full = color.full;
+
+                for(y = draw_area->y1; y <= draw_area->y2; y++) {
+                    disp->driver.gpu_blend_cb(&disp->driver, disp_buf_first, blend_buf, draw_area_w, opa);
+                    disp_buf_first += disp_w;
+                }
+                return;
+            }
+#endif
+            lv_color_t last_dest_color = LV_COLOR_BLACK;
+            lv_color_t last_res_color = lv_color_mix(color, last_dest_color, opa);
+
+            uint16_t color_premult[3];
+            lv_color_premult(color, opa, color_premult);
+            lv_opa_t opa_inv = 255 - opa;
+
+            for(y = 0; y < draw_area_h; y++) {
+                for(x = 0; x < draw_area_w; x++) {
+                    if(last_dest_color.full != disp_buf_first[x].full) {
+                        last_dest_color = disp_buf_first[x];
+
+#if LV_COLOR_SCREEN_TRANSP
+                        if(disp->driver.screen_transp) {
+                            lv_color_mix_with_alpha(disp_buf_first[x], disp_buf_first[x].ch.alpha, color, opa, &last_res_color,
+                                                    &last_res_color.ch.alpha);
+                        }
+                        else
+#endif
+                        {
+                            last_res_color = lv_color_mix_premult(color_premult, disp_buf_first[x], opa_inv);
+                        }
+                    }
+                    disp_buf_first[x] = last_res_color;
+                }
+                disp_buf_first += disp_w;
+            }
+        }
+    }
+    /*Masked*/
+    else {
+        /*DMA2D could be used here but it's much slower than software rendering*/
+#if LV_USE_GPU_STM32_DMA2D && 0
+        if(lv_area_get_size(draw_area) > 240) {
+            lv_gpu_stm32_dma2d_fill_mask(disp_buf_first, disp_w, color, mask, opa, draw_area_w, draw_area_h);
+            return;
+        }
+#endif
+
+
+        /*Buffer the result color to avoid recalculating the same color*/
+        lv_color_t last_dest_color;
+        lv_color_t last_res_color;
+        lv_opa_t last_mask = LV_OPA_TRANSP;
+        last_dest_color.full = disp_buf_first[0].full;
+        last_res_color.full = disp_buf_first[0].full;
+
+        int32_t x_end4 = draw_area_w - 4;
+
+        /*Only the mask matters*/
+        if(opa > LV_OPA_MAX) {
+            for(y = 0; y < draw_area_h; y++) {
+                const lv_opa_t * mask_tmp_x = mask;
+#if 0
+                for(x = draw_area->x1; x <= draw_area->x2; x++) {
+#if LV_COLOR_SCREEN_TRANSP
+                    FILL_NORMAL_MASK_PX_SCR_TRANSP(x, color)
+#else
+                    FILL_NORMAL_MASK_PX(x, color)
+#endif
+                }
+#else
+                for(x = 0; x < draw_area_w && ((lv_uintptr_t)mask_tmp_x & 0x3); x++) {
+#if LV_COLOR_SCREEN_TRANSP
+                    FILL_NORMAL_MASK_PX_SCR_TRANSP(x, color)
+#else
+                    FILL_NORMAL_MASK_PX(x, color)
+#endif
+                }
+
+                uint32_t * mask32 = (uint32_t *) mask_tmp_x;
+                for(; x <= x_end4; x += 4) {
+                    if(*mask32) {
+                        if((*mask32) == 0xFFFFFFFF) {
+                            disp_buf_first[x] = color;
+                            disp_buf_first[x + 1] = color;
+                            disp_buf_first[x + 2] = color;
+                            disp_buf_first[x + 3] = color;
+                        }
+                        else {
+                            mask_tmp_x = (const lv_opa_t *)mask32;
+#if LV_COLOR_SCREEN_TRANSP
+                            FILL_NORMAL_MASK_PX_SCR_TRANSP(x, color)
+                            FILL_NORMAL_MASK_PX_SCR_TRANSP(x + 1, color)
+                            FILL_NORMAL_MASK_PX_SCR_TRANSP(x + 2, color)
+                            FILL_NORMAL_MASK_PX_SCR_TRANSP(x + 3, color)
+#else
+                            FILL_NORMAL_MASK_PX(x, color)
+                            FILL_NORMAL_MASK_PX(x + 1, color)
+                            FILL_NORMAL_MASK_PX(x + 2, color)
+                            FILL_NORMAL_MASK_PX(x + 3, color)
+#endif
+                        }
+                    }
+                    mask32++;
+                }
+
+                mask_tmp_x = (const lv_opa_t *)mask32;
+                for(; x < draw_area_w ; x++) {
+#if LV_COLOR_SCREEN_TRANSP
+                    FILL_NORMAL_MASK_PX_SCR_TRANSP(x, color)
+#else
+                    FILL_NORMAL_MASK_PX(x, color)
+#endif
+                }
+#endif
+                disp_buf_first += disp_w;
+                mask += draw_area_w;
+            }
+        }
+        /*Handle opa and mask values too*/
+        else {
+            lv_opa_t opa_tmp = LV_OPA_TRANSP;
+            for(y = draw_area->y1; y <= draw_area->y2; y++) {
+                const lv_opa_t * mask_tmp_x = mask;
+                for(x = 0; x < draw_area_w; x++) {
+                    if(*mask_tmp_x) {
+                        if(*mask_tmp_x != last_mask) opa_tmp = *mask_tmp_x == LV_OPA_COVER ? opa :
+                                                                   (uint32_t)((uint32_t)(*mask_tmp_x) * opa) >> 8;
+                        if(*mask_tmp_x != last_mask || last_dest_color.full != disp_buf_first[x].full) {
+#if LV_COLOR_SCREEN_TRANSP
+                            if(disp->driver.screen_transp) {
+                                lv_color_mix_with_alpha(disp_buf_first[x], disp_buf_first[x].ch.alpha, color, opa_tmp, &last_res_color,
+                                                        &last_res_color.ch.alpha);
+                            }
+                            else
+#endif
+                            {
+                                if(opa_tmp == LV_OPA_COVER) last_res_color = color;
+                                else last_res_color = lv_color_mix(color, disp_buf_first[x], opa_tmp);
+                            }
+                            last_mask = *mask_tmp_x;
+                            last_dest_color.full = disp_buf_first[x].full;
+                        }
+                        disp_buf_first[x] = last_res_color;
+                    }
+                    mask_tmp_x++;
+                }
+                disp_buf_first += disp_w;
+                mask += draw_area_w;
+            }
+        }
+    }
+}

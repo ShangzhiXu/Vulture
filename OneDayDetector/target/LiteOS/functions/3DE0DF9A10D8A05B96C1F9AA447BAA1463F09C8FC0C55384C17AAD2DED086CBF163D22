@@ -1,0 +1,25 @@
+int hal_spi_flash_read(void *buf, int32_t len, uint32_t location)
+{
+    int ret = 0;
+    int i;
+    uint8_t *pbuf = (uint8_t *)buf;
+
+    if ((pbuf == NULL) || (len < 0) || (location > SPI_FLASH_TOTAL_SIZE) || (len + location > SPI_FLASH_TOTAL_SIZE)) {
+        return -1;
+    }
+
+    SPI_FLASH_CS_ENABLE();
+
+    if ((ret = prv_spi_flash_send_cmd(SPI_FLASH_ReadData, location)) != -1) {
+        for (i = 0; i < len; ++i) {
+            if (prv_spi_flash_send_byte(SPI_FLASH_DUMMY_BYTE, pbuf + i) == -1) {
+                ret = -1;
+                break;
+            }
+        }
+    }
+
+    SPI_FLASH_CS_DISABLE();
+
+    return ret;
+}

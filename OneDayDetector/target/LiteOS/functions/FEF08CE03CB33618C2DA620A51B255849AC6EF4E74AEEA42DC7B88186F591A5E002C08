@@ -1,0 +1,35 @@
+sockets_stresstest_wait_readable_select(int s, int timeout_ms)
+{
+  int ret;
+  struct timeval tv;
+  fd_set fs_r;
+  fd_set fs_w;
+  fd_set fs_e;
+
+  FD_ZERO(&fs_r);
+  FD_ZERO(&fs_w);
+  FD_ZERO(&fs_e);
+
+  FD_SET(s, &fs_r);
+  FD_SET(s, &fs_e);
+
+  tv.tv_sec = timeout_ms / 1000;
+  tv.tv_usec = (timeout_ms - (tv.tv_sec * 1000)) * 1000;
+  ret = lwip_select(s + 1, &fs_r, &fs_w, &fs_e, &tv);
+  LWIP_ASSERT("select error", ret >= 0);
+  if (ret) {
+    /* convert poll flags to our flags */
+    ret = 0;
+    if (FD_ISSET(s, &fs_r)) {
+      ret |= TEST_SOCK_READABLE;
+    }
+    if (FD_ISSET(s, &fs_w)) {
+      ret |= TEST_SOCK_WRITABLE;
+    }
+    if (FD_ISSET(s, &fs_e)) {
+      ret |= TEST_SOCK_ERR;
+    }
+    return ret;
+  }
+  return 0;
+}

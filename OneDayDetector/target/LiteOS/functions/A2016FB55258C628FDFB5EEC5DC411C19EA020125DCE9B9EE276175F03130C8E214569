@@ -1,0 +1,46 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 LOS_HistorySysCpuUsage(UINT32 mode)
+{
+    UINT64 cpuCycleAll;
+    UINT64 idleCycleAll = 0;
+    UINT32 cpup = 0;
+    UINT16 pos;
+    UINT16 prePos;
+    UINT32 intSave;
+    UINT32 idleTaskId;
+#if (LOSCFG_KERNEL_SMP == YES)
+    UINT32 cpuId = 0;
+#endif
+
+    if (g_cpupInitFlg == 0) {
+        return LOS_ERRNO_CPUP_NO_INIT;
+    }
+
+    /* get end time of current task */
+    intSave = LOS_IntLock();
+    OsTaskCycleEnd();
+
+    OsCpupGetPos(mode, &pos, &prePos);
+    cpuCycleAll = cpuHistoryTime[pos] - cpuHistoryTime[prePos];
+
+#if (LOSCFG_KERNEL_SMP == YES)
+    /* For SMP system, each idle task needs to be accounted */
+    while (cpuId < LOSCFG_KERNEL_CORE_NUM) {
+        idleTaskId = g_percpu[cpuId].idleTaskId;
+        idleCycleAll += g_cpup[idleTaskId].historyTime[pos] - g_cpup[idleTaskId].historyTime[prePos];
+        cpuId++;
+    }
+    cpuCycleAll *= LOSCFG_KERNEL_CORE_NUM;
+#else
+    idleTaskId = OsGetIdleTaskId();
+    idleCycleAll = g_cpup[idleTaskId].historyTime[pos] - g_cpup[idleTaskId].historyTime[prePos];
+#endif
+
+    if (cpuCycleAll) {
+        cpup = (LOS_CPUP_PRECISION - (UINT32)((LOS_CPUP_PRECISION * idleCycleAll) / cpuCycleAll));
+    }
+
+    OsTaskCycleStart();
+    LOS_IntRestore(intSave);
+
+    return cpup;
+}

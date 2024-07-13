@@ -1,0 +1,23 @@
+static void I2SEx_TxISR_I2SExt(I2S_HandleTypeDef *hi2s)
+{
+  /* Write Data on DR register */
+  I2SxEXT(hi2s->Instance)->DR = (*hi2s->pTxBuffPtr++);
+  hi2s->TxXferCount--;
+
+  if (hi2s->TxXferCount == 0U)
+  {
+    /* Disable I2Sext TXE and ERR interrupt */
+    __HAL_I2SEXT_DISABLE_IT(hi2s, (I2S_IT_TXE | I2S_IT_ERR));
+
+    if (hi2s->RxXferCount == 0U)
+    {
+      hi2s->State = HAL_I2S_STATE_READY;
+      /* Call user TxRx complete callback */
+#if (USE_HAL_I2S_REGISTER_CALLBACKS == 1U)
+      hi2s->TxRxCpltCallback(hi2s);
+#else
+      HAL_I2SEx_TxRxCpltCallback(hi2s);
+#endif /* USE_HAL_I2S_REGISTER_CALLBACKS */
+    }
+  }
+}

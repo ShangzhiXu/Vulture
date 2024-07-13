@@ -1,0 +1,30 @@
+bool _lv_txt_is_cmd(lv_txt_cmd_state_t * state, uint32_t c)
+{
+    bool ret = false;
+
+    if(c == (uint32_t)LV_TXT_COLOR_CMD[0]) {
+        if(*state == LV_TXT_CMD_STATE_WAIT) { /*Start char*/
+            *state = LV_TXT_CMD_STATE_PAR;
+            ret    = true;
+        }
+        /*Other start char in parameter is escaped cmd. char */
+        else if(*state == LV_TXT_CMD_STATE_PAR) {
+            *state = LV_TXT_CMD_STATE_WAIT;
+        }
+        /*Command end */
+        else if(*state == LV_TXT_CMD_STATE_IN) {
+            *state = LV_TXT_CMD_STATE_WAIT;
+            ret    = true;
+        }
+    }
+
+    /*Skip the color parameter and wait the space after it*/
+    if(*state == LV_TXT_CMD_STATE_PAR) {
+        if(c == ' ') {
+            *state = LV_TXT_CMD_STATE_IN; /*After the parameter the text is in the command*/
+        }
+        ret = true;
+    }
+
+    return ret;
+}

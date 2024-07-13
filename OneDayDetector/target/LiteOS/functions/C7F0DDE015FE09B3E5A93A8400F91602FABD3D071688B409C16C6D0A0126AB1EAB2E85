@@ -1,0 +1,31 @@
+int32_t nb_create_sock(int port, int proto)
+{
+    int socket;
+    int rbuflen = AT_DATA_LEN;
+    const char *cmdudp = "AT+NSOCR=DGRAM,17,"; // udp
+    const char *cmdtcp = "AT+NSOCR=STREAM,6,"; // tcp
+    int ret;
+    char buf[64];
+    int cmd_len;
+
+    if (proto != 17 && proto != 6) {
+        AT_LOG("proto invalid!");
+        return -1;
+    }
+    memset(rbuf, 0, AT_DATA_LEN);
+
+    if (proto == 17) {
+        cmd_len = snprintf(buf, sizeof(buf), "%s%d,1\r", cmdudp, port); // udp
+    } else {
+        cmd_len = snprintf(buf, sizeof(buf), "%s%d,1\r", cmdtcp, port);
+    }
+
+    nb_cmd_with_2_suffix((int8_t *)buf, cmd_len, "OK", "ERROR", rbuf, (uint32_t *)&rbuflen);
+    ret = sscanf(rbuf, "%d\r%s", &socket, tmpbuf);
+    if ((2 == ret) && (socket >= 0) && (strnstr(tmpbuf, "OK", sizeof(tmpbuf)))) {
+        return socket;
+    }
+
+    AT_LOG("sscanf fail,ret=%d,socket=%d", ret, socket);
+    return -1;
+}

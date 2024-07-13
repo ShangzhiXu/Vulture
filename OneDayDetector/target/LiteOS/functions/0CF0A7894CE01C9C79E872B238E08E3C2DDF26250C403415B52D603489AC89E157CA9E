@@ -1,0 +1,33 @@
+STATIC INLINE BOOL FindSuitableStack(UINTPTR *regSP, UINTPTR *start, UINTPTR *end)
+{
+    UINT32 index, topOfStack, stackBottom;
+    BOOL found = FALSE;
+    LosTaskCB *taskCB = NULL;
+
+    /* Search in the task stacks */
+    for (index = 0; index < g_taskMaxNum; index++) {
+        taskCB = &g_taskCBArray[index];
+        if (taskCB->taskStatus & OS_TASK_STATUS_UNUSED) {
+            continue;
+        }
+        topOfStack = taskCB->topOfStack;
+        stackBottom = taskCB->topOfStack + taskCB->stackSize;
+
+        if (IsValidSP(*regSP, topOfStack, stackBottom)) {
+            found = TRUE;
+            goto FOUND;
+        }
+    }
+
+FOUND:
+    if (found == TRUE) {
+        *start = topOfStack;
+        *end = stackBottom;
+    } else if (*regSP < estack){
+        *start = *regSP;
+        *end = estack;
+        found = TRUE;
+    }
+
+    return found;
+}

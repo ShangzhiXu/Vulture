@@ -1,0 +1,23 @@
+VOID OsExcStackCheck(VOID)
+{
+    UINT32 index;
+    UINT32 cpuid;
+    UINTPTR *stackTop = NULL;
+    const StackInfo *stackInfo = NULL;
+    UINT32 stackNum;
+
+    OsGetStackInfo(&stackInfo, &stackNum);
+    if ((stackInfo == NULL) || (stackNum == 0)) {
+        return;
+    }
+
+    for (index = 0; index < stackNum; index++) {
+        for (cpuid = 0; cpuid < LOSCFG_KERNEL_CORE_NUM; cpuid++) {
+            stackTop = (UINTPTR *)((UINTPTR)stackInfo[index].stackTop + cpuid * stackInfo[index].stackSize);
+            if (*stackTop != OS_STACK_MAGIC_WORD) {
+                PRINT_ERR("cpu:%u %s overflow , magic word changed to 0x%x\n",
+                          LOSCFG_KERNEL_CORE_NUM - 1 - cpuid, stackInfo[index].stackName, *stackTop);
+            }
+        }
+    }
+}

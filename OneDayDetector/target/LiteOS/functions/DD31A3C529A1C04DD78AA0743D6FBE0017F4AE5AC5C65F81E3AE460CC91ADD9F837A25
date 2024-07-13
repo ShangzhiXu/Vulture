@@ -1,0 +1,76 @@
+int hal_spi_flash_write(const void *buf, int32_t len, uint32_t *location)
+{
+    const uint8_t *pbuf = (const uint8_t *)buf;
+    int page_cnt = 0;
+    int remain_cnt = 0;
+    int temp = 0;
+    uint32_t loc_addr;
+    uint8_t addr = 0;
+    uint8_t count = 0;
+    int i;
+    int ret = 0;
+
+    if (NULL == pbuf || NULL == location || len < 0 || *location > QSPI_FLASH_TOTAL_SIZE ||
+        len + *location > QSPI_FLASH_TOTAL_SIZE) {
+        return -1;
+    }
+
+    loc_addr = *location;
+    addr = loc_addr % QSPI_FLASH_PAGESIZE;
+    count = QSPI_FLASH_PAGESIZE - addr;
+    page_cnt = len / QSPI_FLASH_PAGESIZE;
+    remain_cnt = len % QSPI_FLASH_PAGESIZE;
+
+    if (addr == 0) {         /* addr is aligned to SPI_FLASH_PAGESIZE */
+        if (page_cnt == 0) { /* len < SPI_FLASH_PAGESIZE */
+            ret = prv_spi_flash_write_page(pbuf, loc_addr, len);
+            CHECK_RET_RETURN(ret);
+        } else { /* len > SPI_FLASH_PAGESIZE */
+            for (i = 0; i < page_cnt; ++i) {
+                ret = prv_spi_flash_write_page(pbuf + i * QSPI_FLASH_PAGESIZE, loc_addr, QSPI_FLASH_PAGESIZE);
+                CHECK_RET_RETURN(ret);
+                loc_addr += QSPI_FLASH_PAGESIZE;
+            }
+
+            ret = prv_spi_flash_write_page(pbuf + page_cnt * QSPI_FLASH_PAGESIZE, loc_addr, remain_cnt);
+            CHECK_RET_RETURN(ret);
+        }
+    } else {                          /* addr is not aligned to SPI_FLASH_PAGESIZE */
+        if (page_cnt == 0) {          /* len < SPI_FLASH_PAGESIZE */
+            if (remain_cnt > count) { /* (len + loc_addr) > SPI_FLASH_PAGESIZE */
+                temp = remain_cnt - count;
+
+                ret = prv_spi_flash_write_page(pbuf, loc_addr, count);
+                CHECK_RET_RETURN(ret);
+
+                ret = prv_spi_flash_write_page(pbuf + count, loc_addr + count, temp);
+                CHECK_RET_RETURN(ret);
+            } else {
+                ret = prv_spi_flash_write_page(pbuf, loc_addr, len);
+                CHECK_RET_RETURN(ret);
+            }
+        } else { /* len > SPI_FLASH_PAGESIZE */
+            len -= count;
+            page_cnt = len / QSPI_FLASH_PAGESIZE;
+            remain_cnt = len % QSPI_FLASH_PAGESIZE;
+
+            ret = prv_spi_flash_write_page(pbuf, loc_addr, count);
+            CHECK_RET_RETURN(ret);
+            loc_addr += count;
+
+            for (i = 0; i < page_cnt; ++i) {
+                ret = prv_spi_flash_write_page(pbuf + count + i * QSPI_FLASH_PAGESIZE, loc_addr, QSPI_FLASH_PAGESIZE);
+                CHECK_RET_RETURN(ret);
+                loc_addr += QSPI_FLASH_PAGESIZE;
+            }
+
+            if (remain_cnt != 0) {
+                ret = prv_spi_flash_write_page(pbuf + count + page_cnt * QSPI_FLASH_PAGESIZE, loc_addr, remain_cnt);
+                CHECK_RET_RETURN(ret);
+            }
+        }
+    }
+
+    *location += len;
+    return ret;
+}

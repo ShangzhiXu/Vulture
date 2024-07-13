@@ -1,0 +1,36 @@
+void lwm2m_data_encode_string(const char *string,
+                              lwm2m_data_t *dataP)
+{
+    size_t len;
+    int res;
+
+    LOG_ARG("\"%s\"", string);
+    if (string == NULL)
+    {
+        len = 0;
+    }
+    else
+    {
+        for (len = 0; string[len] != 0; len++);
+    }
+
+    if (len == 0)
+    {
+        dataP->value.asBuffer.length = 0;
+        dataP->value.asBuffer.buffer = NULL;
+        res = 1;
+    }
+    else
+    {
+        res = prv_setBuffer(dataP, (uint8_t *)string, len);
+    }
+
+    if (res == 1)
+    {
+        dataP->type = LWM2M_TYPE_STRING;
+    }
+    else
+    {
+        dataP->type = LWM2M_TYPE_UNDEFINED;
+    }
+}

@@ -1,0 +1,27 @@
+static void UART_TxISR_8BIT_FIFOEN(UART_HandleTypeDef *huart)
+{
+  uint8_t   nb_tx_data;
+  
+  /* Check that a Tx process is ongoing */
+  if (huart->gState == HAL_UART_STATE_BUSY_TX)
+  {
+    for(nb_tx_data = huart->NbTxDataToProcess ; nb_tx_data > 0 ; nb_tx_data--)
+    {    
+      if(huart->TxXferCount == 0U)
+      {
+        /* Disable the TX FIFO threshold interrupt */
+        CLEAR_BIT(huart->Instance->CR3, USART_CR3_TXFTIE);
+        
+        /* Enable the UART Transmit Complete Interrupt */
+        SET_BIT(huart->Instance->CR1, USART_CR1_TCIE);
+        
+        break; /* force exit loop */
+      }
+      else if (READ_BIT(huart->Instance->ISR, USART_ISR_TXE_TXFNF) != RESET)
+      {
+        huart->Instance->TDR = (uint8_t)(*huart->pTxBuffPtr++ & (uint8_t)0xFF);
+        huart->TxXferCount--;
+      }
+    }
+  }
+}

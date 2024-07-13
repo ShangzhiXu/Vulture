@@ -1,0 +1,86 @@
+void HAL_RCCEx_GetPeriphCLKConfig(RCC_PeriphCLKInitTypeDef  *PeriphClkInit)
+{
+  uint32_t tempreg;
+
+  /* Set all possible values for the extended clock type parameter------------*/
+#if defined(STM32F413xx) || defined(STM32F423xx)
+  PeriphClkInit->PeriphClockSelection = RCC_PERIPHCLK_I2S_APB1     | RCC_PERIPHCLK_I2S_APB2 |\
+                                        RCC_PERIPHCLK_TIM          | RCC_PERIPHCLK_RTC      |\
+                                        RCC_PERIPHCLK_FMPI2C1      | RCC_PERIPHCLK_CLK48    |\
+                                        RCC_PERIPHCLK_SDIO         | RCC_PERIPHCLK_DFSDM1   |\
+                                        RCC_PERIPHCLK_DFSDM1_AUDIO | RCC_PERIPHCLK_DFSDM2   |\
+                                        RCC_PERIPHCLK_DFSDM2_AUDIO | RCC_PERIPHCLK_LPTIM1   |\
+                                        RCC_PERIPHCLK_SAIA         | RCC_PERIPHCLK_SAIB;
+#else /* STM32F412Zx || STM32F412Vx || STM32F412Rx || STM32F412Cx */
+  PeriphClkInit->PeriphClockSelection = RCC_PERIPHCLK_I2S_APB1 | RCC_PERIPHCLK_I2S_APB2 |\
+                                        RCC_PERIPHCLK_TIM      | RCC_PERIPHCLK_RTC      |\
+                                        RCC_PERIPHCLK_FMPI2C1  | RCC_PERIPHCLK_CLK48    |\
+                                        RCC_PERIPHCLK_SDIO     | RCC_PERIPHCLK_DFSDM1   |\
+                                        RCC_PERIPHCLK_DFSDM1_AUDIO;
+#endif /* STM32F413xx || STM32F423xx */
+
+
+
+  /* Get the PLLI2S Clock configuration --------------------------------------*/
+  PeriphClkInit->PLLI2S.PLLI2SM = (uint32_t)((RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SM) >> RCC_PLLI2SCFGR_PLLI2SM_Pos);
+  PeriphClkInit->PLLI2S.PLLI2SN = (uint32_t)((RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SN) >> RCC_PLLI2SCFGR_PLLI2SN_Pos);
+  PeriphClkInit->PLLI2S.PLLI2SQ = (uint32_t)((RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SQ) >> RCC_PLLI2SCFGR_PLLI2SQ_Pos);
+  PeriphClkInit->PLLI2S.PLLI2SR = (uint32_t)((RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SR) >> RCC_PLLI2SCFGR_PLLI2SR_Pos);
+#if defined(STM32F413xx) || defined(STM32F423xx)
+  /* Get the PLL/PLLI2S division factors -------------------------------------*/
+  PeriphClkInit->PLLI2SDivR = (uint32_t)((RCC->DCKCFGR & RCC_DCKCFGR_PLLI2SDIVR) >> RCC_DCKCFGR_PLLI2SDIVR_Pos);
+  PeriphClkInit->PLLDivR = (uint32_t)((RCC->DCKCFGR & RCC_DCKCFGR_PLLDIVR) >> RCC_DCKCFGR_PLLDIVR_Pos);
+#endif /* STM32F413xx || STM32F423xx */
+
+  /* Get the I2S APB1 clock configuration ------------------------------------*/
+  PeriphClkInit->I2sApb1ClockSelection = __HAL_RCC_GET_I2S_APB1_SOURCE();
+
+  /* Get the I2S APB2 clock configuration ------------------------------------*/
+  PeriphClkInit->I2sApb2ClockSelection = __HAL_RCC_GET_I2S_APB2_SOURCE();
+
+  /* Get the RTC Clock configuration -----------------------------------------*/
+  tempreg = (RCC->CFGR & RCC_CFGR_RTCPRE);
+  PeriphClkInit->RTCClockSelection = (uint32_t)((tempreg) | (RCC->BDCR & RCC_BDCR_RTCSEL));
+
+  /* Get the FMPI2C1 clock configuration -------------------------------------*/
+  PeriphClkInit->Fmpi2c1ClockSelection = __HAL_RCC_GET_FMPI2C1_SOURCE();
+
+  /* Get the CLK48 clock configuration ---------------------------------------*/
+  PeriphClkInit->Clk48ClockSelection = __HAL_RCC_GET_CLK48_SOURCE();
+
+  /* Get the SDIO clock configuration ----------------------------------------*/
+  PeriphClkInit->SdioClockSelection = __HAL_RCC_GET_SDIO_SOURCE();
+
+  /* Get the DFSDM1 clock configuration --------------------------------------*/
+  PeriphClkInit->Dfsdm1ClockSelection = __HAL_RCC_GET_DFSDM1_SOURCE();
+
+  /* Get the DFSDM1 Audio clock configuration --------------------------------*/
+  PeriphClkInit->Dfsdm1AudioClockSelection = __HAL_RCC_GET_DFSDM1AUDIO_SOURCE();
+
+#if defined(STM32F413xx) || defined(STM32F423xx)
+  /* Get the DFSDM2 clock configuration --------------------------------------*/
+  PeriphClkInit->Dfsdm2ClockSelection = __HAL_RCC_GET_DFSDM2_SOURCE();
+
+  /* Get the DFSDM2 Audio clock configuration --------------------------------*/
+  PeriphClkInit->Dfsdm2AudioClockSelection = __HAL_RCC_GET_DFSDM2AUDIO_SOURCE();
+
+  /* Get the LPTIM1 clock configuration --------------------------------------*/
+  PeriphClkInit->Lptim1ClockSelection = __HAL_RCC_GET_LPTIM1_SOURCE();
+
+  /* Get the SAI1 Block Aclock configuration ---------------------------------*/
+  PeriphClkInit->SaiAClockSelection = __HAL_RCC_GET_SAI_BLOCKA_SOURCE();
+
+  /* Get the SAI1 Block B clock configuration --------------------------------*/
+  PeriphClkInit->SaiBClockSelection = __HAL_RCC_GET_SAI_BLOCKB_SOURCE();
+#endif /* STM32F413xx || STM32F423xx */
+
+  /* Get the TIM Prescaler configuration -------------------------------------*/
+  if ((RCC->DCKCFGR & RCC_DCKCFGR_TIMPRE) == RESET)
+  {
+    PeriphClkInit->TIMPresSelection = RCC_TIMPRES_DESACTIVATED;
+  }
+  else
+  {
+    PeriphClkInit->TIMPresSelection = RCC_TIMPRES_ACTIVATED;
+  }
+}

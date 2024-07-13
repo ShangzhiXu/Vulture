@@ -1,0 +1,29 @@
+STATIC INLINE VOID OsEnterDeepSleepMainCore(VOID)
+{
+    LOS_AtomicAdd(&g_pmMgr.deepSleepCores, 1);
+    g_deepSleepOps.suspendPreConfig();
+
+    if (g_pmMgr.deepSleepCores == LOSCFG_KERNEL_CORE_NUM && g_deepSleepOps.couldDeepSleep()) {
+        g_deepSleepOps.suspendDevice();
+        g_pmRunOps.setWakeUpTimer(g_pmMgr.sleepTime[0]);
+        g_resumeFromImg = LOS_COLD_RESET;
+        OsSRSaveRegister();
+
+        if (g_resumeFromImg == LOS_COLD_RESET) {
+            g_resumeFromImg = LOS_DEEP_SLEEP_RESET;
+            CALL_RUN_OPS_FUNC_NO_RETURN(contextSave);
+            g_pmRunOps.enterDeepSleep();
+            g_deepSleepOps.rollback();
+        }
+        g_deepSleepOps.resumeDevice();
+        UINT32 sleepTicks = g_pmRunOps.withdrawWakeUpTimer();
+        OsSysTimeUpdate(sleepTicks);
+    } else {
+#ifdef LOSCFG_KERNEL_TICKLESS
+        OsTicklessOpen();
+#endif
+        g_pmRunOps.enterLightSleep();
+    }
+    g_deepSleepOps.resumePostConfig();
+    LOS_AtomicSub(&g_pmMgr.deepSleepCores, 1);
+}

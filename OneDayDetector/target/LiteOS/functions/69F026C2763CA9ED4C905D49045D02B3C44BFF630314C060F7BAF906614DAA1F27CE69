@@ -1,0 +1,55 @@
+int pthread_join(pthread_t thread, void **retVal)
+{
+    INT32 err;
+    UINT8 status;
+    _pthread_data *self = NULL;
+    _pthread_data *joined = NULL;
+
+    /* Check for cancellation first. */
+    pthread_testcancel();
+
+    /* Dispose of any dead threads */
+    (VOID)pthread_mutex_lock(&g_pthreadsDataMutex);
+    PthreadReap();
+    (VOID)pthread_mutex_unlock(&g_pthreadsDataMutex);
+
+    self   = pthread_get_self_data();
+    joined = pthread_get_data(thread);
+    if (joined == NULL) {
+        return ESRCH;
+    }
+    status = joined->state;
+
+    if (joined == self) {
+        return EDEADLK;
+    }
+
+    err = ProcessByJoinState(joined);
+    (VOID)pthread_mutex_lock(&g_pthreadsDataMutex);
+
+    if (!err) {
+        /*
+         * Here, we know that joinee is a thread that has exited and is
+         * ready to be joined.
+         */
+        if (retVal != NULL) {
+            /* Get the retVal */
+            *retVal = joined->task->threadJoinRetval;
+        }
+
+        /* Set state to exited. */
+        joined->state = PTHREAD_STATE_EXITED;
+        g_pthreadsExited++;
+
+        /* Dispose of any dead threads */
+        PthreadReap();
+    } else {
+        joined->state = status;
+    }
+
+    (VOID)pthread_mutex_unlock(&g_pthreadsDataMutex);
+    /* Check for cancellation before returning */
+    pthread_testcancel();
+
+    return err;
+}

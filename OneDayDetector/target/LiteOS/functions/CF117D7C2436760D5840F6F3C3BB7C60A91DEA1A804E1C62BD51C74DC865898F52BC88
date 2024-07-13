@@ -1,0 +1,69 @@
+void fsm_input(fsm *f, u_char *inpacket, int l) {
+    u_char *inp;
+    u_char code, id;
+    int len;
+
+    /*
+     * Parse header (code, id and length).
+     * If packet too short, drop it.
+     */
+    inp = inpacket;
+    if (l < HEADERLEN) {
+	FSMDEBUG(("fsm_input(%x): Rcvd short header.", f->protocol));
+	return;
+    }
+    GETCHAR(code, inp);
+    GETCHAR(id, inp);
+    GETSHORT(len, inp);
+    if (len < HEADERLEN) {
+	FSMDEBUG(("fsm_input(%x): Rcvd illegal length.", f->protocol));
+	return;
+    }
+    if (len > l) {
+	FSMDEBUG(("fsm_input(%x): Rcvd short packet.", f->protocol));
+	return;
+    }
+    len -= HEADERLEN;		/* subtract header length */
+
+    if( f->state == PPP_FSM_INITIAL || f->state == PPP_FSM_STARTING ){
+	FSMDEBUG(("fsm_input(%x): Rcvd packet in state %d.",
+		  f->protocol, f->state));
+	return;
+    }
+
+    /*
+     * Action depends on code.
+     */
+    switch (code) {
+    case CONFREQ:
+	fsm_rconfreq(f, id, inp, len);
+	break;
+    
+    case CONFACK:
+	fsm_rconfack(f, id, inp, len);
+	break;
+    
+    case CONFNAK:
+    case CONFREJ:
+	fsm_rconfnakrej(f, code, id, inp, len);
+	break;
+    
+    case TERMREQ:
+	fsm_rtermreq(f, id, inp, len);
+	break;
+    
+    case TERMACK:
+	fsm_rtermack(f);
+	break;
+    
+    case CODEREJ:
+	fsm_rcoderej(f, inp, len);
+	break;
+    
+    default:
+	if( !f->callbacks->extcode
+	   || !(*f->callbacks->extcode)(f, code, id, inp, len) )
+	    fsm_sdata(f, CODEREJ, ++f->id, inpacket, len + HEADERLEN);
+	break;
+    }
+}

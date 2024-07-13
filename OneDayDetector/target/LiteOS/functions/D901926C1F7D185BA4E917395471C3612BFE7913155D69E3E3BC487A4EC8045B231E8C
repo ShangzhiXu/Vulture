@@ -1,0 +1,29 @@
+static void chap_timeout(void *arg) {
+	ppp_pcb *pcb = (ppp_pcb*)arg;
+	struct pbuf *p;
+
+	pcb->chap_server.flags &= ~TIMEOUT_PENDING;
+	if ((pcb->chap_server.flags & CHALLENGE_VALID) == 0) {
+		pcb->chap_server.challenge_xmits = 0;
+		chap_generate_challenge(pcb);
+		pcb->chap_server.flags |= CHALLENGE_VALID;
+	} else if (pcb->chap_server.challenge_xmits >= pcb->settings.chap_max_transmits) {
+		pcb->chap_server.flags &= ~CHALLENGE_VALID;
+		pcb->chap_server.flags |= AUTH_DONE | AUTH_FAILED;
+		auth_peer_fail(pcb, PPP_CHAP);
+		return;
+	}
+
+	p = pbuf_alloc(PBUF_RAW, (u16_t)(pcb->chap_server.challenge_pktlen), PPP_CTRL_PBUF_TYPE);
+	if(NULL == p)
+		return;
+	if(p->tot_len != p->len) {
+		pbuf_free(p);
+		return;
+	}
+	MEMCPY(p->payload, pcb->chap_server.challenge, pcb->chap_server.challenge_pktlen);
+	ppp_write(pcb, p);
+	++pcb->chap_server.challenge_xmits;
+	pcb->chap_server.flags |= TIMEOUT_PENDING;
+	TIMEOUT(chap_timeout, arg, pcb->settings.chap_timeout_time);
+}

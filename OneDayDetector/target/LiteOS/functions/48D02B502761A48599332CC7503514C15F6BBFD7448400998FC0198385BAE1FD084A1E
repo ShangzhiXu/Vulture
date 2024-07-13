@@ -1,0 +1,17 @@
+int timer_gettime(timer_t timerId, struct itimerspec *value)
+{
+    UINT32 tick = 0;
+    LosSwtmrCB *swtmr = NULL;
+
+    swtmr = (LosSwtmrCB *)timerId;
+
+    /* expire time */
+    if ((value == NULL) || (swtmr == NULL) || (LOS_SwtmrTimeGet(swtmr->timerId, &tick) != LOS_OK)) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    OsTick2TimeSpec(&value->it_value, tick);
+    OsTick2TimeSpec(&value->it_interval, swtmr->interval);
+    return 0;
+}

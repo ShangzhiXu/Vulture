@@ -1,0 +1,26 @@
+int mbedtls_x509write_crt_set_ns_cert_type( mbedtls_x509write_cert *ctx,
+                                    unsigned char ns_cert_type )
+{
+    unsigned char buf[4];
+    unsigned char *c;
+    size_t unused_bits;
+    int ret;
+
+    c = buf + 4;
+
+    unused_bits = crt_get_unused_bits_for_named_bitstring( ns_cert_type, 0 );
+    ret = mbedtls_asn1_write_bitstring( &c,
+                                        buf,
+                                        &ns_cert_type,
+                                        8 - unused_bits );
+    if( ret < 3 || ret > 4 )
+        return( ret );
+
+    ret = mbedtls_x509write_crt_set_extension( ctx, MBEDTLS_OID_NS_CERT_TYPE,
+                                   MBEDTLS_OID_SIZE( MBEDTLS_OID_NS_CERT_TYPE ),
+                                   0, c, (size_t)ret );
+    if( ret != 0 )
+        return( ret );
+
+    return( 0 );
+}

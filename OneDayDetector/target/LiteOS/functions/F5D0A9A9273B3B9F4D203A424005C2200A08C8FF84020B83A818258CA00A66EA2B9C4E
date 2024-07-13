@@ -1,0 +1,17 @@
+static HAL_StatusTypeDef I2C_Slave_AF(I2C_HandleTypeDef *hi2c)
+{
+  /* Disable EVT, BUF and ERR interrupt */
+  __HAL_I2C_DISABLE_IT(hi2c, I2C_IT_EVT | I2C_IT_BUF | I2C_IT_ERR);
+
+  /* Clear AF flag */
+  __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_AF);
+
+  /* Disable Acknowledge */
+  CLEAR_BIT(hi2c->Instance->CR1, I2C_CR1_ACK);
+
+  hi2c->State = HAL_I2C_STATE_READY;
+
+  HAL_I2C_SlaveTxCpltCallback(hi2c);
+
+  return HAL_OK;
+}

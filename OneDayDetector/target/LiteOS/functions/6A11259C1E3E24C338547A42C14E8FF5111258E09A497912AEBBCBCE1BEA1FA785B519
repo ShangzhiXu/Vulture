@@ -1,0 +1,66 @@
+HAL_StatusTypeDef HAL_MDIOS_Init(MDIOS_HandleTypeDef *hmdios)
+{
+  uint32_t tmpcr = 0;
+
+  /* Check the MDIOS handle allocation */
+  if(hmdios == NULL)
+  {
+    return HAL_ERROR;
+  }
+  
+  /* Check the parameters */
+  assert_param(IS_MDIOS_ALL_INSTANCE(hmdios->Instance));
+  assert_param(IS_MDIOS_PORTADDRESS(hmdios->Init.PortAddress));
+  assert_param(IS_MDIOS_PREAMBLECHECK(hmdios->Init.PreambleCheck));
+  
+  /* Process Locked */
+  __HAL_LOCK(hmdios);
+  
+  if(hmdios->State == HAL_MDIOS_STATE_RESET)
+  {
+#if (USE_HAL_MDIOS_REGISTER_CALLBACKS == 1)
+
+    MDIOS_InitCallbacksToDefault(hmdios);
+
+    if(hmdios->MspInitCallback == NULL)
+    {
+      hmdios->MspInitCallback = HAL_MDIOS_MspInit;
+    }
+
+    /* Init the low level hardware */
+    hmdios->MspInitCallback(hmdios);
+
+#else
+   /* Init the low level hardware */
+    HAL_MDIOS_MspInit(hmdios);
+
+#endif /* USE_HAL_MDIOS_REGISTER_CALLBACKS */
+  }
+  
+  /* Change the MDIOS state */
+  hmdios->State = HAL_MDIOS_STATE_BUSY;
+  
+  /* Get the MDIOS CR value */
+  tmpcr = hmdios->Instance->CR;
+  
+  /* Clear PORT_ADDRESS, DPC and EN bits */
+  tmpcr &= ((uint32_t)~(MDIOS_CR_EN | MDIOS_CR_DPC | MDIOS_CR_PORT_ADDRESS));
+  
+  /* Set MDIOS control parametrs and enable the peripheral */
+  tmpcr |=  (uint32_t)(((hmdios->Init.PortAddress) << MDIOS_PORT_ADDRESS_SHIFT)    |\
+                        (hmdios->Init.PreambleCheck) | \
+                        (MDIOS_CR_EN));
+  
+  /* Write the MDIOS CR */
+  hmdios->Instance->CR = tmpcr;
+  
+  /* Change the MDIOS state */
+  hmdios->State = HAL_MDIOS_STATE_READY;
+  
+  /* Release Lock */
+  __HAL_UNLOCK(hmdios);
+  
+  /* Return function status */
+  return HAL_OK;
+
+}

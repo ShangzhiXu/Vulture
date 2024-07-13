@@ -1,0 +1,29 @@
+ip_NetToMediaTable_get_cell_value_core(size_t arp_table_index, const u32_t *column, union snmp_variant_value *value, u32_t *value_len)
+{
+  ip4_addr_t *ip;
+  struct netif *netif;
+  struct eth_addr *ethaddr;
+
+  etharp_get_entry(arp_table_index, &ip, &netif, &ethaddr);
+
+  /* value */
+  switch (*column) {
+    case 1: /* atIfIndex / ipNetToMediaIfIndex */
+      value->u32 = netif_to_num(netif);
+      break;
+    case 2: /* atPhysAddress / ipNetToMediaPhysAddress */
+      value->ptr = ethaddr;
+      *value_len = sizeof(*ethaddr);
+      break;
+    case 3: /* atNetAddress / ipNetToMediaNetAddress */
+      value->u32 = ip->addr;
+      break;
+    case 4: /* ipNetToMediaType */
+      value->u32 = 3; /* dynamic*/
+      break;
+    default:
+      return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  return SNMP_ERR_NOERROR;
+}

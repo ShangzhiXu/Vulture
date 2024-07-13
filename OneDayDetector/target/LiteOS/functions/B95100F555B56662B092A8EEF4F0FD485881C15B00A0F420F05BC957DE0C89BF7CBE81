@@ -1,0 +1,198 @@
+static void ccp_resetci(fsm *f) {
+    ppp_pcb *pcb = f->pcb;
+    ccp_options *go = &pcb->ccp_gotoptions;
+    ccp_options *wo = &pcb->ccp_wantoptions;
+#if MPPE_SUPPORT
+    ccp_options *ao = &pcb->ccp_allowoptions;
+#endif /* MPPE_SUPPORT */
+#if DEFLATE_SUPPORT || BSDCOMPRESS_SUPPORT || PREDICTOR_SUPPORT
+    u_char opt_buf[CCP_MAX_OPTION_LENGTH];
+#endif /* DEFLATE_SUPPORT || BSDCOMPRESS_SUPPORT || PREDICTOR_SUPPORT */
+#if DEFLATE_SUPPORT || BSDCOMPRESS_SUPPORT
+    int res;
+#endif /* DEFLATE_SUPPORT || BSDCOMPRESS_SUPPORT */
+
+#if MPPE_SUPPORT
+    if (pcb->settings.require_mppe) {
+	wo->mppe = ao->mppe =
+		    (pcb->settings.refuse_mppe_40 ? 0 : MPPE_OPT_40)
+		  | (pcb->settings.refuse_mppe_128 ? 0 : MPPE_OPT_128);
+    }
+#endif /* MPPE_SUPPORT */
+
+    *go = *wo;
+    pcb->ccp_all_rejected = 0;
+
+#if MPPE_SUPPORT
+    if (go->mppe) {
+	int auth_mschap_bits = pcb->auth_done;
+	int numbits;
+
+	/*
+	 * Start with a basic sanity check: mschap[v2] auth must be in
+	 * exactly one direction.  RFC 3079 says that the keys are
+	 * 'derived from the credentials of the peer that initiated the call',
+	 * however the PPP protocol doesn't have such a concept, and pppd
+	 * cannot get this info externally.  Instead we do the best we can.
+	 * NB: If MPPE is required, all other compression opts are invalid.
+	 *     So, we return right away if we can't do it.
+	 */
+
+	/* Leave only the mschap auth bits set */
+	auth_mschap_bits &= (CHAP_MS_WITHPEER  | CHAP_MS_PEER |
+			     CHAP_MS2_WITHPEER | CHAP_MS2_PEER);
+	/* Count the mschap auths */
+	auth_mschap_bits >>= CHAP_MS_SHIFT;
+	numbits = 0;
+	do {
+	    numbits += auth_mschap_bits & 1;
+	    auth_mschap_bits >>= 1;
+	} while (auth_mschap_bits);
+	if (numbits > 1) {
+	    ppp_error("MPPE required, but auth done in both directions.");
+	    lcp_close(pcb, "MPPE required but not available");
+	    return;
+	}
+	if (!numbits) {
+	    ppp_error("MPPE required, but MS-CHAP[v2] auth not performed.");
+	    lcp_close(pcb, "MPPE required but not available");
+	    return;
+	}
+
+	/* A plugin (eg radius) may not have obtained key material. */
+	if (!pcb->mppe_keys_set) {
+	    ppp_error("MPPE required, but keys are not available.  "
+		  "Possible plugin problem?");
+	    lcp_close(pcb, "MPPE required but not available");
+	    return;
+	}
+
+	/* LM auth not supported for MPPE */
+	if (pcb->auth_done & (CHAP_MS_WITHPEER | CHAP_MS_PEER)) {
+	    /* This might be noise */
+	    if (go->mppe & MPPE_OPT_40) {
+		ppp_notice("Disabling 40-bit MPPE; MS-CHAP LM not supported");
+		go->mppe &= ~MPPE_OPT_40;
+		wo->mppe &= ~MPPE_OPT_40;
+	    }
+	}
+
+	/* Last check: can we actually negotiate something? */
+	if (!(go->mppe & (MPPE_OPT_40 | MPPE_OPT_128))) {
+	    /* Could be misconfig, could be 40-bit disabled above. */
+	    ppp_error("MPPE required, but both 40-bit and 128-bit disabled.");
+	    lcp_close(pcb, "MPPE required but not available");
+	    return;
+	}
+
+	/* sync options */
+	ao->mppe = go->mppe;
+	/* MPPE is not compatible with other compression types */
+#if BSDCOMPRESS_SUPPORT
+	ao->bsd_compress = go->bsd_compress = 0;
+#endif /* BSDCOMPRESS_SUPPORT */
+#if PREDICTOR_SUPPORT
+	ao->predictor_1  = go->predictor_1  = 0;
+	ao->predictor_2  = go->predictor_2  = 0;
+#endif /* PREDICTOR_SUPPORT */
+#if DEFLATE_SUPPORT
+	ao->deflate      = go->deflate      = 0;
+#endif /* DEFLATE_SUPPORT */
+    }
+#endif /* MPPE_SUPPORT */
+
+    /*
+     * Check whether the kernel knows about the various
+     * compression methods we might request.
+     */
+#if BSDCOMPRESS_SUPPORT
+    /* FIXME: we don't need to test if BSD compress is available
+     * if BSDCOMPRESS_SUPPORT is set, it is.
+     */
+    if (go->bsd_compress) {
+	opt_buf[0] = CI_BSD_COMPRESS;
+	opt_buf[1] = CILEN_BSD_COMPRESS;
+	for (;;) {
+	    if (go->bsd_bits < BSD_MIN_BITS) {
+		go->bsd_compress = 0;
+		break;
+	    }
+	    opt_buf[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION, go->bsd_bits);
+	    res = ccp_test(pcb, opt_buf, CILEN_BSD_COMPRESS, 0);
+	    if (res > 0) {
+		break;
+	    } else if (res < 0) {
+		go->bsd_compress = 0;
+		break;
+	    }
+	    go->bsd_bits--;
+	}
+    }
+#endif /* BSDCOMPRESS_SUPPORT */
+#if DEFLATE_SUPPORT
+    /* FIXME: we don't need to test if deflate is available
+     * if DEFLATE_SUPPORT is set, it is.
+     */
+    if (go->deflate) {
+	if (go->deflate_correct) {
+	    opt_buf[0] = CI_DEFLATE;
+	    opt_buf[1] = CILEN_DEFLATE;
+	    opt_buf[3] = DEFLATE_CHK_SEQUENCE;
+	    for (;;) {
+		if (go->deflate_size < DEFLATE_MIN_WORKS) {
+		    go->deflate_correct = 0;
+		    break;
+		}
+		opt_buf[2] = DEFLATE_MAKE_OPT(go->deflate_size);
+		res = ccp_test(pcb, opt_buf, CILEN_DEFLATE, 0);
+		if (res > 0) {
+		    break;
+		} else if (res < 0) {
+		    go->deflate_correct = 0;
+		    break;
+		}
+		go->deflate_size--;
+	    }
+	}
+	if (go->deflate_draft) {
+	    opt_buf[0] = CI_DEFLATE_DRAFT;
+	    opt_buf[1] = CILEN_DEFLATE;
+	    opt_buf[3] = DEFLATE_CHK_SEQUENCE;
+	    for (;;) {
+		if (go->deflate_size < DEFLATE_MIN_WORKS) {
+		    go->deflate_draft = 0;
+		    break;
+		}
+		opt_buf[2] = DEFLATE_MAKE_OPT(go->deflate_size);
+		res = ccp_test(pcb, opt_buf, CILEN_DEFLATE, 0);
+		if (res > 0) {
+		    break;
+		} else if (res < 0) {
+		    go->deflate_draft = 0;
+		    break;
+		}
+		go->deflate_size--;
+	    }
+	}
+	if (!go->deflate_correct && !go->deflate_draft)
+	    go->deflate = 0;
+    }
+#endif /* DEFLATE_SUPPORT */
+#if PREDICTOR_SUPPORT
+    /* FIXME: we don't need to test if predictor is available,
+     * if PREDICTOR_SUPPORT is set, it is.
+     */
+    if (go->predictor_1) {
+	opt_buf[0] = CI_PREDICTOR_1;
+	opt_buf[1] = CILEN_PREDICTOR_1;
+	if (ccp_test(pcb, opt_buf, CILEN_PREDICTOR_1, 0) <= 0)
+	    go->predictor_1 = 0;
+    }
+    if (go->predictor_2) {
+	opt_buf[0] = CI_PREDICTOR_2;
+	opt_buf[1] = CILEN_PREDICTOR_2;
+	if (ccp_test(pcb, opt_buf, CILEN_PREDICTOR_2, 0) <= 0)
+	    go->predictor_2 = 0;
+    }
+#endif /* PREDICTOR_SUPPORT */
+}

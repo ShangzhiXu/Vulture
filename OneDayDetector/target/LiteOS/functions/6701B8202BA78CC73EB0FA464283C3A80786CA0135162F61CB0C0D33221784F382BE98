@@ -1,0 +1,53 @@
+static void SPI_DMATxAbortCallback(DMA_HandleTypeDef *hdma)
+{
+  SPI_HandleTypeDef *hspi = (SPI_HandleTypeDef *)((DMA_HandleTypeDef *)hdma)->Parent;
+
+  hspi->hdmatx->XferAbortCallback = NULL;
+
+  /* Disable Tx DMA Request */
+  CLEAR_BIT(hspi->Instance->CR2, SPI_CR2_TXDMAEN);
+
+  if (SPI_EndRxTxTransaction(hspi, SPI_DEFAULT_TIMEOUT, HAL_GetTick()) != HAL_OK)
+  {
+    hspi->ErrorCode = HAL_SPI_ERROR_ABORT;
+  }
+
+  /* Disable SPI Peripheral */
+  __HAL_SPI_DISABLE(hspi);
+
+  /* Empty the FRLVL fifo */
+  if (SPI_WaitFifoStateUntilTimeout(hspi, SPI_FLAG_FRLVL, SPI_FRLVL_EMPTY, SPI_DEFAULT_TIMEOUT, HAL_GetTick()) != HAL_OK)
+  {
+    hspi->ErrorCode = HAL_SPI_ERROR_ABORT;
+  }
+
+  /* Check if an Abort process is still ongoing */
+  if (hspi->hdmarx != NULL)
+  {
+    if (hspi->hdmarx->XferAbortCallback != NULL)
+    {
+      return;
+    }
+  }
+
+  /* No Abort process still ongoing : All DMA Stream/Channel are aborted, call user Abort Complete callback */
+  hspi->RxXferCount = 0U;
+  hspi->TxXferCount = 0U;
+
+  /* Check no error during Abort procedure */
+  if (hspi->ErrorCode != HAL_SPI_ERROR_ABORT)
+  {
+    /* Reset errorCode */
+    hspi->ErrorCode = HAL_SPI_ERROR_NONE;
+  }
+
+  /* Clear the Error flags in the SR register */
+  __HAL_SPI_CLEAR_OVRFLAG(hspi);
+  __HAL_SPI_CLEAR_FREFLAG(hspi);
+
+  /* Restore hspi->State to Ready */
+  hspi->State  = HAL_SPI_STATE_READY;
+
+  /* Call user Abort complete callback */
+  HAL_SPI_AbortCpltCallback(hspi);
+}

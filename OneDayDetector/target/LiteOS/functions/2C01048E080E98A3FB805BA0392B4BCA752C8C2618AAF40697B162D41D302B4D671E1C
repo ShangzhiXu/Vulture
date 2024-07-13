@@ -1,0 +1,42 @@
+STATIC INT32 OsCopyToNew(VOID *addr, UINT32 size)
+{
+    UINT32 copyStart = 0;
+    UINT32 copyLen;
+    CHAR *temp = NULL;
+    CHAR *newBuf = (CHAR *)addr + sizeof(DmesgInfo);
+    UINT32 bufSize = size - sizeof(DmesgInfo);
+    INT32 ret;
+
+    if (g_dmesgInfo->logSize == 0) {
+        return 0;
+    }
+
+    temp = (CHAR *)malloc(g_dmesgInfo->logSize);
+    if (temp == NULL) {
+        return -1;
+    }
+
+    (VOID)memset_s(temp, g_dmesgInfo->logSize, 0, g_dmesgInfo->logSize);
+    copyLen = ((bufSize < g_dmesgInfo->logSize) ? bufSize : g_dmesgInfo->logSize);
+    if (bufSize < g_dmesgInfo->logSize) {
+        copyStart = g_dmesgInfo->logSize - bufSize;
+    }
+
+    ret = OsDmesgRead(temp, g_dmesgInfo->logSize);
+    if (ret <= 0) {
+        PRINT_ERR("%s,%d failed, err:%d!\n", __FUNCTION__, __LINE__, ret);
+        free(temp);
+        return -1;
+    }
+
+    /* if new buf size smaller than logSize */
+    ret = memcpy_s(newBuf, bufSize, temp + copyStart, copyLen);
+    if (ret != EOK) {
+        PRINT_ERR("%s,%d memcpy_s failed, err:%d!\n", __FUNCTION__, __LINE__, ret);
+        free(temp);
+        return -1;
+    }
+    free(temp);
+
+    return (INT32)copyLen;
+}

@@ -1,0 +1,80 @@
+uint32_t wm8994_SetOutputMode(uint16_t DeviceAddr, uint8_t Output)
+{
+  uint32_t counter = 0; 
+  
+  switch (Output) 
+  {
+  case OUTPUT_DEVICE_SPEAKER:
+    /* Enable DAC1 (Left), Enable DAC1 (Right), 
+    Disable DAC2 (Left), Disable DAC2 (Right)*/
+    counter += CODEC_IO_Write(DeviceAddr, 0x05, 0x0C0C);
+    
+    /* Enable the AIF1 Timeslot 0 (Left) to DAC 1 (Left) mixer path */
+    counter += CODEC_IO_Write(DeviceAddr, 0x601, 0x0000);
+    
+    /* Enable the AIF1 Timeslot 0 (Right) to DAC 1 (Right) mixer path */
+    counter += CODEC_IO_Write(DeviceAddr, 0x602, 0x0000);
+    
+    /* Disable the AIF1 Timeslot 1 (Left) to DAC 2 (Left) mixer path */
+    counter += CODEC_IO_Write(DeviceAddr, 0x604, 0x0002);
+    
+    /* Disable the AIF1 Timeslot 1 (Right) to DAC 2 (Right) mixer path */
+    counter += CODEC_IO_Write(DeviceAddr, 0x605, 0x0002);
+    break;
+    
+  case OUTPUT_DEVICE_HEADPHONE:
+    /* Disable DAC1 (Left), Disable DAC1 (Right), 
+    Enable DAC2 (Left), Enable DAC2 (Right)*/
+    counter += CODEC_IO_Write(DeviceAddr, 0x05, 0x0303);
+    
+    /* Enable the AIF1 Timeslot 0 (Left) to DAC 1 (Left) mixer path */
+    counter += CODEC_IO_Write(DeviceAddr, 0x601, 0x0001);
+    
+    /* Enable the AIF1 Timeslot 0 (Right) to DAC 1 (Right) mixer path */
+    counter += CODEC_IO_Write(DeviceAddr, 0x602, 0x0001);
+    
+    /* Disable the AIF1 Timeslot 1 (Left) to DAC 2 (Left) mixer path */
+    counter += CODEC_IO_Write(DeviceAddr, 0x604, 0x0000);
+    
+    /* Disable the AIF1 Timeslot 1 (Right) to DAC 2 (Right) mixer path */
+    counter += CODEC_IO_Write(DeviceAddr, 0x605, 0x0000);
+    break;
+    
+  case OUTPUT_DEVICE_BOTH:
+    /* Enable DAC1 (Left), Enable DAC1 (Right), 
+    also Enable DAC2 (Left), Enable DAC2 (Right)*/
+    counter += CODEC_IO_Write(DeviceAddr, 0x05, 0x0303 | 0x0C0C);
+    
+    /* Enable the AIF1 Timeslot 0 (Left) to DAC 1 (Left) mixer path */
+    counter += CODEC_IO_Write(DeviceAddr, 0x601, 0x0001);
+    
+    /* Enable the AIF1 Timeslot 0 (Right) to DAC 1 (Right) mixer path */
+    counter += CODEC_IO_Write(DeviceAddr, 0x602, 0x0001);
+    
+    /* Enable the AIF1 Timeslot 1 (Left) to DAC 2 (Left) mixer path */
+    counter += CODEC_IO_Write(DeviceAddr, 0x604, 0x0002);
+    
+    /* Enable the AIF1 Timeslot 1 (Right) to DAC 2 (Right) mixer path */
+    counter += CODEC_IO_Write(DeviceAddr, 0x605, 0x0002);
+    break;
+    
+  default:
+    /* Disable DAC1 (Left), Disable DAC1 (Right), 
+    Enable DAC2 (Left), Enable DAC2 (Right)*/
+    counter += CODEC_IO_Write(DeviceAddr, 0x05, 0x0303);
+    
+    /* Enable the AIF1 Timeslot 0 (Left) to DAC 1 (Left) mixer path */
+    counter += CODEC_IO_Write(DeviceAddr, 0x601, 0x0001);
+    
+    /* Enable the AIF1 Timeslot 0 (Right) to DAC 1 (Right) mixer path */
+    counter += CODEC_IO_Write(DeviceAddr, 0x602, 0x0001);
+    
+    /* Disable the AIF1 Timeslot 1 (Left) to DAC 2 (Left) mixer path */
+    counter += CODEC_IO_Write(DeviceAddr, 0x604, 0x0000);
+    
+    /* Disable the AIF1 Timeslot 1 (Right) to DAC 2 (Right) mixer path */
+    counter += CODEC_IO_Write(DeviceAddr, 0x605, 0x0000);
+    break;    
+  }  
+  return counter;
+}

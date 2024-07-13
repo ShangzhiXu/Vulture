@@ -1,0 +1,12 @@
+VOID OsAppSecPteInit(UINTPTR startAddr, UINTPTR len, UINT64 flag)
+{
+    g_mmuAppPage.page_addr = startAddr;
+    g_mmuAppPage.page_length = len;
+    g_mmuAppPage.page_descriptor_addr = (UINTPTR)g_secondPageTableApp;
+    if (g_mmuAppPage.page_length > SECOND_PAGE_TABLE_MAPPING_LEN(g_secondPageTableApp)) {
+        PRINT_ERR("the mapping size of app second page is 0x%llx, sholud be not bigger than 0x%llx\n",
+                  g_mmuAppPage.page_length, (UINT64)SECOND_PAGE_TABLE_MAPPING_LEN(g_secondPageTableApp));
+        return;
+    }
+    ArchSecPageEnable(&g_mmuAppPage, flag);
+}

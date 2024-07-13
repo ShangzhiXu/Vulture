@@ -1,0 +1,14 @@
+static void USART_DMAAbortOnError(DMA_HandleTypeDef *hdma)
+{
+  USART_HandleTypeDef *husart = (USART_HandleTypeDef *)((DMA_HandleTypeDef *)hdma)->Parent;
+  husart->RxXferCount = 0x00U;
+  husart->TxXferCount = 0x00U;
+
+#if (USE_HAL_USART_REGISTER_CALLBACKS == 1)
+  /* Call registered Error Callback */
+  husart->ErrorCallback(husart);
+#else
+  /* Call legacy weak Error Callback */
+  HAL_USART_ErrorCallback(husart);
+#endif /* USE_HAL_USART_REGISTER_CALLBACKS */
+}

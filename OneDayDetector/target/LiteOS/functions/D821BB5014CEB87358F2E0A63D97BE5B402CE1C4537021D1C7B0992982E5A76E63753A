@@ -1,0 +1,66 @@
+mdns_send_probe(struct netif* netif, const ip_addr_t *destination)
+{
+  struct mdns_host* mdns;
+  struct mdns_outpacket pkt;
+  struct mdns_domain domain;
+  u8_t i;
+  err_t res;
+
+  mdns = NETIF_TO_HOST(netif);
+
+  memset(&pkt, 0, sizeof(pkt));
+  pkt.netif = netif;
+
+  /* Add unicast questions with rtype ANY for all our desired records */
+  mdns_build_host_domain(&domain, mdns);
+  res = mdns_add_question(&pkt, &domain, DNS_RRTYPE_ANY, DNS_RRCLASS_IN, 1);
+  if (res != ERR_OK) {
+    goto cleanup;
+  }
+  pkt.questions++;
+  for (i = 0; i < MDNS_MAX_SERVICES; i++) {
+    struct mdns_service* service = mdns->services[i];
+    if (!service) {
+      continue;
+    }
+    mdns_build_service_domain(&domain, service, 1);
+    res = mdns_add_question(&pkt, &domain, DNS_RRTYPE_ANY, DNS_RRCLASS_IN, 1);
+    if (res != ERR_OK) {
+      goto cleanup;
+    }
+    pkt.questions++;
+  }
+
+  /* Add answers to the questions above into the authority section for tiebreaking */
+#if LWIP_IPV4
+  if (!ip4_addr_isany_val(*netif_ip4_addr(netif))) {
+    pkt.host_replies = REPLY_HOST_A;
+  }
+#endif
+#if LWIP_IPV6
+  for (i = 0; i < LWIP_IPV6_NUM_ADDRESSES; i++) {
+    if (ip6_addr_isvalid(netif_ip6_addr_state(netif, i))) {
+      pkt.host_replies |= REPLY_HOST_AAAA;
+    }
+  }
+#endif
+
+  for (i = 0; i < MDNS_MAX_SERVICES; i++) {
+    struct mdns_service *serv = mdns->services[i];
+    if (serv) {
+      pkt.serv_replies[i] = REPLY_SERVICE_SRV | REPLY_SERVICE_TXT;
+    }
+  }
+
+  pkt.tx_id = 0;
+  pkt.dest_port = LWIP_IANA_PORT_MDNS;
+  SMEMCPY(&pkt.dest_addr, destination, sizeof(pkt.dest_addr));
+  res = mdns_send_outpacket(&pkt, 0);
+
+cleanup:
+  if (pkt.pbuf) {
+    pbuf_free(pkt.pbuf);
+    pkt.pbuf = NULL;
+  }
+  return res;
+}

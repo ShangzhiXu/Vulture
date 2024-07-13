@@ -1,0 +1,18 @@
+int32_t esp8266_recv_timeout(int32_t id, uint8_t *buf, uint32_t len, char *host, int *port, int32_t timeout)
+{
+    uint32_t qlen = sizeof(QUEUE_BUFF);
+    uint32_t rxlen = 0;
+
+    QUEUE_BUFF qbuf = {0, NULL};
+    int ret = LOS_QueueReadCopy(at.linkid[id].qid, (void *)&qbuf, (UINT32 *)&qlen, timeout);
+    if (ret != LOS_OK) {
+        return AT_FAILED;
+    }
+
+    if (qbuf.len) {
+        rxlen = (len < qbuf.len) ? len : qbuf.len;
+        memcpy(buf, qbuf.addr, rxlen);
+        at_free(qbuf.addr);
+    }
+    return rxlen;
+}

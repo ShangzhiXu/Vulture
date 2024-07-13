@@ -1,0 +1,54 @@
+HAL_StatusTypeDef HAL_DAC_Init(DAC_HandleTypeDef* hdac)
+{ 
+  /* Check DAC handle */
+  if(hdac == NULL)
+  {
+     return HAL_ERROR;
+  }
+  /* Check the parameters */
+  assert_param(IS_DAC_ALL_INSTANCE(hdac->Instance));
+  
+  if (hdac->State == HAL_DAC_STATE_RESET)
+  {
+#if (USE_HAL_DAC_REGISTER_CALLBACKS == 1)
+    /* Init the DAC Callback settings */
+    hdac->ConvCpltCallbackCh1           = HAL_DAC_ConvCpltCallbackCh1;
+    hdac->ConvHalfCpltCallbackCh1       = HAL_DAC_ConvHalfCpltCallbackCh1;
+    hdac->ErrorCallbackCh1              = HAL_DAC_ErrorCallbackCh1;
+    hdac->DMAUnderrunCallbackCh1        = HAL_DAC_DMAUnderrunCallbackCh1;
+
+    hdac->ConvCpltCallbackCh2           = HAL_DACEx_ConvCpltCallbackCh2;
+    hdac->ConvHalfCpltCallbackCh2       = HAL_DACEx_ConvHalfCpltCallbackCh2;
+    hdac->ErrorCallbackCh2              = HAL_DACEx_ErrorCallbackCh2;
+    hdac->DMAUnderrunCallbackCh2        = HAL_DACEx_DMAUnderrunCallbackCh2;
+
+    if (hdac->MspInitCallback == NULL)
+    {
+      hdac->MspInitCallback             = HAL_DAC_MspInit;
+    }
+#endif /* USE_HAL_DAC_REGISTER_CALLBACKS */
+
+    /* Allocate lock resource and initialize it */
+    hdac->Lock = HAL_UNLOCKED;
+
+#if (USE_HAL_DAC_REGISTER_CALLBACKS == 1)
+    /* Init the low level hardware */
+    hdac->MspInitCallback(hdac);
+#else
+    /* Init the low level hardware */
+    HAL_DAC_MspInit(hdac);
+#endif /* USE_HAL_DAC_REGISTER_CALLBACKS */
+  }
+  
+  /* Initialize the DAC state*/
+  hdac->State = HAL_DAC_STATE_BUSY;
+  
+  /* Set DAC error code to none */
+  hdac->ErrorCode = HAL_DAC_ERROR_NONE;
+  
+  /* Initialize the DAC state*/
+  hdac->State = HAL_DAC_STATE_READY;
+  
+  /* Return function status */
+  return HAL_OK;
+}

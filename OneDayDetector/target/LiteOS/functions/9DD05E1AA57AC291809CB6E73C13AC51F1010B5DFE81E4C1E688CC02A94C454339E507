@@ -1,0 +1,21 @@
+static s32_t spiffs_gc_erase_block(
+    spiffs *fs,
+    spiffs_block_ix bix)
+{
+    s32_t res;
+
+    SPIFFS_GC_DBG("gc: erase block "_SPIPRIbl"\n", bix);
+    res = spiffs_erase_block(fs, bix);
+    SPIFFS_CHECK_RES(res);
+
+#if SPIFFS_CACHE
+    {
+        u32_t i;
+        for (i = 0; i < SPIFFS_PAGES_PER_BLOCK(fs); i++)
+        {
+            spiffs_cache_drop_page(fs, SPIFFS_PAGE_FOR_BLOCK(fs, bix) + i);
+        }
+    }
+#endif
+    return res;
+}

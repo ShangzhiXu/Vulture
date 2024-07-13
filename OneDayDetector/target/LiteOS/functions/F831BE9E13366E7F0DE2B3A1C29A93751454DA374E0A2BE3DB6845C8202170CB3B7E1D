@@ -1,0 +1,130 @@
+static void I2C_ITSlaveCplt(I2C_HandleTypeDef *hi2c, uint32_t ITFlags)
+{
+  uint32_t tmpcr1value = READ_REG(hi2c->Instance->CR1);
+  uint32_t tmpITFlags = ITFlags;
+
+  /* Clear STOP Flag */
+  __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_STOPF);
+
+  /* Disable all interrupts */
+  I2C_Disable_IRQ(hi2c, I2C_XFER_LISTEN_IT | I2C_XFER_TX_IT | I2C_XFER_RX_IT);
+
+  /* Disable Address Acknowledge */
+  hi2c->Instance->CR2 |= I2C_CR2_NACK;
+
+  /* Clear Configuration Register 2 */
+  I2C_RESET_CR2(hi2c);
+
+  /* Flush TX register */
+  I2C_Flush_TXDR(hi2c);
+
+  /* If a DMA is ongoing, Update handle size context */
+  if (I2C_CHECK_IT_SOURCE(tmpcr1value, I2C_CR1_TXDMAEN) != RESET)
+  {
+    if (hi2c->hdmatx != NULL)
+    {
+      hi2c->XferCount = (uint16_t)__HAL_DMA_GET_COUNTER(hi2c->hdmatx);
+    }
+  }
+  else if (I2C_CHECK_IT_SOURCE(tmpcr1value, I2C_CR1_RXDMAEN) != RESET)
+  {
+    if (hi2c->hdmarx != NULL)
+    {
+      hi2c->XferCount = (uint16_t)__HAL_DMA_GET_COUNTER(hi2c->hdmarx);
+    }
+  }
+  else
+  {
+    /* Do nothing */
+  }
+
+  /* Store Last receive data if any */
+  if (I2C_CHECK_FLAG(tmpITFlags, I2C_FLAG_RXNE) != RESET)
+  {
+    /* Remove RXNE flag on temporary variable as read done */
+    tmpITFlags &= ~I2C_FLAG_RXNE;
+
+    /* Read data from RXDR */
+    *hi2c->pBuffPtr = (uint8_t)hi2c->Instance->RXDR;
+
+    /* Increment Buffer pointer */
+    hi2c->pBuffPtr++;
+
+    if ((hi2c->XferSize > 0U))
+    {
+      hi2c->XferSize--;
+      hi2c->XferCount--;
+    }
+  }
+
+  /* All data are not transferred, so set error code accordingly */
+  if (hi2c->XferCount != 0U)
+  {
+    /* Set ErrorCode corresponding to a Non-Acknowledge */
+    hi2c->ErrorCode |= HAL_I2C_ERROR_AF;
+  }
+
+  hi2c->PreviousState = I2C_STATE_NONE;
+  hi2c->Mode = HAL_I2C_MODE_NONE;
+  hi2c->XferISR = NULL;
+
+  if (hi2c->ErrorCode != HAL_I2C_ERROR_NONE)
+  {
+    /* Call the corresponding callback to inform upper layer of End of Transfer */
+    I2C_ITError(hi2c, hi2c->ErrorCode);
+
+    /* Call the Listen Complete callback, to inform upper layer of the end of Listen usecase */
+    if (hi2c->State == HAL_I2C_STATE_LISTEN)
+    {
+      /* Call I2C Listen complete process */
+      I2C_ITListenCplt(hi2c, tmpITFlags);
+    }
+  }
+  else if (hi2c->XferOptions != I2C_NO_OPTION_FRAME)
+  {
+    /* Call the Sequential Complete callback, to inform upper layer of the end of Tranfer */
+    I2C_ITSlaveSeqCplt(hi2c);
+
+    hi2c->XferOptions = I2C_NO_OPTION_FRAME;
+    hi2c->State = HAL_I2C_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2c);
+
+    /* Call the Listen Complete callback, to inform upper layer of the end of Listen usecase */
+#if (USE_HAL_I2C_REGISTER_CALLBACKS == 1)
+    hi2c->ListenCpltCallback(hi2c);
+#else
+    HAL_I2C_ListenCpltCallback(hi2c);
+#endif /* USE_HAL_I2C_REGISTER_CALLBACKS */
+  }
+  /* Call the corresponding callback to inform upper layer of End of Transfer */
+  else if (hi2c->State == HAL_I2C_STATE_BUSY_RX)
+  {
+    hi2c->State = HAL_I2C_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2c);
+
+    /* Call the corresponding callback to inform upper layer of End of Transfer */
+#if (USE_HAL_I2C_REGISTER_CALLBACKS == 1)
+    hi2c->SlaveRxCpltCallback(hi2c);
+#else
+    HAL_I2C_SlaveRxCpltCallback(hi2c);
+#endif /* USE_HAL_I2C_REGISTER_CALLBACKS */
+  }
+  else
+  {
+    hi2c->State = HAL_I2C_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2c);
+
+    /* Call the corresponding callback to inform upper layer of End of Transfer */
+#if (USE_HAL_I2C_REGISTER_CALLBACKS == 1)
+    hi2c->SlaveTxCpltCallback(hi2c);
+#else
+    HAL_I2C_SlaveTxCpltCallback(hi2c);
+#endif /* USE_HAL_I2C_REGISTER_CALLBACKS */
+  }
+}

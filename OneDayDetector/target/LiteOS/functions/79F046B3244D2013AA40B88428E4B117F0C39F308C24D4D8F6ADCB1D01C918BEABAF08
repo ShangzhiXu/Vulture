@@ -1,0 +1,26 @@
+int atiny_data_change(void *phandle, const char *data_type)
+{
+    lwm2m_uri_t uri;
+    handle_data_t *handle = NULL;
+
+    if ((phandle == NULL) || (data_type == NULL)) {
+        ATINY_LOG(LOG_ERR, "invalid args");
+        return ATINY_ARG_INVALID;
+    }
+
+    memset((void *)&uri, 0, sizeof(uri));
+    handle = (handle_data_t *)phandle;
+
+    if (handle->lwm2m_context->state != STATE_READY) {
+        ATINY_LOG(LOG_INFO, "not registered");
+        return ATINY_CLIENT_UNREGISTERED;
+    }
+
+    (void)lwm2m_stringToUri(data_type, strlen(data_type), &uri);
+
+    atiny_mutex_lock(handle->lwm2m_context->observe_mutex);
+    lwm2m_resource_value_changed(handle->lwm2m_context, &uri);
+    atiny_mutex_unlock(handle->lwm2m_context->observe_mutex);
+
+    return ATINY_OK;
+}

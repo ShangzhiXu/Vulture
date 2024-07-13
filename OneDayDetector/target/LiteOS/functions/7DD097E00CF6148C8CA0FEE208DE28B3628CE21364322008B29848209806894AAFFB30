@@ -1,0 +1,15 @@
+httpc_fs_tcp_recv(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t err)
+{
+  httpc_filestate_t *filestate = (httpc_filestate_t*)arg;
+  struct pbuf* q;
+  LWIP_UNUSED_ARG(err);
+
+  LWIP_ASSERT("p != NULL", p != NULL);
+
+  for (q = p; q != NULL; q = q->next) {
+    fwrite(q->payload, 1, q->len, filestate->file);
+  }
+  altcp_recved(pcb, p->tot_len);
+  pbuf_free(p);
+  return ERR_OK;
+}

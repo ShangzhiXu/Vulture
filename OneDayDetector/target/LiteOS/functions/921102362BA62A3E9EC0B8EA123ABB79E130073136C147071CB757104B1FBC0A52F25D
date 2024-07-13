@@ -1,0 +1,58 @@
+HAL_OPAMP_TrimmingValueTypeDef HAL_OPAMP_GetTrimOffset (OPAMP_HandleTypeDef *hopamp, uint32_t trimmingoffset)
+{
+  HAL_OPAMP_TrimmingValueTypeDef trimmingvalue;
+  __IO uint32_t* tmp_opamp_reg_trimming;  /* Selection of register of trimming depending on power mode: OTR or LPOTR */
+  
+  /* Check the OPAMP handle allocation */
+  /* Value can be retrieved in HAL_OPAMP_STATE_READY state */
+  if((hopamp == NULL) || (hopamp->State == HAL_OPAMP_STATE_RESET) \
+                      || (hopamp->State == HAL_OPAMP_STATE_BUSY) \
+                      || (hopamp->State == HAL_OPAMP_STATE_CALIBBUSY)\
+                      || (hopamp->State == HAL_OPAMP_STATE_BUSYLOCKED))
+  {
+    return OPAMP_FACTORYTRIMMING_DUMMY;
+  }
+  else
+  {
+    /* Check the parameter */
+    assert_param(IS_OPAMP_ALL_INSTANCE(hopamp->Instance));
+    assert_param(IS_OPAMP_FACTORYTRIMMING(trimmingoffset));
+    assert_param(IS_OPAMP_POWERMODE(hopamp->Init.PowerMode));
+    
+    /* Check the trimming mode */
+    if (READ_BIT(hopamp->Instance->CSR,OPAMP_CSR_USERTRIM) != RESET)
+    {
+      /* This function must called when OPAMP init parameter "UserTrimming"   */
+      /* is set to trimming factory, and before OPAMP calibration (function   */
+      /* "HAL_OPAMP_SelfCalibrate()").                                        */
+      /* Otherwise, factory trimming value cannot be retrieved and error       */
+      /* status is returned.                                                  */
+      trimmingvalue = OPAMP_FACTORYTRIMMING_DUMMY;
+    }
+    else
+    {
+      /* Select trimming settings depending on power mode */
+      if (hopamp->Init.PowerMode == OPAMP_POWERMODE_NORMAL)
+      {
+        tmp_opamp_reg_trimming = &OPAMP->OTR;
+      }
+      else
+      {
+        tmp_opamp_reg_trimming = &OPAMP->LPOTR;
+      }      
+    
+      /* Get factory trimming  */
+      if (trimmingoffset == OPAMP_FACTORYTRIMMING_P)
+      {
+        /* OPAMP_FACTORYTRIMMING_P */
+        trimmingvalue = ((*tmp_opamp_reg_trimming) & OPAMP_OTR_TRIMOFFSETP) >> OPAMP_INPUT_NONINVERTING;
+      }
+      else
+      {
+        /* OPAMP_FACTORYTRIMMING_N */
+        trimmingvalue = (*tmp_opamp_reg_trimming) & OPAMP_OTR_TRIMOFFSETN;
+      }
+    }
+  }  
+  return trimmingvalue;
+}

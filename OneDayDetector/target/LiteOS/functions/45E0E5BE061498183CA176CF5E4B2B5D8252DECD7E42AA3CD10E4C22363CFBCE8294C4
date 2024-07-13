@@ -1,0 +1,17 @@
+SECUREC_INLINE void SecFreeFloatSpec(SecFloatSpec *floatSpec, int *doneCount)
+{
+     /* LSD 2014.3.6 add, clear the stack data */
+    if (memset_s(floatSpec->buffer, sizeof(floatSpec->buffer), 0, sizeof(floatSpec->buffer)) != EOK) {
+        *doneCount = 0; /* This code just to meet the coding requirements */
+    }
+    /* The pFloatStr can be alloced in SecExtendFloatLen function, clear and free it */
+    if (floatSpec->allocatedFloatStr != NULL) {
+        size_t bufferSize = floatSpec->floatStrTotalLen * sizeof(SecChar);
+        if (memset_s(floatSpec->allocatedFloatStr, bufferSize, 0, bufferSize) != EOK) {
+            *doneCount = 0; /* This code just to meet the coding requirements */
+        }
+        SECUREC_FREE(floatSpec->allocatedFloatStr);
+        floatSpec->allocatedFloatStr = NULL;
+        floatSpec->floatStr = NULL;
+    }
+}

@@ -1,0 +1,67 @@
+netconn_recv_data_tcp(struct netconn *conn, struct pbuf **new_buf, u8_t apiflags)
+{
+  err_t err;
+  struct pbuf *buf;
+  API_MSG_VAR_DECLARE(msg);
+#if LWIP_MPU_COMPATIBLE
+  msg = NULL;
+#endif
+
+  if (!NETCONN_RECVMBOX_WAITABLE(conn)) {
+    /* This only happens when calling this function more than once *after* receiving FIN */
+    return ERR_CONN;
+  }
+  if (netconn_is_flag_set(conn, NETCONN_FIN_RX_PENDING)) {
+    netconn_clear_flags(conn, NETCONN_FIN_RX_PENDING);
+    goto handle_fin;
+  }
+
+  if (!(apiflags & NETCONN_NOAUTORCVD)) {
+    /* need to allocate API message here so empty message pool does not result in event loss
+      * see bug #47512: MPU_COMPATIBLE may fail on empty pool */
+    API_MSG_VAR_ALLOC(msg);
+  }
+
+  err = netconn_recv_data(conn, (void **)new_buf, apiflags);
+  if (err != ERR_OK) {
+    if (!(apiflags & NETCONN_NOAUTORCVD)) {
+      API_MSG_VAR_FREE(msg);
+    }
+    return err;
+  }
+  buf = *new_buf;
+  if (!(apiflags & NETCONN_NOAUTORCVD)) {
+    /* Let the stack know that we have taken the data. */
+    u16_t len = buf ? buf->tot_len : 1;
+    /* don't care for the return value of lwip_netconn_do_recv */
+    /* @todo: this should really be fixed, e.g. by retrying in poll on error */
+    netconn_tcp_recvd_msg(conn, len,  &API_VAR_REF(msg));
+    API_MSG_VAR_FREE(msg);
+  }
+
+  /* If we are closed, we indicate that we no longer wish to use the socket */
+  if (buf == NULL) {
+    if (apiflags & NETCONN_NOFIN) {
+      /* received a FIN but the caller cannot handle it right now:
+         re-enqueue it and return "no data" */
+      netconn_set_flags(conn, NETCONN_FIN_RX_PENDING);
+      return ERR_WOULDBLOCK;
+    } else {
+handle_fin:
+      API_EVENT(conn, NETCONN_EVT_RCVMINUS, 0);
+      if (conn->pcb.ip == NULL) {
+        /* race condition: RST during recv */
+        err = netconn_err(conn);
+        if (err != ERR_OK) {
+          return err;
+        }
+        return ERR_RST;
+      }
+      /* RX side is closed, so deallocate the recvmbox */
+      netconn_close_shutdown(conn, NETCONN_SHUT_RD);
+      /* Don' store ERR_CLSD as conn->err since we are only half-closed */
+      return ERR_CLSD;
+    }
+  }
+  return err;
+}

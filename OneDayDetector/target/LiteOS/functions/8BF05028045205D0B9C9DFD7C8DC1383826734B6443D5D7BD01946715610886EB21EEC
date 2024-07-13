@@ -1,0 +1,30 @@
+LITE_OS_SEC_TEXT_MINOR VOID OsTaskCycleEndStart(const LosTaskCB *newTask)
+{
+    UINT64 cpuCycle;
+    LosTaskCB *runTask = NULL;
+    OsCpupCB *cpup = NULL;
+    UINT32 cpuId = ArchCurrCpuid();
+
+    if ((g_cpupInitFlg == 0) || (newTask == NULL)) {
+        return;
+    }
+
+    runTask = OsCurrTaskGet();
+    cpuCycle = OsGetCpuCycle();
+
+    cpup = &g_cpup[runTask->taskId];
+    if (cpup->startTime != 0) {
+        cpup->allTime += cpuCycle - cpup->startTime;
+#ifdef LOSCFG_CPUP_INCLUDE_IRQ
+        cpup->allTime -= g_timeInIrqPerTskSwitch[cpuId];
+        g_timeInIrqPerTskSwitch[cpuId] = 0;
+#endif
+    }
+
+    cpup = &g_cpup[newTask->taskId];
+    cpup->id = newTask->taskId;
+    cpup->startTime = cpuCycle;
+    runningTasks[cpuId] = newTask->taskId;
+
+    return;
+}

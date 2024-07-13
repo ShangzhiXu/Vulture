@@ -1,0 +1,8 @@
+#define buffer_at_offset(buffer) ((buffer)->content + (buffer)->offset)
+#define can_access_at_index(buffer, index) ((buffer != NULL) && (((buffer)->offset + index) < (buffer)->length))
+#define can_read(buffer, size) ((buffer != NULL) && (((buffer)->offset + size) <= (buffer)->length))
+#define cannot_access_at_index(buffer, index) (!can_access_at_index(buffer, index))
+#define cjson_min(a, b) (((a) < (b)) ? (a) : (b))
+#define isinf(d) (isnan((d - d)) && !isnan(d))
+#define isnan(d) (d != d)
+#define static_strlen(string_literal) (sizeof(string_literal) - sizeof(""))

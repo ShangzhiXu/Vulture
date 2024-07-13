@@ -1,0 +1,17 @@
+static void mqtt_send_secret_ack(mqtt_client_s *handle)
+{
+    MQTTMessage message;
+    int rc;
+
+    char *topic = mqtt_get_secret_topic(handle, SECRET_ACK_TOPIC_FMT, sizeof(SECRET_ACK_TOPIC_FMT) - VARIABLE_SIZE);
+    if (topic == NULL) {
+        return;
+    }
+    memset(&message, 0, sizeof(message));
+    message.qos = QOS1;
+    rc = MQTTPublish(&handle->client, topic, &message);
+    atiny_free(topic);
+    if (rc != MQTT_SUCCESS) {
+        ATINY_LOG(LOG_FATAL, "MQTTPublish fail,rc %d", rc);
+    }
+}

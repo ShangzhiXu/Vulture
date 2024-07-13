@@ -1,0 +1,29 @@
+void HAL_RCCEx_GetPeriphCLKConfig(RCC_PeriphCLKInitTypeDef  *PeriphClkInit)
+{
+  uint32_t tempreg;
+
+  /* Set all possible values for the extended clock type parameter------------*/
+  PeriphClkInit->PeriphClockSelection = RCC_PERIPHCLK_I2S | RCC_PERIPHCLK_RTC;
+
+  /* Get the PLLI2S Clock configuration --------------------------------------*/
+  PeriphClkInit->PLLI2S.PLLI2SN = (uint32_t)((RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SN) >> RCC_PLLI2SCFGR_PLLI2SN_Pos);
+  PeriphClkInit->PLLI2S.PLLI2SR = (uint32_t)((RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SR) >> RCC_PLLI2SCFGR_PLLI2SR_Pos);
+#if defined(STM32F411xE)
+  PeriphClkInit->PLLI2S.PLLI2SM = (uint32_t)(RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SM);
+#endif /* STM32F411xE */
+  /* Get the RTC Clock configuration -----------------------------------------*/
+  tempreg = (RCC->CFGR & RCC_CFGR_RTCPRE);
+  PeriphClkInit->RTCClockSelection = (uint32_t)((tempreg) | (RCC->BDCR & RCC_BDCR_RTCSEL));
+
+#if defined(STM32F401xC) || defined(STM32F401xE) || defined(STM32F411xE)
+  /* Get the TIM Prescaler configuration -------------------------------------*/
+  if ((RCC->DCKCFGR & RCC_DCKCFGR_TIMPRE) == RESET)
+  {
+    PeriphClkInit->TIMPresSelection = RCC_TIMPRES_DESACTIVATED;
+  }
+  else
+  {
+    PeriphClkInit->TIMPresSelection = RCC_TIMPRES_ACTIVATED;
+  }
+#endif /* STM32F401xC || STM32F401xE || STM32F411xE */
+}

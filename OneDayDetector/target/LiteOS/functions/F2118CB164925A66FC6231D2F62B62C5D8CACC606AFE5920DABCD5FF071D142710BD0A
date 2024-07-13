@@ -1,0 +1,50 @@
+LITE_OS_SEC_TEXT_MINOR VOID OsMemUsedNodeShow(VOID *pool)
+{
+    LosMemDynNode *tmpNode = NULL;
+    LosMemPoolInfo *poolInfo = (LosMemPoolInfo *)pool;
+    UINT32 intSave;
+    UINT32 count;
+
+    if (pool == NULL) {
+        PRINTK("input param is NULL\n");
+        return;
+    }
+    if (LOS_MemIntegrityCheck(pool)) {
+        PRINTK("LOS_MemIntegrityCheck error\n");
+        return;
+    }
+    MEM_LOCK(intSave);
+#ifdef __LP64__
+    PRINTK("node                ");
+#else
+    PRINTK("node        ");
+#endif
+    for (count = 0; count < LOS_RECORD_LR_CNT; count++) {
+#ifdef __LP64__
+        PRINTK("        LR[%u]       ", count);
+#else
+        PRINTK("    LR[%u]   ", count);
+#endif
+    }
+    PRINTK("\n");
+    for (tmpNode = OS_MEM_FIRST_NODE(pool); tmpNode < OS_MEM_END_NODE(pool, poolInfo->poolSize);
+         tmpNode = OS_MEM_NEXT_NODE(tmpNode)) {
+        if (OS_MEM_NODE_GET_USED_FLAG(tmpNode->selfNode.sizeAndFlag)) {
+#ifdef __LP64__
+            PRINTK("%018p: ", tmpNode);
+#else
+            PRINTK("%010p: ", tmpNode);
+#endif
+            for (count = 0; count < LOS_RECORD_LR_CNT; count++) {
+#ifdef __LP64__
+                PRINTK(" %018p ", tmpNode->selfNode.linkReg[count]);
+#else
+                PRINTK(" %010p ", tmpNode->selfNode.linkReg[count]);
+#endif
+            }
+            PRINTK("\n");
+        }
+    }
+    MEM_UNLOCK(intSave);
+    return;
+}

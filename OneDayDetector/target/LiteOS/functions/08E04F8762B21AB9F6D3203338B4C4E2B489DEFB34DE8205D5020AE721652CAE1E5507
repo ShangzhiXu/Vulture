@@ -1,0 +1,22 @@
+static ssize_t kifs_write(struct file *file, const char *buff, size_t bytes)
+{
+    struct kifs_node *node = (struct kifs_node *)file->f_data;
+
+    if ((node->attr & KIFS_ATTR_W) == 0) {
+        VFS_ERRNO_SET(EACCES);
+        return (ssize_t) - 1;
+    }
+
+    if (node->attr & KIFS_ATTR_B) {
+        bytes = bytes > node->size ? node->size : bytes;
+        memcpy(node->buff, buff, bytes);
+        return bytes;
+    }
+
+    if (node->kiops->write == NULL) {
+        VFS_ERRNO_SET(EACCES);
+        return (ssize_t) - 1;
+    }
+
+    return node->kiops->write(node->arg, buff, bytes);
+}

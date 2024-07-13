@@ -1,0 +1,74 @@
+lwip_netconn_do_listen(void *m)
+{
+  struct api_msg *msg = (struct api_msg *)m;
+  err_t err;
+
+  if (msg->conn->pcb.tcp != NULL) {
+    if (NETCONNTYPE_GROUP(msg->conn->type) == NETCONN_TCP) {
+      if (msg->conn->state == NETCONN_NONE) {
+        struct tcp_pcb *lpcb;
+        if (msg->conn->pcb.tcp->state != CLOSED) {
+          /* connection is not closed, cannot listen */
+          err = ERR_VAL;
+        } else {
+          u8_t backlog;
+#if TCP_LISTEN_BACKLOG
+          backlog = msg->msg.lb.backlog;
+#else  /* TCP_LISTEN_BACKLOG */
+          backlog = TCP_DEFAULT_LISTEN_BACKLOG;
+#endif /* TCP_LISTEN_BACKLOG */
+#if LWIP_IPV4 && LWIP_IPV6
+          /* "Socket API like" dual-stack support: If IP to listen to is IP6_ADDR_ANY,
+            * and NETCONN_FLAG_IPV6_V6ONLY is NOT set, use IP_ANY_TYPE to listen
+            */
+          if (ip_addr_cmp(&msg->conn->pcb.ip->local_ip, IP6_ADDR_ANY) &&
+              (netconn_get_ipv6only(msg->conn) == 0)) {
+            /* change PCB type to IPADDR_TYPE_ANY */
+            IP_SET_TYPE_VAL(msg->conn->pcb.tcp->local_ip,  IPADDR_TYPE_ANY);
+            IP_SET_TYPE_VAL(msg->conn->pcb.tcp->remote_ip, IPADDR_TYPE_ANY);
+          }
+#endif /* LWIP_IPV4 && LWIP_IPV6 */
+
+          lpcb = tcp_listen_with_backlog_and_err(msg->conn->pcb.tcp, backlog, &err);
+
+          if (lpcb == NULL) {
+            /* in this case, the old pcb is still allocated */
+          } else {
+            /* delete the recvmbox and allocate the acceptmbox */
+            if (sys_mbox_valid(&msg->conn->recvmbox)) {
+              /** @todo: should we drain the recvmbox here? */
+              sys_mbox_free(&msg->conn->recvmbox);
+              sys_mbox_set_invalid(&msg->conn->recvmbox);
+            }
+            err = ERR_OK;
+            if (!sys_mbox_valid(&msg->conn->acceptmbox)) {
+              err = sys_mbox_new(&msg->conn->acceptmbox, DEFAULT_ACCEPTMBOX_SIZE);
+            }
+            if (err == ERR_OK) {
+              msg->conn->state = NETCONN_LISTEN;
+              msg->conn->pcb.tcp = lpcb;
+              tcp_arg(msg->conn->pcb.tcp, msg->conn);
+              tcp_accept(msg->conn->pcb.tcp, accept_function);
+            } else {
+              /* since the old pcb is already deallocated, free lpcb now */
+              tcp_close(lpcb);
+              msg->conn->pcb.tcp = NULL;
+            }
+          }
+        }
+      } else if (msg->conn->state == NETCONN_LISTEN) {
+        /* already listening, allow updating of the backlog */
+        err = ERR_OK;
+        tcp_backlog_set(msg->conn->pcb.tcp, msg->msg.lb.backlog);
+      } else {
+        err = ERR_CONN;
+      }
+    } else {
+      err = ERR_ARG;
+    }
+  } else {
+    err = ERR_CONN;
+  }
+  msg->err = err;
+  TCPIP_APIMSG_ACK(msg);
+}

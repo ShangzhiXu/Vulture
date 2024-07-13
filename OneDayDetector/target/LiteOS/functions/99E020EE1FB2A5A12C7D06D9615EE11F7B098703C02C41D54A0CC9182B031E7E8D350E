@@ -1,0 +1,15 @@
+snmp_msg_getnext_validate_node_inst(struct snmp_node_instance *node_instance, void *validate_arg)
+{
+  if (((node_instance->access & SNMP_NODE_INSTANCE_ACCESS_READ) != SNMP_NODE_INSTANCE_ACCESS_READ) || (node_instance->get_value == NULL)) {
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+#if LWIP_HAVE_INT64
+  if ((node_instance->asn1_type == SNMP_ASN1_TYPE_COUNTER64) && (((struct snmp_request *)validate_arg)->version == SNMP_VERSION_1)) {
+    /* according to RFC 2089 skip Counter64 objects in GetNext requests from v1 clients */
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+#endif
+
+  return SNMP_ERR_NOERROR;
+}

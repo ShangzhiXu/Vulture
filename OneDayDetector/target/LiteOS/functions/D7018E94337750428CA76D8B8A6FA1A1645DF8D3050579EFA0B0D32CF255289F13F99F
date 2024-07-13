@@ -1,0 +1,57 @@
+main(void)
+{
+  struct netif netif;
+
+  lwip_init();
+
+  netif_add(&netif, IP4_ADDR_ANY, IP4_ADDR_ANY, IP4_ADDR_ANY, NULL, netif_init, netif_input);
+  netif.name[0] = 'e';
+  netif.name[1] = '0';
+  netif_create_ip6_linklocal_address(&netif, 1);
+  netif.ip6_autoconfig_enabled = 1;
+  netif_set_status_callback(&netif, netif_status_callback);
+  netif_set_default(&netif);
+  netif_set_up(&netif);
+  
+  /* Start DHCP and HTTPD */
+  dhcp_start(&netif );
+  httpd_init();
+
+  while(1) {
+    /* Check link state, e.g. via MDIO communication with PHY */
+    if(link_state_changed()) {
+      if(link_is_up()) {
+        netif_set_link_up(&netif);
+      } else {
+        netif_set_link_down(&netif);
+      }
+    }
+
+    /* Check for received frames, feed them to lwIP */
+    lock_interrupts();
+    struct pbuf* p = queue_try_get(&queue);
+    unlock_interrupts();
+
+    if(p != NULL) {
+      LINK_STATS_INC(link.recv);
+ 
+      /* Update SNMP stats (only if you use SNMP) */
+      MIB2_STATS_NETIF_ADD(netif, ifinoctets, p->tot_len);
+      int unicast = ((p->payload[0] & 0x01) == 0);
+      if (unicast) {
+        MIB2_STATS_NETIF_INC(netif, ifinucastpkts);
+      } else {
+        MIB2_STATS_NETIF_INC(netif, ifinnucastpkts);
+      }
+
+      if(netif.input(p, &netif) != ERR_OK) {
+        pbuf_free(p);
+      }
+    }
+     
+    /* Cyclic lwIP timers check */
+    sys_check_timeouts();
+     
+    /* your application goes here */
+  }
+}

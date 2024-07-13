@@ -1,0 +1,78 @@
+snmp_asn1_dec_oid(struct snmp_pbuf_stream *pbuf_stream, u16_t len, u32_t *oid, u8_t *oid_len, u8_t oid_max_len)
+{
+  u32_t *oid_ptr;
+  u8_t data;
+
+  *oid_len = 0;
+  oid_ptr = oid;
+  if (len > 0) {
+    if (oid_max_len < 2) {
+      return ERR_MEM;
+    }
+
+    PBUF_OP_EXEC(snmp_pbuf_stream_read(pbuf_stream, &data));
+    len--;
+
+    /* first compressed octet */
+    if (data == 0x2B) {
+      /* (most) common case 1.3 (iso.org) */
+      *oid_ptr = 1;
+      oid_ptr++;
+      *oid_ptr = 3;
+      oid_ptr++;
+    } else if (data < 40) {
+      *oid_ptr = 0;
+      oid_ptr++;
+      *oid_ptr = data;
+      oid_ptr++;
+    } else if (data < 80) {
+      *oid_ptr = 1;
+      oid_ptr++;
+      *oid_ptr = data - 40;
+      oid_ptr++;
+    } else {
+      *oid_ptr = 2;
+      oid_ptr++;
+      *oid_ptr = data - 80;
+      oid_ptr++;
+    }
+    *oid_len = 2;
+  } else {
+    /* accepting zero length identifiers e.g. for getnext operation. uncommon but valid */
+    return ERR_OK;
+  }
+
+  while ((len > 0) && (*oid_len < oid_max_len)) {
+    PBUF_OP_EXEC(snmp_pbuf_stream_read(pbuf_stream, &data));
+    len--;
+
+    if ((data & 0x80) == 0x00) {
+      /* sub-identifier uses single octet */
+      *oid_ptr = data;
+    } else {
+      /* sub-identifier uses multiple octets */
+      u32_t sub_id = (data & ~0x80);
+      while ((len > 0) && ((data & 0x80) != 0)) {
+        PBUF_OP_EXEC(snmp_pbuf_stream_read(pbuf_stream, &data));
+        len--;
+
+        sub_id = (sub_id << 7) + (data & ~0x80);
+      }
+
+      if ((data & 0x80) != 0) {
+        /* "more bytes following" bit still set at end of len */
+        return ERR_VAL;
+      }
+      *oid_ptr = sub_id;
+    }
+    oid_ptr++;
+    (*oid_len)++;
+  }
+
+  if (len > 0) {
+    /* OID to long to fit in our buffer */
+    return ERR_MEM;
+  }
+
+  return ERR_OK;
+}

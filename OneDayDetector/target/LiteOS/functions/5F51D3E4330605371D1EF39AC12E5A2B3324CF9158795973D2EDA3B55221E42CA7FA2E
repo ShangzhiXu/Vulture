@@ -1,0 +1,124 @@
+HAL_StatusTypeDef HAL_TIM_DMABurst_WriteStart(TIM_HandleTypeDef *htim, uint32_t BurstBaseAddress, uint32_t BurstRequestSrc,
+                                              uint32_t* BurstBuffer, uint32_t  BurstLength)
+{
+  /* Check the parameters */
+  assert_param(IS_TIM_DMABURST_INSTANCE(htim->Instance));
+  assert_param(IS_TIM_DMA_BASE(BurstBaseAddress));
+  assert_param(IS_TIM_DMA_SOURCE(BurstRequestSrc));
+  assert_param(IS_TIM_DMA_LENGTH(BurstLength));
+
+  if((htim->State == HAL_TIM_STATE_BUSY))
+  {
+     return HAL_BUSY;
+  }
+  else if((htim->State == HAL_TIM_STATE_READY))
+  {
+    if((BurstBuffer == 0 ) && (BurstLength > 0))
+    {
+      return HAL_ERROR;
+    }
+    else
+    {
+      htim->State = HAL_TIM_STATE_BUSY;
+    }
+  }
+  switch(BurstRequestSrc)
+  {
+    case TIM_DMA_UPDATE:
+    {
+      /* Set the DMA Period elapsed callback */
+      htim->hdma[TIM_DMA_ID_UPDATE]->XferCpltCallback = TIM_DMAPeriodElapsedCplt;
+
+      /* Set the DMA error callback */
+      htim->hdma[TIM_DMA_ID_UPDATE]->XferErrorCallback = TIM_DMAError ;
+
+      /* Enable the DMA channel */
+      HAL_DMA_Start_IT(htim->hdma[TIM_DMA_ID_UPDATE], (uint32_t)BurstBuffer, (uint32_t)&htim->Instance->DMAR, ((BurstLength) >> 8) + 1);
+    }
+    break;
+    case TIM_DMA_CC1:
+    {
+      /* Set the DMA Period elapsed callback */
+      htim->hdma[TIM_DMA_ID_CC1]->XferCpltCallback =  TIM_DMADelayPulseCplt;
+
+      /* Set the DMA error callback */
+      htim->hdma[TIM_DMA_ID_CC1]->XferErrorCallback = TIM_DMAError ;
+
+      /* Enable the DMA channel */
+      HAL_DMA_Start_IT(htim->hdma[TIM_DMA_ID_CC1], (uint32_t)BurstBuffer, (uint32_t)&htim->Instance->DMAR, ((BurstLength) >> 8) + 1);
+    }
+    break;
+    case TIM_DMA_CC2:
+    {
+      /* Set the DMA Period elapsed callback */
+      htim->hdma[TIM_DMA_ID_CC2]->XferCpltCallback =  TIM_DMADelayPulseCplt;
+
+      /* Set the DMA error callback */
+      htim->hdma[TIM_DMA_ID_CC2]->XferErrorCallback = TIM_DMAError ;
+
+      /* Enable the DMA channel */
+      HAL_DMA_Start_IT(htim->hdma[TIM_DMA_ID_CC2], (uint32_t)BurstBuffer, (uint32_t)&htim->Instance->DMAR, ((BurstLength) >> 8) + 1);
+    }
+    break;
+    case TIM_DMA_CC3:
+    {
+      /* Set the DMA Period elapsed callback */
+      htim->hdma[TIM_DMA_ID_CC3]->XferCpltCallback =  TIM_DMADelayPulseCplt;
+
+      /* Set the DMA error callback */
+      htim->hdma[TIM_DMA_ID_CC3]->XferErrorCallback = TIM_DMAError ;
+
+      /* Enable the DMA channel */
+      HAL_DMA_Start_IT(htim->hdma[TIM_DMA_ID_CC3], (uint32_t)BurstBuffer, (uint32_t)&htim->Instance->DMAR, ((BurstLength) >> 8) + 1);
+    }
+    break;
+    case TIM_DMA_CC4:
+    {
+      /* Set the DMA Period elapsed callback */
+      htim->hdma[TIM_DMA_ID_CC4]->XferCpltCallback =  TIM_DMADelayPulseCplt;
+
+      /* Set the DMA error callback */
+      htim->hdma[TIM_DMA_ID_CC4]->XferErrorCallback = TIM_DMAError ;
+
+      /* Enable the DMA channel */
+      HAL_DMA_Start_IT(htim->hdma[TIM_DMA_ID_CC4], (uint32_t)BurstBuffer, (uint32_t)&htim->Instance->DMAR, ((BurstLength) >> 8) + 1);
+    }
+    break;
+    case TIM_DMA_COM:
+    {
+      /* Set the DMA Period elapsed callback */
+      htim->hdma[TIM_DMA_ID_COMMUTATION]->XferCpltCallback =  TIMEx_DMACommutationCplt;
+
+      /* Set the DMA error callback */
+      htim->hdma[TIM_DMA_ID_COMMUTATION]->XferErrorCallback = TIM_DMAError ;
+
+      /* Enable the DMA channel */
+      HAL_DMA_Start_IT(htim->hdma[TIM_DMA_ID_COMMUTATION], (uint32_t)BurstBuffer, (uint32_t)&htim->Instance->DMAR, ((BurstLength) >> 8) + 1);
+    }
+    break;
+    case TIM_DMA_TRIGGER:
+    {
+      /* Set the DMA Period elapsed callback */
+      htim->hdma[TIM_DMA_ID_TRIGGER]->XferCpltCallback = TIM_DMATriggerCplt;
+
+      /* Set the DMA error callback */
+      htim->hdma[TIM_DMA_ID_TRIGGER]->XferErrorCallback = TIM_DMAError ;
+
+      /* Enable the DMA channel */
+      HAL_DMA_Start_IT(htim->hdma[TIM_DMA_ID_TRIGGER], (uint32_t)BurstBuffer, (uint32_t)&htim->Instance->DMAR, ((BurstLength) >> 8) + 1);
+    }
+    break;
+    default:
+    break;
+  }
+   /* configure the DMA Burst Mode */
+   htim->Instance->DCR = BurstBaseAddress | BurstLength;
+
+   /* Enable the TIM DMA Request */
+   __HAL_TIM_ENABLE_DMA(htim, BurstRequestSrc);
+
+   htim->State = HAL_TIM_STATE_READY;
+
+  /* Return function status */
+  return HAL_OK;
+}

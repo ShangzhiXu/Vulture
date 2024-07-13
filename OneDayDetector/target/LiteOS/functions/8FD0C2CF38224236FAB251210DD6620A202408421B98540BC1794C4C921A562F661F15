@@ -1,0 +1,19 @@
+int mbedtls_ctr_drbg_update_ret( mbedtls_ctr_drbg_context *ctx,
+                                 const unsigned char *additional,
+                                 size_t add_len )
+{
+    unsigned char add_input[MBEDTLS_CTR_DRBG_SEEDLEN];
+    int ret;
+
+    if( add_len == 0 )
+        return( 0 );
+
+    if( ( ret = block_cipher_df( add_input, additional, add_len ) ) != 0 )
+        goto exit;
+    if( ( ret = ctr_drbg_update_internal( ctx, add_input ) ) != 0 )
+        goto exit;
+
+exit:
+    mbedtls_platform_zeroize( add_input, sizeof( add_input ) );
+    return( ret );
+}

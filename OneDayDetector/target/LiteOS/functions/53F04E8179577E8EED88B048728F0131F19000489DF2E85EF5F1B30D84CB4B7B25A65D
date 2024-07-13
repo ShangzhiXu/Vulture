@@ -1,0 +1,40 @@
+HAL_StatusTypeDef HAL_LTDC_ConfigCLUT(LTDC_HandleTypeDef *hltdc, uint32_t *pCLUT, uint32_t CLUTSize, uint32_t LayerIdx)
+{
+  uint32_t tmp = 0;
+  uint32_t counter = 0;
+  uint32_t pcounter = 0;
+
+  /* Check the parameters */
+  assert_param(IS_LTDC_LAYER(LayerIdx)); 
+
+  /* Process locked */
+  __HAL_LOCK(hltdc);
+
+  /* Change LTDC peripheral state */
+  hltdc->State = HAL_LTDC_STATE_BUSY;  
+
+  for(counter = 0; (counter < CLUTSize); counter++)
+  {
+    if(hltdc->LayerCfg[LayerIdx].PixelFormat == LTDC_PIXEL_FORMAT_AL44)
+    {
+      tmp  = (((counter + 16*counter) << 24) | ((uint32_t)(*pCLUT) & 0xFF) | ((uint32_t)(*pCLUT) & 0xFF00) | ((uint32_t)(*pCLUT) & 0xFF0000));
+    }
+    else
+    { 
+      tmp  = ((counter << 24) | ((uint32_t)(*pCLUT) & 0xFF) | ((uint32_t)(*pCLUT) & 0xFF00) | ((uint32_t)(*pCLUT) & 0xFF0000));
+    }
+    pcounter = (uint32_t)pCLUT + sizeof(*pCLUT);
+    pCLUT = (uint32_t *)pcounter;
+
+    /* Specifies the C-LUT address and RGB value */
+    LTDC_LAYER(hltdc, LayerIdx)->CLUTWR  = tmp;
+  }
+  
+  /* Change the LTDC state*/
+  hltdc->State = HAL_LTDC_STATE_READY; 
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hltdc);  
+
+  return HAL_OK;
+}

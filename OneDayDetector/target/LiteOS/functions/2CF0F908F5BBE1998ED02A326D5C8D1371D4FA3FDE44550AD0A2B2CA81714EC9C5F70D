@@ -1,0 +1,25 @@
+bridgeif_fdb_remove(struct netif *bridgeif, const struct eth_addr *addr)
+{
+  int i;
+  bridgeif_private_t *br;
+  BRIDGEIF_DECL_PROTECT(lev);
+  LWIP_ASSERT("invalid netif", bridgeif != NULL);
+  br = (bridgeif_private_t *)bridgeif->state;
+  LWIP_ASSERT("invalid state", br != NULL);
+
+  BRIDGEIF_READ_PROTECT(lev);
+  for (i = 0; i < br->max_fdbs_entries; i++) {
+    if (br->fdbs[i].used && !memcmp(&br->fdbs[i].addr, addr, sizeof(struct eth_addr))) {
+      BRIDGEIF_WRITE_PROTECT(lev);
+      if (br->fdbs[i].used && !memcmp(&br->fdbs[i].addr, addr, sizeof(struct eth_addr))) {
+        memset(&br->fdbs[i], 0, sizeof(bridgeif_fdb_static_entry_t));
+        BRIDGEIF_WRITE_UNPROTECT(lev);
+        BRIDGEIF_READ_UNPROTECT(lev);
+        return ERR_OK;
+      }
+      BRIDGEIF_WRITE_UNPROTECT(lev);
+    }
+  }
+  BRIDGEIF_READ_UNPROTECT(lev);
+  return ERR_VAL;
+}

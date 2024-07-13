@@ -1,0 +1,82 @@
+HAL_StatusTypeDef HAL_TSC_Init(TSC_HandleTypeDef* htsc)
+{
+  /* Check TSC handle allocation */
+  if (htsc == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_TSC_ALL_INSTANCE(htsc->Instance));
+  assert_param(IS_TSC_CTPH(htsc->Init.CTPulseHighLength));
+  assert_param(IS_TSC_CTPL(htsc->Init.CTPulseLowLength));
+  assert_param(IS_TSC_SS(htsc->Init.SpreadSpectrum));
+  assert_param(IS_TSC_SSD(htsc->Init.SpreadSpectrumDeviation));
+  assert_param(IS_TSC_SS_PRESC(htsc->Init.SpreadSpectrumPrescaler));
+  assert_param(IS_TSC_PG_PRESC(htsc->Init.PulseGeneratorPrescaler));
+  assert_param(IS_TSC_MCV(htsc->Init.MaxCountValue));
+  assert_param(IS_TSC_IODEF(htsc->Init.IODefaultMode));
+  assert_param(IS_TSC_SYNC_POL(htsc->Init.SynchroPinPolarity));
+  assert_param(IS_TSC_ACQ_MODE(htsc->Init.AcquisitionMode));
+  assert_param(IS_TSC_MCE_IT(htsc->Init.MaxCountInterrupt));
+
+  if(htsc->State == HAL_TSC_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    htsc->Lock = HAL_UNLOCKED;
+  }
+
+  /* Initialize the TSC state */
+  htsc->State = HAL_TSC_STATE_BUSY;
+
+  /* Init the low level hardware : GPIO, CLOCK, CORTEX */
+  HAL_TSC_MspInit(htsc);
+
+  /*--------------------------------------------------------------------------*/  
+  /* Set TSC parameters */
+
+  /* Enable TSC */
+  htsc->Instance->CR = TSC_CR_TSCE;
+  
+  /* Set all functions */
+  htsc->Instance->CR |= (htsc->Init.CTPulseHighLength |
+                         htsc->Init.CTPulseLowLength |
+                         (uint32_t)(htsc->Init.SpreadSpectrumDeviation << 17) |
+                         htsc->Init.SpreadSpectrumPrescaler |
+                         htsc->Init.PulseGeneratorPrescaler |
+                         htsc->Init.MaxCountValue |
+                         htsc->Init.SynchroPinPolarity |
+                         htsc->Init.AcquisitionMode);
+
+  /* Spread spectrum */
+  if (htsc->Init.SpreadSpectrum == ENABLE)
+  {
+    htsc->Instance->CR |= TSC_CR_SSE;
+  }
+  
+  /* Disable Schmitt trigger hysteresis on all used TSC IOs */
+  htsc->Instance->IOHCR = (uint32_t)(~(htsc->Init.ChannelIOs | htsc->Init.ShieldIOs | htsc->Init.SamplingIOs));
+
+  /* Set channel and shield IOs */
+  htsc->Instance->IOCCR = (htsc->Init.ChannelIOs | htsc->Init.ShieldIOs);
+  
+  /* Set sampling IOs */
+  htsc->Instance->IOSCR = htsc->Init.SamplingIOs;
+  
+  /* Set the groups to be acquired */
+  htsc->Instance->IOGCSR = TSC_extract_groups(htsc->Init.ChannelIOs);
+  
+  /* Disable interrupts */
+  htsc->Instance->IER &= (uint32_t)(~(TSC_IT_EOA | TSC_IT_MCE));
+  
+  /* Clear flags */
+  htsc->Instance->ICR = (TSC_FLAG_EOA | TSC_FLAG_MCE);
+
+  /*--------------------------------------------------------------------------*/
+  
+  /* Initialize the TSC state */
+  htsc->State = HAL_TSC_STATE_READY;
+  
+  /* Return function status */
+  return HAL_OK;
+}

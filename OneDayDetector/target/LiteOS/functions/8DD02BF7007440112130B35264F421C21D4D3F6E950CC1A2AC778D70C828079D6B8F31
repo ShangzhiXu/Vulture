@@ -1,0 +1,24 @@
+STATIC INLINE UINT32 OsTaskSyncWait(const LosTaskCB *taskCB)
+{
+#ifdef LOSCFG_KERNEL_SMP_TASK_SYNC
+    UINT32 ret = LOS_OK;
+
+    LOS_ASSERT(LOS_SpinHeld(&g_taskSpin));
+    LOS_SpinUnlock(&g_taskSpin);
+    /*
+     * gc soft timer works every OS_MP_GC_PERIOD period, to prevent this timer
+     * triggered right at the timeout has reached, we set the timeout as double
+     * of the gc peroid.
+     */
+    if (LOS_SemPend(taskCB->syncSignal, OS_MP_GC_PERIOD * 2) != LOS_OK) {
+        ret = LOS_ERRNO_TSK_MP_SYNC_FAILED;
+    }
+
+    LOS_SpinLock(&g_taskSpin);
+
+    return ret;
+#else
+    (VOID)taskCB;
+    return LOS_OK;
+#endif
+}

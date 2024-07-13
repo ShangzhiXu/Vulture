@@ -1,0 +1,18 @@
+static UINT32 OsGetBlkSzStrollBuckets(const OsSlabBlockNode *slabNode, const OsSlabMem *slabClass)
+{
+    OsSlabMem *slabMemClass = (OsSlabMem *)slabClass;
+    OsSlabMemAllocator *bucket = slabMemClass->bucket; /* slabMemClass->bucket must not be NULL */
+    OsSlabAllocator *slabAlloc = NULL;
+    UINT32 retBlkSz = (UINT32)-1;
+
+    while (bucket != NULL) {
+        slabAlloc = bucket->slabAlloc;
+        if (OsSlabAllocatorCheck(slabAlloc, (VOID *)slabNode) == TRUE) {
+            retBlkSz = slabMemClass->blkSz;
+            return retBlkSz;
+        }
+        bucket = bucket->next;
+    }
+
+    return retBlkSz;
+}

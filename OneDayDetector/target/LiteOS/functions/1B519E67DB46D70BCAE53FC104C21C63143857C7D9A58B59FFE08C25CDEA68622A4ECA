@@ -1,0 +1,103 @@
+static void draw_x_ticks(lv_obj_t * chart, const lv_area_t * series_area, const lv_area_t * mask)
+{
+    lv_chart_ext_t * ext = lv_obj_get_ext_attr(chart);
+
+    if(ext->x_axis.list_of_values == NULL && ext->x_axis.num_tick_marks == 0) return;
+
+    uint8_t i;
+    uint8_t num_of_labels;
+    uint8_t num_scale_ticks;
+    uint8_t major_tick_len, minor_tick_len;
+    lv_chart_label_iterator_t iter;
+    lv_point_t p1;
+    lv_point_t p2;
+    lv_coord_t x_ofs = series_area->x1;
+    lv_coord_t y_ofs = series_area->y1;
+    lv_coord_t h     = lv_area_get_height(series_area);
+    lv_coord_t w     = lv_area_get_width(series_area);
+    lv_style_int_t label_dist  = lv_obj_get_style_pad_bottom(chart, LV_CHART_PART_SERIES_BG);
+
+    lv_draw_label_dsc_t label_dsc;
+    lv_draw_label_dsc_init(&label_dsc);
+    lv_obj_init_draw_label_dsc(chart, LV_CHART_PART_BG, &label_dsc);
+
+    if(h + y_ofs > mask->y2) return;
+    if(h + y_ofs + label_dsc.font->line_height + label_dist < mask->y1) return;
+
+    lv_draw_line_dsc_t line_dsc;
+    lv_draw_line_dsc_init(&line_dsc);
+    lv_obj_init_draw_line_dsc(chart, LV_CHART_PART_BG, &line_dsc);
+
+    /* The columns don't start at the most right position
+     * so change the width and offset accordingly. */
+    if(ext->type == LV_CHART_TYPE_COLUMN) {
+        uint32_t ser_num = _lv_ll_get_len(&ext->series_ll);
+        lv_coord_t col_w = w / ((ser_num + 1) * ext->point_cnt); /* Suppose + 1 series as separator*/
+        x_ofs += col_w / 2 + (col_w * (ser_num) / 2);
+        w -= col_w * ser_num + col_w;
+    }
+
+    char buf[LV_CHART_AXIS_TICK_LABEL_MAX_LEN + 1]; /* up to N symbols per label + null terminator */
+
+    /* calculate the size of tick marks */
+    if(ext->x_axis.major_tick_len == LV_CHART_TICK_LENGTH_AUTO)
+        major_tick_len = (int32_t)w * LV_CHART_AXIS_MAJOR_TICK_LEN_COE;
+    else
+        major_tick_len = ext->x_axis.major_tick_len;
+
+    if(ext->x_axis.minor_tick_len == LV_CHART_TICK_LENGTH_AUTO)
+        minor_tick_len = major_tick_len * LV_CHART_AXIS_MINOR_TICK_LEN_COE;
+    else
+        minor_tick_len = ext->x_axis.minor_tick_len;
+
+    /*determine the number of options */
+    iter = create_axis_label_iter(ext->x_axis.list_of_values, LV_CHART_LABEL_ITERATOR_FORWARD);
+    num_of_labels = iter.items_left;
+
+    /* we can't have string labels without ticks step, set to 1 if not specified */
+    if(ext->x_axis.num_tick_marks == 0) ext->x_axis.num_tick_marks = 1;
+
+    /* calculate total number of marks */
+    if(num_of_labels < 2)
+        num_scale_ticks = ext->x_axis.num_tick_marks;
+    else
+        num_scale_ticks = (ext->x_axis.num_tick_marks * (num_of_labels - 1));
+
+    for(i = 0; i < (num_scale_ticks + 1); i++) { /* one extra loop - it may not exist in the list, empty label */
+        /* first point of the tick */
+        p1.y = h + y_ofs;
+
+        /* second point of the tick */
+        if((num_of_labels != 0) && (i == 0 || i % ext->x_axis.num_tick_marks == 0))
+            p2.y = p1.y + major_tick_len; /* major tick */
+        else
+            p2.y = p1.y + minor_tick_len; /* minor tick */
+
+        /* draw a line at moving x position */
+        p2.x = p1.x = x_ofs + (int32_t)((int32_t)(w - line_dsc.width) * i) / num_scale_ticks;
+
+        if(i != num_scale_ticks)
+            lv_draw_line(&p1, &p2, mask, &line_dsc);
+        else if((ext->x_axis.options & LV_CHART_AXIS_DRAW_LAST_TICK) != 0)
+            lv_draw_line(&p1, &p2, mask, &line_dsc);
+
+        /* draw values if available */
+        if(num_of_labels != 0) {
+            /* add text only to major tick */
+            if(is_tick_with_label(i, &(ext->x_axis))) {
+                get_next_axis_label(&iter, buf);
+
+                /* reserve appropriate area */
+                lv_point_t size;
+                _lv_txt_get_size(&size, buf, label_dsc.font, label_dsc.letter_space, label_dsc.line_space,
+                                 LV_COORD_MAX, LV_TXT_FLAG_CENTER);
+
+                /* set the area at some distance of the major tick len under of the tick */
+                lv_area_t a = {(p2.x - size.x / 2), (p2.y + label_dist), (p2.x + size.x / 2),
+                               (p2.y + size.y + label_dist)
+                              };
+                lv_draw_label(&a, mask, &label_dsc, buf, NULL);
+            }
+        }
+    }
+}

@@ -1,0 +1,42 @@
+HAL_StatusTypeDef HAL_DMA2D_Abort(DMA2D_HandleTypeDef *hdma2d)
+{
+  uint32_t tickstart;
+
+  /* Abort the DMA2D transfer */
+  /* START bit is reset to make sure not to set it again, in the event the HW clears it
+     between the register read and the register write by the CPU (writing 0 has no
+     effect on START bitvalue) */
+   MODIFY_REG(hdma2d->Instance->CR, DMA2D_CR_ABORT|DMA2D_CR_START, DMA2D_CR_ABORT);
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  /* Check if the DMA2D is effectively disabled */
+  while((hdma2d->Instance->CR & DMA2D_CR_START) != 0U)
+  {
+    if((HAL_GetTick() - tickstart ) > DMA2D_TIMEOUT_ABORT)
+    {
+      /* Update error code */
+      hdma2d->ErrorCode |= HAL_DMA2D_ERROR_TIMEOUT;
+
+      /* Change the DMA2D state */
+      hdma2d->State = HAL_DMA2D_STATE_TIMEOUT;
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hdma2d);
+
+      return HAL_TIMEOUT;
+    }
+  }
+
+  /* Disable the Transfer Complete, Transfer Error and Configuration Error interrupts */
+  __HAL_DMA2D_DISABLE_IT(hdma2d, DMA2D_IT_TC|DMA2D_IT_TE|DMA2D_IT_CE);
+
+  /* Change the DMA2D state*/
+  hdma2d->State = HAL_DMA2D_STATE_READY;
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(hdma2d);
+
+  return HAL_OK;
+}

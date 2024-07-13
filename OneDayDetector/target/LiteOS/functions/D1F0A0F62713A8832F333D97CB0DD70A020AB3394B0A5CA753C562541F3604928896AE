@@ -1,0 +1,32 @@
+static void IRDA_DMATxAbortCallback(DMA_HandleTypeDef *hdma)
+{
+  IRDA_HandleTypeDef* hirda = (IRDA_HandleTypeDef* )(hdma->Parent);
+  
+  hirda->hdmatx->XferAbortCallback = NULL;
+
+  /* Check if an Abort process is still ongoing */
+  if(hirda->hdmarx != NULL)
+  {
+    if(hirda->hdmarx->XferAbortCallback != NULL)
+    {
+      return;
+    }
+  }
+  
+  /* No Abort process still ongoing : All DMA channels are aborted, call user Abort Complete callback */
+  hirda->TxXferCount = 0;
+  hirda->RxXferCount = 0;
+
+  /* Reset errorCode */
+  hirda->ErrorCode = HAL_IRDA_ERROR_NONE;
+
+  /* Clear the Error flags in the ICR register */
+  __HAL_IRDA_CLEAR_FLAG(hirda, IRDA_CLEAR_OREF | IRDA_CLEAR_NEF | IRDA_CLEAR_PEF | IRDA_CLEAR_FEF);
+
+  /* Restore hirda->gState and hirda->RxState to Ready */
+  hirda->gState  = HAL_IRDA_STATE_READY;
+  hirda->RxState = HAL_IRDA_STATE_READY;
+
+  /* Call user Abort complete callback */
+  HAL_IRDA_AbortCpltCallback(hirda);
+}

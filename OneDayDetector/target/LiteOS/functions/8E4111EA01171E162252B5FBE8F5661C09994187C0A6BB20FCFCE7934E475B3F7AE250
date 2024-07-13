@@ -1,0 +1,123 @@
+static int ccp_printpkt(const u_char *p, int plen, void (*printer) (void *, const char *, ...), void *arg) {
+    const u_char *p0, *optend;
+    int code, id, len;
+    int optlen;
+
+    p0 = p;
+    if (plen < HEADERLEN)
+	return 0;
+    code = p[0];
+    id = p[1];
+    len = (p[2] << 8) + p[3];
+    if (len < HEADERLEN || len > plen)
+	return 0;
+
+    if (code >= 1 && code <= (int)LWIP_ARRAYSIZE(ccp_codenames) && ccp_codenames[code-1] != NULL)
+	printer(arg, " %s", ccp_codenames[code-1]);
+    else
+	printer(arg, " code=0x%x", code);
+    printer(arg, " id=0x%x", id);
+    len -= HEADERLEN;
+    p += HEADERLEN;
+
+    switch (code) {
+    case CONFREQ:
+    case CONFACK:
+    case CONFNAK:
+    case CONFREJ:
+	/* print list of possible compression methods */
+	while (len >= 2) {
+	    code = p[0];
+	    optlen = p[1];
+	    if (optlen < 2 || optlen > len)
+		break;
+	    printer(arg, " <");
+	    len -= optlen;
+	    optend = p + optlen;
+	    switch (code) {
+#if MPPE_SUPPORT
+	    case CI_MPPE:
+		if (optlen >= CILEN_MPPE) {
+		    u_char mppe_opts;
+
+		    MPPE_CI_TO_OPTS(&p[2], mppe_opts);
+		    printer(arg, "mppe %s %s %s %s %s %s%s",
+			    (p[2] & MPPE_H_BIT)? "+H": "-H",
+			    (p[5] & MPPE_M_BIT)? "+M": "-M",
+			    (p[5] & MPPE_S_BIT)? "+S": "-S",
+			    (p[5] & MPPE_L_BIT)? "+L": "-L",
+			    (p[5] & MPPE_D_BIT)? "+D": "-D",
+			    (p[5] & MPPE_C_BIT)? "+C": "-C",
+			    (mppe_opts & MPPE_OPT_UNKNOWN)? " +U": "");
+		    if (mppe_opts & MPPE_OPT_UNKNOWN)
+			printer(arg, " (%.2x %.2x %.2x %.2x)",
+				p[2], p[3], p[4], p[5]);
+		    p += CILEN_MPPE;
+		}
+		break;
+#endif /* MPPE_SUPPORT */
+#if DEFLATE_SUPPORT
+	    case CI_DEFLATE:
+	    case CI_DEFLATE_DRAFT:
+		if (optlen >= CILEN_DEFLATE) {
+		    printer(arg, "deflate%s %d",
+			    (code == CI_DEFLATE_DRAFT? "(old#)": ""),
+			    DEFLATE_SIZE(p[2]));
+		    if (DEFLATE_METHOD(p[2]) != DEFLATE_METHOD_VAL)
+			printer(arg, " method %d", DEFLATE_METHOD(p[2]));
+		    if (p[3] != DEFLATE_CHK_SEQUENCE)
+			printer(arg, " check %d", p[3]);
+		    p += CILEN_DEFLATE;
+		}
+		break;
+#endif /* DEFLATE_SUPPORT */
+#if BSDCOMPRESS_SUPPORT
+	    case CI_BSD_COMPRESS:
+		if (optlen >= CILEN_BSD_COMPRESS) {
+		    printer(arg, "bsd v%d %d", BSD_VERSION(p[2]),
+			    BSD_NBITS(p[2]));
+		    p += CILEN_BSD_COMPRESS;
+		}
+		break;
+#endif /* BSDCOMPRESS_SUPPORT */
+#if PREDICTOR_SUPPORT
+	    case CI_PREDICTOR_1:
+		if (optlen >= CILEN_PREDICTOR_1) {
+		    printer(arg, "predictor 1");
+		    p += CILEN_PREDICTOR_1;
+		}
+		break;
+	    case CI_PREDICTOR_2:
+		if (optlen >= CILEN_PREDICTOR_2) {
+		    printer(arg, "predictor 2");
+		    p += CILEN_PREDICTOR_2;
+		}
+		break;
+#endif /* PREDICTOR_SUPPORT */
+	    default:
+                break;
+	    }
+	    while (p < optend)
+		printer(arg, " %.2x", *p++);
+	    printer(arg, ">");
+	}
+	break;
+
+    case TERMACK:
+    case TERMREQ:
+	if (len > 0 && *p >= ' ' && *p < 0x7f) {
+	    ppp_print_string(p, len, printer, arg);
+	    p += len;
+	    len = 0;
+	}
+	break;
+    default:
+        break;
+    }
+
+    /* dump out the rest of the packet in hex */
+    while (--len >= 0)
+	printer(arg, " %.2x", *p++);
+
+    return p - p0;
+}

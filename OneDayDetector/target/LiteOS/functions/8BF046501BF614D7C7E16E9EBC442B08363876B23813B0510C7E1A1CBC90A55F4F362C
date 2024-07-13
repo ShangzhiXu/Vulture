@@ -1,0 +1,23 @@
+pbuf_take_at(struct pbuf *buf, const void *dataptr, u16_t len, u16_t offset)
+{
+  u16_t target_offset;
+  struct pbuf *q = pbuf_skip(buf, offset, &target_offset);
+
+  /* return requested data if pbuf is OK */
+  if ((q != NULL) && (q->tot_len >= target_offset + len)) {
+    u16_t remaining_len = len;
+    const u8_t *src_ptr = (const u8_t *)dataptr;
+    /* copy the part that goes into the first pbuf */
+    u16_t first_copy_len;
+    LWIP_ASSERT("check pbuf_skip result", target_offset < q->len);
+    first_copy_len = (u16_t)LWIP_MIN(q->len - target_offset, len);
+    MEMCPY(((u8_t *)q->payload) + target_offset, dataptr, first_copy_len);
+    remaining_len = (u16_t)(remaining_len - first_copy_len);
+    src_ptr += first_copy_len;
+    if (remaining_len > 0) {
+      return pbuf_take(q->next, src_ptr, remaining_len);
+    }
+    return ERR_OK;
+  }
+  return ERR_MEM;
+}

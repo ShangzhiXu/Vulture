@@ -1,0 +1,331 @@
+http_send_data_ssi(struct altcp_pcb *pcb, struct http_state *hs)
+{
+  err_t err = ERR_OK;
+  u16_t len;
+  u8_t data_to_send = 0;
+  u8_t tag_type;
+
+  struct http_ssi_state *ssi = hs->ssi;
+  LWIP_ASSERT("ssi != NULL", ssi != NULL);
+  /* We are processing an SHTML file so need to scan for tags and replace
+   * them with insert strings. We need to be careful here since a tag may
+   * straddle the boundary of two blocks read from the file and we may also
+   * have to split the insert string between two tcp_write operations. */
+
+  /* How much data could we send? */
+  len = altcp_sndbuf(pcb);
+
+  /* Do we have remaining data to send before parsing more? */
+  if (ssi->parsed > hs->file) {
+    len = (u16_t)LWIP_MIN(ssi->parsed - hs->file, 0xffff);
+
+    err = http_write(pcb, hs->file, &len, HTTP_IS_DATA_VOLATILE(hs));
+    if (err == ERR_OK) {
+      data_to_send = 1;
+      hs->file += len;
+      hs->left -= len;
+    }
+
+    /* If the send buffer is full, return now. */
+    if (altcp_sndbuf(pcb) == 0) {
+      return data_to_send;
+    }
+  }
+
+  LWIP_DEBUGF(HTTPD_DEBUG, ("State %d, %d left\n", ssi->tag_state, (int)ssi->parse_left));
+
+  /* We have sent all the data that was already parsed so continue parsing
+   * the buffer contents looking for SSI tags. */
+  while (((ssi->tag_state == TAG_SENDING) || ssi->parse_left) && (err == ERR_OK)) {
+    if (len == 0) {
+      return data_to_send;
+    }
+    switch (ssi->tag_state) {
+      case TAG_NONE:
+        /* We are not currently processing an SSI tag so scan for the
+         * start of the lead-in marker. */
+        for (tag_type = 0; tag_type < LWIP_ARRAYSIZE(http_ssi_tag_desc); tag_type++) {
+          if (*ssi->parsed == http_ssi_tag_desc[tag_type].lead_in[0]) {
+            /* We found what could be the lead-in for a new tag so change
+             * state appropriately. */
+            ssi->tag_type = tag_type;
+            ssi->tag_state = TAG_LEADIN;
+            ssi->tag_index = 1;
+  #if !LWIP_HTTPD_SSI_INCLUDE_TAG
+            ssi->tag_started = ssi->parsed;
+  #endif /* !LWIP_HTTPD_SSI_INCLUDE_TAG */
+            break;
+          }
+        }
+
+        /* Move on to the next character in the buffer */
+        ssi->parse_left--;
+        ssi->parsed++;
+        break;
+
+      case TAG_LEADIN:
+        /* We are processing the lead-in marker, looking for the start of
+         * the tag name. */
+
+        /* Have we reached the end of the leadin? */
+        if (http_ssi_tag_desc[ssi->tag_type].lead_in[ssi->tag_index] == 0) {
+          ssi->tag_index = 0;
+          ssi->tag_state = TAG_FOUND;
+        } else {
+          /* Have we found the next character we expect for the tag leadin? */
+          if (*ssi->parsed == http_ssi_tag_desc[ssi->tag_type].lead_in[ssi->tag_index]) {
+            /* Yes - move to the next one unless we have found the complete
+             * leadin, in which case we start looking for the tag itself */
+            ssi->tag_index++;
+          } else {
+            /* We found an unexpected character so this is not a tag. Move
+             * back to idle state. */
+            ssi->tag_state = TAG_NONE;
+          }
+
+          /* Move on to the next character in the buffer */
+          ssi->parse_left--;
+          ssi->parsed++;
+        }
+        break;
+
+      case TAG_FOUND:
+        /* We are reading the tag name, looking for the start of the
+         * lead-out marker and removing any whitespace found. */
+
+        /* Remove leading whitespace between the tag leading and the first
+         * tag name character. */
+        if ((ssi->tag_index == 0) && ((*ssi->parsed == ' ') ||
+                                      (*ssi->parsed == '\t') || (*ssi->parsed == '\n') ||
+                                      (*ssi->parsed == '\r'))) {
+          /* Move on to the next character in the buffer */
+          ssi->parse_left--;
+          ssi->parsed++;
+          break;
+        }
+
+        /* Have we found the end of the tag name? This is signalled by
+         * us finding the first leadout character or whitespace */
+        if ((*ssi->parsed == http_ssi_tag_desc[ssi->tag_type].lead_out[0]) ||
+            (*ssi->parsed == ' ')  || (*ssi->parsed == '\t') ||
+            (*ssi->parsed == '\n') || (*ssi->parsed == '\r')) {
+
+          if (ssi->tag_index == 0) {
+            /* We read a zero length tag so ignore it. */
+            ssi->tag_state = TAG_NONE;
+          } else {
+            /* We read a non-empty tag so go ahead and look for the
+             * leadout string. */
+            ssi->tag_state = TAG_LEADOUT;
+            LWIP_ASSERT("ssi->tag_index <= 0xff", ssi->tag_index <= 0xff);
+            ssi->tag_name_len = (u8_t)ssi->tag_index;
+            ssi->tag_name[ssi->tag_index] = '\0';
+            if (*ssi->parsed == http_ssi_tag_desc[ssi->tag_type].lead_out[0]) {
+              ssi->tag_index = 1;
+            } else {
+              ssi->tag_index = 0;
+            }
+          }
+        } else {
+          /* This character is part of the tag name so save it */
+          if (ssi->tag_index < LWIP_HTTPD_MAX_TAG_NAME_LEN) {
+            ssi->tag_name[ssi->tag_index++] = *ssi->parsed;
+          } else {
+            /* The tag was too long so ignore it. */
+            ssi->tag_state = TAG_NONE;
+          }
+        }
+
+        /* Move on to the next character in the buffer */
+        ssi->parse_left--;
+        ssi->parsed++;
+
+        break;
+
+      /* We are looking for the end of the lead-out marker. */
+      case TAG_LEADOUT:
+        /* Remove leading whitespace between the tag leading and the first
+         * tag leadout character. */
+        if ((ssi->tag_index == 0) && ((*ssi->parsed == ' ') ||
+                                      (*ssi->parsed == '\t') || (*ssi->parsed == '\n') ||
+                                      (*ssi->parsed == '\r'))) {
+          /* Move on to the next character in the buffer */
+          ssi->parse_left--;
+          ssi->parsed++;
+          break;
+        }
+
+        /* Have we found the next character we expect for the tag leadout? */
+        if (*ssi->parsed == http_ssi_tag_desc[ssi->tag_type].lead_out[ssi->tag_index]) {
+          /* Yes - move to the next one unless we have found the complete
+           * leadout, in which case we need to call the client to process
+           * the tag. */
+
+          /* Move on to the next character in the buffer */
+          ssi->parse_left--;
+          ssi->parsed++;
+          ssi->tag_index++;
+
+          if (http_ssi_tag_desc[ssi->tag_type].lead_out[ssi->tag_index] == 0) {
+            /* Call the client to ask for the insert string for the
+             * tag we just found. */
+#if LWIP_HTTPD_SSI_MULTIPART
+            ssi->tag_part = 0; /* start with tag part 0 */
+#endif /* LWIP_HTTPD_SSI_MULTIPART */
+            get_tag_insert(hs);
+
+            /* Next time through, we are going to be sending data
+             * immediately, either the end of the block we start
+             * sending here or the insert string. */
+            ssi->tag_index = 0;
+            ssi->tag_state = TAG_SENDING;
+            ssi->tag_end = ssi->parsed;
+#if !LWIP_HTTPD_SSI_INCLUDE_TAG
+            ssi->parsed = ssi->tag_started;
+#endif /* !LWIP_HTTPD_SSI_INCLUDE_TAG*/
+
+            /* If there is any unsent data in the buffer prior to the
+             * tag, we need to send it now. */
+            if (ssi->tag_end > hs->file) {
+              /* How much of the data can we send? */
+#if LWIP_HTTPD_SSI_INCLUDE_TAG
+              len = (u16_t)LWIP_MIN(ssi->tag_end - hs->file, 0xffff);
+#else /* LWIP_HTTPD_SSI_INCLUDE_TAG*/
+              /* we would include the tag in sending */
+              len = (u16_t)LWIP_MIN(ssi->tag_started - hs->file, 0xffff);
+#endif /* LWIP_HTTPD_SSI_INCLUDE_TAG*/
+
+              err = http_write(pcb, hs->file, &len, HTTP_IS_DATA_VOLATILE(hs));
+              if (err == ERR_OK) {
+                data_to_send = 1;
+#if !LWIP_HTTPD_SSI_INCLUDE_TAG
+                if (ssi->tag_started <= hs->file) {
+                  /* pretend to have sent the tag, too */
+                  len += (u16_t)(ssi->tag_end - ssi->tag_started);
+                }
+#endif /* !LWIP_HTTPD_SSI_INCLUDE_TAG*/
+                hs->file += len;
+                hs->left -= len;
+              }
+            }
+          }
+        } else {
+          /* We found an unexpected character so this is not a tag. Move
+           * back to idle state. */
+          ssi->parse_left--;
+          ssi->parsed++;
+          ssi->tag_state = TAG_NONE;
+        }
+        break;
+
+      /*
+       * We have found a valid tag and are in the process of sending
+       * data as a result of that discovery. We send either remaining data
+       * from the file prior to the insert point or the insert string itself.
+       */
+      case TAG_SENDING:
+        /* Do we have any remaining file data to send from the buffer prior
+         * to the tag? */
+        if (ssi->tag_end > hs->file) {
+          /* How much of the data can we send? */
+#if LWIP_HTTPD_SSI_INCLUDE_TAG
+          len = (u16_t)LWIP_MIN(ssi->tag_end - hs->file, 0xffff);
+#else /* LWIP_HTTPD_SSI_INCLUDE_TAG*/
+          LWIP_ASSERT("hs->started >= hs->file", ssi->tag_started >= hs->file);
+          /* we would include the tag in sending */
+          len = (u16_t)LWIP_MIN(ssi->tag_started - hs->file, 0xffff);
+#endif /* LWIP_HTTPD_SSI_INCLUDE_TAG*/
+          if (len != 0) {
+            err = http_write(pcb, hs->file, &len, HTTP_IS_DATA_VOLATILE(hs));
+          } else {
+            err = ERR_OK;
+          }
+          if (err == ERR_OK) {
+            data_to_send = 1;
+#if !LWIP_HTTPD_SSI_INCLUDE_TAG
+            if (ssi->tag_started <= hs->file) {
+              /* pretend to have sent the tag, too */
+              len += (u16_t)(ssi->tag_end - ssi->tag_started);
+            }
+#endif /* !LWIP_HTTPD_SSI_INCLUDE_TAG*/
+            hs->file += len;
+            hs->left -= len;
+          }
+        } else {
+#if LWIP_HTTPD_SSI_MULTIPART
+          if (ssi->tag_index >= ssi->tag_insert_len) {
+            /* Did the last SSIHandler have more to send? */
+            if (ssi->tag_part != HTTPD_LAST_TAG_PART) {
+              /* If so, call it again */
+              ssi->tag_index = 0;
+              get_tag_insert(hs);
+            }
+          }
+#endif /* LWIP_HTTPD_SSI_MULTIPART */
+
+          /* Do we still have insert data left to send? */
+          if (ssi->tag_index < ssi->tag_insert_len) {
+            /* We are sending the insert string itself. How much of the
+             * insert can we send? */
+            len = (ssi->tag_insert_len - ssi->tag_index);
+
+            /* Note that we set the copy flag here since we only have a
+             * single tag insert buffer per connection. If we don't do
+             * this, insert corruption can occur if more than one insert
+             * is processed before we call tcp_output. */
+            err = http_write(pcb, &(ssi->tag_insert[ssi->tag_index]), &len,
+                             HTTP_IS_TAG_VOLATILE(hs));
+            if (err == ERR_OK) {
+              data_to_send = 1;
+              ssi->tag_index += len;
+              /* Don't return here: keep on sending data */
+            }
+          } else {
+#if LWIP_HTTPD_SSI_MULTIPART
+            if (ssi->tag_part == HTTPD_LAST_TAG_PART)
+#endif /* LWIP_HTTPD_SSI_MULTIPART */
+            {
+              /* We have sent all the insert data so go back to looking for
+               * a new tag. */
+              LWIP_DEBUGF(HTTPD_DEBUG, ("Everything sent.\n"));
+              ssi->tag_index = 0;
+              ssi->tag_state = TAG_NONE;
+#if !LWIP_HTTPD_SSI_INCLUDE_TAG
+              ssi->parsed = ssi->tag_end;
+#endif /* !LWIP_HTTPD_SSI_INCLUDE_TAG*/
+            }
+          }
+          break;
+        default:
+          break;
+        }
+    }
+  }
+
+  /* If we drop out of the end of the for loop, this implies we must have
+   * file data to send so send it now. In TAG_SENDING state, we've already
+   * handled this so skip the send if that's the case. */
+  if ((ssi->tag_state != TAG_SENDING) && (ssi->parsed > hs->file)) {
+#if LWIP_HTTPD_DYNAMIC_FILE_READ && !LWIP_HTTPD_SSI_INCLUDE_TAG
+    if ((ssi->tag_state != TAG_NONE) && (ssi->tag_started > ssi->tag_end)) {
+      /* If we found tag on the edge of the read buffer: just throw away the first part
+         (we have copied/saved everything required for parsing on later). */
+      len = (u16_t)(ssi->tag_started - hs->file);
+      hs->left -= (ssi->parsed - ssi->tag_started);
+      ssi->parsed = ssi->tag_started;
+      ssi->tag_started = hs->buf;
+    } else
+#endif /* LWIP_HTTPD_DYNAMIC_FILE_READ && !LWIP_HTTPD_SSI_INCLUDE_TAG */
+    {
+      len = (u16_t)LWIP_MIN(ssi->parsed - hs->file, 0xffff);
+    }
+
+    err = http_write(pcb, hs->file, &len, HTTP_IS_DATA_VOLATILE(hs));
+    if (err == ERR_OK) {
+      data_to_send = 1;
+      hs->file += len;
+      hs->left -= len;
+    }
+  }
+  return data_to_send;
+}

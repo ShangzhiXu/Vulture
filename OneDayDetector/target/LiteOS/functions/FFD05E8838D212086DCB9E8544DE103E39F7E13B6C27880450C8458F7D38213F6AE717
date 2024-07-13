@@ -1,0 +1,15 @@
+resend_data(void)
+{
+  struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, tftp_state.last_data->len, PBUF_RAM);
+  if (p == NULL) {
+    return;
+  }
+
+  if (pbuf_copy(p, tftp_state.last_data) != ERR_OK) {
+    pbuf_free(p);
+    return;
+  }
+
+  udp_sendto(tftp_state.upcb, p, &tftp_state.addr, tftp_state.port);
+  pbuf_free(p);
+}

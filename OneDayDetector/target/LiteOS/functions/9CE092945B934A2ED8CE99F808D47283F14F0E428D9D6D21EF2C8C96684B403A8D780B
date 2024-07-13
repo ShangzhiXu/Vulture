@@ -1,0 +1,25 @@
+static uint8_t prv_server_execute(uint16_t instanceId,
+                                  uint16_t resourceId,
+                                  uint8_t *buffer,
+                                  int length,
+                                  lwm2m_object_t *objectP)
+
+{
+    server_instance_t *targetP;
+
+    targetP = (server_instance_t *)lwm2m_list_find(objectP->instanceList, instanceId);
+    if (NULL == targetP) return COAP_404_NOT_FOUND;
+
+    switch (resourceId)
+    {
+    case LWM2M_SERVER_DISABLE_ID:
+        // executed in core, if COAP_204_CHANGED is returned
+        if (0 < targetP->disableTimeout) return COAP_204_CHANGED;
+        else return COAP_405_METHOD_NOT_ALLOWED;
+    case LWM2M_SERVER_UPDATE_ID:
+        // executed in core, if COAP_204_CHANGED is returned
+        return COAP_204_CHANGED;
+    default:
+        return COAP_405_METHOD_NOT_ALLOWED;
+    }
+}

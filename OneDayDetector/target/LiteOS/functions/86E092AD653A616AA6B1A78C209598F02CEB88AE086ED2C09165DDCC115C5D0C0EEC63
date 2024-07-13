@@ -1,0 +1,69 @@
+static struct file *_los_attach_file(int fd, UINT32 status)
+{
+    struct file *file = NULL;
+
+    if ((fd < 0) || (fd >= LOS_MAX_FILES)) {
+        VFS_ERRNO_SET(EBADF);
+        return file;
+    }
+
+    file = _fd_2_file(fd);
+
+/*
+* Prevent file closed after the checking of:
+*
+*     if (file->f_status == FILE_STATUS_READY)
+*
+* Because our files are not privated to one task, it may be operated
+* by every task.
+* So we should take the mutex of current mount point before operating it,
+* but for now we don't know if this file is valid (FILE_STATUS_READY), if
+* this file is not valid, the f_mp may be incorrect. so
+* we must check the status first, but this file may be closed/removed
+* after the checking if the senquence is not correct.
+*
+* Consider the following code:
+*
+* los_attach_file (...)
+* {
+*     if (file->f_status == FILE_STATUS_READY)
+*     {
+*         while (LOS_MuxPend (file->f_mp->m_mutex, LOS_WAIT_FOREVER) != LOS_OK);
+*
+*         return file;
+*     }
+* }
+*
+* It is not safe:
+*
+* If current task is interrupted by an IRQ just after the checking and then
+* a new task is swapped in and the new task just closed this file.
+*
+* So <fs_mutex> is acquire first and then check if it is valid: if not, just
+* return NULL (which means fail); If yes, the mutex for current mount point
+* is qcquired. And the close operation will also set task to
+* FILE_STATUS_CLOSING to prevent other tasks operate on this file (and also
+* prevent other tasks pend on the mutex of this mount point for this file).
+* At last <fs_mutex> is released. And return the file handle (struct file *).
+*
+* As this logic used in almost all the operation routines, this routine is
+* made to reduce the redundant code.
+*/
+
+    while (LOS_MuxPend(fs_mutex, LOS_WAIT_FOREVER) != LOS_OK) {};
+
+    if (file->f_status == FILE_STATUS_READY) {
+        while (LOS_MuxPend(file->f_mp->m_mutex, LOS_WAIT_FOREVER) != LOS_OK);
+
+        if (status != FILE_STATUS_READY) {
+            file->f_status = status;
+        }
+    } else {
+        VFS_ERRNO_SET(EBADF);
+        file = NULL;
+    }
+
+    LOS_MuxPost(fs_mutex);
+
+    return file;
+}

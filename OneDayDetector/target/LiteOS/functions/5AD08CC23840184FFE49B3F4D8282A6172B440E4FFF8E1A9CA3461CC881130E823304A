@@ -1,0 +1,14 @@
+BOOL OsSlabAllocatorCheck(const OsSlabAllocator *allocator, VOID* ptr)
+{
+    UINT8 *ptrTmp = (UINT8*)ptr;
+    UINT32 itemOffset = (UINT32)(ptrTmp - allocator->dataChunks);
+    UINT32 itemIdx = itemOffset / allocator->itemSz;
+
+    /* check for invalid inputs */
+    if ((itemOffset % allocator->itemSz) || (itemIdx >= OsAtomicBitsetGetNumBits(allocator->bitset)) ||
+        !(OsAtomicBitsetGetBit(allocator->bitset, itemIdx))) {
+        return FALSE;
+    }
+
+    return TRUE;
+}

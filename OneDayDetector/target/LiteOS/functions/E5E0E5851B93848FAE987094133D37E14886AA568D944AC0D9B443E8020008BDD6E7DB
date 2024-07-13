@@ -1,0 +1,40 @@
+HAL_StatusTypeDef HAL_CAN_WakeUp(CAN_HandleTypeDef *hcan)
+{
+  __IO uint32_t count = 0;
+  uint32_t timeout = 1000000U;
+  HAL_CAN_StateTypeDef state = hcan->State;
+
+  if ((state == HAL_CAN_STATE_READY) ||
+      (state == HAL_CAN_STATE_LISTENING))
+  {
+    /* Wake up request */
+    CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_SLEEP);
+
+    /* Wait sleep mode is exited */
+    do
+    {
+      /* Increment counter */
+      count++;
+
+      /* Check if timeout is reached */
+      if (count > timeout)
+      {
+        /* Update error code */
+        hcan->ErrorCode |= HAL_CAN_ERROR_TIMEOUT;
+
+        return HAL_ERROR;
+      }
+    }
+    while ((hcan->Instance->MSR & CAN_MSR_SLAK) != 0U);
+
+    /* Return function status */
+    return HAL_OK;
+  }
+  else
+  {
+    /* Update error code */
+    hcan->ErrorCode |= HAL_CAN_ERROR_NOT_INITIALIZED;
+
+    return HAL_ERROR;
+  }
+}

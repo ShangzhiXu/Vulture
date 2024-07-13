@@ -1,0 +1,55 @@
+void atiny_destroy(void *handle)
+{
+    handle_data_t *handle_data = (handle_data_t *)handle;
+
+    if (handle_data == NULL) {
+        return;
+    }
+#ifdef CONFIG_FEATURE_FOTA
+    atiny_fota_manager_destroy(atiny_fota_manager_get_instance());
+#endif
+    if (handle_data->recv_buffer != NULL) {
+        lwm2m_free(handle_data->recv_buffer);
+    }
+
+    if (handle_data->obj_array[OBJ_SECURITY_INDEX] != NULL) {
+        clean_security_object(handle_data->obj_array[OBJ_SECURITY_INDEX]);
+    }
+
+    if (handle_data->obj_array[OBJ_SERVER_INDEX] != NULL) {
+        clean_server_object(handle_data->obj_array[OBJ_SERVER_INDEX]);
+    }
+
+    if (handle_data->obj_array[OBJ_ACCESS_CONTROL_INDEX] != NULL) {
+        acl_ctrl_free_object(handle_data->obj_array[OBJ_ACCESS_CONTROL_INDEX]);
+    }
+
+    if (handle_data->obj_array[OBJ_DEVICE_INDEX] != NULL) {
+        free_object_device(handle_data->obj_array[OBJ_DEVICE_INDEX]);
+    }
+
+    if (handle_data->obj_array[OBJ_CONNECT_INDEX] != NULL) {
+        free_object_conn_m(handle_data->obj_array[OBJ_CONNECT_INDEX]);
+    }
+
+    if (handle_data->obj_array[OBJ_FIRMWARE_INDEX] != NULL) {
+        free_object_firmware(handle_data->obj_array[OBJ_FIRMWARE_INDEX]);
+    }
+
+    if (handle_data->obj_array[OBJ_LOCATION_INDEX] != NULL) {
+        free_object_location(handle_data->obj_array[OBJ_LOCATION_INDEX]);
+    }
+
+    if (handle_data->obj_array[OBJ_APP_INDEX] != NULL) {
+        free_binary_app_data_object(handle_data->obj_array[OBJ_APP_INDEX]);
+    }
+    atiny_destroy_rpt();
+
+    if (handle_data->lwm2m_context != NULL) {
+        if (handle_data->lwm2m_context->observe_mutex != NULL) {
+            atiny_mutex_destroy(handle_data->lwm2m_context->observe_mutex);
+        }
+        lwm2m_close(handle_data->lwm2m_context);
+    }
+    atiny_mutex_unlock(handle_data->quit_sem);
+}

@@ -1,0 +1,23 @@
+HAL_StatusTypeDef HAL_OSPI_SetFifoThreshold(OSPI_HandleTypeDef *hospi, uint32_t Threshold)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Check the state */
+  if ((hospi->State & OSPI_BUSY_STATE_MASK) == 0)
+  {
+    /* Synchronize initialization structure with the new fifo threshold value */
+    hospi->Init.FifoThreshold = Threshold;
+    
+    /* Configure new fifo threshold */
+    MODIFY_REG(hospi->Instance->CR, OCTOSPI_CR_FTHRES, ((hospi->Init.FifoThreshold-1) << OCTOSPI_CR_FTHRES_Pos));
+    
+  }
+  else
+  {
+    status = HAL_ERROR;
+    hospi->ErrorCode = HAL_OSPI_ERROR_INVALID_SEQUENCE;
+  }
+   
+  /* Return function status */
+  return status;
+}

@@ -1,0 +1,59 @@
+LV_ATTRIBUTE_FAST_MEM static lv_draw_mask_res_t lv_draw_mask_line(lv_opa_t * mask_buf, lv_coord_t abs_x,
+                                                                  lv_coord_t abs_y, lv_coord_t len,
+                                                                  lv_draw_mask_line_param_t * p)
+{
+    /*Make to points relative to the vertex*/
+    abs_y -= p->origo.y;
+    abs_x -= p->origo.x;
+
+    /*Handle special cases*/
+    if(p->steep == 0) {
+        /*Horizontal*/
+        if(p->flat) {
+            /*Non sense: Can't be on the right/left of a horizontal line*/
+            if(p->cfg.side == LV_DRAW_MASK_LINE_SIDE_LEFT ||
+               p->cfg.side == LV_DRAW_MASK_LINE_SIDE_RIGHT) return LV_DRAW_MASK_RES_FULL_COVER;
+            else if(p->cfg.side == LV_DRAW_MASK_LINE_SIDE_TOP && abs_y + 1 < 0) return LV_DRAW_MASK_RES_FULL_COVER;
+            else if(p->cfg.side == LV_DRAW_MASK_LINE_SIDE_BOTTOM && abs_y > 0) return LV_DRAW_MASK_RES_FULL_COVER;
+            else {
+                return LV_DRAW_MASK_RES_TRANSP;
+            }
+        }
+        /*Vertical*/
+        else {
+            /*Non sense: Can't be on the top/bottom of a vertical line*/
+            if(p->cfg.side == LV_DRAW_MASK_LINE_SIDE_TOP ||
+               p->cfg.side == LV_DRAW_MASK_LINE_SIDE_BOTTOM) return LV_DRAW_MASK_RES_FULL_COVER;
+            else if(p->cfg.side == LV_DRAW_MASK_LINE_SIDE_RIGHT && abs_x > 0) return LV_DRAW_MASK_RES_FULL_COVER;
+            else if(p->cfg.side == LV_DRAW_MASK_LINE_SIDE_LEFT) {
+                if(abs_x + len < 0) return LV_DRAW_MASK_RES_FULL_COVER;
+                else {
+                    int32_t k = - abs_x;
+                    if(k < 0) return LV_DRAW_MASK_RES_TRANSP;
+                    if(k >= 0 && k < len) _lv_memset_00(&mask_buf[k], len - k);
+                    return  LV_DRAW_MASK_RES_CHANGED;
+                }
+            }
+            else {
+                if(abs_x + len < 0) return LV_DRAW_MASK_RES_TRANSP;
+                else {
+                    int32_t k = - abs_x;
+                    if(k < 0) k = 0;
+                    if(k >= len) return LV_DRAW_MASK_RES_TRANSP;
+                    else if(k >= 0 && k < len) _lv_memset_00(&mask_buf[0], k);
+                    return  LV_DRAW_MASK_RES_CHANGED;
+                }
+            }
+        }
+    }
+
+    lv_draw_mask_res_t res;
+    if(p->flat) {
+        res = line_mask_flat(mask_buf, abs_x, abs_y, len, p);
+    }
+    else {
+        res = line_mask_steep(mask_buf, abs_x, abs_y, len, p);
+    }
+
+    return res;
+}

@@ -1,0 +1,13 @@
+static inline void inc_connection_stat(connection_t *connection, connection_err_e type)
+{
+    static const uint16_t max_num[CONNECTION_ERR_MAX] = {MAX_SEND_ERR_NUM, MAX_RECV_ERR_NUM};
+
+    connection->errs[type]++;
+    if (connection->errs[type] >= max_num[type]) {
+        connection->errs[type] = 0;
+        if (g_connection_err_notify)
+        {
+            g_connection_err_notify(connection->lwm2mH, type, connection->bootstrap_flag);
+        }
+    }
+}

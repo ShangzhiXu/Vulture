@@ -1,0 +1,36 @@
+s32_t spiffs_object_find_object_index_header_by_name(
+    spiffs *fs,
+    const u8_t name[SPIFFS_OBJ_NAME_LEN],
+    spiffs_page_ix *pix)
+{
+    s32_t res;
+    spiffs_block_ix bix;
+    int entry;
+
+    res = spiffs_obj_lu_find_entry_visitor(fs,
+                                           fs->cursor_block_ix,
+                                           fs->cursor_obj_lu_entry,
+                                           0,
+                                           0,
+                                           spiffs_object_find_object_index_header_by_name_v,
+                                           name,
+                                           0,
+                                           &bix,
+                                           &entry);
+
+    if (res == SPIFFS_VIS_END)
+    {
+        res = SPIFFS_ERR_NOT_FOUND;
+    }
+    SPIFFS_CHECK_RES(res);
+
+    if (pix)
+    {
+        *pix = SPIFFS_OBJ_LOOKUP_ENTRY_TO_PIX(fs, bix, entry);
+    }
+
+    fs->cursor_block_ix = bix;
+    fs->cursor_obj_lu_entry = entry;
+
+    return res;
+}

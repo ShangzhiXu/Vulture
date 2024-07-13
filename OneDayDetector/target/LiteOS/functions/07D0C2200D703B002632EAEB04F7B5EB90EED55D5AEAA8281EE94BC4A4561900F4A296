@@ -1,0 +1,17 @@
+tcp_build_sack_option(const struct tcp_pcb *pcb, u32_t *opts, u8_t num_sacks)
+{
+  u8_t i;
+
+  LWIP_ASSERT("tcp_build_sack_option: invalid pcb", pcb != NULL);
+  LWIP_ASSERT("tcp_build_sack_option: invalid opts", opts != NULL);
+
+  /* Pad with two NOP options to make everything nicely aligned.
+     We add the length (of just the SACK option, not the NOPs in front of it),
+     which is 2B of header, plus 8B for each SACK. */
+  *(opts++) = PP_HTONL(0x01010500 + 2 + num_sacks * 8);
+
+  for (i = 0; i < num_sacks; ++i) {
+    *(opts++) = lwip_htonl(pcb->rcv_sacks[i].left);
+    *(opts++) = lwip_htonl(pcb->rcv_sacks[i].right);
+  }
+}

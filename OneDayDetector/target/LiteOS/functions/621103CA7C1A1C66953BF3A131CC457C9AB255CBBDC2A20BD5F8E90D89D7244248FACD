@@ -1,0 +1,64 @@
+void HAL_GPIO_DeInit(GPIO_TypeDef  *GPIOx, uint32_t GPIO_Pin)
+{
+  uint32_t position = 0x00;
+  uint32_t iocurrent = 0x00;
+  uint32_t tmp = 0x00;
+
+  /* Check the parameters */
+  assert_param(IS_GPIO_ALL_INSTANCE(GPIOx));
+  assert_param(IS_GPIO_PIN(GPIO_Pin));
+
+  /* Configure the port pins */
+  while ((GPIO_Pin >> position) != RESET)
+  {
+    /* Get current io position */
+    iocurrent = (GPIO_Pin) & (1U << position);
+
+    if (iocurrent)
+    {
+      /*------------------------- GPIO Mode Configuration --------------------*/
+      /* Configure IO in Analog Mode */
+      GPIOx->MODER |= (GPIO_MODER_MODE0 << (position * 2));
+
+      /* Configure the default Alternate Function in current IO */
+      GPIOx->AFR[position >> 3] &= ~((uint32_t)0xF << ((uint32_t)(position & (uint32_t)0x07) * 4)) ;
+
+      /* Configure the default value for IO Speed */
+      GPIOx->OSPEEDR &= ~(GPIO_OSPEEDR_OSPEED0 << (position * 2));
+
+      /* Configure the default value IO Output Type */
+      GPIOx->OTYPER  &= ~(GPIO_OTYPER_OT0 << position) ;
+
+      /* Deactivate the Pull-up and Pull-down resistor for the current IO */
+      GPIOx->PUPDR &= ~(GPIO_PUPDR_PUPD0 << (position * 2));
+
+#if defined(STM32L471xx) || defined(STM32L475xx) || defined(STM32L476xx) || defined(STM32L485xx) || defined(STM32L486xx)
+
+      /* Deactivate the Control bit of Analog mode for the current IO */
+      GPIOx->ASCR &= ~(GPIO_ASCR_ASC0<< position);
+
+#endif /* STM32L471xx || STM32L475xx || STM32L476xx || STM32L485xx || STM32L486xx */
+
+      /*------------------------- EXTI Mode Configuration --------------------*/
+      /* Clear the External Interrupt or Event for the current IO */
+      
+      tmp = SYSCFG->EXTICR[position >> 2];
+      tmp &= (((uint32_t)0x0F) << (4 * (position & 0x03)));
+      if(tmp == (GPIO_GET_INDEX(GPIOx) << (4 * (position & 0x03))))
+      {
+        tmp = ((uint32_t)0x0F) << (4 * (position & 0x03));
+        SYSCFG->EXTICR[position >> 2] &= ~tmp;
+
+        /* Clear EXTI line configuration */
+        EXTI->IMR1 &= ~((uint32_t)iocurrent);
+        EXTI->EMR1 &= ~((uint32_t)iocurrent);
+
+        /* Clear Rising Falling edge configuration */
+        EXTI->RTSR1 &= ~((uint32_t)iocurrent);
+        EXTI->FTSR1 &= ~((uint32_t)iocurrent);
+      }
+    }
+    
+    position++;
+  }
+}

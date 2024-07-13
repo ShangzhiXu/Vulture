@@ -1,0 +1,25 @@
+SECUREC_INLINE void SecWriteText(SecPrintfStream *stream, const SecFormatAttr *attr, int *charsOut)
+{
+#ifdef SECUREC_FOR_WCHAR
+    if (attr->textIsWide != 0) {
+        SecWriteStringChk(stream, attr->text.wStr, attr->textLen, charsOut);
+    } else {
+#if SECUREC_HAVE_MBTOWC
+        SecWriteTextAfterMbtowc(stream, attr, charsOut);
+#else
+        *charsOut = -1;
+#endif
+    }
+
+#else /* Not SECUREC_FOR_WCHAR */
+    if (attr->textIsWide != 0) {
+#if SECUREC_HAVE_WCTOMB
+        SecWriteTextAfterWctomb(stream, attr, charsOut);
+#else
+        *charsOut = -1;
+#endif
+    } else {
+        SecWriteStringChk(stream, attr->text.str, attr->textLen, charsOut);
+    }
+#endif
+}

@@ -1,0 +1,45 @@
+HAL_StatusTypeDef HAL_ADCEx_MultiModeStop_DMA(ADC_HandleTypeDef* hadc)
+{
+  HAL_StatusTypeDef tmp_hal_status = HAL_OK;
+  ADC_Common_TypeDef *tmpADC_Common;
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+  
+  /* Process locked */
+  __HAL_LOCK(hadc);
+  
+  /* Stop potential conversion on going, on regular and injected groups */
+  /* Disable ADC peripheral */
+  __HAL_ADC_DISABLE(hadc);
+
+  /* Pointer to the common control register to which is belonging hadc    */
+  /* (Depending on STM32F4 product, there may be up to 3 ADC and 1 common */
+  /* control register)                                                    */
+  tmpADC_Common = ADC_COMMON_REGISTER(hadc);
+
+  /* Check if ADC is effectively disabled */
+  if(HAL_IS_BIT_CLR(hadc->Instance->CR2, ADC_CR2_ADON))
+  {
+    /* Disable the selected ADC DMA mode for multimode */
+    tmpADC_Common->CCR &= ~ADC_CCR_DDS;
+    
+    /* Disable the DMA channel (in case of DMA in circular mode or stop while */
+    /* DMA transfer is on going)                                              */
+    tmp_hal_status = HAL_DMA_Abort(hadc->DMA_Handle);
+    
+    /* Disable ADC overrun interrupt */
+    __HAL_ADC_DISABLE_IT(hadc, ADC_IT_OVR);
+    
+    /* Set ADC state */
+    ADC_STATE_CLR_SET(hadc->State,
+                      HAL_ADC_STATE_REG_BUSY | HAL_ADC_STATE_INJ_BUSY,
+                      HAL_ADC_STATE_READY);
+  }
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+  
+  /* Return function status */
+  return tmp_hal_status;
+}

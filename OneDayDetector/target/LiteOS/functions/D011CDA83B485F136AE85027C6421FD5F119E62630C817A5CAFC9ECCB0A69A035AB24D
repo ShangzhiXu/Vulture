@@ -1,0 +1,45 @@
+LITE_OS_SEC_TEXT VOID OsAdd2SortLink(const SortLinkAttribute *sortLinkHeader, SortLinkList *sortList)
+{
+    SortLinkList *listSorted = NULL;
+    LOS_DL_LIST *listObject = NULL;
+    UINT32 sortIndex;
+    UINT32 rollNum;
+    UINT32 timeout;
+
+    /*
+     * huge rollnum could cause carry to invalid high bit
+     * and eventually affect the calculation of sort index.
+     */
+    if (sortList->idxRollNum > OS_TSK_MAX_ROLLNUM) {
+        SET_SORTLIST_VALUE(sortList, OS_TSK_MAX_ROLLNUM);
+    }
+    timeout = sortList->idxRollNum;
+    sortIndex = timeout & OS_TSK_SORTLINK_MASK;
+    rollNum = (timeout >> OS_TSK_SORTLINK_LOGLEN) + 1;
+    if (sortIndex == 0) {
+        rollNum--;
+    }
+    EVALUATE_L(sortList->idxRollNum, rollNum);
+    sortIndex = sortIndex + sortLinkHeader->cursor;
+    sortIndex = sortIndex & OS_TSK_SORTLINK_MASK;
+    EVALUATE_H(sortList->idxRollNum, sortIndex);
+
+    listObject = sortLinkHeader->sortLink + sortIndex;
+    if (listObject->pstNext == listObject) {
+        LOS_ListTailInsert(listObject, &sortList->sortLinkNode);
+    } else {
+        listSorted = LOS_DL_LIST_ENTRY(listObject->pstNext, SortLinkList, sortLinkNode);
+        do {
+            if (ROLLNUM(listSorted->idxRollNum) <= ROLLNUM(sortList->idxRollNum)) {
+                ROLLNUM_SUB(sortList->idxRollNum, listSorted->idxRollNum);
+            } else {
+                ROLLNUM_SUB(listSorted->idxRollNum, sortList->idxRollNum);
+                break;
+            }
+
+            listSorted = LOS_DL_LIST_ENTRY(listSorted->sortLinkNode.pstNext, SortLinkList, sortLinkNode);
+        } while (&listSorted->sortLinkNode != listObject);
+
+        LOS_ListTailInsert(&listSorted->sortLinkNode, &sortList->sortLinkNode);
+    }
+}

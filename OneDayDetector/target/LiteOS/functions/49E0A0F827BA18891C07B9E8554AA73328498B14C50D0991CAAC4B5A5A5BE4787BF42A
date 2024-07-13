@@ -1,0 +1,38 @@
+HAL_StatusTypeDef HAL_SMBUS_ConfigDigitalFilter(SMBUS_HandleTypeDef *hsmbus, uint32_t DigitalFilter)
+{
+  uint16_t tmpreg = 0;
+
+  /* Check the parameters */
+  assert_param(IS_SMBUS_ALL_INSTANCE(hsmbus->Instance));
+  assert_param(IS_SMBUS_DIGITAL_FILTER(DigitalFilter));
+
+  if (hsmbus->State == HAL_SMBUS_STATE_READY)
+  {
+    hsmbus->State = HAL_SMBUS_STATE_BUSY;
+
+    /* Disable the selected SMBUS peripheral */
+    __HAL_SMBUS_DISABLE(hsmbus);
+
+    /* Get the old register value */
+    tmpreg = hsmbus->Instance->FLTR;
+
+    /* Reset SMBUSx DNF bit [3:0] */
+    tmpreg &= ~(I2C_FLTR_DNF);
+
+    /* Set SMBUSx DNF coefficient */
+    tmpreg |= DigitalFilter;
+
+    /* Store the new register value */
+    hsmbus->Instance->FLTR = tmpreg;
+
+    __HAL_SMBUS_ENABLE(hsmbus);
+
+    hsmbus->State = HAL_SMBUS_STATE_READY;
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

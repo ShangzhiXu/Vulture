@@ -1,0 +1,20 @@
+VOID *LOS_MemMallocAlign(VOID *pool, UINT32 size, UINT32 boundary, UINT32 moduleId)
+{
+    UINT32 intSave;
+    VOID *ptr = NULL;
+    VOID *node = NULL;
+    if (OsMemModCheck(moduleId) == LOS_NOK) {
+        return NULL;
+    }
+    ptr = LOS_MemAllocAlign(pool, size, boundary);
+    if (ptr != NULL) {
+        MEM_LOCK(intSave);
+        g_moduleMemUsedSize[moduleId] += OsMemNodeSizeGet(ptr);
+        node = OsMemPtrToNode(ptr);
+        if (node != NULL) {
+            OS_MEM_MODID_SET(node, moduleId);
+        }
+        MEM_UNLOCK(intSave);
+    }
+    return ptr;
+}

@@ -1,0 +1,23 @@
+static void SMARTCARD_DMAError(DMA_HandleTypeDef *hdma)
+{
+  SMARTCARD_HandleTypeDef* hsmartcard = (SMARTCARD_HandleTypeDef*)(hdma->Parent);
+
+  /* Stop SMARTCARD DMA Tx request if ongoing */
+  if (  (hsmartcard->gState == HAL_SMARTCARD_STATE_BUSY_TX)
+      &&(HAL_IS_BIT_SET(hsmartcard->Instance->CR3, USART_CR3_DMAT)) )
+  {
+    hsmartcard->TxXferCount = 0;
+    SMARTCARD_EndTxTransfer(hsmartcard);
+  }
+
+  /* Stop SMARTCARD DMA Rx request if ongoing */
+  if (  (hsmartcard->RxState == HAL_SMARTCARD_STATE_BUSY_RX)
+      &&(HAL_IS_BIT_SET(hsmartcard->Instance->CR3, USART_CR3_DMAR)) )
+  {
+    hsmartcard->RxXferCount = 0;
+    SMARTCARD_EndRxTransfer(hsmartcard);
+  }
+
+  hsmartcard->ErrorCode |= HAL_SMARTCARD_ERROR_DMA;
+  HAL_SMARTCARD_ErrorCallback(hsmartcard);
+}

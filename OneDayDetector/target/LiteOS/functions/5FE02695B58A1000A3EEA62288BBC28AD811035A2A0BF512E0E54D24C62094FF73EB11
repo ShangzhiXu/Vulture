@@ -1,0 +1,23 @@
+static int spiffs_op_opendir(struct dir *dir, const char *path)
+{
+    spiffs *fs = (spiffs *)dir->d_mp->m_data;
+    spiffs_DIR *sdir;
+
+    sdir = (spiffs_DIR *)malloc(sizeof(spiffs_DIR));
+
+    if (sdir == NULL) {
+        PRINT_ERR("fail to malloc memory in SPIFFS, <malloc.c> is needed,"
+            "make sure it is added\n");
+        return -ENOMEM;
+    }
+
+    dir->d_data = (void *)SPIFFS_opendir(fs, path, sdir);
+    dir->d_offset = 0;
+
+    if (dir->d_data == 0) {
+        free(sdir);
+        return -ENOENT;
+    }
+
+    return LOS_OK;
+}

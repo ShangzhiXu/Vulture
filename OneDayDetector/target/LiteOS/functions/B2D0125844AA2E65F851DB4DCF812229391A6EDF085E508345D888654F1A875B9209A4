@@ -1,0 +1,24 @@
+int mbedtls_pkcs11_priv_key_bind( mbedtls_pkcs11_context *priv_key,
+        pkcs11h_certificate_t pkcs11_cert )
+{
+    int ret = 1;
+    mbedtls_x509_crt cert;
+
+    mbedtls_x509_crt_init( &cert );
+
+    if( priv_key == NULL )
+        goto cleanup;
+
+    if( 0 != mbedtls_pkcs11_x509_cert_bind( &cert, pkcs11_cert ) )
+        goto cleanup;
+
+    priv_key->len = mbedtls_pk_get_len( &cert.pk );
+    priv_key->pkcs11h_cert = pkcs11_cert;
+
+    ret = 0;
+
+cleanup:
+    mbedtls_x509_crt_free( &cert );
+
+    return( ret );
+}

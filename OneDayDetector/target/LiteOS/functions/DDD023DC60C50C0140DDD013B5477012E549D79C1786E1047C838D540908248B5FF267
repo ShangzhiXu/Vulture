@@ -1,0 +1,15 @@
+static int spiffs_op_open(struct file *file, const char *path_in_mp, int flags)
+{
+    spiffs *fs = (spiffs *)file->f_mp->m_data;
+    spiffs_file s_file;
+
+    s_file = SPIFFS_open(fs, path_in_mp, spiffs_flags_get(flags), 0);
+
+    if (s_file < SPIFFS_OK) {
+        return ret_to_errno(s_file);
+    }
+
+    file->f_data = (void *)(uintptr_t)s_file;
+
+    return 0;
+}

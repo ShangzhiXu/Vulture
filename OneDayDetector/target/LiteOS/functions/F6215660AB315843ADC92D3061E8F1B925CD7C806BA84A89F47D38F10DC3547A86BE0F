@@ -1,0 +1,81 @@
+static uint32_t SD_InitCard(SD_HandleTypeDef *hsd)
+{
+  HAL_SD_CardCSDTypeDef CSD;
+  uint32_t errorstate = HAL_SD_ERROR_NONE;
+  uint16_t sd_rca = 1;
+  
+  /* Check the power State */
+  if(SDMMC_GetPowerState(hsd->Instance) == 0) 
+  {
+    /* Power off */
+    return HAL_SD_ERROR_REQUEST_NOT_APPLICABLE;
+  }
+  
+  if(hsd->SdCard.CardType != CARD_SECURED) 
+  {
+    /* Send CMD2 ALL_SEND_CID */
+    errorstate = SDMMC_CmdSendCID(hsd->Instance);
+    if(errorstate != HAL_SD_ERROR_NONE)
+    {
+      return errorstate;
+    }
+    else
+    {
+      /* Get Card identification number data */
+      hsd->CID[0] = SDMMC_GetResponse(hsd->Instance, SDMMC_RESP1);
+      hsd->CID[1] = SDMMC_GetResponse(hsd->Instance, SDMMC_RESP2);
+      hsd->CID[2] = SDMMC_GetResponse(hsd->Instance, SDMMC_RESP3);
+      hsd->CID[3] = SDMMC_GetResponse(hsd->Instance, SDMMC_RESP4);
+    }
+  }
+  
+  if(hsd->SdCard.CardType != CARD_SECURED) 
+  {
+    /* Send CMD3 SET_REL_ADDR with argument 0 */
+    /* SD Card publishes its RCA. */
+    errorstate = SDMMC_CmdSetRelAdd(hsd->Instance, &sd_rca);
+    if(errorstate != HAL_SD_ERROR_NONE)
+    {
+      return errorstate;
+    }
+  }
+  if(hsd->SdCard.CardType != CARD_SECURED) 
+  {
+    /* Get the SD card RCA */
+    hsd->SdCard.RelCardAdd = sd_rca;
+    
+    /* Send CMD9 SEND_CSD with argument as card's RCA */
+    errorstate = SDMMC_CmdSendCSD(hsd->Instance, (uint32_t)(hsd->SdCard.RelCardAdd << 16U));
+    if(errorstate != HAL_SD_ERROR_NONE)
+    {
+      return errorstate;
+    }
+    else
+    {
+      /* Get Card Specific Data */
+      hsd->CSD[0U] = SDMMC_GetResponse(hsd->Instance, SDMMC_RESP1);
+      hsd->CSD[1U] = SDMMC_GetResponse(hsd->Instance, SDMMC_RESP2);
+      hsd->CSD[2U] = SDMMC_GetResponse(hsd->Instance, SDMMC_RESP3);
+      hsd->CSD[3U] = SDMMC_GetResponse(hsd->Instance, SDMMC_RESP4);
+    }
+  }
+  
+  /* Get the Card Class */
+  hsd->SdCard.Class = (SDMMC_GetResponse(hsd->Instance, SDMMC_RESP2) >> 20);
+  
+  /* Get CSD parameters */
+  HAL_SD_GetCardCSD(hsd, &CSD);
+
+  /* Select the Card */
+  errorstate = SDMMC_CmdSelDesel(hsd->Instance, (uint32_t)(((uint32_t)hsd->SdCard.RelCardAdd) << 16));
+  if(errorstate != HAL_SD_ERROR_NONE)
+  {
+    return errorstate;
+  }
+
+  /* Configure SDMMC peripheral interface */     
+  SDMMC_Init(hsd->Instance, hsd->Init);
+
+  /* All cards are initialized */
+  return HAL_SD_ERROR_NONE;
+}

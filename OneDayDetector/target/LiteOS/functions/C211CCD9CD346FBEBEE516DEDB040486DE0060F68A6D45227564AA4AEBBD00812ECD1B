@@ -1,0 +1,50 @@
+STATIC VOID OsLowpowerProcess(VOID)
+{
+#ifdef LOSCFG_KERNEL_RUNSTOP
+    if (OsWowSysDoneFlagGet() == OS_STORE_SYSTEM) {
+        OsStoreSystemInfoBeforeSuspend();
+    }
+#endif
+    /* Change frequency is pended, need to change the freq here. */
+    if ((g_pmRunOps.changeFreq != NULL)) {
+        OsChangeFreq();
+    }
+
+    UINT32 intSave = LOS_IntLock();
+    LOS_TaskLock();
+    RUNOPS_CALL_FUNC_VOID(preConfig);
+    UINT32 cpuid = ArchCurrCpuid();
+    UINT32 sleepTicks = g_pmRunOps.getSleepTime();
+    if (sleepTicks <= g_pmMgr.minSleepTicks || LOS_PowerMgrGetDeepSleepVoteCount() != 0) {
+        g_pmMgr.sleepMode[cpuid] = LOS_INTERMIT_NONE;
+        g_pmMgr.sleepTime[cpuid] = 0;
+
+        RUNOPS_CALL_FUNC_VOID(postConfig);
+
+#ifdef LOSCFG_KERNEL_TICKLESS
+        OsTicklessOpen();
+#endif
+
+        wfi();
+
+        PRINT_WARN("\r\n [PM] Application is runing in work mode, powermgr do not process.\n");
+    } else {
+        if (sleepTicks > g_pmMgr.maxSleepCount) {
+            sleepTicks = g_pmMgr.maxSleepCount;
+        }
+        UINT32 mode = g_pmRunOps.selectSleepMode(sleepTicks);
+        if (mode >= LOS_INTERMIT_DEEP_SLEEP) {
+            g_pmMgr.sleepTime[cpuid] = g_pmRunOps.withdrawWakeUpTimer();
+            OsLowpowerDeepSleep(&mode, cpuid, sleepTicks);
+        }
+
+        RUNOPS_CALL_FUNC_VOID(postConfig);
+
+        if (mode < LOS_INTERMIT_DEEP_SLEEP) {
+            OsLowpowerLightSleep(mode, cpuid, sleepTicks);
+        }
+    }
+
+    LOS_TaskUnlock();
+    LOS_IntRestore(intSave);
+}

@@ -1,0 +1,26 @@
+static void ccp_up(fsm *f) {
+    ppp_pcb *pcb = f->pcb;
+    ccp_options *go = &pcb->ccp_gotoptions;
+    ccp_options *ho = &pcb->ccp_hisoptions;
+    char method1[64];
+
+    ccp_set(pcb, 1, 1, go->method, ho->method);
+    if (ccp_anycompress(go)) {
+	if (ccp_anycompress(ho)) {
+	    if (go->method == ho->method) {
+		ppp_notice("%s compression enabled", method_name(go, ho));
+	    } else {
+		ppp_strlcpy(method1, method_name(go, NULL), sizeof(method1));
+		ppp_notice("%s / %s compression enabled",
+		       method1, method_name(ho, NULL));
+	    }
+	} else
+	    ppp_notice("%s receive compression enabled", method_name(go, NULL));
+    } else if (ccp_anycompress(ho))
+	ppp_notice("%s transmit compression enabled", method_name(ho, NULL));
+#if MPPE_SUPPORT
+    if (go->mppe) {
+	continue_networks(pcb);		/* Bring up IP et al */
+    }
+#endif /* MPPE_SUPPORT */
+}

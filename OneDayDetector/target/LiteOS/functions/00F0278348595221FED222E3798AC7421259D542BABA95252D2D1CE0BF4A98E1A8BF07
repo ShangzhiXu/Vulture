@@ -1,0 +1,34 @@
+LITE_OS_SEC_TEXT VOID *LOS_MemAlloc(VOID *pool, UINT32 size)
+{
+    VOID *ptr = NULL;
+    UINT32 intSave;
+
+    if ((pool == NULL) || (size == 0)) {
+        return NULL;
+    }
+
+    if (g_MALLOC_HOOK != NULL) {
+        g_MALLOC_HOOK();
+    }
+
+    MEM_LOCK(intSave);
+    do {
+        if (OS_MEM_NODE_GET_USED_FLAG(size) || OS_MEM_NODE_GET_ALIGNED_FLAG(size)) {
+            break;
+        }
+
+        ptr = OsSlabMemAlloc(pool, size);
+        if (ptr == NULL) {
+            ptr = OsMemAllocWithCheck(pool, size);
+        }
+    } while (0);
+#ifdef LOSCFG_MEM_RECORDINFO
+    OsMemRecordMalloc(ptr, size);
+#endif
+    OsLmsSetAfterMalloc(ptr);
+
+    MEM_UNLOCK(intSave);
+
+    LOS_TRACE(MEM_ALLOC, pool, (UINTPTR)ptr, size);
+    return ptr;
+}

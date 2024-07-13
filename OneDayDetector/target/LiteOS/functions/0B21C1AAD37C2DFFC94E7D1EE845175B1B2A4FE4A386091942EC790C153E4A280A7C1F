@@ -1,0 +1,83 @@
+HAL_StatusTypeDef HAL_TIM_IC_ConfigChannel(TIM_HandleTypeDef *htim, TIM_IC_InitTypeDef *sConfig, uint32_t Channel)
+{
+  /* Check the parameters */
+  assert_param(IS_TIM_CC1_INSTANCE(htim->Instance));
+  assert_param(IS_TIM_IC_POLARITY(sConfig->ICPolarity));
+  assert_param(IS_TIM_IC_SELECTION(sConfig->ICSelection));
+  assert_param(IS_TIM_IC_PRESCALER(sConfig->ICPrescaler));
+  assert_param(IS_TIM_IC_FILTER(sConfig->ICFilter));
+
+  /* Process Locked */
+  __HAL_LOCK(htim);
+
+  htim->State = HAL_TIM_STATE_BUSY;
+
+  if (Channel == TIM_CHANNEL_1)
+  {
+    /* TI1 Configuration */
+    TIM_TI1_SetConfig(htim->Instance,
+                      sConfig->ICPolarity,
+                      sConfig->ICSelection,
+                      sConfig->ICFilter);
+
+    /* Reset the IC1PSC Bits */
+    htim->Instance->CCMR1 &= ~TIM_CCMR1_IC1PSC;
+
+    /* Set the IC1PSC value */
+    htim->Instance->CCMR1 |= sConfig->ICPrescaler;
+  }
+  else if (Channel == TIM_CHANNEL_2)
+  {
+    /* TI2 Configuration */
+    assert_param(IS_TIM_CC2_INSTANCE(htim->Instance));
+
+    TIM_TI2_SetConfig(htim->Instance,
+                      sConfig->ICPolarity,
+                      sConfig->ICSelection,
+                      sConfig->ICFilter);
+
+    /* Reset the IC2PSC Bits */
+    htim->Instance->CCMR1 &= ~TIM_CCMR1_IC2PSC;
+
+    /* Set the IC2PSC value */
+    htim->Instance->CCMR1 |= (sConfig->ICPrescaler << 8U);
+  }
+  else if (Channel == TIM_CHANNEL_3)
+  {
+    /* TI3 Configuration */
+    assert_param(IS_TIM_CC3_INSTANCE(htim->Instance));
+
+    TIM_TI3_SetConfig(htim->Instance,
+                      sConfig->ICPolarity,
+                      sConfig->ICSelection,
+                      sConfig->ICFilter);
+
+    /* Reset the IC3PSC Bits */
+    htim->Instance->CCMR2 &= ~TIM_CCMR2_IC3PSC;
+
+    /* Set the IC3PSC value */
+    htim->Instance->CCMR2 |= sConfig->ICPrescaler;
+  }
+  else
+  {
+    /* TI4 Configuration */
+    assert_param(IS_TIM_CC4_INSTANCE(htim->Instance));
+
+    TIM_TI4_SetConfig(htim->Instance,
+                      sConfig->ICPolarity,
+                      sConfig->ICSelection,
+                      sConfig->ICFilter);
+
+    /* Reset the IC4PSC Bits */
+    htim->Instance->CCMR2 &= ~TIM_CCMR2_IC4PSC;
+
+    /* Set the IC4PSC value */
+    htim->Instance->CCMR2 |= (sConfig->ICPrescaler << 8U);
+  }
+
+  htim->State = HAL_TIM_STATE_READY;
+
+  __HAL_UNLOCK(htim);
+
+  return HAL_OK;
+}

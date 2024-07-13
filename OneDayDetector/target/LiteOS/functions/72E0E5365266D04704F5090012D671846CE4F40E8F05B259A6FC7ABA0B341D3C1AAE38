@@ -1,0 +1,24 @@
+void at_deinit(void)
+{
+    int cnt = 0;
+    const int max_try_num = 10;
+    TSK_INFO_S stTaskInfo;
+
+    while ((LOS_TaskInfoGet(at.tsk_hdl, &stTaskInfo) != LOS_OK) && (cnt < max_try_num)) {
+        write_at_task_msg(AT_TASK_QUIT);
+        LOS_TaskDelay(1000);
+        cnt++;
+    }
+
+    if (LOS_TaskInfoGet(at.tsk_hdl, &stTaskInfo) != LOS_OK) {
+        if (LOS_TaskDelete(at.tsk_hdl) != LOS_OK) {
+            AT_LOG("at_recv_task delete failed!");
+        }
+    }
+
+    at_usart_deinit();
+    if (at_struct_deinit(&at) != LOS_OK) {
+        AT_LOG("at_struct_deinit failed!");
+    }
+    at_init_oob();
+}

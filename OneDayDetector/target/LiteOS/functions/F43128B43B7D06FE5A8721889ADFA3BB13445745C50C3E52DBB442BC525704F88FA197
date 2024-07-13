@@ -1,0 +1,127 @@
+HAL_StatusTypeDef HAL_FMPSMBUS_IsDeviceReady(FMPSMBUS_HandleTypeDef *hfmpsmbus, uint16_t DevAddress, uint32_t Trials, uint32_t Timeout)
+{
+  uint32_t tickstart;
+
+  __IO uint32_t FMPSMBUS_Trials = 0UL;
+
+  FlagStatus tmp1;
+  FlagStatus tmp2;
+
+  if (hfmpsmbus->State == HAL_FMPSMBUS_STATE_READY)
+  {
+    if (__HAL_FMPSMBUS_GET_FLAG(hfmpsmbus, FMPSMBUS_FLAG_BUSY) != RESET)
+    {
+      return HAL_BUSY;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hfmpsmbus);
+
+    hfmpsmbus->State = HAL_FMPSMBUS_STATE_BUSY;
+    hfmpsmbus->ErrorCode = HAL_FMPSMBUS_ERROR_NONE;
+
+    do
+    {
+      /* Generate Start */
+      hfmpsmbus->Instance->CR2 = FMPSMBUS_GENERATE_START(hfmpsmbus->Init.AddressingMode, DevAddress);
+
+      /* No need to Check TC flag, with AUTOEND mode the stop is automatically generated */
+      /* Wait until STOPF flag is set or a NACK flag is set*/
+      tickstart = HAL_GetTick();
+
+      tmp1 = __HAL_FMPSMBUS_GET_FLAG(hfmpsmbus, FMPSMBUS_FLAG_STOPF);
+      tmp2 = __HAL_FMPSMBUS_GET_FLAG(hfmpsmbus, FMPSMBUS_FLAG_AF);
+
+      while ((tmp1 == RESET) && (tmp2 == RESET))
+      {
+        if (Timeout != HAL_MAX_DELAY)
+        {
+          if (((HAL_GetTick() - tickstart) > Timeout) || (Timeout == 0UL))
+          {
+            /* Device is ready */
+            hfmpsmbus->State = HAL_FMPSMBUS_STATE_READY;
+
+            /* Update FMPSMBUS error code */
+            hfmpsmbus->ErrorCode |= HAL_FMPSMBUS_ERROR_HALTIMEOUT;
+
+            /* Process Unlocked */
+            __HAL_UNLOCK(hfmpsmbus);
+            return HAL_ERROR;
+          }
+        }
+
+        tmp1 = __HAL_FMPSMBUS_GET_FLAG(hfmpsmbus, FMPSMBUS_FLAG_STOPF);
+        tmp2 = __HAL_FMPSMBUS_GET_FLAG(hfmpsmbus, FMPSMBUS_FLAG_AF);
+      }
+
+      /* Check if the NACKF flag has not been set */
+      if (__HAL_FMPSMBUS_GET_FLAG(hfmpsmbus, FMPSMBUS_FLAG_AF) == RESET)
+      {
+        /* Wait until STOPF flag is reset */
+        if (FMPSMBUS_WaitOnFlagUntilTimeout(hfmpsmbus, FMPSMBUS_FLAG_STOPF, RESET, Timeout) != HAL_OK)
+        {
+          return HAL_ERROR;
+        }
+
+        /* Clear STOP Flag */
+        __HAL_FMPSMBUS_CLEAR_FLAG(hfmpsmbus, FMPSMBUS_FLAG_STOPF);
+
+        /* Device is ready */
+        hfmpsmbus->State = HAL_FMPSMBUS_STATE_READY;
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(hfmpsmbus);
+
+        return HAL_OK;
+      }
+      else
+      {
+        /* Wait until STOPF flag is reset */
+        if (FMPSMBUS_WaitOnFlagUntilTimeout(hfmpsmbus, FMPSMBUS_FLAG_STOPF, RESET, Timeout) != HAL_OK)
+        {
+          return HAL_ERROR;
+        }
+
+        /* Clear NACK Flag */
+        __HAL_FMPSMBUS_CLEAR_FLAG(hfmpsmbus, FMPSMBUS_FLAG_AF);
+
+        /* Clear STOP Flag, auto generated with autoend*/
+        __HAL_FMPSMBUS_CLEAR_FLAG(hfmpsmbus, FMPSMBUS_FLAG_STOPF);
+      }
+
+      /* Check if the maximum allowed number of trials has been reached */
+      if (FMPSMBUS_Trials == Trials)
+      {
+        /* Generate Stop */
+        hfmpsmbus->Instance->CR2 |= FMPI2C_CR2_STOP;
+
+        /* Wait until STOPF flag is reset */
+        if (FMPSMBUS_WaitOnFlagUntilTimeout(hfmpsmbus, FMPSMBUS_FLAG_STOPF, RESET, Timeout) != HAL_OK)
+        {
+          return HAL_ERROR;
+        }
+
+        /* Clear STOP Flag */
+        __HAL_FMPSMBUS_CLEAR_FLAG(hfmpsmbus, FMPSMBUS_FLAG_STOPF);
+      }
+
+      /* Increment Trials */
+      FMPSMBUS_Trials++;
+    }
+    while (FMPSMBUS_Trials < Trials);
+
+    hfmpsmbus->State = HAL_FMPSMBUS_STATE_READY;
+
+    /* Update FMPSMBUS error code */
+    hfmpsmbus->ErrorCode |= HAL_FMPSMBUS_ERROR_HALTIMEOUT;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hfmpsmbus);
+
+    return HAL_ERROR;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

@@ -1,0 +1,40 @@
+HAL_StatusTypeDef HAL_SRAM_RegisterCallback (SRAM_HandleTypeDef *hsram, HAL_SRAM_CallbackIDTypeDef CallbackId, pSRAM_CallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  HAL_SRAM_StateTypeDef state;
+
+  if(pCallback == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Process locked */
+  __HAL_LOCK(hsram);
+
+  state = hsram->State;
+  if((state == HAL_SRAM_STATE_READY) || (state == HAL_SRAM_STATE_RESET) || (state == HAL_SRAM_STATE_PROTECTED))
+  {
+    switch (CallbackId)
+    {
+    case HAL_SRAM_MSP_INIT_CB_ID :
+      hsram->MspInitCallback = pCallback;
+      break;
+    case HAL_SRAM_MSP_DEINIT_CB_ID :
+      hsram->MspDeInitCallback = pCallback;
+      break;
+    default :
+      /* update return status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else
+  {
+    /* update return status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hsram);
+  return status;
+}

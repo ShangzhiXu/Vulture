@@ -1,0 +1,81 @@
+netconn_alloc(enum netconn_type t, netconn_callback callback)
+{
+  struct netconn *conn;
+  int size;
+  u8_t init_flags = 0;
+
+  conn = (struct netconn *)memp_malloc(MEMP_NETCONN);
+  if (conn == NULL) {
+    return NULL;
+  }
+
+  conn->pending_err = ERR_OK;
+  conn->type = t;
+  conn->pcb.tcp = NULL;
+
+  /* If all sizes are the same, every compiler should optimize this switch to nothing */
+  switch (NETCONNTYPE_GROUP(t)) {
+#if LWIP_RAW
+    case NETCONN_RAW:
+      size = DEFAULT_RAW_RECVMBOX_SIZE;
+      break;
+#endif /* LWIP_RAW */
+#if LWIP_UDP
+    case NETCONN_UDP:
+      size = DEFAULT_UDP_RECVMBOX_SIZE;
+#if LWIP_NETBUF_RECVINFO
+      init_flags |= NETCONN_FLAG_PKTINFO;
+#endif /* LWIP_NETBUF_RECVINFO */
+      break;
+#endif /* LWIP_UDP */
+#if LWIP_TCP
+    case NETCONN_TCP:
+      size = DEFAULT_TCP_RECVMBOX_SIZE;
+      break;
+#endif /* LWIP_TCP */
+    default:
+      LWIP_ASSERT("netconn_alloc: undefined netconn_type", 0);
+      goto free_and_return;
+  }
+
+  if (sys_mbox_new(&conn->recvmbox, size) != ERR_OK) {
+    goto free_and_return;
+  }
+#if !LWIP_NETCONN_SEM_PER_THREAD
+  if (sys_sem_new(&conn->op_completed, 0) != ERR_OK) {
+    sys_mbox_free(&conn->recvmbox);
+    goto free_and_return;
+  }
+#endif
+
+#if LWIP_TCP
+  sys_mbox_set_invalid(&conn->acceptmbox);
+#endif
+  conn->state        = NETCONN_NONE;
+#if LWIP_SOCKET
+  /* initialize socket to -1 since 0 is a valid socket */
+  conn->socket       = -1;
+#endif /* LWIP_SOCKET */
+  conn->callback     = callback;
+#if LWIP_TCP
+  conn->current_msg  = NULL;
+#endif /* LWIP_TCP */
+#if LWIP_SO_SNDTIMEO
+  conn->send_timeout = 0;
+#endif /* LWIP_SO_SNDTIMEO */
+#if LWIP_SO_RCVTIMEO
+  conn->recv_timeout = 0;
+#endif /* LWIP_SO_RCVTIMEO */
+#if LWIP_SO_RCVBUF
+  conn->recv_bufsize = RECV_BUFSIZE_DEFAULT;
+  conn->recv_avail   = 0;
+#endif /* LWIP_SO_RCVBUF */
+#if LWIP_SO_LINGER
+  conn->linger = -1;
+#endif /* LWIP_SO_LINGER */
+  conn->flags = init_flags;
+  return conn;
+free_and_return:
+  memp_free(MEMP_NETCONN, conn);
+  return NULL;
+}

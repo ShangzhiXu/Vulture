@@ -1,0 +1,51 @@
+HAL_StatusTypeDef FSMC_NAND_Init(FSMC_NAND_TypeDef *Device, FSMC_NAND_InitTypeDef *Init)
+{
+  uint32_t tmpr  = 0U; 
+    
+  /* Check the parameters */
+  assert_param(IS_FSMC_NAND_BANK(Init->NandBank));
+  assert_param(IS_FSMC_WAIT_FEATURE(Init->Waitfeature));
+  assert_param(IS_FSMC_NAND_MEMORY_WIDTH(Init->MemoryDataWidth));
+  assert_param(IS_FSMC_ECC_STATE(Init->EccComputation));
+  assert_param(IS_FSMC_ECCPAGE_SIZE(Init->ECCPageSize));
+  assert_param(IS_FSMC_TCLR_TIME(Init->TCLRSetupTime));
+  assert_param(IS_FSMC_TAR_TIME(Init->TARSetupTime));   
+
+    if(Init->NandBank == FSMC_NAND_BANK2)
+  {
+    /* Get the NAND bank 2 register value */
+    tmpr = Device->PCR2;
+  }
+  else
+  {
+    /* Get the NAND bank 3 register value */
+    tmpr = Device->PCR3;
+  }
+  
+  /* Clear PWAITEN, PBKEN, PTYP, PWID, ECCEN, TCLR, TAR and ECCPS bits */
+  tmpr &= ((uint32_t)~(FSMC_PCR2_PWAITEN  | FSMC_PCR2_PBKEN | FSMC_PCR2_PTYP | \
+                       FSMC_PCR2_PWID | FSMC_PCR2_ECCEN | FSMC_PCR2_TCLR | \
+                       FSMC_PCR2_TAR | FSMC_PCR2_ECCPS));  
+  
+  /* Set NAND device control parameters */
+  tmpr |= (uint32_t)(Init->Waitfeature                |\
+                     FSMC_PCR_MEMORY_TYPE_NAND        |\
+                     Init->MemoryDataWidth            |\
+                     Init->EccComputation             |\
+                     Init->ECCPageSize                |\
+                     ((Init->TCLRSetupTime) << 9U)    |\
+                     ((Init->TARSetupTime) << 13U));   
+  
+  if(Init->NandBank == FSMC_NAND_BANK2)
+  {
+    /* NAND bank 2 registers configuration */
+    Device->PCR2  = tmpr;
+  }
+  else
+  {
+    /* NAND bank 3 registers configuration */
+    Device->PCR3  = tmpr;
+  }
+  
+  return HAL_OK;
+}

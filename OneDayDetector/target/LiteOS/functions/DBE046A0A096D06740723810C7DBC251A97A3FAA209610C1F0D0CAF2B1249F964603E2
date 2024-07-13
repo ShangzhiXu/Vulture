@@ -1,0 +1,18 @@
+osPriority osThreadGetPriority(osThreadId thread_id)
+{
+    LosTaskCB *taskCB = (LosTaskCB *)thread_id;
+    UINT16 losPrio;
+    INT16 priorityRet;
+
+    if ((taskCB == NULL) || OS_INT_ACTIVE) {
+        return osPriorityError;
+    }
+
+    losPrio = LOS_TaskPriGet(taskCB->taskId);
+    priorityRet = (INT16)(PRIORITY_WIN - (INT16)losPrio);
+    if (priorityRet < osPriorityIdle || priorityRet > osPriorityRealtime) {
+        return osPriorityError;
+    }
+
+    return (osPriority)priorityRet;
+}

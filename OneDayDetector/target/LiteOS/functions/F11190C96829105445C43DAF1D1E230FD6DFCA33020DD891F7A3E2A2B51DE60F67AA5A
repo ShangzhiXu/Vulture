@@ -1,0 +1,53 @@
+int pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex,
+                           const struct timespec *absTime)
+{
+    UINT32 absTicks;
+    INT32 ret;
+    INT32 oldValue;
+    LosTaskCB *runTask = NULL;
+
+    pthread_testcancel();
+    if ((cond == NULL) || (mutex == NULL) || (absTime == NULL)) {
+        return EINVAL;
+    }
+
+    runTask = (LosTaskCB*)OsCurrTaskGet();
+    if ((mutex->stAttr.type == PTHREAD_MUTEX_ERRORCHECK) && (runTask != mutex->stLock.owner)) {
+        return EPERM;
+    }
+
+    if (CondInitCheck(cond)) {
+        ret = pthread_cond_init(cond, NULL);
+        if (ret != ENOERR) {
+            return ret;
+        }
+    }
+
+    oldValue = cond->value;
+
+    (VOID)pthread_mutex_lock(cond->mutex);
+    cond->count++;
+    (VOID)pthread_mutex_unlock(cond->mutex);
+
+    if ((absTime->tv_sec == 0) && (absTime->tv_nsec == 0)) {
+        return ETIMEDOUT;
+    }
+
+    if (!ValidTimespec(absTime)) {
+        return EINVAL;
+    }
+
+    absTicks = OsTimespec2Tick(absTime);
+    if (pthread_mutex_unlock(mutex) != ENOERR) {
+        PRINT_ERR("%s: %d failed\n", __FUNCTION__, __LINE__);
+    }
+
+    ret = PthreadCondWaitSub(cond, oldValue, absTicks);
+    if (pthread_mutex_lock(mutex) != ENOERR) {
+        PRINT_ERR("%s: %d failed\n", __FUNCTION__, __LINE__);
+    }
+
+    ret = ProcessReturnVal(cond, ret);
+    pthread_testcancel();
+    return ret;
+}

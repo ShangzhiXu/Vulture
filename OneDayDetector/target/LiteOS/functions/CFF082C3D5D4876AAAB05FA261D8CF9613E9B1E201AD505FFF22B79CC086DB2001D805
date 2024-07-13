@@ -1,0 +1,28 @@
+VOID OsTraceObjAdd(UINT32 eventType, UINT32 taskId)
+{
+    UINT32 intSave;
+    UINT32 index;
+    ObjData *obj = NULL;
+
+    TRACE_LOCK(intSave);
+    /* add obj begin */
+    index = g_traceRecoder.ctrl.curObjIndex;
+    if (index >= LOSCFG_TRACE_OBJ_MAX_NUM) { /* do nothing when config LOSCFG_TRACE_OBJ_MAX_NUM = 0 */
+        TRACE_UNLOCK(intSave);
+        return;
+    }
+    obj = &g_traceRecoder.ctrl.objBuf[index];
+
+    if (taskId < LOSCFG_BASE_CORE_TSK_LIMIT) {
+        g_tidMask[taskId]++;
+    }
+
+    OsTraceSetObj(obj, OS_TCB_FROM_TID(taskId));
+
+    g_traceRecoder.ctrl.curObjIndex++;
+    if (g_traceRecoder.ctrl.curObjIndex >= g_traceRecoder.ctrl.maxObjCount) {
+        g_traceRecoder.ctrl.curObjIndex = 0; /* turn around */
+    }
+    /* add obj end */
+    TRACE_UNLOCK(intSave);
+}

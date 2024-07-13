@@ -1,0 +1,21 @@
+void lv_spinbox_decrement(lv_obj_t * spinbox)
+{
+    LV_ASSERT_OBJ(spinbox, LV_OBJX_NAME);
+
+    lv_spinbox_ext_t * ext = lv_obj_get_ext_attr(spinbox);
+
+    if(ext->value - ext->step >= ext->range_min) {
+        /*Special mode when zero crossing*/
+        if((ext->value - ext->step) < 0 && ext->value > 0) ext->value = -ext->value;
+        ext->value -= ext->step;
+    }
+    else {
+        // Rollover?
+        if((ext->rollover) && (ext->value == ext->range_min))
+            ext->value = ext->range_max;
+        else
+            ext->value = ext->range_min;
+    }
+
+    lv_spinbox_updatevalue(spinbox);
+}

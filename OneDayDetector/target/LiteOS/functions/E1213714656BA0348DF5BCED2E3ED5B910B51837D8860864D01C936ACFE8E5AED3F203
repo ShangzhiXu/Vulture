@@ -1,0 +1,71 @@
+mld6_input(struct pbuf *p, struct netif *inp)
+{
+  struct mld_header *mld_hdr;
+  struct mld_group *group;
+
+  MLD6_STATS_INC(mld6.recv);
+
+  /* Check that mld header fits in packet. */
+  if (p->len < sizeof(struct mld_header)) {
+    /* @todo debug message */
+    pbuf_free(p);
+    MLD6_STATS_INC(mld6.lenerr);
+    MLD6_STATS_INC(mld6.drop);
+    return;
+  }
+
+  mld_hdr = (struct mld_header *)p->payload;
+
+  switch (mld_hdr->type) {
+  case ICMP6_TYPE_MLQ: /* Multicast listener query. */
+    /* Is it a general query? */
+    if (ip6_addr_isallnodes_linklocal(ip6_current_dest_addr()) &&
+        ip6_addr_isany(&(mld_hdr->multicast_address))) {
+      MLD6_STATS_INC(mld6.rx_general);
+      /* Report all groups, except all nodes group, and if-local groups. */
+      group = netif_mld6_data(inp);
+      while (group != NULL) {
+        if ((!(ip6_addr_ismulticast_iflocal(&(group->group_address)))) &&
+            (!(ip6_addr_isallnodes_linklocal(&(group->group_address))))) {
+          mld6_delayed_report(group, mld_hdr->max_resp_delay);
+        }
+        group = group->next;
+      }
+    } else {
+      /* Have we joined this group?
+       * We use IP6 destination address to have a memory aligned copy.
+       * mld_hdr->multicast_address should be the same. */
+      MLD6_STATS_INC(mld6.rx_group);
+      group = mld6_lookfor_group(inp, ip6_current_dest_addr());
+      if (group != NULL) {
+        /* Schedule a report. */
+        mld6_delayed_report(group, mld_hdr->max_resp_delay);
+      }
+    }
+    break; /* ICMP6_TYPE_MLQ */
+  case ICMP6_TYPE_MLR: /* Multicast listener report. */
+    /* Have we joined this group?
+     * We use IP6 destination address to have a memory aligned copy.
+     * mld_hdr->multicast_address should be the same. */
+    MLD6_STATS_INC(mld6.rx_report);
+    group = mld6_lookfor_group(inp, ip6_current_dest_addr());
+    if (group != NULL) {
+      /* If we are waiting to report, cancel it. */
+      if (group->group_state == MLD6_GROUP_DELAYING_MEMBER) {
+        group->timer = 0; /* stopped */
+        group->group_state = MLD6_GROUP_IDLE_MEMBER;
+        group->last_reporter_flag = 0;
+      }
+    }
+    break; /* ICMP6_TYPE_MLR */
+  case ICMP6_TYPE_MLD: /* Multicast listener done. */
+    /* Do nothing, router will query us. */
+    break; /* ICMP6_TYPE_MLD */
+  default:
+    MLD6_STATS_INC(mld6.proterr);
+    MLD6_STATS_INC(mld6.drop);
+    break;
+  }
+
+  pbuf_free(p);
+}

@@ -1,0 +1,15 @@
+ip_reass_dequeue_datagram(struct ip_reassdata *ipr, struct ip_reassdata *prev)
+{
+  /* dequeue the reass struct  */
+  if (reassdatagrams == ipr) {
+    /* it was the first in the list */
+    reassdatagrams = ipr->next;
+  } else {
+    /* it wasn't the first, so it must have a valid 'prev' */
+    LWIP_ASSERT("sanity check linked list", prev != NULL);
+    prev->next = ipr->next;
+  }
+
+  /* now we can free the ip_reassdata struct */
+  memp_free(MEMP_REASSDATA, ipr);
+}

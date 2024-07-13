@@ -1,0 +1,24 @@
+lv_fs_res_t lv_fs_free_space(char letter, uint32_t * total_p, uint32_t * free_p)
+{
+    lv_fs_drv_t * drv = lv_fs_get_drv(letter);
+
+    if(drv == NULL) {
+        return LV_FS_RES_INV_PARAM;
+    }
+
+    lv_fs_res_t res;
+
+    if(drv->free_space_cb == NULL) {
+        res = LV_FS_RES_NOT_IMP;
+    }
+    else {
+        uint32_t total_tmp = 0;
+        uint32_t free_tmp  = 0;
+        res                = drv->free_space_cb(drv, &total_tmp, &free_tmp);
+
+        if(total_p != NULL) *total_p = total_tmp;
+        if(free_p != NULL) *free_p = free_tmp;
+    }
+
+    return res;
+}

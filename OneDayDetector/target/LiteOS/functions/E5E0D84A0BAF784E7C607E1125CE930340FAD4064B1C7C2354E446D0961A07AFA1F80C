@@ -1,0 +1,36 @@
+HAL_StatusTypeDef HAL_TSC_DeInit(TSC_HandleTypeDef *htsc)
+{
+  /* Check TSC handle allocation */
+  if (htsc == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_TSC_ALL_INSTANCE(htsc->Instance));
+
+  /* Change TSC state */
+  htsc->State = HAL_TSC_STATE_BUSY;
+
+#if (USE_HAL_TSC_REGISTER_CALLBACKS == 1)
+  if (htsc->MspDeInitCallback == NULL)
+  {
+    htsc->MspDeInitCallback = HAL_TSC_MspDeInit; /* Legacy weak MspDeInit  */
+  }
+
+  /* DeInit the low level hardware: GPIO, CLOCK, NVIC */
+  htsc->MspDeInitCallback(htsc);
+#else
+  /* DeInit the low level hardware */
+  HAL_TSC_MspDeInit(htsc);
+#endif /* USE_HAL_TSC_REGISTER_CALLBACKS */
+
+  /* Change TSC state */
+  htsc->State = HAL_TSC_STATE_RESET;
+
+  /* Process unlocked */
+  __HAL_UNLOCK(htsc);
+
+  /* Return function status */
+  return HAL_OK;
+}

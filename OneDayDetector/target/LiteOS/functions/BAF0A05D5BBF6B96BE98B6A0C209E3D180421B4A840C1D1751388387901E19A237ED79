@@ -1,0 +1,37 @@
+HAL_StatusTypeDef HAL_UART_DMAResume(UART_HandleTypeDef *huart)
+{
+  /* Process Locked */
+  __HAL_LOCK(huart);
+
+  if(huart->State == HAL_UART_STATE_BUSY_TX)
+  {
+    /* Enable the UART DMA Tx request */
+    SET_BIT(huart->Instance->CR3, USART_CR3_DMAT);
+  }
+  else if(huart->State == HAL_UART_STATE_BUSY_RX)
+  {
+    /* Clear the Overrun flag before resumming the Rx transfer*/
+    __HAL_UART_CLEAR_OREFLAG(huart);
+    /* Enable the UART DMA Rx request */
+    SET_BIT(huart->Instance->CR3, USART_CR3_DMAR);
+  }
+  else if(huart->State == HAL_UART_STATE_BUSY_TX_RX)
+  {
+    /* Clear the Overrun flag before resumming the Rx transfer*/
+    __HAL_UART_CLEAR_OREFLAG(huart);
+    /* Enable the UART DMA Tx & Rx request */
+    SET_BIT(huart->Instance->CR3, (USART_CR3_DMAT | USART_CR3_DMAR));
+  }
+  else
+  {
+    /* Process Unlocked */
+    __HAL_UNLOCK(huart);
+
+    return HAL_ERROR; 
+  }
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(huart);
+
+  return HAL_OK;
+}

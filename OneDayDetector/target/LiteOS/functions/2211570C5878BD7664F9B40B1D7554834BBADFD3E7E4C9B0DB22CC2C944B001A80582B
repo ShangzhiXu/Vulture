@@ -1,0 +1,73 @@
+static void select_check_waiters(int s, int has_recvevent, int has_sendevent, int has_errevent)
+{
+  struct lwip_select_cb *scb;
+#if !LWIP_TCPIP_CORE_LOCKING
+  int last_select_cb_ctr;
+  SYS_ARCH_DECL_PROTECT(lev);
+#endif /* !LWIP_TCPIP_CORE_LOCKING */
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+#if !LWIP_TCPIP_CORE_LOCKING
+  SYS_ARCH_PROTECT(lev);
+again:
+  /* remember the state of select_cb_list to detect changes */
+  last_select_cb_ctr = select_cb_ctr;
+#endif /* !LWIP_TCPIP_CORE_LOCKING */
+  for (scb = select_cb_list; scb != NULL; scb = scb->next) {
+    if (scb->sem_signalled == 0) {
+      /* semaphore not signalled yet */
+      int do_signal = 0;
+#if LWIP_SOCKET_POLL
+      if (scb->poll_fds != NULL) {
+        do_signal = lwip_poll_should_wake(scb, s, has_recvevent, has_sendevent, has_errevent);
+      }
+#endif /* LWIP_SOCKET_POLL */
+#if LWIP_SOCKET_SELECT && LWIP_SOCKET_POLL
+      else
+#endif /* LWIP_SOCKET_SELECT && LWIP_SOCKET_POLL */
+#if LWIP_SOCKET_SELECT
+      {
+        /* Test this select call for our socket */
+        if (has_recvevent) {
+          if (scb->readset && FD_ISSET(s, scb->readset)) {
+            do_signal = 1;
+          }
+        }
+        if (has_sendevent) {
+          if (!do_signal && scb->writeset && FD_ISSET(s, scb->writeset)) {
+            do_signal = 1;
+          }
+        }
+        if (has_errevent) {
+          if (!do_signal && scb->exceptset && FD_ISSET(s, scb->exceptset)) {
+            do_signal = 1;
+          }
+        }
+      }
+#endif /* LWIP_SOCKET_SELECT */
+      if (do_signal) {
+        scb->sem_signalled = 1;
+        /* For !LWIP_TCPIP_CORE_LOCKING, we don't call SYS_ARCH_UNPROTECT() before signaling
+           the semaphore, as this might lead to the select thread taking itself off the list,
+           invalidating the semaphore. */
+        sys_sem_signal(SELECT_SEM_PTR(scb->sem));
+      }
+    }
+#if LWIP_TCPIP_CORE_LOCKING
+  }
+#else
+    /* unlock interrupts with each step */
+    SYS_ARCH_UNPROTECT(lev);
+    /* this makes sure interrupt protection time is short */
+    SYS_ARCH_PROTECT(lev);
+    if (last_select_cb_ctr != select_cb_ctr) {
+      /* someone has changed select_cb_list, restart at the beginning */
+      goto again;
+    }
+    /* remember the state of select_cb_list to detect changes */
+    last_select_cb_ctr = select_cb_ctr;
+  }
+  SYS_ARCH_UNPROTECT(lev);
+#endif
+}

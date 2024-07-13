@@ -1,0 +1,57 @@
+extract_uri_parameters(struct http_state *hs, char *params)
+{
+  char *pair;
+  char *equals;
+  int loop;
+
+  LWIP_UNUSED_ARG(hs);
+
+  /* If we have no parameters at all, return immediately. */
+  if (!params || (params[0] == '\0')) {
+    return (0);
+  }
+
+  /* Get a pointer to our first parameter */
+  pair = params;
+
+  /* Parse up to LWIP_HTTPD_MAX_CGI_PARAMETERS from the passed string and ignore the
+   * remainder (if any) */
+  for (loop = 0; (loop < LWIP_HTTPD_MAX_CGI_PARAMETERS) && pair; loop++) {
+
+    /* Save the name of the parameter */
+    http_cgi_params[loop] = pair;
+
+    /* Remember the start of this name=value pair */
+    equals = pair;
+
+    /* Find the start of the next name=value pair and replace the delimiter
+     * with a 0 to terminate the previous pair string. */
+    pair = strchr(pair, '&');
+    if (pair) {
+      *pair = '\0';
+      pair++;
+    } else {
+      /* We didn't find a new parameter so find the end of the URI and
+       * replace the space with a '\0' */
+      pair = strchr(equals, ' ');
+      if (pair) {
+        *pair = '\0';
+      }
+
+      /* Revert to NULL so that we exit the loop as expected. */
+      pair = NULL;
+    }
+
+    /* Now find the '=' in the previous pair, replace it with '\0' and save
+     * the parameter value string. */
+    equals = strchr(equals, '=');
+    if (equals) {
+      *equals = '\0';
+      http_cgi_param_vals[loop] = equals + 1;
+    } else {
+      http_cgi_param_vals[loop] = NULL;
+    }
+  }
+
+  return loop;
+}

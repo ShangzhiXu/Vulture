@@ -1,0 +1,34 @@
+static uint8_t prv_checkServerStatus(lwm2m_server_t *serverP)
+{
+    LOG_ARG("Initial status: %s", STR_STATUS(serverP->status));
+
+    switch (serverP->status)
+    {
+    case STATE_BS_HOLD_OFF:
+        serverP->status = STATE_BS_PENDING;
+        LOG_ARG("Status changed to: %s", STR_STATUS(serverP->status));
+        break;
+
+    case STATE_BS_INITIATED:
+        // The ACK was probably lost
+        serverP->status = STATE_BS_PENDING;
+        LOG_ARG("Status changed to: %s", STR_STATUS(serverP->status));
+        break;
+
+    case STATE_DEREGISTERED:
+    // server initiated bootstrap
+    case STATE_BS_PENDING:
+        serverP->registration = lwm2m_gettime() + COAP_EXCHANGE_LIFETIME;
+        break;
+
+    case STATE_BS_FINISHED:
+    case STATE_BS_FINISHING:
+    case STATE_BS_FAILING:
+    case STATE_BS_FAILED:
+    default:
+        LOG("Returning COAP_IGNORE");
+        return COAP_IGNORE;
+    }
+
+    return COAP_NO_ERROR;
+}

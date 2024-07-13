@@ -1,0 +1,33 @@
+LITE_OS_SEC_TEXT_INIT VOID OsCpupGuard(VOID)
+{
+    UINT16 prevPos = g_hisPos;
+    UINT16 loop;
+    UINT16 runTaskId;
+    UINT64 curCycle;
+    UINT32 intSave;
+
+    if (g_cpupInitFlg == 0) {
+        return;
+    }
+    intSave = LOS_IntLock();
+    curCycle = OsGetCpuCycle();
+
+    g_hisPos = CPUP_POST_POS(g_hisPos);
+    cpuHistoryTime[prevPos] = curCycle;
+
+    for (loop = 0; loop < g_cpupMaxNum; loop++) {
+        g_cpup[loop].historyTime[prevPos] = g_cpup[loop].allTime;
+    }
+
+    for (loop = 0; loop < LOSCFG_KERNEL_CORE_NUM; loop++) {
+        runTaskId = runningTasks[loop];
+        /* reacquire the cycle to prevent flip */
+        curCycle = OsGetCpuCycle();
+        g_cpup[runTaskId].historyTime[prevPos] += curCycle - g_cpup[runTaskId].startTime;
+#ifdef LOSCFG_CPUP_INCLUDE_IRQ
+        g_cpup[runTaskId].historyTime[prevPos] -= g_timeInIrqPerTskSwitch[loop];
+#endif
+    }
+
+    LOS_IntRestore(intSave);
+}

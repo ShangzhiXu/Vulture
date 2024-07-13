@@ -1,0 +1,51 @@
+static HAL_StatusTypeDef JPEG_DMA_StartProcess(JPEG_HandleTypeDef *hjpeg)
+{
+  if ((hjpeg->InDataLength < 4UL) || (hjpeg->OutDataLength < 4UL))
+  {
+    return HAL_ERROR;
+  }
+  /* Reset Ending DMA internal context flag*/
+  hjpeg->Context &= ~JPEG_CONTEXT_ENDING_DMA;
+
+  /* Disable DMA In/Out Request*/
+  JPEG_DISABLE_DMA(hjpeg, JPEG_DMA_ODMA | JPEG_DMA_IDMA);
+
+  /* Set the JPEG DMA In transfer complete callback */
+  hjpeg->hdmain->XferCpltCallback = JPEG_DMAInCpltCallback;
+  /* Set the DMA In error callback */
+  hjpeg->hdmain->XferErrorCallback = JPEG_DMAErrorCallback;
+
+  /* Set the JPEG DMA Out transfer complete callback */
+  hjpeg->hdmaout->XferCpltCallback = JPEG_DMAOutCpltCallback;
+  /* Set the DMA Out error callback */
+  hjpeg->hdmaout->XferErrorCallback = JPEG_DMAErrorCallback;
+  /* Set the DMA Out Abort callback */
+  hjpeg->hdmaout->XferAbortCallback = JPEG_DMAOutAbortCallback;
+
+  /*DMA transfer size must be a multiple of 4 bytes i.e mutliple of 32bits words*/
+  hjpeg->InDataLength = hjpeg->InDataLength - (hjpeg->InDataLength % 4UL);
+
+  /*DMA transfer size must be a multiple of 4 bytes i.e mutliple of 32bits words*/
+  hjpeg->OutDataLength = hjpeg->OutDataLength - (hjpeg->OutDataLength % 4UL);
+
+  /* Start DMA FIFO In transfer */
+  if (HAL_DMA_Start_IT(hjpeg->hdmain, (uint32_t)hjpeg->pJpegInBuffPtr, (uint32_t)&hjpeg->Instance->DIR,
+                       hjpeg->InDataLength >> 2)  != HAL_OK)
+  {
+    hjpeg->ErrorCode |= HAL_JPEG_ERROR_DMA;
+    return HAL_ERROR;
+  }
+
+  /* Start DMA FIFO Out transfer */
+  if (HAL_DMA_Start_IT(hjpeg->hdmaout, (uint32_t)&hjpeg->Instance->DOR, (uint32_t)hjpeg->pJpegOutBuffPtr,
+                       hjpeg->OutDataLength >> 2)  != HAL_OK)
+  {
+    hjpeg->ErrorCode |= HAL_JPEG_ERROR_DMA;
+    return HAL_ERROR;
+  }
+
+  /* Enable JPEG In/Out DMA requests*/
+  JPEG_ENABLE_DMA(hjpeg, JPEG_DMA_IDMA | JPEG_DMA_ODMA);
+
+  return HAL_OK;
+}

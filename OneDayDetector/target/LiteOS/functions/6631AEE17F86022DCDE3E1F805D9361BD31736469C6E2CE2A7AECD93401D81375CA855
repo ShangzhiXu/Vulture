@@ -1,0 +1,106 @@
+static uint8_t prv_server_write(uint16_t instanceId,
+                                int numData,
+                                lwm2m_data_t *dataArray,
+                                lwm2m_object_t *objectP)
+{
+    server_instance_t *targetP;
+    int i;
+    uint8_t result;
+
+    targetP = (server_instance_t *)lwm2m_list_find(objectP->instanceList, instanceId);
+    if (NULL == targetP)
+    {
+        return COAP_404_NOT_FOUND;
+    }
+
+    i = 0;
+    do
+    {
+        switch (dataArray[i].id)
+        {
+        case LWM2M_SERVER_SHORT_ID_ID:
+        {
+            uint32_t value = targetP->shortServerId;
+            result = prv_set_int_value(dataArray + i, &value);
+            if (COAP_204_CHANGED == result)
+            {
+                if (0 < value && 0xFFFF >= value)
+                {
+                    targetP->shortServerId = value;
+                }
+                else
+                {
+                    result = COAP_406_NOT_ACCEPTABLE;
+                }
+            }
+        }
+        break;
+
+        case LWM2M_SERVER_LIFETIME_ID:
+            result = prv_set_int_value(dataArray + i, (uint32_t *) & (targetP->lifetime));
+            break;
+
+        case LWM2M_SERVER_MIN_PERIOD_ID:
+            result = prv_set_int_value(dataArray + i, &(targetP->defaultMinPeriod));
+            break;
+
+        case LWM2M_SERVER_MAX_PERIOD_ID:
+            result = prv_set_int_value(dataArray + i, &(targetP->defaultMaxPeriod));
+            break;
+
+        case LWM2M_SERVER_DISABLE_ID:
+            result = COAP_405_METHOD_NOT_ALLOWED;
+            break;
+
+        case LWM2M_SERVER_TIMEOUT_ID:
+            result = prv_set_int_value(dataArray + i, &(targetP->disableTimeout));
+            break;
+
+        case LWM2M_SERVER_STORING_ID:
+        {
+            bool value;
+
+            if (1 == lwm2m_data_decode_bool(dataArray + i, &value))
+            {
+                targetP->storing = value;
+                if(!value)
+                {
+                    set_binary_app_data_object_rpt_max_cnt(value);
+                }
+                result = COAP_204_CHANGED;
+            }
+            else
+            {
+                result = COAP_400_BAD_REQUEST;
+            }
+        }
+        break;
+
+        case LWM2M_SERVER_BINDING_ID:
+            if ((dataArray[i].type == LWM2M_TYPE_STRING || dataArray[i].type == LWM2M_TYPE_OPAQUE)
+                    && dataArray[i].value.asBuffer.length > 0 && dataArray[i].value.asBuffer.length <= 3
+                    && prv_server_check_binding_valid((char *)dataArray[i].value.asBuffer.buffer, dataArray[i].value.asBuffer.length))
+            {
+                memset(targetP->binding, 0, sizeof(targetP->binding));
+                strncpy(targetP->binding, (char *)dataArray[i].value.asBuffer.buffer, dataArray[i].value.asBuffer.length);
+                result = COAP_204_CHANGED;
+            }
+            else
+            {
+                result = COAP_400_BAD_REQUEST;
+            }
+            break;
+
+        case LWM2M_SERVER_UPDATE_ID:
+            result = COAP_405_METHOD_NOT_ALLOWED;
+            break;
+
+        default:
+            return COAP_404_NOT_FOUND;
+        }
+        i++;
+    }
+    while (i < numData && result == COAP_204_CHANGED);
+
+    return result;
+}

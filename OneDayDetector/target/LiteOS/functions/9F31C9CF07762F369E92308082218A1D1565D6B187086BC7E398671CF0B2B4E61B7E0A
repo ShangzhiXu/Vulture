@@ -1,0 +1,126 @@
+static HAL_StatusTypeDef I2C_Master_ISR_DMA(struct __I2C_HandleTypeDef *hi2c, uint32_t ITFlags, uint32_t ITSources)
+{
+  uint16_t devaddress;
+  uint32_t xfermode;
+
+  /* Process Locked */
+  __HAL_LOCK(hi2c);
+
+  if ((I2C_CHECK_FLAG(ITFlags, I2C_FLAG_AF) != RESET) && (I2C_CHECK_IT_SOURCE(ITSources, I2C_IT_NACKI) != RESET))
+  {
+    /* Clear NACK Flag */
+    __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_AF);
+
+    /* Set corresponding Error Code */
+    hi2c->ErrorCode |= HAL_I2C_ERROR_AF;
+
+    /* No need to generate STOP, it is automatically done */
+    /* But enable STOP interrupt, to treat it */
+    /* Error callback will be send during stop flag treatment */
+    I2C_Enable_IRQ(hi2c, I2C_XFER_CPLT_IT);
+
+    /* Flush TX register */
+    I2C_Flush_TXDR(hi2c);
+  }
+  else if ((I2C_CHECK_FLAG(ITFlags, I2C_FLAG_TCR) != RESET) && (I2C_CHECK_IT_SOURCE(ITSources, I2C_IT_TCI) != RESET))
+  {
+    /* Disable TC interrupt */
+    __HAL_I2C_DISABLE_IT(hi2c, I2C_IT_TCI);
+
+    if (hi2c->XferCount != 0U)
+    {
+      /* Recover Slave address */
+      devaddress = (uint16_t)(hi2c->Instance->CR2 & I2C_CR2_SADD);
+
+      /* Prepare the new XferSize to transfer */
+      if (hi2c->XferCount > MAX_NBYTE_SIZE)
+      {
+        hi2c->XferSize = MAX_NBYTE_SIZE;
+        xfermode = I2C_RELOAD_MODE;
+      }
+      else
+      {
+        hi2c->XferSize = hi2c->XferCount;
+        if (hi2c->XferOptions != I2C_NO_OPTION_FRAME)
+        {
+          xfermode = hi2c->XferOptions;
+        }
+        else
+        {
+          xfermode = I2C_AUTOEND_MODE;
+        }
+      }
+
+      /* Set the new XferSize in Nbytes register */
+      I2C_TransferConfig(hi2c, devaddress, (uint8_t)hi2c->XferSize, xfermode, I2C_NO_STARTSTOP);
+
+      /* Update XferCount value */
+      hi2c->XferCount -= hi2c->XferSize;
+
+      /* Enable DMA Request */
+      if (hi2c->State == HAL_I2C_STATE_BUSY_RX)
+      {
+        hi2c->Instance->CR1 |= I2C_CR1_RXDMAEN;
+      }
+      else
+      {
+        hi2c->Instance->CR1 |= I2C_CR1_TXDMAEN;
+      }
+    }
+    else
+    {
+      /* Call TxCpltCallback() if no stop mode is set */
+      if (I2C_GET_STOP_MODE(hi2c) != I2C_AUTOEND_MODE)
+      {
+        /* Call I2C Master Sequential complete process */
+        I2C_ITMasterSeqCplt(hi2c);
+      }
+      else
+      {
+        /* Wrong size Status regarding TCR flag event */
+        /* Call the corresponding callback to inform upper layer of End of Transfer */
+        I2C_ITError(hi2c, HAL_I2C_ERROR_SIZE);
+      }
+    }
+  }
+  else if ((I2C_CHECK_FLAG(ITFlags, I2C_FLAG_TC) != RESET) && (I2C_CHECK_IT_SOURCE(ITSources, I2C_IT_TCI) != RESET))
+  {
+    if (hi2c->XferCount == 0U)
+    {
+      if (I2C_GET_STOP_MODE(hi2c) != I2C_AUTOEND_MODE)
+      {
+        /* Generate a stop condition in case of no transfer option */
+        if (hi2c->XferOptions == I2C_NO_OPTION_FRAME)
+        {
+          /* Generate Stop */
+          hi2c->Instance->CR2 |= I2C_CR2_STOP;
+        }
+        else
+        {
+          /* Call I2C Master Sequential complete process */
+          I2C_ITMasterSeqCplt(hi2c);
+        }
+      }
+    }
+    else
+    {
+      /* Wrong size Status regarding TC flag event */
+      /* Call the corresponding callback to inform upper layer of End of Transfer */
+      I2C_ITError(hi2c, HAL_I2C_ERROR_SIZE);
+    }
+  }
+  else if ((I2C_CHECK_FLAG(ITFlags, I2C_FLAG_STOPF) != RESET) && (I2C_CHECK_IT_SOURCE(ITSources, I2C_IT_STOPI) != RESET))
+  {
+    /* Call I2C Master complete process */
+    I2C_ITMasterCplt(hi2c, ITFlags);
+  }
+  else
+  {
+    /* Nothing to do */
+  }
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(hi2c);
+
+  return HAL_OK;
+}

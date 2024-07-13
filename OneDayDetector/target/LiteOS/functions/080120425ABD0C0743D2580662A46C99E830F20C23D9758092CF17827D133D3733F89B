@@ -1,0 +1,35 @@
+int32_t esp8266_init(void)
+{
+    at_config at_user_conf = {
+        .name = AT_MODU_NAME,
+        .usart_port = AT_USART_PORT,
+        .buardrate = AT_BUARDRATE,
+        .linkid_num = AT_MAX_LINK_NUM,
+        .user_buf_len = MAX_AT_USERDATA_LEN,
+        .cmd_begin = AT_CMD_BEGIN,
+        .line_end = AT_LINE_END,
+        .mux_mode = 1,             // support multi connection mode
+        .timeout = AT_CMD_TIMEOUT, // ms
+    };
+
+    at.init(&at_user_conf);
+    at.oob_register(AT_DATAF_PREFIX, strlen(AT_DATAF_PREFIX), esp8266_data_handler, esp8266_cmd_match);
+
+    esp8266_reset();
+    esp8266_echo_off();
+    esp8266_show_dinfo(1);
+
+    esp8266_choose_net_mode(STA);
+    while (esp8266_joinap(WIFI_SSID, WIFI_PASSWD) == AT_FAILED) {
+        AT_LOG("connect ap failed, repeat...");
+    };
+    esp8266_set_mux_mode(at.mux_mode);
+
+    static int8_t ip[32];
+    static int8_t gw[32];
+    static int8_t mac[32];
+    esp8266_get_localip(ip, gw, NULL);
+    esp8266_get_localmac(mac);
+    AT_LOG_DEBUG("get ip:%s, gw:%s mac:%s", ip, gw, mac);
+    return AT_OK;
+}

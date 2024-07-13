@@ -1,0 +1,42 @@
+int mbedtls_rsa_deduce_private_exponent( mbedtls_mpi const *P,
+                                         mbedtls_mpi const *Q,
+                                         mbedtls_mpi const *E,
+                                         mbedtls_mpi *D )
+{
+    int ret = 0;
+    mbedtls_mpi K, L;
+
+    if( D == NULL || mbedtls_mpi_cmp_int( D, 0 ) != 0 )
+        return( MBEDTLS_ERR_MPI_BAD_INPUT_DATA );
+
+    if( mbedtls_mpi_cmp_int( P, 1 ) <= 0 ||
+        mbedtls_mpi_cmp_int( Q, 1 ) <= 0 ||
+        mbedtls_mpi_cmp_int( E, 0 ) == 0 )
+    {
+        return( MBEDTLS_ERR_MPI_BAD_INPUT_DATA );
+    }
+
+    mbedtls_mpi_init( &K );
+    mbedtls_mpi_init( &L );
+
+    /* Temporarily put K := P-1 and L := Q-1 */
+    MBEDTLS_MPI_CHK( mbedtls_mpi_sub_int( &K, P, 1 ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_sub_int( &L, Q, 1 ) );
+
+    /* Temporarily put D := gcd(P-1, Q-1) */
+    MBEDTLS_MPI_CHK( mbedtls_mpi_gcd( D, &K, &L ) );
+
+    /* K := LCM(P-1, Q-1) */
+    MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( &K, &K, &L ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_div_mpi( &K, NULL, &K, D ) );
+
+    /* Compute modular inverse of E in LCM(P-1, Q-1) */
+    MBEDTLS_MPI_CHK( mbedtls_mpi_inv_mod( D, E, &K ) );
+
+cleanup:
+
+    mbedtls_mpi_free( &K );
+    mbedtls_mpi_free( &L );
+
+    return( ret );
+}

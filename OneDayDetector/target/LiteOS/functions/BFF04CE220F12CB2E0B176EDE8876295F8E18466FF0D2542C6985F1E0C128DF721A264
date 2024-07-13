@@ -1,0 +1,30 @@
+UINT32 OsSlabGetMaxFreeBlkSize(const VOID *pool)
+{
+    struct LosSlabControlHeader *slabMem = OsSlabCtrlHdrGet(pool);
+    OsSlabAllocator *slabAlloc = NULL;
+    UINT32 itemSz = 0;
+    UINT32 itemCnt = 0;
+    UINT32 curUsage = 0;
+    INT32 idx;
+
+#ifdef LOSCFG_KERNEL_MEM_SLAB_AUTO_EXPANSION_MODE
+    OsSlabMemAllocator *bucket = NULL;
+#endif
+
+    for (idx = SLAB_MEM_COUNT - 1; idx >= 0; idx--) {
+#ifdef LOSCFG_KERNEL_MEM_SLAB_AUTO_EXPANSION_MODE
+        bucket = slabMem->slabClass[idx].bucket;
+        slabAlloc = bucket->slabAlloc;
+#else
+        slabAlloc = slabMem->slabClass[idx].alloc;
+#endif
+        if (slabAlloc != NULL) {
+            OsSlabAllocatorGetSlabInfo(slabAlloc, &itemSz, &itemCnt, &curUsage);
+            if (curUsage != itemCnt) {
+                return itemSz;
+            }
+        }
+    }
+
+    return 0;
+}

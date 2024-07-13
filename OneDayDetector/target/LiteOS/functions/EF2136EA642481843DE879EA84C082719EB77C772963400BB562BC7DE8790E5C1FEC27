@@ -1,0 +1,64 @@
+LITE_OS_SEC_TEXT_INIT UINT32 LOS_TaskDelete(UINT32 taskId)
+{
+    LosTaskCB *taskCB = NULL;
+    UINT32 intSave, errRet;
+    UINT16 tempStatus;
+
+    if (OS_TASK_ID_CHECK_INVALID(taskId)) {
+        return LOS_ERRNO_TSK_ID_INVALID;
+    }
+
+    taskCB = OS_TCB_FROM_TID(taskId);
+    if (taskCB->taskFlags & OS_TASK_FLAG_SYSTEM) {
+        return LOS_ERRNO_TSK_OPERATE_SYSTEM_TASK;
+    }
+
+    SCHEDULER_LOCK(intSave);
+
+    tempStatus = taskCB->taskStatus;
+    if (tempStatus & OS_TASK_STATUS_UNUSED) {
+        errRet = LOS_ERRNO_TSK_NOT_CREATED;
+        OS_GOTO_ERREND();
+    }
+    if ((tempStatus & OS_TASK_STATUS_RUNNING) &&
+        !OsTaskDeleteCheckOnRun(taskCB, &errRet)) {
+        OS_GOTO_ERREND();
+    }
+
+    if (tempStatus & OS_TASK_STATUS_READY) {
+        OsPriQueueDequeue(&taskCB->pendList);
+        taskCB->taskStatus &= ~OS_TASK_STATUS_READY;
+    } else if (tempStatus & OS_TASK_STATUS_PEND) {
+        LOS_ListDelete(&taskCB->pendList);
+    }
+
+    if (tempStatus & (OS_TASK_STATUS_DELAY | OS_TASK_STATUS_PEND_TIME)) {
+        OsTimerListDelete(taskCB);
+    }
+
+    taskCB->taskStatus &= ~OS_TASK_STATUS_SUSPEND;
+    taskCB->taskStatus |= OS_TASK_STATUS_UNUSED;
+#ifdef LOSCFG_BASE_IPC_EVENT
+    taskCB->event.uwEventID = OS_INVALID_VALUE;
+    taskCB->eventMask = 0;
+#endif
+#ifdef LOSCFG_LAZY_STACK
+    taskCB->stackFrame = 0;
+#endif
+#ifdef LOSCFG_KERNEL_CPUP
+    (VOID)memset_s((VOID *)OsCpupCBGet(taskCB->taskId), sizeof(OsCpupCB), 0, sizeof(OsCpupCB));
+#endif
+    OS_MEM_CLEAR(taskId);
+
+    OsTaskSyncWake(taskCB);
+    if (OsTaskDelAction(taskCB, taskCB->usrStack)) {
+        OsSchedResched();
+    }
+
+    SCHEDULER_UNLOCK(intSave);
+    return LOS_OK;
+
+LOS_ERREND:
+    SCHEDULER_UNLOCK(intSave);
+    return errRet;
+}

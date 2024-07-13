@@ -1,0 +1,37 @@
+static void refr_knob_pos(lv_obj_t * cpicker)
+{
+    invalidate_knob(cpicker);
+
+    lv_cpicker_ext_t * ext = lv_obj_get_ext_attr(cpicker);
+    lv_coord_t w = lv_obj_get_width(cpicker);
+    lv_coord_t h = lv_obj_get_height(cpicker);
+
+    if(ext->type == LV_CPICKER_TYPE_RECT) {
+        lv_coord_t ind_pos = 0;
+        switch(ext->color_mode) {
+            case LV_CPICKER_COLOR_MODE_HUE:
+                ind_pos += (ext->hsv.h * w) / 360;
+                break;
+            case LV_CPICKER_COLOR_MODE_SATURATION:
+                ind_pos += (ext->hsv.s * w) / 100;
+                break;
+            case LV_CPICKER_COLOR_MODE_VALUE:
+                ind_pos += (ext->hsv.v * w) / 100;
+                break;
+        }
+
+        ext->knob.pos.x = ind_pos;
+        ext->knob.pos.y = h / 2;
+    }
+    else if(ext->type == LV_CPICKER_TYPE_DISC) {
+        lv_style_int_t scale_w = lv_obj_get_style_scale_width(cpicker, LV_CPICKER_PART_MAIN);
+        lv_coord_t r = (w - scale_w) / 2;
+        uint16_t angle = get_angle(cpicker);
+        ext->knob.pos.x = (((int32_t)r * _lv_trigo_sin(angle)) >> LV_TRIGO_SHIFT);
+        ext->knob.pos.y = (((int32_t)r * _lv_trigo_sin(angle + 90)) >> LV_TRIGO_SHIFT);
+        ext->knob.pos.x = ext->knob.pos.x + w / 2;
+        ext->knob.pos.y = ext->knob.pos.y + h / 2;
+    }
+
+    invalidate_knob(cpicker);
+}

@@ -1,0 +1,116 @@
+LV_ATTRIBUTE_FAST_MEM static lv_draw_mask_res_t line_mask_flat(lv_opa_t * mask_buf, lv_coord_t abs_x, lv_coord_t abs_y,
+                                                               lv_coord_t len,
+                                                               lv_draw_mask_line_param_t * p)
+{
+    int32_t y_at_x;
+    y_at_x = (int32_t)((int32_t)p->yx_steep * abs_x) >> 10;
+
+    if(p->yx_steep > 0) {
+        if(y_at_x > abs_y) {
+            if(p->inv) {
+                return LV_DRAW_MASK_RES_FULL_COVER;
+            }
+            else {
+                return LV_DRAW_MASK_RES_TRANSP;
+            }
+        }
+    }
+    else {
+        if(y_at_x < abs_y) {
+            if(p->inv) {
+                return LV_DRAW_MASK_RES_FULL_COVER;
+            }
+            else {
+                return LV_DRAW_MASK_RES_TRANSP;
+            }
+        }
+    }
+
+    /* At the end of the mask if the limit line is smaller then the mask's y.
+     * Then the mask is in the "good" area*/
+    y_at_x = (int32_t)((int32_t)p->yx_steep * (abs_x + len)) >> 10;
+    if(p->yx_steep > 0) {
+        if(y_at_x < abs_y) {
+            if(p->inv) {
+                return LV_DRAW_MASK_RES_TRANSP;
+            }
+            else {
+                return LV_DRAW_MASK_RES_FULL_COVER;
+            }
+        }
+    }
+    else {
+        if(y_at_x > abs_y) {
+            if(p->inv) {
+                return LV_DRAW_MASK_RES_TRANSP;
+            }
+            else {
+                return LV_DRAW_MASK_RES_FULL_COVER;
+            }
+        }
+    }
+
+    int32_t xe;
+    if(p->yx_steep > 0) xe = ((abs_y << 8) * p->xy_steep) >> 10;
+    else xe = (((abs_y + 1) << 8) * p->xy_steep) >> 10;
+
+    int32_t xei = xe >> 8;
+    int32_t xef = xe & 0xFF;
+
+    int32_t px_h;
+    if(xef == 0) px_h = 255;
+    else px_h = 255 - (((255 - xef) * p->spx) >> 8);
+    int32_t k = xei - abs_x;
+    lv_opa_t m;
+
+    if(xef) {
+        if(k >= 0 && k < len) {
+            m = 255 - (((255 - xef) * (255 - px_h)) >> 9);
+            if(p->inv) m = 255 - m;
+            mask_buf[k] = mask_mix(mask_buf[k], m);
+        }
+        k++;
+    }
+
+    while(px_h > p->spx) {
+        if(k >= 0 && k < len) {
+            m = px_h - (p->spx >> 1);
+            if(p->inv) m = 255 - m;
+            mask_buf[k] = mask_mix(mask_buf[k], m);
+        }
+        px_h -= p->spx;
+        k++;
+        if(k >= len) break;
+    }
+
+
+    if(k < len && k >= 0) {
+        int32_t x_inters = (px_h * p->xy_steep) >> 10;
+        m = (x_inters * px_h) >> 9;
+        if(p->yx_steep < 0) m = 255 - m;
+        if(p->inv) m = 255 - m;
+        mask_buf[k] = mask_mix(mask_buf[k], m);
+    }
+
+
+    if(p->inv) {
+        k = xei - abs_x;
+        if(k > len) {
+            return LV_DRAW_MASK_RES_TRANSP;
+        }
+        if(k >= 0) {
+            _lv_memset_00(&mask_buf[0], k);
+        }
+    }
+    else {
+        k++;
+        if(k < 0) {
+            return LV_DRAW_MASK_RES_TRANSP;
+        }
+        if(k <= len) {
+            _lv_memset_00(&mask_buf[k], len - k);
+        }
+    }
+
+    return LV_DRAW_MASK_RES_CHANGED;
+}

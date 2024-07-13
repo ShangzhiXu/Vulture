@@ -1,0 +1,124 @@
+icmp6_input(struct pbuf *p, struct netif *inp)
+{
+  struct icmp6_hdr *icmp6hdr;
+  struct pbuf *r;
+  const ip6_addr_t *reply_src;
+
+  ICMP6_STATS_INC(icmp6.recv);
+
+  /* Check that ICMPv6 header fits in payload */
+  if (p->len < sizeof(struct icmp6_hdr)) {
+    /* drop short packets */
+    pbuf_free(p);
+    ICMP6_STATS_INC(icmp6.lenerr);
+    ICMP6_STATS_INC(icmp6.drop);
+    return;
+  }
+
+  icmp6hdr = (struct icmp6_hdr *)p->payload;
+
+#if CHECKSUM_CHECK_ICMP6
+  IF__NETIF_CHECKSUM_ENABLED(inp, NETIF_CHECKSUM_CHECK_ICMP6) {
+    if (ip6_chksum_pseudo(p, IP6_NEXTH_ICMP6, p->tot_len, ip6_current_src_addr(),
+                          ip6_current_dest_addr()) != 0) {
+      /* Checksum failed */
+      pbuf_free(p);
+      ICMP6_STATS_INC(icmp6.chkerr);
+      ICMP6_STATS_INC(icmp6.drop);
+      return;
+    }
+  }
+#endif /* CHECKSUM_CHECK_ICMP6 */
+
+  switch (icmp6hdr->type) {
+  case ICMP6_TYPE_NA: /* Neighbor advertisement */
+  case ICMP6_TYPE_NS: /* Neighbor solicitation */
+  case ICMP6_TYPE_RA: /* Router advertisement */
+  case ICMP6_TYPE_RD: /* Redirect */
+  case ICMP6_TYPE_PTB: /* Packet too big */
+    nd6_input(p, inp);
+    return;
+  case ICMP6_TYPE_RS:
+#if LWIP_IPV6_FORWARD
+    /* @todo implement router functionality */
+#endif
+    break;
+#if LWIP_IPV6_MLD
+  case ICMP6_TYPE_MLQ:
+  case ICMP6_TYPE_MLR:
+  case ICMP6_TYPE_MLD:
+    mld6_input(p, inp);
+    return;
+#endif
+  case ICMP6_TYPE_EREQ:
+#if !LWIP_MULTICAST_PING
+    /* multicast destination address? */
+    if (ip6_addr_ismulticast(ip6_current_dest_addr())) {
+      /* drop */
+      pbuf_free(p);
+      ICMP6_STATS_INC(icmp6.drop);
+      return;
+    }
+#endif /* LWIP_MULTICAST_PING */
+
+    /* Allocate reply. */
+    r = pbuf_alloc(PBUF_IP, p->tot_len, PBUF_RAM);
+    if (r == NULL) {
+      /* drop */
+      pbuf_free(p);
+      ICMP6_STATS_INC(icmp6.memerr);
+      return;
+    }
+
+    /* Copy echo request. */
+    if (pbuf_copy(r, p) != ERR_OK) {
+      /* drop */
+      pbuf_free(p);
+      pbuf_free(r);
+      ICMP6_STATS_INC(icmp6.err);
+      return;
+    }
+
+    /* Determine reply source IPv6 address. */
+#if LWIP_MULTICAST_PING
+    if (ip6_addr_ismulticast(ip6_current_dest_addr())) {
+      reply_src = ip_2_ip6(ip6_select_source_address(inp, ip6_current_src_addr()));
+      if (reply_src == NULL) {
+        /* drop */
+        pbuf_free(p);
+        pbuf_free(r);
+        ICMP6_STATS_INC(icmp6.rterr);
+        return;
+      }
+    }
+    else
+#endif /* LWIP_MULTICAST_PING */
+    {
+      reply_src = ip6_current_dest_addr();
+    }
+
+    /* Set fields in reply. */
+    ((struct icmp6_echo_hdr *)(r->payload))->type = ICMP6_TYPE_EREP;
+    ((struct icmp6_echo_hdr *)(r->payload))->chksum = 0;
+#if CHECKSUM_GEN_ICMP6
+    IF__NETIF_CHECKSUM_ENABLED(inp, NETIF_CHECKSUM_GEN_ICMP6) {
+      ((struct icmp6_echo_hdr *)(r->payload))->chksum = ip6_chksum_pseudo(r,
+          IP6_NEXTH_ICMP6, r->tot_len, reply_src, ip6_current_src_addr());
+    }
+#endif /* CHECKSUM_GEN_ICMP6 */
+
+    /* Send reply. */
+    ICMP6_STATS_INC(icmp6.xmit);
+    ip6_output_if(r, reply_src, ip6_current_src_addr(),
+        LWIP_ICMP6_HL, 0, IP6_NEXTH_ICMP6, inp);
+    pbuf_free(r);
+
+    break;
+  default:
+    ICMP6_STATS_INC(icmp6.proterr);
+    ICMP6_STATS_INC(icmp6.drop);
+    break;
+  }
+
+  pbuf_free(p);
+}

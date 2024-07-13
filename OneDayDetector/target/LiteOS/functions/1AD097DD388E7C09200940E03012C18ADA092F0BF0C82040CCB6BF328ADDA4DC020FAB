@@ -1,0 +1,17 @@
+osMessageQId osMessageCreate(const osMessageQDef_t *queue_def, osThreadId thread_id)
+{
+    (VOID)thread_id;
+    UINT32 queueId;
+    UINT32 ret;
+
+    if ((queue_def == NULL) || OS_INT_ACTIVE) {
+        return NULL;
+    }
+    // unused queue_def->item_sz, const 4 bytes to save pointer or 32-bit value. /ref <struct osEvent>->value.
+    ret = LOS_QueueCreate(NULL, (UINT16)(queue_def->queue_sz), &queueId, 0, (UINT16)sizeof(UINT32));
+    if (ret == LOS_OK) {
+        return (osMessageQId)GET_QUEUE_HANDLE(queueId);
+    } else {
+        return NULL;
+    }
+}

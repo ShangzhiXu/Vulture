@@ -1,0 +1,24 @@
+int NetworkConnect(Network *n, char *addr, int port)
+{
+    struct freertos_sockaddr sAddr;
+    int retVal = -1;
+    uint32_t ipAddress;
+
+    if ((ipAddress = FreeRTOS_gethostbyname(addr)) == 0)
+        goto exit;
+
+    sAddr.sin_port = FreeRTOS_htons(port);
+    sAddr.sin_addr = ipAddress;
+
+    if ((n->my_socket = FreeRTOS_socket(FREERTOS_AF_INET, FREERTOS_SOCK_STREAM, FREERTOS_IPPROTO_TCP)) < 0)
+        goto exit;
+
+    if ((retVal = FreeRTOS_connect(n->my_socket, &sAddr, sizeof(sAddr))) < 0)
+    {
+        FreeRTOS_closesocket(n->my_socket);
+        goto exit;
+    }
+
+exit:
+    return retVal;
+}

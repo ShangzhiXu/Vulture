@@ -1,0 +1,45 @@
+HAL_StatusTypeDef HAL_IWDG_Init(IWDG_HandleTypeDef *hiwdg)
+{
+  /* Check the IWDG handle allocation */
+  if(hiwdg == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_IWDG_ALL_INSTANCE(hiwdg->Instance));
+  assert_param(IS_IWDG_PRESCALER(hiwdg->Init.Prescaler));
+  assert_param(IS_IWDG_RELOAD(hiwdg->Init.Reload)); 
+  
+  /* Check pending flag, if previous update not done, return error */
+  if((__HAL_IWDG_GET_FLAG(hiwdg, IWDG_FLAG_PVU) != RESET)
+     &&(__HAL_IWDG_GET_FLAG(hiwdg, IWDG_FLAG_RVU) != RESET))
+  {
+    return HAL_ERROR;
+  }
+    
+  if(hiwdg->State == HAL_IWDG_STATE_RESET)
+  {  
+    /* Allocate lock resource and initialize it */
+    hiwdg->Lock = HAL_UNLOCKED;
+    
+    /* Init the low level hardware */
+    HAL_IWDG_MspInit(hiwdg);
+  }
+  
+  /* Change IWDG peripheral state */
+  hiwdg->State = HAL_IWDG_STATE_BUSY;  
+  
+  /* Enable write access to IWDG_PR and IWDG_RLR registers */  
+  IWDG_ENABLE_WRITE_ACCESS(hiwdg);
+  
+  /* Write to IWDG registers the IWDG_Prescaler & IWDG_Reload values to work with */
+  MODIFY_REG(hiwdg->Instance->PR, IWDG_PR_PR, hiwdg->Init.Prescaler);
+  MODIFY_REG(hiwdg->Instance->RLR, IWDG_RLR_RL, hiwdg->Init.Reload);
+ 
+  /* Change IWDG peripheral state */
+  hiwdg->State = HAL_IWDG_STATE_READY;
+  
+  /* Return function status */
+  return HAL_OK;
+}

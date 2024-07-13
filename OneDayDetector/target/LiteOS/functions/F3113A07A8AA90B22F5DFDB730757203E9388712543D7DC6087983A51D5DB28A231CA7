@@ -1,0 +1,47 @@
+smtp_send_mail(const char* from, const char* to, const char* subject, const char* body,
+               smtp_result_fn callback_fn, void* callback_arg)
+{
+  struct smtp_session* s;
+  size_t from_len = strlen(from);
+  size_t to_len = strlen(to);
+  size_t subject_len = strlen(subject);
+  size_t body_len = strlen(body);
+  size_t mem_len = sizeof(struct smtp_session);
+  char *sfrom, *sto, *ssubject, *sbody;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  mem_len += from_len + to_len + subject_len + body_len + 4;
+  if (mem_len > 0xffff) {
+    /* too long! */
+    return ERR_MEM;
+  }
+
+  /* Allocate memory to keep this email's session state */
+  s = (struct smtp_session *)SMTP_STATE_MALLOC((mem_size_t)mem_len);
+  if (s == NULL) {
+    return ERR_MEM;
+  }
+  /* initialize the structure */
+  memset(s, 0, mem_len);
+  s->from = sfrom = (char*)s + sizeof(struct smtp_session);
+  s->from_len = (u16_t)from_len;
+  s->to = sto = sfrom + from_len + 1;
+  s->to_len = (u16_t)to_len;
+  s->subject = ssubject = sto + to_len + 1;
+  s->subject_len = (u16_t)subject_len;
+  s->body = sbody = ssubject + subject_len + 1;
+  s->body_len = (u16_t)body_len;
+  /* copy source and target email address */
+  /* cast to size_t is a hack to cast away constness */
+  MEMCPY(sfrom, from, from_len + 1);
+  MEMCPY(sto, to, to_len + 1);
+  MEMCPY(ssubject, subject, subject_len + 1);
+  MEMCPY(sbody, body, body_len + 1);
+
+  s->callback_fn = callback_fn;
+  s->callback_arg = callback_arg;
+
+  /* call the actual implementation of this function */
+  return smtp_send_mail_alloced(s);
+}

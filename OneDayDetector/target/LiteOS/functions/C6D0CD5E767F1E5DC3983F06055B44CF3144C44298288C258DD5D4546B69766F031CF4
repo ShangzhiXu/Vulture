@@ -1,0 +1,31 @@
+static int32_t nb_handle_sock_data(const int8_t *data, uint32_t len)
+{
+    (void)len;
+    char *curr = (char *)data;
+
+    if (strstr((char *)data, "ERROR") != NULL) {
+        return AT_OK;
+    }
+
+    do {
+        int readleft;
+        int sockid;
+
+        char *next = strstr(curr, "\r\n");
+
+        if (next == curr) {
+            curr += 2;
+        }
+
+        if (next != NULL) {
+            next += 2;
+        }
+
+        if (nb_decompose_str(curr, &readleft, &sockid) == AT_OK) {
+            return AT_OK;
+        }
+        curr = next;
+    } while (curr);
+
+    return AT_FAILED;
+}

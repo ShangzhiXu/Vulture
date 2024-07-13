@@ -1,0 +1,50 @@
+STATIC INT32 OsDmesgRead(CHAR *buf, UINT32 len)
+{
+    UINT32 readLen;
+    UINT32 logSize = g_dmesgInfo->logSize;
+    UINT32 head = g_dmesgInfo->logHead;
+    UINT32 tail = g_dmesgInfo->logTail;
+    CHAR *logBuf = g_dmesgInfo->logBuf;
+    errno_t ret;
+
+    if (OsCheckError()) {
+        return -1;
+    }
+    if (logSize == 0) {
+        return 0;
+    }
+
+    readLen = len < logSize ? len : logSize;
+
+    if (head < tail) { /* Case A */
+        ret = memcpy_s(buf, len, logBuf + head, readLen);
+        if (ret != EOK) {
+            return -1;
+        }
+        g_dmesgInfo->logHead += readLen;
+        g_dmesgInfo->logSize -= readLen;
+    } else { /* Case B */
+        if (readLen <= (g_logBufSize - head)) {
+            ret = memcpy_s(buf, len, logBuf + head, readLen);
+            if (ret != EOK) {
+                return -1;
+            }
+            g_dmesgInfo->logHead += readLen;
+            g_dmesgInfo->logSize -= readLen;
+        } else {
+            ret = memcpy_s(buf, len, logBuf + head, g_logBufSize - head);
+            if (ret != EOK) {
+                return -1;
+            }
+
+            ret = memcpy_s(buf + g_logBufSize - head, len - (g_logBufSize - head),
+                           logBuf, readLen - (g_logBufSize - head));
+            if (ret != EOK) {
+                return -1;
+            }
+            g_dmesgInfo->logHead = readLen - (g_logBufSize - head);
+            g_dmesgInfo->logSize -= readLen;
+        }
+    }
+    return (INT32)readLen;
+}

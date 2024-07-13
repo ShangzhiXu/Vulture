@@ -1,0 +1,205 @@
+static uint32_t SD_PowerON(SD_HandleTypeDef *hsd)
+{
+  __IO uint32_t count = 0;
+  uint32_t response = 0, validvoltage = 0;
+  uint32_t errorstate = HAL_SD_ERROR_NONE;
+  
+  /* CMD0: GO_IDLE_STATE */
+  errorstate = SDMMC_CmdGoIdleState(hsd->Instance);
+  if(errorstate != HAL_SD_ERROR_NONE)
+  {
+    return errorstate;
+  }
+  
+  /* CMD8: SEND_IF_COND: Command available only on V2.0 cards */
+  errorstate = SDMMC_CmdOperCond(hsd->Instance);
+  if(errorstate != HAL_SD_ERROR_NONE)
+  {
+    hsd->SdCard.CardVersion = CARD_V1_X;
+      
+#if !defined(STM32L4R5xx) && !defined(STM32L4R7xx) && !defined(STM32L4R9xx) && !defined(STM32L4S5xx) && !defined(STM32L4S7xx) && !defined(STM32L4S9xx)
+    /* Send ACMD41 SD_APP_OP_COND with Argument 0x80100000 */
+    while(validvoltage == 0)
+    {
+      if(count++ == SDMMC_MAX_VOLT_TRIAL)
+      {
+        return HAL_SD_ERROR_INVALID_VOLTRANGE;
+      }
+      
+      /* SEND CMD55 APP_CMD with RCA as 0 */
+      errorstate = SDMMC_CmdAppCommand(hsd->Instance, 0);
+      if(errorstate != HAL_SD_ERROR_NONE)
+      {
+        return HAL_SD_ERROR_UNSUPPORTED_FEATURE;
+      }
+      
+      /* Send CMD41 */
+      errorstate = SDMMC_CmdAppOperCommand(hsd->Instance, SDMMC_STD_CAPACITY);
+      if(errorstate != HAL_SD_ERROR_NONE)
+      {
+        return HAL_SD_ERROR_UNSUPPORTED_FEATURE;
+      }
+      
+      /* Get command response */
+      response = SDMMC_GetResponse(hsd->Instance, SDMMC_RESP1);
+      
+      /* Get operating voltage*/
+      validvoltage = (((response >> 31) == 1) ? 1 : 0);
+    }
+    /* Card type is SDSC */
+    hsd->SdCard.CardType = CARD_SDSC;
+#endif /* !STM32L4R5xx && !STM32L4R7xx && !STM32L4R9xx && !STM32L4S5xx && !STM32L4S7xx && !STM32L4S9xx */
+  }
+  else
+  {
+    hsd->SdCard.CardVersion = CARD_V2_X;
+    
+#if !defined(STM32L4R5xx) && !defined(STM32L4R7xx) && !defined(STM32L4R9xx) && !defined(STM32L4S5xx) && !defined(STM32L4S7xx) && !defined(STM32L4S9xx)
+    /* Send ACMD41 SD_APP_OP_COND with Argument 0x80100000 */
+    while(validvoltage == 0)
+    {
+      if(count++ == SDMMC_MAX_VOLT_TRIAL)
+      {
+        return HAL_SD_ERROR_INVALID_VOLTRANGE;
+      }
+      
+      /* SEND CMD55 APP_CMD with RCA as 0 */
+      errorstate = SDMMC_CmdAppCommand(hsd->Instance, 0);
+      if(errorstate != HAL_SD_ERROR_NONE)
+      {
+        return errorstate;
+      }
+      
+      /* Send CMD41 */
+      errorstate = SDMMC_CmdAppOperCommand(hsd->Instance, SDMMC_HIGH_CAPACITY);
+      if(errorstate != HAL_SD_ERROR_NONE)
+      {
+        return errorstate;
+      }
+      
+      /* Get command response */
+      response = SDMMC_GetResponse(hsd->Instance, SDMMC_RESP1);
+      
+      /* Get operating voltage*/
+      validvoltage = (((response >> 31) == 1) ? 1 : 0);
+    }
+    
+    if((response & SDMMC_HIGH_CAPACITY) == SDMMC_HIGH_CAPACITY) /* (response &= SD_HIGH_CAPACITY) */
+    {
+      hsd->SdCard.CardType = CARD_SDHC_SDXC;
+    }
+    else
+    {
+      hsd->SdCard.CardType = CARD_SDSC;
+    }
+#endif /* !STM32L4R5xx && !STM32L4R7xx && !STM32L4R9xx && !STM32L4S5xx && !STM32L4S7xx && !STM32L4S9xx */
+  }
+
+#if defined(STM32L4R5xx) || defined(STM32L4R7xx) || defined(STM32L4R9xx) || defined(STM32L4S5xx) || defined(STM32L4S7xx) || defined(STM32L4S9xx)
+  /* SEND CMD55 APP_CMD with RCA as 0 */
+  errorstate = SDMMC_CmdAppCommand(hsd->Instance, 0);
+  if(errorstate != HAL_SD_ERROR_NONE)
+  {
+    return HAL_SD_ERROR_UNSUPPORTED_FEATURE;
+  }
+  else
+  {
+    /* SD CARD */
+    /* Send ACMD41 SD_APP_OP_COND with Argument 0x80100000 */
+    while((!validvoltage) && (count < SDMMC_MAX_VOLT_TRIAL))
+    {
+      /* SEND CMD55 APP_CMD with RCA as 0 */
+      errorstate = SDMMC_CmdAppCommand(hsd->Instance, 0);
+      if(errorstate != HAL_SD_ERROR_NONE)
+      {
+        return errorstate;
+      }
+      
+      /* Send CMD41 */
+      errorstate = SDMMC_CmdAppOperCommand(hsd->Instance, SDMMC_VOLTAGE_WINDOW_SD | SDMMC_HIGH_CAPACITY | SD_SWITCH_1_8V_CAPACITY);
+      if(errorstate != HAL_SD_ERROR_NONE)
+      {
+        return HAL_SD_ERROR_UNSUPPORTED_FEATURE;
+      }
+
+      /* Get command response */
+      response = SDMMC_GetResponse(hsd->Instance, SDMMC_RESP1);
+
+      /* Get operating voltage*/
+      validvoltage = (((response >> 31) == 1) ? 1 : 0);
+
+      count++;
+    }
+
+    if(count >= SDMMC_MAX_VOLT_TRIAL)
+    {
+      return HAL_SD_ERROR_INVALID_VOLTRANGE;
+    }
+    
+    if((response & SDMMC_HIGH_CAPACITY) == SDMMC_HIGH_CAPACITY) /* (response &= SD_HIGH_CAPACITY) */
+    {
+      hsd->SdCard.CardType = CARD_SDHC_SDXC;
+
+      if(hsd->Init.Transceiver == SDMMC_TRANSCEIVER_ENABLE)
+      {
+        if((response & SD_SWITCH_1_8V_CAPACITY) == SD_SWITCH_1_8V_CAPACITY)
+        {
+           hsd->SdCard.CardSpeed = CARD_ULTRA_HIGH_SPEED;
+          
+          /* Start switching procedue */
+          hsd->Instance->POWER |= SDMMC_POWER_VSWITCHEN;
+
+          /* Send CMD11 to switch 1.8V mode */
+          errorstate = SDMMC_CmdVoltageSwitch(hsd->Instance);
+          if(errorstate != HAL_SD_ERROR_NONE)
+          {
+            return errorstate;
+          }
+
+          /* Check to CKSTOP */
+          while(( hsd->Instance->STA & SDMMC_FLAG_CKSTOP) != SDMMC_FLAG_CKSTOP);
+          
+          /* Clear CKSTOP Flag */
+          hsd->Instance->ICR = SDMMC_FLAG_CKSTOP;
+
+          /* Check to BusyD0 */
+          if(( hsd->Instance->STA & SDMMC_FLAG_BUSYD0) != SDMMC_FLAG_BUSYD0)
+          {
+            /* Error when activate Voltage Switch in SDMMC IP */
+            return SDMMC_ERROR_UNSUPPORTED_FEATURE;
+          }
+          else
+          {
+            /* Enable Transceiver Switch PIN */
+            HAL_SDEx_DriveTransceiver_1_8V_Callback(SET);
+            
+            /* Switch ready */
+            hsd->Instance->POWER |= SDMMC_POWER_VSWITCH;
+
+            /* Check VSWEND Flag */
+            while(( hsd->Instance->STA & SDMMC_FLAG_VSWEND) != SDMMC_FLAG_VSWEND);
+            
+            /* Clear VSWEND Flag */
+            hsd->Instance->ICR = SDMMC_FLAG_VSWEND;
+            
+            /* Check BusyD0 status */
+            if(( hsd->Instance->STA & SDMMC_FLAG_BUSYD0) == SDMMC_FLAG_BUSYD0)
+            {
+              /* Error when enabling 1.8V mode */
+              return HAL_SD_ERROR_INVALID_VOLTRANGE;
+            }
+            /* Switch to 1.8V OK */
+            
+            /* Disable VSWITCH FLAG from SDMMC IP */
+            hsd->Instance->POWER = 0x13; 
+            /* Clean Status flags */
+            hsd->Instance->ICR = 0xFFFFFFFF;
+          }
+        }
+      }
+    }
+  }
+#endif /* STM32L4R5xx || STM32L4R7xx || STM32L4R9xx || STM32L4S5xx || STM32L4S7xx || STM32L4S9xx */
+  
+  return HAL_SD_ERROR_NONE;
+}

@@ -1,0 +1,59 @@
+HAL_StatusTypeDef HAL_DFSDM_Channel_RegisterCallback(DFSDM_Channel_HandleTypeDef        *hdfsdm_channel,
+                                                     HAL_DFSDM_Channel_CallbackIDTypeDef CallbackID,
+                                                     pDFSDM_Channel_CallbackTypeDef      pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if(pCallback == NULL)
+  {
+    /* update return status */
+    status = HAL_ERROR;
+  }
+  else
+  {
+    if(HAL_DFSDM_CHANNEL_STATE_READY == hdfsdm_channel->State)
+    {
+      switch (CallbackID)
+      {
+      case HAL_DFSDM_CHANNEL_CKAB_CB_ID :
+        hdfsdm_channel->CkabCallback = pCallback;
+        break;
+      case HAL_DFSDM_CHANNEL_SCD_CB_ID :
+        hdfsdm_channel->ScdCallback = pCallback;
+        break;
+      case HAL_DFSDM_CHANNEL_MSPINIT_CB_ID :
+        hdfsdm_channel->MspInitCallback = pCallback;
+        break;
+      case HAL_DFSDM_CHANNEL_MSPDEINIT_CB_ID :
+        hdfsdm_channel->MspDeInitCallback = pCallback;
+        break;
+      default :
+        /* update return status */
+        status = HAL_ERROR;
+        break;
+      }
+    }
+    else if(HAL_DFSDM_CHANNEL_STATE_RESET == hdfsdm_channel->State)
+    {
+      switch (CallbackID)
+      {
+      case HAL_DFSDM_CHANNEL_MSPINIT_CB_ID :
+        hdfsdm_channel->MspInitCallback = pCallback;
+        break;
+      case HAL_DFSDM_CHANNEL_MSPDEINIT_CB_ID :
+        hdfsdm_channel->MspDeInitCallback = pCallback;
+        break;
+      default :
+        /* update return status */
+        status = HAL_ERROR;
+        break;
+      }
+    }
+    else
+    {
+      /* update return status */
+      status = HAL_ERROR;
+    }
+  }
+  return status;
+}

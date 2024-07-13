@@ -1,0 +1,28 @@
+static void LL_ConvertLineToARGB8888(void *pSrc, void *pDst, uint32_t xSize, uint32_t ColorMode)
+{
+  /* Configure the DMA2D Mode, Color Mode and output offset */
+  hdma2d_discovery.Init.Mode         = DMA2D_M2M_PFC;
+  hdma2d_discovery.Init.ColorMode    = DMA2D_OUTPUT_ARGB8888;
+  hdma2d_discovery.Init.OutputOffset = 0;
+
+  /* Foreground Configuration */
+  hdma2d_discovery.LayerCfg[1].AlphaMode = DMA2D_NO_MODIF_ALPHA;
+  hdma2d_discovery.LayerCfg[1].InputAlpha = 0xFF;
+  hdma2d_discovery.LayerCfg[1].InputColorMode = ColorMode;
+  hdma2d_discovery.LayerCfg[1].InputOffset = 0;
+
+  hdma2d_discovery.Instance = DMA2D;
+
+  /* DMA2D Initialization */
+  if(HAL_DMA2D_Init(&hdma2d_discovery) == HAL_OK)
+  {
+    if(HAL_DMA2D_ConfigLayer(&hdma2d_discovery, 1) == HAL_OK)
+    {
+      if (HAL_DMA2D_Start(&hdma2d_discovery, (uint32_t)pSrc, (uint32_t)pDst, xSize, 1) == HAL_OK)
+      {
+        /* Polling For DMA transfer */
+        HAL_DMA2D_PollForTransfer(&hdma2d_discovery, 10);
+      }
+    }
+  }
+}

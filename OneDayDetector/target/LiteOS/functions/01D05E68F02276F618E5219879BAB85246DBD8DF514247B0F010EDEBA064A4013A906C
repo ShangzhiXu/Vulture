@@ -1,0 +1,13 @@
+void upper_layers_down(ppp_pcb *pcb) {
+    int i;
+    const struct protent *protp;
+
+    for (i = 0; (protp = protocols[i]) != NULL; ++i) {
+        if (protp->protocol != PPP_LCP && protp->lowerdown != NULL)
+	    (*protp->lowerdown)(pcb);
+        if (protp->protocol < 0xC000 && protp->close != NULL)
+	    (*protp->close)(pcb, "LCP down");
+    }
+    pcb->num_np_open = 0;
+    pcb->num_np_up = 0;
+}

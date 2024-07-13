@@ -1,0 +1,19 @@
+void eap_authwithpeer(ppp_pcb *pcb, const char *localname) {
+
+	if(NULL == localname)
+		return;
+
+	/* Save the peer name we're given */
+	pcb->eap.es_client.ea_name = localname;
+	pcb->eap.es_client.ea_namelen = strlen(localname);
+
+	pcb->eap.es_client.ea_state = eapListen;
+
+	/*
+	 * Start a timer so that if the other end just goes
+	 * silent, we don't sit here waiting forever.
+	 */
+	if (pcb->settings.eap_req_time > 0)
+		TIMEOUT(eap_client_timeout, pcb,
+		    pcb->settings.eap_req_time);
+}

@@ -1,0 +1,21 @@
+void HAL_GFXMMU_IRQHandler(GFXMMU_HandleTypeDef *hgfxmmu)
+{
+  uint32_t flags, interrupts, error;
+  
+  /* Read current flags and interrupts and determine which error occurs */
+  flags = hgfxmmu->Instance->SR;
+  interrupts = (hgfxmmu->Instance->CR & GFXMMU_CR_ITS_MASK);
+  error = (flags & interrupts);
+  
+  if(error != 0U)
+  {
+    /* Clear flags on GFXMMU_FCR register */
+    hgfxmmu->Instance->FCR = error;
+    
+    /* Update GFXMMU error code */
+    hgfxmmu->ErrorCode |= error;
+    
+    /* Call GFXMMU error callback */
+    HAL_GFXMMU_ErrorCallback(hgfxmmu);
+  }
+}

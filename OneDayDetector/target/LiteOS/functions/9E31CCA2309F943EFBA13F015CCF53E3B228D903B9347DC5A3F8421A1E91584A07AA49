@@ -1,0 +1,82 @@
+httpc_init_connection_common(httpc_state_t **connection, const httpc_connection_t *settings, const char* server_name,
+                      u16_t server_port, const char* uri, altcp_recv_fn recv_fn, void* callback_arg, int use_host)
+{
+  size_t alloc_len;
+  mem_size_t mem_alloc_len;
+  int req_len, req_len2;
+  httpc_state_t *req;
+#if HTTPC_DEBUG_REQUEST
+  size_t server_name_len, uri_len;
+#endif
+
+  LWIP_ASSERT("uri != NULL", uri != NULL);
+
+  /* get request len */
+  req_len = httpc_create_request_string(settings, server_name, server_port, uri, use_host, NULL, 0);
+  if ((req_len < 0) || (req_len > 0xFFFF)) {
+    return ERR_VAL;
+  }
+  /* alloc state and request in one block */
+  alloc_len = sizeof(httpc_state_t);
+#if HTTPC_DEBUG_REQUEST
+  server_name_len = server_name ? strlen(server_name) : 0;
+  uri_len = strlen(uri);
+  alloc_len += server_name_len + 1 + uri_len + 1;
+#endif
+  mem_alloc_len = (mem_size_t)alloc_len;
+  if ((mem_alloc_len < alloc_len) || (req_len + 1 > 0xFFFF)) {
+    return ERR_VAL;
+  }
+
+  req = (httpc_state_t*)mem_malloc((mem_size_t)alloc_len);
+  if(req == NULL) {
+    return ERR_MEM;
+  }
+  memset(req, 0, sizeof(httpc_state_t));
+  req->timeout_ticks = HTTPC_POLL_TIMEOUT;
+  req->request = pbuf_alloc(PBUF_RAW, (u16_t)(req_len + 1), PBUF_RAM);
+  if (req->request == NULL) {
+    httpc_free_state(req);
+    return ERR_MEM;
+  }
+  if (req->request->next != NULL) {
+    /* need a pbuf in one piece */
+    httpc_free_state(req);
+    return ERR_MEM;
+  }
+  req->hdr_content_len = HTTPC_CONTENT_LEN_INVALID;
+#if HTTPC_DEBUG_REQUEST
+  req->server_name = (char*)(req + 1);
+  if (server_name) {
+    memcpy(req->server_name, server_name, server_name_len + 1);
+  }
+  req->uri = req->server_name + server_name_len + 1;
+  memcpy(req->uri, uri, uri_len + 1);
+#endif
+  req->pcb = altcp_new(settings->altcp_allocator);
+  if(req->pcb == NULL) {
+    httpc_free_state(req);
+    return ERR_MEM;
+  }
+  req->remote_port = settings->use_proxy ? settings->proxy_port : server_port;
+  altcp_arg(req->pcb, req);
+  altcp_recv(req->pcb, httpc_tcp_recv);
+  altcp_err(req->pcb, httpc_tcp_err);
+  altcp_poll(req->pcb, httpc_tcp_poll, HTTPC_POLL_INTERVAL);
+  altcp_sent(req->pcb, httpc_tcp_sent);
+
+  /* set up request buffer */
+  req_len2 = httpc_create_request_string(settings, server_name, server_port, uri, use_host,
+    (char *)req->request->payload, req_len + 1);
+  if (req_len2 != req_len) {
+    httpc_free_state(req);
+    return ERR_VAL;
+  }
+
+  req->recv_fn = recv_fn;
+  req->conn_settings = settings;
+  req->callback_arg = callback_arg;
+
+  *connection = req;
+  return ERR_OK;
+}

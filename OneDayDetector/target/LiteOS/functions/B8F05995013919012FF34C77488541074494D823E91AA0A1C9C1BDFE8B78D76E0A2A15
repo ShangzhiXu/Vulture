@@ -1,0 +1,23 @@
+VOID OsMuxDlockNodeDelete(UINT32 taskId, const VOID *muxCB)
+{
+    MuxDLinkCB *muxDLCB = NULL;
+    LOS_DL_LIST *list = NULL;
+    MuxDLinkNode *muxDLNode = NULL;
+
+    if ((taskId > LOSCFG_BASE_CORE_TSK_LIMIT) || (muxCB == NULL)) {
+        PRINT_ERR("%s: Argument is invalid!\n", __FUNCTION__);
+        return;
+    }
+
+    muxDLCB = &g_muxDeadlockCBArray[taskId];
+    LOS_DL_LIST_FOR_EACH(list, &muxDLCB->muxListHead) {
+        muxDLNode = LOS_DL_LIST_ENTRY(list, MuxDLinkNode, muxList);
+        if (muxDLNode->muxCB == muxCB) {
+            LOS_ListDelete(&muxDLNode->muxList);
+            (VOID)LOS_MemFree(m_aucSysMem1, muxDLNode);
+            return;
+        }
+    }
+
+    PRINT_ERR("%s: find mutex deadlock node failed!\n", __FUNCTION__);
+}

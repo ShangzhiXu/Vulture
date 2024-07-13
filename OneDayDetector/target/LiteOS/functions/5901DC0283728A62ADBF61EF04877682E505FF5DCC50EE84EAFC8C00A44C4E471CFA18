@@ -1,0 +1,42 @@
+s32_t spiffs_erase_block(
+    spiffs *fs,
+    spiffs_block_ix bix)
+{
+    s32_t res;
+    u32_t addr = SPIFFS_BLOCK_TO_PADDR(fs, bix);
+    s32_t size = SPIFFS_CFG_LOG_BLOCK_SZ(fs);
+
+    // here we ignore res, just try erasing the block
+    while (size > 0)
+    {
+        SPIFFS_DBG("erase "_SPIPRIad":"_SPIPRIi"\n", addr,  SPIFFS_CFG_PHYS_ERASE_SZ(fs));
+        SPIFFS_HAL_ERASE(fs, addr, SPIFFS_CFG_PHYS_ERASE_SZ(fs));
+
+        addr += SPIFFS_CFG_PHYS_ERASE_SZ(fs);
+        size -= SPIFFS_CFG_PHYS_ERASE_SZ(fs);
+    }
+    fs->free_blocks++;
+
+    // register erase count for this block
+    res = _spiffs_wr(fs, SPIFFS_OP_C_WRTHRU | SPIFFS_OP_T_OBJ_LU2, 0,
+                     SPIFFS_ERASE_COUNT_PADDR(fs, bix),
+                     sizeof(spiffs_obj_id), (u8_t *)&fs->max_erase_count);
+    SPIFFS_CHECK_RES(res);
+
+#if SPIFFS_USE_MAGIC
+    // finally, write magic
+    spiffs_obj_id magic = SPIFFS_MAGIC(fs, bix);
+    res = _spiffs_wr(fs, SPIFFS_OP_C_WRTHRU | SPIFFS_OP_T_OBJ_LU2, 0,
+                     SPIFFS_MAGIC_PADDR(fs, bix),
+                     sizeof(spiffs_obj_id), (u8_t *)&magic);
+    SPIFFS_CHECK_RES(res);
+#endif
+
+    fs->max_erase_count++;
+    if (fs->max_erase_count == SPIFFS_OBJ_ID_IX_FLAG)
+    {
+        fs->max_erase_count = 0;
+    }
+
+    return res;
+}

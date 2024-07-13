@@ -1,0 +1,63 @@
+int MQTTPublish(MQTTClient* c, const char* topicName, MQTTMessage* message)
+{
+    int rc = FAILURE;
+    Timer timer;
+    MQTTString topic = MQTTString_initializer;
+    topic.cstring = (char *)topicName;
+    int len = 0;
+
+#if defined(MQTT_TASK)
+	  MutexLock(&c->mutex);
+#endif
+	  if (!c->isconnected)
+		    goto exit;
+
+    TimerInit(&timer);
+    if(message->qos == QOS2)
+        TimerCountdownMS(&timer, c->command_timeout_ms * 2);
+    else
+        TimerCountdownMS(&timer, c->command_timeout_ms);
+
+    if (message->qos == QOS1 || message->qos == QOS2)
+        message->id = getNextPacketId(c);
+
+    len = MQTTSerialize_publish(c->buf, c->buf_size, 0, message->qos, message->retained, message->id,
+              topic, (unsigned char*)message->payload, message->payloadlen);
+    if (len <= 0)
+        goto exit;
+    if ((rc = sendPacket(c, len, &timer)) != MQTT_SUCCESS) // send the subscribe packet
+        goto exit; // there was a problem
+
+    if (message->qos == QOS1)
+    {
+        if (waitfor(c, PUBACK, &timer) == PUBACK)
+        {
+            unsigned short mypacketid;
+            unsigned char dup, type;
+            if (MQTTDeserialize_ack(&type, &dup, &mypacketid, c->readbuf, c->readbuf_size) != 1)
+                rc = FAILURE;
+        }
+        else
+            rc = FAILURE;
+    }
+    else if (message->qos == QOS2)
+    {
+        if (waitfor(c, PUBCOMP, &timer) == PUBCOMP)
+        {
+            unsigned short mypacketid;
+            unsigned char dup, type;
+            if (MQTTDeserialize_ack(&type, &dup, &mypacketid, c->readbuf, c->readbuf_size) != 1)
+                rc = FAILURE;
+        }
+        else
+            rc = FAILURE;
+    }
+
+exit:
+    if (rc == FAILURE)
+        MQTTCloseSession(c);
+#if defined(MQTT_TASK)
+	  MutexUnlock(&c->mutex);
+#endif
+    return rc;
+}

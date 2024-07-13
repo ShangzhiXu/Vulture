@@ -1,0 +1,143 @@
+static void CRYP_Padding(CRYP_HandleTypeDef *hcryp, uint32_t difflength, uint32_t polling)
+{
+  uint32_t index          = 0;
+  uint32_t difflengthmod4 = difflength%4;
+  uint32_t inputaddr      = (uint32_t)hcryp->pCrypInBuffPtr; 
+  uint32_t outputaddr     = (uint32_t)hcryp->pCrypOutBuffPtr;   
+  uint32_t mask[4][3]      = { {0xFF000000, 0xFFFF0000, 0xFFFFFF00},  /* 32-bit data */
+                               {0x0000FF00, 0x0000FFFF, 0xFF00FFFF},  /* 16-bit data */
+                               {0x000000FF, 0x0000FFFF, 0x00FFFFFF},  /* 8-bit data  */
+                               {0x000000FF, 0x0000FFFF, 0x00FFFFFF}}; /* Bit data    */
+  uint32_t mask_index = hcryp->Init.DataType >> AES_CR_DATATYPE_Pos;                              
+    
+  uint32_t intermediate_data[4] = {0};
+  
+#if defined(AES_CR_NPBLB)  
+  /* In case of GCM encryption or CCM decryption, specify the number of padding
+     bytes in last block of payload */
+     if (READ_BIT(hcryp->Instance->CR,AES_CR_GCMPH) == CRYP_PAYLOAD_PHASE)
+     {
+       if (((READ_BIT(hcryp->Instance->CR, AES_CR_CHMOD) == CRYP_CHAINMODE_AES_GCM_GMAC)
+            &&  (READ_BIT(hcryp->Instance->CR, AES_CR_MODE) == CRYP_ALGOMODE_ENCRYPT))   
+        ||  ((READ_BIT(hcryp->Instance->CR, AES_CR_CHMOD) == CRYP_CHAINMODE_AES_CCM)
+            &&  (READ_BIT(hcryp->Instance->CR, AES_CR_MODE) == CRYP_ALGOMODE_DECRYPT)))
+       {
+         /* Set NPBLB field in writing the number of padding bytes 
+            for the last block of payload */
+         MODIFY_REG(hcryp->Instance->CR, AES_CR_NPBLB, (16 - difflength) << AES_POSITION_CR_NPBLB);
+       }
+     }
+#else
+  /* Software workaround applied to GCM encryption only */
+  if ((hcryp->Init.GCMCMACPhase == CRYP_PAYLOAD_PHASE) &&		
+      (hcryp->Init.OperatingMode == CRYP_ALGOMODE_ENCRYPT))
+  {
+    /* Change the mode configured in CHMOD bits of CR register to select CTR mode */   
+    __HAL_CRYP_SET_CHAININGMODE(hcryp, CRYP_CHAINMODE_AES_CTR);
+  }  
+#endif  
+  
+  /* Wrap-up entering header or payload data */
+  /* Enter complete words when possible */
+  for(index=0; index < (difflength/4); index ++)
+  {
+    /* Write the Input block in the Data Input register */
+    hcryp->Instance->DINR = *(uint32_t*)(inputaddr);
+    inputaddr+=4;
+  }
+  /* Enter incomplete word padded with zeroes if applicable 
+    (case of header length not a multiple of 32-bits) */
+  if (difflengthmod4 != 0)
+  {         
+    hcryp->Instance->DINR = ((*(uint32_t*)(inputaddr)) & mask[mask_index][difflengthmod4-1]);
+  }         
+  /* Pad with zero-words to reach 128-bit long block and wrap-up header feeding to the IP */
+  for(index=0; index < (4 - ((difflength+3)/4)); index ++)         
+  {
+    hcryp->Instance->DINR = 0;
+  } 
+
+  if (polling == CRYP_POLLING_ON)
+  {
+    if(CRYP_WaitOnCCFlag(hcryp, CRYP_CCF_TIMEOUTVALUE) != HAL_OK)  
+    { 
+        hcryp->State = HAL_CRYP_STATE_READY;        
+        __HAL_UNLOCK(hcryp);
+       HAL_CRYP_ErrorCallback(hcryp);
+      } 
+
+    /* Clear CCF Flag */
+    __HAL_CRYP_CLEAR_FLAG(hcryp, CRYP_CCF_CLEAR);
+  }
+
+  /* if payload */
+  if (hcryp->Init.GCMCMACPhase == CRYP_PAYLOAD_PHASE)
+  {
+       
+    /* Retrieve intermediate data */
+    for(index=0; index < 4; index ++)
+    {
+      intermediate_data[index] = hcryp->Instance->DOUTR;                 
+    }     
+    /* Retrieve last words of cyphered data */
+    /* First, retrieve complete output words */
+    for(index=0; index < (difflength/4); index ++)
+    {
+      *(uint32_t*)(outputaddr) = intermediate_data[index];
+      outputaddr+=4; 
+    } 
+    /* Next, retrieve partial output word if applicable;
+       at the same time, start masking intermediate data 
+       with a mask of zeros of same size than the padding
+       applied to the last block of payload */ 
+    if (difflengthmod4 != 0)
+    {
+      intermediate_data[difflength/4] &= mask[mask_index][difflengthmod4-1];
+      *(uint32_t*)(outputaddr) = intermediate_data[difflength/4];            
+    }           
+    
+    
+#if !defined(AES_CR_NPBLB)      
+    /* Software workaround applied to GCM encryption only,
+       applicable for AES IP v2 version (where NPBLB is not defined) */           
+    if (hcryp->Init.OperatingMode == CRYP_ALGOMODE_ENCRYPT)
+    {
+      /* Change again CHMOD configuration to GCM mode */
+      __HAL_CRYP_SET_CHAININGMODE(hcryp, CRYP_CHAINMODE_AES_GCM_GMAC);  
+      
+      /* Select FINAL phase */
+      MODIFY_REG(hcryp->Instance->CR, AES_CR_GCMPH, CRYP_FINAL_PHASE);
+      
+      /* Before inserting the intermediate data, carry on masking operation
+         with a mask of zeros of same size than the padding applied to the last block of payload */
+      for(index=0; index < (4 - ((difflength+3)/4)); index ++)        
+      {
+        intermediate_data[(difflength+3)/4+index] = 0;
+      }   
+      /* Insert intermediate data */
+      for(index=0; index < 4; index ++)
+      {
+        hcryp->Instance->DINR = intermediate_data[index];          
+      } 
+      
+      /*  Wait for completion, and read data on DOUT. This data is to discard. */ 
+      if(CRYP_WaitOnCCFlag(hcryp, CRYP_CCF_TIMEOUTVALUE) != HAL_OK)  
+      { 
+        hcryp->State = HAL_CRYP_STATE_READY;        
+        __HAL_UNLOCK(hcryp);
+        HAL_CRYP_ErrorCallback(hcryp);
+      } 
+         
+      /* Read data to discard */ 
+      /* Clear CCF Flag */
+      __HAL_CRYP_CLEAR_FLAG(hcryp, CRYP_CCF_CLEAR);
+      for(index=0; index < 4; index ++)
+      {
+        intermediate_data[index] = hcryp->Instance->DOUTR;        
+      }  
+
+    } /* if (hcryp->Init.OperatingMode == CRYP_ALGOMODE_ENCRYPT) */
+#endif  /* !defined(AES_CR_NPBLB) */     
+  }   /* if (hcryp->Init.GCMCMACPhase == CRYP_PAYLOAD_PHASE) */
+
+}

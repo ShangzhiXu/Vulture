@@ -1,0 +1,21 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 OsWaitImagingDone(UINTPTR wowFlashAddr, size_t *wowImgSize)
+{
+    UINT32 ret;
+
+    g_flashImgAddr = wowFlashAddr;
+    (VOID)LOS_EventInit(&g_suspendResumeEvent);
+
+    // This flag will be stored into flash, and will affect the wakeup procedure when cpu is rebooting.
+    g_resumeFromImg = LOS_RUN_STOP_RESET;
+    // This flag affects the suspending procedure later,
+    // and will be reset depending on 'g_resumeFromImg' when cpu is rebooting.
+    g_otherCoreResume = 0;
+    g_sysDoneFlag[LOSCFG_KERNEL_CORE_NUM - 1] = OS_STORE_SYSTEM;
+
+    ret = LOS_EventRead(&g_suspendResumeEvent, 0xFF, LOS_WAITMODE_OR | LOS_WAITMODE_CLR, LOS_WAIT_FOREVER);
+    if (wowImgSize != NULL) {
+        *wowImgSize = g_wowImgSize;
+    }
+
+    return ret;
+}

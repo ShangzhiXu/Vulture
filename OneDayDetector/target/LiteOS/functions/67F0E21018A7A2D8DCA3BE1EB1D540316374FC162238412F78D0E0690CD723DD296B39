@@ -1,0 +1,24 @@
+static err_t test_tcp_netif_output(struct netif *netif, struct pbuf *p,
+       const ip4_addr_t *ipaddr)
+{
+  struct test_tcp_txcounters *txcounters = (struct test_tcp_txcounters*)netif->state;
+  LWIP_UNUSED_ARG(ipaddr);
+  if (txcounters != NULL)
+  {
+    txcounters->num_tx_calls++;
+    txcounters->num_tx_bytes += p->tot_len;
+    if (txcounters->copy_tx_packets) {
+      struct pbuf *p_copy = pbuf_alloc(PBUF_LINK, p->tot_len, PBUF_RAM);
+      err_t err;
+      EXPECT(p_copy != NULL);
+      err = pbuf_copy(p_copy, p);
+      EXPECT(err == ERR_OK);
+      if (txcounters->tx_packets == NULL) {
+        txcounters->tx_packets = p_copy;
+      } else {
+        pbuf_cat(txcounters->tx_packets, p_copy);
+      }
+    }
+  }
+  return ERR_OK;
+}

@@ -1,0 +1,25 @@
+int gettimeofday(struct timeval *tv, void *tz)
+{
+    struct timeval64 stTimeVal64 = {0};
+
+    if (tv == NULL) {
+        TIME_RETURN(EINVAL);
+    }
+
+    if (OsGettimeOfDay(&stTimeVal64, tz) == -1) {
+        return -1;
+    }
+
+#ifdef LOSCFG_AARCH64
+    tv->tv_sec = stTimeVal64.tv_sec;
+    tv->tv_usec = stTimeVal64.tv_usec;
+#else
+    if (stTimeVal64.tv_sec > (long long)LONG_MAX) {
+        return -1;
+    }
+    tv->tv_sec = (time_t)stTimeVal64.tv_sec;
+    tv->tv_usec = (suseconds_t)stTimeVal64.tv_usec;
+#endif
+
+    return 0;
+}

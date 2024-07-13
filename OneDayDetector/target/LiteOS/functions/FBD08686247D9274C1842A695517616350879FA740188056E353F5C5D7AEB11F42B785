@@ -1,0 +1,29 @@
+int pthread_once(pthread_once_t *onceControl, void (*initRoutine)(void))
+{
+    pthread_once_t old;
+    int ret;
+
+    if ((onceControl == NULL) || (initRoutine == NULL)) {
+        return EINVAL;
+    }
+
+    /* Do a test and set on the onceControl object. */
+    ret = pthread_mutex_lock(&g_pthreadsDataMutex);
+    if (ret != ENOERR) {
+        return ret;
+    }
+
+    old = *onceControl;
+    *onceControl = 1;
+
+    ret = pthread_mutex_unlock(&g_pthreadsDataMutex);
+    if (ret != ENOERR) {
+        return ret;
+    }
+    /* If the onceControl was zero, call the initRoutine(). */
+    if (!old) {
+        initRoutine();
+    }
+
+    return ENOERR;
+}

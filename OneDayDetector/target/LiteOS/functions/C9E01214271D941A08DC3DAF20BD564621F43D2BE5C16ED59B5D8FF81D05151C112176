@@ -1,0 +1,26 @@
+static void FLASH_MassErase(uint8_t VoltageRange, uint32_t Banks)
+{
+  /* Check the parameters */
+  assert_param(IS_VOLTAGERANGE(VoltageRange));
+  assert_param(IS_FLASH_BANK(Banks));
+
+  /* if the previous operation is completed, proceed to erase all sectors */
+  CLEAR_BIT(FLASH->CR, FLASH_CR_PSIZE);
+
+  if(Banks == FLASH_BANK_BOTH)
+  {
+    /* bank1 & bank2 will be erased*/
+    FLASH->CR |= FLASH_MER_BIT;
+  }
+  else if(Banks == FLASH_BANK_1)
+  {
+    /*Only bank1 will be erased*/
+    FLASH->CR |= FLASH_CR_MER1;
+  }
+  else
+  {
+    /*Only bank2 will be erased*/
+    FLASH->CR |= FLASH_CR_MER2;
+  }
+  FLASH->CR |= FLASH_CR_STRT | ((uint32_t)VoltageRange <<8U);
+}

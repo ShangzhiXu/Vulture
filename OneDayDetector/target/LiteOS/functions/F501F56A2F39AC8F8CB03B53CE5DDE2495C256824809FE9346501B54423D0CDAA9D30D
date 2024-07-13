@@ -1,0 +1,59 @@
+static void ADC_DMAConvCplt(DMA_HandleTypeDef *hdma)
+{
+  /* Retrieve ADC handle corresponding to current DMA handle */
+  ADC_HandleTypeDef* hadc = ( ADC_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+  
+  /* Update state machine on conversion status if not in error state */
+  if (HAL_IS_BIT_CLR(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL | HAL_ADC_STATE_ERROR_DMA))
+  {
+    /* Set ADC state */
+    SET_BIT(hadc->State, HAL_ADC_STATE_REG_EOC); 
+    
+    /* Determine whether any further conversion upcoming on group regular     */
+    /* by external trigger, continuous mode or scan sequence on going.        */
+    if(ADC_IS_SOFTWARE_START_REGULAR(hadc)        && 
+       (hadc->Init.ContinuousConvMode == DISABLE)   )
+    {
+      /* If End of Sequence is reached, disable interrupts */
+      if( __HAL_ADC_GET_FLAG(hadc, ADC_FLAG_EOS) )
+      {
+        /* Allowed to modify bits ADC_IT_EOC/ADC_IT_EOS only if bit           */
+        /* ADSTART==0 (no conversion on going)                                */
+        if (ADC_IS_CONVERSION_ONGOING_REGULAR(hadc) == RESET)
+        {
+          /* Disable ADC end of single conversion interrupt on group regular */
+          /* Note: Overrun interrupt was enabled with EOC interrupt in        */
+          /* HAL_Start_IT(), but is not disabled here because can be used     */
+          /* by overrun IRQ process below.                                    */
+          __HAL_ADC_DISABLE_IT(hadc, ADC_IT_EOC | ADC_IT_EOS);
+          
+          /* Set ADC state */
+          ADC_STATE_CLR_SET(hadc->State,
+                            HAL_ADC_STATE_REG_BUSY,
+                            HAL_ADC_STATE_READY);
+        }
+        else
+        {
+          /* Change ADC state to error state */
+          SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_CONFIG);
+          
+          /* Set ADC error code to ADC IP internal error */
+          SET_BIT(hadc->ErrorCode, HAL_ADC_ERROR_INTERNAL);
+        }
+      }
+    }
+
+    /* Conversion complete callback */
+#if (USE_HAL_ADC_REGISTER_CALLBACKS == 1)
+    hadc->ConvCpltCallback(hadc);
+#else
+    HAL_ADC_ConvCpltCallback(hadc);
+#endif /* USE_HAL_ADC_REGISTER_CALLBACKS */
+  }
+  else
+  {
+    /* Call DMA error callback */
+    hadc->DMA_Handle->XferErrorCallback(hdma);
+  }
+
+}

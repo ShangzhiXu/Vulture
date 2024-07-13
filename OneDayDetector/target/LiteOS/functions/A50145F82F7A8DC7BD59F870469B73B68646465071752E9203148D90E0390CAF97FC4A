@@ -1,0 +1,56 @@
+HAL_StatusTypeDef HAL_QSPI_Receive_IT(QSPI_HandleTypeDef *hqspi, uint8_t *pData)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t addr_reg = READ_REG(hqspi->Instance->AR);
+
+  /* Process locked */
+  __HAL_LOCK(hqspi);
+
+  if(hqspi->State == HAL_QSPI_STATE_READY)
+  {
+    hqspi->ErrorCode = HAL_QSPI_ERROR_NONE;
+
+    if(pData != NULL )
+    {
+      /* Update state */
+      hqspi->State = HAL_QSPI_STATE_BUSY_INDIRECT_RX;
+
+      /* Configure counters and size of the handle */
+      hqspi->RxXferCount = READ_REG(hqspi->Instance->DLR) + 1U;
+      hqspi->RxXferSize = READ_REG(hqspi->Instance->DLR) + 1U;
+      hqspi->pRxBuffPtr = pData;
+
+      /* Clear interrupt */
+      __HAL_QSPI_CLEAR_FLAG(hqspi, QSPI_FLAG_TE | QSPI_FLAG_TC);
+
+      /* Configure QSPI: CCR register with functional as indirect read */
+      MODIFY_REG(hqspi->Instance->CCR, QUADSPI_CCR_FMODE, QSPI_FUNCTIONAL_MODE_INDIRECT_READ);
+
+      /* Start the transfer by re-writing the address in AR register */
+      WRITE_REG(hqspi->Instance->AR, addr_reg);
+
+      /* Process unlocked */
+      __HAL_UNLOCK(hqspi);
+
+      /* Enable the QSPI transfer error, FIFO threshold and transfer complete Interrupts */
+      __HAL_QSPI_ENABLE_IT(hqspi, QSPI_IT_TE | QSPI_IT_FT | QSPI_IT_TC);
+    }
+    else
+    {
+      hqspi->ErrorCode |= HAL_QSPI_ERROR_INVALID_PARAM;
+      status = HAL_ERROR;
+
+      /* Process unlocked */
+      __HAL_UNLOCK(hqspi);
+    }
+  }
+  else
+  {
+    status = HAL_BUSY;
+
+    /* Process unlocked */
+    __HAL_UNLOCK(hqspi);
+  }
+
+  return status;
+}

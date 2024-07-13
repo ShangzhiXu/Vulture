@@ -1,0 +1,18 @@
+s32_t spiffs_fd_return(spiffs *fs, spiffs_file f)
+{
+    if (f <= 0 || f > (s16_t)fs->fd_count)
+    {
+        return SPIFFS_ERR_BAD_DESCRIPTOR;
+    }
+    spiffs_fd *fds = (spiffs_fd *)fs->fd_space;
+    spiffs_fd *fd = &fds[f - 1];
+    if (fd->file_nbr == 0)
+    {
+        return SPIFFS_ERR_FILE_CLOSED;
+    }
+    fd->file_nbr = 0;
+#if SPIFFS_IX_MAP
+    fd->ix_map = 0;
+#endif
+    return SPIFFS_OK;
+}

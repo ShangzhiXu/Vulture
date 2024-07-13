@@ -1,0 +1,45 @@
+static void JPEG_DMAOutCpltCallback(DMA_HandleTypeDef *hdma)
+{
+  JPEG_HandleTypeDef *hjpeg = (JPEG_HandleTypeDef *)((DMA_HandleTypeDef *)hdma)->Parent;
+
+  /* Disable The JPEG IT so the DMA Output Callback can not be interrupted by the JPEG EOC IT or JPEG HPD IT */
+  __HAL_JPEG_DISABLE_IT(hjpeg, JPEG_INTERRUPT_MASK);
+
+  if ((hjpeg->Context & (JPEG_CONTEXT_METHOD_MASK | JPEG_CONTEXT_ENDING_DMA)) ==
+      JPEG_CONTEXT_DMA) /* Check if context method is DMA and we are not in ending DMA stage */
+  {
+    if (__HAL_JPEG_GET_FLAG(hjpeg, JPEG_FLAG_EOCF) == 0UL)
+    {
+      JPEG_DISABLE_DMA(hjpeg, JPEG_DMA_ODMA);
+      hjpeg->JpegOutCount = hjpeg->OutDataLength - ((hdma->Instance->NDTR & DMA_SxNDT) << 2);
+
+      /*Output Buffer is full, call HAL_JPEG_DataReadyCallback*/
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+      hjpeg->DataReadyCallback(hjpeg, hjpeg->pJpegOutBuffPtr, hjpeg->JpegOutCount);
+#else
+      HAL_JPEG_DataReadyCallback(hjpeg, hjpeg->pJpegOutBuffPtr, hjpeg->JpegOutCount);
+#endif /* USE_HAL_JPEG_REGISTER_CALLBACKS */
+
+      if ((hjpeg->Context &  JPEG_CONTEXT_PAUSE_OUTPUT) == 0UL)
+      {
+        /* Start DMA FIFO Out transfer */
+        if (HAL_DMA_Start_IT(hjpeg->hdmaout, (uint32_t)&hjpeg->Instance->DOR, (uint32_t)hjpeg->pJpegOutBuffPtr,
+                             hjpeg->OutDataLength >> 2) != HAL_OK)
+        {
+          hjpeg->ErrorCode |= HAL_JPEG_ERROR_DMA;
+          hjpeg->State = HAL_JPEG_STATE_ERROR;
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+          hjpeg->ErrorCallback(hjpeg);
+#else
+          HAL_JPEG_ErrorCallback(hjpeg);
+#endif /* USE_HAL_JPEG_REGISTER_CALLBACKS */
+          return;
+        }
+        JPEG_ENABLE_DMA(hjpeg, JPEG_DMA_ODMA);
+      }
+    }
+
+    /* JPEG Conversion still on going : Enable the JPEG IT */
+    __HAL_JPEG_ENABLE_IT(hjpeg, JPEG_IT_EOC | JPEG_IT_HPD);
+  }
+}

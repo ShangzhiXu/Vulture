@@ -1,0 +1,47 @@
+lv_obj_t * lv_canvas_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+    LV_LOG_TRACE("canvas create started");
+
+    /*Create the ancestor of canvas*/
+    lv_obj_t * new_canvas = lv_img_create(par, copy);
+    LV_ASSERT_MEM(new_canvas);
+    if(new_canvas == NULL) return NULL;
+
+    /*Allocate the canvas type specific extended data*/
+    lv_canvas_ext_t * ext = lv_obj_allocate_ext_attr(new_canvas, sizeof(lv_canvas_ext_t));
+    LV_ASSERT_MEM(ext);
+    if(ext == NULL) {
+        lv_obj_del(new_canvas);
+        return NULL;
+    }
+
+    if(ancestor_signal == NULL) ancestor_signal = lv_obj_get_signal_cb(new_canvas);
+    if(ancestor_design == NULL) ancestor_design = lv_obj_get_design_cb(new_canvas);
+
+    /*Initialize the allocated 'ext' */
+    ext->dsc.header.always_zero = 0;
+    ext->dsc.header.cf          = LV_IMG_CF_TRUE_COLOR;
+    ext->dsc.header.h           = 0;
+    ext->dsc.header.w           = 0;
+    ext->dsc.data_size          = 0;
+    ext->dsc.data               = NULL;
+
+    lv_img_set_src(new_canvas, &ext->dsc);
+
+    /*The signal and design functions are not copied so set them here*/
+    lv_obj_set_signal_cb(new_canvas, lv_canvas_signal);
+
+    /*Init the new canvas canvas*/
+    if(copy == NULL) {
+        lv_theme_apply(new_canvas, LV_THEME_CANVAS);
+    }
+    /*Copy an existing canvas*/
+    else {
+        /*Do not copy the image data because each canvas needs it's own buffer*/
+
+    }
+
+    LV_LOG_INFO("canvas created");
+
+    return new_canvas;
+}

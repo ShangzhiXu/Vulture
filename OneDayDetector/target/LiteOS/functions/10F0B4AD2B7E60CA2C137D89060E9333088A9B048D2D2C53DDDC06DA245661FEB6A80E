@@ -1,0 +1,38 @@
+HAL_StatusTypeDef HAL_SMBUS_DeInit(SMBUS_HandleTypeDef *hsmbus)
+{
+  /* Check the SMBUS handle allocation */
+  if (hsmbus == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_SMBUS_ALL_INSTANCE(hsmbus->Instance));
+
+  hsmbus->State = HAL_SMBUS_STATE_BUSY;
+
+  /* Disable the SMBUS Peripheral Clock */
+  __HAL_SMBUS_DISABLE(hsmbus);
+
+#if (USE_HAL_SMBUS_REGISTER_CALLBACKS == 1)
+  if (hsmbus->MspDeInitCallback == NULL)
+  {
+    hsmbus->MspDeInitCallback = HAL_SMBUS_MspDeInit; /* Legacy weak MspDeInit  */
+  }
+
+  /* DeInit the low level hardware: GPIO, CLOCK, NVIC */
+  hsmbus->MspDeInitCallback(hsmbus);
+#else
+  /* DeInit the low level hardware: GPIO, CLOCK, NVIC */
+  HAL_SMBUS_MspDeInit(hsmbus);
+#endif /* USE_HAL_SMBUS_REGISTER_CALLBACKS */
+
+  hsmbus->ErrorCode = HAL_SMBUS_ERROR_NONE;
+  hsmbus->PreviousState =  HAL_SMBUS_STATE_RESET;
+  hsmbus->State = HAL_SMBUS_STATE_RESET;
+
+  /* Release Lock */
+  __HAL_UNLOCK(hsmbus);
+
+  return HAL_OK;
+}

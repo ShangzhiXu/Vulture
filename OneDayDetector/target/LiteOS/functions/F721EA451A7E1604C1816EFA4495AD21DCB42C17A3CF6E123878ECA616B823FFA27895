@@ -1,0 +1,55 @@
+int32_t sota_parse(const int8_t *in_buf, int32_t in_len, int8_t *out_buf, int32_t out_len)
+{
+    ota_pcp_head_s *phead;
+    char *databuf;
+    char *rlen;
+    int buflen;
+    int ret, cmd_crc_num;
+    char *buf;
+
+    if ((in_buf == NULL) || (in_len < (sizeof(ota_pcp_head_s) - sizeof(WORD))) || (out_buf == NULL)) {
+        SOTA_LOG("in_buf:%p len:%d, out_buf:%p", in_buf, (int)in_len, out_buf);
+        goto END;
+    }
+
+    rlen = strstr((const char *)in_buf, ":");
+    if (rlen == NULL) {
+        SOTA_LOG("buflen invalid");
+        goto END;
+    }
+    buflen = chartoint(rlen + 1);
+    if (out_len < buflen) {
+        SOTA_LOG("out buf not enough");
+        goto END;
+    }
+
+    buflen = buflen * 2;
+    databuf = strstr(rlen, ",");
+    if (databuf == NULL) {
+        SOTA_LOG("buf invalid");
+        goto END;
+    }
+    buf = databuf + 1;
+
+    memset(out_buf, 0, out_len);
+    HexStrToByte((const unsigned char *)buf, (unsigned char *)out_buf, buflen);
+    phead = (ota_pcp_head_s *)out_buf;
+
+    cmd_crc_num = htons_ota(phead->chk_code);
+    phead->chk_code = 0;
+    ret = crc_check((const unsigned char *)out_buf, buflen / 2);
+    phead->ori_id = htons_ota(phead->ori_id);
+    if ((phead->data_len > BLOCK_HEAD) && (phead->msg_code == MSG_GET_BLOCK)) {
+        phead->data_len = htons_ota(phead->data_len) - BLOCK_HEAD;
+    }
+    if ((phead->ori_id != PCP_HEAD) || (ret != cmd_crc_num) || (phead->msg_code < MSG_GET_VER) ||
+        (phead->msg_code > MSG_NOTIFY_STATE)) {
+        SOTA_LOG("head wrong! head magic:%X msg_code:%X ver_num:%X ret:%X crc:%X", phead->ori_id, phead->msg_code,
+            phead->ver_num, ret, cmd_crc_num);
+        goto END;
+    }
+
+    return SOTA_OK;
+END:
+    return SOTA_FAILED;
+}

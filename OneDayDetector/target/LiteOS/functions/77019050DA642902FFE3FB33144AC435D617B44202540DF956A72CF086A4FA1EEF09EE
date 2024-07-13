@@ -1,0 +1,38 @@
+STATIC INT32 OsTabMatchFile(CHAR *cmdKey, UINT32 *len)
+{
+    UINT32 maxLen = 0;
+    INT32 count;
+    CHAR *strOutput = NULL;
+    CHAR *strCmp = NULL;
+    CHAR *dirOpen = (CHAR *)LOS_MemAlloc(m_aucSysMem0, CMD_MAX_PATH * 3); /* 3:dirOpen\strOutput\strCmp */
+    if (dirOpen == NULL) {
+        return (INT32)OS_ERROR;
+    }
+
+    (VOID)memset_s(dirOpen, CMD_MAX_PATH * 3, 0, CMD_MAX_PATH * 3); /* 3:dirOpen\strOutput\strCmp */
+    strOutput = dirOpen + CMD_MAX_PATH;
+    strCmp = strOutput + CMD_MAX_PATH;
+
+    if (OsStrSeparate(cmdKey, dirOpen, strCmp, *len)) {
+        (VOID)LOS_MemFree(m_aucSysMem0, dirOpen);
+        return (INT32)OS_ERROR;
+    }
+
+    count = OsExecNameMatch(dirOpen, strCmp, strOutput, &maxLen);
+    /* one or more matched */
+    if (count >= 1) {
+        OsCompleteStr(strOutput, strCmp, cmdKey, len);
+
+        if (count == 1) {
+            (VOID)LOS_MemFree(m_aucSysMem0, dirOpen);
+            return 1;
+        }
+        if (OsPrintMatchList((UINT32)count, dirOpen, strCmp, maxLen) == -1) {
+            (VOID)LOS_MemFree(m_aucSysMem0, dirOpen);
+            return (INT32)OS_ERROR;
+        }
+    }
+
+    (VOID)LOS_MemFree(m_aucSysMem0, dirOpen);
+    return count;
+}

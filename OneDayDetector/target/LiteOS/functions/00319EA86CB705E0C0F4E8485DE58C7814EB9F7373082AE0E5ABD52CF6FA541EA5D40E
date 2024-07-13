@@ -1,0 +1,125 @@
+ip6addr_aton(const char *cp, ip6_addr_t *addr)
+{
+  u32_t addr_index, zero_blocks, current_block_index, current_block_value;
+  const char *s;
+#if LWIP_IPV4
+  int check_ipv4_mapped = 0;
+#endif /* LWIP_IPV4 */
+
+  /* Count the number of colons, to count the number of blocks in a "::" sequence
+     zero_blocks may be 1 even if there are no :: sequences */
+  zero_blocks = 8;
+  for (s = cp; *s != 0; s++) {
+    if (*s == ':') {
+      zero_blocks--;
+#if LWIP_IPV4
+    } else if (*s == '.') {
+      if ((zero_blocks == 5) ||(zero_blocks == 2)) {
+        check_ipv4_mapped = 1;
+        /* last block could be the start of an IPv4 address */
+        zero_blocks--;
+      } else {
+        /* invalid format */
+        return 0;
+      }
+      break;
+#endif /* LWIP_IPV4 */
+    } else if (!lwip_isxdigit(*s)) {
+      break;
+    }
+  }
+
+  /* parse each block */
+  addr_index = 0;
+  current_block_index = 0;
+  current_block_value = 0;
+  for (s = cp; *s != 0; s++) {
+    if (*s == ':') {
+      if (addr) {
+        if (current_block_index & 0x1) {
+          addr->addr[addr_index++] |= current_block_value;
+        }
+        else {
+          addr->addr[addr_index] = current_block_value << 16;
+        }
+      }
+      current_block_index++;
+#if LWIP_IPV4
+      if (check_ipv4_mapped) {
+        if (current_block_index == 6) {
+          ip4_addr_t ip4;
+          int ret = ip4addr_aton(s + 1, &ip4);
+          if (ret) {
+            if (addr) {
+              addr->addr[3] = lwip_htonl(ip4.addr);
+              current_block_index++;
+              goto fix_byte_order_and_return;
+            }
+            return 1;
+          }
+        }
+      }
+#endif /* LWIP_IPV4 */
+      current_block_value = 0;
+      if (current_block_index > 7) {
+        /* address too long! */
+        return 0;
+      }
+      if (s[1] == ':') {
+        if (s[2] == ':') {
+          /* invalid format: three successive colons */
+          return 0;
+        }
+        s++;
+        /* "::" found, set zeros */
+        while (zero_blocks > 0) {
+          zero_blocks--;
+          if (current_block_index & 0x1) {
+            addr_index++;
+          } else {
+            if (addr) {
+              addr->addr[addr_index] = 0;
+            }
+          }
+          current_block_index++;
+          if (current_block_index > 7) {
+            /* address too long! */
+            return 0;
+          }
+        }
+      }
+    } else if (lwip_isxdigit(*s)) {
+      /* add current digit */
+      current_block_value = (current_block_value << 4) +
+          (lwip_isdigit(*s) ? (u32_t)(*s - '0') :
+          (u32_t)(10 + (lwip_islower(*s) ? *s - 'a' : *s - 'A')));
+    } else {
+      /* unexpected digit, space? CRLF? */
+      break;
+    }
+  }
+
+  if (addr) {
+    if (current_block_index & 0x1) {
+      addr->addr[addr_index++] |= current_block_value;
+    }
+    else {
+      addr->addr[addr_index] = current_block_value << 16;
+    }
+#if LWIP_IPV4
+fix_byte_order_and_return:
+#endif
+    /* convert to network byte order. */
+    for (addr_index = 0; addr_index < 4; addr_index++) {
+      addr->addr[addr_index] = lwip_htonl(addr->addr[addr_index]);
+    }
+
+    ip6_addr_clear_zone(addr);
+  }
+
+  if (current_block_index != 7) {
+    return 0;
+  }
+
+  return 1;
+}

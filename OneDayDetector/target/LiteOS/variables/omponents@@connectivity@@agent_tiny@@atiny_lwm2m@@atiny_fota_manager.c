@@ -1,0 +1,15 @@
+    uint32_t cookie;
+    atiny_fota_state_s *current;
+    pack_storage_device_api_s *device;
+    atiny_fota_downloaded_state_s downloaded_state;
+    atiny_fota_downloading_state_s downloading_state;
+    atiny_fota_idle_state_s idle_state;
+    bool init_flag;
+    lwm2m_context_t *lwm2m_context;
+    ota_opt_s ota_opt;
+    char *pkg_uri;
+    atiny_fota_state_e rpt_state;
+    atiny_fota_state_e state;
+    atiny_update_result_e update_result;
+    atiny_fota_updating_state_s updating_state;
+    bool wait_ack_flag;

@@ -1,0 +1,42 @@
+int test1(struct Options options)
+{
+    MQTTPacket_connectData data = MQTTPacket_connectData_initializer;
+    MQTTPacket_connectData data_after = MQTTPacket_connectData_initializer;
+    int rc = 0;
+    unsigned char buf[100];
+    int buflen = sizeof(buf);
+
+    fprintf(xml, "<testcase classname=\"test1\" name=\"de/serialization\"");
+    global_start_time = start_clock();
+    failures = 0;
+    MyLog(LOGA_INFO, "Starting test 1 - serialization of connect and back");
+
+    data.clientID.cstring = "me";
+
+    data.keepAliveInterval = 20;
+    data.cleansession = 1;
+    data.username.cstring = "testuser";
+    data.password.cstring = "testpassword";
+
+    data.willFlag = 1;
+    data.will.message.cstring = "will message";
+    data.will.qos = 1;
+    data.will.retained = 0;
+    data.will.topicName.cstring = "will topic";
+
+    rc = MQTTSerialize_connect(buf, buflen, &data);
+    assert("good rc from serialize connect", rc > 0, "rc was %d\n", rc);
+
+    rc = MQTTDeserialize_connect(&data_after, buf, buflen);
+    assert("good rc from deserialize connect", rc == 1, "rc was %d\n", rc);
+
+    /* data after should be the same as data before */
+    rc = checkConnectPackets(&data, &data_after);
+    assert("packets should be the same",  rc == 1, "packets were different\n", rc);
+
+    /* exit: */
+    MyLog(LOGA_INFO, "TEST1: test %s. %d tests run, %d failures.",
+          (failures == 0) ? "passed" : "failed", tests, failures);
+    write_test_result();
+    return failures;
+}

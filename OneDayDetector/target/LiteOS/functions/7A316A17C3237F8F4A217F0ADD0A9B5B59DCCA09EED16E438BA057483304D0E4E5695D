@@ -1,0 +1,86 @@
+HAL_StatusTypeDef HAL_CEC_Init(CEC_HandleTypeDef *hcec)
+{
+  /* Check the CEC handle allocation */
+  if ((hcec == NULL) || (hcec->Init.RxBuffer == NULL))
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_CEC_ALL_INSTANCE(hcec->Instance));
+  assert_param(IS_CEC_SIGNALFREETIME(hcec->Init.SignalFreeTime));
+  assert_param(IS_CEC_TOLERANCE(hcec->Init.Tolerance));
+  assert_param(IS_CEC_BRERXSTOP(hcec->Init.BRERxStop));
+  assert_param(IS_CEC_BREERRORBITGEN(hcec->Init.BREErrorBitGen));
+  assert_param(IS_CEC_LBPEERRORBITGEN(hcec->Init.LBPEErrorBitGen));
+  assert_param(IS_CEC_BROADCASTERROR_NO_ERRORBIT_GENERATION(hcec->Init.BroadcastMsgNoErrorBitGen));
+  assert_param(IS_CEC_SFTOP(hcec->Init.SignalFreeTimeOption));
+  assert_param(IS_CEC_LISTENING_MODE(hcec->Init.ListenMode));
+  assert_param(IS_CEC_OWN_ADDRESS(hcec->Init.OwnAddress));
+
+#if (USE_HAL_CEC_REGISTER_CALLBACKS == 1)
+  if (hcec->gState == HAL_CEC_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hcec->Lock = HAL_UNLOCKED;
+
+    hcec->TxCpltCallback  = HAL_CEC_TxCpltCallback;  /* Legacy weak TxCpltCallback  */
+    hcec->RxCpltCallback = HAL_CEC_RxCpltCallback;   /* Legacy weak RxCpltCallback */
+    hcec->ErrorCallback = HAL_CEC_ErrorCallback;     /* Legacy weak ErrorCallback */
+
+    if (hcec->MspInitCallback == NULL)
+    {
+      hcec->MspInitCallback = HAL_CEC_MspInit; /* Legacy weak MspInit  */
+    }
+
+    /* Init the low level hardware */
+    hcec->MspInitCallback(hcec);
+  }
+#else
+  if (hcec->gState == HAL_CEC_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hcec->Lock = HAL_UNLOCKED;
+    /* Init the low level hardware : GPIO, CLOCK */
+    HAL_CEC_MspInit(hcec);
+  }
+#endif /* USE_HAL_CEC_REGISTER_CALLBACKS */
+
+  hcec->gState = HAL_CEC_STATE_BUSY;
+
+  /* Disable the Peripheral */
+  __HAL_CEC_DISABLE(hcec);
+
+  /* Write to CEC Control Register */
+  hcec->Instance->CFGR = hcec->Init.SignalFreeTime | hcec->Init.Tolerance | hcec->Init.BRERxStop | \
+                         hcec->Init.BREErrorBitGen | hcec->Init.LBPEErrorBitGen | hcec->Init.BroadcastMsgNoErrorBitGen | \
+                         hcec->Init.SignalFreeTimeOption | ((uint32_t)(hcec->Init.OwnAddress) << 16U) | \
+                         hcec->Init.ListenMode;
+
+  /* Enable the following CEC Transmission/Reception interrupts as
+    * well as the following CEC Transmission/Reception Errors interrupts
+    * Rx Byte Received IT
+    * End of Reception IT
+    * Rx overrun
+    * Rx bit rising error
+    * Rx short bit period error
+    * Rx long bit period error
+    * Rx missing acknowledge
+    * Tx Byte Request IT
+    * End of Transmission IT
+    * Tx Missing Acknowledge IT
+    * Tx-Error IT
+    * Tx-Buffer Underrun IT
+    * Tx arbitration lost   */
+  __HAL_CEC_ENABLE_IT(hcec, CEC_IT_RXBR | CEC_IT_RXEND | CEC_IER_RX_ALL_ERR | CEC_IT_TXBR | CEC_IT_TXEND |
+                      CEC_IER_TX_ALL_ERR);
+
+  /* Enable the CEC Peripheral */
+  __HAL_CEC_ENABLE(hcec);
+
+  hcec->ErrorCode = HAL_CEC_ERROR_NONE;
+  hcec->gState = HAL_CEC_STATE_READY;
+  hcec->RxState = HAL_CEC_STATE_READY;
+
+  return HAL_OK;
+}

@@ -1,0 +1,57 @@
+void * _lv_mem_buf_get(uint32_t size)
+{
+    if(size == 0) return NULL;
+
+    /*Try small static buffers first*/
+    uint8_t i;
+    if(size <= MEM_BUF_SMALL_SIZE) {
+        for(i = 0; i < sizeof(mem_buf_small) / sizeof(mem_buf_small[0]); i++) {
+            if(mem_buf_small[i].used == 0) {
+                mem_buf_small[i].used = 1;
+                return mem_buf_small[i].p;
+            }
+        }
+    }
+
+    /*Try to find a free buffer with suitable size */
+    int8_t i_guess = -1;
+    for(i = 0; i < LV_MEM_BUF_MAX_NUM; i++) {
+        if(LV_GC_ROOT(_lv_mem_buf[i]).used == 0 && LV_GC_ROOT(_lv_mem_buf[i]).size >= size) {
+            if(LV_GC_ROOT(_lv_mem_buf[i]).size == size) {
+                LV_GC_ROOT(_lv_mem_buf[i]).used = 1;
+                return LV_GC_ROOT(_lv_mem_buf[i]).p;
+            }
+            else if(i_guess < 0) {
+                i_guess = i;
+            }
+            /*If size of `i` is closer to `size` prefer it*/
+            else if(LV_GC_ROOT(_lv_mem_buf[i]).size < LV_GC_ROOT(_lv_mem_buf[i_guess]).size) {
+                i_guess = i;
+            }
+        }
+    }
+
+    if(i_guess >= 0) {
+        LV_GC_ROOT(_lv_mem_buf[i_guess]).used = 1;
+        return LV_GC_ROOT(_lv_mem_buf[i_guess]).p;
+    }
+
+
+    /*Reallocate a free buffer*/
+    for(i = 0; i < LV_MEM_BUF_MAX_NUM; i++) {
+        if(LV_GC_ROOT(_lv_mem_buf[i]).used == 0) {
+            LV_GC_ROOT(_lv_mem_buf[i]).used = 1;
+            LV_GC_ROOT(_lv_mem_buf[i]).size = size;
+            /*if this fails you probably need to increase your LV_MEM_SIZE/heap size*/
+            LV_GC_ROOT(_lv_mem_buf[i]).p = lv_mem_realloc(LV_GC_ROOT(_lv_mem_buf[i]).p, size);
+            if(LV_GC_ROOT(_lv_mem_buf[i]).p == NULL) {
+                LV_LOG_ERROR("lv_mem_buf_get: Out of memory, can't allocate a new  buffer (increase your LV_MEM_SIZE/heap size)")
+            }
+            return  LV_GC_ROOT(_lv_mem_buf[i]).p;
+        }
+    }
+
+    LV_LOG_ERROR("lv_mem_buf_get: no free buffer. Increase LV_DRAW_BUF_MAX_NUM.");
+
+    return NULL;
+}

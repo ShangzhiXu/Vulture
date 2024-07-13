@@ -1,0 +1,14 @@
+LITE_OS_SEC_TEXT_MINOR VOID OsMemResetEndNode(VOID *pool, UINTPTR preAddr)
+{
+    LosMemDynNode *endNode = (LosMemDynNode *)OS_MEM_END_NODE(pool, ((LosMemPoolInfo *)pool)->poolSize);
+    endNode->selfNode.sizeAndFlag = OS_MEM_NODE_HEAD_SIZE;
+    if (preAddr != 0) {
+        endNode->selfNode.preNode = (LosMemDynNode *)(preAddr - sizeof(LosMemDynNode));
+    }
+    OS_MEM_NODE_SET_USED_FLAG(endNode->selfNode.sizeAndFlag);
+    OsMemSetMagicNumAndTaskID(endNode);
+
+#ifdef LOSCFG_MEM_HEAD_BACKUP
+    OsMemNodeSave(endNode);
+#endif
+}

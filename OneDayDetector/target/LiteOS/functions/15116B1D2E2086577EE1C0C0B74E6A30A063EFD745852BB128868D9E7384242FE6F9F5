@@ -1,0 +1,65 @@
+static int ecp_mul_comb_after_precomp( const mbedtls_ecp_group *grp,
+                                mbedtls_ecp_point *R,
+                                const mbedtls_mpi *m,
+                                const mbedtls_ecp_point *T,
+                                unsigned char T_size,
+                                unsigned char w,
+                                size_t d,
+                                int (*f_rng)(void *, unsigned char *, size_t),
+                                void *p_rng,
+                                mbedtls_ecp_restart_ctx *rs_ctx )
+{
+    int ret;
+    unsigned char parity_trick;
+    unsigned char k[COMB_MAX_D + 1];
+    mbedtls_ecp_point *RR = R;
+
+#if defined(MBEDTLS_ECP_RESTARTABLE)
+    if( rs_ctx != NULL && rs_ctx->rsm != NULL )
+    {
+        RR = &rs_ctx->rsm->R;
+
+        if( rs_ctx->rsm->state == ecp_rsm_final_norm )
+            goto final_norm;
+    }
+#endif
+
+    MBEDTLS_MPI_CHK( ecp_comb_recode_scalar( grp, m, k, d, w,
+                                            &parity_trick ) );
+    MBEDTLS_MPI_CHK( ecp_mul_comb_core( grp, RR, T, T_size, k, d,
+                                        f_rng, p_rng, rs_ctx ) );
+    MBEDTLS_MPI_CHK( ecp_safe_invert_jac( grp, RR, parity_trick ) );
+
+#if defined(MBEDTLS_ECP_RESTARTABLE)
+    if( rs_ctx != NULL && rs_ctx->rsm != NULL )
+        rs_ctx->rsm->state = ecp_rsm_final_norm;
+
+final_norm:
+    MBEDTLS_ECP_BUDGET( MBEDTLS_ECP_OPS_INV );
+#endif
+    /*
+     * Knowledge of the jacobian coordinates may leak the last few bits of the
+     * scalar [1], and since our MPI implementation isn't constant-flow,
+     * inversion (used for coordinate normalization) may leak the full value
+     * of its input via side-channels [2].
+     *
+     * [1] https://eprint.iacr.org/2003/191
+     * [2] https://eprint.iacr.org/2020/055
+     *
+     * Avoid the leak by randomizing coordinates before we normalize them.
+     */
+#if defined(MBEDTLS_ECP_NO_INTERNAL_RNG)
+    if( f_rng != 0 )
+#endif
+        MBEDTLS_MPI_CHK( ecp_randomize_jac( grp, RR, f_rng, p_rng ) );
+
+    MBEDTLS_MPI_CHK( ecp_normalize_jac( grp, RR ) );
+
+#if defined(MBEDTLS_ECP_RESTARTABLE)
+    if( rs_ctx != NULL && rs_ctx->rsm != NULL )
+        MBEDTLS_MPI_CHK( mbedtls_ecp_copy( R, RR ) );
+#endif
+
+cleanup:
+    return( ret );
+}

@@ -1,0 +1,37 @@
+plug_holes(struct mem *mem)
+{
+  struct mem *nmem;
+  struct mem *pmem;
+
+  LWIP_ASSERT("plug_holes: mem >= ram", (u8_t *)mem >= ram);
+  LWIP_ASSERT("plug_holes: mem < ram_end", (u8_t *)mem < (u8_t *)ram_end);
+  LWIP_ASSERT("plug_holes: mem->used == 0", mem->used == 0);
+
+  /* plug hole forward */
+  LWIP_ASSERT("plug_holes: mem->next <= MEM_SIZE_ALIGNED", mem->next <= MEM_SIZE_ALIGNED);
+
+  nmem = ptr_to_mem(mem->next);
+  if (mem != nmem && nmem->used == 0 && (u8_t *)nmem != (u8_t *)ram_end) {
+    /* if mem->next is unused and not end of ram, combine mem and mem->next */
+    if (lfree == nmem) {
+      lfree = mem;
+    }
+    mem->next = nmem->next;
+    if (nmem->next != MEM_SIZE_ALIGNED) {
+      ptr_to_mem(nmem->next)->prev = mem_to_ptr(mem);
+    }
+  }
+
+  /* plug hole backward */
+  pmem = ptr_to_mem(mem->prev);
+  if (pmem != mem && pmem->used == 0) {
+    /* if mem->prev is unused, combine mem and mem->prev */
+    if (lfree == mem) {
+      lfree = pmem;
+    }
+    pmem->next = mem->next;
+    if (mem->next != MEM_SIZE_ALIGNED) {
+      ptr_to_mem(mem->next)->prev = mem_to_ptr(pmem);
+    }
+  }
+}

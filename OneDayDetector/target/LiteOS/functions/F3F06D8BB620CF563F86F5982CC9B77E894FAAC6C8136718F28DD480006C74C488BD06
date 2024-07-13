@@ -1,0 +1,47 @@
+lwm2m_object_t *get_object_firmware(atiny_param_t *atiny_params)
+{
+    /*
+     * The get_object_firmware function create the object itself and return a pointer to the structure that represent it.
+     */
+    lwm2m_object_t *firmwareObj;
+
+    firmwareObj = (lwm2m_object_t *)lwm2m_malloc(sizeof(lwm2m_object_t));
+
+    if (firmwareObj != NULL) {
+        memset(firmwareObj, 0, sizeof(lwm2m_object_t));
+
+        /*
+         * It assigns its unique ID
+         * The 5 is the standard ID for the optional object "Object firmware".
+         */
+        firmwareObj->objID = LWM2M_FIRMWARE_UPDATE_OBJECT_ID;
+
+        /*
+         * and its unique instance
+         *
+         */
+        firmwareObj->instanceList = (lwm2m_list_t *)lwm2m_malloc(sizeof(lwm2m_list_t));
+        if (firmwareObj->instanceList != NULL) {
+            memset(firmwareObj->instanceList, 0, sizeof(lwm2m_list_t));
+        } else {
+            lwm2m_free(firmwareObj);
+            return NULL;
+        }
+
+        /*
+         * And the private function that will access the object.
+         * Those function will be called when a read/write/execute query is made by the server. In fact the library don't need to
+         * know the resources of the object, only the server does.
+         */
+        firmwareObj->readFunc    = prv_firmware_read;
+        firmwareObj->writeFunc   = prv_firmware_write;
+        firmwareObj->executeFunc = prv_firmware_execute;
+        firmwareObj->userData    = NULL;
+
+        /*
+         * Also some user data can be stored in the object with a private structure containing the needed variables
+         */
+    }
+
+    return firmwareObj;
+}

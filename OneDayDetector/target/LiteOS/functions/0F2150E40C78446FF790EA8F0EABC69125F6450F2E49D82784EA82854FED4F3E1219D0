@@ -1,0 +1,62 @@
+static int32_t bg36_recv_timeout(int32_t id, uint8_t *buf, uint32_t len, char *ipaddr, int *port, int32_t timeout)
+{
+    int rlen = 0;
+    int copylen = 0;
+    int ret;
+    QUEUE_BUFF qbuf;
+    UINT32 qlen = sizeof(QUEUE_BUFF);
+
+    if (id >= MAX_BG36_SOCK_NUM) {
+        AT_LOG("link id %d invalid", (int)id);
+        return AT_FAILED;
+    }
+
+    if (sockinfo[id].buf == NULL) {
+        ret = LOS_QueueReadCopy(at.linkid[id].qid, &qbuf, &qlen, timeout);
+        if (ret != LOS_OK) {
+            return AT_TIMEOUT;
+        }
+        AT_LOG("Read queue len:%d", (int)qbuf.len);
+        sockinfo[id].buf = (char *)qbuf.addr;
+        sockinfo[id].len = qbuf.len;
+        sockinfo[id].offset = 0;
+    }
+
+    if (sockinfo[id].len - sockinfo[id].offset > len) {
+        memcpy(buf, sockinfo[id].buf + sockinfo[id].offset, len);
+        sockinfo[id].offset += len;
+        return len;
+    } else {
+        copylen = sockinfo[id].len - sockinfo[id].offset;
+        memcpy(buf, sockinfo[id].buf + sockinfo[id].offset, copylen);
+        at_free(sockinfo[id].buf);
+        sockinfo[id].offset = 0;
+        sockinfo[id].buf = NULL;
+        sockinfo[id].len = 0;
+        rlen = copylen;
+        while (rlen < len) {
+            ret = LOS_QueueReadCopy(at.linkid[id].qid, &qbuf, &qlen, 0);
+            if (ret == LOS_OK) {
+                sockinfo[id].buf = (char *)qbuf.addr;
+                sockinfo[id].len = qbuf.len;
+                sockinfo[id].offset = 0;
+                if (len - rlen < qbuf.len) {
+                    memcpy(buf + rlen, sockinfo[id].buf, len - rlen);
+                    sockinfo[id].offset = len - rlen;
+                    return len;
+                } else {
+                    memcpy(buf + rlen, sockinfo[id].buf, qbuf.len);
+                    rlen += qbuf.len;
+                    at_free(sockinfo[id].buf);
+                    sockinfo[id].offset = 0;
+                    sockinfo[id].buf = NULL;
+                    sockinfo[id].len = 0;
+                }
+            } else {
+                return rlen;
+            }
+        }
+
+        return rlen;
+    }
+}

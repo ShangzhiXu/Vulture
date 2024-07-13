@@ -1,0 +1,29 @@
+http_wait_headers(struct pbuf *p, u32_t *content_length, u16_t *total_header_len)
+{
+  u16_t end1 = pbuf_memfind(p, "\r\n\r\n", 4, 0);
+  if (end1 < (0xFFFF - 2)) {
+    /* all headers received */
+    /* check if we have a content length (@todo: case insensitive?) */
+    u16_t content_len_hdr;
+    *content_length = HTTPC_CONTENT_LEN_INVALID;
+    *total_header_len = end1 + 4;
+
+    content_len_hdr = pbuf_memfind(p, "Content-Length: ", 16, 0);
+    if (content_len_hdr != 0xFFFF) {
+      u16_t content_len_line_end = pbuf_memfind(p, "\r\n", 2, content_len_hdr);
+      if (content_len_line_end != 0xFFFF) {
+        char content_len_num[16];
+        u16_t content_len_num_len = (u16_t)(content_len_line_end - content_len_hdr - 16);
+        memset(content_len_num, 0, sizeof(content_len_num));
+        if (pbuf_copy_partial(p, content_len_num, content_len_num_len, content_len_hdr + 16) == content_len_num_len) {
+          int len = atoi(content_len_num);
+          if ((len >= 0) && ((u32_t)len < HTTPC_CONTENT_LEN_INVALID)) {
+            *content_length = (u32_t)len;
+          }
+        }
+      }
+    }
+    return ERR_OK;
+  }
+  return ERR_VAL;
+}

@@ -1,0 +1,10 @@
+      void (CJSON_CDECL *free_fn)(void *ptr);
+      void *(CJSON_CDECL *malloc_fn)(size_t sz);
+    struct cJSON *child;
+    struct cJSON *next;
+    struct cJSON *prev;
+    char *string;
+    int type;
+    double valuedouble;
+    int valueint;
+    char *valuestring;

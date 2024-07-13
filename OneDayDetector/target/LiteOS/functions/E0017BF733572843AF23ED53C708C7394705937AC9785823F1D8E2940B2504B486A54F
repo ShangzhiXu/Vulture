@@ -1,0 +1,52 @@
+HAL_StatusTypeDef HAL_IRDA_Transmit_DMA(IRDA_HandleTypeDef *hirda, uint8_t *pData, uint16_t Size)
+{
+  /* Check that a Tx process is not already ongoing */
+  if(hirda->gState == HAL_IRDA_STATE_READY)
+  {
+    if((pData == NULL) || (Size == 0))
+    {
+      return HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hirda);
+
+    hirda->pTxBuffPtr = pData;
+    hirda->TxXferSize = Size;
+    hirda->TxXferCount = Size;
+
+    hirda->ErrorCode = HAL_IRDA_ERROR_NONE;
+    hirda->gState = HAL_IRDA_STATE_BUSY_TX;
+
+    /* Set the IRDA DMA transfer complete callback */
+    hirda->hdmatx->XferCpltCallback = IRDA_DMATransmitCplt;
+
+    /* Set the IRDA DMA half transfer complete callback */
+    hirda->hdmatx->XferHalfCpltCallback = IRDA_DMATransmitHalfCplt;
+
+    /* Set the DMA error callback */
+    hirda->hdmatx->XferErrorCallback = IRDA_DMAError;
+
+    /* Set the DMA abort callback */
+    hirda->hdmatx->XferAbortCallback = NULL;
+
+    /* Enable the IRDA transmit DMA channel */
+    HAL_DMA_Start_IT(hirda->hdmatx, (uint32_t)hirda->pTxBuffPtr, (uint32_t)&hirda->Instance->TDR, Size);
+
+    /* Clear the TC flag in the ICR register */
+    __HAL_IRDA_CLEAR_FLAG(hirda, IRDA_CLEAR_TCF);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hirda);
+
+    /* Enable the DMA transfer for transmit request by setting the DMAT bit
+       in the USART CR3 register */
+    SET_BIT(hirda->Instance->CR3, USART_CR3_DMAT);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

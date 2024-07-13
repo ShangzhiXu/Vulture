@@ -1,0 +1,19 @@
+UINT32 HalIrqSetPrio(UINT32 vector, UINT8 priority)
+{
+    UINT8 prio = priority;
+
+    if (vector > OS_HWI_MAX_NUM) {
+        PRINT_ERR("Invalid irq value %u, max irq is %u\n", vector, OS_HWI_MAX_NUM);
+        return LOS_NOK;
+    }
+
+    prio = prio & (UINT8)GIC_INTR_PRIO_MASK;
+
+    if (vector >= GIC_MIN_SPI_NUM) {
+        GicdSetPmr(vector, prio);
+    } else {
+        GicrSetPmr(vector, prio);
+    }
+
+    return LOS_OK;
+}

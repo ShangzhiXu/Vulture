@@ -1,0 +1,34 @@
+mqtt_tcp_recv_cb(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t err)
+{
+  mqtt_client_t *client = (mqtt_client_t *)arg;
+  LWIP_ASSERT("mqtt_tcp_recv_cb: client != NULL", client != NULL);
+  LWIP_ASSERT("mqtt_tcp_recv_cb: client->conn == pcb", client->conn == pcb);
+
+  if (p == NULL) {
+    LWIP_DEBUGF(MQTT_DEBUG_TRACE, ("mqtt_tcp_recv_cb: Recv pbuf=NULL, remote has closed connection\n"));
+    mqtt_close(client, MQTT_CONNECT_DISCONNECTED);
+  } else {
+    mqtt_connection_status_t res;
+    if (err != ERR_OK) {
+      LWIP_DEBUGF(MQTT_DEBUG_WARN, ("mqtt_tcp_recv_cb: Recv err=%d\n", err));
+      pbuf_free(p);
+      return err;
+    }
+
+    /* Tell remote that data has been received */
+    altcp_recved(pcb, p->tot_len);
+    res = mqtt_parse_incoming(client, p);
+    pbuf_free(p);
+
+    if (res != MQTT_CONNECT_ACCEPTED) {
+      mqtt_close(client, res);
+    }
+    /* If keep alive functionality is used */
+    if (client->keep_alive != 0) {
+      /* Reset server alive watchdog */
+      client->server_watchdog = 0;
+    }
+
+  }
+  return ERR_OK;
+}

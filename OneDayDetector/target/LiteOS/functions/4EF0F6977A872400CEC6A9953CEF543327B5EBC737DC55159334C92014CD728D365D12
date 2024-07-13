@@ -1,0 +1,25 @@
+static lv_res_t lv_gauge_signal(lv_obj_t * gauge, lv_signal_t sign, void * param)
+{
+    lv_res_t res;
+    if(sign == LV_SIGNAL_GET_STYLE) {
+        lv_get_style_info_t * info = param;
+        info->result = lv_gauge_get_style(gauge, info->part);
+        if(info->result != NULL) return LV_RES_OK;
+        else return ancestor_signal(gauge, sign, param);
+    }
+
+    /* Include the ancient signal function */
+    res = ancestor_signal(gauge, sign, param);
+    if(res != LV_RES_OK) return res;
+    if(sign == LV_SIGNAL_GET_TYPE) return lv_obj_handle_get_type_signal(param, LV_OBJX_NAME);
+
+    lv_gauge_ext_t * ext = lv_obj_get_ext_attr(gauge);
+    if(sign == LV_SIGNAL_CLEANUP) {
+        lv_mem_free(ext->values);
+        ext->values = NULL;
+        lv_obj_clean_style_list(gauge, LV_GAUGE_PART_NEEDLE);
+        lv_obj_clean_style_list(gauge, LV_GAUGE_PART_MAJOR);
+    }
+
+    return res;
+}

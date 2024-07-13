@@ -1,0 +1,36 @@
+struct mbedtls_ssl_transform
+{
+    /*
+     * Session specific crypto layer
+     */
+    const mbedtls_ssl_ciphersuite_t *ciphersuite_info;
+                                        /*!<  Chosen cipersuite_info  */
+    unsigned int keylen;                /*!<  symmetric key length (bytes)  */
+    size_t minlen;                      /*!<  min. ciphertext length  */
+    size_t ivlen;                       /*!<  IV length               */
+    size_t fixed_ivlen;                 /*!<  Fixed part of IV (AEAD) */
+    size_t maclen;                      /*!<  MAC length              */
+
+    unsigned char iv_enc[16];           /*!<  IV (encryption)         */
+    unsigned char iv_dec[16];           /*!<  IV (decryption)         */
+
+#if defined(MBEDTLS_SSL_PROTO_SSL3)
+    /* Needed only for SSL v3.0 secret */
+    unsigned char mac_enc[20];          /*!<  SSL v3.0 secret (enc)   */
+    unsigned char mac_dec[20];          /*!<  SSL v3.0 secret (dec)   */
+#endif /* MBEDTLS_SSL_PROTO_SSL3 */
+
+    mbedtls_md_context_t md_ctx_enc;            /*!<  MAC (encryption)        */
+    mbedtls_md_context_t md_ctx_dec;            /*!<  MAC (decryption)        */
+
+    mbedtls_cipher_context_t cipher_ctx_enc;    /*!<  encryption context      */
+    mbedtls_cipher_context_t cipher_ctx_dec;    /*!<  decryption context      */
+
+    /*
+     * Session specific compression layer
+     */
+#if defined(MBEDTLS_ZLIB_SUPPORT)
+    z_stream ctx_deflate;               /*!<  compression context     */
+    z_stream ctx_inflate;               /*!<  decompression context   */
+#endif
+};

@@ -1,0 +1,23 @@
+netif_loopif_init(struct netif *netif)
+{
+  LWIP_ASSERT("netif_loopif_init: invalid netif", netif != NULL);
+
+  /* initialize the snmp variables and counters inside the struct netif
+   * ifSpeed: no assumption can be made!
+   */
+  MIB2_INIT_NETIF(netif, snmp_ifType_softwareLoopback, 0);
+
+  netif->name[0] = 'l';
+  netif->name[1] = 'o';
+#if LWIP_IPV4
+  netif->output = netif_loop_output_ipv4;
+#endif
+#if LWIP_IPV6
+  netif->output_ip6 = netif_loop_output_ipv6;
+#endif
+#if LWIP_LOOPIF_MULTICAST
+  netif_set_flags(netif, NETIF_FLAG_IGMP);
+#endif
+  NETIF_SET_CHECKSUM_CTRL(netif, NETIF_CHECKSUM_DISABLE_ALL);
+  return ERR_OK;
+}

@@ -1,0 +1,51 @@
+static HAL_StatusTypeDef JPEG_Bits_To_SizeCodes(uint8_t *Bits, uint8_t *Huffsize, uint32_t *Huffcode, uint32_t *LastK)
+{
+  uint32_t i, p, l, code, si;
+
+  /* Figure C.1: Generation of table of Huffman code sizes */
+  p = 0;
+  for (l = 0; l < 16UL; l++)
+  {
+    i = (uint32_t)Bits[l];
+    if ((p + i) > 256UL)
+    {
+      /* check for table overflow */
+      return HAL_ERROR;
+    }
+    while (i != 0UL)
+    {
+      Huffsize[p] = (uint8_t) l + 1U;
+      p++;
+      i--;
+    }
+  }
+  Huffsize[p] = 0;
+  *LastK = p;
+
+  /* Figure C.2: Generation of table of Huffman codes */
+  code = 0;
+  si = Huffsize[0];
+  p = 0;
+  while (Huffsize[p] != 0U)
+  {
+    while (((uint32_t) Huffsize[p]) == si)
+    {
+      Huffcode[p] = code;
+      p++;
+      code++;
+    }
+    /* code must fit in "size" bits (si), no code is allowed to be all ones*/
+    if(si > 31UL)
+    {
+      return HAL_ERROR;
+    }
+    if (((uint32_t) code) >= (((uint32_t) 1) << si))
+    {
+      return HAL_ERROR;
+    }
+    code <<= 1;
+    si++;
+  }
+  /* Return function status */
+  return HAL_OK;
+}

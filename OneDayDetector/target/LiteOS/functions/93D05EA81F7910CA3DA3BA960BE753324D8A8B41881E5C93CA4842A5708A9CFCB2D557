@@ -1,0 +1,24 @@
+HAL_StatusTypeDef HAL_SMBUS_UnRegisterAddrCallback(SMBUS_HandleTypeDef *hsmbus)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process locked */
+  __HAL_LOCK(hsmbus);
+
+  if (HAL_SMBUS_STATE_READY == hsmbus->State)
+  {
+    hsmbus->AddrCallback = HAL_SMBUS_AddrCallback; /* Legacy weak AddrCallback  */
+  }
+  else
+  {
+    /* Update the error code */
+    hsmbus->ErrorCode |= HAL_SMBUS_ERROR_INVALID_CALLBACK;
+
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hsmbus);
+  return status;
+}

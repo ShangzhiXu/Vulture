@@ -1,0 +1,17 @@
+VOID HalClockStart(VOID)
+{
+    if ((OS_SYS_CLOCK == 0) ||
+        (LOSCFG_BASE_CORE_TICK_PER_SECOND == 0) ||
+        (LOSCFG_BASE_CORE_TICK_PER_SECOND > OS_SYS_CLOCK)) {
+        return;
+    }
+
+    g_cyclesPerTick = OS_CYCLE_PER_TICK;
+
+    (VOID)SysTick_Config(OS_CYCLE_PER_TICK);
+
+    UINT32 ret = LOS_HwiEnable(M_INT_NUM);
+    if (ret != 0) {
+        PRINTK("LOS_HwiEnable failed. ret = %#x\n", ret);
+    }
+}

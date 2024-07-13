@@ -1,0 +1,32 @@
+static int lcp_extcode(fsm *f, int code, int id, u_char *inp, int len) {
+    ppp_pcb *pcb = f->pcb;
+    lcp_options *go = &pcb->lcp_gotoptions;
+    u_char *magp;
+
+    switch( code ){
+    case PROTREJ:
+	lcp_rprotrej(f, inp, len);
+	break;
+    
+    case ECHOREQ:
+	if (f->state != PPP_FSM_OPENED)
+	    break;
+	magp = inp;
+	PUTLONG(go->magicnumber, magp);
+	fsm_sdata(f, ECHOREP, id, inp, len);
+	break;
+    
+    case ECHOREP:
+	lcp_received_echo_reply(f, id, inp, len);
+	break;
+
+    case DISCREQ:
+    case IDENTIF:
+    case TIMEREM:
+	break;
+
+    default:
+	return 0;
+    }
+    return 1;
+}

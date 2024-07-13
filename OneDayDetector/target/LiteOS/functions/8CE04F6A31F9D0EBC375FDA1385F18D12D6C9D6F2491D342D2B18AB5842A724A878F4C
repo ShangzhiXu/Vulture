@@ -1,0 +1,23 @@
+int board_update_copy(int32_t old_image_len, int32_t new_image_len, uint32_t new_image_addr)
+{
+    int ret;
+
+    if ((old_image_len < 0) || (new_image_len < 0)) {
+        OTA_LOG("ilegal old_image_len(%ld) or new_image_len(%ld)", old_image_len, new_image_len);
+        return OTA_ERRNO_ILEGAL_PARAM;
+    }
+
+    ret = prv_inner2spi_copy(old_image_len);
+    if (ret != 0) {
+        OTA_LOG("back up old image failed");
+        return ret;
+    }
+
+    ret = prv_spi2inner_copy(new_image_addr, new_image_len);
+    if (ret != 0) {
+        OTA_LOG("update image failed");
+        return ret;
+    }
+
+    return OTA_ERRNO_OK;
+}

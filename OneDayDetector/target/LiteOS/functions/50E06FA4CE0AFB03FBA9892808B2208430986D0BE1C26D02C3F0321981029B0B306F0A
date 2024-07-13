@@ -1,0 +1,28 @@
+UINT32 ArchProtectionRegionSet(MPU_REGION_INFO *mpuInfo)
+{
+    UINT32 ret;
+    UINT32 intSave;
+
+    intSave = LOS_IntLock();
+
+    ret = MpuCheckParame(mpuInfo);
+    if (ret != LOS_OK) {
+        LOS_IntRestore(intSave);
+        return ret;
+    }
+
+    /* Dual word alignment mode enable stack */
+    SCB->CCR |= SCB_CCR_STKALIGN_Msk;
+    /* enable MemManage fault */
+    SCB->SHCSR |= SCB_SHCSR_MEMFAULTENA_Msk;
+
+    MpuDisable();
+    MpuRegionConfig(mpuInfo);
+    MpuEnable(mpuInfo->hfnmiena);
+
+    g_regionNumBeUsed[mpuInfo->number] = 1;
+
+    LOS_IntRestore(intSave);
+
+    return LOS_OK;
+}

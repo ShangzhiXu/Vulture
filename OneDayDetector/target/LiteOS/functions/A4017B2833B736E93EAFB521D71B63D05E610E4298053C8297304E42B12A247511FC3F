@@ -1,0 +1,48 @@
+HAL_StatusTypeDef HAL_UARTEx_StopModeWakeUpSourceConfig(UART_HandleTypeDef *huart, UART_WakeUpTypeDef WakeUpSelection)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t tickstart = 0;
+  
+  /* check the wake-up from stop mode UART instance */
+  assert_param(IS_UART_WAKEUP_FROMSTOP_INSTANCE(huart->Instance));
+  /* check the wake-up selection parameter */
+  assert_param(IS_UART_WAKEUP_SELECTION(WakeUpSelection.WakeUpEvent));
+  
+  /* Process Locked */
+  __HAL_LOCK(huart);
+  
+  huart->gState = HAL_UART_STATE_BUSY;
+  
+  /* Disable the Peripheral */
+  __HAL_UART_DISABLE(huart);
+  
+  /* Set the wake-up selection scheme */
+  MODIFY_REG(huart->Instance->CR3, USART_CR3_WUS, WakeUpSelection.WakeUpEvent);
+  
+  if (WakeUpSelection.WakeUpEvent == UART_WAKEUP_ON_ADDRESS)
+  {
+    UARTEx_Wakeup_AddressConfig(huart, WakeUpSelection);
+  }
+  
+  /* Enable the Peripheral */
+  __HAL_UART_ENABLE(huart);
+  
+  /* Init tickstart for timeout managment*/
+  tickstart = HAL_GetTick();
+  
+  /* Wait until REACK flag is set */
+  if(UART_WaitOnFlagUntilTimeout(huart, USART_ISR_REACK, RESET, tickstart, HAL_UART_TIMEOUT_VALUE) != HAL_OK)
+  {
+    status = HAL_TIMEOUT;
+  }
+  else
+  {
+    /* Initialize the UART State */
+    huart->gState = HAL_UART_STATE_READY;
+  }
+  
+  /* Process Unlocked */
+  __HAL_UNLOCK(huart);
+  
+  return status;
+}

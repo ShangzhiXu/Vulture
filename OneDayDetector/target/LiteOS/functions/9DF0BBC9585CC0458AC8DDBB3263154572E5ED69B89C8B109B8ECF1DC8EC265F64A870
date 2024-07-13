@@ -1,0 +1,32 @@
+static int demo_cmd_ioctl(mqtt_cmd_e cmd, void *arg, int32_t len)
+{
+    int result = ATINY_ERR;
+
+    switch (cmd) {
+        case MQTT_GET_TIME:
+            result = demo_get_time(arg, len);
+            break;
+        case MQTT_RCV_MSG:
+            result = demo_rcv_msg(arg, len);
+            break;
+        case MQTT_SAVE_SECRET_INFO:
+            if (g_demo_param.write_flash_info == NULL) {
+                result = ATINY_ERR;
+                ATINY_LOG(LOG_ERR, "write_flash_info null");
+            } else {
+                result = g_demo_param.write_flash_info(arg, len);
+            }
+            break;
+        case MQTT_READ_SECRET_INFO:
+            if (g_demo_param.read_flash_info == NULL) {
+                result = ATINY_ERR;
+                ATINY_LOG(LOG_ERR, "read_flash_info null");
+            } else {
+                result = g_demo_param.read_flash_info(arg, len);
+            }
+            break;
+        default:
+            break;
+        }
+    return result;
+}

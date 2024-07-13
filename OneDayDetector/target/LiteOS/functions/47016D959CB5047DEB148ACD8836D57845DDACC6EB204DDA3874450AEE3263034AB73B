@@ -1,0 +1,52 @@
+int lwip_unittests_run(void)
+#else
+int main(void)
+#endif
+{
+  int number_failed;
+  SRunner *sr;
+  size_t i;
+  suite_getter_fn* suites[] = {
+    ip4_suite,
+    ip6_suite,
+    udp_suite,
+    tcp_suite,
+    tcp_oos_suite,
+    def_suite,
+    mem_suite,
+    netif_suite,
+    pbuf_suite,
+    timers_suite,
+    etharp_suite,
+    dhcp_suite,
+    mdns_suite,
+    mqtt_suite,
+    sockets_suite
+  };
+  size_t num = sizeof(suites)/sizeof(void*);
+  LWIP_ASSERT("No suites defined", num > 0);
+
+#if NO_SYS
+  lwip_init();
+#else
+  tcpip_init(NULL, NULL);
+#endif
+
+  sr = srunner_create((suites[0])());
+  srunner_set_xml(sr, "lwip_unittests.xml");
+  for(i = 1; i < num; i++) {
+    srunner_add_suite(sr, ((suite_getter_fn*)suites[i])());
+  }
+
+#ifdef LWIP_UNITTESTS_NOFORK
+  srunner_set_fork_status(sr, CK_NOFORK);
+#endif
+#ifdef LWIP_UNITTESTS_FORK
+  srunner_set_fork_status(sr, CK_FORK);
+#endif
+
+  srunner_run_all(sr, CK_NORMAL);
+  number_failed = srunner_ntests_failed(sr);
+  srunner_free(sr);
+  return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
+}

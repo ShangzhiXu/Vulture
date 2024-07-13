@@ -1,0 +1,129 @@
+HAL_StatusTypeDef HAL_UART_Abort_IT(UART_HandleTypeDef *huart)
+{
+  uint32_t abortcplt = 1U;
+  
+  /* Disable TXEIE, TCIE, RXNE, PE and ERR (Frame error, noise error, overrun error) interrupts */
+#if defined(USART_CR1_FIFOEN)
+  CLEAR_BIT(huart->Instance->CR1, (USART_CR1_RXNEIE_RXFNEIE | USART_CR1_PEIE | USART_CR1_TXEIE_TXFNFIE | USART_CR1_TCIE));
+#else
+  CLEAR_BIT(huart->Instance->CR1, (USART_CR1_RXNEIE | USART_CR1_PEIE | USART_CR1_TXEIE | USART_CR1_TCIE));
+#endif
+  CLEAR_BIT(huart->Instance->CR3, USART_CR3_EIE);
+
+  /* If DMA Tx and/or DMA Rx Handles are associated to UART Handle, DMA Abort complete callbacks should be initialised
+     before any call to DMA Abort functions */
+  /* DMA Tx Handle is valid */
+  if(huart->hdmatx != NULL)
+  {
+    /* Set DMA Abort Complete callback if UART DMA Tx request if enabled.
+       Otherwise, set it to NULL */
+    if(HAL_IS_BIT_SET(huart->Instance->CR3, USART_CR3_DMAT))
+    {
+      huart->hdmatx->XferAbortCallback = UART_DMATxAbortCallback;
+    }
+    else
+    {
+      huart->hdmatx->XferAbortCallback = NULL;
+    }
+  }
+  /* DMA Rx Handle is valid */
+  if(huart->hdmarx != NULL)
+  {
+    /* Set DMA Abort Complete callback if UART DMA Rx request if enabled.
+       Otherwise, set it to NULL */
+    if(HAL_IS_BIT_SET(huart->Instance->CR3, USART_CR3_DMAR))
+    {
+      huart->hdmarx->XferAbortCallback = UART_DMARxAbortCallback;
+    }
+    else
+    {
+      huart->hdmarx->XferAbortCallback = NULL;
+    }
+  }
+  
+  /* Disable the UART DMA Tx request if enabled */
+  if(HAL_IS_BIT_SET(huart->Instance->CR3, USART_CR3_DMAT))
+  {
+    /* Disable DMA Tx at UART level */
+    CLEAR_BIT(huart->Instance->CR3, USART_CR3_DMAT);
+    
+    /* Abort the UART DMA Tx channel : use non blocking DMA Abort API (callback) */
+    if(huart->hdmatx != NULL)
+    {
+      /* UART Tx DMA Abort callback has already been initialised : 
+         will lead to call HAL_UART_AbortCpltCallback() at end of DMA abort procedure */
+
+      /* Abort DMA TX */
+      if(HAL_DMA_Abort_IT(huart->hdmatx) != HAL_OK)
+      {
+        huart->hdmatx->XferAbortCallback = NULL;
+      }
+      else
+      {
+        abortcplt = 0U;
+      }
+    }
+  }
+  
+  /* Disable the UART DMA Rx request if enabled */
+  if (HAL_IS_BIT_SET(huart->Instance->CR3, USART_CR3_DMAR))
+  {
+    CLEAR_BIT(huart->Instance->CR3, USART_CR3_DMAR);
+    
+    /* Abort the UART DMA Rx channel : use non blocking DMA Abort API (callback) */
+    if(huart->hdmarx != NULL)
+    {
+      /* UART Rx DMA Abort callback has already been initialised : 
+         will lead to call HAL_UART_AbortCpltCallback() at end of DMA abort procedure */
+
+      /* Abort DMA RX */
+      if(HAL_DMA_Abort_IT(huart->hdmarx) != HAL_OK)
+      {
+        huart->hdmarx->XferAbortCallback = NULL;
+        abortcplt = 1U;
+      }
+      else
+      {
+        abortcplt = 0U;
+      }
+    }
+  }
+  
+  /* if no DMA abort complete callback execution is required => call user Abort Complete callback */
+  if (abortcplt == 1U)
+  {
+    /* Reset Tx and Rx transfer counters */
+    huart->TxXferCount = 0U;
+    huart->RxXferCount = 0U;
+    
+    /* Clear ISR function pointers */
+    huart->RxISR = NULL;
+    huart->TxISR = NULL;
+    
+    /* Reset errorCode */
+    huart->ErrorCode = HAL_UART_ERROR_NONE;
+    
+    /* Clear the Error flags in the ICR register */
+    __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_OREF | UART_CLEAR_NEF | UART_CLEAR_PEF | UART_CLEAR_FEF);
+    
+#if defined(USART_CR1_FIFOEN)
+    /* Flush the whole TX FIFO (if needed) */
+    if (huart->FifoMode == UART_FIFOMODE_ENABLE)
+    {
+      __HAL_UART_SEND_REQ(huart, UART_TXDATA_FLUSH_REQUEST);
+    }
+#endif
+    
+    /* Discard the received data */
+    __HAL_UART_SEND_REQ(huart, UART_RXDATA_FLUSH_REQUEST);
+    
+    /* Restore huart->gState and huart->RxState to Ready */
+    huart->gState  = HAL_UART_STATE_READY;
+    huart->RxState = HAL_UART_STATE_READY;
+    
+    /* As no DMA to be aborted, call directly user Abort complete callback */
+    HAL_UART_AbortCpltCallback(huart);
+  }
+  
+  return HAL_OK;
+}

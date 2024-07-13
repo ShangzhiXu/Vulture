@@ -1,0 +1,50 @@
+mld6_leavegroup_netif(struct netif *netif, const ip6_addr_t *groupaddr)
+{
+  struct mld_group *group;
+#if LWIP_IPV6_SCOPES
+  ip6_addr_t ip6addr;
+
+  if (ip6_addr_lacks_zone(groupaddr, IP6_MULTICAST)) {
+    ip6_addr_set(&ip6addr, groupaddr);
+    ip6_addr_assign_zone(&ip6addr, IP6_MULTICAST, netif);
+    groupaddr = &ip6addr;
+  }
+  IP6_ADDR_ZONECHECK_NETIF(groupaddr, netif);
+#endif /* LWIP_IPV6_SCOPES */
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  /* find group */
+  group = mld6_lookfor_group(netif, groupaddr);
+
+  if (group != NULL) {
+    /* Leave if there is no other use of the group */
+    if (group->use <= 1) {
+      /* Remove the group from the list */
+      mld6_remove_group(netif, group);
+
+      /* If we are the last reporter for this group */
+      if (group->last_reporter_flag) {
+        MLD6_STATS_INC(mld6.tx_leave);
+        mld6_send(netif, group, ICMP6_TYPE_MLD);
+      }
+
+      /* Disable the group at the MAC level */
+      if (netif->mld_mac_filter != NULL) {
+        netif->mld_mac_filter(netif, groupaddr, NETIF_DEL_MAC_FILTER);
+      }
+
+      /* free group struct */
+      memp_free(MEMP_MLD6_GROUP, group);
+    } else {
+      /* Decrement group use */
+      group->use--;
+    }
+
+    /* Left group */
+    return ERR_OK;
+  }
+
+  /* Group not found */
+  return ERR_VAL;
+}

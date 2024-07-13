@@ -1,0 +1,26 @@
+static int32_t nb_cmd_with_2_suffix(const int8_t *cmd, int len, const char *suffix_ok, const char *suffix_err,
+    char *resp_buf, uint32_t *resp_len)
+{
+    const char *suffix[2] = {0};
+    at_cmd_info_s cmd_info = {0};
+
+    suffix[0] = suffix_ok;
+    suffix[1] = suffix_err;
+
+    cmd_info.suffix = suffix;
+    cmd_info.suffix_num = array_size(suffix);
+
+    cmd_info.resp_buf = resp_buf;
+    cmd_info.resp_len = resp_len;
+
+    if (at.cmd_multi_suffix(cmd, len, &cmd_info) != AT_OK) {
+        return AT_FAILED;
+    }
+
+    if (cmd_info.match_idx != 0) {
+        AT_LOG("cmd_info.match_idx %d", cmd_info.match_idx);
+        return AT_FAILED;
+    }
+
+    return AT_OK;
+}

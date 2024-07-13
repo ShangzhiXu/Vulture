@@ -1,0 +1,11 @@
+static void ccp_rack_timeout(void *arg) {
+    fsm *f = (fsm*)arg;
+    ppp_pcb *pcb = f->pcb;
+
+    if (f->state == PPP_FSM_OPENED && (pcb->ccp_localstate & RREQ_REPEAT)) {
+	fsm_sdata(f, CCP_RESETREQ, f->reqid, NULL, 0);
+	TIMEOUT(ccp_rack_timeout, f, RACKTIMEOUT);
+	pcb->ccp_localstate &= ~RREQ_REPEAT;
+    } else
+	pcb->ccp_localstate &= ~RACK_PENDING;
+}

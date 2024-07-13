@@ -1,0 +1,26 @@
+osTimerId_t osTimerNew(osTimerFunc_t func, osTimerType_t type, void *argument, const osTimerAttr_t *attr)
+{
+    (VOID)attr;
+    UINT32 ret;
+    UINT16 swtmrId;
+    UINT8 mode;
+
+    if ((func == NULL) || OS_INT_ACTIVE) {
+        return NULL;
+    }
+
+    if (type == osTimerOnce) {
+        mode = LOS_SWTMR_MODE_NO_SELFDELETE;
+    } else if (type == osTimerPeriodic) {
+        mode = LOS_SWTMR_MODE_PERIOD;
+    } else {
+        return NULL;
+    }
+
+    ret = LOS_SwtmrCreate(1, mode, (SWTMR_PROC_FUNC)func, &swtmrId, (UINTPTR)argument);
+    if (ret == LOS_OK) {
+        return (osTimerId_t)OS_SWT_FROM_SID(swtmrId);
+    } else {
+        return NULL;
+    }
+}

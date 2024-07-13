@@ -1,0 +1,39 @@
+HAL_StatusTypeDef HAL_NAND_Reset(NAND_HandleTypeDef *hnand)
+{
+  uint32_t deviceaddress = 0U;
+
+  /* Process Locked */
+  __HAL_LOCK(hnand);
+
+  /* Check the NAND controller state */
+  if(hnand->State == HAL_NAND_STATE_BUSY)
+  {
+     return HAL_BUSY;
+  }
+
+  /* Identify the device address */
+  if(hnand->Init.NandBank == FMC_NAND_BANK2)
+  {
+    deviceaddress = NAND_DEVICE1;
+  }
+  else
+  {
+    deviceaddress = NAND_DEVICE2;
+  }  
+  
+  /* Update the NAND controller state */
+  hnand->State = HAL_NAND_STATE_BUSY; 
+  
+  /* Send NAND reset command */  
+  *(__IO uint8_t *)((uint32_t)(deviceaddress | CMD_AREA)) = 0xFF;
+
+
+  /* Update the NAND controller state */
+  hnand->State = HAL_NAND_STATE_READY;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hnand);
+
+  return HAL_OK;
+
+}

@@ -1,0 +1,33 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 ShellTaskInit(ShellCB *shellCB)
+{
+    CHAR *name = NULL;
+    TSK_INIT_PARAM_S initParam = {0};
+
+    if (shellCB == NULL) {
+        return LOS_NOK;
+    }
+
+#ifdef LOSCFG_SHELL_CONSOLE
+    if (shellCB->consoleID == CONSOLE_SERIAL) {
+        name = SERIAL_SHELL_TASK_NAME;
+    } else if (shellCB->consoleID == CONSOLE_TELNET) {
+        name = TELNET_SHELL_TASK_NAME;
+    } else {
+        return LOS_NOK;
+    }
+#else
+    /* in non-console mode, shell only support one input */
+    name = SERIAL_SHELL_TASK_NAME;
+#endif
+
+    initParam.pfnTaskEntry = (TSK_ENTRY_FUNC)ShellTask;
+    initParam.usTaskPrio   = SHELL_TASK_PRIORITY;
+    initParam.uwStackSize  = SHELL_TASK_STACK_SIZE;
+    initParam.pcName       = name;
+    initParam.uwResved     = LOS_TASK_STATUS_DETACHED;
+    LOS_TASK_PARAM_INIT_ARG(initParam, shellCB);
+
+    (VOID)LOS_EventInit(&shellCB->shellEvent);
+
+    return LOS_TaskCreate(&shellCB->shellTaskHandle, &initParam);
+}

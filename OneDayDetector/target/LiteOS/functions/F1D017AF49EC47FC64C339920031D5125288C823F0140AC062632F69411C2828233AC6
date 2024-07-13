@@ -1,0 +1,32 @@
+static cJSON_bool add_item_to_array(cJSON *array, cJSON *item)
+{
+    cJSON *child = NULL;
+
+    if ((item == NULL) || (array == NULL) || (array == item))
+    {
+        return false;
+    }
+
+    child = array->child;
+    /*
+     * To find the last item in array quickly, we use prev in array
+     */
+    if (child == NULL)
+    {
+        /* list is empty, start new one */
+        array->child = item;
+        item->prev = item;
+        item->next = NULL;
+    }
+    else
+    {
+        /* append to the end */
+        if (child->prev)
+        {
+            suffix_object(child->prev, item);
+            array->child->prev = item;
+        }
+    }
+
+    return true;
+}

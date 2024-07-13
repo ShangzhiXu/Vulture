@@ -1,0 +1,16 @@
+test_mqtt_init_netif(struct netif *netif, const ip_addr_t *ip_addr, const ip_addr_t *netmask)
+{
+  struct netif *n;
+  memset(netif, 0, sizeof(struct netif));
+  netif->output = test_mqtt_netif_output;
+  netif->flags |= NETIF_FLAG_UP | NETIF_FLAG_LINK_UP;
+  ip_addr_copy_from_ip4(netif->netmask, *ip_2_ip4(netmask));
+  ip_addr_copy_from_ip4(netif->ip_addr, *ip_2_ip4(ip_addr));
+  for (n = netif_list; n != NULL; n = n->next) {
+    if (n == netif) {
+      return;
+    }
+  }
+  netif->next = NULL;
+  netif_list = netif;
+}

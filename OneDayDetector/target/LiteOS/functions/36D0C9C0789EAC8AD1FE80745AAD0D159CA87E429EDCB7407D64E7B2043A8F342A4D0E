@@ -1,0 +1,27 @@
+int mbedtls_des_crypt_ecb( mbedtls_des_context *ctx,
+                    const unsigned char input[8],
+                    unsigned char output[8] )
+{
+    int i;
+    uint32_t X, Y, T, *SK;
+
+    SK = ctx->sk;
+
+    GET_UINT32_BE( X, input, 0 );
+    GET_UINT32_BE( Y, input, 4 );
+
+    DES_IP( X, Y );
+
+    for( i = 0; i < 8; i++ )
+    {
+        DES_ROUND( Y, X );
+        DES_ROUND( X, Y );
+    }
+
+    DES_FP( Y, X );
+
+    PUT_UINT32_BE( Y, output, 0 );
+    PUT_UINT32_BE( X, output, 4 );
+
+    return( 0 );
+}

@@ -1,0 +1,122 @@
+HAL_StatusTypeDef HAL_USART_TransmitReceive_DMA(USART_HandleTypeDef *husart, uint8_t *pTxData, uint8_t *pRxData,
+                                                uint16_t Size)
+{
+  HAL_StatusTypeDef status;
+  uint32_t *tmp;
+
+  if (husart->State == HAL_USART_STATE_READY)
+  {
+    if ((pTxData == NULL) || (pRxData == NULL) || (Size == 0U))
+    {
+      return HAL_ERROR;
+    }
+
+    /* In case of 9bits/No Parity transfer, pTxData and pRxData buffers provided as input parameter
+       should be aligned on a u16 frontier, as data copy to/from TDR/RDR will be
+       handled by DMA from a u16 frontier. */
+    if ((husart->Init.WordLength == USART_WORDLENGTH_9B) && (husart->Init.Parity == USART_PARITY_NONE))
+    {
+      if (((((uint32_t)pTxData) & 1U) != 0U) || ((((uint32_t)pRxData) & 1U) != 0U))
+      {
+        return  HAL_ERROR;
+      }
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(husart);
+
+    husart->pRxBuffPtr = pRxData;
+    husart->RxXferSize = Size;
+    husart->pTxBuffPtr = pTxData;
+    husart->TxXferSize = Size;
+
+    husart->ErrorCode = HAL_USART_ERROR_NONE;
+    husart->State = HAL_USART_STATE_BUSY_TX_RX;
+
+    if ((husart->hdmarx != NULL) && (husart->hdmatx != NULL))
+    {
+      /* Set the USART DMA Rx transfer complete callback */
+      husart->hdmarx->XferCpltCallback = USART_DMAReceiveCplt;
+
+      /* Set the USART DMA Half transfer complete callback */
+      husart->hdmarx->XferHalfCpltCallback = USART_DMARxHalfCplt;
+
+      /* Set the USART DMA Tx transfer complete callback */
+      husart->hdmatx->XferCpltCallback = USART_DMATransmitCplt;
+
+      /* Set the USART DMA Half transfer complete callback */
+      husart->hdmatx->XferHalfCpltCallback = USART_DMATxHalfCplt;
+
+      /* Set the USART DMA Tx transfer error callback */
+      husart->hdmatx->XferErrorCallback = USART_DMAError;
+
+      /* Set the USART DMA Rx transfer error callback */
+      husart->hdmarx->XferErrorCallback = USART_DMAError;
+
+      /* Enable the USART receive DMA channel */
+      tmp = (uint32_t *)&pRxData;
+      status = HAL_DMA_Start_IT(husart->hdmarx, (uint32_t)&husart->Instance->RDR, *(uint32_t *)tmp, Size);
+
+      /* Enable the USART transmit DMA channel */
+      if (status == HAL_OK)
+      {
+        tmp = (uint32_t *)&pTxData;
+        status = HAL_DMA_Start_IT(husart->hdmatx, *(uint32_t *)tmp, (uint32_t)&husart->Instance->TDR, Size);
+      }
+    }
+    else
+    {
+      status = HAL_ERROR;
+    }
+
+    if (status == HAL_OK)
+    {
+      /* Process Unlocked */
+      __HAL_UNLOCK(husart);
+
+      /* Enable the USART Parity Error Interrupt */
+      SET_BIT(husart->Instance->CR1, USART_CR1_PEIE);
+
+      /* Enable the USART Error Interrupt: (Frame error, noise error, overrun error) */
+      SET_BIT(husart->Instance->CR3, USART_CR3_EIE);
+
+      /* Clear the TC flag in the ICR register */
+      __HAL_USART_CLEAR_FLAG(husart, USART_CLEAR_TCF);
+
+      /* Enable the DMA transfer for the receiver request by setting the DMAR bit
+         in the USART CR3 register */
+      SET_BIT(husart->Instance->CR3, USART_CR3_DMAR);
+
+      /* Enable the DMA transfer for transmit request by setting the DMAT bit
+         in the USART CR3 register */
+      SET_BIT(husart->Instance->CR3, USART_CR3_DMAT);
+
+      return HAL_OK;
+    }
+    else
+    {
+      if (husart->hdmarx != NULL)
+      {
+        status = HAL_DMA_Abort(husart->hdmarx);
+      }
+
+      /* No need to check on error code */
+      UNUSED(status);
+
+      /* Set error code to DMA */
+      husart->ErrorCode = HAL_USART_ERROR_DMA;
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(husart);
+
+      /* Restore husart->State to ready */
+      husart->State = HAL_USART_STATE_READY;
+
+      return HAL_ERROR;
+    }
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

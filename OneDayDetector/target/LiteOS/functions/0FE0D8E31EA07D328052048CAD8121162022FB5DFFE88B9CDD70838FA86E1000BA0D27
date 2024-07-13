@@ -1,0 +1,25 @@
+uint32_t LL_RCC_GetDSIClockFreq(uint32_t DSIxSource)
+{
+  uint32_t dsi_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_DSI_CLKSOURCE(DSIxSource));
+
+  /* DSICLK clock frequency */
+  switch (LL_RCC_GetDSIClockSource(DSIxSource))
+  {
+    case LL_RCC_DSI_CLKSOURCE_PLL:     /* DSI Clock is PLLSAI2 Osc. */
+      if (LL_RCC_PLLSAI2_IsReady())
+      {
+        dsi_frequency = RCC_PLLSAI2_GetFreqDomain_DSI();
+      }
+      break;
+
+    case LL_RCC_DSI_CLKSOURCE_PHY:    /* DSI Clock is DSI physical clock. */
+    default:
+      dsi_frequency = LL_RCC_PERIPH_FREQUENCY_NA;
+      break;
+  }
+
+  return dsi_frequency;
+}

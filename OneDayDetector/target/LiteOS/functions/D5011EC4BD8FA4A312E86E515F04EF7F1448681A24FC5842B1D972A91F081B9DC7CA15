@@ -1,0 +1,66 @@
+static uint32_t lv_txt_utf8_next(const char * txt, uint32_t * i)
+{
+    /* Unicode to UTF-8
+     * 00000000 00000000 00000000 0xxxxxxx -> 0xxxxxxx
+     * 00000000 00000000 00000yyy yyxxxxxx -> 110yyyyy 10xxxxxx
+     * 00000000 00000000 zzzzyyyy yyxxxxxx -> 1110zzzz 10yyyyyy 10xxxxxx
+     * 00000000 000wwwzz zzzzyyyy yyxxxxxx -> 11110www 10zzzzzz 10yyyyyy 10xxxxxx
+     * */
+
+    uint32_t result = 0;
+
+    /*Dummy 'i' pointer is required*/
+    uint32_t i_tmp = 0;
+    if(i == NULL) i = &i_tmp;
+
+    /*Normal ASCII*/
+    if((txt[*i] & 0x80) == 0) {
+        result = txt[*i];
+        (*i)++;
+    }
+    /*Real UTF-8 decode*/
+    else {
+        /*2 bytes UTF-8 code*/
+        if((txt[*i] & 0xE0) == 0xC0) {
+            result = (uint32_t)(txt[*i] & 0x1F) << 6;
+            (*i)++;
+            if((txt[*i] & 0xC0) != 0x80) return 0; /*Invalid UTF-8 code*/
+            result += (txt[*i] & 0x3F);
+            (*i)++;
+        }
+        /*3 bytes UTF-8 code*/
+        else if((txt[*i] & 0xF0) == 0xE0) {
+            result = (uint32_t)(txt[*i] & 0x0F) << 12;
+            (*i)++;
+
+            if((txt[*i] & 0xC0) != 0x80) return 0; /*Invalid UTF-8 code*/
+            result += (uint32_t)(txt[*i] & 0x3F) << 6;
+            (*i)++;
+
+            if((txt[*i] & 0xC0) != 0x80) return 0; /*Invalid UTF-8 code*/
+            result += (txt[*i] & 0x3F);
+            (*i)++;
+        }
+        /*4 bytes UTF-8 code*/
+        else if((txt[*i] & 0xF8) == 0xF0) {
+            result = (uint32_t)(txt[*i] & 0x07) << 18;
+            (*i)++;
+
+            if((txt[*i] & 0xC0) != 0x80) return 0; /*Invalid UTF-8 code*/
+            result += (uint32_t)(txt[*i] & 0x3F) << 12;
+            (*i)++;
+
+            if((txt[*i] & 0xC0) != 0x80) return 0; /*Invalid UTF-8 code*/
+            result += (uint32_t)(txt[*i] & 0x3F) << 6;
+            (*i)++;
+
+            if((txt[*i] & 0xC0) != 0x80) return 0; /*Invalid UTF-8 code*/
+            result += txt[*i] & 0x3F;
+            (*i)++;
+        }
+        else {
+            (*i)++; /*Not UTF-8 char. Go the next.*/
+        }
+    }
+    return result;
+}

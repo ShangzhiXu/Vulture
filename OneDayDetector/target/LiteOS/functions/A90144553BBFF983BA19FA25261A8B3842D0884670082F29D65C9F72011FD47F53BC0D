@@ -1,0 +1,71 @@
+HAL_StatusTypeDef HAL_SPI_Receive_IT(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t Size)
+{
+  if(hspi->State == HAL_SPI_STATE_READY)
+  {
+    if((pData == NULL) || (Size == 0)) 
+    {
+      return  HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hspi);
+
+    /* Configure communication */
+    hspi->State        = HAL_SPI_STATE_BUSY_RX;
+    hspi->ErrorCode    = HAL_SPI_ERROR_NONE;
+
+    hspi->RxISR        = &SPI_RxISR;
+    hspi->pRxBuffPtr   = pData;
+    hspi->RxXferSize   = Size;
+    hspi->RxXferCount  = Size ; 
+
+   /*Init field not used in handle to zero */
+    hspi->TxISR        = 0;
+    hspi->pTxBuffPtr   = NULL;
+    hspi->TxXferSize   = 0;
+    hspi->TxXferCount  = 0;
+
+    /* Configure communication direction : 1Line */
+    if(hspi->Init.Direction == SPI_DIRECTION_1LINE)
+    {
+      SPI_1LINE_RX(hspi);
+    }
+    else if((hspi->Init.Direction == SPI_DIRECTION_2LINES) && (hspi->Init.Mode == SPI_MODE_MASTER))
+    {
+      /* Process Unlocked */
+      __HAL_UNLOCK(hspi);
+
+      /* Call transmit-receive function to send Dummy data on Tx line and generate clock on CLK line */
+      return HAL_SPI_TransmitReceive_IT(hspi, pData, pData, Size);
+    }
+
+    /* Reset CRC Calculation */
+    if(hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+    {
+      SPI_RESET_CRC(hspi);
+    }
+
+    /* Enable TXE and ERR interrupt */
+    __HAL_SPI_ENABLE_IT(hspi, (SPI_IT_RXNE | SPI_IT_ERR));
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hspi);
+
+    /* Note : The SPI must be enabled after unlocking current process 
+              to avoid the risk of SPI interrupt handle execution before current
+              process unlock */
+
+    /* Check if the SPI is already enabled */ 
+    if((hspi->Instance->CR1 &SPI_CR1_SPE) != SPI_CR1_SPE)
+    {
+      /* Enable SPI peripheral */
+      __HAL_SPI_ENABLE(hspi);
+    }
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY; 
+  }
+}

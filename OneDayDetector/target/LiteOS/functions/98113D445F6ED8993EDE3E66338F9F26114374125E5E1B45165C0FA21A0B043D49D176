@@ -1,0 +1,54 @@
+HAL_StatusTypeDef HMAC_Start(HASH_HandleTypeDef *hhash, uint8_t *pInBuffer, uint32_t Size, uint8_t* pOutBuffer, uint32_t Timeout, uint32_t Algorithm)
+{
+    HAL_HASH_StateTypeDef State_tmp = hhash->State; 
+  
+   /* If State is ready or suspended, start or resume polling-based HASH processing */
+if((State_tmp == HAL_HASH_STATE_READY) || (State_tmp == HAL_HASH_STATE_SUSPENDED))
+  { 
+    /* Check input parameters */
+    if ((pInBuffer == NULL) || (Size == 0U) || (hhash->Init.pKey == NULL) || (hhash->Init.KeySize == 0U) || (pOutBuffer == NULL))
+    {
+      hhash->State = HAL_HASH_STATE_READY;
+      return  HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hhash);
+
+    /* Change the HASH state */
+    hhash->State = HAL_HASH_STATE_BUSY;
+
+    /* Check if initialization phase has already be performed */
+    if(hhash->Phase == HAL_HASH_PHASE_READY)
+    {
+      /* Check if key size is larger than 64 bytes, accordingly set LKEY and the other setting bits */
+      if(hhash->Init.KeySize > 64U)
+      {
+        MODIFY_REG(HASH->CR, HASH_CR_LKEY|HASH_CR_ALGO|HASH_CR_MODE|HASH_CR_INIT, Algorithm | HASH_ALGOMODE_HMAC | HASH_HMAC_KEYTYPE_LONGKEY | HASH_CR_INIT);
+      }
+      else
+      {
+        MODIFY_REG(HASH->CR, HASH_CR_LKEY|HASH_CR_ALGO|HASH_CR_MODE|HASH_CR_INIT, Algorithm | HASH_ALGOMODE_HMAC | HASH_CR_INIT);
+      }
+      /* Set the phase to Step 1 */
+      hhash->Phase = HAL_HASH_PHASE_HMAC_STEP_1;
+      /* Resort to hhash internal fields to feed the IP.
+         Parameters will be updated in case of suspension to contain the proper
+         information at resumption time. */
+      hhash->pHashOutBuffPtr  = pOutBuffer;            /* Output digest address                                              */
+      hhash->pHashInBuffPtr   = pInBuffer;             /* Input data address, HMAC_Processing input parameter for Step 2     */
+      hhash->HashInCount      = Size;                  /* Input data size, HMAC_Processing input parameter for Step 2        */
+      hhash->HashBuffSize     = Size;                  /* Store the input buffer size for the whole HMAC process             */
+      hhash->pHashKeyBuffPtr  = hhash->Init.pKey;      /* Key address, HMAC_Processing input parameter for Step 1 and Step 3 */
+      hhash->HashKeyCount     = hhash->Init.KeySize;   /* Key size, HMAC_Processing input parameter for Step 1 and Step 3    */
+    }
+
+    /* Carry out HMAC processing */
+    return HMAC_Processing(hhash, Timeout);
+
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

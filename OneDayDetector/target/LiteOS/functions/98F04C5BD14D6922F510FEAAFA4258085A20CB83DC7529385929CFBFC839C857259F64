@@ -1,0 +1,34 @@
+LITE_OS_SEC_TEXT STATIC VOID SmTask(VOID const *arg)
+{
+    SmMail smMail;
+    UINT32 ret;
+    UINT32 bufferSize = SM_MAILS_TYPE_SIZE;
+
+    while (1) {
+        ret = LOS_QueueReadCopy(g_sensorManagerQueue, &smMail, &bufferSize, LOS_WAIT_FOREVER);
+        if (ret != LOS_OK) {
+            PRINT_ERR("sm task read queue fail, ret %u\n", ret);
+            continue;
+        }
+
+        switch (smMail.event) {
+            case SM_EVENT_SENSOR_SAMPLE:
+                SampleFromMail(&(smMail.sample));
+                break;
+            case SM_EVENT_ITEM_ENABLE:
+                ItemEnable(&(smMail.itemEnable));
+                break;
+            case SM_EVENT_ITEM_DISABLE:
+                ItemDisable(&(smMail.itemDisable));
+                break;
+            case SM_EVENT_ITEM_INIT:
+                ItemInit(&(smMail.itemInit));
+                break;
+            case SM_EVENT_CONFIG:
+                SensorConfig(&(smMail.config));
+                break;
+            default:
+                break;
+        }
+    }
+}

@@ -1,0 +1,156 @@
+START_TEST(test_tcp_persist_split)
+{
+  struct netif netif;
+  struct test_tcp_txcounters txcounters;
+  struct test_tcp_counters counters;
+  struct tcp_pcb *pcb;
+  struct pbuf* p;
+  err_t err;
+  size_t i;
+  LWIP_UNUSED_ARG(_i);
+
+  /* Setup data for four segments */
+  for (i = 0; i < 4 * TCP_MSS; i++) {
+    tx_data[i] = (u8_t)i;
+  }
+
+  /* initialize local vars */
+  test_tcp_init_netif(&netif, &txcounters, &test_local_ip, &test_netmask);
+  memset(&counters, 0, sizeof(counters));
+
+  /* create and initialize the pcb */
+  tcp_ticks = SEQNO1 - ISS;
+  pcb = test_tcp_new_counters_pcb(&counters);
+  EXPECT_RET(pcb != NULL);
+  tcp_set_state(pcb, ESTABLISHED, &test_local_ip, &test_remote_ip, TEST_LOCAL_PORT, TEST_REMOTE_PORT);
+  pcb->mss = TCP_MSS;
+  /* set window to three segments */
+  pcb->cwnd = 3 * TCP_MSS;
+  pcb->snd_wnd = 3 * TCP_MSS;
+  pcb->snd_wnd_max = 3 * TCP_MSS;
+
+  /* send four segments. Fourth should stay buffered and is a 3/4 MSS segment to
+     get coverage on the oversized segment case */
+  err = tcp_write(pcb, &tx_data[0], (3 * TCP_MSS) + (TCP_MSS - (TCP_MSS / 4)), TCP_WRITE_FLAG_COPY);
+  EXPECT(err == ERR_OK);
+  err = tcp_output(pcb);
+  EXPECT(err == ERR_OK);
+
+  /* verify 3 segments are in-flight */
+  EXPECT(pcb->unacked != NULL);
+  check_seqnos(pcb->unacked, 3, seqnos);
+  EXPECT(txcounters.num_tx_calls == 3);
+  EXPECT(txcounters.num_tx_bytes == 3 * (TCP_MSS + 40U));
+  memset(&txcounters, 0, sizeof(txcounters));
+  /* verify 4th segment is on unsent */
+  EXPECT(pcb->unsent != NULL);
+  EXPECT(pcb->unsent->len == TCP_MSS - (TCP_MSS / 4));
+  check_seqnos(pcb->unsent, 1, &seqnos[3]);
+#if TCP_OVERSIZE
+  EXPECT(pcb->unsent_oversize == TCP_MSS / 4);
+#if TCP_OVERSIZE_DBGCHECK
+  EXPECT(pcb->unsent->oversize_left == pcb->unsent_oversize);
+#endif /* TCP_OVERSIZE_DBGCHECK */
+#endif /* TCP_OVERSIZE */
+
+  /* ACK the 3 segments and update the window to only 1/2 TCP_MSS.
+     4th segment should stay on unsent because it's bigger than 1/2 MSS */
+  p = tcp_create_rx_segment_wnd(pcb, NULL, 0, 0, 3 * TCP_MSS, TCP_ACK, TCP_MSS / 2);
+  test_tcp_input(p, &netif);
+  EXPECT(pcb->unacked == NULL);
+  EXPECT(pcb->snd_wnd == TCP_MSS / 2);
+  EXPECT(pcb->unsent != NULL);
+  check_seqnos(pcb->unsent, 1, &seqnos[3]);
+  EXPECT(txcounters.num_tx_calls == 0);
+  EXPECT(txcounters.num_tx_bytes == 0);
+  /* persist timer should be started since 4th segment is stuck waiting on snd_wnd */
+  EXPECT(pcb->persist_backoff == 1);
+
+  /* ensure no errors have been recorded */
+  EXPECT(counters.err_calls == 0);
+  EXPECT(counters.last_err == ERR_OK);
+
+  /* call tcp_timer some more times to let persist timer count up */
+    for (i = 0; i < 4; i++) {
+      test_tcp_tmr();
+      EXPECT(txcounters.num_tx_calls == 0);
+      EXPECT(txcounters.num_tx_bytes == 0);
+    }
+
+  /* this should be the first timer shot, which should split the
+   * segment and send a runt (of the remaining window size) */
+  txcounters.copy_tx_packets = 1;
+  test_tcp_tmr();
+  txcounters.copy_tx_packets = 0;
+  /* persist will be disabled as RTO timer takes over */
+  EXPECT(pcb->persist_backoff == 0);
+  EXPECT(txcounters.num_tx_calls == 1);
+  EXPECT(txcounters.num_tx_bytes == ((TCP_MSS /2) + 40U));
+  /* verify 1/2 MSS segment sent, 1/4 MSS still buffered */
+  EXPECT(pcb->unsent != NULL);
+  EXPECT(pcb->unsent->len == TCP_MSS / 4);
+  EXPECT(pcb->unacked != NULL);
+  EXPECT(pcb->unacked->len == TCP_MSS / 2);
+#if TCP_OVERSIZE
+  /* verify there is no oversized remaining since during the
+     segment split, the remainder pbuf is always the exact length */
+  EXPECT(pcb->unsent_oversize == 0);
+#if TCP_OVERSIZE_DBGCHECK
+  /* Split segment already transmitted, should be at 0 */
+  EXPECT(pcb->unacked->oversize_left == 0);
+  /* Remainder segement should match pcb value (which is 0) */
+  EXPECT(pcb->unsent->oversize_left == pcb->unsent_oversize);
+#endif /* TCP_OVERSIZE_DBGCHECK */
+#endif /* TCP_OVERSIZE */
+
+  /* verify first half segment */
+  EXPECT(txcounters.tx_packets != NULL);
+  if (txcounters.tx_packets != NULL) {
+    u8_t sent[TCP_MSS / 2];
+    u16_t ret;
+    ret = pbuf_copy_partial(txcounters.tx_packets, &sent, TCP_MSS / 2, 40U);
+    EXPECT(ret == TCP_MSS / 2);
+    EXPECT(memcmp(sent, &tx_data[3 * TCP_MSS], TCP_MSS / 2) == 0);
+  }
+  if (txcounters.tx_packets != NULL) {
+    pbuf_free(txcounters.tx_packets);
+    txcounters.tx_packets = NULL;
+  }
+  memset(&txcounters, 0, sizeof(txcounters));
+
+  /* ACK the half segment, leave window at half segment */
+  p = tcp_create_rx_segment_wnd(pcb, NULL, 0, 0, TCP_MSS / 2, TCP_ACK, TCP_MSS / 2);
+  txcounters.copy_tx_packets = 1;
+  test_tcp_input(p, &netif);
+  txcounters.copy_tx_packets = 0;
+  /* ensure remaining segment was sent */
+  EXPECT(txcounters.num_tx_calls == 1);
+  EXPECT(txcounters.num_tx_bytes == ((TCP_MSS / 4) + 40U));
+  EXPECT(pcb->unsent == NULL);
+  EXPECT(pcb->unacked != NULL);
+  EXPECT(pcb->unacked->len == TCP_MSS / 4);
+  EXPECT(pcb->snd_wnd == TCP_MSS / 2);
+
+  /* verify remainder segment */
+  EXPECT(txcounters.tx_packets != NULL);
+  if (txcounters.tx_packets != NULL) {
+    u8_t sent[TCP_MSS / 4];
+    u16_t ret;
+    ret = pbuf_copy_partial(txcounters.tx_packets, &sent, TCP_MSS / 4, 40U);
+    EXPECT(ret == TCP_MSS / 4);
+    EXPECT(memcmp(sent, &tx_data[(3 * TCP_MSS) + TCP_MSS / 2], TCP_MSS / 4) == 0);
+  }
+  if (txcounters.tx_packets != NULL) {
+    pbuf_free(txcounters.tx_packets);
+    txcounters.tx_packets = NULL;
+  }
+
+  /* ensure no errors have been recorded */
+  EXPECT(counters.err_calls == 0);
+  EXPECT(counters.last_err == ERR_OK);
+
+  /* make sure the pcb is freed */
+  EXPECT_RET(MEMP_STATS_GET(used, MEMP_TCP_PCB) == 1);
+  tcp_abort(pcb);
+  EXPECT_RET(MEMP_STATS_GET(used, MEMP_TCP_PCB) == 0);
+}

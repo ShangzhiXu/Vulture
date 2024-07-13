@@ -1,0 +1,32 @@
+static void mqtt_read_flash_info(mqtt_client_s *handle)
+{
+    flash_info_s flash_info;
+
+    if (handle->device_info.connection_type == MQTT_STATIC_CONNECT) {
+        return;
+    }
+
+    memset(&handle->dynamic_info, 0, sizeof(handle->dynamic_info));
+    memset(&flash_info, 0, sizeof(flash_info));
+    if (flash_manager_read(&flash_info) != ATINY_OK) {
+        return;
+    }
+
+    if ((strcmp(flash_info.items[PRODUCT_IDX], handle->device_info.u.d_info.productid) != 0)
+        || (strcmp(flash_info.items[NODEID_IDX], handle->device_info.u.d_info.nodeid) != 0)) {
+        ATINY_LOG(LOG_INFO, "flash info for the nodeid and not use");
+        flash_manager_destroy_flash_info(&flash_info);
+        return;
+    }
+
+    ATINY_LOG(LOG_DEBUG, "mqtt read info deviceid %s,procid %s,nodid %s",
+            flash_info.items[DEVICEID_IDX], flash_info.items[PRODUCT_IDX], flash_info.items[NODEID_IDX]);
+
+    handle->dynamic_info.save_info.deviceid = flash_info.items[DEVICEID_IDX];
+    flash_info.items[DEVICEID_IDX] = NULL;
+    handle->dynamic_info.got_password =  flash_info.items[PASSWORD_IDX];
+    flash_info.items[PASSWORD_IDX] = NULL;
+    handle->dynamic_info.has_device_id = true;
+    handle->dynamic_info.state = MQTT_CONNECT_WITH_DEVICE_ID;
+    flash_manager_destroy_flash_info(&flash_info);
+}

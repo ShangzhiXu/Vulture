@@ -1,0 +1,45 @@
+lwip_getaddrname(int s, struct sockaddr *name, socklen_t *namelen, u8_t local)
+{
+  struct lwip_sock *sock;
+  union sockaddr_aligned saddr;
+  ip_addr_t naddr;
+  u16_t port;
+  err_t err;
+
+  sock = get_socket(s);
+  if (!sock) {
+    return -1;
+  }
+
+  /* get the IP address and port */
+  err = netconn_getaddr(sock->conn, &naddr, &port, local);
+  if (err != ERR_OK) {
+    sock_set_errno(sock, err_to_errno(err));
+    done_socket(sock);
+    return -1;
+  }
+
+#if LWIP_IPV4 && LWIP_IPV6
+  /* Dual-stack: Map IPv4 addresses to IPv4 mapped IPv6 */
+  if (NETCONNTYPE_ISIPV6(netconn_type(sock->conn)) &&
+      IP_IS_V4_VAL(naddr)) {
+    ip4_2_ipv4_mapped_ipv6(ip_2_ip6(&naddr), ip_2_ip4(&naddr));
+    IP_SET_TYPE_VAL(naddr, IPADDR_TYPE_V6);
+  }
+#endif /* LWIP_IPV4 && LWIP_IPV6 */
+
+  IPADDR_PORT_TO_SOCKADDR(&saddr, &naddr, port);
+
+  LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_getaddrname(%d, addr=", s));
+  ip_addr_debug_print_val(SOCKETS_DEBUG, naddr);
+  LWIP_DEBUGF(SOCKETS_DEBUG, (" port=%"U16_F")\n", port));
+
+  if (*namelen > saddr.sa.sa_len) {
+    *namelen = saddr.sa.sa_len;
+  }
+  MEMCPY(name, &saddr, *namelen);
+
+  sock_set_errno(sock, 0);
+  done_socket(sock);
+  return 0;
+}

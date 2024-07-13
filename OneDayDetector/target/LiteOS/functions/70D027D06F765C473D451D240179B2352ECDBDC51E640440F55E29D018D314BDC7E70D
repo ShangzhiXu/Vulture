@@ -1,0 +1,21 @@
+static uint32_t SD_SendStatus(SD_HandleTypeDef *hsd, uint32_t *pCardStatus)
+{
+  uint32_t errorstate = HAL_SD_ERROR_NONE;
+  
+  if(pCardStatus == NULL)
+  {
+    return HAL_SD_ERROR_PARAM;
+  }
+  
+  /* Send Status command */
+  errorstate = SDMMC_CmdSendStatus(hsd->Instance, (uint32_t)(hsd->SdCard.RelCardAdd << 16));
+  if(errorstate != HAL_OK)
+  {
+    return errorstate;
+  }
+  
+  /* Get SD card status */
+  *pCardStatus = SDMMC_GetResponse(hsd->Instance, SDMMC_RESP1);
+  
+  return HAL_SD_ERROR_NONE;
+}

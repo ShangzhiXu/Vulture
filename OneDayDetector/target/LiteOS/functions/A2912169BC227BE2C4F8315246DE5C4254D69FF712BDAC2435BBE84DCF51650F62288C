@@ -1,0 +1,225 @@
+static void ipcp_up(fsm *f) {
+    ppp_pcb *pcb = f->pcb;
+    u32_t mask;
+    ipcp_options *ho = &pcb->ipcp_hisoptions;
+    ipcp_options *go = &pcb->ipcp_gotoptions;
+    ipcp_options *wo = &pcb->ipcp_wantoptions;
+
+    IPCPDEBUG(("ipcp: up"));
+
+    /*
+     * We must have a non-zero IP address for both ends of the link.
+     */
+    if (!ho->neg_addr && !ho->old_addrs)
+	ho->hisaddr = wo->hisaddr;
+
+    if (!(go->neg_addr || go->old_addrs) && (wo->neg_addr || wo->old_addrs)
+	&& wo->ouraddr != 0) {
+	ppp_error("Peer refused to agree to our IP address");
+	ipcp_close(f->pcb, "Refused our IP address");
+	return;
+    }
+    if (go->ouraddr == 0) {
+	ppp_error("Could not determine local IP address");
+	ipcp_close(f->pcb, "Could not determine local IP address");
+	return;
+    }
+    if (ho->hisaddr == 0 && !pcb->settings.noremoteip) {
+	ho->hisaddr = lwip_htonl(0x0a404040);
+	ppp_warn("Could not determine remote IP address: defaulting to %I",
+	     ho->hisaddr);
+    }
+#if 0 /* UNUSED */
+    script_setenv("IPLOCAL", ip_ntoa(go->ouraddr), 0);
+    if (ho->hisaddr != 0)
+	script_setenv("IPREMOTE", ip_ntoa(ho->hisaddr), 1);
+#endif /* UNUSED */
+
+#if LWIP_DNS
+    if (!go->req_dns1)
+	    go->dnsaddr[0] = 0;
+    if (!go->req_dns2)
+	    go->dnsaddr[1] = 0;
+#if 0 /* UNUSED */
+    if (go->dnsaddr[0])
+	script_setenv("DNS1", ip_ntoa(go->dnsaddr[0]), 0);
+    if (go->dnsaddr[1])
+	script_setenv("DNS2", ip_ntoa(go->dnsaddr[1]), 0);
+#endif /* UNUSED */
+    if (pcb->settings.usepeerdns && (go->dnsaddr[0] || go->dnsaddr[1])) {
+	sdns(pcb, go->dnsaddr[0], go->dnsaddr[1]);
+#if 0 /* UNUSED */
+	script_setenv("USEPEERDNS", "1", 0);
+	create_resolv(go->dnsaddr[0], go->dnsaddr[1]);
+#endif /* UNUSED */
+    }
+#endif /* LWIP_DNS */
+
+    /*
+     * Check that the peer is allowed to use the IP address it wants.
+     */
+    if (ho->hisaddr != 0) {
+	u32_t addr = lwip_ntohl(ho->hisaddr);
+	if ((addr >> IP_CLASSA_NSHIFT) == IP_LOOPBACKNET
+	    || IP_MULTICAST(addr) || IP_BADCLASS(addr)
+	    /*
+	     * For now, consider that PPP in server mode with peer required
+	     * to authenticate must provide the peer IP address, reject any
+	     * IP address wanted by peer different than the one we wanted.
+	     */
+#if PPP_SERVER && PPP_AUTH_SUPPORT
+	    || (pcb->settings.auth_required && wo->hisaddr != ho->hisaddr)
+#endif /* PPP_SERVER && PPP_AUTH_SUPPORT */
+	    ) {
+		ppp_error("Peer is not authorized to use remote address %I", ho->hisaddr);
+		ipcp_close(pcb, "Unauthorized remote IP address");
+		return;
+	}
+    }
+#if 0 /* Unused */
+    /* Upstream checking code */
+    if (ho->hisaddr != 0 && !auth_ip_addr(f->unit, ho->hisaddr)) {
+	ppp_error("Peer is not authorized to use remote address %I", ho->hisaddr);
+	ipcp_close(f->unit, "Unauthorized remote IP address");
+	return;
+    }
+#endif /* Unused */
+
+#if VJ_SUPPORT
+    /* set tcp compression */
+    sifvjcomp(pcb, ho->neg_vj, ho->cflag, ho->maxslotindex);
+#endif /* VJ_SUPPORT */
+
+#if DEMAND_SUPPORT
+    /*
+     * If we are doing dial-on-demand, the interface is already
+     * configured, so we put out any saved-up packets, then set the
+     * interface to pass IP packets.
+     */
+    if (demand) {
+	if (go->ouraddr != wo->ouraddr || ho->hisaddr != wo->hisaddr) {
+	    ipcp_clear_addrs(f->unit, wo->ouraddr, wo->hisaddr,
+				      wo->replace_default_route);
+	    if (go->ouraddr != wo->ouraddr) {
+		ppp_warn("Local IP address changed to %I", go->ouraddr);
+		script_setenv("OLDIPLOCAL", ip_ntoa(wo->ouraddr), 0);
+		wo->ouraddr = go->ouraddr;
+	    } else
+		script_unsetenv("OLDIPLOCAL");
+	    if (ho->hisaddr != wo->hisaddr && wo->hisaddr != 0) {
+		ppp_warn("Remote IP address changed to %I", ho->hisaddr);
+		script_setenv("OLDIPREMOTE", ip_ntoa(wo->hisaddr), 0);
+		wo->hisaddr = ho->hisaddr;
+	    } else
+		script_unsetenv("OLDIPREMOTE");
+
+	    /* Set the interface to the new addresses */
+	    mask = get_mask(go->ouraddr);
+	    if (!sifaddr(pcb, go->ouraddr, ho->hisaddr, mask)) {
+#if PPP_DEBUG
+		ppp_warn("Interface configuration failed");
+#endif /* PPP_DEBUG */
+		ipcp_close(f->unit, "Interface configuration failed");
+		return;
+	    }
+
+	    /* assign a default route through the interface if required */
+	    if (ipcp_wantoptions[f->unit].default_route) 
+		if (sifdefaultroute(pcb, go->ouraddr, ho->hisaddr,
+			wo->replace_default_route))
+		    default_route_set[f->unit] = 1;
+
+#if 0 /* UNUSED - PROXY ARP */
+	    /* Make a proxy ARP entry if requested. */
+	    if (ho->hisaddr != 0 && ipcp_wantoptions[f->unit].proxy_arp)
+		if (sifproxyarp(pcb, ho->hisaddr))
+		    proxy_arp_set[f->unit] = 1;
+#endif /* UNUSED - PROXY ARP */
+
+	}
+	demand_rexmit(PPP_IP,go->ouraddr);
+	sifnpmode(pcb, PPP_IP, NPMODE_PASS);
+
+    } else
+#endif /* DEMAND_SUPPORT */
+    {
+	/*
+	 * Set IP addresses and (if specified) netmask.
+	 */
+	mask = get_mask(go->ouraddr);
+
+#if !(defined(SVR4) && (defined(SNI) || defined(__USLC__)))
+	if (!sifaddr(pcb, go->ouraddr, ho->hisaddr, mask)) {
+#if PPP_DEBUG
+	    ppp_warn("Interface configuration failed");
+#endif /* PPP_DEBUG */
+	    ipcp_close(f->pcb, "Interface configuration failed");
+	    return;
+	}
+#endif
+
+	/* bring the interface up for IP */
+	if (!sifup(pcb)) {
+#if PPP_DEBUG
+	    ppp_warn("Interface failed to come up");
+#endif /* PPP_DEBUG */
+	    ipcp_close(f->pcb, "Interface configuration failed");
+	    return;
+	}
+
+#if (defined(SVR4) && (defined(SNI) || defined(__USLC__)))
+	if (!sifaddr(pcb, go->ouraddr, ho->hisaddr, mask)) {
+#if PPP_DEBUG
+	    ppp_warn("Interface configuration failed");
+#endif /* PPP_DEBUG */
+	    ipcp_close(f->unit, "Interface configuration failed");
+	    return;
+	}
+#endif
+#if DEMAND_SUPPORT
+	sifnpmode(pcb, PPP_IP, NPMODE_PASS);
+#endif /* DEMAND_SUPPORT */
+
+#if 0 /* UNUSED */
+	/* assign a default route through the interface if required */
+	if (wo->default_route)
+	    if (sifdefaultroute(pcb, go->ouraddr, ho->hisaddr,
+		    wo->replace_default_route))
+		    pcb->default_route_set = 1;
+#endif /* UNUSED */
+
+#if 0 /* UNUSED - PROXY ARP */
+	/* Make a proxy ARP entry if requested. */
+	if (ho->hisaddr != 0 && wo->proxy_arp)
+	    if (sifproxyarp(pcb, ho->hisaddr))
+		pcb->proxy_arp_set = 1;
+#endif /* UNUSED - PROXY ARP */
+
+	wo->ouraddr = go->ouraddr;
+
+	ppp_notice("local  IP address %I", go->ouraddr);
+	if (ho->hisaddr != 0)
+	    ppp_notice("remote IP address %I", ho->hisaddr);
+#if LWIP_DNS
+	if (go->dnsaddr[0])
+	    ppp_notice("primary   DNS address %I", go->dnsaddr[0]);
+	if (go->dnsaddr[1])
+	    ppp_notice("secondary DNS address %I", go->dnsaddr[1]);
+#endif /* LWIP_DNS */
+    }
+
+#if PPP_STATS_SUPPORT
+    reset_link_stats(f->unit);
+#endif /* PPP_STATS_SUPPORT */
+
+    np_up(pcb, PPP_IP);
+    pcb->ipcp_is_up = 1;
+
+#if PPP_NOTIFY
+    notify(ip_up_notifier, 0);
+#endif /* PPP_NOTIFY */
+#if 0 /* UNUSED */
+    if (ip_up_hook)
+	ip_up_hook();
+#endif /* UNUSED */
+}

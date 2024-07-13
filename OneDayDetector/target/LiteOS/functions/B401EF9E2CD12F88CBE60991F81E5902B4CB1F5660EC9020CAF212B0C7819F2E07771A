@@ -1,0 +1,51 @@
+UINT32 FpbAddPatch(UINT32 oldAddr, UINT32 patchValue, FpbCompTypeEnum fpbType)
+{
+    UINT32 newInstr;
+    UINT32 ret;
+    UINT8  regIndex;
+
+    if (fpbType >= FPB_TYPE_MAX) {
+        PRINT_ERR("type is wrong, set fpb patch err!\r\n");
+        return FPB_TYPE_ERR;
+    }
+
+    if (fpbType == FPB_TYPE_LITERAL) {
+        if (oldAddr & LITERAL_ALIGN) { // check aligned
+            PRINT_ERR("addr is not aligned to 4!\r\n");
+            return FPB_ADDR_NOT_ALIGN_ERR;
+        }
+
+        ret = FpbRedirectLiteral(oldAddr, patchValue);
+        if (ret != FPB_SUCCESS) {
+            PRINT_ERR("set literal patch err!\r\n");
+            return ret;
+        }
+    } else {
+        if (oldAddr & INSTR_ALIGN) { // check aligned
+            PRINT_ERR("addr is not aligned to 4!\r\n");
+            return FPB_ADDR_NOT_ALIGN_ERR;
+        }
+
+        ret = GetInstrRegIndex(oldAddr, &regIndex);
+        if (ret != FPB_SUCCESS) {
+            return ret;
+        }
+
+        ret = GetInstr(oldAddr, patchValue, &newInstr, FALSE);
+        if (ret != FPB_SUCCESS) {
+            return ret;
+        }
+
+        PRINT_DEBUG("new_instr:%x, ", new_instr);
+
+        ret = FpbComparatorRegConfig(regIndex, oldAddr);
+        if (ret != FPB_SUCCESS) {
+            return ret;
+        }
+
+        PRINT_DEBUG("use COMP:%d\r\n", reg_index);
+        *((UINT32 *)(UINTPTR)(REMAP_TABLE_ADDR + (regIndex * REMAP_UNIT_SIZE))) = newInstr;
+    }
+
+    return FPB_SUCCESS;
+}

@@ -1,0 +1,49 @@
+tcp_send_empty_ack(struct tcp_pcb *pcb)
+{
+  err_t err;
+  struct pbuf *p;
+  u8_t optlen, optflags = 0;
+  u8_t num_sacks = 0;
+
+  LWIP_ASSERT("tcp_send_empty_ack: invalid pcb", pcb != NULL);
+
+#if LWIP_TCP_TIMESTAMPS
+  if (pcb->flags & TF_TIMESTAMP) {
+    optflags = TF_SEG_OPTS_TS;
+  }
+#endif
+  optlen = LWIP_TCP_OPT_LENGTH_SEGMENT(optflags, pcb);
+
+#if LWIP_TCP_SACK_OUT
+  /* For now, SACKs are only sent with empty ACKs */
+  if ((num_sacks = tcp_get_num_sacks(pcb, optlen)) > 0) {
+    optlen += 4 + num_sacks * 8; /* 4 bytes for header (including 2*NOP), plus 8B for each SACK */
+  }
+#endif
+
+  p = tcp_output_alloc_header(pcb, optlen, 0, lwip_htonl(pcb->snd_nxt));
+  if (p == NULL) {
+    /* let tcp_fasttmr retry sending this ACK */
+    tcp_set_flags(pcb, TF_ACK_DELAY | TF_ACK_NOW);
+    LWIP_DEBUGF(TCP_OUTPUT_DEBUG, ("tcp_output: (ACK) could not allocate pbuf\n"));
+    return ERR_BUF;
+  }
+  tcp_output_fill_options(pcb, p, optflags, num_sacks);
+
+#if LWIP_TCP_TIMESTAMPS
+  pcb->ts_lastacksent = pcb->rcv_nxt;
+#endif
+
+  LWIP_DEBUGF(TCP_OUTPUT_DEBUG,
+              ("tcp_output: sending ACK for %"U32_F"\n", pcb->rcv_nxt));
+  err = tcp_output_control_segment(pcb, p, &pcb->local_ip, &pcb->remote_ip);
+  if (err != ERR_OK) {
+    /* let tcp_fasttmr retry sending this ACK */
+    tcp_set_flags(pcb, TF_ACK_DELAY | TF_ACK_NOW);
+  } else {
+    /* remove ACK flags from the PCB, as we sent an empty ACK now */
+    tcp_clear_flags(pcb, TF_ACK_DELAY | TF_ACK_NOW);
+  }
+
+  return err;
+}

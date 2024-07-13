@@ -1,0 +1,58 @@
+int pack_head_parse_head_len(pack_head_s *head, uint32_t offset, const uint8_t *buff, uint16_t len, uint16_t *used_len)
+{
+    *used_len = 0;
+    if (offset < PACK_HEADER_MIN_LEN) {
+        uint32_t copy_len;
+        uint32_t head_len;
+        uint32_t total_len;
+        uint32_t version;
+        if (offset > head->stored_len) {
+            PACK_LOG("head not continuous, len %u offset %u", head->stored_len, offset);
+            return PACK_ERR;
+        }
+
+        if (head->buff == NULL) {
+            head->buff = PACK_MALLOC(PACK_HEADER_MIN_LEN);
+            if (head->buff == NULL) {
+                PACK_LOG("PACK_MALLOC fail");
+                return PACK_ERR;
+            }
+            head->head_len = PACK_HEADER_MIN_LEN;
+        }
+        copy_len = MIN(PACK_HEADER_MIN_LEN - offset, len);
+        memcpy(head->buff + offset, buff, copy_len);
+        head->stored_len = offset + copy_len;
+        *used_len = copy_len;
+        if (head->stored_len < PACK_HEADER_MIN_LEN) {
+            return PACK_OK;
+        }
+
+        version = GET_DWORD(head->buff, PACK_VERSION_POS);
+        if (version != VERSION_NO) {
+            PACK_LOG("invalid version %d", version);
+            head->stored_len = 0;
+            return PACK_ERR;
+        }
+
+        head_len = GET_DWORD(head->buff, PACK_HEADER_HEAD_LEN_POS);
+        total_len = GET_DWORD(head->buff, PACK_HEADER_TOTAL_LEN_POS);
+        if ((head_len < PACK_HEADER_MIN_LEN) || (head_len >= total_len) || (head_len > PACK_MAX_HEAD_LEN)) {
+            PACK_LOG("invalid head len %d, total len %d", head_len, total_len);
+            head->stored_len = 0;
+            return PACK_ERR;
+        }
+
+        if (head_len > head->head_len) {
+            uint8_t *new_buff = PACK_MALLOC(head_len);
+            if (new_buff == NULL) {
+                PACK_LOG("PACK_MALLOC fail");
+                return PACK_ERR;
+            }
+            memcpy(new_buff, head->buff, head->stored_len);
+            PACK_FREE(head->buff);
+            head->buff = new_buff;
+            head->head_len = head_len;
+        }
+    }
+    return PACK_OK;
+}

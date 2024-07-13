@@ -1,0 +1,59 @@
+check_host(struct netif *netif, struct mdns_rr_info *rr, u8_t *reverse_v6_reply)
+{
+  err_t res;
+  int replies = 0;
+  struct mdns_domain mydomain;
+
+  LWIP_UNUSED_ARG(reverse_v6_reply); /* if ipv6 is disabled */
+
+  if (rr->klass != DNS_RRCLASS_IN && rr->klass != DNS_RRCLASS_ANY) {
+    /* Invalid class */
+    return replies;
+  }
+
+  /* Handle PTR for our addresses */
+  if (rr->type == DNS_RRTYPE_PTR || rr->type == DNS_RRTYPE_ANY) {
+#if LWIP_IPV6
+    int i;
+    for (i = 0; i < LWIP_IPV6_NUM_ADDRESSES; i++) {
+      if (ip6_addr_isvalid(netif_ip6_addr_state(netif, i))) {
+        res = mdns_build_reverse_v6_domain(&mydomain, netif_ip6_addr(netif, i));
+        if (res == ERR_OK && mdns_domain_eq(&rr->domain, &mydomain)) {
+          replies |= REPLY_HOST_PTR_V6;
+          /* Mark which addresses where requested */
+          if (reverse_v6_reply) {
+            *reverse_v6_reply |= (1 << i);
+          }
+        }
+      }
+    }
+#endif
+#if LWIP_IPV4
+    if (!ip4_addr_isany_val(*netif_ip4_addr(netif))) {
+      res = mdns_build_reverse_v4_domain(&mydomain, netif_ip4_addr(netif));
+      if (res == ERR_OK && mdns_domain_eq(&rr->domain, &mydomain)) {
+        replies |= REPLY_HOST_PTR_V4;
+      }
+    }
+#endif
+  }
+
+  res = mdns_build_host_domain(&mydomain, NETIF_TO_HOST(netif));
+  /* Handle requests for our hostname */
+  if (res == ERR_OK && mdns_domain_eq(&rr->domain, &mydomain)) {
+    /* TODO return NSEC if unsupported protocol requested */
+#if LWIP_IPV4
+    if (!ip4_addr_isany_val(*netif_ip4_addr(netif))
+        && (rr->type == DNS_RRTYPE_A || rr->type == DNS_RRTYPE_ANY)) {
+      replies |= REPLY_HOST_A;
+    }
+#endif
+#if LWIP_IPV6
+    if (rr->type == DNS_RRTYPE_AAAA || rr->type == DNS_RRTYPE_ANY) {
+      replies |= REPLY_HOST_AAAA;
+    }
+#endif
+  }
+
+  return replies;
+}

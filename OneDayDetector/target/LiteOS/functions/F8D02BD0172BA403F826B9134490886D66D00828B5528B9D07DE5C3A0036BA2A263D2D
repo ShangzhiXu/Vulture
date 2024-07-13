@@ -1,0 +1,18 @@
+static void SPI_TxISR_8BIT(struct __SPI_HandleTypeDef *hspi)
+{
+  *(__IO uint8_t *)&hspi->Instance->DR = (*hspi->pTxBuffPtr);
+  hspi->pTxBuffPtr++;
+  hspi->TxXferCount--;
+
+  if (hspi->TxXferCount == 0U)
+  {
+#if (USE_SPI_CRC != 0U)
+    if (hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+    {
+      /* Enable CRC Transmission */
+      SET_BIT(hspi->Instance->CR1, SPI_CR1_CRCNEXT);
+    }
+#endif /* USE_SPI_CRC */
+    SPI_CloseTx_ISR(hspi);
+  }
+}

@@ -1,0 +1,89 @@
+static int mpi_miller_rabin( const mbedtls_mpi *X, size_t rounds,
+                             int (*f_rng)(void *, unsigned char *, size_t),
+                             void *p_rng )
+{
+    int ret, count;
+    size_t i, j, k, s;
+    mbedtls_mpi W, R, T, A, RR;
+
+    MPI_VALIDATE_RET( X     != NULL );
+    MPI_VALIDATE_RET( f_rng != NULL );
+
+    mbedtls_mpi_init( &W ); mbedtls_mpi_init( &R );
+    mbedtls_mpi_init( &T ); mbedtls_mpi_init( &A );
+    mbedtls_mpi_init( &RR );
+
+    /*
+     * W = |X| - 1
+     * R = W >> lsb( W )
+     */
+    MBEDTLS_MPI_CHK( mbedtls_mpi_sub_int( &W, X, 1 ) );
+    s = mbedtls_mpi_lsb( &W );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_copy( &R, &W ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_shift_r( &R, s ) );
+
+    for( i = 0; i < rounds; i++ )
+    {
+        /*
+         * pick a random A, 1 < A < |X| - 1
+         */
+        count = 0;
+        do {
+            MBEDTLS_MPI_CHK( mbedtls_mpi_fill_random( &A, X->n * ciL, f_rng, p_rng ) );
+
+            j = mbedtls_mpi_bitlen( &A );
+            k = mbedtls_mpi_bitlen( &W );
+            if (j > k) {
+                A.p[A.n - 1] &= ( (mbedtls_mpi_uint) 1 << ( k - ( A.n - 1 ) * biL - 1 ) ) - 1;
+            }
+
+            if (count++ > 30) {
+                ret = MBEDTLS_ERR_MPI_NOT_ACCEPTABLE;
+                goto cleanup;
+            }
+
+        } while ( mbedtls_mpi_cmp_mpi( &A, &W ) >= 0 ||
+                  mbedtls_mpi_cmp_int( &A, 1 )  <= 0    );
+
+        /*
+         * A = A^R mod |X|
+         */
+        MBEDTLS_MPI_CHK( mbedtls_mpi_exp_mod( &A, &A, &R, X, &RR ) );
+
+        if( mbedtls_mpi_cmp_mpi( &A, &W ) == 0 ||
+            mbedtls_mpi_cmp_int( &A,  1 ) == 0 )
+            continue;
+
+        j = 1;
+        while( j < s && mbedtls_mpi_cmp_mpi( &A, &W ) != 0 )
+        {
+            /*
+             * A = A * A mod |X|
+             */
+            MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( &T, &A, &A ) );
+            MBEDTLS_MPI_CHK( mbedtls_mpi_mod_mpi( &A, &T, X  ) );
+
+            if( mbedtls_mpi_cmp_int( &A, 1 ) == 0 )
+                break;
+
+            j++;
+        }
+
+        /*
+         * not prime if A != |X| - 1 or A == 1
+         */
+        if( mbedtls_mpi_cmp_mpi( &A, &W ) != 0 ||
+            mbedtls_mpi_cmp_int( &A,  1 ) == 0 )
+        {
+            ret = MBEDTLS_ERR_MPI_NOT_ACCEPTABLE;
+            break;
+        }
+    }
+
+cleanup:
+    mbedtls_mpi_free( &W ); mbedtls_mpi_free( &R );
+    mbedtls_mpi_free( &T ); mbedtls_mpi_free( &A );
+    mbedtls_mpi_free( &RR );
+
+    return( ret );
+}

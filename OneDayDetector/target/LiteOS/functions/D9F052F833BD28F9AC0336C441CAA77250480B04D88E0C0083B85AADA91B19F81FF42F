@@ -1,0 +1,44 @@
+HAL_StatusTypeDef HAL_FMPSMBUS_ConfigDigitalFilter(FMPSMBUS_HandleTypeDef *hfmpsmbus, uint32_t DigitalFilter)
+{
+  uint32_t tmpreg;
+
+  /* Check the parameters */
+  assert_param(IS_FMPSMBUS_ALL_INSTANCE(hfmpsmbus->Instance));
+  assert_param(IS_FMPSMBUS_DIGITAL_FILTER(DigitalFilter));
+
+  if (hfmpsmbus->State == HAL_FMPSMBUS_STATE_READY)
+  {
+    /* Process Locked */
+    __HAL_LOCK(hfmpsmbus);
+
+    hfmpsmbus->State = HAL_FMPSMBUS_STATE_BUSY;
+
+    /* Disable the selected FMPSMBUS peripheral */
+    __HAL_FMPSMBUS_DISABLE(hfmpsmbus);
+
+    /* Get the old register value */
+    tmpreg = hfmpsmbus->Instance->CR1;
+
+    /* Reset FMPI2C DNF bits [11:8] */
+    tmpreg &= ~(FMPI2C_CR1_DNF);
+
+    /* Set FMPI2Cx DNF coefficient */
+    tmpreg |= DigitalFilter << FMPI2C_CR1_DNF_Pos;
+
+    /* Store the new register value */
+    hfmpsmbus->Instance->CR1 = tmpreg;
+
+    __HAL_FMPSMBUS_ENABLE(hfmpsmbus);
+
+    hfmpsmbus->State = HAL_FMPSMBUS_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hfmpsmbus);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

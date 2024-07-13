@@ -1,0 +1,102 @@
+static HAL_StatusTypeDef USART_TransmitReceive_IT(USART_HandleTypeDef *husart)
+{
+  uint16_t *tmp;
+
+  if (husart->State == HAL_USART_STATE_BUSY_TX_RX)
+  {
+    if (husart->TxXferCount != 0x00U)
+    {
+      if (__HAL_USART_GET_FLAG(husart, USART_FLAG_TXE) != RESET)
+      {
+        if (husart->Init.WordLength == USART_WORDLENGTH_9B)
+        {
+          tmp = (uint16_t *) husart->pTxBuffPtr;
+          husart->Instance->DR = (uint16_t)(*tmp & (uint16_t)0x01FF);
+          if (husart->Init.Parity == USART_PARITY_NONE)
+          {
+            husart->pTxBuffPtr += 2U;
+          }
+          else
+          {
+            husart->pTxBuffPtr += 1U;
+          }
+        }
+        else
+        {
+          husart->Instance->DR = (uint8_t)(*husart->pTxBuffPtr++ & (uint8_t)0x00FF);
+        }
+        husart->TxXferCount--;
+
+        /* Check the latest data transmitted */
+        if (husart->TxXferCount == 0U)
+        {
+          CLEAR_BIT(husart->Instance->CR1, USART_CR1_TXEIE);
+        }
+      }
+    }
+
+    if (husart->RxXferCount != 0x00U)
+    {
+      if (__HAL_USART_GET_FLAG(husart, USART_FLAG_RXNE) != RESET)
+      {
+        if (husart->Init.WordLength == USART_WORDLENGTH_9B)
+        {
+          tmp = (uint16_t *) husart->pRxBuffPtr;
+          if (husart->Init.Parity == USART_PARITY_NONE)
+          {
+            *tmp = (uint16_t)(husart->Instance->DR & (uint16_t)0x01FF);
+            husart->pRxBuffPtr += 2U;
+          }
+          else
+          {
+            *tmp = (uint16_t)(husart->Instance->DR & (uint16_t)0x00FF);
+            husart->pRxBuffPtr += 1U;
+          }
+        }
+        else
+        {
+          if (husart->Init.Parity == USART_PARITY_NONE)
+          {
+            *husart->pRxBuffPtr++ = (uint8_t)(husart->Instance->DR & (uint8_t)0x00FF);
+          }
+          else
+          {
+            *husart->pRxBuffPtr++ = (uint8_t)(husart->Instance->DR & (uint8_t)0x007F);
+          }
+        }
+        husart->RxXferCount--;
+      }
+    }
+
+    /* Check the latest data received */
+    if (husart->RxXferCount == 0U)
+    {
+      /* Disable the USART RXNE Interrupt */
+      CLEAR_BIT(husart->Instance->CR1, USART_CR1_RXNEIE);
+
+      /* Disable the USART Parity Error Interrupt */
+      CLEAR_BIT(husart->Instance->CR1, USART_CR1_PEIE);
+
+      /* Disable the USART Error Interrupt: (Frame error, noise error, overrun error) */
+      CLEAR_BIT(husart->Instance->CR3, USART_CR3_EIE);
+
+      husart->State = HAL_USART_STATE_READY;
+
+#if (USE_HAL_USART_REGISTER_CALLBACKS == 1)
+      /* Call registered Tx Rx Complete Callback */
+      husart->TxRxCpltCallback(husart);
+#else
+      /* Call legacy weak Tx Rx Complete Callback */
+      HAL_USART_TxRxCpltCallback(husart);
+#endif /* USE_HAL_USART_REGISTER_CALLBACKS */
+
+      return HAL_OK;
+    }
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

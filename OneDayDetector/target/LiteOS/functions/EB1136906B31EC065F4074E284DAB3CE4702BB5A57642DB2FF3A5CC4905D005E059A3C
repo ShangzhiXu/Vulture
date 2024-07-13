@@ -1,0 +1,57 @@
+HAL_StatusTypeDef HAL_MMC_Abort_IT(MMC_HandleTypeDef *hmmc)
+{
+  HAL_MMC_CardStateTypeDef CardState;
+    
+  /* DIsable All interrupts */
+  __HAL_MMC_DISABLE_IT(hmmc, SDMMC_IT_DATAEND | SDMMC_IT_DCRCFAIL | SDMMC_IT_DTIMEOUT|\
+                           SDMMC_IT_TXUNDERR| SDMMC_IT_RXOVERR);
+  
+  /* Clear All flags */
+  __HAL_MMC_CLEAR_FLAG(hmmc, SDMMC_STATIC_FLAGS);
+  
+  if((hmmc->hdmatx != NULL) || (hmmc->hdmarx != NULL))
+  {
+    /* Disable the MMC DMA request */
+    hmmc->Instance->DCTRL &= (uint32_t)~((uint32_t)SDMMC_DCTRL_DMAEN);
+    
+    /* Abort the MMC DMA Tx Stream */
+    if(hmmc->hdmatx != NULL)
+    {
+      hmmc->hdmatx->XferAbortCallback =  MMC_DMATxAbort;
+      if(HAL_DMA_Abort_IT(hmmc->hdmatx) != HAL_OK)
+      {
+        hmmc->hdmatx = NULL;
+      }
+    }
+    /* Abort the MMC DMA Rx Stream */
+    if(hmmc->hdmarx != NULL)
+    {
+      hmmc->hdmarx->XferAbortCallback =  MMC_DMARxAbort;
+      if(HAL_DMA_Abort_IT(hmmc->hdmarx) != HAL_OK)
+      {
+        hmmc->hdmarx = NULL;
+      }
+    }
+  }
+  
+  /* No transfer ongoing on both DMA channels*/
+  if((hmmc->hdmatx == NULL) && (hmmc->hdmarx == NULL))
+  {
+    CardState = HAL_MMC_GetCardState(hmmc);
+    hmmc->State = HAL_MMC_STATE_READY;
+    if((CardState == HAL_MMC_CARD_RECEIVING) || (CardState == HAL_MMC_CARD_SENDING))
+    {
+      hmmc->ErrorCode = SDMMC_CmdStopTransfer(hmmc->Instance);
+    }
+    if(hmmc->ErrorCode != HAL_MMC_ERROR_NONE)
+    {
+      return HAL_ERROR;
+    }
+    else
+    {
+      HAL_MMC_AbortCallback(hmmc);
+    }
+  }
+  
+  return HAL_OK;
+}

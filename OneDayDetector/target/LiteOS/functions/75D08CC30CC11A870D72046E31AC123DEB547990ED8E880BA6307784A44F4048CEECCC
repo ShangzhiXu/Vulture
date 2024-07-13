@@ -1,0 +1,18 @@
+HAL_StatusTypeDef USB_ResetPort(USB_OTG_GlobalTypeDef *USBx)
+{
+  uint32_t USBx_BASE = (uint32_t)USBx;
+
+  __IO uint32_t hprt0 = 0U;
+
+  hprt0 = USBx_HPRT0;
+
+  hprt0 &= ~(USB_OTG_HPRT_PENA | USB_OTG_HPRT_PCDET |
+             USB_OTG_HPRT_PENCHNG | USB_OTG_HPRT_POCCHNG);
+
+  USBx_HPRT0 = (USB_OTG_HPRT_PRST | hprt0);
+  HAL_Delay(100U);                                 /* See Note #1 */
+  USBx_HPRT0 = ((~USB_OTG_HPRT_PRST) & hprt0);
+  HAL_Delay(10U);
+
+  return HAL_OK;
+}

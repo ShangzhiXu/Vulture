@@ -1,0 +1,85 @@
+lv_obj_t * lv_calendar_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+    LV_LOG_TRACE("calendar create started");
+
+    /*Create the ancestor of calendar*/
+    lv_obj_t * calendar = lv_obj_create(par, copy);
+    LV_ASSERT_MEM(calendar);
+    if(calendar == NULL) return NULL;
+
+    /*Allocate the calendar type specific extended data*/
+    lv_calendar_ext_t * ext = lv_obj_allocate_ext_attr(calendar, sizeof(lv_calendar_ext_t));
+    LV_ASSERT_MEM(ext);
+    if(ext == NULL) {
+        lv_obj_del(calendar);
+        return NULL;
+    }
+
+    if(ancestor_signal == NULL) ancestor_signal = lv_obj_get_signal_cb(calendar);
+    if(ancestor_design == NULL) ancestor_design = lv_obj_get_design_cb(calendar);
+
+    /*Initialize the allocated 'ext' */
+    ext->today.year  = 2020;
+    ext->today.month = 1;
+    ext->today.day   = 1;
+
+    ext->showed_date.year  = 2020;
+    ext->showed_date.month = 1;
+    ext->showed_date.day   = 1;
+
+    ext->pressed_date.year  = 0;
+    ext->pressed_date.month = 0;
+    ext->pressed_date.day   = 0;
+
+    ext->highlighted_dates      = NULL;
+    ext->highlighted_dates_num  = 0;
+    ext->day_names              = NULL;
+    ext->month_names            = NULL;
+
+    ext->btn_pressing = 0;
+
+
+    lv_style_list_init(&ext->style_date_nums);
+    lv_style_list_init(&ext->style_day_names);
+    lv_style_list_init(&ext->style_header);
+    ext->style_date_nums.skip_trans = 1;
+    ext->style_day_names.skip_trans = 1;
+    ext->style_header.skip_trans = 1;
+
+    /*The signal and design functions are not copied so set them here*/
+    lv_obj_set_signal_cb(calendar, lv_calendar_signal);
+    lv_obj_set_design_cb(calendar, lv_calendar_design);
+
+    /*Init the new calendar calendar*/
+    if(copy == NULL) {
+        lv_theme_apply(calendar, LV_THEME_CALENDAR);
+
+        lv_obj_set_size(calendar, 5 * LV_DPI / 2, 5 * LV_DPI / 2);
+
+    }
+    /*Copy an existing calendar*/
+    else {
+        lv_calendar_ext_t * copy_ext = lv_obj_get_ext_attr(copy);
+        ext->today.year              = copy_ext->today.year;
+        ext->today.month             = copy_ext->today.month;
+        ext->today.day               = copy_ext->today.day;
+
+        ext->showed_date.year  = copy_ext->showed_date.year;
+        ext->showed_date.month = copy_ext->showed_date.month;
+        ext->showed_date.day   = copy_ext->showed_date.day;
+
+        ext->highlighted_dates     = copy_ext->highlighted_dates;
+        ext->highlighted_dates_num = copy_ext->highlighted_dates_num;
+        ext->day_names             = copy_ext->day_names;
+
+        ext->month_names            = copy_ext->month_names;
+        ext->style_header           = copy_ext->style_header;
+        ext->style_day_names        = copy_ext->style_day_names;
+        /*Refresh the style with new signal function*/
+        //        lv_obj_refresh_style(new_calendar);
+    }
+
+    LV_LOG_INFO("calendar created");
+
+    return calendar;
+}

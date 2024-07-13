@@ -1,0 +1,75 @@
+HAL_SD_ErrorTypedef HAL_SD_GetCardStatus(SD_HandleTypeDef *hsd, HAL_SD_CardStatusTypedef *pCardStatus)
+{
+  HAL_SD_ErrorTypedef errorstate = SD_OK;
+  uint32_t tmp = 0;
+  uint32_t sd_status[16];
+  
+  errorstate = HAL_SD_SendSDStatus(hsd, sd_status);
+  
+  if (errorstate  != SD_OK)
+  {
+    return errorstate;
+  }
+  
+  /* Byte 0 */
+  tmp = (sd_status[0] & 0xC0) >> 6;
+  pCardStatus->DAT_BUS_WIDTH = (uint8_t)tmp;
+  
+  /* Byte 0 */
+  tmp = (sd_status[0] & 0x20) >> 5;
+  pCardStatus->SECURED_MODE = (uint8_t)tmp;
+  
+  /* Byte 2 */
+  tmp = (sd_status[2] & 0xFF);
+  pCardStatus->SD_CARD_TYPE = (uint8_t)(tmp << 8);
+  
+  /* Byte 3 */
+  tmp = (sd_status[3] & 0xFF);
+  pCardStatus->SD_CARD_TYPE |= (uint8_t)tmp;
+  
+  /* Byte 4 */
+  tmp = (sd_status[4] & 0xFF);
+  pCardStatus->SIZE_OF_PROTECTED_AREA = (uint8_t)(tmp << 24);
+  
+  /* Byte 5 */
+  tmp = (sd_status[5] & 0xFF);
+  pCardStatus->SIZE_OF_PROTECTED_AREA |= (uint8_t)(tmp << 16);
+  
+  /* Byte 6 */
+  tmp = (sd_status[6] & 0xFF);
+  pCardStatus->SIZE_OF_PROTECTED_AREA |= (uint8_t)(tmp << 8);
+  
+  /* Byte 7 */
+  tmp = (sd_status[7] & 0xFF);
+  pCardStatus->SIZE_OF_PROTECTED_AREA |= (uint8_t)tmp;
+  
+  /* Byte 8 */
+  tmp = (sd_status[8] & 0xFF);
+  pCardStatus->SPEED_CLASS = (uint8_t)tmp;
+  
+  /* Byte 9 */
+  tmp = (sd_status[9] & 0xFF);
+  pCardStatus->PERFORMANCE_MOVE = (uint8_t)tmp;
+  
+  /* Byte 10 */
+  tmp = (sd_status[10] & 0xF0) >> 4;
+  pCardStatus->AU_SIZE = (uint8_t)tmp;
+  
+  /* Byte 11 */
+  tmp = (sd_status[11] & 0xFF);
+  pCardStatus->ERASE_SIZE = (uint8_t)(tmp << 8);
+  
+  /* Byte 12 */
+  tmp = (sd_status[12] & 0xFF);
+  pCardStatus->ERASE_SIZE |= (uint8_t)tmp;
+  
+  /* Byte 13 */
+  tmp = (sd_status[13] & 0xFC) >> 2;
+  pCardStatus->ERASE_TIMEOUT = (uint8_t)tmp;
+  
+  /* Byte 13 */
+  tmp = (sd_status[13] & 0x3);
+  pCardStatus->ERASE_OFFSET = (uint8_t)tmp;
+  
+  return errorstate;
+}

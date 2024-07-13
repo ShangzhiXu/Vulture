@@ -1,0 +1,44 @@
+HAL_StatusTypeDef HAL_CEC_Receive_IT(CEC_HandleTypeDef *hcec, uint8_t *pData)
+{
+  uint32_t tmp_state = 0;
+  tmp_state = hcec->State;
+  if((tmp_state == HAL_CEC_STATE_READY) || (tmp_state == HAL_CEC_STATE_BUSY_TX))
+  {
+    if(pData == NULL) 
+    {
+      return HAL_ERROR;                                    
+    }
+    
+    /* When a ping is received, RxXferSize is 0 */
+    /* When a message is received, RxXferSize contains the number of received bytes */
+    hcec->RxXferSize = CEC_RXXFERSIZE_INITIALIZE;
+    
+    /* Process Locked */
+    __HAL_LOCK(hcec);
+
+    hcec->pRxBuffPtr = pData;
+    hcec->ErrorCode = HAL_CEC_ERROR_NONE;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hcec);
+    
+    /* Check if a transmit process is ongoing or not */
+    if(hcec->State == HAL_CEC_STATE_BUSY_TX)
+    {
+      hcec->State = HAL_CEC_STATE_BUSY_TX_RX;
+    }
+    else
+    {
+      hcec->State = HAL_CEC_STATE_BUSY_RX;    
+      
+      /* Enable CEC interrupt */
+      __HAL_CEC_ENABLE_IT(hcec, CEC_IT_IE);
+    }
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY; 
+  }
+}

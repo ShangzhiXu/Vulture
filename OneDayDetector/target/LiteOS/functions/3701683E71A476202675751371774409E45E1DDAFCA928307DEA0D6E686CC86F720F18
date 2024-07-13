@@ -1,0 +1,30 @@
+LITE_OS_SEC_TEXT_MINOR INT32 SensorItemEnable(SensorItem *item, OpenParam *param, UINT16 id, UINT8 resp)
+{
+    SmMail smMail;
+    UINT32 ret;
+
+    if ((item == NULL) || (item->tag >= TAG_END) || (item->tag < TAG_BEGIN) || (param == NULL)) {
+        return LOS_NOK;
+    }
+
+    if (param->period < SAMPLE_PERIOD_MIN) {
+        PRINT_ERR("sensor item enable open period err %u min %u\n", param->period, SAMPLE_PERIOD_MIN);
+    }
+
+    smMail.event = SM_EVENT_ITEM_ENABLE;
+    smMail.itemEnable.item = item;
+
+    param->period = (param->period < SAMPLE_PERIOD_MIN) ? SAMPLE_PERIOD_MIN : param->period;
+    param->mode = (param->mode >= MODE_END) ? AUTO_MODE : param->mode;
+    param->batchCount = (param->batchCount > BATCH_COUNT_MAX) ? 1 : param->batchCount;
+    smMail.itemEnable.openParam = *param;
+    smMail.itemEnable.id = id;
+    smMail.itemEnable.resp = resp;
+
+    ret = LOS_QueueWriteCopy(g_sensorManagerQueue, (VOID *)&smMail, SM_MAILS_TYPE_SIZE, 0);
+    if (ret != LOS_OK) {
+        PRINT_ERR("sensor item enable write queue fail, ret %u\n", ret);
+        return LOS_NOK;
+    }
+    return LOS_OK;
+}

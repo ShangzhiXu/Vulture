@@ -1,0 +1,49 @@
+HAL_StatusTypeDef ADC_Disable(ADC_HandleTypeDef* hadc)
+{
+  uint32_t tickstart = 0;
+  
+  /* Verification if ADC is not already disabled:                             */
+  /* Note: forbidden to disable ADC (set bit ADC_CR_ADDIS) if ADC is already  */
+  /*       disabled.                                                          */
+  if (ADC_IS_ENABLE(hadc) != RESET)
+  {
+    /* Check if conditions to disable the ADC are fulfilled */
+    if (ADC_DISABLING_CONDITIONS(hadc) != RESET)
+    {
+      /* Disable the ADC peripheral */
+      LL_ADC_Disable(hadc->Instance);
+      __HAL_ADC_CLEAR_FLAG(hadc, (ADC_FLAG_EOSMP | ADC_FLAG_RDY));
+    }
+    else
+    {
+      /* Update ADC state machine to error */
+      SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL);
+      
+      /* Set ADC error code to ADC IP internal error */
+      SET_BIT(hadc->ErrorCode, HAL_ADC_ERROR_INTERNAL);
+      
+      return HAL_ERROR;
+    }
+     
+    /* Wait for ADC effectively disabled */
+    /* Get tick count */
+    tickstart = HAL_GetTick();
+    
+    while(HAL_IS_BIT_SET(hadc->Instance->CR, ADC_CR_ADEN))
+    {
+      if((HAL_GetTick() - tickstart) > ADC_DISABLE_TIMEOUT)
+      {
+        /* Update ADC state machine to error */
+        SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL);
+        
+        /* Set ADC error code to ADC IP internal error */
+        SET_BIT(hadc->ErrorCode, HAL_ADC_ERROR_INTERNAL);
+        
+        return HAL_ERROR;
+      }
+    }
+  }
+  
+  /* Return HAL status */
+  return HAL_OK;
+}

@@ -1,0 +1,50 @@
+SECUREC_INLINE int SecSetupBracketTable(const SecUnsignedChar **format, SecBracketTable *bracketTable)
+{
+    const SecUnsignedChar *fmt = *format;
+    SecUnsignedChar prevChar = 0;
+#if !(defined(SECUREC_COMPATIBLE_WIN_FORMAT))
+    if (*fmt == SECUREC_CHAR('{')) {
+        return -1;
+    }
+#endif
+    /* For building "table" data */
+    ++fmt; /* Skip [ */
+    bracketTable->mask = 0; /* Set all bits to 0 */
+    if (*fmt == SECUREC_CHAR('^')) {
+        ++fmt;
+        bracketTable->mask = (unsigned char)0xffU; /* Use 0xffU to set all bits to 1 */
+    }
+    if (*fmt == SECUREC_CHAR(']')) {
+        prevChar = SECUREC_CHAR(']');
+        ++fmt;
+        SecBracketSetBit(bracketTable->table, SECUREC_CHAR(']'));
+    }
+    while (*fmt != SECUREC_CHAR('\0') && *fmt != SECUREC_CHAR(']')) {
+        SecUnsignedChar expCh = *fmt;
+        ++fmt;
+        if (expCh != SECUREC_CHAR('-') || prevChar == 0 || *fmt == SECUREC_CHAR(']')) {
+            /* Normal character */
+            prevChar = expCh;
+            SecBracketSetBit(bracketTable->table, expCh);
+        } else {
+            /* For %[a-z] */
+            expCh = *fmt;   /* Get end of range */
+            ++fmt;
+            if (prevChar <= expCh) {  /* %[a-z] %[a-a] */
+                SecBracketSetBitRange(bracketTable->table, prevChar, expCh);
+            } else {
+                /* For %[z-a] */
+#if defined(SECUREC_COMPATIBLE_WIN_FORMAT)
+                /* Swap start and end characters */
+                SecBracketSetBitRange(bracketTable->table, expCh, prevChar);
+#else
+                SecBracketSetBit(bracketTable->table, SECUREC_CHAR('-'));
+                SecBracketSetBit(bracketTable->table, expCh);
+#endif
+            }
+            prevChar = 0;
+        }
+    }
+    *format = fmt;
+    return 0;
+}

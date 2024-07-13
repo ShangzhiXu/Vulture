@@ -1,0 +1,37 @@
+STATIC INT32 OsExecNameMatch(const CHAR *strPath, const CHAR *nameLooking, CHAR *strObj, UINT32 *maxLen)
+{
+    INT32 count = 0;
+    DIR *openDir = NULL;
+    struct dirent *readDir = NULL;
+
+    openDir = opendir(strPath);
+    if (openDir == NULL) {
+        return (INT32)OS_ERROR;
+    }
+
+    for (readDir = readdir(openDir); readDir != NULL; readDir = readdir(openDir)) {
+        if (strncmp(nameLooking, readDir->d_name, strlen(nameLooking)) != 0) {
+            continue;
+        }
+        if (count == 0) {
+            if (strncpy_s(strObj, CMD_MAX_PATH, readDir->d_name, CMD_MAX_PATH - 1) != EOK) {
+                (VOID)closedir(openDir);
+                return (INT32)OS_ERROR;
+            }
+            *maxLen = strlen(readDir->d_name);
+        } else {
+            /* strncmp&cut the same strings of name matched */
+            StrncmpCut(readDir->d_name, strObj, strlen(strObj));
+            if (strlen(readDir->d_name) > *maxLen) {
+                *maxLen = strlen(readDir->d_name);
+            }
+        }
+        count++;
+    }
+
+    if (closedir(openDir) < 0) {
+        return (INT32)OS_ERROR;
+    }
+
+    return count;
+}

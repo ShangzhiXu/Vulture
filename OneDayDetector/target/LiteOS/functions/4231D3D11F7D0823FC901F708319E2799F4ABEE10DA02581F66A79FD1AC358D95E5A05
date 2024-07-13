@@ -1,0 +1,86 @@
+static uint32_t SD_FindSCR(SD_HandleTypeDef *hsd, uint32_t *pSCR)
+{
+  SDIO_DataInitTypeDef config;
+  uint32_t errorstate;
+  uint32_t tickstart = HAL_GetTick();
+  uint32_t index = 0U;
+  uint32_t tempscr[2U] = {0U, 0U};
+  uint32_t *scr = pSCR;
+
+  /* Set Block Size To 8 Bytes */
+  errorstate = SDMMC_CmdBlockLength(hsd->Instance, 8U);
+  if(errorstate != HAL_SD_ERROR_NONE)
+  {
+    return errorstate;
+  }
+
+  /* Send CMD55 APP_CMD with argument as card's RCA */
+  errorstate = SDMMC_CmdAppCommand(hsd->Instance, (uint32_t)((hsd->SdCard.RelCardAdd) << 16U));
+  if(errorstate != HAL_SD_ERROR_NONE)
+  {
+    return errorstate;
+  }
+
+  config.DataTimeOut   = SDMMC_DATATIMEOUT;
+  config.DataLength    = 8U;
+  config.DataBlockSize = SDIO_DATABLOCK_SIZE_8B;
+  config.TransferDir   = SDIO_TRANSFER_DIR_TO_SDIO;
+  config.TransferMode  = SDIO_TRANSFER_MODE_BLOCK;
+  config.DPSM          = SDIO_DPSM_ENABLE;
+  (void)SDIO_ConfigData(hsd->Instance, &config);
+
+  /* Send ACMD51 SD_APP_SEND_SCR with argument as 0 */
+  errorstate = SDMMC_CmdSendSCR(hsd->Instance);
+  if(errorstate != HAL_SD_ERROR_NONE)
+  {
+    return errorstate;
+  }
+
+  while(!__HAL_SD_GET_FLAG(hsd, SDIO_FLAG_RXOVERR | SDIO_FLAG_DCRCFAIL | SDIO_FLAG_DTIMEOUT | SDIO_FLAG_DBCKEND))
+  {
+    if(__HAL_SD_GET_FLAG(hsd, SDIO_FLAG_RXDAVL))
+    {
+      *(tempscr + index) = SDIO_ReadFIFO(hsd->Instance);
+      index++;
+    }
+
+    if((HAL_GetTick() - tickstart) >=  SDMMC_DATATIMEOUT)
+    {
+      return HAL_SD_ERROR_TIMEOUT;
+    }
+  }
+
+  if(__HAL_SD_GET_FLAG(hsd, SDIO_FLAG_DTIMEOUT))
+  {
+    __HAL_SD_CLEAR_FLAG(hsd, SDIO_FLAG_DTIMEOUT);
+
+    return HAL_SD_ERROR_DATA_TIMEOUT;
+  }
+  else if(__HAL_SD_GET_FLAG(hsd, SDIO_FLAG_DCRCFAIL))
+  {
+    __HAL_SD_CLEAR_FLAG(hsd, SDIO_FLAG_DCRCFAIL);
+
+    return HAL_SD_ERROR_DATA_CRC_FAIL;
+  }
+  else if(__HAL_SD_GET_FLAG(hsd, SDIO_FLAG_RXOVERR))
+  {
+    __HAL_SD_CLEAR_FLAG(hsd, SDIO_FLAG_RXOVERR);
+
+    return HAL_SD_ERROR_RX_OVERRUN;
+  }
+  else
+  {
+    /* No error flag set */
+    /* Clear all the static flags */
+    __HAL_SD_CLEAR_FLAG(hsd, SDIO_STATIC_DATA_FLAGS);
+
+    *scr = (((tempscr[1] & SDMMC_0TO7BITS) << 24)  | ((tempscr[1] & SDMMC_8TO15BITS) << 8) |\
+            ((tempscr[1] & SDMMC_16TO23BITS) >> 8) | ((tempscr[1] & SDMMC_24TO31BITS) >> 24));
+    scr++;
+    *scr = (((tempscr[0] & SDMMC_0TO7BITS) << 24)  | ((tempscr[0] & SDMMC_8TO15BITS) << 8) |\
+            ((tempscr[0] & SDMMC_16TO23BITS) >> 8) | ((tempscr[0] & SDMMC_24TO31BITS) >> 24));
+
+  }
+
+  return HAL_SD_ERROR_NONE;
+}

@@ -1,0 +1,21 @@
+void lv_task_set_prio(lv_task_t * task, lv_task_prio_t prio)
+{
+    if(task->prio == prio) return;
+
+    /*Find the tasks with new priority*/
+    lv_task_t * i;
+    _LV_LL_READ(LV_GC_ROOT(_lv_task_ll), i) {
+        if(i->prio <= prio) {
+            if(i != task) _lv_ll_move_before(&LV_GC_ROOT(_lv_task_ll), task, i);
+            break;
+        }
+    }
+
+    /*There was no such a low priority so far then add the node to the tail*/
+    if(i == NULL) {
+        _lv_ll_move_before(&LV_GC_ROOT(_lv_task_ll), task, NULL);
+    }
+    task_list_changed = true;
+
+    task->prio = prio;
+}

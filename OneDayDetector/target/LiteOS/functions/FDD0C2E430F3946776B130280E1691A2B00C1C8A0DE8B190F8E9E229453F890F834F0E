@@ -1,0 +1,26 @@
+int32_t osKernelRestoreLock(int32_t lock)
+{
+    if (OS_INT_ACTIVE) {
+        return (int32_t)osErrorISR;
+    }
+
+    if (!g_taskScheduled) {
+        return (int32_t)osError;
+    }
+
+    switch (lock) {
+        case KERNEL_UNLOCKED:
+            LOS_TaskUnlock();
+            if (OsPercpuGet()->taskLockCnt != 0) {
+                break;
+            }
+            return KERNEL_UNLOCKED;
+        case KERNEL_LOCKED:
+            LOS_TaskLock();
+            return KERNEL_LOCKED;
+        default:
+            break;
+    }
+
+    return (int32_t)osError;
+}

@@ -1,0 +1,19 @@
+mdns_resp_rename_netif(struct netif *netif, const char *hostname)
+{
+  struct mdns_host *mdns;
+  size_t len;
+
+  LWIP_ASSERT_CORE_LOCKED();
+  len = strlen(hostname);
+  LWIP_ERROR("mdns_resp_rename_netif: netif != NULL", (netif != NULL), return ERR_VAL);
+  LWIP_ERROR("mdns_resp_rename_netif: Hostname too long", (len <= MDNS_LABEL_MAXLEN), return ERR_VAL);
+  mdns = NETIF_TO_HOST(netif);
+  LWIP_ERROR("mdns_resp_rename_netif: Not an mdns netif", (mdns != NULL), return ERR_VAL);
+
+  MEMCPY(&mdns->name, hostname, LWIP_MIN(MDNS_LABEL_MAXLEN, len));
+  mdns->name[len] = '\0'; /* null termination in case new name is shorter than previous */
+
+  mdns_resp_restart(netif);
+
+  return ERR_OK;
+}

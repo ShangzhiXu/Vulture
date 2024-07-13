@@ -1,0 +1,26 @@
+int32_t nb_sendto(int32_t id, const uint8_t *buf, uint32_t len, char *ipaddr, int port)
+{
+    char *cmd = "AT+NSOST=";
+    int data_len = len / 2;
+    int cmd_len;
+
+    if ((buf == NULL) || (data_len > AT_MAX_PAYLOADLEN) || (id >= MAX_SOCK_NUM)) {
+        AT_LOG("invalid args");
+        return -1;
+    }
+
+    AT_LOG("id:%d remoteip:%s port:%d", (int)sockinfo[id].socket, ipaddr, port);
+    memset(wbuf, 0, AT_DATA_LEN);
+    memset(tmpbuf, 0, AT_DATA_LEN);
+    str_to_hex((const char *)buf, len, tmpbuf);
+
+    cmd_len = snprintf(wbuf, AT_DATA_LEN, "%s%d,%s,%d,%d,%s\r", cmd, (int)sockinfo[id].socket, ipaddr, port, (int)len,
+        tmpbuf);
+
+
+    if (nb_cmd_with_2_suffix((int8_t *)wbuf, cmd_len, "OK", "ERROR", NULL, NULL) != AT_OK) {
+        return AT_FAILED;
+    }
+
+    return len;
+}

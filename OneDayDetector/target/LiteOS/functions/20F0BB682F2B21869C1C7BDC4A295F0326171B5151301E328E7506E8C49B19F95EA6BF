@@ -1,0 +1,48 @@
+HAL_StatusTypeDef HAL_DMA_DeInit(DMA_HandleTypeDef *hdma)
+{
+  /* Check the DMA handle allocation */
+  if(hdma == NULL)
+  {
+    return HAL_ERROR;
+  }
+  
+  /* Check the parameters */
+  assert_param(IS_DMA_ALL_INSTANCE(hdma->Instance));
+
+  /* Check the DMA peripheral state */
+  if(hdma->State == HAL_DMA_STATE_BUSY)
+  {
+     return HAL_ERROR;
+  }
+
+  /* Disable the selected DMA Channelx */
+  __HAL_DMA_DISABLE(hdma);
+  
+  /* Reset DMA Channel control register */
+  hdma->Instance->CCR  = 0;
+  
+  /* Reset DMA Channel Number of Data to Transfer register */
+  hdma->Instance->CNDTR = 0;
+  
+  /* Reset DMA Channel peripheral address register */
+  hdma->Instance->CPAR  = 0;
+  
+  /* Reset DMA Channel memory address register */
+  hdma->Instance->CMAR = 0;
+
+  /* Clear all flags */
+  __HAL_DMA_CLEAR_FLAG(hdma, __HAL_DMA_GET_TC_FLAG_INDEX(hdma));
+  __HAL_DMA_CLEAR_FLAG(hdma, __HAL_DMA_GET_TE_FLAG_INDEX(hdma));
+  __HAL_DMA_CLEAR_FLAG(hdma, __HAL_DMA_GET_HT_FLAG_INDEX(hdma));
+  
+  /* Initialize the error code */
+  hdma->ErrorCode = HAL_DMA_ERROR_NONE;
+
+  /* Initialize the DMA state */
+  hdma->State = HAL_DMA_STATE_RESET;
+
+  /* Release Lock */
+  __HAL_UNLOCK(hdma);
+
+  return HAL_OK;
+}

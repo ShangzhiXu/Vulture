@@ -1,0 +1,88 @@
+void UnityPrintFloat(const UNITY_DOUBLE input_number)
+{
+    UNITY_DOUBLE number = input_number;
+
+    /* print minus sign (including for negative zero) */
+    if (number < (double)0.0f || (number == (double)0.0f && (double)1.0f / number < (double)0.0f))
+    {
+        UNITY_OUTPUT_CHAR('-');
+        number = -number;
+    }
+
+    /* handle zero, NaN, and +/- infinity */
+    if (number == (double)0.0f) UnityPrint("0");
+    else if (isnan(number)) UnityPrint("nan");
+    else if (isinf(number)) UnityPrint("inf");
+    else
+    {
+        int exponent = 0;
+        int decimals, digits;
+        UNITY_INT32 n;
+        char buf[16];
+
+        /* scale up or down by powers of 10 */
+        while (number < (double)(100000.0f / 1e6f))  { number *= (double)1e6f; exponent -= 6; }
+        while (number < (double)100000.0f)         { number *= (double)10.0f; exponent--; }
+        while (number > (double)(1000000.0f * 1e6f)) { number /= (double)1e6f; exponent += 6; }
+        while (number > (double)1000000.0f)        { number /= (double)10.0f; exponent++; }
+
+        /* round to nearest integer */
+        n = ((UNITY_INT32)(number + number) + 1) / 2;
+        if (n > 999999)
+        {
+            n = 100000;
+            exponent++;
+        }
+
+        /* determine where to place decimal point */
+        decimals = (exponent <= 0 && exponent >= -9) ? -exponent : 5;
+        exponent += decimals;
+
+        /* truncate trailing zeroes after decimal point */
+        while (decimals > 0 && n % 10 == 0)
+        {
+            n /= 10;
+            decimals--;
+        }
+
+        /* build up buffer in reverse order */
+        digits = 0;
+        while (n != 0 || digits < decimals + 1)
+        {
+            buf[digits++] = (char)('0' + n % 10);
+            n /= 10;
+        }
+        while (digits > 0)
+        {
+            if(digits == decimals) UNITY_OUTPUT_CHAR('.');
+            UNITY_OUTPUT_CHAR(buf[--digits]);
+        }
+
+        /* print exponent if needed */
+        if (exponent != 0)
+        {
+            UNITY_OUTPUT_CHAR('e');
+
+            if(exponent < 0)
+            {
+                UNITY_OUTPUT_CHAR('-');
+                exponent = -exponent;
+            }
+            else
+            {
+                UNITY_OUTPUT_CHAR('+');
+            }
+
+            digits = 0;
+            while (exponent != 0 || digits < 2)
+            {
+                buf[digits++] = (char)('0' + exponent % 10);
+                exponent /= 10;
+            }
+            while (digits > 0)
+            {
+                UNITY_OUTPUT_CHAR(buf[--digits]);
+            }
+        }
+    }
+}

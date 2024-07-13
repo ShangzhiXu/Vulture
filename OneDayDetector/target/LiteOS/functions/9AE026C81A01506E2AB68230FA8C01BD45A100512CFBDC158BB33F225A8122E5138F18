@@ -1,0 +1,51 @@
+static uint32_t DCMI_TransferSize(uint32_t InputSize)
+{ 
+  uint32_t j = 1;
+  uint32_t temp = InputSize;
+  uint32_t aPrime[NPRIME] = {0};
+  uint32_t output = 2; /* Want a result which is an even number */
+
+    
+  /* Develop InputSize in product of prime numbers */
+
+  while (j < NPRIME)
+  {
+    if (temp < PrimeArray[j])
+    {
+      break;
+    }
+    while ((temp % PrimeArray[j]) == 0)
+    {
+      aPrime[j]++; 
+      temp /= PrimeArray[j];   
+    }
+    j++;
+  } 
+  
+  /*  Search for the biggest even divisor less or equal to 0xFFFE = 65534 */
+  aPrime[1] -= 1; /* output is initialized to 2, so don't count dividor 2 twice */
+
+   /*  The algorithm below yields a sub-optimal solution
+       but in an acceptable time.  */
+    j =  NPRIME-1;
+  while ((j > 0) &&  (output <= 0xFFFE))
+  { 
+    while (aPrime[j] >0)
+    {
+      if (output * PrimeArray[j] > 0xFFFE)
+      {
+        break;
+      }
+      else
+      {
+        output *= PrimeArray[j]; 
+        aPrime[j]--;
+      }
+    }
+    j--;
+  }
+   
+  
+ 
+  return output;
+}

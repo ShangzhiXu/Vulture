@@ -1,0 +1,24 @@
+SECUREC_INLINE void SecUpdateWcharFlagByType(SecUnsignedChar ch, SecScanSpec *spec)
+{
+    if (spec->isWCharOrLong != 0) {
+        /* Wide character identifiers have been explicitly set by l or h flag */
+        return;
+    }
+
+    /* Set default flag */
+#if defined(SECUREC_FOR_WCHAR) && defined(SECUREC_COMPATIBLE_WIN_FORMAT)
+    spec->isWCharOrLong = 1;  /* On windows wide char version %c %s %[ is wide char */
+#else
+    spec->isWCharOrLong = -1; /* On linux all version %c %s %[ is multi char */
+#endif
+
+    if (ch == SECUREC_CHAR('C') || ch == SECUREC_CHAR('S')) {
+#if defined(SECUREC_FOR_WCHAR) && defined(SECUREC_COMPATIBLE_WIN_FORMAT)
+        spec->isWCharOrLong = -1; /* On windows wide char version %C %S is multi char */
+#else
+        spec->isWCharOrLong = 1;  /* On linux all version %C %S is wide char */
+#endif
+    }
+
+    return;
+}

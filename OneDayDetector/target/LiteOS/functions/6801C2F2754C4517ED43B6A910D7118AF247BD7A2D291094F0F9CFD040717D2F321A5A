@@ -1,0 +1,45 @@
+int atiny_data_report(void *phandle, data_report_t *report_data)
+{
+    lwm2m_uri_t uri;
+    int ret;
+    data_report_t data;
+
+    if ((phandle == NULL) || (report_data == NULL) || (report_data->len <= 0)
+            || (report_data->len > MAX_REPORT_DATA_LEN) || (report_data->buf == NULL)) {
+        ATINY_LOG(LOG_ERR, "invalid args");
+        return ATINY_ARG_INVALID;
+    }
+
+    memset((void *)&uri, 0, sizeof(uri));
+
+    switch (report_data->type) {
+    case FIRMWARE_UPDATE_STATE: {
+        (void)lwm2m_stringToUri("/5/0/3", 6, &uri);
+        break;
+    }
+    case APP_DATA: {
+        get_resource_uri(BINARY_APP_DATA_OBJECT_ID, 0, BINARY_APP_DATA_RES_ID, &uri);
+        break;
+    }
+    default:
+        return ATINY_RESOURCE_NOT_FOUND;
+    }
+
+    memcpy(&data, report_data, sizeof(data));
+    data.buf = lwm2m_malloc(report_data->len);
+    if (data.buf == NULL) {
+        ATINY_LOG(LOG_ERR, "lwm2m_malloc fail,len %d", data.len);
+        return ATINY_MALLOC_FAILED;;
+    }
+    memcpy(data.buf, report_data->buf, report_data->len);
+
+    ret = atiny_queue_rpt_data(&uri, &data);
+
+    if (ret != ATINY_OK) {
+        if (data.buf != NULL) {
+            lwm2m_free(data.buf);
+        }
+    }
+
+    return ret;
+}

@@ -1,0 +1,53 @@
+static struct kifs_node *kifs_file_find(struct kifs_node *root, const char *path_in_mp, const char **path_unresolved)
+{
+    struct kifs_node *dir = root;
+
+    while (1) {
+        const char *c;
+        struct kifs_node *t;
+        int l;
+
+        if ((dir->attr & KIFS_ATTR_D) == 0) {
+            VFS_ERRNO_SET(ENOTDIR);
+            return NULL;
+        }
+
+        while (*path_in_mp == '/') {
+            path_in_mp++;
+        }
+
+        c = strchr(path_in_mp, '/');
+        if (c == NULL) {
+            l = strlen(path_in_mp);
+        } else {
+            l = c - path_in_mp;
+        }
+
+        if (l >= LOS_MAX_FILE_NAME_LEN) {
+            VFS_ERRNO_SET(ENAMETOOLONG);
+            return NULL;
+        }
+
+        for (t = dir->child; t != NULL; t = t->sibling) {
+            if ((strncmp(t->name, path_in_mp, l) == 0) &&
+                    (t->name [l] == '\0')) {
+                break;
+            }
+        }
+
+        if (t == NULL) {
+            break;  /* no match */
+        }
+
+        path_in_mp += l;
+        dir = t;
+
+        if (c == NULL) {
+            break;
+        }
+    }
+
+    *path_unresolved = path_in_mp;
+
+    return dir;
+}

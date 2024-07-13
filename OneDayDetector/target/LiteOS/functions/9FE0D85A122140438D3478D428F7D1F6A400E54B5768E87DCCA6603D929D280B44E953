@@ -1,0 +1,21 @@
+UINT32 OsMemTaskUsage(UINT32 taskId)
+{
+    LosMemPoolInfo *pool = NULL;
+    Memstat *stat = NULL;
+
+#ifndef LOSCFG_MEM_MUL_POOL
+    /* If Multi-pool is not enabled, then trace SYSTEM MEM only */
+    pool = (LosMemPoolInfo *)OS_SYS_MEM_ADDR;
+    stat = &(pool->stat);
+    return OsMemstatTaskUsage(stat, taskId);
+#else
+    UINT32 inUse = 0;
+    pool = (LosMemPoolInfo *)OsMemMulPoolHeadGet();
+    while (pool != NULL) {
+        stat = &(pool->stat);
+        inUse += OsMemstatTaskUsage(stat, taskId);
+        pool = pool->nextPool;
+    }
+    return inUse;
+#endif
+}

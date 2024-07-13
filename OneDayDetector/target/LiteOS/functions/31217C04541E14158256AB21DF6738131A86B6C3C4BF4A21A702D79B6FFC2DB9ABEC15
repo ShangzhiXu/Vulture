@@ -1,0 +1,69 @@
+void lv_canvas_draw_text(lv_obj_t * canvas, lv_coord_t x, lv_coord_t y, lv_coord_t max_w,
+                         lv_draw_label_dsc_t * label_draw_dsc,
+                         const char * txt, lv_label_align_t align)
+{
+    LV_ASSERT_OBJ(canvas, LV_OBJX_NAME);
+
+    lv_img_dsc_t * dsc = lv_canvas_get_img(canvas);
+
+    if(dsc->header.cf >= LV_IMG_CF_INDEXED_1BIT && dsc->header.cf <= LV_IMG_CF_INDEXED_8BIT) {
+        LV_LOG_WARN("lv_canvas_draw_text: can't raw to LV_IMG_CF_INDEXED canvas");
+        return;
+    }
+
+    /* Create a dummy display to fool the lv_draw function.
+     * It will think it draws to real screen. */
+    lv_area_t mask;
+    mask.x1 = 0;
+    mask.x2 = dsc->header.w - 1;
+    mask.y1 = 0;
+    mask.y2 = dsc->header.h - 1;
+
+    lv_area_t coords;
+    coords.x1 = x;
+    coords.y1 = y;
+    coords.x2 = x + max_w - 1;
+    coords.y2 = dsc->header.h - 1;
+
+    lv_disp_t disp;
+    _lv_memset_00(&disp, sizeof(lv_disp_t));
+
+    lv_disp_buf_t disp_buf;
+    lv_disp_buf_init(&disp_buf, (void *)dsc->data, NULL, dsc->header.w * dsc->header.h);
+    lv_area_copy(&disp_buf.area, &mask);
+
+    lv_disp_drv_init(&disp.driver);
+
+    disp.driver.buffer  = &disp_buf;
+    disp.driver.hor_res = dsc->header.w;
+    disp.driver.ver_res = dsc->header.h;
+
+    set_set_px_cb(&disp.driver, dsc->header.cf);
+
+    lv_disp_t * refr_ori = _lv_refr_get_disp_refreshing();
+    _lv_refr_set_disp_refreshing(&disp);
+
+    lv_txt_flag_t flag;
+    switch(align) {
+        case LV_LABEL_ALIGN_LEFT:
+            flag = LV_TXT_FLAG_NONE;
+            break;
+        case LV_LABEL_ALIGN_RIGHT:
+            flag = LV_TXT_FLAG_RIGHT;
+            break;
+        case LV_LABEL_ALIGN_CENTER:
+            flag = LV_TXT_FLAG_CENTER;
+            break;
+        default:
+            flag = LV_TXT_FLAG_NONE;
+            break;
+    }
+
+    label_draw_dsc->flag = flag;
+
+    lv_draw_label(&coords, &mask, label_draw_dsc, txt, NULL);
+
+    _lv_refr_set_disp_refreshing(refr_ori);
+
+    lv_obj_invalidate(canvas);
+}

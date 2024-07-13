@@ -1,0 +1,39 @@
+static HAL_StatusTypeDef USART_Transmit_IT(USART_HandleTypeDef *husart)
+{
+  uint16_t *tmp;
+
+  if (husart->State == HAL_USART_STATE_BUSY_TX)
+  {
+    if (husart->Init.WordLength == USART_WORDLENGTH_9B)
+    {
+      tmp = (uint16_t *) husart->pTxBuffPtr;
+      husart->Instance->DR = (uint16_t)(*tmp & (uint16_t)0x01FF);
+      if (husart->Init.Parity == USART_PARITY_NONE)
+      {
+        husart->pTxBuffPtr += 2U;
+      }
+      else
+      {
+        husart->pTxBuffPtr += 1U;
+      }
+    }
+    else
+    {
+      husart->Instance->DR = (uint8_t)(*husart->pTxBuffPtr++ & (uint8_t)0x00FF);
+    }
+
+    if (--husart->TxXferCount == 0U)
+    {
+      /* Disable the USART Transmit data register empty Interrupt */
+      CLEAR_BIT(husart->Instance->CR1, USART_CR1_TXEIE);
+
+      /* Enable the USART Transmit Complete Interrupt */
+      SET_BIT(husart->Instance->CR1, USART_CR1_TCIE);
+    }
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

@@ -1,0 +1,44 @@
+HAL_StatusTypeDef HAL_GFXMMU_ConfigLutLine(GFXMMU_HandleTypeDef *hgfxmmu, GFXMMU_LutLineTypeDef *lutLine)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  
+  /* Check parameters */
+  assert_param(IS_GFXMMU_ALL_INSTANCE(hgfxmmu->Instance));
+  assert_param(IS_GFXMMU_LUT_LINE(lutLine->LineNumber));
+  assert_param(IS_GFXMMU_LUT_LINE_STATUS(lutLine->LineStatus));
+  assert_param(IS_GFXMMU_LUT_BLOCK(lutLine->FirstVisibleBlock));
+  assert_param(IS_GFXMMU_LUT_BLOCK(lutLine->LastVisibleBlock));
+  assert_param(IS_GFXMMU_LUT_LINE_OFFSET(lutLine->LineOffset));
+  
+  /* Check GFXMMU state */
+  if(hgfxmmu->State != HAL_GFXMMU_STATE_READY)
+  {
+    status = HAL_ERROR;
+  }
+  else
+  {
+    uint32_t lutxl_address, lutxh_address;
+    
+    /* Initialize local variables */
+    lutxl_address   = (uint32_t) &(hgfxmmu->Instance->LUT[2U * lutLine->LineNumber]);
+    lutxh_address   = (uint32_t) &(hgfxmmu->Instance->LUT[(2U * lutLine->LineNumber) + 1U]);
+    
+    /* Configure LUT line */
+    if(lutLine->LineStatus == GFXMMU_LUT_LINE_ENABLE)
+    {
+      /* Enable and configure LUT line */
+      *((uint32_t *)lutxl_address) = (lutLine->LineStatus | 
+                                     (lutLine->FirstVisibleBlock << GFXMMU_LUTXL_FVB_OFFSET) | 
+                                     (lutLine->LastVisibleBlock << GFXMMU_LUTXL_LVB_OFFSET));
+      *((uint32_t *)lutxh_address) = lutLine->LineOffset;
+    }
+    else
+    {
+      /* Disable LUT line */
+      *((uint32_t *)lutxl_address) = 0U;
+      *((uint32_t *)lutxh_address) = 0U;
+    }
+  }
+  /* Return function status */
+  return status;
+}

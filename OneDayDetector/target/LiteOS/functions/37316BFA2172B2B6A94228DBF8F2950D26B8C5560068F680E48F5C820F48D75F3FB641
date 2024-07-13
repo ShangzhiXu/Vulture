@@ -1,0 +1,88 @@
+static int ccp_ackci(fsm *f, u_char *p, int len) {
+    ppp_pcb *pcb = f->pcb;
+    ccp_options *go = &pcb->ccp_gotoptions;
+#if BSDCOMPRESS_SUPPORT || PREDICTOR_SUPPORT
+    u_char *p0 = p;
+#endif /* BSDCOMPRESS_SUPPORT || PREDICTOR_SUPPORT */
+
+#if MPPE_SUPPORT
+    if (go->mppe) {
+	u_char opt_buf[CILEN_MPPE];
+
+	opt_buf[0] = CI_MPPE;
+	opt_buf[1] = CILEN_MPPE;
+	MPPE_OPTS_TO_CI(go->mppe, &opt_buf[2]);
+	if (len < CILEN_MPPE || memcmp(opt_buf, p, CILEN_MPPE))
+	    return 0;
+	p += CILEN_MPPE;
+	len -= CILEN_MPPE;
+	/* XXX Cope with first/fast ack */
+	if (len == 0)
+	    return 1;
+    }
+#endif /* MPPE_SUPPORT */
+#if DEFLATE_SUPPORT
+    if (go->deflate) {
+	if (len < CILEN_DEFLATE
+	    || p[0] != (go->deflate_correct? CI_DEFLATE: CI_DEFLATE_DRAFT)
+	    || p[1] != CILEN_DEFLATE
+	    || p[2] != DEFLATE_MAKE_OPT(go->deflate_size)
+	    || p[3] != DEFLATE_CHK_SEQUENCE)
+	    return 0;
+	p += CILEN_DEFLATE;
+	len -= CILEN_DEFLATE;
+	/* XXX Cope with first/fast ack */
+	if (len == 0)
+	    return 1;
+	if (go->deflate_correct && go->deflate_draft) {
+	    if (len < CILEN_DEFLATE
+		|| p[0] != CI_DEFLATE_DRAFT
+		|| p[1] != CILEN_DEFLATE
+		|| p[2] != DEFLATE_MAKE_OPT(go->deflate_size)
+		|| p[3] != DEFLATE_CHK_SEQUENCE)
+		return 0;
+	    p += CILEN_DEFLATE;
+	    len -= CILEN_DEFLATE;
+	}
+    }
+#endif /* DEFLATE_SUPPORT */
+#if BSDCOMPRESS_SUPPORT
+    if (go->bsd_compress) {
+	if (len < CILEN_BSD_COMPRESS
+	    || p[0] != CI_BSD_COMPRESS || p[1] != CILEN_BSD_COMPRESS
+	    || p[2] != BSD_MAKE_OPT(BSD_CURRENT_VERSION, go->bsd_bits))
+	    return 0;
+	p += CILEN_BSD_COMPRESS;
+	len -= CILEN_BSD_COMPRESS;
+	/* XXX Cope with first/fast ack */
+	if (p == p0 && len == 0)
+	    return 1;
+    }
+#endif /* BSDCOMPRESS_SUPPORT */
+#if PREDICTOR_SUPPORT
+    if (go->predictor_1) {
+	if (len < CILEN_PREDICTOR_1
+	    || p[0] != CI_PREDICTOR_1 || p[1] != CILEN_PREDICTOR_1)
+	    return 0;
+	p += CILEN_PREDICTOR_1;
+	len -= CILEN_PREDICTOR_1;
+	/* XXX Cope with first/fast ack */
+	if (p == p0 && len == 0)
+	    return 1;
+    }
+    if (go->predictor_2) {
+	if (len < CILEN_PREDICTOR_2
+	    || p[0] != CI_PREDICTOR_2 || p[1] != CILEN_PREDICTOR_2)
+	    return 0;
+	p += CILEN_PREDICTOR_2;
+	len -= CILEN_PREDICTOR_2;
+	/* XXX Cope with first/fast ack */
+	if (p == p0 && len == 0)
+	    return 1;
+    }
+#endif /* PREDICTOR_SUPPORT */
+
+    if (len != 0)
+	return 0;
+    return 1;
+}

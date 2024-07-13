@@ -1,0 +1,19 @@
+uint16_t _lv_style_get_mem_size(const lv_style_t * style)
+{
+    LV_ASSERT_STYLE(style);
+
+    if(style->map == NULL) return 0;
+
+    size_t i = 0;
+    while(style->map[i] != _LV_STYLE_CLOSEING_PROP) {
+        /*Go to the next property*/
+        if((style->map[i] & 0xF) < LV_STYLE_ID_COLOR) i += sizeof(lv_style_int_t);
+        else if((style->map[i] & 0xF) < LV_STYLE_ID_OPA) i += sizeof(lv_color_t);
+        else if((style->map[i] & 0xF) < LV_STYLE_ID_PTR) i += sizeof(lv_opa_t);
+        else i += sizeof(const void *);
+
+        i += sizeof(lv_style_property_t);
+    }
+
+    return i + sizeof(lv_style_property_t);
+}

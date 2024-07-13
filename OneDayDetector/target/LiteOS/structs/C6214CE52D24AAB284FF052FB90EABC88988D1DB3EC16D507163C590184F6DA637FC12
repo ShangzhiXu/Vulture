@@ -1,0 +1,97 @@
+typedef struct ppp_settings_s {
+
+#if PPP_SERVER && PPP_AUTH_SUPPORT
+  unsigned int  auth_required       :1;      /* Peer is required to authenticate */
+  unsigned int  null_login          :1;      /* Username of "" and a password of "" are acceptable */
+#endif /* PPP_SERVER && PPP_AUTH_SUPPORT */
+#if PPP_REMOTENAME
+  unsigned int  explicit_remote     :1;      /* remote_name specified with remotename opt */
+#endif /* PPP_REMOTENAME */
+#if PAP_SUPPORT
+  unsigned int  refuse_pap          :1;      /* Don't proceed auth. with PAP */
+#endif /* PAP_SUPPORT */
+#if CHAP_SUPPORT
+  unsigned int  refuse_chap         :1;      /* Don't proceed auth. with CHAP */
+#endif /* CHAP_SUPPORT */
+#if MSCHAP_SUPPORT
+  unsigned int  refuse_mschap       :1;      /* Don't proceed auth. with MS-CHAP */
+  unsigned int  refuse_mschap_v2    :1;      /* Don't proceed auth. with MS-CHAPv2 */
+#endif /* MSCHAP_SUPPORT */
+#if EAP_SUPPORT
+  unsigned int  refuse_eap          :1;      /* Don't proceed auth. with EAP */
+#endif /* EAP_SUPPORT */
+#if LWIP_DNS
+  unsigned int  usepeerdns          :1;      /* Ask peer for DNS adds */
+#endif /* LWIP_DNS */
+  unsigned int  persist             :1;      /* Persist mode, always try to open the connection */
+#if PRINTPKT_SUPPORT
+  unsigned int  hide_password       :1;      /* Hide password in dumped packets */
+#endif /* PRINTPKT_SUPPORT */
+  unsigned int  noremoteip          :1;      /* Let him have no IP address */
+  unsigned int  lax_recv            :1;      /* accept control chars in asyncmap */
+  unsigned int  noendpoint          :1;      /* don't send/accept endpoint discriminator */
+#if PPP_LCP_ADAPTIVE
+  unsigned int lcp_echo_adaptive    :1;      /* request echo only if the link was idle */
+#endif /* PPP_LCP_ADAPTIVE */
+#if MPPE_SUPPORT
+  unsigned int require_mppe         :1;      /* Require MPPE (Microsoft Point to Point Encryption) */
+  unsigned int refuse_mppe_40       :1;      /* Allow MPPE 40-bit mode? */
+  unsigned int refuse_mppe_128      :1;      /* Allow MPPE 128-bit mode? */
+  unsigned int refuse_mppe_stateful :1;      /* Allow MPPE stateful mode? */
+#endif /* MPPE_SUPPORT */
+
+  u16_t  listen_time;                 /* time to listen first (ms), waiting for peer to send LCP packet */
+
+#if PPP_IDLETIMELIMIT
+  u16_t  idle_time_limit;             /* Disconnect if idle for this many seconds */
+#endif /* PPP_IDLETIMELIMIT */
+#if PPP_MAXCONNECT
+  u32_t  maxconnect;                  /* Maximum connect time (seconds) */
+#endif /* PPP_MAXCONNECT */
+
+#if PPP_AUTH_SUPPORT
+  /* auth data */
+  const char  *user;                   /* Username for PAP */
+  const char  *passwd;                 /* Password for PAP, secret for CHAP */
+#if PPP_REMOTENAME
+  char  remote_name[MAXNAMELEN   + 1]; /* Peer's name for authentication */
+#endif /* PPP_REMOTENAME */
+
+#if PAP_SUPPORT
+  u8_t  pap_timeout_time;        /* Timeout (seconds) for auth-req retrans. */
+  u8_t  pap_max_transmits;       /* Number of auth-reqs sent */
+#if PPP_SERVER
+  u8_t  pap_req_timeout;         /* Time to wait for auth-req from peer */
+#endif /* PPP_SERVER */
+#endif /* PAP_SUPPPORT */
+
+#if CHAP_SUPPORT
+  u8_t  chap_timeout_time;       /* Timeout (seconds) for retransmitting req */
+  u8_t  chap_max_transmits;      /* max # times to send challenge */
+#if PPP_SERVER
+  u8_t  chap_rechallenge_time;   /* Time to wait for auth-req from peer */
+#endif /* PPP_SERVER */
+#endif /* CHAP_SUPPPORT */
+
+#if EAP_SUPPORT
+  u8_t  eap_req_time;            /* Time to wait (for retransmit/fail) */
+  u8_t  eap_allow_req;           /* Max Requests allowed */
+#if PPP_SERVER
+  u8_t  eap_timeout_time;        /* Time to wait (for retransmit/fail) */
+  u8_t  eap_max_transmits;       /* Max Requests allowed */
+#endif /* PPP_SERVER */
+#endif /* EAP_SUPPORT */
+
+#endif /* PPP_AUTH_SUPPORT */
+
+  u8_t  fsm_timeout_time;            /* Timeout time in seconds */
+  u8_t  fsm_max_conf_req_transmits;  /* Maximum Configure-Request transmissions */
+  u8_t  fsm_max_term_transmits;      /* Maximum Terminate-Request transmissions */
+  u8_t  fsm_max_nak_loops;           /* Maximum number of nak loops tolerated */
+
+  u8_t  lcp_loopbackfail;     /* Number of times we receive our magic number from the peer
+                                 before deciding the link is looped-back. */
+  u8_t  lcp_echo_interval;    /* Interval between LCP echo-requests */
+  u8_t  lcp_echo_fails;       /* Tolerance to unanswered echo-requests */
+
+} ppp_settings;

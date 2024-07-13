@@ -1,0 +1,57 @@
+HAL_StatusTypeDef HAL_UART_Receive_DMA(UART_HandleTypeDef *huart, uint8_t *pData, uint16_t Size)
+{
+  uint32_t *tmp;
+  uint32_t tmp_state = 0;
+
+  tmp_state = huart->State;
+  if((tmp_state == HAL_UART_STATE_READY) || (tmp_state == HAL_UART_STATE_BUSY_TX))
+  {
+    if((pData == NULL ) || (Size == 0))
+    {
+      return HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(huart);
+
+    huart->pRxBuffPtr = pData;
+    huart->RxXferSize = Size;
+
+    huart->ErrorCode = HAL_UART_ERROR_NONE;
+    /* Check if a transmit process is ongoing or not */
+    if(huart->State == HAL_UART_STATE_BUSY_TX)
+    {
+      huart->State = HAL_UART_STATE_BUSY_TX_RX;
+    }
+    else
+    {
+      huart->State = HAL_UART_STATE_BUSY_RX;
+    }
+
+    /* Set the UART DMA transfer complete callback */
+    huart->hdmarx->XferCpltCallback = UART_DMAReceiveCplt;
+
+    /* Set the UART DMA Half transfer complete callback */
+    huart->hdmarx->XferHalfCpltCallback = UART_DMARxHalfCplt;
+
+    /* Set the DMA error callback */
+    huart->hdmarx->XferErrorCallback = UART_DMAError;
+
+    /* Enable the DMA channel */
+    tmp = (uint32_t*)&pData;
+    HAL_DMA_Start_IT(huart->hdmarx, (uint32_t)&huart->Instance->DR, *(uint32_t*)tmp, Size);
+
+    /* Enable the DMA transfer for the receiver request by setting the DMAR bit 
+       in the UART CR3 register */
+    SET_BIT(huart->Instance->CR3, USART_CR3_DMAR);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(huart);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

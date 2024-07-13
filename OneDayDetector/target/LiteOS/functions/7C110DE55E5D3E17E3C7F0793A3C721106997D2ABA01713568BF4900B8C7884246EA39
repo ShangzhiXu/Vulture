@@ -1,0 +1,48 @@
+sys_arch_mbox_fetch(sys_mbox_t *q, void **msg, u32_t timeout)
+{
+  u32_t ret = 0;
+  u32_t ret2;
+  LWIP_ASSERT("q != SYS_MBOX_NULL", q != SYS_MBOX_NULL);
+  LWIP_ASSERT("q->sem == q", q->sem == q);
+  LWIP_ASSERT("q->q_mem != NULL", q->q_mem != NULL);
+  LWIP_ASSERT("q->used >= 0", q->used >= 0);
+  LWIP_ASSERT("q->size > 0", q->size > 0);
+
+  if (q->used == 0) {
+    /* need to wait */
+    /* need to wait */
+    if(!timeout)
+    {
+      /* wait infinite */
+      LWIP_ASSERT("cannot wait without waiting callback", the_waiting_fn != NULL);
+      do {
+        int expectSomething = the_waiting_fn(NULL, q);
+        LWIP_ASSERT("q->used >= 0", q->used >= 0);
+        LWIP_ASSERT("expecting item available but it's 0", !expectSomething || (q->used > 0));
+        ret++;
+        if (ret == SYS_ARCH_TIMEOUT) {
+          ret--;
+        }
+      } while(q->used == 0);
+    }
+    else
+    {
+      if (the_waiting_fn) {
+        int expectSomething = the_waiting_fn(NULL, q);
+        LWIP_ASSERT("expecting item available count but it's 0", !expectSomething || (q->used > 0));
+      }
+      LWIP_ASSERT("q->used >= 0", q->used >= 0);
+      if (q->used == 0) {
+        if(msg) {
+          *msg = NULL;
+        }
+        return SYS_ARCH_TIMEOUT;
+      }
+      ret = 1;
+    }
+  }
+  LWIP_ASSERT("q->used > 0", q->used > 0);
+  ret2 = sys_arch_mbox_tryfetch(q, msg);
+  LWIP_ASSERT("got no message", ret2 == 0);
+  return ret;
+}

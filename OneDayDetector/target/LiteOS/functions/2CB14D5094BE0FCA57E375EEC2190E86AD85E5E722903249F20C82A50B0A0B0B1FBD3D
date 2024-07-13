@@ -1,0 +1,201 @@
+int main(int argc, char *argv[])
+{
+  char path[MAX_PATH_LEN];
+  char appPath[MAX_PATH_LEN];
+  FILE *data_file;
+  FILE *struct_file;
+  int filesProcessed;
+  int i;
+  char targetfile[MAX_PATH_LEN];
+  strcpy(targetfile, "fsdata.c");
+
+  memset(path, 0, sizeof(path));
+  memset(appPath, 0, sizeof(appPath));
+
+  printf(NEWLINE " makefsdata - HTML to C source converter" NEWLINE);
+  printf("     by Jim Pettinato               - circa 2003 " NEWLINE);
+  printf("     extended by Simon Goldschmidt  - 2009 " NEWLINE NEWLINE);
+
+  LWIP_ASSERT("sizeof(hdr_buf) must fit into an u16_t", sizeof(hdr_buf) <= 0xffff);
+
+  strcpy(path, "fs");
+  for (i = 1; i < argc; i++) {
+    if (argv[i] == NULL) {
+      continue;
+    }
+    if (argv[i][0] == '-') {
+      if (strstr(argv[i], "-svr:") == argv[i]) {
+        snprintf(serverIDBuffer, sizeof(serverIDBuffer), "Server: %s\r\n", &argv[i][5]);
+        serverID = serverIDBuffer;
+        printf("Using Server-ID: \"%s\"\n", serverID);
+      } else if (!strcmp(argv[i], "-s")) {
+        processSubs = 0;
+      } else if (!strcmp(argv[i], "-e")) {
+        includeHttpHeader = 0;
+      } else if (!strcmp(argv[i], "-11")) {
+        useHttp11 = 1;
+      } else if (!strcmp(argv[i], "-nossi")) {
+        supportSsi = 0;
+      } else if (strstr(argv[i], "-ssi:") == argv[i]) {
+        const char* ssi_list_filename = &argv[i][5];
+        if (checkSsiByFilelist(ssi_list_filename)) {
+          printf("Reading list of SSI files from \"%s\"\n", ssi_list_filename);
+        } else {
+          printf("Failed to load list of SSI files from \"%s\"\n", ssi_list_filename);
+        }
+      } else if (!strcmp(argv[i], "-c")) {
+        precalcChksum = 1;
+      } else if (strstr(argv[i], "-f:") == argv[i]) {
+        strncpy(targetfile, &argv[i][3], sizeof(targetfile) - 1);
+        targetfile[sizeof(targetfile) - 1] = 0;
+        printf("Writing to file \"%s\"\n", targetfile);
+      } else if (!strcmp(argv[i], "-m")) {
+        includeLastModified = 1;
+      } else if (!strcmp(argv[i], "-defl")) {
+#if MAKEFS_SUPPORT_DEFLATE
+        char *colon = strstr(argv[i], ":");
+        if (colon) {
+          if (colon[1] != 0) {
+            int defl_level = atoi(&colon[1]);
+            if ((defl_level >= 0) && (defl_level <= 10)) {
+              deflate_level = defl_level;
+            } else {
+              printf("ERROR: deflate level must be [0..10]" NEWLINE);
+              exit(0);
+            }
+          }
+        }
+        deflateNonSsiFiles = 1;
+        printf("Deflating all non-SSI files with level %d (but only if size is reduced)" NEWLINE, deflate_level);
+#else
+        printf("WARNING: Deflate support is disabled\n");
+#endif
+      } else if (strstr(argv[i], "-x:") == argv[i]) {
+        exclude_list = &argv[i][3];
+        printf("Excluding files with extensions %s" NEWLINE, exclude_list);
+      } else if (strstr(argv[i], "-xc:") == argv[i]) {
+        ncompress_list = &argv[i][4];
+        printf("Skipping compresion for files with extensions %s" NEWLINE, ncompress_list);
+      } else if ((strstr(argv[i], "-?")) || (strstr(argv[i], "-h"))) {
+        print_usage();
+        exit(0);
+      }
+    } else if ((argv[i][0] == '/') && (argv[i][1] == '?') && (argv[i][2] == 0)) {
+      print_usage();
+      exit(0);
+    } else {
+      strncpy(path, argv[i], sizeof(path) - 1);
+      path[sizeof(path) - 1] = 0;
+    }
+  }
+
+  if (!check_path(path, sizeof(path))) {
+    printf("Invalid path: \"%s\"." NEWLINE, path);
+    exit(-1);
+  }
+
+  GETCWD(appPath, MAX_PATH_LEN);
+  /* if command line param or subdir named 'fs' not found spout usage verbiage */
+  if (!CHDIR_SUCCEEDED(CHDIR(path))) {
+    /* if no subdir named 'fs' (or the one which was given) exists, spout usage verbiage */
+    printf(" Failed to open directory \"%s\"." NEWLINE NEWLINE, path);
+    print_usage();
+    exit(-1);
+  }
+  CHDIR(appPath);
+
+  printf("HTTP %sheader will %s statically included." NEWLINE,
+         (includeHttpHeader ? (useHttp11 ? "1.1 " : "1.0 ") : ""),
+         (includeHttpHeader ? "be" : "not be"));
+
+  curSubdir[0] = '\0'; /* start off in web page's root directory - relative paths */
+  printf("  Processing all files in directory %s", path);
+  if (processSubs) {
+    printf(" and subdirectories..." NEWLINE NEWLINE);
+  } else {
+    printf("..." NEWLINE NEWLINE);
+  }
+
+  data_file = fopen("fsdata.tmp", "wb");
+  if (data_file == NULL) {
+    printf("Failed to create file \"fsdata.tmp\"\n");
+    exit(-1);
+  }
+  struct_file = fopen("fshdr.tmp", "wb");
+  if (struct_file == NULL) {
+    printf("Failed to create file \"fshdr.tmp\"\n");
+    fclose(data_file);
+    exit(-1);
+  }
+
+  CHDIR(path);
+
+  fprintf(data_file, "#include \"lwip/apps/fs.h\"" NEWLINE);
+  fprintf(data_file, "#include \"lwip/def.h\"" NEWLINE NEWLINE NEWLINE);
+
+  fprintf(data_file, "#define file_NULL (struct fsdata_file *) NULL" NEWLINE NEWLINE NEWLINE);
+  /* define FS_FILE_FLAGS_HEADER_INCLUDED to 1 if not defined (compatibility with older httpd/fs) */
+  fprintf(data_file, "#ifndef FS_FILE_FLAGS_HEADER_INCLUDED" NEWLINE "#define FS_FILE_FLAGS_HEADER_INCLUDED 1" NEWLINE "#endif" NEWLINE);
+  /* define FS_FILE_FLAGS_HEADER_PERSISTENT to 0 if not defined (compatibility with older httpd/fs: wasn't supported back then) */
+  fprintf(data_file, "#ifndef FS_FILE_FLAGS_HEADER_PERSISTENT" NEWLINE "#define FS_FILE_FLAGS_HEADER_PERSISTENT 0" NEWLINE "#endif" NEWLINE);
+
+  /* define alignment defines */
+#if ALIGN_PAYLOAD
+  fprintf(data_file, "/* FSDATA_FILE_ALIGNMENT: 0=off, 1=by variable, 2=by include */" NEWLINE "#ifndef FSDATA_FILE_ALIGNMENT" NEWLINE "#define FSDATA_FILE_ALIGNMENT 0" NEWLINE "#endif" NEWLINE);
+#endif
+  fprintf(data_file, "#ifndef FSDATA_ALIGN_PRE"  NEWLINE "#define FSDATA_ALIGN_PRE"  NEWLINE "#endif" NEWLINE);
+  fprintf(data_file, "#ifndef FSDATA_ALIGN_POST" NEWLINE "#define FSDATA_ALIGN_POST" NEWLINE "#endif" NEWLINE);
+#if ALIGN_PAYLOAD
+  fprintf(data_file, "#if FSDATA_FILE_ALIGNMENT==2" NEWLINE "#include \"fsdata_alignment.h\"" NEWLINE "#endif" NEWLINE);
+#endif
+
+  sprintf(lastFileVar, "NULL");
+
+  filesProcessed = process_sub(data_file, struct_file);
+
+  /* data_file now contains all of the raw data.. now append linked list of
+   * file header structs to allow embedded app to search for a file name */
+  fprintf(data_file, NEWLINE NEWLINE);
+  fprintf(struct_file, "#define FS_ROOT file_%s" NEWLINE, lastFileVar);
+  fprintf(struct_file, "#define FS_NUMFILES %d" NEWLINE NEWLINE, filesProcessed);
+
+  fclose(data_file);
+  fclose(struct_file);
+
+  CHDIR(appPath);
+  /* append struct_file to data_file */
+  printf(NEWLINE "Creating target file..." NEWLINE NEWLINE);
+  concat_files("fsdata.tmp", "fshdr.tmp", targetfile);
+
+  /* if succeeded, delete the temporary files */
+  if (remove("fsdata.tmp") != 0) {
+    printf("Warning: failed to delete fsdata.tmp\n");
+  }
+  if (remove("fshdr.tmp") != 0) {
+    printf("Warning: failed to delete fshdr.tmp\n");
+  }
+
+  printf(NEWLINE "Processed %d files - done." NEWLINE, filesProcessed);
+#if MAKEFS_SUPPORT_DEFLATE
+  if (deflateNonSsiFiles) {
+    printf("(Deflated total byte reduction: %d bytes -> %d bytes (%.02f%%)" NEWLINE,
+           (int)overallDataBytes, (int)deflatedBytesReduced, (float)((deflatedBytesReduced * 100.0) / overallDataBytes));
+  }
+#endif
+  printf(NEWLINE);
+
+  while (first_file != NULL) {
+    struct file_entry *fe = first_file;
+    first_file = fe->next;
+    free(fe);
+  }
+
+  if (ssi_file_buffer) {
+    free(ssi_file_buffer);
+  }
+  if (ssi_file_lines) {
+    free(ssi_file_lines);
+  }
+
+  return 0;
+}

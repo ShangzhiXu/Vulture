@@ -1,0 +1,29 @@
+static off_t ramfs_lseek(struct file *file, off_t off, int whence)
+{
+    struct ramfs_element *ramfs_file = (struct ramfs_element *)file->f_data;
+
+    switch (whence) {
+        case SEEK_SET:
+            file->f_offset = off;
+            break;
+        case SEEK_CUR:
+            file->f_offset += off;
+            break;
+        case SEEK_END:
+            file->f_offset = ramfs_file->f.size;
+            break;
+        default:
+            VFS_ERRNO_SET(EINVAL);
+            return -1;
+    }
+
+    if (file->f_offset < 0) {
+        file->f_offset = 0;
+    }
+
+    if ((size_t)file->f_offset > ramfs_file->f.size) {
+        file->f_offset = ramfs_file->f.size;
+    }
+
+    return file->f_offset;
+}

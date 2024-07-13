@@ -1,0 +1,74 @@
+tcp_listen_with_backlog_and_err(struct tcp_pcb *pcb, u8_t backlog, err_t *err)
+{
+  struct tcp_pcb_listen *lpcb = NULL;
+  err_t res;
+
+  LWIP_UNUSED_ARG(backlog);
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  LWIP_ERROR("tcp_listen_with_backlog_and_err: invalid pcb", pcb != NULL, res = ERR_ARG; goto done);
+  LWIP_ERROR("tcp_listen_with_backlog_and_err: pcb already connected", pcb->state == CLOSED, res = ERR_CLSD; goto done);
+
+  /* already listening? */
+  if (pcb->state == LISTEN) {
+    lpcb = (struct tcp_pcb_listen *)pcb;
+    res = ERR_ALREADY;
+    goto done;
+  }
+#if SO_REUSE
+  if (ip_get_option(pcb, SOF_REUSEADDR)) {
+    /* Since SOF_REUSEADDR allows reusing a local address before the pcb's usage
+       is declared (listen-/connection-pcb), we have to make sure now that
+       this port is only used once for every local IP. */
+    for (lpcb = tcp_listen_pcbs.listen_pcbs; lpcb != NULL; lpcb = lpcb->next) {
+      if ((lpcb->local_port == pcb->local_port) &&
+          ip_addr_cmp(&lpcb->local_ip, &pcb->local_ip)) {
+        /* this address/port is already used */
+        lpcb = NULL;
+        res = ERR_USE;
+        goto done;
+      }
+    }
+  }
+#endif /* SO_REUSE */
+  lpcb = (struct tcp_pcb_listen *)memp_malloc(MEMP_TCP_PCB_LISTEN);
+  if (lpcb == NULL) {
+    res = ERR_MEM;
+    goto done;
+  }
+  lpcb->callback_arg = pcb->callback_arg;
+  lpcb->local_port = pcb->local_port;
+  lpcb->state = LISTEN;
+  lpcb->prio = pcb->prio;
+  lpcb->so_options = pcb->so_options;
+  lpcb->netif_idx = NETIF_NO_INDEX;
+  lpcb->ttl = pcb->ttl;
+  lpcb->tos = pcb->tos;
+#if LWIP_IPV4 && LWIP_IPV6
+  IP_SET_TYPE_VAL(lpcb->remote_ip, pcb->local_ip.type);
+#endif /* LWIP_IPV4 && LWIP_IPV6 */
+  ip_addr_copy(lpcb->local_ip, pcb->local_ip);
+  if (pcb->local_port != 0) {
+    TCP_RMV(&tcp_bound_pcbs, pcb);
+  }
+#if LWIP_TCP_PCB_NUM_EXT_ARGS
+  /* copy over ext_args to listening pcb  */
+  memcpy(&lpcb->ext_args, &pcb->ext_args, sizeof(pcb->ext_args));
+#endif
+  tcp_free(pcb);
+#if LWIP_CALLBACK_API
+  lpcb->accept = tcp_accept_null;
+#endif /* LWIP_CALLBACK_API */
+#if TCP_LISTEN_BACKLOG
+  lpcb->accepts_pending = 0;
+  tcp_backlog_set(lpcb, backlog);
+#endif /* TCP_LISTEN_BACKLOG */
+  TCP_REG(&tcp_listen_pcbs.pcbs, (struct tcp_pcb *)lpcb);
+  res = ERR_OK;
+done:
+  if (err != NULL) {
+    *err = res;
+  }
+  return (struct tcp_pcb *)lpcb;
+}

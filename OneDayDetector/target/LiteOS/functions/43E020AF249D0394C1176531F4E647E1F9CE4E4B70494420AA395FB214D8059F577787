@@ -1,0 +1,19 @@
+LITE_OS_SEC_TEXT_INIT UINT32 LOS_HwiDelete(HWI_HANDLE_T hwiNum, HWI_IRQ_PARAM_S *irqParam)
+{
+    UINT32 ret;
+    HwiHandleInfo *hwiForm = g_hwiOps->getHandleForm(hwiNum);
+
+    if (hwiForm == NULL) {
+        return OS_ERRNO_HWI_NUM_INVALID;
+    }
+    LOS_TRACE(HWI_DELETE, hwiNum);
+
+#ifdef LOSCFG_NO_SHARED_IRQ
+    (VOID)irqParam;
+    ret = OsHwiDelNoShared(hwiForm);
+#else
+    ret = OsHwiDelShared(hwiForm, irqParam);
+    LOS_TRACE(HWI_DELETE_SHARE, hwiNum, (UINTPTR)(irqParam != NULL ? irqParam->pDevId : NULL), ret);
+#endif
+    return ret;
+}

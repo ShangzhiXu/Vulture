@@ -1,0 +1,97 @@
+void lv_label_get_letter_pos(const lv_obj_t * label, uint16_t char_id, lv_point_t * pos)
+{
+    LV_ASSERT_OBJ(label, LV_OBJX_NAME);
+    LV_ASSERT_NULL(pos);
+
+    lv_area_t txt_coords;
+    get_txt_coords(label, &txt_coords);
+
+    const char * txt         = lv_label_get_text(label);
+    lv_label_ext_t * ext     = lv_obj_get_ext_attr(label);
+    uint32_t line_start      = 0;
+    uint32_t new_line_start  = 0;
+    lv_coord_t max_w         = lv_area_get_width(&txt_coords);
+    const lv_font_t * font   = lv_obj_get_style_text_font(label, LV_LABEL_PART_MAIN);
+    lv_style_int_t line_space = lv_obj_get_style_text_line_space(label, LV_LABEL_PART_MAIN);
+    lv_style_int_t letter_space = lv_obj_get_style_text_letter_space(label, LV_LABEL_PART_MAIN);
+    lv_coord_t letter_height    = lv_font_get_line_height(font);
+    lv_coord_t y             = 0;
+    lv_txt_flag_t flag       = LV_TXT_FLAG_NONE;
+
+    if(ext->recolor != 0) flag |= LV_TXT_FLAG_RECOLOR;
+    if(ext->expand != 0) flag |= LV_TXT_FLAG_EXPAND;
+    if(ext->long_mode == LV_LABEL_LONG_EXPAND) flag |= LV_TXT_FLAG_FIT;
+
+    lv_label_align_t align = lv_label_get_align(label);
+    if(align == LV_LABEL_ALIGN_CENTER) flag |= LV_TXT_FLAG_CENTER;
+    if(align == LV_LABEL_ALIGN_RIGHT) flag |= LV_TXT_FLAG_RIGHT;
+
+    uint16_t byte_id = _lv_txt_encoded_get_byte_id(txt, char_id);
+
+    /*Search the line of the index letter */;
+    while(txt[new_line_start] != '\0') {
+        new_line_start += _lv_txt_get_next_line(&txt[line_start], font, letter_space, max_w, flag);
+        if(byte_id < new_line_start || txt[new_line_start] == '\0')
+            break; /*The line of 'index' letter begins at 'line_start'*/
+
+        y += letter_height + line_space;
+        line_start = new_line_start;
+    }
+
+    /*If the last character is line break then go to the next line*/
+    if(byte_id > 0) {
+        if((txt[byte_id - 1] == '\n' || txt[byte_id - 1] == '\r') && txt[byte_id] == '\0') {
+            y += letter_height + line_space;
+            line_start = byte_id;
+        }
+    }
+
+    const char * bidi_txt;
+    uint16_t visual_byte_pos;
+#if LV_USE_BIDI
+    char * mutable_bidi_txt = NULL;
+    /*Handle Bidi*/
+    if(new_line_start == byte_id) {
+        visual_byte_pos = byte_id - line_start;
+        bidi_txt =  &txt[line_start];
+    }
+    else {
+        uint16_t line_char_id = _lv_txt_encoded_get_char_id(&txt[line_start], byte_id - line_start);
+
+        bool is_rtl;
+        uint16_t visual_char_pos = _lv_bidi_get_visual_pos(&txt[line_start], &mutable_bidi_txt, new_line_start - line_start,
+                                                           lv_obj_get_base_dir(label), line_char_id, &is_rtl);
+        bidi_txt = mutable_bidi_txt;
+        if(is_rtl) visual_char_pos++;
+
+        visual_byte_pos = _lv_txt_encoded_get_byte_id(bidi_txt, visual_char_pos);
+    }
+#else
+    bidi_txt = &txt[line_start];
+    visual_byte_pos = byte_id - line_start;
+#endif
+
+
+    /*Calculate the x coordinate*/
+    lv_coord_t x = _lv_txt_get_width(bidi_txt, visual_byte_pos, font, letter_space, flag);
+    if(char_id != line_start) x += letter_space;
+
+    if(align == LV_LABEL_ALIGN_CENTER) {
+        lv_coord_t line_w;
+        line_w = _lv_txt_get_width(bidi_txt, new_line_start - line_start, font, letter_space, flag);
+        x += lv_area_get_width(&txt_coords) / 2 - line_w / 2;
+
+    }
+    else if(align == LV_LABEL_ALIGN_RIGHT) {
+        lv_coord_t line_w;
+        line_w = _lv_txt_get_width(bidi_txt, new_line_start - line_start, font, letter_space, flag);
+
+        x += lv_area_get_width(&txt_coords) - line_w;
+    }
+    pos->x = x;
+    pos->y = y;
+
+#if LV_USE_BIDI
+    if(mutable_bidi_txt) _lv_mem_buf_release(mutable_bidi_txt);
+#endif
+}

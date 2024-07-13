@@ -1,0 +1,304 @@
+void HAL_ADC_IRQHandler(ADC_HandleTypeDef* hadc)
+{
+  uint32_t overrun_error = 0; /* flag set if overrun occurrence has to be considered as an error */
+  uint32_t tmp_isr = hadc->Instance->ISR;
+  uint32_t tmp_ier = hadc->Instance->IER;
+  uint32_t tmp_cfgr = 0x0;
+  ADC_TypeDef *tmpADC_Master;  
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+  assert_param(IS_ADC_EOC_SELECTION(hadc->Init.EOCSelection));
+  
+  /* ========== Check End of Sampling flag for ADC group regular ========== */
+  if(((tmp_isr & ADC_FLAG_EOSMP) == ADC_FLAG_EOSMP) && ((tmp_ier & ADC_IT_EOSMP) == ADC_IT_EOSMP))
+  {
+    /* Update state machine on end of sampling status if not in error state */
+    if (HAL_IS_BIT_CLR(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL))
+    {
+      /* Set ADC state */
+      SET_BIT(hadc->State, HAL_ADC_STATE_REG_EOSMP);
+    }
+    
+    /* End Of Sampling callback */
+      HAL_ADCEx_EndOfSamplingCallback(hadc);
+    
+    /* Clear regular group conversion flag */
+    __HAL_ADC_CLEAR_FLAG(hadc, ADC_FLAG_EOSMP );
+  }
+  
+  /* ====== Check ADC group regular end of unitary conversion sequence conversions ===== */
+  if((((tmp_isr & ADC_FLAG_EOC) == ADC_FLAG_EOC) && ((tmp_ier & ADC_IT_EOC) == ADC_IT_EOC)) ||
+     (((tmp_isr & ADC_FLAG_EOS) == ADC_FLAG_EOS) && ((tmp_ier & ADC_IT_EOS) == ADC_IT_EOS))  )
+  {
+    /* Update state machine on conversion status if not in error state */
+    if (HAL_IS_BIT_CLR(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL))
+    {
+      /* Set ADC state */
+      SET_BIT(hadc->State, HAL_ADC_STATE_REG_EOC);
+    }
+    
+    /* Determine whether any further conversion upcoming on group regular     */
+    /* by external trigger, continuous mode or scan sequence on going         */
+    /* to disable interruption.                                               */
+    if(ADC_IS_SOFTWARE_START_REGULAR(hadc))
+    {
+      /* Get relevant register CFGR in ADC instance of ADC master or slave    */
+      /* in function of multimode state (for devices with multimode           */
+      /* available).                                                          */
+      if (ADC_INDEPENDENT_OR_NONMULTIMODEREGULAR_SLAVE(hadc))
+      {
+        /* check CONT bit directly in handle ADC CFGR register */
+        tmp_cfgr = READ_REG(hadc->Instance->CFGR); 
+      }
+      else
+      {
+        /* else need to check Master ADC CONT bit */
+        tmpADC_Master = ADC_MASTER_REGISTER(hadc);
+        tmp_cfgr = READ_REG(tmpADC_Master->CFGR); 
+      }
+      
+      /* Carry on if continuous mode is disabled */
+      if (READ_BIT (tmp_cfgr, ADC_CFGR_CONT) != ADC_CFGR_CONT)
+      {
+        /* If End of Sequence is reached, disable interrupts */
+        if( __HAL_ADC_GET_FLAG(hadc, ADC_FLAG_EOS) )
+        {
+          /* Allowed to modify bits ADC_IT_EOC/ADC_IT_EOS only if bit         */
+          /* ADSTART==0 (no conversion on going)                              */
+          if (ADC_IS_CONVERSION_ONGOING_REGULAR(hadc) == RESET)
+          {
+            /* Disable ADC end of sequence conversion interrupt */
+            /* Note: Overrun interrupt was enabled with EOC interrupt in      */
+            /* HAL_Start_IT(), but is not disabled here because can be used   */
+            /* by overrun IRQ process below.                                  */
+            __HAL_ADC_DISABLE_IT(hadc, ADC_IT_EOC | ADC_IT_EOS);
+            
+            /* Set ADC state */
+            CLEAR_BIT(hadc->State, HAL_ADC_STATE_REG_BUSY); 
+            
+            if (HAL_IS_BIT_CLR(hadc->State, HAL_ADC_STATE_INJ_BUSY))
+            { 
+              SET_BIT(hadc->State, HAL_ADC_STATE_READY);
+            }           
+          }
+          else
+          {
+            /* Change ADC state to error state */
+            SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL);
+            
+            /* Set ADC error code to ADC IP internal error */
+            SET_BIT(hadc->ErrorCode, HAL_ADC_ERROR_INTERNAL);
+          }
+        }
+      }
+    }
+    
+    /* Conversion complete callback */
+    /* Note: Into callback function "HAL_ADC_ConvCpltCallback()",             */
+    /*       to determine if conversion has been triggered from EOC or EOS,   */
+    /*       possibility to use:                                              */
+    /*        " if( __HAL_ADC_GET_FLAG(&hadc, ADC_FLAG_EOS)) "                */
+    HAL_ADC_ConvCpltCallback(hadc);
+    
+    /* Clear regular group conversion flag */
+    /* Note: in case of overrun set to ADC_OVR_DATA_PRESERVED, end of         */
+    /*       conversion flags clear induces the release of the preserved data.*/
+    /*       Therefore, if the preserved data value is needed, it must be     */
+    /*       read preliminarily into HAL_ADC_ConvCpltCallback().              */
+    __HAL_ADC_CLEAR_FLAG(hadc, (ADC_FLAG_EOC | ADC_FLAG_EOS) );
+  }
+  
+  /* ====== Check ADC group injected end of unitary conversion sequence conversions ===== */
+  if( (((tmp_isr & ADC_FLAG_JEOC) == ADC_FLAG_JEOC) && ((tmp_ier & ADC_IT_JEOC) == ADC_IT_JEOC)) ||
+      (((tmp_isr & ADC_FLAG_JEOS) == ADC_FLAG_JEOS) && ((tmp_ier & ADC_IT_JEOS) == ADC_IT_JEOS))  )      
+  {
+    /* Update state machine on conversion status if not in error state */
+    if (HAL_IS_BIT_CLR(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL))
+    {
+      /* Set ADC state */
+      SET_BIT(hadc->State, HAL_ADC_STATE_INJ_EOC);
+    }
+    
+    /* Get relevant register CFGR in ADC instance of ADC master or slave  */
+    /* in function of multimode state (for devices with multimode         */
+    /* available).                                                        */
+    if (ADC_INDEPENDENT_OR_NONMULTIMODEINJECTED_SLAVE(hadc))
+    {
+      tmp_cfgr = READ_REG(hadc->Instance->CFGR); 
+    }
+    else
+    {
+      tmpADC_Master = ADC_MASTER_REGISTER(hadc);
+      tmp_cfgr = READ_REG(tmpADC_Master->CFGR);
+    }
+    
+    /* Disable interruption if no further conversion upcoming by injected     */
+    /* external trigger or by automatic injected conversion with regular      */
+    /* group having no further conversion upcoming (same conditions as        */
+    /* regular group interruption disabling above),                           */
+    /* and if injected scan sequence is completed.                            */
+    if(ADC_IS_SOFTWARE_START_INJECTED(hadc)                   ||
+       ((READ_BIT (tmp_cfgr, ADC_CFGR_JAUTO) == RESET)    &&
+        (ADC_IS_SOFTWARE_START_REGULAR(hadc)          &&
+        (READ_BIT (tmp_cfgr, ADC_CFGR_CONT) == RESET)   )   )   )
+    {
+      /* If End of Sequence is reached, disable interrupts */
+      if( __HAL_ADC_GET_FLAG(hadc, ADC_FLAG_JEOS))
+      {
+        /* Particular case if injected contexts queue is enabled:             */
+        /* when the last context has been fully processed, JSQR is reset      */
+        /* by the hardware. Even if no injected conversion is planned to come */
+        /* (queue empty, triggers are ignored), it can start again            */
+        /* immediately after setting a new context (JADSTART is still set).   */
+        /* Therefore, state of HAL ADC injected group is kept to busy.        */
+        if(READ_BIT(tmp_cfgr, ADC_CFGR_JQM) == RESET)
+        {
+          /* Allowed to modify bits ADC_IT_JEOC/ADC_IT_JEOS only if bit       */
+          /* JADSTART==0 (no conversion on going)                             */
+          if (ADC_IS_CONVERSION_ONGOING_INJECTED(hadc) == RESET)
+          {
+            /* Disable ADC end of sequence conversion interrupt  */
+            __HAL_ADC_DISABLE_IT(hadc, ADC_IT_JEOC | ADC_IT_JEOS);
+            
+            /* Set ADC state */
+            CLEAR_BIT(hadc->State, HAL_ADC_STATE_INJ_BUSY);
+
+            if (HAL_IS_BIT_CLR(hadc->State, HAL_ADC_STATE_REG_BUSY))
+            { 
+              SET_BIT(hadc->State, HAL_ADC_STATE_READY);
+            }
+          }
+          else
+          {
+            /* Update ADC state machine to error */
+            SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL);
+          
+            /* Set ADC error code to ADC IP internal error */
+            SET_BIT(hadc->ErrorCode, HAL_ADC_ERROR_INTERNAL);
+          }
+        }
+      }
+    }
+    
+    /* Injected Conversion complete callback */
+    /* Note:  HAL_ADCEx_InjectedConvCpltCallback can resort to 
+              if( __HAL_ADC_GET_FLAG(&hadc, ADC_FLAG_JEOS)) or
+              if( __HAL_ADC_GET_FLAG(&hadc, ADC_FLAG_JEOC)) to determine whether
+              interruption has been triggered by end of conversion or end of 
+              sequence.    */    
+    HAL_ADCEx_InjectedConvCpltCallback(hadc);
+    
+    /* Clear injected group conversion flag */
+    __HAL_ADC_CLEAR_FLAG(hadc, ADC_FLAG_JEOC | ADC_FLAG_JEOS);
+  }
+  
+  /* ========== Check Analog watchdog 1 flag ========== */
+  if (((tmp_isr & ADC_FLAG_AWD1) == ADC_FLAG_AWD1) && ((tmp_ier & ADC_IT_AWD1) == ADC_IT_AWD1))      
+  {
+    /* Set ADC state */
+    SET_BIT(hadc->State, HAL_ADC_STATE_AWD1);
+    
+    /* Level out of window 1 callback */
+    HAL_ADC_LevelOutOfWindowCallback(hadc);
+    /* Clear ADC analog watchdog flag */ 
+    __HAL_ADC_CLEAR_FLAG(hadc, ADC_FLAG_AWD1);
+  }
+  
+  /* ========== Check analog watchdog 2 flag ========== */
+  if (((tmp_isr & ADC_FLAG_AWD2) == ADC_FLAG_AWD2) && ((tmp_ier & ADC_IT_AWD2) == ADC_IT_AWD2))      
+  {
+    /* Set ADC state */
+    SET_BIT(hadc->State, HAL_ADC_STATE_AWD2);
+    
+    /* Level out of window 2 callback */
+    HAL_ADCEx_LevelOutOfWindow2Callback(hadc);
+    /* Clear ADC analog watchdog flag */ 
+    __HAL_ADC_CLEAR_FLAG(hadc, ADC_FLAG_AWD2);
+  }
+  
+  /* ========== Check analog watchdog 3 flag ========== */
+  if (((tmp_isr & ADC_FLAG_AWD3) == ADC_FLAG_AWD3) && ((tmp_ier & ADC_IT_AWD3) == ADC_IT_AWD3))      
+  {
+    /* Set ADC state */
+    SET_BIT(hadc->State, HAL_ADC_STATE_AWD3);
+    
+    /* Level out of window 3 callback */
+    HAL_ADCEx_LevelOutOfWindow3Callback(hadc);
+    /* Clear ADC analog watchdog flag */ 
+    __HAL_ADC_CLEAR_FLAG(hadc, ADC_FLAG_AWD3);
+  }
+  
+  /* ========== Check Overrun flag ========== */
+  if (((tmp_isr & ADC_FLAG_OVR) == ADC_FLAG_OVR) && ((tmp_ier & ADC_IT_OVR) == ADC_IT_OVR)) 
+  {
+    /* If overrun is set to overwrite previous data (default setting),        */
+    /* overrun event is not considered as an error.                           */
+    /* (cf ref manual "Managing conversions without using the DMA and without */
+    /* overrun ")                                                             */
+    /* Exception for usage with DMA overrun event always considered as an     */
+    /* error.                                                                 */
+    
+    if (hadc->Init.Overrun == ADC_OVR_DATA_PRESERVED)
+    {
+      overrun_error = 1;
+    }
+    else
+    {
+      /* Check DMA configuration */
+      if (ADC_IS_DUAL_CONVERSION_ENABLE(hadc) == RESET)
+      {
+        /* Multimode not set or feature not available or ADC independent */
+        if (HAL_IS_BIT_SET(hadc->Instance->CFGR, ADC_CFGR_DMAEN))
+        {
+          overrun_error = 1;
+        }
+      }
+      else
+      {
+        /* Multimode (when feature is available) is enabled, 
+           Common Control Register MDMA bits must be checked. */
+        if (ADC_MULTIMODE_DMA_ENABLED(hadc))
+        {
+          overrun_error = 1;
+        }
+      }
+    }
+        
+    if (overrun_error == 1)
+    {
+      /* Change ADC state to error state */
+      SET_BIT(hadc->State, HAL_ADC_STATE_REG_OVR);
+      
+      /* Set ADC error code to overrun */
+      SET_BIT(hadc->ErrorCode, HAL_ADC_ERROR_OVR);
+      
+      /* Error callback */
+      /* Note: In case of overrun, ADC conversion data is preserved until     */
+      /*       flag OVR is reset.                                             */
+      /*       Therefore, old ADC conversion data can be retrieved in         */
+      /*       function "HAL_ADC_ErrorCallback()".                            */
+      HAL_ADC_ErrorCallback(hadc);
+    }
+    
+    /* Clear ADC overrun flag */
+    __HAL_ADC_CLEAR_FLAG(hadc, ADC_FLAG_OVR);
+  }
+  
+  /* ========== Check Injected context queue overflow flag ========== */
+  if (((tmp_isr & ADC_FLAG_JQOVF) == ADC_FLAG_JQOVF) && ((tmp_ier & ADC_IT_JQOVF) == ADC_IT_JQOVF)) 
+  {
+    /* Change ADC state to overrun state */
+    SET_BIT(hadc->State, HAL_ADC_STATE_INJ_JQOVF);
+        
+    /* Set ADC error code to Injected context queue overflow */
+    SET_BIT(hadc->ErrorCode, HAL_ADC_ERROR_JQOVF);
+    
+    /* Clear the Injected context queue overflow flag */
+    __HAL_ADC_CLEAR_FLAG(hadc, ADC_FLAG_JQOVF);
+    
+    /* Error callback */
+    HAL_ADCEx_InjectedQueueOverflowCallback(hadc);
+  }
+  
+}

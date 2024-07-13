@@ -1,0 +1,27 @@
+STATIC INT64 DstConfigDecode(INT32 year, const CHAR *dstString)
+{
+    INT32 month, monDay, sec;
+    INT32 ret;
+    struct tm time = {0};
+    INT64 dstSeconds;
+
+    ret = DateDecode(year, dstString, &month, &monDay, &sec);
+    if (ret == -1) {
+        return -1;
+    }
+    /* get the DST period */
+    time.tm_year = year;
+    time.tm_mon = month;
+    time.tm_mday = monDay;
+    time.tm_isdst = 0;
+#ifdef LOSCFG_AARCH64
+    dstSeconds = mktime(&time);
+#else
+    dstSeconds = mktime64(&time);
+#endif
+    if (dstSeconds == -1) {
+        return -1;
+    }
+
+    return dstSeconds + sec;
+}

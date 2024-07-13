@@ -1,0 +1,39 @@
+lwip_close(int s)
+{
+  struct lwip_sock *sock;
+  int is_tcp = 0;
+  err_t err;
+
+  LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_close(%d)\n", s));
+
+  sock = get_socket(s);
+  if (!sock) {
+    return -1;
+  }
+
+  if (sock->conn != NULL) {
+    is_tcp = NETCONNTYPE_GROUP(netconn_type(sock->conn)) == NETCONN_TCP;
+  } else {
+    LWIP_ASSERT("sock->lastdata == NULL", sock->lastdata.pbuf == NULL);
+  }
+
+#if LWIP_IGMP
+  /* drop all possibly joined IGMP memberships */
+  lwip_socket_drop_registered_memberships(s);
+#endif /* LWIP_IGMP */
+#if LWIP_IPV6_MLD
+  /* drop all possibly joined MLD6 memberships */
+  lwip_socket_drop_registered_mld6_memberships(s);
+#endif /* LWIP_IPV6_MLD */
+
+  err = netconn_prepare_delete(sock->conn);
+  if (err != ERR_OK) {
+    sock_set_errno(sock, err_to_errno(err));
+    done_socket(sock);
+    return -1;
+  }
+
+  free_socket(sock, is_tcp);
+  set_errno(0);
+  return 0;
+}

@@ -1,0 +1,66 @@
+void output_tlv(FILE *stream,
+                uint8_t *buffer,
+                size_t buffer_len,
+                int indent)
+{
+    lwm2m_data_type_t type;
+    uint16_t id;
+    size_t dataIndex;
+    size_t dataLen;
+    int length = 0;
+    int result;
+
+    while ((result = lwm2m_decode_TLV((uint8_t *)buffer + length, buffer_len - length, &type, &id, &dataIndex, &dataLen)) != 0) {
+        print_indent(stream, indent);
+        fprintf(stream, "{\r\n");
+        print_indent(stream, indent + 1);
+        fprintf(stream, "ID: %d", id);
+
+        fprintf(stream, " type: ");
+        switch (type) {
+        case LWM2M_TYPE_OBJECT_INSTANCE:
+            fprintf(stream, "Object Instance");
+            break;
+        case LWM2M_TYPE_MULTIPLE_RESOURCE:
+            fprintf(stream, "Multiple Instances");
+            break;
+        case LWM2M_TYPE_OPAQUE:
+            fprintf(stream, "Resource Value");
+            break;
+        default:
+            printf("unknown (%d)", (int)type);
+            break;
+        }
+        fprintf(stream, "\n");
+
+        print_indent(stream, indent + 1);
+        fprintf(stream, "{\n");
+        if ((type == LWM2M_TYPE_OBJECT_INSTANCE) || (type == LWM2M_TYPE_MULTIPLE_RESOURCE)) {
+            output_tlv(stream, buffer + length + dataIndex, dataLen, indent + 1);
+        } else {
+            int64_t intValue;
+            double floatValue;
+            uint8_t tmp;
+
+            print_indent(stream, indent + 2);
+            fprintf(stream, "data (%d bytes):\r\n", dataLen);
+            output_buffer(stream, (uint8_t *)buffer + length + dataIndex, dataLen, indent + 2);
+
+            tmp = buffer[length + dataIndex + dataLen];
+            buffer[length + dataIndex + dataLen] = 0;
+            if (sscanf((const char *)buffer + length + dataIndex, "%"PRId64, &intValue) > 0) {
+                print_indent(stream, indent + 2);
+                fprintf(stream, "data as Integer: %" PRId64 "\r\n", intValue);
+            } if (sscanf((const char *)buffer + length + dataIndex, "%lg", &floatValue) > 0) {
+                print_indent(stream, indent + 2);
+                fprintf(stream, "data as Float: %.16g\r\n", floatValue);
+            }
+            buffer[length + dataIndex + dataLen] = tmp;
+        }
+        print_indent(stream, indent + 1);
+        fprintf(stream, "}\r\n");
+        length += result;
+        print_indent(stream, indent);
+        fprintf(stream, "}\r\n");
+    }
+}

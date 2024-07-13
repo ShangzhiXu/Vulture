@@ -1,0 +1,154 @@
+static uint8_t QSPI_ResetMemory(QSPI_HandleTypeDef *hqspi)
+{
+  QSPI_CommandTypeDef      s_command;
+  QSPI_AutoPollingTypeDef  s_config;
+  uint8_t                  reg;
+
+  /* Send command RESET command in QPI mode (QUAD I/Os) */
+  /* Initialize the reset enable command */
+  s_command.InstructionMode   = QSPI_INSTRUCTION_4_LINES;
+  s_command.Instruction       = RESET_ENABLE_CMD;
+  s_command.AddressMode       = QSPI_ADDRESS_NONE;
+  s_command.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
+  s_command.DataMode          = QSPI_DATA_NONE;
+  s_command.DummyCycles       = 0;
+  s_command.DdrMode           = QSPI_DDR_MODE_DISABLE;
+  s_command.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;
+  s_command.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
+  /* Send the command */
+  if (HAL_QSPI_Command(hqspi, &s_command, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    return QSPI_ERROR;
+  }
+  /* Send the reset memory command */
+  s_command.Instruction = RESET_MEMORY_CMD;
+  if (HAL_QSPI_Command(hqspi, &s_command, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    return QSPI_ERROR;
+  }  
+
+  /* Send command RESET command in SPI mode */
+  /* Initialize the reset enable command */
+  s_command.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
+  s_command.Instruction       = RESET_ENABLE_CMD;
+  /* Send the command */
+  if (HAL_QSPI_Command(hqspi, &s_command, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    return QSPI_ERROR;
+  }
+  /* Send the reset memory command */
+  s_command.Instruction = RESET_MEMORY_CMD;
+  if (HAL_QSPI_Command(hqspi, &s_command, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    return QSPI_ERROR;
+  }
+
+  /* After reset CMD, 1000ms requested if QSPI memory SWReset occured during full chip erase operation */
+  HAL_Delay( 1000 );
+
+  /* Configure automatic polling mode to wait the WIP bit=0 */
+  s_config.Match           = 0;
+  s_config.Mask            = MX25L512_SR_WIP;
+  s_config.MatchMode       = QSPI_MATCH_MODE_AND;
+  s_config.StatusBytesSize = 1;
+  s_config.Interval        = 0x10;
+  s_config.AutomaticStop   = QSPI_AUTOMATIC_STOP_ENABLE;
+
+  s_command.InstructionMode = QSPI_INSTRUCTION_1_LINE;
+  s_command.Instruction     = READ_STATUS_REG_CMD;
+  s_command.DataMode        = QSPI_DATA_1_LINE;
+
+  if (HAL_QSPI_AutoPolling(hqspi, &s_command, &s_config, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    return QSPI_ERROR;
+  }
+
+  /* Initialize the reading of status register */
+  s_command.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
+  s_command.Instruction       = READ_STATUS_REG_CMD;
+  s_command.AddressMode       = QSPI_ADDRESS_NONE;
+  s_command.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
+  s_command.DataMode          = QSPI_DATA_1_LINE;
+  s_command.DummyCycles       = 0;
+  s_command.NbData            = 1;
+  s_command.DdrMode           = QSPI_DDR_MODE_DISABLE;
+  s_command.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;
+  s_command.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
+
+  /* Configure the command */
+  if (HAL_QSPI_Command(hqspi, &s_command, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    return QSPI_ERROR;
+  }
+
+  /* Reception of the data */
+  if (HAL_QSPI_Receive(hqspi, &reg, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    return QSPI_ERROR;
+  }
+
+  /* Enable write operations, command in 1 bit */
+  /* Enable write operations */
+  s_command.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
+  s_command.Instruction       = WRITE_ENABLE_CMD;
+  s_command.AddressMode       = QSPI_ADDRESS_NONE;
+  s_command.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
+  s_command.DataMode          = QSPI_DATA_NONE;
+  s_command.DummyCycles       = 0;
+  s_command.DdrMode           = QSPI_DDR_MODE_DISABLE;
+  s_command.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;
+  s_command.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
+
+  if (HAL_QSPI_Command(hqspi, &s_command, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    return QSPI_ERROR;
+  }
+  
+  /* Configure automatic polling mode to wait for write enabling */  
+  s_config.Match           = MX25L512_SR_WREN;
+  s_config.Mask            = MX25L512_SR_WREN;
+  s_config.MatchMode       = QSPI_MATCH_MODE_AND;
+  s_config.StatusBytesSize = 1;
+  s_config.Interval        = 0x10;
+  s_config.AutomaticStop   = QSPI_AUTOMATIC_STOP_ENABLE;
+
+  s_command.Instruction    = READ_STATUS_REG_CMD;
+  s_command.DataMode       = QSPI_DATA_1_LINE;
+
+  if (HAL_QSPI_AutoPolling(hqspi, &s_command, &s_config, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    return QSPI_ERROR;
+  }
+
+  /* Update the configuration register with new dummy cycles */
+  s_command.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
+  s_command.Instruction       = WRITE_STATUS_CFG_REG_CMD;
+  s_command.AddressMode       = QSPI_ADDRESS_NONE;
+  s_command.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
+  s_command.DataMode          = QSPI_DATA_1_LINE;
+  s_command.DummyCycles       = 0;
+  s_command.NbData            = 1;
+  s_command.DdrMode           = QSPI_DDR_MODE_DISABLE;
+  s_command.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;
+  s_command.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
+
+  /* Enable the Quad IO on the QSPI memory (Non-volatile bit) */
+  reg |= MX25L512_SR_QUADEN;
+
+  /* Configure the command */
+  if (HAL_QSPI_Command(hqspi, &s_command, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    return QSPI_ERROR;
+  }
+  
+  /* Transmission of the data */
+  if (HAL_QSPI_Transmit(hqspi, &reg, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    return QSPI_ERROR;
+  }
+  
+  /* 40ms  Write Status/Configuration Register Cycle Time */
+  HAL_Delay( 40 );  
+
+  return QSPI_OK;
+}

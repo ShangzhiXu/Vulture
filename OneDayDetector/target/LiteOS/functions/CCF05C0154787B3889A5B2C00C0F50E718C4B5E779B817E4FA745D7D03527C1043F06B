@@ -1,0 +1,26 @@
+tcp_kill_state(enum tcp_state state)
+{
+  struct tcp_pcb *pcb, *inactive;
+  u32_t inactivity;
+
+  LWIP_ASSERT("invalid state", (state == CLOSING) || (state == LAST_ACK));
+
+  inactivity = 0;
+  inactive = NULL;
+  /* Go through the list of active pcbs and get the oldest pcb that is in state
+     CLOSING/LAST_ACK. */
+  for (pcb = tcp_active_pcbs; pcb != NULL; pcb = pcb->next) {
+    if (pcb->state == state) {
+      if ((u32_t)(tcp_ticks - pcb->tmr) >= inactivity) {
+        inactivity = tcp_ticks - pcb->tmr;
+        inactive = pcb;
+      }
+    }
+  }
+  if (inactive != NULL) {
+    LWIP_DEBUGF(TCP_DEBUG, ("tcp_kill_closing: killing oldest %s PCB %p (%"S32_F")\n",
+                            tcp_state_str[state], (void *)inactive, inactivity));
+    /* Don't send a RST, since no data is lost. */
+    tcp_abandon(inactive, 0);
+  }
+}

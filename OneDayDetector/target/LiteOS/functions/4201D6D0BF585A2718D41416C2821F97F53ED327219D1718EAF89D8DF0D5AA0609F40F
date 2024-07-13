@@ -1,0 +1,30 @@
+LITE_OS_SEC_TEXT VOID OsSortLinkUpdateExpireTime(UINT32 sleepTicks, SortLinkAttribute *sortLinkHeader)
+{
+    SortLinkList *sortList = NULL;
+    LOS_DL_LIST *listObject = NULL;
+    UINT32 i;
+    UINT32 sortIndex;
+    UINT32 rollNum;
+
+    if (sleepTicks == 0) {
+        return;
+    }
+    sortIndex = sleepTicks & OS_TSK_SORTLINK_MASK;
+    rollNum = (sleepTicks >> OS_TSK_SORTLINK_LOGLEN) + 1;
+    if (sortIndex == 0) {
+        rollNum--;
+        sortIndex = OS_TSK_SORTLINK_LEN;
+    }
+
+    for (i = 0; i < OS_TSK_SORTLINK_LEN; i++) {
+        listObject = sortLinkHeader->sortLink + ((sortLinkHeader->cursor + i) & OS_TSK_SORTLINK_MASK);
+        if (listObject->pstNext != listObject) {
+            sortList = LOS_DL_LIST_ENTRY(listObject->pstNext, SortLinkList, sortLinkNode);
+            ROLLNUM_SUB(sortList->idxRollNum, rollNum - 1);
+            if ((i > 0) && (i < sortIndex)) {
+                ROLLNUM_DEC(sortList->idxRollNum);
+            }
+        }
+    }
+    sortLinkHeader->cursor = (sortLinkHeader->cursor + sleepTicks - 1) % OS_TSK_SORTLINK_LEN;
+}

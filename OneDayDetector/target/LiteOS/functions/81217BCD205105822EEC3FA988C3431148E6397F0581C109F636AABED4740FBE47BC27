@@ -1,0 +1,52 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 LOS_TaskInfoGet(UINT32 taskId, TSK_INFO_S *taskInfo)
+{
+    UINT32 intSave;
+    LosTaskCB *taskCB = NULL;
+
+    if (taskInfo == NULL) {
+        return LOS_ERRNO_TSK_PTR_NULL;
+    }
+
+    if (OS_TASK_ID_CHECK_INVALID(taskId)) {
+        return LOS_ERRNO_TSK_ID_INVALID;
+    }
+
+    taskCB = OS_TCB_FROM_TID(taskId);
+    SCHEDULER_LOCK(intSave);
+
+    if (taskCB->taskStatus & OS_TASK_STATUS_UNUSED) {
+        SCHEDULER_UNLOCK(intSave);
+        return LOS_ERRNO_TSK_NOT_CREATED;
+    }
+
+    if (!(taskCB->taskStatus & OS_TASK_STATUS_RUNNING) || OS_INT_ACTIVE) {
+        taskInfo->uwSP = (UINTPTR)taskCB->stackPointer;
+    } else {
+        taskInfo->uwSP = ArchSPGet();
+    }
+
+    taskInfo->usTaskStatus = taskCB->taskStatus;
+    taskInfo->usTaskPrio = taskCB->priority;
+    taskInfo->uwStackSize = taskCB->stackSize;
+    taskInfo->uwTopOfStack = taskCB->topOfStack;
+#ifdef LOSCFG_BASE_IPC_EVENT
+    taskInfo->uwEvent = taskCB->event;
+    taskInfo->uwEventMask = taskCB->eventMask;
+#endif
+    taskInfo->pTaskSem = taskCB->taskSem;
+    taskInfo->pTaskMux = taskCB->taskMux;
+    taskInfo->uwTaskID = taskId;
+
+    if (strncpy_s(taskInfo->acName, LOS_TASK_NAMELEN, taskCB->taskName, LOS_TASK_NAMELEN - 1) != EOK) {
+        PRINT_ERR("Task name copy failed!\n");
+    }
+    taskInfo->uwBottomOfStack = TRUNCATE(((UINTPTR)taskCB->topOfStack + taskCB->stackSize),
+                                         OS_TASK_STACK_ADDR_ALIGN);
+    taskInfo->uwCurrUsed = (UINT32)(taskInfo->uwBottomOfStack - taskInfo->uwSP);
+
+    taskInfo->bOvf = OsStackWaterLineGet((const UINTPTR *)taskInfo->uwBottomOfStack,
+                                         (const UINTPTR *)taskInfo->uwTopOfStack, &taskInfo->uwPeakUsed);
+    SCHEDULER_UNLOCK(intSave);
+
+    return LOS_OK;
+}

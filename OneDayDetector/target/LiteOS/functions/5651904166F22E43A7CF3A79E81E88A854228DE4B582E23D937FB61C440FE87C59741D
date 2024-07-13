@@ -1,0 +1,104 @@
+HAL_StatusTypeDef HAL_DFSDM_FilterInit(DFSDM_Filter_HandleTypeDef *hdfsdm_filter)
+{
+  /* Check DFSDM Channel handle */
+  if(hdfsdm_filter == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check parameters */
+  assert_param(IS_DFSDM_FILTER_ALL_INSTANCE(hdfsdm_filter->Instance));
+  assert_param(IS_DFSDM_FILTER_REG_TRIGGER(hdfsdm_filter->Init.RegularParam.Trigger));
+  assert_param(IS_FUNCTIONAL_STATE(hdfsdm_filter->Init.RegularParam.FastMode));
+  assert_param(IS_FUNCTIONAL_STATE(hdfsdm_filter->Init.RegularParam.DmaMode));
+  assert_param(IS_DFSDM_FILTER_INJ_TRIGGER(hdfsdm_filter->Init.InjectedParam.Trigger));
+  assert_param(IS_FUNCTIONAL_STATE(hdfsdm_filter->Init.InjectedParam.ScanMode));
+  assert_param(IS_FUNCTIONAL_STATE(hdfsdm_filter->Init.InjectedParam.DmaMode));
+  assert_param(IS_DFSDM_FILTER_SINC_ORDER(hdfsdm_filter->Init.FilterParam.SincOrder));
+  assert_param(IS_DFSDM_FILTER_OVS_RATIO(hdfsdm_filter->Init.FilterParam.Oversampling));
+  assert_param(IS_DFSDM_FILTER_INTEGRATOR_OVS_RATIO(hdfsdm_filter->Init.FilterParam.IntOversampling));
+
+  /* Check parameters compatibility */
+  if((hdfsdm_filter->Instance == DFSDM1_Filter0) && 
+    ((hdfsdm_filter->Init.RegularParam.Trigger  == DFSDM_FILTER_SYNC_TRIGGER) || 
+     (hdfsdm_filter->Init.InjectedParam.Trigger == DFSDM_FILTER_SYNC_TRIGGER)))
+  {
+    return HAL_ERROR;
+  }
+
+  /* Initialize DFSDM filter variables with default values */
+  hdfsdm_filter->RegularContMode     = DFSDM_CONTINUOUS_CONV_OFF;
+  hdfsdm_filter->InjectedChannelsNbr = 1;
+  hdfsdm_filter->InjConvRemaining    = 1;
+  hdfsdm_filter->ErrorCode           = DFSDM_FILTER_ERROR_NONE;
+  
+  /* Call MSP init function */
+  HAL_DFSDM_FilterMspInit(hdfsdm_filter);
+
+  /* Set regular parameters */
+  hdfsdm_filter->Instance->FLTCR1 &= ~(DFSDM_FLTCR1_RSYNC);
+  if(hdfsdm_filter->Init.RegularParam.FastMode == ENABLE)
+  {
+    hdfsdm_filter->Instance->FLTCR1 |= DFSDM_FLTCR1_FAST;
+  }
+  else
+  {
+    hdfsdm_filter->Instance->FLTCR1 &= ~(DFSDM_FLTCR1_FAST);
+  }
+
+  if(hdfsdm_filter->Init.RegularParam.DmaMode == ENABLE)
+  {
+    hdfsdm_filter->Instance->FLTCR1 |= DFSDM_FLTCR1_RDMAEN;
+  }
+  else
+  {
+    hdfsdm_filter->Instance->FLTCR1 &= ~(DFSDM_FLTCR1_RDMAEN);
+  }
+
+  /* Set injected parameters */
+  hdfsdm_filter->Instance->FLTCR1 &= ~(DFSDM_FLTCR1_JSYNC | DFSDM_FLTCR1_JEXTEN | DFSDM_FLTCR1_JEXTSEL);
+  if(hdfsdm_filter->Init.InjectedParam.Trigger == DFSDM_FILTER_EXT_TRIGGER)
+  {
+    assert_param(IS_DFSDM_FILTER_EXT_TRIG(hdfsdm_filter->Init.InjectedParam.ExtTrigger));
+    assert_param(IS_DFSDM_FILTER_EXT_TRIG_EDGE(hdfsdm_filter->Init.InjectedParam.ExtTriggerEdge));
+    hdfsdm_filter->Instance->FLTCR1 |= (hdfsdm_filter->Init.InjectedParam.ExtTrigger);
+  }
+
+  if(hdfsdm_filter->Init.InjectedParam.ScanMode == ENABLE)
+  {
+    hdfsdm_filter->Instance->FLTCR1 |= DFSDM_FLTCR1_JSCAN;
+  }
+  else
+  {
+    hdfsdm_filter->Instance->FLTCR1 &= ~(DFSDM_FLTCR1_JSCAN);
+  }
+
+  if(hdfsdm_filter->Init.InjectedParam.DmaMode == ENABLE)
+  {
+    hdfsdm_filter->Instance->FLTCR1 |= DFSDM_FLTCR1_JDMAEN;
+  }
+  else
+  {
+    hdfsdm_filter->Instance->FLTCR1 &= ~(DFSDM_FLTCR1_JDMAEN);
+  }
+  
+  /* Set filter parameters */
+  hdfsdm_filter->Instance->FLTFCR &= ~(DFSDM_FLTFCR_FORD | DFSDM_FLTFCR_FOSR | DFSDM_FLTFCR_IOSR);
+  hdfsdm_filter->Instance->FLTFCR |= (hdfsdm_filter->Init.FilterParam.SincOrder |
+                                    ((hdfsdm_filter->Init.FilterParam.Oversampling - 1) << DFSDM_FLTFCR_FOSR_Pos) |
+                                  (hdfsdm_filter->Init.FilterParam.IntOversampling - 1));
+
+  /* Store regular and injected triggers and injected scan mode*/
+  hdfsdm_filter->RegularTrigger   = hdfsdm_filter->Init.RegularParam.Trigger;
+  hdfsdm_filter->InjectedTrigger  = hdfsdm_filter->Init.InjectedParam.Trigger;
+  hdfsdm_filter->ExtTriggerEdge   = hdfsdm_filter->Init.InjectedParam.ExtTriggerEdge;
+  hdfsdm_filter->InjectedScanMode = hdfsdm_filter->Init.InjectedParam.ScanMode;
+  
+  /* Enable DFSDM filter */
+  hdfsdm_filter->Instance->FLTCR1 |= DFSDM_FLTCR1_DFEN;
+
+  /* Set DFSDM filter to ready state */
+  hdfsdm_filter->State = HAL_DFSDM_FILTER_STATE_READY;
+  
+  return HAL_OK;
+}

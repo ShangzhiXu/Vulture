@@ -1,0 +1,114 @@
+int mbedtls_mpi_div_mpi( mbedtls_mpi *Q, mbedtls_mpi *R, const mbedtls_mpi *A,
+                         const mbedtls_mpi *B )
+{
+    int ret;
+    size_t i, n, t, k;
+    mbedtls_mpi X, Y, Z, T1, T2;
+    MPI_VALIDATE_RET( A != NULL );
+    MPI_VALIDATE_RET( B != NULL );
+
+    if( mbedtls_mpi_cmp_int( B, 0 ) == 0 )
+        return( MBEDTLS_ERR_MPI_DIVISION_BY_ZERO );
+
+    mbedtls_mpi_init( &X ); mbedtls_mpi_init( &Y ); mbedtls_mpi_init( &Z );
+    mbedtls_mpi_init( &T1 ); mbedtls_mpi_init( &T2 );
+
+    if( mbedtls_mpi_cmp_abs( A, B ) < 0 )
+    {
+        if( Q != NULL ) MBEDTLS_MPI_CHK( mbedtls_mpi_lset( Q, 0 ) );
+        if( R != NULL ) MBEDTLS_MPI_CHK( mbedtls_mpi_copy( R, A ) );
+        return( 0 );
+    }
+
+    MBEDTLS_MPI_CHK( mbedtls_mpi_copy( &X, A ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_copy( &Y, B ) );
+    X.s = Y.s = 1;
+
+    MBEDTLS_MPI_CHK( mbedtls_mpi_grow( &Z, A->n + 2 ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_lset( &Z,  0 ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_grow( &T1, 2 ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_grow( &T2, 3 ) );
+
+    k = mbedtls_mpi_bitlen( &Y ) % biL;
+    if( k < biL - 1 )
+    {
+        k = biL - 1 - k;
+        MBEDTLS_MPI_CHK( mbedtls_mpi_shift_l( &X, k ) );
+        MBEDTLS_MPI_CHK( mbedtls_mpi_shift_l( &Y, k ) );
+    }
+    else k = 0;
+
+    n = X.n - 1;
+    t = Y.n - 1;
+    MBEDTLS_MPI_CHK( mbedtls_mpi_shift_l( &Y, biL * ( n - t ) ) );
+
+    while( mbedtls_mpi_cmp_mpi( &X, &Y ) >= 0 )
+    {
+        Z.p[n - t]++;
+        MBEDTLS_MPI_CHK( mbedtls_mpi_sub_mpi( &X, &X, &Y ) );
+    }
+    MBEDTLS_MPI_CHK( mbedtls_mpi_shift_r( &Y, biL * ( n - t ) ) );
+
+    for( i = n; i > t ; i-- )
+    {
+        if( X.p[i] >= Y.p[t] )
+            Z.p[i - t - 1] = ~0;
+        else
+        {
+            Z.p[i - t - 1] = mbedtls_int_div_int( X.p[i], X.p[i - 1],
+                                                            Y.p[t], NULL);
+        }
+
+        Z.p[i - t - 1]++;
+        do
+        {
+            Z.p[i - t - 1]--;
+
+            MBEDTLS_MPI_CHK( mbedtls_mpi_lset( &T1, 0 ) );
+            T1.p[0] = ( t < 1 ) ? 0 : Y.p[t - 1];
+            T1.p[1] = Y.p[t];
+            MBEDTLS_MPI_CHK( mbedtls_mpi_mul_int( &T1, &T1, Z.p[i - t - 1] ) );
+
+            MBEDTLS_MPI_CHK( mbedtls_mpi_lset( &T2, 0 ) );
+            T2.p[0] = ( i < 2 ) ? 0 : X.p[i - 2];
+            T2.p[1] = ( i < 1 ) ? 0 : X.p[i - 1];
+            T2.p[2] = X.p[i];
+        }
+        while( mbedtls_mpi_cmp_mpi( &T1, &T2 ) > 0 );
+
+        MBEDTLS_MPI_CHK( mbedtls_mpi_mul_int( &T1, &Y, Z.p[i - t - 1] ) );
+        MBEDTLS_MPI_CHK( mbedtls_mpi_shift_l( &T1,  biL * ( i - t - 1 ) ) );
+        MBEDTLS_MPI_CHK( mbedtls_mpi_sub_mpi( &X, &X, &T1 ) );
+
+        if( mbedtls_mpi_cmp_int( &X, 0 ) < 0 )
+        {
+            MBEDTLS_MPI_CHK( mbedtls_mpi_copy( &T1, &Y ) );
+            MBEDTLS_MPI_CHK( mbedtls_mpi_shift_l( &T1, biL * ( i - t - 1 ) ) );
+            MBEDTLS_MPI_CHK( mbedtls_mpi_add_mpi( &X, &X, &T1 ) );
+            Z.p[i - t - 1]--;
+        }
+    }
+
+    if( Q != NULL )
+    {
+        MBEDTLS_MPI_CHK( mbedtls_mpi_copy( Q, &Z ) );
+        Q->s = A->s * B->s;
+    }
+
+    if( R != NULL )
+    {
+        MBEDTLS_MPI_CHK( mbedtls_mpi_shift_r( &X, k ) );
+        X.s = A->s;
+        MBEDTLS_MPI_CHK( mbedtls_mpi_copy( R, &X ) );
+
+        if( mbedtls_mpi_cmp_int( R, 0 ) == 0 )
+            R->s = 1;
+    }
+
+cleanup:
+
+    mbedtls_mpi_free( &X ); mbedtls_mpi_free( &Y ); mbedtls_mpi_free( &Z );
+    mbedtls_mpi_free( &T1 ); mbedtls_mpi_free( &T2 );
+
+    return( ret );
+}

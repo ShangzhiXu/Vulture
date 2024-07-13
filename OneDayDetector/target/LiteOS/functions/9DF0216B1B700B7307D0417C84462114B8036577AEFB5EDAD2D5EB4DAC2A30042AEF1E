@@ -1,0 +1,50 @@
+static uint32_t I2S_GetClockFreq(I2S_HandleTypeDef *hi2s)
+{
+  uint32_t tmpreg;
+  /* This variable used to store the VCO Input (value in Hz) */
+  uint32_t vcoinput;
+  /* This variable used to store the I2S_CK_x (value in Hz) */
+  uint32_t i2sclocksource;
+
+  /* Configure I2S Clock based on I2S source clock selection */
+
+  /* I2S_CLK_x : I2S Block Clock configuration for different clock sources selected */
+  switch (hi2s->Init.ClockSource)
+  {
+    case I2S_CLOCK_PLL :
+    {
+      /* Configure the PLLI2S division factor */
+      /* PLLI2S_VCO Input  = PLL_SOURCE/PLLI2SM */
+      if ((RCC->PLLCFGR & RCC_PLLCFGR_PLLSRC) == RCC_PLLSOURCE_HSI)
+      {
+        /* In Case the PLL Source is HSI (Internal Clock) */
+        vcoinput = (HSI_VALUE / (uint32_t)(RCC->PLLCFGR & RCC_PLLCFGR_PLLM));
+      }
+      else
+      {
+        /* In Case the PLL Source is HSE (External Clock) */
+        vcoinput = ((HSE_VALUE / (uint32_t)(RCC->PLLCFGR & RCC_PLLCFGR_PLLM)));
+      }
+
+      /* PLLI2S_VCO Output = PLLI2S_VCO Input * PLLI2SN */
+      /* I2S_CLK(first level) = PLLI2S_VCO Output/PLLI2SR */
+      tmpreg = (RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SR) >> 28U;
+      i2sclocksource = (vcoinput * ((RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SN) >> 6U)) / (tmpreg);
+
+      break;
+    }
+    case I2S_CLOCK_EXTERNAL :
+    {
+      i2sclocksource = EXTERNAL_CLOCK_VALUE;
+      break;
+    }
+    default :
+    {
+      i2sclocksource = 0U;
+      break;
+    }
+  }
+
+  /* the return result is the value of I2S clock */
+  return i2sclocksource;
+}

@@ -1,0 +1,21 @@
+static void SPDIFRX_DMAError(DMA_HandleTypeDef *hdma)
+{
+  SPDIFRX_HandleTypeDef* hspdif = ( SPDIFRX_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+
+  /* Disable Rx and Cb DMA Request */
+  hspdif->Instance->CR &= (uint16_t)(~(SPDIFRX_CR_RXDMAEN | SPDIFRX_CR_CBDMAEN));
+  hspdif->RxXferCount = 0;
+
+  hspdif->State= HAL_SPDIFRX_STATE_READY;
+
+  /* Set the error code and execute error callback*/
+  hspdif->ErrorCode |= HAL_SPDIFRX_ERROR_DMA;
+
+#if (USE_HAL_SPDIFRX_REGISTER_CALLBACKS == 1)
+  /* The transfer is not stopped */
+  hspdif->ErrorCallback(hspdif);
+#else
+  /* The transfer is not stopped */
+  HAL_SPDIFRX_ErrorCallback(hspdif);
+#endif /* USE_HAL_SPDIFRX_REGISTER_CALLBACKS */
+}

@@ -1,0 +1,39 @@
+static lv_res_t page_release_handler(lv_obj_t * page)
+{
+    lv_dropdown_page_ext_t * page_ext = lv_obj_get_ext_attr(page);
+    lv_obj_t * ddlist = page_ext->ddlist;
+
+    lv_dropdown_ext_t * ext = lv_obj_get_ext_attr(ddlist);
+
+    lv_indev_t * indev = lv_indev_get_act();
+#if LV_USE_GROUP
+    /*Leave edit mode once a new item is selected*/
+    if(lv_indev_get_type(indev) == LV_INDEV_TYPE_ENCODER) {
+        ext->sel_opt_id_orig = ext->sel_opt_id;
+        lv_group_t * g      = lv_obj_get_group(ddlist);
+        if(lv_group_get_editing(g)) {
+            lv_group_set_editing(g, false);
+        }
+    }
+#endif
+
+    /*Search the clicked option (For KEYPAD and ENCODER the new value should be already set)*/
+    if(lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER || lv_indev_get_type(indev) == LV_INDEV_TYPE_BUTTON) {
+        lv_point_t p;
+        lv_indev_get_point(indev, &p);
+        ext->sel_opt_id     = get_id_on_point(ddlist, p.x, p.y);
+        ext->sel_opt_id_orig = ext->sel_opt_id;
+    }
+
+    lv_dropdown_close(ddlist);
+
+    /*Invalidate to refresh the text*/
+    if(ext->show_selected) lv_obj_invalidate(ddlist);
+
+    uint32_t id  = ext->sel_opt_id; /*Just to use uint32_t in event data*/
+    lv_res_t res = lv_event_send(ddlist, LV_EVENT_VALUE_CHANGED, &id);
+    if(res != LV_RES_OK) return res;
+    if(ext->page == NULL) return LV_RES_INV;
+
+    return LV_RES_OK;
+}

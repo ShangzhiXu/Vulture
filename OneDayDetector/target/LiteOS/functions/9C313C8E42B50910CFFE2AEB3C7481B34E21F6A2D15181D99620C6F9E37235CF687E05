@@ -1,0 +1,71 @@
+lv_obj_t * lv_dropdown_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+    LV_LOG_TRACE("drop down list create started");
+
+    /*Create the ancestor drop down list*/
+    lv_obj_t * ddlist = lv_obj_create(par, copy);
+    LV_ASSERT_MEM(ddlist);
+    if(ddlist == NULL) return NULL;
+
+    if(ancestor_signal == NULL) ancestor_signal = lv_obj_get_signal_cb(ddlist);
+    if(ancestor_design == NULL) ancestor_design = lv_obj_get_design_cb(ddlist);
+
+    /*Allocate the drop down list type specific extended data*/
+    lv_dropdown_ext_t * ext = lv_obj_allocate_ext_attr(ddlist, sizeof(lv_dropdown_ext_t));
+    LV_ASSERT_MEM(ext);
+    if(ext == NULL) {
+        lv_obj_del(ddlist);
+        return NULL;
+    }
+
+    /*Initialize the allocated 'ext' */
+    ext->page          = NULL;
+    ext->options     = NULL;
+    ext->symbol         = LV_SYMBOL_DOWN;
+    ext->text         = "Select";
+    ext->static_txt = 1;
+    ext->show_selected   = 1;
+    ext->sel_opt_id      = 0;
+    ext->sel_opt_id_orig = 0;
+    ext->pr_opt_id = LV_DROPDOWN_PR_NONE;
+    ext->option_cnt      = 0;
+    ext->dir = LV_DROPDOWN_DIR_DOWN;
+    ext->max_height = (3 * lv_disp_get_ver_res(NULL)) / 4;
+    lv_style_list_init(&ext->style_page);
+    lv_style_list_init(&ext->style_scrlbar);
+    lv_style_list_init(&ext->style_selected);
+
+    /*The signal and design functions are not copied so set them here*/
+    lv_obj_set_signal_cb(ddlist, lv_dropdown_signal);
+    lv_obj_set_design_cb(ddlist, lv_dropdown_design);
+
+    /*Init the new drop down list drop down list*/
+    if(copy == NULL) {
+        lv_obj_set_width(ddlist, LV_DPX(150));
+        lv_dropdown_set_options_static(ddlist, "Option 1\nOption 2\nOption 3");
+        lv_theme_apply(ddlist, LV_THEME_DROPDOWN);
+    }
+    /*Copy an existing drop down list*/
+    else {
+        lv_dropdown_ext_t * copy_ext = lv_obj_get_ext_attr(copy);
+        if(copy_ext->static_txt == 0)
+            lv_dropdown_set_options(ddlist, lv_dropdown_get_options(copy));
+        else
+            lv_dropdown_set_options_static(ddlist, lv_dropdown_get_options(copy));
+        ext->option_cnt        = copy_ext->option_cnt;
+        ext->sel_opt_id     = copy_ext->sel_opt_id;
+        ext->sel_opt_id_orig = copy_ext->sel_opt_id;
+        ext->symbol           = copy_ext->symbol;
+        ext->max_height      = copy_ext->max_height;
+        ext->text      = copy_ext->text;
+        ext->dir      = copy_ext->dir;
+        ext->show_selected      = copy_ext->show_selected;
+        lv_style_list_copy(&ext->style_page, &copy_ext->style_page);
+        lv_style_list_copy(&ext->style_selected, &copy_ext->style_selected);
+        lv_style_list_copy(&ext->style_scrlbar, &copy_ext->style_scrlbar);
+    }
+
+    LV_LOG_INFO("drop down list created");
+
+    return ddlist;
+}

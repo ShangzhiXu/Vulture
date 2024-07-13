@@ -1,0 +1,42 @@
+HAL_StatusTypeDef HAL_OSPI_Transmit_IT(OSPI_HandleTypeDef *hospi, uint8_t *pData)
+{  
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Check the data pointer allocation */
+  if (pData == NULL)
+  {
+    status = HAL_ERROR;
+    hospi->ErrorCode = HAL_OSPI_ERROR_INVALID_PARAM;
+  }
+  else
+  {
+    /* Check the state */
+    if (hospi->State == HAL_OSPI_STATE_CMD_CFG)
+    {
+      /* Configure counters and size */
+      hospi->XferCount = READ_REG(hospi->Instance->DLR) + 1;
+      hospi->XferSize  = hospi->XferCount;
+      hospi->pBuffPtr  = pData;
+      
+      /* Configure CR register with functional mode as indirect write */
+      MODIFY_REG(hospi->Instance->CR, OCTOSPI_CR_FMODE, OSPI_FUNCTIONAL_MODE_INDIRECT_WRITE);
+
+      /* Clear flags related to interrupt */
+      __HAL_OSPI_CLEAR_FLAG(hospi, HAL_OSPI_FLAG_TE | HAL_OSPI_FLAG_TC);
+
+      /* Update the state */
+      hospi->State = HAL_OSPI_STATE_BUSY_TX;
+
+      /* Enable the transfer complete, fifo threshold and transfer error interrupts */
+      __HAL_OSPI_ENABLE_IT(hospi, HAL_OSPI_IT_TC | HAL_OSPI_IT_FT | HAL_OSPI_IT_TE);
+    }
+    else
+    {
+      status = HAL_ERROR;
+      hospi->ErrorCode = HAL_OSPI_ERROR_INVALID_SEQUENCE;
+    }
+  }
+
+  /* Return function status */
+  return status;
+}

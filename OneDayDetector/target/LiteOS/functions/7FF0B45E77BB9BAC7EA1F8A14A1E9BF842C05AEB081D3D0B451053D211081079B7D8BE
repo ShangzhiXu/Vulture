@@ -1,0 +1,43 @@
+HAL_StatusTypeDef HAL_UART_Transmit_IT(UART_HandleTypeDef *huart, uint8_t *pData, uint16_t Size)
+{
+  uint32_t tmp_state = 0;
+
+  tmp_state = huart->State;
+  if((tmp_state == HAL_UART_STATE_READY) || (tmp_state == HAL_UART_STATE_BUSY_RX))
+  {
+    if((pData == NULL ) || (Size == 0))
+    {
+      return HAL_ERROR;
+    }
+    
+    /* Process Locked */
+    __HAL_LOCK(huart);
+    
+    huart->pTxBuffPtr = pData;
+    huart->TxXferSize = Size;
+    huart->TxXferCount = Size;
+
+    huart->ErrorCode = HAL_UART_ERROR_NONE;
+    /* Check if a receive process is ongoing or not */
+    if(huart->State == HAL_UART_STATE_BUSY_RX) 
+    {
+      huart->State = HAL_UART_STATE_BUSY_TX_RX;
+    }
+    else
+    {
+      huart->State = HAL_UART_STATE_BUSY_TX;
+    }
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(huart);
+
+    /* Enable the UART Transmit data register empty Interrupt */
+    __HAL_UART_ENABLE_IT(huart, UART_IT_TXE);
+    
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

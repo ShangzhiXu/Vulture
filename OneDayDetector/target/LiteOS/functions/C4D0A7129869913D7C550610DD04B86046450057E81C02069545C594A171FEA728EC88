@@ -1,0 +1,15 @@
+static void release_memory(void* mem)
+{
+    Guard* guard = (Guard*)mem;
+    guard--;
+
+    malloc_count--;
+#ifdef UNITY_EXCLUDE_STDLIB_MALLOC
+    if (mem == unity_heap + heap_index - guard->size - sizeof(end))
+    {
+        heap_index -= (guard->size + sizeof(Guard) + sizeof(end));
+    }
+#else
+    UNITY_FIXTURE_FREE(guard);
+#endif
+}

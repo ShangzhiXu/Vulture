@@ -1,0 +1,36 @@
+static lv_res_t lv_bar_signal(lv_obj_t * bar, lv_signal_t sign, void * param)
+{
+    lv_res_t res;
+
+    if(sign == LV_SIGNAL_GET_STYLE) {
+        lv_get_style_info_t * info = param;
+        info->result = lv_bar_get_style(bar, info->part);
+        if(info->result != NULL) return LV_RES_OK;
+        else return ancestor_signal(bar, sign, param);
+    }
+
+    /* Include the ancient signal function */
+    res = ancestor_signal(bar, sign, param);
+    if(res != LV_RES_OK) return res;
+    if(sign == LV_SIGNAL_GET_TYPE) return lv_obj_handle_get_type_signal(param, LV_OBJX_NAME);
+
+    if(sign == LV_SIGNAL_REFR_EXT_DRAW_PAD) {
+
+        lv_coord_t indic_size;
+        indic_size = lv_obj_get_draw_rect_ext_pad_size(bar, LV_BAR_PART_INDIC);
+
+        /*Bg size is handled by lv_obj*/
+        bar->ext_draw_pad = LV_MATH_MAX(bar->ext_draw_pad, indic_size);
+
+    }
+    if(sign == LV_SIGNAL_CLEANUP) {
+        lv_obj_clean_style_list(bar, LV_BAR_PART_INDIC);
+#if LV_USE_ANIMATION
+        lv_bar_ext_t * ext = lv_obj_get_ext_attr(bar);
+        lv_anim_del(&ext->cur_value_anim, NULL);
+        lv_anim_del(&ext->start_value_anim, NULL);
+#endif
+    }
+
+    return res;
+}

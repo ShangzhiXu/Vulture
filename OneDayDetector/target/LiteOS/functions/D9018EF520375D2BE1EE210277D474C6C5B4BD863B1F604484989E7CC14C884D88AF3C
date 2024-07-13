@@ -1,0 +1,39 @@
+UINT32 Example_CreateTask(VOID)
+{
+    UINT32 ret = 0;
+    UINT32 task1, task2;
+    TSK_INIT_PARAM_S initParam;
+
+    initParam.pfnTaskEntry = (TSK_ENTRY_FUNC)send_Entry;
+    initParam.usTaskPrio = 9;
+    initParam.uwStackSize = LOS_TASK_MIN_STACK_SIZE;
+    initParam.pcName = "sendQueue";
+#ifdef LOSCFG_KERNEL_SMP
+    initParam.usCpuAffiMask = CPUID_TO_AFFI_MASK(ArchCurrCpuid());
+#endif
+    initParam.uwResved = LOS_TASK_STATUS_DETACHED;
+
+    LOS_TaskLock();
+    ret = LOS_TaskCreate(&task1, &initParam);
+    if(ret != LOS_OK) {
+        dprintf("create task1 failed, error:%x\n", ret);
+        return ret;
+    }
+
+    initParam.pcName = "recvQueue";
+    initParam.pfnTaskEntry = (TSK_ENTRY_FUNC)recv_Entry;
+    ret = LOS_TaskCreate(&task2, &initParam);
+    if(ret != LOS_OK) {
+        dprintf("create task2 failed, error:%x\n", ret);
+        return ret;
+    }
+
+    ret = LOS_QueueCreate("queue", 5, &g_queue, 0, BUFFER_LEN);
+    if(ret != LOS_OK) {
+        dprintf("create queue failure, error:%x\n", ret);
+    }
+
+    dprintf("create the queue success!\n");
+    LOS_TaskUnlock();
+    return ret;
+}

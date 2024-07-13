@@ -1,0 +1,21 @@
+STATIC INLINE BOOL OsPreemptableInSched(VOID)
+{
+    BOOL preemptable = FALSE;
+
+#ifdef LOSCFG_KERNEL_SMP
+    /*
+     * For smp systems, schedule must hold the task spinlock, and this counter
+     * will increase by 1 in that case.
+     */
+    preemptable = (OsPercpuGet()->taskLockCnt == 1);
+
+#else
+    preemptable = (OsPercpuGet()->taskLockCnt == 0);
+#endif
+    if (!preemptable) {
+        /* Set schedule flag if preemption is disabled */
+        OsPercpuGet()->schedFlag = INT_PEND_RESCH;
+    }
+
+    return preemptable;
+}

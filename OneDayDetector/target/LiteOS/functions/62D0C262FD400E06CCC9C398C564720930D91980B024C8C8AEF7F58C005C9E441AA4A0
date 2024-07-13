@@ -1,0 +1,40 @@
+STATIC VOID GiccInitPercpu(VOID)
+{
+    /* enable system register interface */
+    UINT32 sre = GiccGetSre();
+
+    if (!(sre & 0x1)) {
+        GiccSetSre(sre | 0x1);
+
+        /*
+         * Need to check that the SRE bit has actually been set. If
+         * not, it means that SRE is disabled at up EL level. We're going to
+         * die painfully, and there is nothing we can do about it.
+         */
+        sre = GiccGetSre();
+        LOS_ASSERT(sre & 0x1);
+    }
+
+#ifdef LOSCFG_ARCH_SECURE_MONITOR_MODE
+    /* Enable group 0 and disable grp1ns grp1s interrupts */
+    GiccSetIgrpen0(1);
+    GiccSetIgrpen1(0);
+
+    /*
+     * For priority grouping.
+     * The value of this field control show the 8-bit interrupt priority field
+     * is split into a group priority field, that determines interrupt preemption,
+     * and a subpriority field.
+     */
+    GiccSetBpr0(MAX_BINARY_POINT_VALUE);
+#else
+    /* enable group 1 interrupts */
+    GiccSetIgrpen1(1);
+#endif
+
+    /* set priority threshold to max */
+    GiccSetPmr(0xff);
+
+    /* EOI deactivates interrupt too (mode 0) */
+    GiccSetCtlr(0);
+}

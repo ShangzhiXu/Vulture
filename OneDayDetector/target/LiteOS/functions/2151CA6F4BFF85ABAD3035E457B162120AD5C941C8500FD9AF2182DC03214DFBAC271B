@@ -1,0 +1,177 @@
+void HAL_CAN_IRQHandler(CAN_HandleTypeDef* hcan)
+{
+  uint32_t errorcode = HAL_CAN_ERROR_NONE;
+
+  /* Check Overrun flag for FIFO0 */
+  if((__HAL_CAN_GET_FLAG(hcan, CAN_FLAG_FOV0))    &&
+     (__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_FOV0)))
+  {
+    /* Set CAN error code to FOV0 error */
+    errorcode |= HAL_CAN_ERROR_FOV0;
+
+    /* Clear FIFO0 Overrun Flag */
+    __HAL_CAN_CLEAR_FLAG(hcan, CAN_FLAG_FOV0);
+  }
+
+  /* Check Overrun flag for FIFO1 */
+  if((__HAL_CAN_GET_FLAG(hcan, CAN_FLAG_FOV1))    &&
+     (__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_FOV1)))
+  {
+    /* Set CAN error code to FOV1 error */
+    errorcode |= HAL_CAN_ERROR_FOV1;
+
+    /* Clear FIFO1 Overrun Flag */
+    __HAL_CAN_CLEAR_FLAG(hcan, CAN_FLAG_FOV1);
+  }
+
+  /* Check End of transmission flag */
+  if(__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_TME))
+  {
+    /* Check Transmit request completion status */
+    if((__HAL_CAN_TRANSMIT_STATUS(hcan, CAN_TXMAILBOX_0)) ||
+       (__HAL_CAN_TRANSMIT_STATUS(hcan, CAN_TXMAILBOX_1)) ||
+       (__HAL_CAN_TRANSMIT_STATUS(hcan, CAN_TXMAILBOX_2)))
+    {
+      /* Check Transmit success */
+      if((__HAL_CAN_GET_FLAG(hcan, CAN_FLAG_TXOK0)) ||
+         (__HAL_CAN_GET_FLAG(hcan, CAN_FLAG_TXOK1)) ||
+         (__HAL_CAN_GET_FLAG(hcan, CAN_FLAG_TXOK2)))
+      {
+        /* Call transmit function */
+        CAN_Transmit_IT(hcan);
+      }
+      else /* Transmit failure */
+      {
+        /* Set CAN error code to TXFAIL error */
+        errorcode |= HAL_CAN_ERROR_TXFAIL;
+      }
+
+      /* Clear transmission status flags (RQCPx and TXOKx) */
+      SET_BIT(hcan->Instance->TSR, CAN_TSR_RQCP0  | CAN_TSR_RQCP1  | CAN_TSR_RQCP2 | \
+                                   CAN_FLAG_TXOK0 | CAN_FLAG_TXOK1 | CAN_FLAG_TXOK2);
+    }
+  }
+  
+  /* Check End of reception flag for FIFO0 */
+  if((__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_FMP0)) &&
+     (__HAL_CAN_MSG_PENDING(hcan, CAN_FIFO0) != 0U))
+  {
+    /* Call receive function */
+    CAN_Receive_IT(hcan, CAN_FIFO0);
+  }
+  
+  /* Check End of reception flag for FIFO1 */
+  if((__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_FMP1)) &&
+     (__HAL_CAN_MSG_PENDING(hcan, CAN_FIFO1) != 0U))
+  {
+    /* Call receive function */
+    CAN_Receive_IT(hcan, CAN_FIFO1);
+  }
+  
+  /* Set error code in handle */
+  hcan->ErrorCode |= errorcode;
+
+  /* Check Error Warning Flag */
+  if((__HAL_CAN_GET_FLAG(hcan, CAN_FLAG_EWG))    &&
+     (__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_EWG)) &&
+     (__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_ERR)))
+  {
+    /* Set CAN error code to EWG error */
+    hcan->ErrorCode |= HAL_CAN_ERROR_EWG;
+    /* No need for clear of Error Warning Flag as read-only */
+  }
+  
+  /* Check Error Passive Flag */
+  if((__HAL_CAN_GET_FLAG(hcan, CAN_FLAG_EPV))    &&
+     (__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_EPV)) &&
+     (__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_ERR)))
+  {
+    /* Set CAN error code to EPV error */
+    hcan->ErrorCode |= HAL_CAN_ERROR_EPV;
+    /* No need for clear of Error Passive Flag as read-only */ 
+  }
+  
+  /* Check Bus-Off Flag */
+  if((__HAL_CAN_GET_FLAG(hcan, CAN_FLAG_BOF))    &&
+     (__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_BOF)) &&
+     (__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_ERR)))
+  {
+    /* Set CAN error code to BOF error */
+    hcan->ErrorCode |= HAL_CAN_ERROR_BOF;
+    /* No need for clear of Bus-Off Flag as read-only */
+  }
+  
+  /* Check Last error code Flag */
+  if((!HAL_IS_BIT_CLR(hcan->Instance->ESR, CAN_ESR_LEC)) &&
+     (__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_LEC))         &&
+     (__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_ERR)))
+  {
+    switch(hcan->Instance->ESR & CAN_ESR_LEC)
+    {
+      case(CAN_ESR_LEC_0):
+          /* Set CAN error code to STF error */
+          hcan->ErrorCode |= HAL_CAN_ERROR_STF;
+          break;
+      case(CAN_ESR_LEC_1):
+          /* Set CAN error code to FOR error */
+          hcan->ErrorCode |= HAL_CAN_ERROR_FOR;
+          break;
+      case(CAN_ESR_LEC_1 | CAN_ESR_LEC_0):
+          /* Set CAN error code to ACK error */
+          hcan->ErrorCode |= HAL_CAN_ERROR_ACK;
+          break;
+      case(CAN_ESR_LEC_2):
+          /* Set CAN error code to BR error */
+          hcan->ErrorCode |= HAL_CAN_ERROR_BR;
+          break;
+      case(CAN_ESR_LEC_2 | CAN_ESR_LEC_0):
+          /* Set CAN error code to BD error */
+          hcan->ErrorCode |= HAL_CAN_ERROR_BD;
+          break;
+      case(CAN_ESR_LEC_2 | CAN_ESR_LEC_1):
+          /* Set CAN error code to CRC error */
+          hcan->ErrorCode |= HAL_CAN_ERROR_CRC;
+          break;
+      default:
+          break;
+    }
+
+    /* Clear Last error code Flag */ 
+    CLEAR_BIT(hcan->Instance->ESR, CAN_ESR_LEC);
+  }
+
+  /* Call the Error call Back in case of Errors */
+  if(hcan->ErrorCode != HAL_CAN_ERROR_NONE)
+  {
+    /* Clear ERRI Flag */ 
+    SET_BIT(hcan->Instance->MSR, CAN_MSR_ERRI);
+
+    /* Set the CAN state ready to be able to start again the process */
+    hcan->State = HAL_CAN_STATE_READY;
+
+    /* Disable interrupts: */
+    /*  - Disable Error warning Interrupt */
+    /*  - Disable Error passive Interrupt */
+    /*  - Disable Bus-off Interrupt */
+    /*  - Disable Last error code Interrupt */
+    /*  - Disable Error Interrupt */
+    /*  - Disable FIFO 0 message pending Interrupt */
+    /*  - Disable FIFO 0 Overrun Interrupt */
+    /*  - Disable FIFO 1 message pending Interrupt */
+    /*  - Disable FIFO 1 Overrun Interrupt */
+    /*  - Disable Transmit mailbox empty Interrupt */
+    __HAL_CAN_DISABLE_IT(hcan, CAN_IT_EWG |
+                               CAN_IT_EPV |
+                               CAN_IT_BOF |
+                               CAN_IT_LEC |
+                               CAN_IT_ERR |
+                               CAN_IT_FMP0|
+                               CAN_IT_FOV0|
+                               CAN_IT_FMP1|
+                               CAN_IT_FOV1|
+                               CAN_IT_TME  );
+
+    /* Call Error callback function */
+    HAL_CAN_ErrorCallback(hcan);
+  }  
+}

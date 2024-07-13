@@ -1,0 +1,16 @@
+STATIC VOID OsLowpowerDeepSleep(LosIntermitMode *mode, UINT32 cpuid, UINT32 sleepTicks)
+{
+#ifdef LOSCFG_KERNEL_DEEPSLEEP
+    if (g_pmRunOps.enterDeepSleep == NULL) {
+        *mode = LOS_INTERMIT_LIGHT_SLEEP;
+    } else {
+        *mode = LOS_INTERMIT_DEEP_SLEEP;
+        g_pmMgr.sleepMode[cpuid] = *mode;
+        g_pmMgr.sleepTime[cpuid] = sleepTicks;
+
+        OsSystemSuspend(mode);
+    }
+#else
+    *mode = LOS_INTERMIT_LIGHT_SLEEP;
+#endif
+}

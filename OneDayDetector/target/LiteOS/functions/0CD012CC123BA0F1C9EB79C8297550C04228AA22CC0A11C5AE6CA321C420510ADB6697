@@ -1,0 +1,18 @@
+igmp_tmr(void)
+{
+  struct netif *netif;
+
+  NETIF_FOREACH(netif) {
+    struct igmp_group *group = netif_igmp_data(netif);
+
+    while (group != NULL) {
+      if (group->timer > 0) {
+        group->timer--;
+        if (group->timer == 0) {
+          igmp_timeout(netif, group);
+        }
+      }
+      group = group->next;
+    }
+  }
+}

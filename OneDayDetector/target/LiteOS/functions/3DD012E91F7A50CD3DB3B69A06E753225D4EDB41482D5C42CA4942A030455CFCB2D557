@@ -1,0 +1,28 @@
+HAL_StatusTypeDef HAL_SMBUS_RegisterAddrCallback(SMBUS_HandleTypeDef *hsmbus, pSMBUS_AddrCallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    return HAL_ERROR;
+  }
+  /* Process locked */
+  __HAL_LOCK(hsmbus);
+
+  if (HAL_SMBUS_STATE_READY == hsmbus->State)
+  {
+    hsmbus->AddrCallback = pCallback;
+  }
+  else
+  {
+    /* Update the error code */
+    hsmbus->ErrorCode |= HAL_SMBUS_ERROR_INVALID_CALLBACK;
+
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hsmbus);
+  return status;
+}

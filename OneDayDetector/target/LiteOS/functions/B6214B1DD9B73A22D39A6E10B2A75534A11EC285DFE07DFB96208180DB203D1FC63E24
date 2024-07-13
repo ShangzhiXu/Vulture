@@ -1,0 +1,60 @@
+START_TEST(test_dhcp_nak)
+{
+  ip4_addr_t addr;
+  ip4_addr_t netmask;
+  ip4_addr_t gw;
+  u32_t xid;
+  LWIP_UNUSED_ARG(_i);
+
+  tcase = TEST_LWIP_DHCP;
+  setdebug(0);
+
+  IP4_ADDR(&addr, 0, 0, 0, 0);
+  IP4_ADDR(&netmask, 0, 0, 0, 0);
+  IP4_ADDR(&gw, 0, 0, 0, 0);
+
+  netif_add(&net_test, &addr, &netmask, &gw, &net_test, testif_init, ethernet_input);
+  netif_set_link_up(&net_test);
+  netif_set_up(&net_test);
+
+  dhcp_start(&net_test);
+
+  fail_unless(txpacket == 1); /* DHCP discover sent */
+  xid = netif_dhcp_data(&net_test)->xid; /* Write bad xid, not using htonl! */
+  memcpy(&dhcp_offer[46], &xid, 4);
+  send_pkt(&net_test, dhcp_offer, sizeof(dhcp_offer));
+
+  /* IP addresses should be zero */
+  fail_if(memcmp(&addr, &net_test.ip_addr, sizeof(ip4_addr_t)));
+  fail_if(memcmp(&netmask, &net_test.netmask, sizeof(ip4_addr_t)));
+  fail_if(memcmp(&gw, &net_test.gw, sizeof(ip4_addr_t)));
+
+  fail_unless(txpacket == 1); /* Nothing more sent */
+  xid = htonl(netif_dhcp_data(&net_test)->xid);
+  memcpy(&dhcp_offer[46], &xid, 4); /* insert correct transaction id */
+  send_pkt(&net_test, dhcp_offer, sizeof(dhcp_offer));
+
+  fail_unless(txpacket == 2); /* DHCP request sent */
+  xid = netif_dhcp_data(&net_test)->xid; /* Write bad xid, not using htonl! */
+  memcpy(&dhcp_ack[46], &xid, 4);
+  send_pkt(&net_test, dhcp_ack, sizeof(dhcp_ack));
+
+  fail_unless(txpacket == 2); /* No more sent */
+  xid = htonl(netif_dhcp_data(&net_test)->xid); /* xid updated */
+  memcpy(&dhcp_ack[46], &xid, 4); /* insert transaction id */
+  send_pkt(&net_test, dhcp_ack, sizeof(dhcp_ack));
+
+  fail_unless(txpacket == 3); /* ARP request sent */
+
+  tcase = TEST_LWIP_DHCP_NAK; /* Switch testcase */
+
+  /* Send arp reply, mark offered IP as taken */
+  send_pkt(&net_test, arpreply, sizeof(arpreply));
+
+  fail_unless(txpacket == 4); /* DHCP nak sent */
+
+  tcase = TEST_NONE;
+  dhcp_stop(&net_test);
+  dhcp_cleanup(&net_test);
+  netif_remove(&net_test);
+}

@@ -1,0 +1,20 @@
+SECUREC_INLINE void SecDecodeTypeSwchar(SecFormatAttr *attr)
+{
+#if SECUREC_HAVE_WCHART
+    size_t textLen;
+    attr->textIsWide = 1;
+    if (attr->text.wStr == NULL) {
+        /*
+         * Literal string to print null ptr, define it as array rather than const text area
+         * To avoid gcc warning with pointing const text with variable
+         */
+        static wchar_t wStrNullString[SECUREC_NULL_STRING_SIZE] = { L'(', L'n', L'u', L'l', L'l', L')', L'\0', L'\0' };
+        attr->text.wStr = wStrNullString;
+    }
+    /* The textLen in wchar_t,when precision is -1, it is unlimited  */
+    SECUREC_CALC_WSTR_LEN(attr->text.wStr, (size_t)(unsigned int)attr->precision, &textLen);
+    attr->textLen = (int)textLen;
+#else
+    attr->textLen = 0;
+#endif
+}

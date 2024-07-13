@@ -1,0 +1,27 @@
+static void test_file_write_exception(void **state)
+{
+    int fd;
+    int ret;
+    size_t wrlen = sizeof(write_buf);
+
+    fd = los_open(file_name, O_CREAT | O_RDWR | O_TRUNC);
+    assert_in_range(fd, 0, LOS_MAX_FILES);
+
+    ret = los_write(fd, 0, wrlen);
+    assert_true(ret <= 0);
+
+    ret = los_write(fd, write_buf, 0);
+    assert_true(ret <= 0);
+
+    ret = los_close(fd);
+    assert_int_equal(ret, 0);
+
+    fd = los_open(file_name, O_CREAT | O_RDONLY | O_TRUNC);
+    assert_in_range(fd, 0, LOS_MAX_FILES);
+
+    ret = los_write(fd, write_buf, wrlen);
+    assert_true(ret <= 0);
+
+    ret = los_close(fd);
+    assert_int_equal(ret, 0);
+}

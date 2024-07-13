@@ -1,0 +1,33 @@
+int dev_random_entropy_poll( void *data, unsigned char *output,
+                             size_t len, size_t *olen )
+{
+    FILE *file;
+    size_t ret, left = len;
+    unsigned char *p = output;
+    ((void) data);
+
+    *olen = 0;
+
+    file = fopen( "/dev/random", "rb" );
+    if( file == NULL )
+        return( MBEDTLS_ERR_ENTROPY_SOURCE_FAILED );
+
+    while( left > 0 )
+    {
+        /* /dev/random can return much less than requested. If so, try again */
+        ret = fread( p, 1, left, file );
+        if( ret == 0 && ferror( file ) )
+        {
+            fclose( file );
+            return( MBEDTLS_ERR_ENTROPY_SOURCE_FAILED );
+        }
+
+        p += ret;
+        left -= ret;
+        sleep( 1 );
+    }
+    fclose( file );
+    *olen = len;
+
+    return( 0 );
+}

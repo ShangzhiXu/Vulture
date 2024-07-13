@@ -1,0 +1,46 @@
+uint32_t osThreadFlagsWait(uint32_t flags, uint32_t options, uint32_t timeout)
+{
+    UINT32 ret;
+    LosTaskCB *runTask = NULL;
+    EVENT_CB_S *eventCB = NULL;
+    UINT32 mode = 0;
+
+    if (OS_INT_ACTIVE) {
+        return (uint32_t)osFlagsErrorUnknown;
+    }
+
+    if (options > (osFlagsWaitAny | osFlagsWaitAll | osFlagsNoClear)) {
+        return (uint32_t)osFlagsErrorParameter;
+    }
+
+    if ((options & osFlagsWaitAll) == osFlagsWaitAll) {
+        mode |= LOS_WAITMODE_AND;
+    } else {
+        mode |= LOS_WAITMODE_OR;
+    }
+
+    if ((options & osFlagsNoClear)  == osFlagsNoClear) {
+        mode &= ~LOS_WAITMODE_CLR;
+    } else {
+        mode |= LOS_WAITMODE_CLR;
+    }
+
+    runTask = OsCurrTaskGet();
+    eventCB = &(runTask->event);
+    ret = LOS_EventRead(eventCB, (UINT32)flags, mode, (UINT32)timeout);
+    if (!(ret & LOS_ERRTYPE_ERROR)) {
+        return (uint32_t)ret;
+    }
+
+    switch (ret) {
+        case LOS_ERRNO_EVENT_PTR_NULL:
+        case LOS_ERRNO_EVENT_SETBIT_INVALID:
+        case LOS_ERRNO_EVENT_EVENTMASK_INVALID:
+        case LOS_ERRNO_EVENT_FLAGS_INVALID:
+            return (uint32_t)osFlagsErrorParameter;
+        case LOS_ERRNO_EVENT_READ_TIMEOUT:
+            return (uint32_t)osFlagsErrorTimeout;
+        default:
+            return (uint32_t)osFlagsErrorResource;
+    }
+}

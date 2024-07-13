@@ -1,0 +1,25 @@
+static void JPEG_DMAErrorCallback(DMA_HandleTypeDef *hdma)
+{
+  JPEG_HandleTypeDef *hjpeg = (JPEG_HandleTypeDef *)((DMA_HandleTypeDef *)hdma)->Parent;
+
+  /* if DMA error is FIFO error ignore it */
+  if (HAL_DMA_GetError(hdma) != HAL_DMA_ERROR_FE)
+  {
+    /*Stop Encoding/Decoding*/
+    hjpeg->Instance->CONFR0 &=  ~JPEG_CONFR0_START;
+
+    /* Disable All Interrupts */
+    __HAL_JPEG_DISABLE_IT(hjpeg, JPEG_INTERRUPT_MASK);
+
+    /* Disable All DMA requests */
+    JPEG_DISABLE_DMA(hjpeg, JPEG_DMA_MASK);
+
+    hjpeg->State = HAL_JPEG_STATE_READY;
+    hjpeg->ErrorCode |= HAL_JPEG_ERROR_DMA;
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+    hjpeg->ErrorCallback(hjpeg);
+#else
+    HAL_JPEG_ErrorCallback(hjpeg);
+#endif /* USE_HAL_JPEG_REGISTER_CALLBACKS */
+  }
+}

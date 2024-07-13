@@ -1,0 +1,22 @@
+dns_local_iterate(dns_found_callback iterator_fn, void *iterator_arg)
+{
+  size_t i;
+#if DNS_LOCAL_HOSTLIST_IS_DYNAMIC
+  struct local_hostlist_entry *entry = local_hostlist_dynamic;
+  i = 0;
+  while (entry != NULL) {
+    if (iterator_fn != NULL) {
+      iterator_fn(entry->name, &entry->addr, iterator_arg);
+    }
+    i++;
+    entry = entry->next;
+  }
+#else /* DNS_LOCAL_HOSTLIST_IS_DYNAMIC */
+  for (i = 0; i < LWIP_ARRAYSIZE(local_hostlist_static); i++) {
+    if (iterator_fn != NULL) {
+      iterator_fn(local_hostlist_static[i].name, &local_hostlist_static[i].addr, iterator_arg);
+    }
+  }
+#endif /* DNS_LOCAL_HOSTLIST_IS_DYNAMIC */
+  return i;
+}

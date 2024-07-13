@@ -1,0 +1,27 @@
+dns_init_local(void)
+{
+#if DNS_LOCAL_HOSTLIST_IS_DYNAMIC && defined(DNS_LOCAL_HOSTLIST_INIT)
+  size_t i;
+  struct local_hostlist_entry *entry;
+  /* Dynamic: copy entries from DNS_LOCAL_HOSTLIST_INIT to list */
+  struct local_hostlist_entry local_hostlist_init[] = DNS_LOCAL_HOSTLIST_INIT;
+  size_t namelen;
+  for (i = 0; i < LWIP_ARRAYSIZE(local_hostlist_init); i++) {
+    struct local_hostlist_entry *init_entry = &local_hostlist_init[i];
+    LWIP_ASSERT("invalid host name (NULL)", init_entry->name != NULL);
+    namelen = strlen(init_entry->name);
+    LWIP_ASSERT("namelen <= DNS_LOCAL_HOSTLIST_MAX_NAMELEN", namelen <= DNS_LOCAL_HOSTLIST_MAX_NAMELEN);
+    entry = (struct local_hostlist_entry *)memp_malloc(MEMP_LOCALHOSTLIST);
+    LWIP_ASSERT("mem-error in dns_init_local", entry != NULL);
+    if (entry != NULL) {
+      char *entry_name = (char *)entry + sizeof(struct local_hostlist_entry);
+      MEMCPY(entry_name, init_entry->name, namelen);
+      entry_name[namelen] = 0;
+      entry->name = entry_name;
+      entry->addr = init_entry->addr;
+      entry->next = local_hostlist_dynamic;
+      local_hostlist_dynamic = entry;
+    }
+  }
+#endif /* DNS_LOCAL_HOSTLIST_IS_DYNAMIC && defined(DNS_LOCAL_HOSTLIST_INIT) */
+}

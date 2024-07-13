@@ -1,0 +1,15 @@
+void np_down(ppp_pcb *pcb, int proto) {
+    LWIP_UNUSED_ARG(proto);
+    if (--pcb->num_np_up == 0) {
+#if PPP_IDLETIMELIMIT
+	UNTIMEOUT(check_idle, (void*)pcb);
+#endif /* PPP_IDLETIMELIMIT */
+#if PPP_MAXCONNECT
+	UNTIMEOUT(connect_time_expired, NULL);
+#endif /* PPP_MAXCONNECT */
+#ifdef MAXOCTETS
+	UNTIMEOUT(check_maxoctets, NULL);
+#endif
+	new_phase(pcb, PPP_PHASE_NETWORK);
+    }
+}

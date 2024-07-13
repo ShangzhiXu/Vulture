@@ -1,0 +1,23 @@
+char *initstate(unsigned seed, char *state, size_t size) {
+	void *old;
+
+	if (size < 8)
+		return 0;
+	LOCK(lock);
+	old = savestate();
+	if (size < 32)
+		n = 0;
+	else if (size < 64)
+		n = 7;
+	else if (size < 128)
+		n = 15;
+	else if (size < 256)
+		n = 31;
+	else
+		n = 63;
+	x = (uint32_t*)state + 1;
+	__srandom(seed);
+	savestate();
+	UNLOCK(lock);
+	return old;
+}

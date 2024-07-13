@@ -1,0 +1,22 @@
+static void eap_success(ppp_pcb *pcb, u_char *inp, int id, int len) {
+	LWIP_UNUSED_ARG(id);
+
+	if (pcb->eap.es_client.ea_state != eapOpen && !eap_client_active(pcb)) {
+		ppp_dbglog("EAP unexpected success message in state %s (%d)",
+		    eap_state_name(pcb->eap.es_client.ea_state),
+		    pcb->eap.es_client.ea_state);
+		return;
+	}
+
+	if (pcb->settings.eap_req_time > 0) {
+		UNTIMEOUT(eap_client_timeout, pcb);
+	}
+
+	if (len > 0) {
+		/* This is odd.  The spec doesn't allow for this. */
+		PRINTMSG(inp, len);
+	}
+
+	pcb->eap.es_client.ea_state = eapOpen;
+	auth_withpeer_success(pcb, PPP_EAP, 0);
+}

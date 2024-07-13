@@ -1,0 +1,48 @@
+HAL_StatusTypeDef HAL_DFSDM_ChannelDeInit(DFSDM_Channel_HandleTypeDef *hdfsdm_channel)
+{
+  /* Check DFSDM Channel handle */
+  if(hdfsdm_channel == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check parameters */
+  assert_param(IS_DFSDM_CHANNEL_ALL_INSTANCE(hdfsdm_channel->Instance));
+  
+  /* Check that channel has not been already deinitialized */
+  if(a_dfsdm1ChannelHandle[DFSDM_GetChannelFromInstance(hdfsdm_channel->Instance)] == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Disable the DFSDM channel */
+  hdfsdm_channel->Instance->CHCFGR1 &= ~(DFSDM_CHCFGR1_CHEN);
+  
+  /* Update the channel counter */
+  v_dfsdm1ChannelCounter--;
+  
+  /* Disable global DFSDM at deinit of last channel */
+  if(v_dfsdm1ChannelCounter == 0)
+  {
+    DFSDM1_Channel0->CHCFGR1 &= ~(DFSDM_CHCFGR1_DFSDMEN);
+  }
+
+  /* Call MSP deinit function */
+#if (USE_HAL_DFSDM_REGISTER_CALLBACKS == 1)
+  if(hdfsdm_channel->MspDeInitCallback == NULL)
+  {
+    hdfsdm_channel->MspDeInitCallback = HAL_DFSDM_ChannelMspDeInit;
+  }
+  hdfsdm_channel->MspDeInitCallback(hdfsdm_channel);
+#else
+  HAL_DFSDM_ChannelMspDeInit(hdfsdm_channel);
+#endif
+
+  /* Set DFSDM Channel in reset state */
+  hdfsdm_channel->State = HAL_DFSDM_CHANNEL_STATE_RESET;
+
+  /* Reset channel handle in DFSDM channel handle table */
+  a_dfsdm1ChannelHandle[DFSDM_GetChannelFromInstance(hdfsdm_channel->Instance)] = (DFSDM_Channel_HandleTypeDef *) NULL;
+
+  return HAL_OK;
+}

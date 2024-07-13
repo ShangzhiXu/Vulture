@@ -1,0 +1,38 @@
+static void lv_refr_obj_and_children(lv_obj_t * top_p, const lv_area_t * mask_p)
+{
+    /* Normally always will be a top_obj (at least the screen)
+     * but in special cases (e.g. if the screen has alpha) it won't.
+     * In this case use the screen directly */
+    if(top_p == NULL) top_p = lv_disp_get_scr_act(disp_refr);
+    if(top_p == NULL) return;  /*Shouldn't happen*/
+
+    /*Refresh the top object and its children*/
+    lv_refr_obj(top_p, mask_p);
+
+    /*Draw the 'younger' sibling objects because they can be on top_obj */
+    lv_obj_t * par;
+    lv_obj_t * border_p = top_p;
+
+    par = lv_obj_get_parent(top_p);
+
+    /*Do until not reach the screen*/
+    while(par != NULL) {
+        /*object before border_p has to be redrawn*/
+        lv_obj_t * i = _lv_ll_get_prev(&(par->child_ll), border_p);
+
+        while(i != NULL) {
+            /*Refresh the objects*/
+            lv_refr_obj(i, mask_p);
+            i = _lv_ll_get_prev(&(par->child_ll), i);
+        }
+
+        /*Call the post draw design function of the parents of the to object*/
+        if(par->design_cb) par->design_cb(par, mask_p, LV_DESIGN_DRAW_POST);
+
+        /*The new border will be there last parents,
+         *so the 'younger' brothers of parent will be refreshed*/
+        border_p = par;
+        /*Go a level deeper*/
+        par = lv_obj_get_parent(par);
+    }
+}

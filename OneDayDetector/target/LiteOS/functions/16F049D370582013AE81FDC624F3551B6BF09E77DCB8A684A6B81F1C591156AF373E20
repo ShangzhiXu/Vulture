@@ -1,0 +1,35 @@
+static int flash_manager_parse(const char *buf, uint32_t len, flash_info_s *flash_info)
+{
+    uint32_t i;
+    uint32_t tmp_len;
+    int ret;
+
+    for (i = 0; i < MAX_DATA_ITEM; i++) {
+        tmp_len = strnlen(buf, len);
+        if ((tmp_len >= len) || (tmp_len > STRING_MAX_LEN)) {
+           ATINY_LOG(LOG_FATAL, "string len err tmp_len %ld,len %ld", tmp_len, len);
+           break;
+        }
+
+        flash_info->items[i] = atiny_strdup(buf);
+        if (flash_info->items[i] == NULL) {
+            ATINY_LOG(LOG_FATAL, "atiny_strdup fail");
+            ret = ATINY_MALLOC_FAILED;
+            goto EXIT_ERR;
+        }
+        buf += (tmp_len + 1);
+        len -= (tmp_len + 1);
+    }
+
+    if ((i != MAX_DATA_ITEM) || (len != 0)) {
+        ATINY_LOG(LOG_FATAL, "data info err item num %ld, left len %ld", i, len);
+        ret = ATINY_ERR;
+        goto EXIT_ERR;
+    }
+    ATINY_LOG(LOG_INFO, "deviceid and password exist");
+    return ATINY_OK;
+
+EXIT_ERR:
+    flash_manager_destroy_flash_info(flash_info);
+    return ret;
+}

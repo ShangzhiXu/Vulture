@@ -1,0 +1,55 @@
+void HAL_GPIO_DeInit(GPIO_TypeDef  *GPIOx, uint32_t GPIO_Pin)
+{ 
+  uint32_t position = 0x00;
+  uint32_t iocurrent = 0x00;
+  uint32_t tmp = 0x00;
+  __IO uint32_t *configregister; /* Store the address of CRL or CRH register based on pin number */
+  uint32_t registeroffset = 0;
+ 
+  /* Check the parameters */
+  assert_param(IS_GPIO_ALL_INSTANCE(GPIOx));
+  assert_param(IS_GPIO_PIN(GPIO_Pin));
+
+  /* Configure the port pins */
+  while ((GPIO_Pin >> position) != 0)
+  {
+    /* Get current io position */
+    iocurrent = (GPIO_Pin) & ((uint32_t)1 << position);
+
+    if (iocurrent)
+    {
+      /*------------------------- GPIO Mode Configuration --------------------*/
+      /* Check if the current bit belongs to first half or last half of the pin count number
+       in order to address CRH or CRL register */
+      configregister = (iocurrent < GPIO_PIN_8) ? &GPIOx->CRL     : &GPIOx->CRH;
+      registeroffset = (iocurrent < GPIO_PIN_8) ? (position << 2) : ((position - 8) << 2);
+      
+      /* CRL/CRH default value is floating input(0x04) shifted to correct position */
+      MODIFY_REG(*configregister, ((GPIO_CRL_MODE0 | GPIO_CRL_CNF0) << registeroffset ), GPIO_CRL_CNF0_0 << registeroffset);
+      
+      /* ODR default value is 0 */
+      CLEAR_BIT(GPIOx->ODR, iocurrent);
+      
+      /*------------------------- EXTI Mode Configuration --------------------*/
+      /* Clear the External Interrupt or Event for the current IO */
+      
+      tmp = AFIO->EXTICR[position >> 2];
+      tmp &= (((uint32_t)0x0F) << (4 * (position & 0x03)));
+      if(tmp == (GPIO_GET_INDEX(GPIOx) << (4 * (position & 0x03))))
+      {
+        tmp = ((uint32_t)0x0F) << (4 * (position & 0x03));
+        CLEAR_BIT(AFIO->EXTICR[position >> 2], tmp);
+          
+        /* Clear EXTI line configuration */
+        CLEAR_BIT(EXTI->IMR, (uint32_t)iocurrent);
+        CLEAR_BIT(EXTI->EMR, (uint32_t)iocurrent);
+        
+        /* Clear Rising Falling edge configuration */
+        CLEAR_BIT(EXTI->RTSR, (uint32_t)iocurrent);
+        CLEAR_BIT(EXTI->FTSR, (uint32_t)iocurrent);
+      }
+    }
+    
+    position++;
+  }
+}

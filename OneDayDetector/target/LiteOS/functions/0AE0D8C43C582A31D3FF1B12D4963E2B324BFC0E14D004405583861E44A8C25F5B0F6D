@@ -1,0 +1,25 @@
+int MQTTDeserialize_ack(unsigned char *packettype, unsigned char *dup, unsigned short *packetid, unsigned char *buf, int buflen)
+{
+    MQTTHeader header = {0};
+    unsigned char *curdata = buf;
+    unsigned char *enddata = NULL;
+    int rc = 0;
+    int mylen;
+
+    FUNC_ENTRY;
+    header.byte = readChar(&curdata);
+    *dup = header.bits.dup;
+    *packettype = header.bits.type;
+
+    curdata += (rc = MQTTPacket_decodeBuf(curdata, &mylen)); /* read remaining length */
+    enddata = curdata + mylen;
+
+    if (enddata - curdata < 2)
+        goto exit;
+    *packetid = readInt(&curdata);
+
+    rc = 1;
+exit:
+    FUNC_EXIT_RC(rc);
+    return rc;
+}

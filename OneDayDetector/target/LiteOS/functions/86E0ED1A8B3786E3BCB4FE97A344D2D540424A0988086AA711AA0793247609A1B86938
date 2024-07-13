@@ -1,0 +1,29 @@
+static void UART_DMAReceiveCplt(DMA_HandleTypeDef *hdma)
+{
+  UART_HandleTypeDef *huart = (UART_HandleTypeDef *)(hdma->Parent);
+
+  /* DMA Normal mode */
+  if (hdma->Init.Mode != DMA_CIRCULAR)
+  {
+    huart->RxXferCount = 0U;
+
+    /* Disable PE and ERR (Frame error, noise error, overrun error) interrupts */
+    CLEAR_BIT(huart->Instance->CR1, USART_CR1_PEIE);
+    CLEAR_BIT(huart->Instance->CR3, USART_CR3_EIE);
+
+    /* Disable the DMA transfer for the receiver request by resetting the DMAR bit
+       in the UART CR3 register */
+    CLEAR_BIT(huart->Instance->CR3, USART_CR3_DMAR);
+
+    /* At end of Rx process, restore huart->RxState to Ready */
+    huart->RxState = HAL_UART_STATE_READY;
+  }
+
+#if (USE_HAL_UART_REGISTER_CALLBACKS == 1)
+  /*Call registered Rx complete callback*/
+  huart->RxCpltCallback(huart);
+#else
+  /*Call legacy weak Rx complete callback*/
+  HAL_UART_RxCpltCallback(huart);
+#endif /* USE_HAL_UART_REGISTER_CALLBACKS */
+}

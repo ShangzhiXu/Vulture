@@ -1,0 +1,29 @@
+static bool_t checkcpin(char *devname, int times)
+{
+    bool_t result = false;
+    char *argv[6];
+    int argc;
+    int i = 0;
+    char atrcvbuf[CN_AT_LEN];
+    // first we should check if the sim card inserted:at+cpin?
+    printf("checkcpin:");
+    for (i = 0; i < times; i++) {
+        printf("%d->", i);
+        memset(argv, 0, sizeof(argv));
+        memset(atrcvbuf, 0, sizeof(atrcvbuf));
+        argc = AtCmd(devname, "AT+CPIN?", atrcvbuf, CN_AT_LEN, 6, argv);
+        if (argc > 0) {
+            if (strinargs(argc, argv, "READY") != -1) {
+                result = true;
+                break;
+            }
+        }
+        task_sleepms(1000);
+    }
+    if (result) {
+        printf(".:OK\n\r");
+    } else {
+        printf(".timeout!\n\r");
+    }
+    return result;
+}

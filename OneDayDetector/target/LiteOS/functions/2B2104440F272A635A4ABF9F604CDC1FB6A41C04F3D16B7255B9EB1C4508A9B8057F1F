@@ -1,0 +1,54 @@
+static void SMARTCARD_SetConfig(SMARTCARD_HandleTypeDef *hsc)
+{
+  /* Check the parameters */
+  assert_param(IS_SMARTCARD_POLARITY(hsc->Init.CLKPolarity));
+  assert_param(IS_SMARTCARD_PHASE(hsc->Init.CLKPhase));
+  assert_param(IS_SMARTCARD_LASTBIT(hsc->Init.CLKLastBit));
+  assert_param(IS_SMARTCARD_BAUDRATE(hsc->Init.BaudRate));  
+  assert_param(IS_SMARTCARD_WORD_LENGTH(hsc->Init.WordLength));
+  assert_param(IS_SMARTCARD_STOPBITS(hsc->Init.StopBits));
+  assert_param(IS_SMARTCARD_PARITY(hsc->Init.Parity));
+  assert_param(IS_SMARTCARD_MODE(hsc->Init.Mode));
+  assert_param(IS_SMARTCARD_NACK_STATE(hsc->Init.NACKState));
+
+  /* The LBCL, CPOL and CPHA bits have to be selected when both the transmitter and the
+     receiver are disabled (TE=RE=0) to ensure that the clock pulses function correctly. */
+  CLEAR_BIT(hsc->Instance->CR1, (uint32_t)(USART_CR1_TE | USART_CR1_RE));
+  
+  /*------ SMARTCARD-associated USART registers setting : CR2 Configuration ------*/
+  /* Clear CLKEN, CPOL, CPHA and LBCL bits */
+  /* Configure the SMARTCARD Clock, CPOL, CPHA and LastBit -----------------------*/
+  /* Set CPOL bit according to hsc->Init.CLKPolarity value */
+  /* Set CPHA bit according to hsc->Init.CLKPhase value */
+  /* Set LBCL bit according to hsc->Init.CLKLastBit value */
+  MODIFY_REG(hsc->Instance->CR2, 
+             ((uint32_t)(USART_CR2_CPHA | USART_CR2_CPOL | USART_CR2_CLKEN | USART_CR2_LBCL)),
+             ((uint32_t)(USART_CR2_CLKEN | hsc->Init.CLKPolarity | hsc->Init.CLKPhase| hsc->Init.CLKLastBit)) );
+  
+  /* Set Stop Bits: Set STOP[13:12] bits according to hsc->Init.StopBits value */
+  MODIFY_REG(hsc->Instance->CR2, USART_CR2_STOP,(uint32_t)(hsc->Init.StopBits));
+
+  /*------ SMARTCARD-associated USART registers setting : CR1 Configuration ------*/
+  /* Clear M, PCE, PS, TE and RE bits */
+  /* Configure the SMARTCARD Word Length, Parity and mode: 
+     Set the M according to hsc->Init.WordLength value (forced to 1 as 9B data frame should be selected)
+     Set PCE and PS bits according to hsc->Init.Parity value (PCE bit forced to 1 as parity control should always be enabled)
+     Set TE and RE bits according to hsc->Init.Mode value */
+  MODIFY_REG(hsc->Instance->CR1, 
+             ((uint32_t)(USART_CR1_M | USART_CR1_PCE | USART_CR1_PS | USART_CR1_TE | USART_CR1_RE)),
+             ((uint32_t)(USART_CR1_M | USART_CR1_PCE | hsc->Init.Parity | hsc->Init.Mode)) );
+
+  /*------ SMARTCARD-associated USART registers setting : CR3 Configuration ------*/
+  /* Clear CTSE and RTSE bits */
+  CLEAR_BIT(hsc->Instance->CR3, (USART_CR3_RTSE | USART_CR3_CTSE));
+
+  /*------ SMARTCARD-associated USART registers setting : BRR Configuration ------*/
+  if(hsc->Instance == USART1)
+  {
+    hsc->Instance->BRR = SMARTCARD_BRR(HAL_RCC_GetPCLK2Freq(), hsc->Init.BaudRate);
+  }
+  else
+  {
+    hsc->Instance->BRR = SMARTCARD_BRR(HAL_RCC_GetPCLK1Freq(), hsc->Init.BaudRate);
+  }
+}

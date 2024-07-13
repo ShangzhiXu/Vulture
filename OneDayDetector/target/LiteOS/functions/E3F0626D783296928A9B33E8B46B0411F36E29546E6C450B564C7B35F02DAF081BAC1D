@@ -1,0 +1,24 @@
+static ErrorStatus IC1Config(TIM_TypeDef *TIMx, LL_TIM_IC_InitTypeDef *TIM_ICInitStruct)
+{
+  /* Check the parameters */
+  assert_param(IS_TIM_CC1_INSTANCE(TIMx));
+  assert_param(IS_LL_TIM_IC_POLARITY(TIM_ICInitStruct->ICPolarity));
+  assert_param(IS_LL_TIM_ACTIVEINPUT(TIM_ICInitStruct->ICActiveInput));
+  assert_param(IS_LL_TIM_ICPSC(TIM_ICInitStruct->ICPrescaler));
+  assert_param(IS_LL_TIM_IC_FILTER(TIM_ICInitStruct->ICFilter));
+
+  /* Disable the Channel 1: Reset the CC1E Bit */
+  TIMx->CCER &= (uint32_t)~TIM_CCER_CC1E;
+
+  /* Select the Input and set the filter and the prescaler value */
+  MODIFY_REG(TIMx->CCMR1,
+             (TIM_CCMR1_CC1S | TIM_CCMR1_IC1F | TIM_CCMR1_IC1PSC),
+             (TIM_ICInitStruct->ICActiveInput | TIM_ICInitStruct->ICFilter | TIM_ICInitStruct->ICPrescaler) >> 16U);
+
+  /* Select the Polarity and set the CC1E Bit */
+  MODIFY_REG(TIMx->CCER,
+             (TIM_CCER_CC1P | TIM_CCER_CC1NP),
+             (TIM_ICInitStruct->ICPolarity | TIM_CCER_CC1E));
+
+  return SUCCESS;
+}

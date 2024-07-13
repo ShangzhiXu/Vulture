@@ -1,0 +1,21 @@
+LITE_OS_SEC_TEXT STATIC LOS_DL_LIST *OsMuxPendFindPos(const LosTaskCB *runTask, MuxBaseCB *muxPended)
+{
+    LOS_DL_LIST *node = NULL;
+    LosTaskCB *pendedTask1 = NULL;
+    LosTaskCB *pendedTask2 = NULL;
+
+    if (LOS_ListEmpty(&muxPended->muxList)) {
+        node = &muxPended->muxList;
+    } else {
+        pendedTask1 = OS_TCB_FROM_PENDLIST(LOS_DL_LIST_FIRST(&muxPended->muxList));
+        pendedTask2 = OS_TCB_FROM_PENDLIST(LOS_DL_LIST_LAST(&muxPended->muxList));
+        if ((pendedTask1 != NULL) && (pendedTask1->priority > runTask->priority)) {
+            node = muxPended->muxList.pstNext;
+        } else if ((pendedTask2 != NULL) && (pendedTask2->priority <= runTask->priority)) {
+            node = &muxPended->muxList;
+        } else {
+            node = OsMuxPendFindPosSub(runTask, muxPended);
+        }
+    }
+    return node;
+}

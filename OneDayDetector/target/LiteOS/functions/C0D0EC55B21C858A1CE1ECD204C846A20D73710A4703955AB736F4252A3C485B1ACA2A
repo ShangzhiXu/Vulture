@@ -1,0 +1,21 @@
+STATIC VOID PthreadReap(VOID)
+{
+    UINT32 i;
+    _pthread_data *data = NULL;
+    /*
+     * Loop over the thread table looking for exited threads. The
+     * g_pthreadsExited counter springs us out of this once we have
+     * found them all (and keeps us out if there are none to do).
+     */
+    for (i = 0; g_pthreadsExited && (i < g_taskMaxNum); i++) {
+        data = &g_pthreadData[i];
+        if (data->state == PTHREAD_STATE_EXITED) {
+            /* the Huawei LiteOS not delete the dead TCB,so need to delete the TCB */
+            (VOID)LOS_TaskDelete(data->task->taskId);
+            if (data->task->taskStatus == OS_TASK_STATUS_UNUSED) {
+                ProcessUnusedStatusTask(data);
+                g_pthreadsExited--;
+            }
+        }
+    }
+}

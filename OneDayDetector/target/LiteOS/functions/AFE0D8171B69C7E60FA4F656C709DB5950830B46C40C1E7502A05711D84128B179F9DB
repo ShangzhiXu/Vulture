@@ -1,0 +1,28 @@
+static void USART_DMATransmitCplt(DMA_HandleTypeDef *hdma)
+{
+  USART_HandleTypeDef* husart = ( USART_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+
+  /* DMA Normal mode */
+  if ( HAL_IS_BIT_CLR(hdma->Instance->CCR, DMA_CCR_CIRC) )
+  {
+    husart->TxXferCount = 0;
+
+    if(husart->State == HAL_USART_STATE_BUSY_TX)
+    {
+      /* Disable the DMA transfer for transmit request by resetting the DMAT bit
+         in the USART CR3 register */
+      CLEAR_BIT(husart->Instance->CR3, USART_CR3_DMAT);
+      
+      /* Enable the USART Transmit Complete Interrupt */    
+      __HAL_USART_ENABLE_IT(husart, USART_IT_TC);
+    }
+  }
+  /* DMA Circular mode */
+  else
+  {
+    if(husart->State == HAL_USART_STATE_BUSY_TX)
+    {
+      HAL_USART_TxCpltCallback(husart);
+    }
+  }
+}

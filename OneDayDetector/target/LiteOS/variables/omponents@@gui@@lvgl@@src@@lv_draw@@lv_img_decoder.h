@@ -1,0 +1,14 @@
+    lv_img_decoder_close_f_t close_cb;
+    lv_color_t color;
+    lv_img_decoder_t * decoder;
+    const char * error_msg;
+    lv_img_header_t header;
+    const uint8_t * img_data;
+    lv_img_decoder_info_f_t info_cb;
+    lv_img_decoder_open_f_t open_cb;
+    lv_img_decoder_read_line_f_t read_line_cb;
+    const void * src;
+    lv_img_src_t src_type;
+    uint32_t time_to_open;
+    lv_img_decoder_user_data_t user_data;
+    void * user_data;

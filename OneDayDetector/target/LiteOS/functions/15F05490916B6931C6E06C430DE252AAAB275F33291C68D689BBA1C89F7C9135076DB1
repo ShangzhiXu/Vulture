@@ -1,0 +1,34 @@
+int dst_enable(const char *strDstStartTime, const char *strDstEndTime, int swForwardSeconds)
+{
+    if (LOCK(lock)) {
+        return -1;
+    }
+
+    /* Check if the format of dst config is correct. */
+    if (DstConfigCheck(strDstStartTime, strDstEndTime) != TRUE) {
+        (void)UNLOCK(lock);
+        return -1;
+    }
+
+    if ((swForwardSeconds < 0) || (swForwardSeconds >= 24 * 3600)) { /* seconds per day 24 * 3600 */
+        (void)UNLOCK(lock);
+        return -1;
+    }
+
+    g_isDstWork = FALSE;
+    if (strncpy_s(g_strDstStart, DST_SET_LENGTH_MAX, strDstStartTime, strlen(strDstStartTime)) != EOK) {
+        (void)UNLOCK(lock);
+        return -1;
+    }
+    if (strncpy_s(g_strDstEnd, DST_SET_LENGTH_MAX, strDstEndTime, strlen(strDstEndTime)) != EOK) {
+        (void)UNLOCK(lock);
+        return -1;
+    }
+
+    g_dstForwardSeconds = swForwardSeconds;
+    g_isDstWork = TRUE;
+
+    (void)UNLOCK(lock);
+
+    return 0;
+}

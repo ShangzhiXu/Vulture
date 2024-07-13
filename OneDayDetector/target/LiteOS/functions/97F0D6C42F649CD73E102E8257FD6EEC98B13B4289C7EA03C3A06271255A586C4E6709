@@ -1,0 +1,46 @@
+static void DCMI_DMAHalfXferCplt(DMA_HandleTypeDef *hdma)
+{
+  uint32_t loop_length       = 0;     /* transfer length  */
+  uint32_t * tmpBuffer_Dest  = NULL;
+  uint32_t * tmpBuffer_Orig  = NULL;  
+  
+  DCMI_HandleTypeDef* hdcmi = ( DCMI_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+  
+  if(hdcmi->XferCount != 0)
+  {
+    /* Manage first half buffer copy in case of big transfer */ 
+    
+    /* Decrement half-copies counter */
+    hdcmi->XferCount--;  
+    
+    /* Point at DCMI final destination */
+    tmpBuffer_Dest = (uint32_t *)hdcmi->pBuffPtr;  
+    
+    /* Point at DCMI circular buffer start */
+    tmpBuffer_Orig = (uint32_t *)hdcmi->pCircularBuffer;           
+    
+    /* copy half the buffer size */
+    loop_length = hdcmi->HalfCopyLength;
+    
+    /* Save next entry to write at next DMA transfer interruption */
+    hdcmi->pBuffPtr += (uint32_t) loop_length*4;
+    hdcmi->XferSize -= hdcmi->HalfCopyLength;    
+
+    /* Data copy from work buffer to final destination buffer */
+    /* Enable the DMA Channel */
+    if (HAL_DMA_Start_IT(hdcmi->DMAM2M_Handle, (uint32_t) tmpBuffer_Orig, (uint32_t) tmpBuffer_Dest, loop_length) != HAL_OK)
+    {
+      /* Update error code */
+      hdcmi->ErrorCode |= HAL_DCMI_ERROR_DMA;
+            
+      /* Change DCMI state */
+      hdcmi->State = HAL_DCMI_STATE_READY;    
+    
+      /* Process Unlocked */
+      __HAL_UNLOCK(hdcmi);
+
+      /* Error Callback */
+      HAL_DCMI_ErrorCallback(hdcmi);    
+    }        
+  }
+}

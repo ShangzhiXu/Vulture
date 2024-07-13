@@ -1,0 +1,31 @@
+static void FMPI2C_DMAError(DMA_HandleTypeDef *hdma)
+{
+  uint32_t treatdmaerror = 0U;
+  FMPI2C_HandleTypeDef *hfmpi2c = (FMPI2C_HandleTypeDef *)(((DMA_HandleTypeDef *)hdma)->Parent); /* Derogation MISRAC2012-Rule-11.5 */
+
+  if (hfmpi2c->hdmatx != NULL)
+  {
+    if (__HAL_DMA_GET_COUNTER(hfmpi2c->hdmatx) == 0U)
+    {
+      treatdmaerror = 1U;
+    }
+  }
+
+  if (hfmpi2c->hdmarx != NULL)
+  {
+    if (__HAL_DMA_GET_COUNTER(hfmpi2c->hdmarx) == 0U)
+    {
+      treatdmaerror = 1U;
+    }
+  }
+
+  /* Check if a FIFO error is detected, if true normal use case, so no specific action to perform */
+  if (!((HAL_DMA_GetError(hdma) == HAL_DMA_ERROR_FE)) && (treatdmaerror != 0U))
+  {
+    /* Disable Acknowledge */
+    hfmpi2c->Instance->CR2 |= FMPI2C_CR2_NACK;
+
+    /* Call the corresponding callback to inform upper layer of End of Transfer */
+    FMPI2C_ITError(hfmpi2c, HAL_FMPI2C_ERROR_DMA);
+  }
+}

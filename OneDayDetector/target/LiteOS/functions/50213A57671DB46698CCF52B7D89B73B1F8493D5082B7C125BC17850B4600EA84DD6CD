@@ -1,0 +1,106 @@
+HAL_StatusTypeDef HAL_ETH_TransmitFrame(ETH_HandleTypeDef *heth, uint32_t FrameLength)
+{
+  uint32_t bufcount = 0, size = 0, i = 0;
+  
+  /* Process Locked */
+  __HAL_LOCK(heth);
+  
+  /* Set the ETH peripheral state to BUSY */
+  heth->State = HAL_ETH_STATE_BUSY;
+  
+  if (FrameLength == 0) 
+  {
+    /* Set ETH HAL state to READY */
+    heth->State = HAL_ETH_STATE_READY;
+    
+    /* Process Unlocked */
+    __HAL_UNLOCK(heth);
+    
+    return  HAL_ERROR;                                    
+  }  
+  
+  /* Check if the descriptor is owned by the ETHERNET DMA (when set) or CPU (when reset) */
+  if(((heth->TxDesc)->Status & ETH_DMATXDESC_OWN) != (uint32_t)RESET)
+  {  
+    /* OWN bit set */
+    heth->State = HAL_ETH_STATE_BUSY_TX;
+    
+    /* Process Unlocked */
+    __HAL_UNLOCK(heth);
+    
+    return HAL_ERROR;
+  }
+  
+  /* Get the number of needed Tx buffers for the current frame */
+  if (FrameLength > ETH_TX_BUF_SIZE)
+  {
+    bufcount = FrameLength/ETH_TX_BUF_SIZE;
+    if (FrameLength % ETH_TX_BUF_SIZE) 
+    {
+      bufcount++;
+    }
+  }
+  else 
+  {  
+    bufcount = 1;
+  }
+  if (bufcount == 1)
+  {
+    /* Set LAST and FIRST segment */
+    heth->TxDesc->Status |=ETH_DMATXDESC_FS|ETH_DMATXDESC_LS;
+    /* Set frame size */
+    heth->TxDesc->ControlBufferSize = (FrameLength & ETH_DMATXDESC_TBS1);
+    /* Set Own bit of the Tx descriptor Status: gives the buffer back to ETHERNET DMA */
+    heth->TxDesc->Status |= ETH_DMATXDESC_OWN;
+    /* Point to next descriptor */
+    heth->TxDesc= (ETH_DMADescTypeDef *)(heth->TxDesc->Buffer2NextDescAddr);
+  }
+  else
+  {
+    for (i=0; i< bufcount; i++)
+    {
+      /* Clear FIRST and LAST segment bits */
+      heth->TxDesc->Status &= ~(ETH_DMATXDESC_FS | ETH_DMATXDESC_LS);
+      
+      if (i == 0) 
+      {
+        /* Setting the first segment bit */
+        heth->TxDesc->Status |= ETH_DMATXDESC_FS;  
+      }
+      
+      /* Program size */
+      heth->TxDesc->ControlBufferSize = (ETH_TX_BUF_SIZE & ETH_DMATXDESC_TBS1);
+      
+      if (i == (bufcount-1))
+      {
+        /* Setting the last segment bit */
+        heth->TxDesc->Status |= ETH_DMATXDESC_LS;
+        size = FrameLength - (bufcount-1)*ETH_TX_BUF_SIZE;
+        heth->TxDesc->ControlBufferSize = (size & ETH_DMATXDESC_TBS1);
+      }
+      
+      /* Set Own bit of the Tx descriptor Status: gives the buffer back to ETHERNET DMA */
+      heth->TxDesc->Status |= ETH_DMATXDESC_OWN;
+      /* point to next descriptor */
+      heth->TxDesc = (ETH_DMADescTypeDef *)(heth->TxDesc->Buffer2NextDescAddr);
+    }
+  }
+  
+  /* When Tx Buffer unavailable flag is set: clear it and resume transmission */
+  if (((heth->Instance)->DMASR & ETH_DMASR_TBUS) != (uint32_t)RESET)
+  {
+    /* Clear TBUS ETHERNET DMA flag */
+    (heth->Instance)->DMASR = ETH_DMASR_TBUS;
+    /* Resume DMA transmission*/
+    (heth->Instance)->DMATPDR = 0;
+  }
+  
+  /* Set ETH HAL State to Ready */
+  heth->State = HAL_ETH_STATE_READY;
+  
+  /* Process Unlocked */
+  __HAL_UNLOCK(heth);
+  
+  /* Return function status */
+  return HAL_OK;
+}

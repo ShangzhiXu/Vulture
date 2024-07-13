@@ -1,0 +1,49 @@
+VOID HalClockInit(VOID)
+{
+    UINT32 temp;
+    UINT32 period = GET_SYS_CLOCK() / LOSCFG_BASE_CORE_TICK_PER_SECOND;
+
+#ifndef NO_SC_CTRL
+    /*
+     * enable time0, timer1 here,
+     * but only time0 is used for system clock.
+     */
+    READ_UINT32(temp, SYS_CTRL_REG_BASE + REG_SC_CTRL);
+    temp |= TIMER_TICK_ENABLE | TIMER_TIME_ENABLE;
+    WRITE_UINT32(temp, SYS_CTRL_REG_BASE + REG_SC_CTRL);
+#endif
+
+    /* disable first */
+    WRITE_UINT32(0x0, TIMER_TICK_REG_BASE + TIMER_CONTROL);
+
+    /* set init value as period */
+    WRITE_UINT32(period, TIMER_TICK_REG_BASE + TIMER_LOAD);
+
+    /*
+     * Timing mode: 32bits [bit 1 set as 1]
+     * ticking with 1/1 clock frequency [bit 3 set as 0, bit 2 set as 0]
+     * interrupt enabled [bit 5 set as 1]
+     * timer mode periodic [bit 6 set as 1]
+     */
+    temp = (1U << TIMER_COUNTING_MODE_BIT) | (1U << TIMER_INTERRUPT_ENABLE_BIT) | (1U << TIMER_SIZE_SELECT_BIT);
+    WRITE_UINT32(temp, TIMER_TICK_REG_BASE + TIMER_CONTROL);
+
+    /* init the timestamp and lastdec value */
+    ResetTimerMasked();
+
+    /* disable timer1 */
+    WRITE_UINT32(0x0, TIMER_TIME_REG_BASE + TIMER_CONTROL);
+    /* set init value as period */
+    WRITE_UINT32(0xffffffff, TIMER_TIME_REG_BASE + TIMER_LOAD);
+
+    /*
+     * Timing mode: 32bits [bit 1 set as 1]
+     * ticking with 1/1 clock frequency [bit 3 set as 0, bit 2 set as 0]
+     * timer mode periodic [bit 6 set as 1]
+     * timer enabled [bit 7 set as 1]
+     */
+    temp = (1U << TIMER_ENABLE_BIT) | (1U << TIMER_COUNTING_MODE_BIT) | (1U << TIMER_SIZE_SELECT_BIT);
+    WRITE_UINT32(temp, TIMER_TIME_REG_BASE + TIMER_CONTROL);
+
+    (void)LOS_HwiCreate(NUM_HAL_INTERRUPT_TIMER, OS_HWI_PRIO_LOWEST, 0, OsTickEntry, 0);
+}

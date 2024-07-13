@@ -1,0 +1,13 @@
+void upap_authpeer(ppp_pcb *pcb) {
+
+    /* Lower layer up yet? */
+    if (pcb->upap.us_serverstate == UPAPSS_INITIAL ||
+	pcb->upap.us_serverstate == UPAPSS_PENDING) {
+	pcb->upap.us_serverstate = UPAPSS_PENDING;
+	return;
+    }
+
+    pcb->upap.us_serverstate = UPAPSS_LISTEN;
+    if (pcb->settings.pap_req_timeout > 0)
+	TIMEOUT(upap_reqtimeout, pcb, pcb->settings.pap_req_timeout);
+}

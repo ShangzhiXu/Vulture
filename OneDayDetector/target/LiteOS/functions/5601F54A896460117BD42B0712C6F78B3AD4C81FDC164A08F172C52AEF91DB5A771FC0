@@ -1,0 +1,48 @@
+SECUREC_INLINE SecInt SecGetCharFromFile(SecFileStream *stream)
+{
+    SecInt ch;
+    if (stream->count < sizeof(SecChar)) {
+        /* Load file to buffer */
+        size_t len;
+        if (stream->base != NULL) {
+            /* Put the last unread data in the buffer head */
+            for (len = 0; len < stream->count; ++len) {
+                stream->base[len] = stream->cur[len];
+            }
+        } else {
+            stream->oriFilePos = ftell(stream->pf);   /* Save original file read position */
+            if (stream->oriFilePos == -1) {
+                /* It may be a pipe stream */
+                stream->flag = SECUREC_PIPE_STREAM_FLAG;
+                return SecGetCharFromStream(stream);
+            }
+            /* Reserve the length of BOM head */
+            stream->base = (char *)SECUREC_MALLOC(SECUREC_BUFFERED_BLOK_SIZE +
+                SECUREC_BOM_HEADER_SIZE + sizeof(SecChar)); /* To store '\0' and aligned to wide char */
+            if (stream->base == NULL) {
+                return SECUREC_EOF;
+            }
+            /* First read file */
+            if (stream->oriFilePos == 0) {
+                /* Make sure the data is aligned to base */
+                SecReadAndSkipBomHeader(stream);
+            }
+        }
+
+        /* Skip existing data and read data */
+        len = fread(stream->base + stream->count, (size_t)1, (size_t)SECUREC_BUFFERED_BLOK_SIZE, stream->pf);
+        if (len > SECUREC_BUFFERED_BLOK_SIZE) { /* It won't happen, */
+            len = 0;
+        }
+        stream->count += len;
+        stream->cur = stream->base;
+        stream->flag |= SECUREC_LOAD_FILE_TO_MEM_FLAG;
+        stream->base[stream->count] = '\0';   /* For tool Warning string null */
+    }
+
+    SECUREC_GET_CHAR(stream, &ch);
+    if (ch != SECUREC_EOF) {
+        stream->fileRealRead += sizeof(SecChar);
+    }
+    return ch;
+}

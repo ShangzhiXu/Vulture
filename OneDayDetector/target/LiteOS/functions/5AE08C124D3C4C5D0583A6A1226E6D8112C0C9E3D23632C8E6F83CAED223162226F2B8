@@ -1,0 +1,19 @@
+lwiperf_list_remove(lwiperf_state_base_t *item)
+{
+  lwiperf_state_base_t *prev = NULL;
+  lwiperf_state_base_t *iter;
+  for (iter = lwiperf_all_connections; iter != NULL; prev = iter, iter = iter->next) {
+    if (iter == item) {
+      if (prev == NULL) {
+        lwiperf_all_connections = iter->next;
+      } else {
+        prev->next = iter->next;
+      }
+      /* @debug: ensure this item is listed only once */
+      for (iter = iter->next; iter != NULL; iter = iter->next) {
+        LWIP_ASSERT("duplicate entry", iter != item);
+      }
+      break;
+    }
+  }
+}

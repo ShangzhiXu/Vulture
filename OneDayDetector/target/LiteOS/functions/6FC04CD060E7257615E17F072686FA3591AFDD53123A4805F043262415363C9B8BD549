@@ -1,0 +1,16 @@
+altcp_proxyconnect_close(struct altcp_pcb *conn)
+{
+  if (conn == NULL) {
+    return ERR_VAL;
+  }
+  if (conn->inner_conn != NULL) {
+    err_t err = altcp_close(conn->inner_conn);
+    if (err != ERR_OK) {
+      /* closing inner conn failed, return the error */
+      return err;
+    }
+  }
+  /* no inner conn or closing it succeeded, deallocate myself */
+  altcp_free(conn);
+  return ERR_OK;
+}

@@ -1,0 +1,27 @@
+int nanosleep(const struct timespec *rqtp, struct timespec *rmtp)
+{
+    UINT64 useconds;
+    INT32 ret = -1;
+
+    (VOID)rmtp;
+    /* expire time */
+    if (rqtp == NULL) {
+        errno = EINVAL;
+        return ret;
+    }
+
+    if (!ValidTimespec(rqtp)) {
+        errno = EINVAL;
+        return ret;
+    }
+
+    useconds = (((UINT64)rqtp->tv_sec * OS_SYS_US_PER_SECOND) + (rqtp->tv_nsec / OS_SYS_NS_PER_US));
+    if ((useconds == 0) && (rqtp->tv_nsec != 0)) {
+        useconds = 1;
+    } else if (useconds > UINT32_MAX) {
+        useconds = UINT32_MAX;
+    }
+
+    ret = usleep((UINT32)useconds);
+    return ret;
+}

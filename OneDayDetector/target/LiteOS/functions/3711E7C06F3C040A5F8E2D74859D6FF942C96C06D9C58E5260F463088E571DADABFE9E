@@ -1,0 +1,65 @@
+static HAL_StatusTypeDef CRYP_ProcessData(CRYP_HandleTypeDef *hcryp, uint8_t* Input, uint16_t Ilength, uint8_t* Output, uint32_t Timeout)
+{
+  uint32_t index = 0;
+  uint32_t inputaddr  = (uint32_t)Input;
+  uint32_t outputaddr = (uint32_t)Output;
+  
+
+  for(index=0; (index < Ilength); index += 16)
+  {
+    /* Write the Input block in the Data Input register */
+    hcryp->Instance->DINR = *(uint32_t*)(inputaddr);
+    inputaddr+=4;
+    hcryp->Instance->DINR = *(uint32_t*)(inputaddr);
+    inputaddr+=4;
+    hcryp->Instance->DINR  = *(uint32_t*)(inputaddr);
+    inputaddr+=4;
+    hcryp->Instance->DINR = *(uint32_t*)(inputaddr);
+    inputaddr+=4;
+    
+    /* Wait for CCF flag to be raised */
+    if(CRYP_WaitOnCCFlag(hcryp, Timeout) != HAL_OK)  
+    { 
+      hcryp->State = HAL_CRYP_STATE_READY;        
+      __HAL_UNLOCK(hcryp);
+      return HAL_TIMEOUT;
+    }
+      
+    /* Clear CCF Flag */
+    __HAL_CRYP_CLEAR_FLAG(hcryp, CRYP_CCF_CLEAR);
+    
+    /* Read the Output block from the Data Output Register */
+    *(uint32_t*)(outputaddr) = hcryp->Instance->DOUTR;
+    outputaddr+=4;
+    *(uint32_t*)(outputaddr) = hcryp->Instance->DOUTR;
+    outputaddr+=4;
+    *(uint32_t*)(outputaddr) = hcryp->Instance->DOUTR;
+    outputaddr+=4;
+    *(uint32_t*)(outputaddr) = hcryp->Instance->DOUTR;
+    outputaddr+=4;
+    
+    /* If the suspension flag has been raised and if the processing is not about
+       to end, suspend processing */
+    if ((hcryp->SuspendRequest == HAL_CRYP_SUSPEND) && ((index+16) < Ilength))
+    {
+      /* Reset SuspendRequest */
+      hcryp->SuspendRequest = HAL_CRYP_SUSPEND_NONE;
+      
+      /* Save current reading and writing locations of Input and Output buffers */
+      hcryp->pCrypOutBuffPtr =  (uint8_t *)outputaddr;
+      hcryp->pCrypInBuffPtr  =  (uint8_t *)inputaddr;
+      /* Save the number of bytes that remain to be processed at this point */
+      hcryp->CrypInCount     =  Ilength - (index+16);
+      
+      /* Change the CRYP state */
+      hcryp->State = HAL_CRYP_STATE_SUSPENDED;
+      
+      return HAL_OK;
+    }
+    
+    
+  }
+  /* Return function status */
+  return HAL_OK;
+
+}

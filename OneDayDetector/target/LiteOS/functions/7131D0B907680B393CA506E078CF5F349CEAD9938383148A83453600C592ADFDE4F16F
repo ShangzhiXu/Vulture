@@ -1,0 +1,53 @@
+STATIC VOID MmuSetMemPage(MMU_PARAM *para)
+{
+    UINT32 pageBase;
+    UINT32 pageStartIndex, pageEndIndex;
+    UINT32 length, bitsCache, bitsBuf, bitsAP;
+#if defined(LOSCFG_ARCH_CORTEX_A7) || defined(LOSCFG_ARCH_CORTEX_A17) || defined(LOSCFG_ARCH_CORTEX_A53_AARCH32)
+    UINT32 bitsXn;
+#endif
+    UINT32 endAddr = para->endAddr;
+    UINT32 pageSize = (para->stPage->page_type == MMU_SECOND_LEVEL_BIG_PAGE_TABLE_ID) ? MMU_64K : MMU_4K;
+    UINT32 sttBase = para->stPage->page_descriptor_addr;
+    UINT32 rshiftBits = (pageSize == MMU_64K) ? SHIFT_64K : SHIFT_4K;
+
+    if ((para->startAddr & (pageSize - 1)) != 0) {
+        return;
+    }
+
+    if ((endAddr & (pageSize - 1)) != 0) {
+        endAddr = ALIGN(endAddr, pageSize);
+    }
+
+    pageStartIndex = (para->startAddr - para->stPage->page_addr) >> rshiftBits;
+    pageEndIndex = (endAddr - para->stPage->page_addr) >> rshiftBits;
+    length = pageEndIndex - pageStartIndex;
+#ifdef LOSCFG_NULL_ADDRESS_PROTECT
+    if (para->startAddr == EXC_VECTOR_ALIGN) {
+        para->startAddr -= EXC_VECTOR_ADDR - SYS_MEM_BASE;
+    }
+#endif
+    bitsAP = MMU_AP_STATE(para->uwFlag);
+    bitsCache = MMU_CACHE_STATE(para->uwFlag);
+    bitsBuf = MMU_BUFFER_STATE(para->uwFlag);
+
+#ifdef LOSCFG_ARCH_ARM926
+    if (pageSize == MMU_64K) {
+        pageBase = para->startAddr >> SHIFT_64K;
+        X_MMU_TWO_LEVEL_PAGE64K(pageBase, pageStartIndex, length, bitsCache, bitsBuf, bitsAP);
+    } else {
+        pageBase = para->startAddr >> SHIFT_4K;
+        X_MMU_TWO_LEVEL_PAGE(pageBase, pageStartIndex, length, bitsCache, bitsBuf, bitsAP);
+    }
+
+#elif defined(LOSCFG_ARCH_CORTEX_A7) || defined(LOSCFG_ARCH_CORTEX_A17) || defined(LOSCFG_ARCH_CORTEX_A53_AARCH32)
+    bitsXn = MMU_EXECUTE_STATE(para->uwFlag);
+    if (pageSize == MMU_64K) {
+        pageBase = para->startAddr >> SHIFT_64K;
+        X_MMU_TWO_LEVEL_PAGE64K(pageBase, pageStartIndex, length, bitsCache, bitsBuf, bitsAP, bitsXn);
+    } else {
+        pageBase = para->startAddr >> SHIFT_4K;
+        X_MMU_TWO_LEVEL_PAGE(pageBase, pageStartIndex, length, bitsCache, bitsBuf, bitsAP, bitsXn);
+    }
+#endif
+}

@@ -1,0 +1,44 @@
+int utils_textToInt(uint8_t *buffer,
+                    int length,
+                    int64_t *dataP)
+{
+    uint64_t result = 0;
+    int sign = 1;
+    int i = 0;
+
+    if (0 == length) return 0;
+
+    if (buffer[0] == '-')
+    {
+        sign = -1;
+        i = 1;
+    }
+
+    while (i < length)
+    {
+        if ('0' <= buffer[i] && buffer[i] <= '9')
+        {
+            if (result > (UINT64_MAX / 10)) return 0;
+            result *= 10;
+            result += buffer[i] - '0';
+        }
+        else
+        {
+            return 0;
+        }
+        i++;
+    }
+
+    if (result > INT64_MAX) return 0;
+
+    if (sign == -1)
+    {
+        *dataP = 0 - result;
+    }
+    else
+    {
+        *dataP = result;
+    }
+
+    return 1;
+}

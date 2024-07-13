@@ -1,0 +1,44 @@
+void _lv_inv_area(lv_disp_t * disp, const lv_area_t * area_p)
+{
+    if(!disp) disp = lv_disp_get_default();
+    if(!disp) return;
+
+    /*Clear the invalidate buffer if the parameter is NULL*/
+    if(area_p == NULL) {
+        disp->inv_p = 0;
+        return;
+    }
+
+    lv_area_t scr_area;
+    scr_area.x1 = 0;
+    scr_area.y1 = 0;
+    scr_area.x2 = lv_disp_get_hor_res(disp) - 1;
+    scr_area.y2 = lv_disp_get_ver_res(disp) - 1;
+
+    lv_area_t com_area;
+    bool suc;
+
+    suc = _lv_area_intersect(&com_area, area_p, &scr_area);
+
+    /*The area is truncated to the screen*/
+    if(suc != false) {
+        if(disp->driver.rounder_cb) disp->driver.rounder_cb(&disp->driver, &com_area);
+
+        /*Save only if this area is not in one of the saved areas*/
+        uint16_t i;
+        for(i = 0; i < disp->inv_p; i++) {
+            if(_lv_area_is_in(&com_area, &disp->inv_areas[i], 0) != false) return;
+        }
+
+        /*Save the area*/
+        if(disp->inv_p < LV_INV_BUF_SIZE) {
+            lv_area_copy(&disp->inv_areas[disp->inv_p], &com_area);
+        }
+        else {   /*If no place for the area add the screen*/
+            disp->inv_p = 0;
+            lv_area_copy(&disp->inv_areas[disp->inv_p], &scr_area);
+        }
+        disp->inv_p++;
+        lv_task_set_prio(disp->refr_task, LV_REFR_TASK_PRIO);
+    }
+}

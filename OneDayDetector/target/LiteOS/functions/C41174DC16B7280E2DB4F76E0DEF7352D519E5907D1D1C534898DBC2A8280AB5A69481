@@ -1,0 +1,87 @@
+HAL_StatusTypeDef HAL_RTC_RegisterCallback(RTC_HandleTypeDef *hrtc, HAL_RTC_CallbackIDTypeDef CallbackID, pRTC_CallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if(pCallback == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Process locked */
+  __HAL_LOCK(hrtc);
+
+  if(HAL_RTC_STATE_READY == hrtc->State)
+  {
+    switch (CallbackID)
+    {
+    case HAL_RTC_ALARM_A_EVENT_CB_ID :
+      hrtc->AlarmAEventCallback = pCallback;
+      break;
+
+    case HAL_RTC_ALARM_B_EVENT_CB_ID :
+      hrtc->AlarmBEventCallback = pCallback;
+      break;
+
+    case HAL_RTC_TIMESTAMP_EVENT_CB_ID :
+      hrtc->TimeStampEventCallback = pCallback;
+      break;
+
+    case HAL_RTC_WAKEUPTIMER_EVENT_CB_ID :
+      hrtc->WakeUpTimerEventCallback = pCallback;
+      break;
+
+    case HAL_RTC_TAMPER1_EVENT_CB_ID :
+      hrtc->Tamper1EventCallback = pCallback;
+      break;
+
+    case HAL_RTC_TAMPER2_EVENT_CB_ID :
+      hrtc->Tamper2EventCallback = pCallback;
+      break;
+
+    case HAL_RTC_TAMPER3_EVENT_CB_ID :
+      hrtc->Tamper3EventCallback = pCallback;
+      break;
+
+   case HAL_RTC_MSPINIT_CB_ID :
+      hrtc->MspInitCallback = pCallback;
+      break;
+
+   case HAL_RTC_MSPDEINIT_CB_ID :
+      hrtc->MspDeInitCallback = pCallback;
+      break;
+
+    default :
+     /* Return error status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else if(HAL_RTC_STATE_RESET == hrtc->State)
+  {
+    switch (CallbackID)
+    {
+    case HAL_RTC_MSPINIT_CB_ID :
+      hrtc->MspInitCallback = pCallback;
+      break;
+
+   case HAL_RTC_MSPDEINIT_CB_ID :
+      hrtc->MspDeInitCallback = pCallback;
+      break;
+
+    default :
+     /* Return error status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else
+  {
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hrtc);
+
+  return status;
+}

@@ -1,0 +1,71 @@
+ip6_select_source_address(struct netif *netif, const ip6_addr_t *dest)
+{
+  const ip_addr_t *best_addr;
+  const ip6_addr_t *cand_addr;
+  s8_t dest_scope, cand_scope;
+  s8_t best_scope = IP6_MULTICAST_SCOPE_RESERVED;
+  u8_t i, cand_pref, cand_bits;
+  u8_t best_pref = 0;
+  u8_t best_bits = 0;
+
+  /* Start by determining the scope of the given destination address. These
+   * tests are hopefully (roughly) in order of likeliness to match. */
+  if (ip6_addr_isglobal(dest)) {
+    dest_scope = IP6_MULTICAST_SCOPE_GLOBAL;
+  } else if (ip6_addr_islinklocal(dest) || ip6_addr_isloopback(dest)) {
+    dest_scope = IP6_MULTICAST_SCOPE_LINK_LOCAL;
+  } else if (ip6_addr_isuniquelocal(dest)) {
+    dest_scope = IP6_MULTICAST_SCOPE_ORGANIZATION_LOCAL;
+  } else if (ip6_addr_ismulticast(dest)) {
+    dest_scope = ip6_addr_multicast_scope(dest);
+  } else if (ip6_addr_issitelocal(dest)) {
+    dest_scope = IP6_MULTICAST_SCOPE_SITE_LOCAL;
+  } else {
+    /* no match, consider scope global */
+    dest_scope = IP6_MULTICAST_SCOPE_GLOBAL;
+  }
+
+  best_addr = NULL;
+
+  for (i = 0; i < LWIP_IPV6_NUM_ADDRESSES; i++) {
+    /* Consider only valid (= preferred and deprecated) addresses. */
+    if (!ip6_addr_isvalid(netif_ip6_addr_state(netif, i))) {
+      continue;
+    }
+    /* Determine the scope of this candidate address. Same ordering idea. */
+    cand_addr = netif_ip6_addr(netif, i);
+    if (ip6_addr_isglobal(cand_addr)) {
+      cand_scope = IP6_MULTICAST_SCOPE_GLOBAL;
+    } else if (ip6_addr_islinklocal(cand_addr)) {
+      cand_scope = IP6_MULTICAST_SCOPE_LINK_LOCAL;
+    } else if (ip6_addr_isuniquelocal(cand_addr)) {
+      cand_scope = IP6_MULTICAST_SCOPE_ORGANIZATION_LOCAL;
+    } else if (ip6_addr_issitelocal(cand_addr)) {
+      cand_scope = IP6_MULTICAST_SCOPE_SITE_LOCAL;
+    } else {
+      /* no match, treat as low-priority global scope */
+      cand_scope = IP6_MULTICAST_SCOPE_RESERVEDF;
+    }
+    cand_pref = ip6_addr_ispreferred(netif_ip6_addr_state(netif, i));
+    /* @todo compute the actual common bits, for longest matching prefix. */
+    /* We cannot count on the destination address having a proper zone
+     * assignment, so do not compare zones in this case. */
+    cand_bits = ip6_addr_netcmp_zoneless(cand_addr, dest); /* just 1 or 0 for now */
+    if (cand_bits && ip6_addr_nethostcmp(cand_addr, dest)) {
+      return netif_ip_addr6(netif, i); /* Rule 1 */
+    }
+    if ((best_addr == NULL) || /* no alternative yet */
+        ((cand_scope < best_scope) && (cand_scope >= dest_scope)) ||
+        ((cand_scope > best_scope) && (best_scope < dest_scope)) || /* Rule 2 */
+        ((cand_scope == best_scope) && ((cand_pref > best_pref) || /* Rule 3 */
+        ((cand_pref == best_pref) && (cand_bits > best_bits))))) { /* Rule 8 */
+      /* We found a new "winning" candidate. */
+      best_addr = netif_ip_addr6(netif, i);
+      best_scope = cand_scope;
+      best_pref = cand_pref;
+      best_bits = cand_bits;
+    }
+  }
+
+  return best_addr; /* may be NULL */
+}

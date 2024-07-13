@@ -1,0 +1,47 @@
+static void FMPI2C_ITMasterSeqCplt(FMPI2C_HandleTypeDef *hfmpi2c)
+{
+  /* Reset FMPI2C handle mode */
+  hfmpi2c->Mode = HAL_FMPI2C_MODE_NONE;
+
+  /* No Generate Stop, to permit restart mode */
+  /* The stop will be done at the end of transfer, when FMPI2C_AUTOEND_MODE enable */
+  if (hfmpi2c->State == HAL_FMPI2C_STATE_BUSY_TX)
+  {
+    hfmpi2c->State         = HAL_FMPI2C_STATE_READY;
+    hfmpi2c->PreviousState = FMPI2C_STATE_MASTER_BUSY_TX;
+    hfmpi2c->XferISR       = NULL;
+
+    /* Disable Interrupts */
+    FMPI2C_Disable_IRQ(hfmpi2c, FMPI2C_XFER_TX_IT);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hfmpi2c);
+
+    /* Call the corresponding callback to inform upper layer of End of Transfer */
+#if (USE_HAL_FMPI2C_REGISTER_CALLBACKS == 1)
+    hfmpi2c->MasterTxCpltCallback(hfmpi2c);
+#else
+    HAL_FMPI2C_MasterTxCpltCallback(hfmpi2c);
+#endif /* USE_HAL_FMPI2C_REGISTER_CALLBACKS */
+  }
+  /* hfmpi2c->State == HAL_FMPI2C_STATE_BUSY_RX */
+  else
+  {
+    hfmpi2c->State         = HAL_FMPI2C_STATE_READY;
+    hfmpi2c->PreviousState = FMPI2C_STATE_MASTER_BUSY_RX;
+    hfmpi2c->XferISR       = NULL;
+
+    /* Disable Interrupts */
+    FMPI2C_Disable_IRQ(hfmpi2c, FMPI2C_XFER_RX_IT);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hfmpi2c);
+
+    /* Call the corresponding callback to inform upper layer of End of Transfer */
+#if (USE_HAL_FMPI2C_REGISTER_CALLBACKS == 1)
+    hfmpi2c->MasterRxCpltCallback(hfmpi2c);
+#else
+    HAL_FMPI2C_MasterRxCpltCallback(hfmpi2c);
+#endif /* USE_HAL_FMPI2C_REGISTER_CALLBACKS */
+  }
+}

@@ -1,0 +1,22 @@
+LITE_OS_SEC_TEXT_INIT int secondary_cpu_start(void)
+{
+    int cpuid = ArchCurrCpuid();
+
+    OsCurrTaskSet(OsGetMainTask());
+
+    /* increase cpu counter */
+    LOS_AtomicInc(&ncpu);
+
+    /* store each core's hwid */
+    CPU_MAP_SET(cpuid, OsHwIDGet());
+    HalIrqInitPercpu();
+#ifdef LOSCFG_BASE_CORE_SWTMR
+    OsSwtmrInit();
+#endif
+    OsIdleTaskCreate();
+    OsStart();
+
+    while (1) {
+        __asm volatile("wfi");
+    }
+}

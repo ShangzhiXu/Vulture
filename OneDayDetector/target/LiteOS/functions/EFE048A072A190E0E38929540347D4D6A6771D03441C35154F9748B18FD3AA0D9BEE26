@@ -1,0 +1,31 @@
+mdns_domain_eq(struct mdns_domain *a, struct mdns_domain *b)
+{
+  u8_t *ptra, *ptrb;
+  u8_t len;
+  int res;
+
+  if (a->length != b->length) {
+    return 0;
+  }
+
+  ptra = a->name;
+  ptrb = b->name;
+  while (*ptra && *ptrb && ptra < &a->name[a->length]) {
+    if (*ptra != *ptrb) {
+      return 0;
+    }
+    len = *ptra;
+    ptra++;
+    ptrb++;
+    res = lwip_strnicmp((char *) ptra, (char *) ptrb, len);
+    if (res != 0) {
+      return 0;
+    }
+    ptra += len;
+    ptrb += len;
+  }
+  if (*ptra != *ptrb && ptra < &a->name[a->length]) {
+    return 0;
+  }
+  return 1;
+}

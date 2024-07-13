@@ -1,0 +1,32 @@
+HAL_StatusTypeDef HAL_OPAMP_Start(OPAMP_HandleTypeDef *hopamp)
+{ 
+  HAL_StatusTypeDef status = HAL_OK;
+  
+  /* Check the OPAMP handle allocation */
+  /* Check if OPAMP locked */
+  if((hopamp == NULL) || (hopamp->State == HAL_OPAMP_STATE_BUSYLOCKED))
+  {
+    status = HAL_ERROR;
+  }
+  else
+  {
+    /* Check the parameter */
+    assert_param(IS_OPAMP_ALL_INSTANCE(hopamp->Instance));
+    
+    if(hopamp->State == HAL_OPAMP_STATE_READY)
+    {
+      /* Enable the selected opamp */
+      SET_BIT (hopamp->Instance->CSR, OPAMP_CSR_OPAMPxEN);
+
+      /* Update the OPAMP state*/     
+      /* From HAL_OPAMP_STATE_READY to HAL_OPAMP_STATE_BUSY */
+      hopamp->State = HAL_OPAMP_STATE_BUSY;   
+    }
+    else
+    {
+      status = HAL_ERROR;
+    }
+    
+   }
+  return status;
+}

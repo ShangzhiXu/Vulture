@@ -1,0 +1,85 @@
+HAL_StatusTypeDef HASH_Accumulate(HASH_HandleTypeDef *hhash, uint8_t *pInBuffer, uint32_t Size, uint32_t Algorithm)
+{
+  uint8_t *pInBuffer_tmp;   /* input data address, input parameter of HASH_WriteData()         */
+  uint32_t Size_tmp;  /* input data size (in bytes), input parameter of HASH_WriteData() */
+  HAL_HASH_StateTypeDef State_tmp = hhash->State; 
+   
+  /* Make sure the input buffer size (in bytes) is a multiple of 4 */
+   assert_param(IS_HASH_POLLING_MULTIBUFFER_SIZE(Size));
+
+  /* Initiate HASH processing in case of start or resumption */
+if((State_tmp == HAL_HASH_STATE_READY) || (State_tmp == HAL_HASH_STATE_SUSPENDED))
+  { 
+    /* Check input parameters */
+    if ((pInBuffer == NULL) || (Size == 0U))
+    {
+      hhash->State = HAL_HASH_STATE_READY;
+      return  HAL_ERROR;
+    }
+
+     /* Process Locked */
+    __HAL_LOCK(hhash);
+
+    /* If resuming the HASH processing */
+    if (hhash->State == HAL_HASH_STATE_SUSPENDED)
+    {
+      /* Change the HASH state */
+      hhash->State = HAL_HASH_STATE_BUSY;
+
+      /* Since this is resumption, pInBuffer_tmp and Size_tmp are not set
+         to the API input parameters but to those saved beforehand by HASH_WriteData()
+         when the processing was suspended */
+      pInBuffer_tmp = hhash->pHashInBuffPtr;  /* pInBuffer_tmp is set to the input data address */
+      Size_tmp = hhash->HashInCount;          /* Size_tmp contains the input data size in bytes */
+
+    }
+    else
+    {
+      /* Change the HASH state */
+      hhash->State = HAL_HASH_STATE_BUSY;
+
+      /* pInBuffer_tmp and Size_tmp are initialized to be used afterwards as
+         input parameters of HASH_WriteData() */
+      pInBuffer_tmp = pInBuffer;    /* pInBuffer_tmp is set to the input data address */
+      Size_tmp = Size;              /* Size_tmp contains the input data size in bytes */
+
+      /* Check if initialization phase has already be performed */
+      if(hhash->Phase == HAL_HASH_PHASE_READY)
+      {
+        /* Select the HASH algorithm, clear HMAC mode and long key selection bit, reset the HASH processor core */
+        MODIFY_REG(HASH->CR, HASH_CR_LKEY|HASH_CR_ALGO|HASH_CR_MODE|HASH_CR_INIT, Algorithm | HASH_CR_INIT);
+      }
+
+      /* Set the phase */
+      hhash->Phase = HAL_HASH_PHASE_PROCESS;
+
+    }
+
+    /* Write input buffer in Data register */
+    hhash->Status = HASH_WriteData(hhash, pInBuffer_tmp, Size_tmp);
+    if (hhash->Status != HAL_OK)
+    {
+      return hhash->Status;
+    }
+
+    /* If the process has not been suspended, move the state to Ready */
+    if (hhash->State != HAL_HASH_STATE_SUSPENDED)
+    {
+      /* Change the HASH state */
+      hhash->State = HAL_HASH_STATE_READY;
+    }
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hhash);
+
+    /* Return function status */
+    return HAL_OK;
+
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+
+
+}

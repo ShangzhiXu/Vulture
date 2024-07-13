@@ -1,0 +1,28 @@
+SECUREC_INLINE void SecFinishNumberPositiveInt(SecScanSpec *spec)
+{
+    if (SECUREC_CONVERT_IS_SIGNED(spec->oriConvChr)) {
+#ifdef SECUREC_ON_64BITS
+        if (SecIsLongBitEqual(SECUREC_LP64_BIT_WIDTH) != 0) {
+            if (spec->number > SECUREC_MAX_64BITS_POS_VALUE) {
+                spec->number = (unsigned long)SECUREC_MAX_64BITS_VALUE;
+            }
+        }
+        if (spec->beyondMax != 0 && SecIsLongBitEqual(SECUREC_LP64_BIT_WIDTH) != 0) {
+            spec->number = (unsigned long)SECUREC_MAX_64BITS_VALUE;
+        }
+#else
+        if (SecIsLongBitEqual(SECUREC_LP32_BIT_WIDTH) != 0) {
+            if (spec->number > SECUREC_MAX_32BITS_POS_VALUE) {
+                spec->number = SECUREC_MAX_32BITS_POS_VALUE;
+            }
+        }
+        if (spec->beyondMax != 0 && SecIsLongBitEqual(SECUREC_LP32_BIT_WIDTH) != 0) {
+            spec->number = SECUREC_MAX_32BITS_POS_VALUE;
+        }
+#endif
+    } else {            /* For o,u,x,X,p */
+        if (spec->beyondMax != 0) {
+            spec->number = SECUREC_MAX_32BITS_VALUE;
+        }
+    }
+}

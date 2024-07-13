@@ -1,0 +1,20 @@
+static void UART_DMATxOnlyAbortCallback(DMA_HandleTypeDef *hdma)
+{
+  UART_HandleTypeDef* huart = (UART_HandleTypeDef*)(hdma->Parent);
+  
+  huart->TxXferCount = 0U;
+  
+#if defined(USART_CR1_FIFOEN)
+  /* Flush the whole TX FIFO (if needed) */
+  if (huart->FifoMode == UART_FIFOMODE_ENABLE)
+  {
+    __HAL_UART_SEND_REQ(huart, UART_TXDATA_FLUSH_REQUEST);
+  }
+#endif
+  
+  /* Restore huart->gState to Ready */
+  huart->gState = HAL_UART_STATE_READY;
+  
+  /* Call user Abort complete callback */
+  HAL_UART_AbortTransmitCpltCallback(huart);
+}

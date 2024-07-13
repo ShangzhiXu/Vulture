@@ -1,0 +1,18 @@
+STATIC UINT32 UartPutsReg(UINTPTR base, const CHAR *s, UINT32 len, BOOL isLock)
+{
+    UINT32 intSave;
+
+    if (g_uart_fputc_en == 0) {
+        return 0;
+    }
+
+    if (isLock) {
+        LOS_SpinLockSave(&g_uartOutputSpin, &intSave);
+        UartPutStr(base, s, len);
+        LOS_SpinUnlockRestore(&g_uartOutputSpin, intSave);
+    } else {
+        UartPutStr(base, s, len);
+    }
+
+    return len;
+}

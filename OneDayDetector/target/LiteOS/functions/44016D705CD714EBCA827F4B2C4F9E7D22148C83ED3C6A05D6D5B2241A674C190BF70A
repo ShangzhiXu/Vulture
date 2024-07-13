@@ -1,0 +1,44 @@
+altcp_proxyconnect_send_request(struct altcp_pcb *conn)
+{
+  int len, len2;
+  mem_size_t alloc_len;
+  char *buffer, *host;
+  altcp_proxyconnect_state_t *state = (altcp_proxyconnect_state_t *)conn->state;
+
+  if (!state) {
+    return ERR_VAL;
+  }
+  /* Use printf with zero length to get the required allocation size */
+  len = altcp_proxyconnect_format_request(NULL, 0, "", state->outer_port);
+  if (len < 0) {
+    return ERR_VAL;
+  }
+  /* add allocation size for IP address strings */
+#if LWIP_IPV6
+  len += 40; /* worst-case IPv6 address length */
+#else
+  len += 16; /* worst-case IPv4 address length */
+#endif
+  alloc_len = (mem_size_t)len;
+  if ((len < 0) || (int)alloc_len != len) {
+    /* overflow */
+    return ERR_MEM;
+  }
+  /* Allocate a bufer for the request string */
+  buffer = (char *)mem_malloc(alloc_len);
+  if (buffer == NULL) {
+    return ERR_MEM;
+  }
+  host = ipaddr_ntoa(&state->outer_addr);
+  len2 = altcp_proxyconnect_format_request(buffer, alloc_len, host, state->outer_port);
+  if ((len2 > 0) && (len2 <= len) && (len2 <= 0xFFFF)) {
+    err_t err = altcp_write(conn->inner_conn, buffer, (u16_t)len2, TCP_WRITE_FLAG_COPY);
+    if (err != ERR_OK) {
+      /* @todo: abort? */
+      mem_free(buffer);
+      return err;
+    }
+  }
+  mem_free(buffer);
+  return ERR_OK;
+}

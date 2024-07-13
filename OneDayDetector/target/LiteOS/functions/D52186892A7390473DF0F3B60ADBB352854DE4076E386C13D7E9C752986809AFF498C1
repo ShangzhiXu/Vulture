@@ -1,0 +1,85 @@
+HAL_StatusTypeDef HAL_SPDIFRX_RegisterCallback(SPDIFRX_HandleTypeDef *hspdif, HAL_SPDIFRX_CallbackIDTypeDef CallbackID, pSPDIFRX_CallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if(pCallback == NULL)
+  {
+    /* Update the error code */
+    hspdif->ErrorCode |= HAL_SPDIFRX_ERROR_INVALID_CALLBACK;
+    return HAL_ERROR;
+  }
+  /* Process locked */
+  __HAL_LOCK(hspdif);
+
+  if(HAL_SPDIFRX_STATE_READY == hspdif->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_SPDIFRX_RX_HALF_CB_ID :
+        hspdif->RxHalfCpltCallback = pCallback;
+        break;
+
+      case HAL_SPDIFRX_RX_CPLT_CB_ID :
+        hspdif->RxCpltCallback = pCallback;
+        break;
+
+      case HAL_SPDIFRX_CX_HALF_CB_ID :
+        hspdif->CxHalfCpltCallback = pCallback;
+        break;
+
+      case HAL_SPDIFRX_CX_CPLT_CB_ID :
+        hspdif->CxCpltCallback = pCallback;
+        break;
+
+      case HAL_SPDIFRX_ERROR_CB_ID :
+        hspdif->ErrorCallback = pCallback;
+        break;
+
+      case HAL_SPDIFRX_MSPINIT_CB_ID :
+        hspdif->MspInitCallback = pCallback;
+        break;
+
+      case HAL_SPDIFRX_MSPDEINIT_CB_ID :
+        hspdif->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hspdif->ErrorCode |= HAL_SPDIFRX_ERROR_INVALID_CALLBACK;
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if(HAL_SPDIFRX_STATE_RESET == hspdif->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_SPDIFRX_MSPINIT_CB_ID :
+        hspdif->MspInitCallback = pCallback;
+        break;
+
+      case HAL_SPDIFRX_MSPDEINIT_CB_ID :
+        hspdif->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hspdif->ErrorCode |= HAL_SPDIFRX_ERROR_INVALID_CALLBACK;
+       /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    hspdif->ErrorCode |= HAL_SPDIFRX_ERROR_INVALID_CALLBACK;
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hspdif);
+  return status;
+}

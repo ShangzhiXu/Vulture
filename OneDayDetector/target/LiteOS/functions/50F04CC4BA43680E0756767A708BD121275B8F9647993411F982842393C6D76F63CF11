@@ -1,0 +1,23 @@
+lv_res_t lv_indev_finish_drag(lv_indev_t * indev)
+{
+    if(indev == NULL) return LV_RES_OK;
+    if(indev->driver.type != LV_INDEV_TYPE_POINTER) return LV_RES_OK;
+    if(indev->proc.types.pointer.drag_in_prog == 0) return LV_RES_OK;
+
+    indev->proc.types.pointer.drag_in_prog = 0;
+    indev->proc.types.pointer.drag_throw_vect.x = 0;
+    indev->proc.types.pointer.drag_throw_vect.y = 0;
+
+    lv_obj_t * drag_obj;
+    drag_obj = get_dragged_obj(indev->proc.types.pointer.act_obj);
+    if(drag_obj == NULL) return LV_RES_OK;
+
+    lv_res_t res;
+    res = drag_obj->signal_cb(drag_obj, LV_SIGNAL_DRAG_END, NULL);
+    if(res != LV_RES_OK) return res;
+
+    res = lv_event_send(drag_obj, LV_EVENT_DRAG_END, NULL);
+    if(res != LV_RES_OK) return res;
+
+    return res;
+}

@@ -1,0 +1,82 @@
+static void SPI_RxCloseIRQHandler(SPI_HandleTypeDef *hspi)
+{
+  __IO uint16_t tmpreg = 0;
+
+  if(hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+  {
+    /* Wait until RXNE flag is set to read CRC data */
+    if(SPI_WaitOnFlagUntilTimeout(hspi, SPI_FLAG_RXNE, RESET, SPI_TIMEOUT_VALUE) != HAL_OK)
+    {
+      SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_FLAG);
+    }
+
+    /* Read CRC to reset RXNE flag */
+    tmpreg = hspi->Instance->DR;
+    UNUSED(tmpreg);
+
+    /* Wait until RXNE flag is reset */
+    if(SPI_WaitOnFlagUntilTimeout(hspi, SPI_FLAG_RXNE, SET, SPI_TIMEOUT_VALUE) != HAL_OK)
+    {
+      SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_FLAG);
+    }
+
+    /* Check if CRC error occurred */
+    if(__HAL_SPI_GET_FLAG(hspi, SPI_FLAG_CRCERR) != RESET)
+    {
+      /* Check if CRC error is valid or not (workaround to be applied or not) */
+      if (   (hspi->State != HAL_SPI_STATE_BUSY_RX)
+          || (SPI_ISCRCErrorValid(hspi) == SPI_VALID_CRC_ERROR) )
+      {
+        SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_CRC);
+
+        /* Reset CRC Calculation */
+        SPI_RESET_CRC(hspi);
+      }
+      else
+      {
+        __HAL_SPI_CLEAR_CRCERRFLAG(hspi);
+      }
+    }
+  }
+
+  /* Disable RXNE interrupt */
+  __HAL_SPI_DISABLE_IT(hspi, (SPI_IT_RXNE));
+
+  /* if Transmit process is finished */
+  if(__HAL_SPI_GET_IT_SOURCE(hspi, SPI_IT_TXE) == RESET)
+  {
+    /* Disable ERR interrupt */
+    __HAL_SPI_DISABLE_IT(hspi, (SPI_IT_ERR));
+
+    if((hspi->Init.Mode == SPI_MODE_MASTER)&&((hspi->Init.Direction == SPI_DIRECTION_1LINE)||(hspi->Init.Direction == SPI_DIRECTION_2LINES_RXONLY)))
+    {
+      /* Disable SPI peripheral */
+      __HAL_SPI_DISABLE(hspi);
+    }
+    
+    /* Check if Errors has been detected during transfer */
+    if(hspi->ErrorCode ==  HAL_SPI_ERROR_NONE)
+    {
+      /* Check if we are in Rx or in Rx/Tx Mode */
+      if(hspi->State == HAL_SPI_STATE_BUSY_TX_RX)
+      {
+        /* Set state to READY before run the Callback Complete */
+        hspi->State = HAL_SPI_STATE_READY;
+        HAL_SPI_TxRxCpltCallback(hspi);
+      }
+      else
+      {
+        /* Set state to READY before run the Callback Complete */
+        hspi->State = HAL_SPI_STATE_READY;
+        HAL_SPI_RxCpltCallback(hspi);
+      }
+    }
+    else
+    {
+      /* Set state to READY before run the Callback Complete */
+      hspi->State = HAL_SPI_STATE_READY;
+      /* Call Error call back in case of Error */
+      HAL_SPI_ErrorCallback(hspi);
+    }
+  }
+}

@@ -1,0 +1,79 @@
+static HAL_StatusTypeDef DMA_CheckFifoParam(DMA_HandleTypeDef *hdma)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t tmp = hdma->Init.FIFOThreshold;
+  
+  /* Memory Data size equal to Byte */
+  if(hdma->Init.MemDataAlignment == DMA_MDATAALIGN_BYTE)
+  {
+    switch (tmp)
+    {
+    case DMA_FIFO_THRESHOLD_1QUARTERFULL:
+    case DMA_FIFO_THRESHOLD_3QUARTERSFULL:
+      if ((hdma->Init.MemBurst & DMA_SxCR_MBURST_1) == DMA_SxCR_MBURST_1)
+      {
+        status = HAL_ERROR;
+      }
+      break;
+    case DMA_FIFO_THRESHOLD_HALFFULL:
+      if (hdma->Init.MemBurst == DMA_MBURST_INC16)
+      {
+        status = HAL_ERROR;
+      }
+      break;
+    case DMA_FIFO_THRESHOLD_FULL:
+      break;
+    default:
+      break;
+    }
+  }
+  
+  /* Memory Data size equal to Half-Word */
+  else if (hdma->Init.MemDataAlignment == DMA_MDATAALIGN_HALFWORD)
+  {
+    switch (tmp)
+    {
+    case DMA_FIFO_THRESHOLD_1QUARTERFULL:
+    case DMA_FIFO_THRESHOLD_3QUARTERSFULL:
+      status = HAL_ERROR;
+      break;
+    case DMA_FIFO_THRESHOLD_HALFFULL:
+      if ((hdma->Init.MemBurst & DMA_SxCR_MBURST_1) == DMA_SxCR_MBURST_1)
+      {
+        status = HAL_ERROR;
+      }
+      break;
+    case DMA_FIFO_THRESHOLD_FULL:
+      if (hdma->Init.MemBurst == DMA_MBURST_INC16)
+      {
+        status = HAL_ERROR;
+      }
+      break;   
+    default:
+      break;
+    }
+  }
+  
+  /* Memory Data size equal to Word */
+  else
+  {
+    switch (tmp)
+    {
+    case DMA_FIFO_THRESHOLD_1QUARTERFULL:
+    case DMA_FIFO_THRESHOLD_HALFFULL:
+    case DMA_FIFO_THRESHOLD_3QUARTERSFULL:
+      status = HAL_ERROR;
+      break;
+    case DMA_FIFO_THRESHOLD_FULL:
+      if ((hdma->Init.MemBurst & DMA_SxCR_MBURST_1) == DMA_SxCR_MBURST_1)
+      {
+        status = HAL_ERROR;
+      }
+      break;
+    default:
+      break;
+    }
+  } 
+  
+  return status; 
+}

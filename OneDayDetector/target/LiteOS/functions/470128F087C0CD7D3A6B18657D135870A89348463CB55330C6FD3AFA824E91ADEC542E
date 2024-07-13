@@ -1,0 +1,37 @@
+UINT32 Example_GetTick(VOID)
+{
+    UINT32 ret;
+    UINT32 cyclePerTick;
+    UINT64 tickCount1;
+    UINT64 tickCount2;
+
+    printf("Kernel systick demo begin.\n");
+    cyclePerTick  = LOS_CyclePerTickGet();
+    if (cyclePerTick != 0) {
+        printf("LOS_CyclePerTickGet = %d.\n", cyclePerTick);
+    }
+
+    tickCount1 = LOS_TickCountGet();
+    if (tickCount1 != 0) {
+        printf("LOS_TickCountGet = %d.\n", (UINT32)tickCount1);
+    }
+    LOS_TaskDelay(200);
+    tickCount2 = LOS_TickCountGet();
+    if (tickCount2 != 0) {
+        printf("LOS_TickCountGet after delay = %d.\n", (UINT32)tickCount2);
+    }
+
+    if ((tickCount2 - tickCount1) >= 200) {
+        ret = LOS_InspectStatusSetById(LOS_INSPECT_SYSTIC, LOS_INSPECT_STU_SUCCESS);
+        if (ret != LOS_OK) {
+            printf("Set InspectStatus Err.\n");
+        }
+        return LOS_OK;
+    } else {
+        ret = LOS_InspectStatusSetById(LOS_INSPECT_SYSTIC, LOS_INSPECT_STU_ERROR);
+        if (ret != LOS_OK) {
+            printf("Set InspectStatus Err.\n");
+        }
+        return LOS_NOK;
+    }
+}

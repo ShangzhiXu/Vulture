@@ -1,0 +1,45 @@
+altcp_tls_create_config_server_privkey_cert(const u8_t *privkey, size_t privkey_len,
+    const u8_t *privkey_pass, size_t privkey_pass_len,
+    const u8_t *cert, size_t cert_len)
+{
+  int ret;
+  mbedtls_x509_crt *srvcert;
+  mbedtls_pk_context *pkey;
+  struct altcp_tls_config *conf = altcp_tls_create_config(1, 1, 1, 0);
+  if (conf == NULL) {
+    return NULL;
+  }
+
+  srvcert = conf->cert;
+  mbedtls_x509_crt_init(srvcert);
+
+  pkey = conf->pkey;
+  mbedtls_pk_init(pkey);
+
+  /* Load the certificates and private key */
+  ret = mbedtls_x509_crt_parse(srvcert, cert, cert_len);
+  if (ret != 0) {
+    LWIP_DEBUGF(ALTCP_MBEDTLS_DEBUG, ("mbedtls_x509_crt_parse failed: %d\n", ret));
+    altcp_mbedtls_free_config(conf);
+    return NULL;
+  }
+
+  ret = mbedtls_pk_parse_key(pkey, (const unsigned char *) privkey, privkey_len, privkey_pass, privkey_pass_len);
+  if (ret != 0) {
+    LWIP_DEBUGF(ALTCP_MBEDTLS_DEBUG, ("mbedtls_pk_parse_public_key failed: %d\n", ret));
+    mbedtls_x509_crt_free(srvcert);
+    altcp_mbedtls_free_config(conf);
+    return NULL;
+  }
+
+  mbedtls_ssl_conf_ca_chain(&conf->conf, srvcert->next, NULL);
+  ret = mbedtls_ssl_conf_own_cert(&conf->conf, srvcert, pkey);
+  if (ret != 0) {
+    LWIP_DEBUGF(ALTCP_MBEDTLS_DEBUG, ("mbedtls_ssl_conf_own_cert failed: %d\n", ret));
+    mbedtls_x509_crt_free(srvcert);
+    mbedtls_pk_free(pkey);
+    altcp_mbedtls_free_config(conf);
+    return NULL;
+  }
+  return conf;
+}

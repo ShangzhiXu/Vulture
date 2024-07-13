@@ -1,0 +1,21 @@
+dhcp_check(struct netif *netif)
+{
+  struct dhcp *dhcp = netif_dhcp_data(netif);
+  err_t result;
+  u16_t msecs;
+  LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE, ("dhcp_check(netif=%p) %c%c\n", (void *)netif, (s16_t)netif->name[0],
+              (s16_t)netif->name[1]));
+  dhcp_set_state(dhcp, DHCP_STATE_CHECKING);
+  /* create an ARP query for the offered IP address, expecting that no host
+     responds, as the IP address should not be in use. */
+  result = etharp_query(netif, &dhcp->offered_ip_addr, NULL);
+  if (result != ERR_OK) {
+    LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_LEVEL_WARNING, ("dhcp_check: could not perform ARP query\n"));
+  }
+  if (dhcp->tries < 255) {
+    dhcp->tries++;
+  }
+  msecs = 500;
+  dhcp->request_timeout = (u16_t)((msecs + DHCP_FINE_TIMER_MSECS - 1) / DHCP_FINE_TIMER_MSECS);
+  LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("dhcp_check(): set request timeout %"U16_F" msecs\n", msecs));
+}

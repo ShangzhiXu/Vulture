@@ -1,0 +1,3 @@
+#define IS_I2C_ANALOG_FILTER(FILTER) (((FILTER) == I2C_ANALOGFILTER_ENABLE) || \
+                                      ((FILTER) == I2C_ANALOGFILTER_DISABLE))
+#define IS_I2C_DIGITAL_FILTER(FILTER)   ((FILTER) <= 0x0000000FU)

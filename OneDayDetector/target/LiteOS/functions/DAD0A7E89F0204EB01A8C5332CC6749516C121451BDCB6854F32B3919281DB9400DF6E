@@ -1,0 +1,13 @@
+STATIC VOID PthreadCondValueModify(pthread_cond_t *cond)
+{
+    UINT32 flags = ((UINT32)cond->value & COND_FLAGS_MASK);
+    INT32 oldVal, newVal;
+
+    while (true) {
+        oldVal = cond->value;
+        newVal = (INT32)(((UINT32)(oldVal - COND_COUNTER_STEP) & COND_COUNTER_MASK) | flags);
+        if (LOS_AtomicCmpXchg32bits(&cond->value, newVal, oldVal) == 0) {
+            break;
+        }
+    }
+}

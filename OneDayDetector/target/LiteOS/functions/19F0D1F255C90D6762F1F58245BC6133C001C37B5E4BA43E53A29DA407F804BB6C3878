@@ -1,0 +1,61 @@
+int tinydir_open_sorted(tinydir_dir *dir, const _tinydir_char_t *path)
+{
+	/* Count the number of files first, to pre-allocate the files array */
+	size_t n_files = 0;
+	if (tinydir_open(dir, path) == -1)
+	{
+		return -1;
+	}
+	while (dir->has_next)
+	{
+		n_files++;
+		if (tinydir_next(dir) == -1)
+		{
+			goto bail;
+		}
+	}
+	tinydir_close(dir);
+
+	if (tinydir_open(dir, path) == -1)
+	{
+		return -1;
+	}
+
+	dir->n_files = 0;
+	dir->_files = (tinydir_file *)_TINYDIR_MALLOC(sizeof *dir->_files * n_files);
+	if (dir->_files == NULL)
+	{
+		goto bail;
+	}
+	while (dir->has_next)
+	{
+		tinydir_file *p_file;
+		dir->n_files++;
+
+		p_file = &dir->_files[dir->n_files - 1];
+		if (tinydir_readfile(dir, p_file) == -1)
+		{
+			goto bail;
+		}
+
+		if (tinydir_next(dir) == -1)
+		{
+			goto bail;
+		}
+
+		/* Just in case the number of files has changed between the first and
+		second reads, terminate without writing into unallocated memory */
+		if (dir->n_files == n_files)
+		{
+			break;
+		}
+	}
+
+	qsort(dir->_files, dir->n_files, sizeof(tinydir_file), _tinydir_file_cmp);
+
+	return 0;
+
+bail:
+	tinydir_close(dir);
+	return -1;
+}

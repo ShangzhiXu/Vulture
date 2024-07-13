@@ -1,0 +1,39 @@
+void lwm2m_close(lwm2m_context_t *contextP)
+{
+#ifdef LWM2M_CLIENT_MODE
+
+    LOG("Entering");
+    lwm2m_deregister(contextP);
+    prv_deleteServerList(contextP);
+#ifdef LWM2M_BOOTSTRAP
+    prv_deleteBootstrapServerList(contextP);
+#endif
+    prv_deleteObservedList(contextP);
+    lwm2m_free(contextP->endpointName);
+    //lwm2m_free(contextP->bs_server_uri);
+    if (contextP->msisdn != NULL)
+    {
+        lwm2m_free(contextP->msisdn);
+    }
+    if (contextP->altPath != NULL)
+    {
+        lwm2m_free(contextP->altPath);
+    }
+
+#endif
+
+#ifdef LWM2M_SERVER_MODE
+    while (NULL != contextP->clientList)
+    {
+        lwm2m_client_t *clientP;
+
+        clientP = contextP->clientList;
+        contextP->clientList = contextP->clientList->next;
+
+        registration_freeClient(clientP);
+    }
+#endif
+
+    prv_deleteTransactionList(contextP);
+    lwm2m_free(contextP);
+}

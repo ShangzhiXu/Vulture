@@ -1,0 +1,19 @@
+static void prv_spi_flash_wait_write_end(void)
+{
+    uint8_t status = 0;
+
+    SPI_FLASH_CS_ENABLE();
+
+    (void)prv_spi_flash_send_byte(SPI_FLASH_ReadStatusReg, NULL);
+
+    /* Loop as long as the memory is busy with a write cycle */
+    do {
+        /* Send a dummy byte to generate the clock needed by the FLASH
+        and put the value of the status register in status variable */
+        if (prv_spi_flash_send_byte(SPI_FLASH_DUMMY_BYTE, &status) == -1) {
+            break;
+        }
+    } while ((status & SPI_FLASH_WIP_FLAG) == SET); /* Write in progress */
+
+    SPI_FLASH_CS_DISABLE();
+}

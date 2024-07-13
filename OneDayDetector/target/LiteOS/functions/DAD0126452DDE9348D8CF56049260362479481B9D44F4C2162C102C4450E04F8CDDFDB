@@ -1,0 +1,32 @@
+HAL_StatusTypeDef HAL_ETH_Stop(ETH_HandleTypeDef *heth)
+{  
+  /* Process Locked */
+  __HAL_LOCK(heth);
+  
+  /* Set the ETH peripheral state to BUSY */
+  heth->State = HAL_ETH_STATE_BUSY;
+  
+  /* Stop DMA transmission */
+  ETH_DMATransmissionDisable(heth);
+  
+  /* Stop DMA reception */
+  ETH_DMAReceptionDisable(heth);
+  
+  /* Disable receive state machine of the MAC for reception from the MII */
+  ETH_MACReceptionDisable(heth);
+  
+  /* Flush Transmit FIFO */
+  ETH_FlushTransmitFIFO(heth);
+  
+  /* Disable transmit state machine of the MAC for transmission on the MII */
+  ETH_MACTransmissionDisable(heth);
+  
+  /* Set the ETH state*/
+  heth->State = HAL_ETH_STATE_READY;
+  
+  /* Process Unlocked */
+  __HAL_UNLOCK(heth);
+  
+  /* Return function status */
+  return HAL_OK;
+}

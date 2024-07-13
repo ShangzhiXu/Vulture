@@ -1,0 +1,84 @@
+HAL_StatusTypeDef HAL_UART_Transmit(UART_HandleTypeDef *huart, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+{
+  uint16_t* tmp;
+  uint32_t tmp_state = 0;
+  
+  tmp_state = huart->State;
+  if((tmp_state == HAL_UART_STATE_READY) || (tmp_state == HAL_UART_STATE_BUSY_RX))
+  {
+    if((pData == NULL) || (Size == 0))
+    {
+      return  HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(huart);
+
+    huart->ErrorCode = HAL_UART_ERROR_NONE;
+    /* Check if a non-blocking receive process is ongoing or not */
+    if(huart->State == HAL_UART_STATE_BUSY_RX) 
+    {
+      huart->State = HAL_UART_STATE_BUSY_TX_RX;
+    }
+    else
+    {
+      huart->State = HAL_UART_STATE_BUSY_TX;
+    }
+
+    huart->TxXferSize = Size;
+    huart->TxXferCount = Size;
+    while(huart->TxXferCount > 0)
+    {
+      huart->TxXferCount--;
+      if(huart->Init.WordLength == UART_WORDLENGTH_9B)
+      {
+        if(UART_WaitOnFlagUntilTimeout(huart, UART_FLAG_TXE, RESET, Timeout) != HAL_OK)
+        {
+          return HAL_TIMEOUT;
+        }
+        tmp = (uint16_t*) pData;
+        huart->Instance->DR = (*tmp & (uint16_t)0x01FF);
+        if(huart->Init.Parity == UART_PARITY_NONE)
+        {
+          pData +=2;
+        }
+        else
+        { 
+          pData +=1;
+        }
+      } 
+      else
+      {
+        if(UART_WaitOnFlagUntilTimeout(huart, UART_FLAG_TXE, RESET, Timeout) != HAL_OK)
+        {
+          return HAL_TIMEOUT;
+        }
+        huart->Instance->DR = (*pData++ & (uint8_t)0xFF);
+      }
+    }
+
+    if(UART_WaitOnFlagUntilTimeout(huart, UART_FLAG_TC, RESET, Timeout) != HAL_OK)
+    { 
+      return HAL_TIMEOUT;
+    }
+
+    /* Check if a non-blocking receive process is ongoing or not */
+    if(huart->State == HAL_UART_STATE_BUSY_TX_RX) 
+    {
+      huart->State = HAL_UART_STATE_BUSY_RX;
+    }
+    else
+    {
+      huart->State = HAL_UART_STATE_READY;
+    }
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(huart);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

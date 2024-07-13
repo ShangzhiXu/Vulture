@@ -1,0 +1,56 @@
+static int mqtt_dup_param(mqtt_param_s *dest, const mqtt_param_s *src)
+{
+    memset(dest, 0, sizeof(*dest));
+
+    dest->info.security_type = src->info.security_type;
+    dest->cmd_ioctl = src->cmd_ioctl;
+
+    dest->server_ip = atiny_strdup(src->server_ip);
+    if (dest->server_ip == NULL) {
+        ATINY_LOG(LOG_FATAL, "atiny_strdup NULL");
+        return ATINY_MALLOC_FAILED;
+    }
+
+    dest->server_port = atiny_strdup(src->server_port);
+    if (dest->server_port == NULL) {
+        ATINY_LOG(LOG_FATAL, "atiny_strdup NULL");
+        goto mqtt_param_dup_failed;
+    }
+
+    switch (src->info.security_type) {
+        case MQTT_SECURITY_TYPE_PSK:
+            dest->info.u.psk.psk_id = (uint8_t *)atiny_malloc(src->info.u.psk.psk_id_len);
+            if (dest->info.u.psk.psk_id == NULL) {
+                ATINY_LOG(LOG_FATAL, "atiny_strdup NULL");
+                goto mqtt_param_dup_failed;
+            }
+            memset(dest->info.u.psk.psk_id, 0, src->info.u.psk.psk_id_len);
+            memcpy(dest->info.u.psk.psk_id, src->info.u.psk.psk_id, src->info.u.psk.psk_id_len);
+            dest->info.u.psk.psk_id_len = src->info.u.psk.psk_id_len;
+            dest->info.u.psk.psk_id[dest->info.u.psk.psk_id_len] = '\0';
+            dest->info.u.psk.psk = (unsigned char *)atiny_malloc(src->info.u.psk.psk_len);
+            if (dest->info.u.psk.psk == NULL) {
+                ATINY_LOG(LOG_FATAL, "atiny_strdup NULL");
+                goto mqtt_param_dup_failed;
+            }
+            memset(dest->info.u.psk.psk, 0, src->info.u.psk.psk_len);
+            memcpy(dest->info.u.psk.psk, src->info.u.psk.psk, src->info.u.psk.psk_len);
+            dest->info.u.psk.psk_len = src->info.u.psk.psk_len;
+            break;
+        case MQTT_SECURITY_TYPE_CA:
+            dest->info.u.ca.ca_crt = (char *)atiny_malloc(src->info.u.ca.ca_len);
+            if (dest->info.u.ca.ca_crt == NULL) {
+                ATINY_LOG(LOG_FATAL, "atiny_strdup NULL");
+                goto mqtt_param_dup_failed;
+            }
+            memcpy(dest->info.u.ca.ca_crt, src->info.u.ca.ca_crt, src->info.u.ca.ca_len);
+            dest->info.u.ca.ca_len = src->info.u.ca.ca_len;
+            break;
+        default:
+            break;
+    }
+    return ATINY_OK;
+mqtt_param_dup_failed:
+    mqtt_free_params(dest);
+    return ATINY_MALLOC_FAILED;
+}

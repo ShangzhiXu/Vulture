@@ -1,0 +1,27 @@
+SECUREC_INLINE void SecUpdateOudiFlags(SecFormatAttr *attr, SecChar ch)
+{
+    /* Do not set digits here */
+    switch (ch) {
+        case SECUREC_CHAR('i'): /* fall-through */ /* FALLTHRU */
+        case SECUREC_CHAR('d'): /* fall-through */ /* FALLTHRU */
+            /* For signed decimal output */
+            attr->flags |= SECUREC_FLAG_SIGNED;
+            /* fall-through */ /* FALLTHRU */
+        case SECUREC_CHAR('u'):
+            attr->radix = SECUREC_RADIX_DECIMAL;
+            attr->digits = g_itoaLowerDigits;
+            break;
+        case SECUREC_CHAR('o'):
+            /* For unsigned octal output */
+            attr->radix = SECUREC_RADIX_OCTAL;
+            attr->digits = g_itoaLowerDigits;
+            if ((attr->flags & SECUREC_FLAG_ALTERNATE) != 0) {
+                /* Alternate form means force a leading 0 */
+                attr->flags |= SECUREC_FLAG_FORCE_OCTAL;
+            }
+            break;
+        default:
+            /* Do nothing */
+            break;
+    }
+}

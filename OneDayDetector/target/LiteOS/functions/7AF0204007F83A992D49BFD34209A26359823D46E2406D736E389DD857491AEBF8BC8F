@@ -1,0 +1,35 @@
+HAL_StatusTypeDef HAL_SMARTCARDEx_SetTxFifoThreshold(SMARTCARD_HandleTypeDef *hsmartcard, uint32_t Threshold)
+{
+  uint32_t tmpcr1 = 0;
+  
+  /* Check parameters */
+  assert_param(IS_UART_FIFO_INSTANCE(hsmartcard->Instance));
+  assert_param(IS_SMARTCARD_TXFIFO_THRESHOLD(Threshold));
+
+  /* Process Locked */
+  __HAL_LOCK(hsmartcard);
+  
+  hsmartcard->gState = HAL_SMARTCARD_STATE_BUSY;
+  
+  /* Save actual SMARTCARD configuration */
+  tmpcr1 = READ_REG(hsmartcard->Instance->CR1);
+  
+  /* Disable SMARTCARD */
+  __HAL_SMARTCARD_DISABLE(hsmartcard);
+  
+  /* Update TX threshold configuration */
+  MODIFY_REG(hsmartcard->Instance->CR3, USART_CR3_TXFTCFG, Threshold);
+  
+  /* Determine the number of data to process during RX/TX ISR execution */
+  SMARTCARDEx_SetNbDataToProcess(hsmartcard);
+  
+  /* Restore SMARTCARD configuration */
+  MODIFY_REG(hsmartcard->Instance->CR1, USART_CR1_UE, tmpcr1);
+  
+  hsmartcard->gState = HAL_SMARTCARD_STATE_READY;
+  
+  /* Process Unlocked */
+  __HAL_UNLOCK(hsmartcard);
+  
+  return HAL_OK;
+}

@@ -1,0 +1,50 @@
+HAL_StatusTypeDef HAL_ADC_DeInit(ADC_HandleTypeDef* hadc)
+{
+  HAL_StatusTypeDef tmp_hal_status = HAL_OK;
+  
+  /* Check ADC handle */
+  if(hadc == NULL)
+  {
+    return HAL_ERROR;
+  }
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+  
+  /* Set ADC state */
+  SET_BIT(hadc->State, HAL_ADC_STATE_BUSY_INTERNAL);
+  
+  /* Stop potential conversion on going, on regular and injected groups */
+  /* Disable ADC peripheral */
+  __HAL_ADC_DISABLE(hadc);
+  
+  /* Configuration of ADC parameters if previous preliminary actions are      */ 
+  /* correctly completed.                                                     */
+  if(HAL_IS_BIT_CLR(hadc->Instance->CR2, ADC_CR2_ADON))
+  {
+#if (USE_HAL_ADC_REGISTER_CALLBACKS == 1)
+  if (hadc->MspDeInitCallback == NULL)
+  {
+    hadc->MspDeInitCallback = HAL_ADC_MspDeInit; /* Legacy weak MspDeInit  */
+  }
+
+  /* DeInit the low level hardware: RCC clock, NVIC */
+  hadc->MspDeInitCallback(hadc);
+#else
+  /* DeInit the low level hardware: RCC clock, NVIC */
+  HAL_ADC_MspDeInit(hadc);
+#endif /* USE_HAL_ADC_REGISTER_CALLBACKS */
+    
+    /* Set ADC error code to none */
+    ADC_CLEAR_ERRORCODE(hadc);
+    
+    /* Set ADC state */
+    hadc->State = HAL_ADC_STATE_RESET;
+  }
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+  
+  /* Return function status */
+  return tmp_hal_status;
+}

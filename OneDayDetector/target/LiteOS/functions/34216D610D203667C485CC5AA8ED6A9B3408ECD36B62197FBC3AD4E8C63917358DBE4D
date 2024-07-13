@@ -1,0 +1,55 @@
+dns_call_found(u8_t idx, ip_addr_t *addr)
+{
+#if ((LWIP_DNS_SECURE & (LWIP_DNS_SECURE_NO_MULTIPLE_OUTSTANDING | LWIP_DNS_SECURE_RAND_SRC_PORT)) != 0)
+  u8_t i;
+#endif
+
+#if LWIP_IPV4 && LWIP_IPV6
+  if (addr != NULL) {
+    /* check that address type matches the request and adapt the table entry */
+    if (IP_IS_V6_VAL(*addr)) {
+      LWIP_ASSERT("invalid response", LWIP_DNS_ADDRTYPE_IS_IPV6(dns_table[idx].reqaddrtype));
+      dns_table[idx].reqaddrtype = LWIP_DNS_ADDRTYPE_IPV6;
+    } else {
+      LWIP_ASSERT("invalid response", !LWIP_DNS_ADDRTYPE_IS_IPV6(dns_table[idx].reqaddrtype));
+      dns_table[idx].reqaddrtype = LWIP_DNS_ADDRTYPE_IPV4;
+    }
+  }
+#endif /* LWIP_IPV4 && LWIP_IPV6 */
+
+#if ((LWIP_DNS_SECURE & LWIP_DNS_SECURE_NO_MULTIPLE_OUTSTANDING) != 0)
+  for (i = 0; i < DNS_MAX_REQUESTS; i++) {
+    if (dns_requests[i].found && (dns_requests[i].dns_table_idx == idx)) {
+      (*dns_requests[i].found)(dns_table[idx].name, addr, dns_requests[i].arg);
+      /* flush this entry */
+      dns_requests[i].found = NULL;
+    }
+  }
+#else
+  if (dns_requests[idx].found) {
+    (*dns_requests[idx].found)(dns_table[idx].name, addr, dns_requests[idx].arg);
+  }
+  dns_requests[idx].found = NULL;
+#endif
+#if ((LWIP_DNS_SECURE & LWIP_DNS_SECURE_RAND_SRC_PORT) != 0)
+  /* close the pcb used unless other request are using it */
+  for (i = 0; i < DNS_MAX_REQUESTS; i++) {
+    if (i == idx) {
+      continue; /* only check other requests */
+    }
+    if (dns_table[i].state == DNS_STATE_ASKING) {
+      if (dns_table[i].pcb_idx == dns_table[idx].pcb_idx) {
+        /* another request is still using the same pcb */
+        dns_table[idx].pcb_idx = DNS_MAX_SOURCE_PORTS;
+        break;
+      }
+    }
+  }
+  if (dns_table[idx].pcb_idx < DNS_MAX_SOURCE_PORTS) {
+    /* if we come here, the pcb is not used any more and can be removed */
+    udp_remove(dns_pcbs[dns_table[idx].pcb_idx]);
+    dns_pcbs[dns_table[idx].pcb_idx] = NULL;
+    dns_table[idx].pcb_idx = DNS_MAX_SOURCE_PORTS;
+  }
+#endif
+}

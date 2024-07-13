@@ -1,0 +1,10 @@
+    mbedtls_cipher_type_t cipher;
+    unsigned char flags;
+    int id;
+    mbedtls_key_exchange_type_t key_exchange;
+    mbedtls_md_type_t mac;
+    int max_major_ver;
+    int max_minor_ver;
+    int min_major_ver;
+    int min_minor_ver;
+    const char * name;

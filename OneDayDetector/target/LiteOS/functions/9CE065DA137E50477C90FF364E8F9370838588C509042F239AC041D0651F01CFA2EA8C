@@ -1,0 +1,41 @@
+HAL_StatusTypeDef HAL_LPTIM_DeInit(LPTIM_HandleTypeDef *hlptim)
+{
+  /* Check the LPTIM handle allocation */
+  if (hlptim == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Change the LPTIM state */
+  hlptim->State = HAL_LPTIM_STATE_BUSY;
+
+  /* Disable the LPTIM Peripheral Clock */
+  __HAL_LPTIM_DISABLE(hlptim);
+
+  if (HAL_LPTIM_GetState(hlptim) == HAL_LPTIM_STATE_TIMEOUT)
+  {
+    return HAL_TIMEOUT;
+  }
+
+#if (USE_HAL_LPTIM_REGISTER_CALLBACKS == 1)
+  if (hlptim->MspDeInitCallback == NULL)
+  {
+    hlptim->MspDeInitCallback = HAL_LPTIM_MspDeInit;
+  }
+
+  /* DeInit the low level hardware: CLOCK, NVIC.*/
+  hlptim->MspDeInitCallback(hlptim);
+#else
+  /* DeInit the low level hardware: CLOCK, NVIC.*/
+  HAL_LPTIM_MspDeInit(hlptim);
+#endif /* USE_HAL_LPTIM_REGISTER_CALLBACKS */
+
+  /* Change the LPTIM state */
+  hlptim->State = HAL_LPTIM_STATE_RESET;
+
+  /* Release Lock */
+  __HAL_UNLOCK(hlptim);
+
+  /* Return function status */
+  return HAL_OK;
+}

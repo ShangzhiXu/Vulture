@@ -1,0 +1,48 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 OsShellCmdCpup(INT32 argc, const CHAR **argv)
+{
+    size_t mode, taskId;
+    CHAR *bufMode = NULL;
+    CHAR *bufId = NULL;
+    LosTaskCB *taskCB = NULL;
+    UINT32 ret;
+
+    if (argc <= 0) {
+        ret = LOS_HistorySysCpuUsage(CPUP_LAST_TEN_SECONDS);
+        PRINTK("\nSysCpuUsage in 10s: %u.%u", ret / LOS_CPUP_PRECISION_MULT, ret % LOS_CPUP_PRECISION_MULT);
+        return 0;
+    }
+
+    mode = strtoul(argv[0], &bufMode, 0);
+    if ((bufMode == NULL) || (*bufMode != 0)) {
+        PRINTK("\nThe input mode is invalid. Please try again.\n");
+        return 0;
+    }
+
+    if (mode > CPUP_ALL_TIME) {
+        mode = CPUP_ALL_TIME;
+    }
+
+    if (argc == 1) {
+        OsCmdCpupOperateOneParam(mode);
+        return 0;
+    }
+
+    taskId = strtoul(argv[1], &bufId, 0);
+    if ((taskId >= g_taskMaxNum) || (*bufId != 0)) {
+        PRINTK("\nThe input taskId is invalid. Please try again.\n");
+        return 0;
+    }
+    taskCB = OS_TCB_FROM_TID(taskId);
+    if (taskCB->taskStatus & OS_TASK_STATUS_UNUSED) {
+        PRINTK("\nThe task is unused. Please try again.\n");
+        return 0;
+    }
+
+    if (argc == 2) {
+        OsCmdCpupOperateTwoParam(mode, taskId);
+        return 0;
+    }
+
+    PRINTK("cpup [MODE] \ncpup [MODE] [TASKID] \n");
+    return 0;
+}

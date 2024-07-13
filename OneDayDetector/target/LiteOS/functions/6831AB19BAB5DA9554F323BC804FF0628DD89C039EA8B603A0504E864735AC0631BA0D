@@ -1,0 +1,95 @@
+tcp_alloc(u8_t prio)
+{
+  struct tcp_pcb *pcb;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  pcb = (struct tcp_pcb *)memp_malloc(MEMP_TCP_PCB);
+  if (pcb == NULL) {
+    /* Try to send FIN for all pcbs stuck in TF_CLOSEPEND first */
+    tcp_handle_closepend();
+
+    /* Try killing oldest connection in TIME-WAIT. */
+    LWIP_DEBUGF(TCP_DEBUG, ("tcp_alloc: killing off oldest TIME-WAIT connection\n"));
+    tcp_kill_timewait();
+    /* Try to allocate a tcp_pcb again. */
+    pcb = (struct tcp_pcb *)memp_malloc(MEMP_TCP_PCB);
+    if (pcb == NULL) {
+      /* Try killing oldest connection in LAST-ACK (these wouldn't go to TIME-WAIT). */
+      LWIP_DEBUGF(TCP_DEBUG, ("tcp_alloc: killing off oldest LAST-ACK connection\n"));
+      tcp_kill_state(LAST_ACK);
+      /* Try to allocate a tcp_pcb again. */
+      pcb = (struct tcp_pcb *)memp_malloc(MEMP_TCP_PCB);
+      if (pcb == NULL) {
+        /* Try killing oldest connection in CLOSING. */
+        LWIP_DEBUGF(TCP_DEBUG, ("tcp_alloc: killing off oldest CLOSING connection\n"));
+        tcp_kill_state(CLOSING);
+        /* Try to allocate a tcp_pcb again. */
+        pcb = (struct tcp_pcb *)memp_malloc(MEMP_TCP_PCB);
+        if (pcb == NULL) {
+          /* Try killing oldest active connection with lower priority than the new one. */
+          LWIP_DEBUGF(TCP_DEBUG, ("tcp_alloc: killing oldest connection with prio lower than %d\n", prio));
+          tcp_kill_prio(prio);
+          /* Try to allocate a tcp_pcb again. */
+          pcb = (struct tcp_pcb *)memp_malloc(MEMP_TCP_PCB);
+          if (pcb != NULL) {
+            /* adjust err stats: memp_malloc failed multiple times before */
+            MEMP_STATS_DEC(err, MEMP_TCP_PCB);
+          }
+        }
+        if (pcb != NULL) {
+          /* adjust err stats: memp_malloc failed multiple times before */
+          MEMP_STATS_DEC(err, MEMP_TCP_PCB);
+        }
+      }
+      if (pcb != NULL) {
+        /* adjust err stats: memp_malloc failed multiple times before */
+        MEMP_STATS_DEC(err, MEMP_TCP_PCB);
+      }
+    }
+    if (pcb != NULL) {
+      /* adjust err stats: memp_malloc failed above */
+      MEMP_STATS_DEC(err, MEMP_TCP_PCB);
+    }
+  }
+  if (pcb != NULL) {
+    /* zero out the whole pcb, so there is no need to initialize members to zero */
+    memset(pcb, 0, sizeof(struct tcp_pcb));
+    pcb->prio = prio;
+    pcb->snd_buf = TCP_SND_BUF;
+    /* Start with a window that does not need scaling. When window scaling is
+       enabled and used, the window is enlarged when both sides agree on scaling. */
+    pcb->rcv_wnd = pcb->rcv_ann_wnd = TCPWND_MIN16(TCP_WND);
+    pcb->ttl = TCP_TTL;
+    /* As initial send MSS, we use TCP_MSS but limit it to 536.
+       The send MSS is updated when an MSS option is received. */
+    pcb->mss = INITIAL_MSS;
+    pcb->rto = 3000 / TCP_SLOW_INTERVAL;
+    pcb->sv = 3000 / TCP_SLOW_INTERVAL;
+    pcb->rtime = -1;
+    pcb->cwnd = 1;
+    pcb->tmr = tcp_ticks;
+    pcb->last_timer = tcp_timer_ctr;
+
+    /* RFC 5681 recommends setting ssthresh abritrarily high and gives an example
+    of using the largest advertised receive window.  We've seen complications with
+    receiving TCPs that use window scaling and/or window auto-tuning where the
+    initial advertised window is very small and then grows rapidly once the
+    connection is established. To avoid these complications, we set ssthresh to the
+    largest effective cwnd (amount of in-flight data) that the sender can have. */
+    pcb->ssthresh = TCP_SND_BUF;
+
+#if LWIP_CALLBACK_API
+    pcb->recv = tcp_recv_null;
+#endif /* LWIP_CALLBACK_API */
+
+    /* Init KEEPALIVE timer */
+    pcb->keep_idle  = TCP_KEEPIDLE_DEFAULT;
+
+#if LWIP_TCP_KEEPALIVE
+    pcb->keep_intvl = TCP_KEEPINTVL_DEFAULT;
+    pcb->keep_cnt   = TCP_KEEPCNT_DEFAULT;
+#endif /* LWIP_TCP_KEEPALIVE */
+  }
+  return pcb;
+}

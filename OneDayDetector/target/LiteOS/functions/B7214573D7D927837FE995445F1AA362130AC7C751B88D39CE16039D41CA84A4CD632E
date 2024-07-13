@@ -1,0 +1,88 @@
+HAL_StatusTypeDef HAL_JPEG_Abort(JPEG_HandleTypeDef *hjpeg)
+{
+  uint32_t tickstart, tmpContext;
+  tmpContext = hjpeg->Context;
+
+  /*Reset the Context operation and method*/
+  hjpeg->Context &= ~(JPEG_CONTEXT_OPERATION_MASK | JPEG_CONTEXT_METHOD_MASK | JPEG_CONTEXT_ENDING_DMA);
+
+  if ((tmpContext & JPEG_CONTEXT_METHOD_MASK) == JPEG_CONTEXT_DMA)
+  {
+    /* Stop the DMA In/out Xfer*/
+    if (HAL_DMA_Abort(hjpeg->hdmaout) != HAL_OK)
+    {
+      if (hjpeg->hdmaout->ErrorCode == HAL_DMA_ERROR_TIMEOUT)
+      {
+        hjpeg->ErrorCode |= HAL_JPEG_ERROR_DMA;
+      }
+    }
+    if (HAL_DMA_Abort(hjpeg->hdmain) != HAL_OK)
+    {
+      if (hjpeg->hdmain->ErrorCode == HAL_DMA_ERROR_TIMEOUT)
+      {
+        hjpeg->ErrorCode |= HAL_JPEG_ERROR_DMA;
+      }
+    }
+
+  }
+
+  /* Stop the JPEG encoding/decoding process*/
+  hjpeg->Instance->CONFR0 &=  ~JPEG_CONFR0_START;
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  /* Check if the JPEG Codec is effectively disabled */
+  while (__HAL_JPEG_GET_FLAG(hjpeg, JPEG_FLAG_COF) != 0UL)
+  {
+    /* Check for the Timeout */
+    if ((HAL_GetTick() - tickstart) > JPEG_TIMEOUT_VALUE)
+    {
+      /* Update error code */
+      hjpeg->ErrorCode |= HAL_JPEG_ERROR_TIMEOUT;
+
+      /* Change the DMA state */
+      hjpeg->State = HAL_JPEG_STATE_ERROR;
+      break;
+    }
+  }
+
+  /* Disable All Interrupts */
+  __HAL_JPEG_DISABLE_IT(hjpeg, JPEG_INTERRUPT_MASK);
+
+  /* Disable All DMA requests */
+  JPEG_DISABLE_DMA(hjpeg, JPEG_DMA_MASK);
+
+  /* Flush input and output FIFOs*/
+  hjpeg->Instance->CR |= JPEG_CR_IFF;
+  hjpeg->Instance->CR |= JPEG_CR_OFF;
+
+  /* Clear all flags */
+  __HAL_JPEG_CLEAR_FLAG(hjpeg, JPEG_FLAG_ALL);
+
+  /* Reset JpegInCount and JpegOutCount */
+  hjpeg->JpegInCount = 0;
+  hjpeg->JpegOutCount = 0;
+
+  /*Reset the Context Pause*/
+  hjpeg->Context &= ~(JPEG_CONTEXT_PAUSE_INPUT | JPEG_CONTEXT_PAUSE_OUTPUT);
+
+  /* Change the DMA state*/
+  if (hjpeg->ErrorCode != HAL_JPEG_ERROR_NONE)
+  {
+    hjpeg->State = HAL_JPEG_STATE_ERROR;
+    /* Process Unlocked */
+    __HAL_UNLOCK(hjpeg);
+    /* Return function status */
+    return HAL_ERROR;
+  }
+  else
+  {
+    hjpeg->State = HAL_JPEG_STATE_READY;
+    /* Process Unlocked */
+    __HAL_UNLOCK(hjpeg);
+    /* Return function status */
+    return HAL_OK;
+  }
+
+}

@@ -1,0 +1,35 @@
+HAL_StatusTypeDef HAL_WWDG_DeInit(WWDG_HandleTypeDef *hwwdg)
+{ 
+  /* Check the WWDG handle allocation */
+  if(hwwdg == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_WWDG_ALL_INSTANCE(hwwdg->Instance));
+
+  /* Change WWDG peripheral state */  
+  hwwdg->State = HAL_WWDG_STATE_BUSY;
+  
+  /* DeInit the low level hardware */
+  HAL_WWDG_MspDeInit(hwwdg);
+  
+  /* Reset WWDG Control register */
+  hwwdg->Instance->CR  = (uint32_t)0x0000007F;
+  
+  /* Reset WWDG Configuration register */
+  hwwdg->Instance->CFR = (uint32_t)0x0000007F;
+  
+  /* Reset WWDG Status register */
+  hwwdg->Instance->SR  = 0; 
+  
+  /* Change WWDG peripheral state */    
+  hwwdg->State = HAL_WWDG_STATE_RESET; 
+
+  /* Release Lock */
+  __HAL_UNLOCK(hwwdg);
+
+  /* Return function status */
+  return HAL_OK;
+}

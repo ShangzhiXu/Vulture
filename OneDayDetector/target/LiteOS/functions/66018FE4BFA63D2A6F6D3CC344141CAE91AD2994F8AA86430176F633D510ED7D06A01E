@@ -1,0 +1,39 @@
+static uint32_t CRC_Handle_8(CRC_HandleTypeDef *hcrc, uint8_t pBuffer[], uint32_t BufferLength)
+{
+  uint32_t i = 0; /* input data buffer index */
+  uint16_t data;
+  __IO uint16_t *pReg;
+
+   /* Processing time optimization: 4 bytes are entered in a row with a single word write,
+    * last bytes must be carefully fed to the CRC calculator to ensure a correct type
+    * handling by the IP */
+   for(i = 0; i < (BufferLength/4); i++)
+   {
+      hcrc->Instance->DR = ((uint32_t)pBuffer[4*i]<<24) | ((uint32_t)pBuffer[4*i+1]<<16) | ((uint32_t)pBuffer[4*i+2]<<8) | (uint32_t)pBuffer[4*i+3];
+   }
+   /* last bytes specific handling */
+   if ((BufferLength%4) != 0)
+   {
+     if  (BufferLength%4 == 1)
+     {
+       *(__IO uint8_t *)(__IO void *)(&hcrc->Instance->DR) = pBuffer[4*i];
+     }
+     if  (BufferLength%4 == 2)
+     {
+       data = (uint16_t)(pBuffer[4*i]<<8) | (uint16_t)pBuffer[4*i+1];
+       pReg = (__IO uint16_t *)(__IO void *)(&hcrc->Instance->DR);
+       *pReg = data;
+     }
+     if  (BufferLength%4 == 3)
+     {
+       data = (uint16_t)(pBuffer[4*i]<<8) | (uint16_t)pBuffer[4*i+1];
+       pReg = (__IO uint16_t *)(__IO void *)(&hcrc->Instance->DR);
+       *pReg = data;
+
+      *(__IO uint8_t *)(__IO void *)(&hcrc->Instance->DR) = pBuffer[4*i+2];
+     }
+   }
+
+  /* Return the CRC computed value */
+  return hcrc->Instance->DR;
+}

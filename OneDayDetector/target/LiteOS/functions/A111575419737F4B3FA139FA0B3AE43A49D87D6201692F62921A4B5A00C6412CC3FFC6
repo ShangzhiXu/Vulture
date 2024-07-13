@@ -1,0 +1,65 @@
+HAL_StatusTypeDef HAL_SD_ConfigWideBusOperation(SD_HandleTypeDef *hsd, uint32_t WideMode)
+{
+  SDIO_InitTypeDef Init;
+  uint32_t errorstate;
+
+  /* Check the parameters */
+  assert_param(IS_SDIO_BUS_WIDE(WideMode));
+
+  /* Change State */
+  hsd->State = HAL_SD_STATE_BUSY;
+
+  if(hsd->SdCard.CardType != CARD_SECURED)
+  {
+    if(WideMode == SDIO_BUS_WIDE_8B)
+    {
+      hsd->ErrorCode |= HAL_SD_ERROR_UNSUPPORTED_FEATURE;
+    }
+    else if(WideMode == SDIO_BUS_WIDE_4B)
+    {
+      errorstate = SD_WideBus_Enable(hsd);
+
+      hsd->ErrorCode |= errorstate;
+    }
+    else if(WideMode == SDIO_BUS_WIDE_1B)
+    {
+      errorstate = SD_WideBus_Disable(hsd);
+
+      hsd->ErrorCode |= errorstate;
+    }
+    else
+    {
+      /* WideMode is not a valid argument*/
+      hsd->ErrorCode |= HAL_SD_ERROR_PARAM;
+    }
+  }
+  else
+  {
+    /* MMC Card does not support this feature */
+    hsd->ErrorCode |= HAL_SD_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  if(hsd->ErrorCode != HAL_SD_ERROR_NONE)
+  {
+    /* Clear all the static flags */
+    __HAL_SD_CLEAR_FLAG(hsd, SDIO_STATIC_FLAGS);
+    hsd->State = HAL_SD_STATE_READY;
+    return HAL_ERROR;
+  }
+  else
+  {
+    /* Configure the SDIO peripheral */
+    Init.ClockEdge           = hsd->Init.ClockEdge;
+    Init.ClockBypass         = hsd->Init.ClockBypass;
+    Init.ClockPowerSave      = hsd->Init.ClockPowerSave;
+    Init.BusWide             = WideMode;
+    Init.HardwareFlowControl = hsd->Init.HardwareFlowControl;
+    Init.ClockDiv            = hsd->Init.ClockDiv;
+    (void)SDIO_Init(hsd->Instance, Init);
+  }
+
+  /* Change State */
+  hsd->State = HAL_SD_STATE_READY;
+
+  return HAL_OK;
+}

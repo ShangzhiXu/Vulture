@@ -1,0 +1,17 @@
+UINT32 OsShellCmdSemCntGet(VOID)
+{
+    UINT32 loop;
+    UINT32 semCnt = 0;
+    UINT32 intSave;
+    LosSemCB *semNode = NULL;
+
+    intSave = LOS_IntLock();
+    for (loop = 0; loop < LOSCFG_BASE_IPC_SEM_LIMIT; loop++) {
+        semNode = GET_SEM(loop);
+        if (semNode->semStat == OS_SEM_USED) {
+            semCnt++;
+        }
+    }
+    LOS_IntRestore(intSave);
+    return semCnt;
+}

@@ -1,0 +1,25 @@
+int vswscanf_s(const wchar_t *buffer, const wchar_t *format, va_list argList)
+{
+    size_t count; /* If initialization causes  e838 */
+    SecFileStream fStr;
+    int retVal;
+
+    /* Validation section */
+    if (buffer == NULL || format == NULL) {
+        SECUREC_ERROR_INVALID_PARAMTER("vswscanf_s");
+        return SECUREC_SCANF_EINVAL;
+    }
+    count = SecWcslen(buffer);
+    if (count == 0 || count > SECUREC_WCHAR_STRING_MAX_LEN) {
+        SecClearDestBufW(buffer, format, argList);
+        SECUREC_ERROR_INVALID_PARAMTER("vswscanf_s");
+        return SECUREC_SCANF_EINVAL;
+    }
+    SECUREC_FILE_STREAM_FROM_STRING(&fStr, (const char *)buffer, count * sizeof(wchar_t));
+    retVal = SecInputSW(&fStr, format, argList);
+    if (retVal < 0) {
+        SECUREC_ERROR_INVALID_PARAMTER("vswscanf_s");
+        return SECUREC_SCANF_EINVAL;
+    }
+    return retVal;
+}

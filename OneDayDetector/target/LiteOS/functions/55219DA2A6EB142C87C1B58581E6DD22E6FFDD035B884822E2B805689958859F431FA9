@@ -1,0 +1,73 @@
+int nb_decompose_str(const char *str, int *readleft, int *out_sockid)
+{
+    const char *tmp, *trans;
+    int sockid;
+    QUEUE_BUFF qbuf;
+    int ret = AT_FAILED;
+    int rlen;
+    int link_id;
+
+    tmp = strstr(str, ",");
+    if (tmp == NULL) {
+        return AT_FAILED;
+    }
+
+    sockid = chartoint(str);
+    trans = strstr(tmp + 1, ",");
+    if (trans == NULL) {
+        return AT_FAILED;
+    }
+    strncpy(qbuf.ipaddr, tmp + 1, MIN((trans - tmp), AT_DATA_LEN / 2));
+    qbuf.ipaddr[trans - tmp - 1] = '\0';
+    if (!nb_is_addr_valid(qbuf.ipaddr)) {
+        return AT_FAILED;
+    }
+
+    qbuf.port = chartoint((char *)(trans + 1));
+    tmp = strstr(trans + 1, ",");
+    if (tmp == NULL) {
+        return AT_FAILED;
+    }
+    rlen = chartoint((char *)(tmp + 1));
+    if (rlen >= AT_DATA_LEN / 2 || rlen < 0) {
+        AT_LOG("rlen %d", rlen);
+        return AT_FAILED;
+    }
+
+    trans = strstr(tmp + 1, ",");
+    if (trans == NULL) {
+        return AT_FAILED;
+    }
+
+    tmp = strstr(trans + 1, ",");
+    if (tmp == NULL) {
+        return AT_FAILED;
+    }
+
+    *readleft = chartoint((char *)(tmp + 1));
+
+    *out_sockid = sockid;
+
+    link_id = nb_sock_to_idx(sockid);
+    if (link_id >= MAX_SOCK_NUM) {
+        AT_LOG("sockid invalid %d", sockid);
+        return AT_OK;
+    }
+
+    qbuf.addr = at_malloc(rlen);
+    if (qbuf.addr == NULL) {
+        AT_LOG("at_malloc null");
+        return AT_OK;
+    }
+
+    HexStrToStr((const unsigned char *)(trans + 1), qbuf.addr, (rlen)*2);
+    qbuf.len = rlen;
+
+    ret = LOS_QueueWriteCopy(at.linkid[link_id].qid, &qbuf, sizeof(qbuf), 0);
+    if (LOS_OK != ret) {
+        AT_LOG("LOS_QueueWriteCopy  failed! ret %d", ret);
+        at_free(qbuf.addr);
+    }
+
+    return AT_OK;
+}

@@ -1,0 +1,38 @@
+STATIC VOID SortMuxIndexArray(UINT32 *indexArray, UINT32 count)
+{
+    LosMuxCB muxNode = {0};
+    MuxDebugCB muxDebugNode = {0};
+    UINT32 index, intSave;
+    SortParam muxSortParam;
+    muxSortParam.buf = (CHAR *)g_muxDebugArray;
+    muxSortParam.ctrlBlockSize = sizeof(MuxDebugCB);
+    muxSortParam.ctrlBlockCnt = LOSCFG_BASE_IPC_MUX_LIMIT;
+    muxSortParam.sortElemOff = OFFSET_OF_FIELD(MuxDebugCB, lastAccessTime);
+
+    if (count > 0) {
+        SCHEDULER_LOCK(intSave);
+        OsArraySort(indexArray, 0, count - 1, &muxSortParam, MuxCompareValue);
+        SCHEDULER_UNLOCK(intSave);
+        for (index = 0; index < count; index++) {
+            SCHEDULER_LOCK(intSave);
+            (VOID)memcpy_s(&muxNode, sizeof(LosMuxCB),
+                           GET_MUX(indexArray[index]), sizeof(LosMuxCB));
+            (VOID)memcpy_s(&muxDebugNode, sizeof(MuxDebugCB),
+                           &g_muxDebugArray[indexArray[index]], sizeof(MuxDebugCB));
+            SCHEDULER_UNLOCK(intSave);
+            /*
+             * muxStat may be altered after the g_taskSpin is unlocked in OsMutexCheck.
+             * We should recheck the muxStat before the print.
+             */
+            if ((muxNode.muxStat != OS_MUX_USED) ||
+                ((muxNode.muxStat == OS_MUX_USED) && ((muxDebugNode.creator == NULL) || (muxNode.owner == NULL)))) {
+                continue;
+            }
+            PRINTK("Mutex ID <0x%x> may leak, TaskID of owner:0x%x, TaskEntry of owner: %p,"
+                   "TaskEntry of creator: %p,Latest operation time: 0x%llx\n",
+                   muxNode.muxId, muxNode.owner->taskId, muxNode.owner->taskEntry, muxDebugNode.creator,
+                   muxDebugNode.lastAccessTime);
+        }
+    }
+    (VOID)LOS_MemFree((VOID *)OS_SYS_MEM_ADDR, indexArray);
+}

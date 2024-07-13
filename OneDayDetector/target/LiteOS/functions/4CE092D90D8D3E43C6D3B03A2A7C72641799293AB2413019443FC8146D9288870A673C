@@ -1,0 +1,23 @@
+sys_arch_mbox_tryfetch(sys_mbox_t *q, void **msg)
+{
+  LWIP_ASSERT("q != SYS_MBOX_NULL", q != SYS_MBOX_NULL);
+  LWIP_ASSERT("q->sem == q", q->sem == q);
+  LWIP_ASSERT("q->q_mem != NULL", q->q_mem != NULL);
+  LWIP_ASSERT("q->used >= 0", q->used >= 0);
+  LWIP_ASSERT("q->size > 0", q->size > 0);
+
+  if (!q->used) {
+    return SYS_ARCH_TIMEOUT;
+  }
+  if(msg) {
+    *msg = q->q_mem[q->tail];
+  }
+
+  q->tail++;
+  if (q->tail >= (unsigned int)q->size) {
+    q->tail = 0;
+  }
+  q->used--;
+  LWIP_ASSERT("q->used >= 0", q->used >= 0);
+  return 0;
+}

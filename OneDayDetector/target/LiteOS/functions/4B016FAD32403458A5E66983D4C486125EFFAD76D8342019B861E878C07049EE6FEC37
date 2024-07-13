@@ -1,0 +1,41 @@
+LITE_OS_SEC_TEXT_INIT STATIC BOOL OsTaskDelAction(LosTaskCB *taskCB, BOOL useUsrStack)
+{
+    VOID *pool = (VOID *)m_aucSysMem1;
+    UINTPTR taskStack;
+
+    LOS_TRACE(TASK_DELETE, taskCB->taskId, taskCB->taskStatus, taskCB->usrStack);
+
+    if (taskCB->taskStatus & OS_TASK_STATUS_RUNNING) {
+#ifdef LOSCFG_TASK_STATIC_ALLOCATION
+        if (useUsrStack) {
+            LOS_ListAdd(&g_losFreeTask, &taskCB->pendList);
+        } else {
+#endif
+            LOS_ListTailInsert(&g_taskRecycleList, &taskCB->pendList);
+#ifdef LOSCFG_TASK_STATIC_ALLOCATION
+        }
+#endif
+        OsTaskDelActionOnRun(taskCB);
+        return TRUE;
+    }
+
+    taskCB->taskStatus = OS_TASK_STATUS_UNUSED;
+    LOS_ListAdd(&g_losFreeTask, &taskCB->pendList);
+    if (useUsrStack == FALSE) {
+#ifdef LOSCFG_TASK_STACK_PROTECT
+        taskStack = taskCB->topOfStack - MMU_4K;
+        OsTaskStackProtect(taskStack, MMU_4K, ACCESS_PERM_RW_RW);
+#else
+        taskStack = taskCB->topOfStack;
+#endif
+
+#ifdef LOSCFG_EXC_INTERACTION
+        if (taskStack < (UINTPTR)m_aucSysMem1) {
+            pool = (VOID *)m_aucSysMem0;
+        }
+#endif
+        (VOID)LOS_MemFree(pool, (VOID *)taskStack);
+    }
+    taskCB->topOfStack = 0;
+    return FALSE;
+}

@@ -1,0 +1,69 @@
+HAL_StatusTypeDef HAL_COMP_RegisterCallback(COMP_HandleTypeDef *hcomp, HAL_COMP_CallbackIDTypeDef CallbackID, pCOMP_CallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    /* Update the error code */
+    hcomp->ErrorCode |= HAL_COMP_ERROR_INVALID_CALLBACK;
+
+    return HAL_ERROR;
+  }
+
+  if (HAL_COMP_STATE_READY == hcomp->State)
+  {
+    switch (CallbackID)
+    {
+    case HAL_COMP_TRIGGER_CB_ID :
+      hcomp->TriggerCallback = pCallback;
+      break;
+
+    case HAL_COMP_MSPINIT_CB_ID :
+      hcomp->MspInitCallback = pCallback;
+      break;
+
+    case HAL_COMP_MSPDEINIT_CB_ID :
+      hcomp->MspDeInitCallback = pCallback;
+      break;
+
+    default :
+      /* Update the error code */
+      hcomp->ErrorCode |= HAL_COMP_ERROR_INVALID_CALLBACK;
+      
+      /* Return error status */
+      status = HAL_ERROR;
+      break;
+    }
+  }
+  else if (HAL_COMP_STATE_RESET == hcomp->State)
+  {
+    switch (CallbackID)
+    {
+    case HAL_COMP_MSPINIT_CB_ID :
+      hcomp->MspInitCallback = pCallback;
+      break;
+
+    case HAL_COMP_MSPDEINIT_CB_ID :
+      hcomp->MspDeInitCallback = pCallback;
+      break;
+
+    default :
+      /* Update the error code */
+      hcomp->ErrorCode |= HAL_COMP_ERROR_INVALID_CALLBACK;
+
+      /* Return error status */
+      status = HAL_ERROR;
+      break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    hcomp->ErrorCode |= HAL_COMP_ERROR_INVALID_CALLBACK;
+
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  return status;
+}

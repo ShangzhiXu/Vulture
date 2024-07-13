@@ -1,0 +1,38 @@
+lwm2m_status_t bootstrap_getStatus(lwm2m_context_t *contextP)
+{
+    lwm2m_server_t *targetP;
+    lwm2m_status_t bs_status;
+
+    LOG("Entering");
+    targetP = contextP->bootstrapServerList;
+    bs_status = STATE_BS_FAILED;
+
+    while (targetP != NULL)
+    {
+        switch (targetP->status)
+        {
+        case STATE_BS_FINISHED:
+            if (bs_status == STATE_BS_FAILED)
+            {
+                bs_status = STATE_BS_FINISHED;
+            }
+            break;
+
+        case STATE_BS_HOLD_OFF:
+        case STATE_BS_INITIATED:
+        case STATE_BS_PENDING:
+        case STATE_BS_FINISHING:
+        case STATE_BS_FAILING:
+            bs_status = STATE_BS_PENDING;
+            break;
+
+        default:
+            break;
+        }
+        targetP = targetP->next;
+    }
+
+    LOG_ARG("Returned status: %s", STR_STATUS(bs_status));
+
+    return bs_status;
+}

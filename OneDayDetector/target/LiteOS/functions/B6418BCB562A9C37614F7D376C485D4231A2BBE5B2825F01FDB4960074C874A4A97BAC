@@ -1,0 +1,78 @@
+HAL_StatusTypeDef HAL_ETH_ConfigDMA(ETH_HandleTypeDef *heth, ETH_DMAInitTypeDef *dmaconf)
+{
+  uint32_t tmpreg = 0;
+
+  /* Process Locked */
+  __HAL_LOCK(heth);
+  
+  /* Set the ETH peripheral state to BUSY */
+  heth->State= HAL_ETH_STATE_BUSY;
+
+  /* Check parameters */
+  assert_param(IS_ETH_DROP_TCPIP_CHECKSUM_FRAME(dmaconf->DropTCPIPChecksumErrorFrame));
+  assert_param(IS_ETH_RECEIVE_STORE_FORWARD(dmaconf->ReceiveStoreForward));
+  assert_param(IS_ETH_FLUSH_RECEIVE_FRAME(dmaconf->FlushReceivedFrame));
+  assert_param(IS_ETH_TRANSMIT_STORE_FORWARD(dmaconf->TransmitStoreForward));
+  assert_param(IS_ETH_TRANSMIT_THRESHOLD_CONTROL(dmaconf->TransmitThresholdControl));
+  assert_param(IS_ETH_FORWARD_ERROR_FRAMES(dmaconf->ForwardErrorFrames));
+  assert_param(IS_ETH_FORWARD_UNDERSIZED_GOOD_FRAMES(dmaconf->ForwardUndersizedGoodFrames));
+  assert_param(IS_ETH_RECEIVE_THRESHOLD_CONTROL(dmaconf->ReceiveThresholdControl));
+  assert_param(IS_ETH_SECOND_FRAME_OPERATE(dmaconf->SecondFrameOperate));
+  assert_param(IS_ETH_ADDRESS_ALIGNED_BEATS(dmaconf->AddressAlignedBeats));
+  assert_param(IS_ETH_FIXED_BURST(dmaconf->FixedBurst));
+  assert_param(IS_ETH_RXDMA_BURST_LENGTH(dmaconf->RxDMABurstLength));
+  assert_param(IS_ETH_TXDMA_BURST_LENGTH(dmaconf->TxDMABurstLength));
+  assert_param(IS_ETH_ENHANCED_DESCRIPTOR_FORMAT(dmaconf->EnhancedDescriptorFormat));
+  assert_param(IS_ETH_DMA_DESC_SKIP_LENGTH(dmaconf->DescriptorSkipLength));
+  assert_param(IS_ETH_DMA_ARBITRATION_ROUNDROBIN_RXTX(dmaconf->DMAArbitration));
+  
+  /*----------------------- ETHERNET DMAOMR Configuration --------------------*/
+  /* Get the ETHERNET DMAOMR value */
+  tmpreg = (heth->Instance)->DMAOMR;
+  /* Clear xx bits */
+  tmpreg &= ETH_DMAOMR_CLEAR_MASK;
+
+  tmpreg |= (uint32_t)(dmaconf->DropTCPIPChecksumErrorFrame | 
+                       dmaconf->ReceiveStoreForward |
+                       dmaconf->FlushReceivedFrame |
+                       dmaconf->TransmitStoreForward | 
+                       dmaconf->TransmitThresholdControl |
+                       dmaconf->ForwardErrorFrames |
+                       dmaconf->ForwardUndersizedGoodFrames |
+                       dmaconf->ReceiveThresholdControl |
+                       dmaconf->SecondFrameOperate);
+
+  /* Write to ETHERNET DMAOMR */
+  (heth->Instance)->DMAOMR = (uint32_t)tmpreg;
+
+  /* Wait until the write operation will be taken into account:
+  at least four TX_CLK/RX_CLK clock cycles */
+  tmpreg = (heth->Instance)->DMAOMR;
+  HAL_Delay(ETH_REG_WRITE_DELAY);
+  (heth->Instance)->DMAOMR = tmpreg;
+
+  /*----------------------- ETHERNET DMABMR Configuration --------------------*/
+  (heth->Instance)->DMABMR = (uint32_t)(dmaconf->AddressAlignedBeats | 
+                                         dmaconf->FixedBurst |
+                                         dmaconf->RxDMABurstLength | /* !! if 4xPBL is selected for Tx or Rx it is applied for the other */
+                                         dmaconf->TxDMABurstLength |
+                                         dmaconf->EnhancedDescriptorFormat |
+                                         (dmaconf->DescriptorSkipLength << 2) |
+                                         dmaconf->DMAArbitration | 
+                                         ETH_DMABMR_USP); /* Enable use of separate PBL for Rx and Tx */
+
+   /* Wait until the write operation will be taken into account:
+      at least four TX_CLK/RX_CLK clock cycles */
+   tmpreg = (heth->Instance)->DMABMR;
+   HAL_Delay(ETH_REG_WRITE_DELAY);
+   (heth->Instance)->DMABMR = tmpreg;
+
+   /* Set the ETH state to Ready */
+   heth->State= HAL_ETH_STATE_READY;
+   
+   /* Process Unlocked */
+   __HAL_UNLOCK(heth);
+   
+   /* Return function status */
+   return HAL_OK; 
+}

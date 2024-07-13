@@ -1,0 +1,19 @@
+netifapi_arp_remove(const ip4_addr_t *ipaddr, enum netifapi_arp_entry type)
+{
+  err_t err;
+
+  /* We only support permanent entries currently */
+  LWIP_UNUSED_ARG(type);
+
+#if ETHARP_SUPPORT_STATIC_ENTRIES && LWIP_TCPIP_CORE_LOCKING
+  LOCK_TCPIP_CORE();
+  err = etharp_remove_static_entry(ipaddr);
+  UNLOCK_TCPIP_CORE();
+#else
+  /* @todo add new vars to struct netifapi_msg and create a 'do' func */
+  LWIP_UNUSED_ARG(ipaddr);
+  err = ERR_VAL;
+#endif /* ETHARP_SUPPORT_STATIC_ENTRIES && LWIP_TCPIP_CORE_LOCKING */
+
+  return err;
+}

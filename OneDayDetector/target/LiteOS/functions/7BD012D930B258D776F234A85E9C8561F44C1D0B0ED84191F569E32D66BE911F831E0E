@@ -1,0 +1,21 @@
+int32_t osKernelLock(void)
+{
+    int32_t lock;
+
+    if (OS_INT_ACTIVE) {
+        return (int32_t)osErrorISR;
+    }
+
+    if (!g_taskScheduled) {
+        return (int32_t)osError;
+    }
+
+    if (OsPercpuGet()->taskLockCnt > 0) {
+        lock = KERNEL_LOCKED;
+    } else {
+        LOS_TaskLock();
+        lock = KERNEL_UNLOCKED;
+    }
+
+    return lock;
+}

@@ -1,0 +1,96 @@
+int process_sub(FILE *data_file, FILE *struct_file)
+{
+  tinydir_dir dir;
+  int filesProcessed = 0;
+
+  if (processSubs) {
+    /* process subs recursively */
+    size_t sublen = strlen(curSubdir);
+    size_t freelen = sizeof(curSubdir) - sublen - 1;
+    int ret;
+    LWIP_ASSERT("sublen < sizeof(curSubdir)", sublen < sizeof(curSubdir));
+
+    ret = tinydir_open_sorted(&dir, TINYDIR_STRING("."));
+
+    if (ret == 0) {
+      unsigned int i;
+      for (i = 0; i < dir.n_files; i++) {
+        tinydir_file file;
+
+        ret = tinydir_readfile_n(&dir, &file, i);
+
+        if (ret == 0) {
+#if (defined _MSC_VER || defined __MINGW32__) && (defined _UNICODE)
+          size_t num_char_converted;
+          char currName[256];
+          wcstombs_s(&num_char_converted, currName, sizeof(currName), file.name, sizeof(currName));
+#else
+          const char *currName = file.name;
+#endif
+
+          if (currName[0] == '.') {
+            continue;
+          }
+          if (!file.is_dir) {
+            continue;
+          }
+          if (freelen > 0) {
+            CHDIR(currName);
+            strncat(curSubdir, "/", freelen);
+            strncat(curSubdir, currName, freelen - 1);
+            curSubdir[sizeof(curSubdir) - 1] = 0;
+            printf("processing subdirectory %s/..." NEWLINE, curSubdir);
+            filesProcessed += process_sub(data_file, struct_file);
+            CHDIR("..");
+            curSubdir[sublen] = 0;
+          } else {
+            printf("WARNING: cannot process sub due to path length restrictions: \"%s/%s\"\n", curSubdir, currName);
+          }
+        }
+      }
+    }
+
+    ret = tinydir_open_sorted(&dir, TINYDIR_STRING("."));
+    if (ret == 0) {
+      unsigned int i;
+      for (i = 0; i < dir.n_files; i++) {
+        tinydir_file file;
+
+        ret = tinydir_readfile_n(&dir, &file, i);
+
+        if (ret == 0) {
+          if (!file.is_dir) {
+#if (defined _MSC_VER || defined __MINGW32__) && (defined _UNICODE)
+            size_t num_char_converted;
+            char curName[256];
+            wcstombs_s(&num_char_converted, curName, sizeof(curName), file.name, sizeof(curName));
+#else
+            const char *curName = file.name;
+#endif
+
+            if (strcmp(curName, "fsdata.tmp") == 0) {
+              continue;
+            }
+            if (strcmp(curName, "fshdr.tmp") == 0) {
+              continue;
+            }
+            if (file_to_exclude(curName)) {
+              printf("skipping %s/%s by exclude list (-x option)..." NEWLINE, curSubdir, curName);
+              continue;
+            }
+
+            printf("processing %s/%s..." NEWLINE, curSubdir, curName);
+
+            if (process_file(data_file, struct_file, curName) < 0) {
+              printf(NEWLINE "Error... aborting" NEWLINE);
+              return -1;
+            }
+            filesProcessed++;
+          }
+        }
+      }
+    }
+  }
+
+  return filesProcessed;
+}

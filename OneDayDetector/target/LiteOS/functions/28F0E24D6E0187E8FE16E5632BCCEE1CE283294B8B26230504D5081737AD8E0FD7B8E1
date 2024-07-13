@@ -1,0 +1,33 @@
+static int ecp_mod_p255( mbedtls_mpi *N )
+{
+    int ret;
+    size_t i;
+    mbedtls_mpi M;
+    mbedtls_mpi_uint Mp[P255_WIDTH + 2];
+
+    if( N->n < P255_WIDTH )
+        return( 0 );
+
+    /* M = A1 */
+    M.s = 1;
+    M.n = N->n - ( P255_WIDTH - 1 );
+    if( M.n > P255_WIDTH + 1 )
+        return( MBEDTLS_ERR_ECP_BAD_INPUT_DATA );
+    M.p = Mp;
+    memset( Mp, 0, sizeof Mp );
+    memcpy( Mp, N->p + P255_WIDTH - 1, M.n * sizeof( mbedtls_mpi_uint ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_shift_r( &M, 255 % ( 8 * sizeof( mbedtls_mpi_uint ) ) ) );
+    M.n++; /* Make room for multiplication by 19 */
+
+    /* N = A0 */
+    MBEDTLS_MPI_CHK( mbedtls_mpi_set_bit( N, 255, 0 ) );
+    for( i = P255_WIDTH; i < N->n; i++ )
+        N->p[i] = 0;
+
+    /* N = A0 + 19 * A1 */
+    MBEDTLS_MPI_CHK( mbedtls_mpi_mul_int( &M, &M, 19 ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_add_abs( N, N, &M ) );
+
+cleanup:
+    return( ret );
+}

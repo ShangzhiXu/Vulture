@@ -1,0 +1,34 @@
+void *los_kifs_mount(const char *path)
+{
+    struct kifs_node *root;
+
+    if (los_vfs_init() != LOS_OK) {
+        PRINT_ERR("vfs init fail!\n");
+        return NULL;
+    }
+
+    if (strlen (path) >= LOS_MAX_FILE_NAME_LEN) {
+        return NULL;
+    }
+
+    root = (struct kifs_node *)malloc(sizeof(struct kifs_node));
+    if (root == NULL) {
+        PRINT_ERR("fail to malloc memory in KIFS, <malloc.c> is needed,"
+                   "make sure it is added\n");
+        return NULL;
+    }
+
+    memset(root, 0, sizeof(struct kifs_node));
+
+    strcpy(root->name, path);
+
+    root->attr = KIFS_ATTR_D;
+
+    if (los_fs_mount("kifs", path, root) == LOS_OK) {
+        return (void *) root;
+    }
+
+    free (root);
+
+    return NULL;
+}

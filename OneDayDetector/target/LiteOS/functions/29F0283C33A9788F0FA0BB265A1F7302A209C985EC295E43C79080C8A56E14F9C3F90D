@@ -1,0 +1,60 @@
+HAL_StatusTypeDef HAL_RTC_DeactivateAlarm(RTC_HandleTypeDef *hrtc, uint32_t Alarm)
+{
+  /* Check the parameters */
+  assert_param(IS_RTC_ALARM(Alarm));
+  
+  /* Check input parameters */
+  if(hrtc == NULL)
+  {
+     return HAL_ERROR;
+  }
+  
+  /* Process Locked */ 
+  __HAL_LOCK(hrtc);
+  
+  hrtc->State = HAL_RTC_STATE_BUSY;
+  
+  /* In case of interrupt mode is used, the interrupt source must disabled */ 
+  __HAL_RTC_ALARM_DISABLE_IT(hrtc, RTC_IT_ALRA);
+  
+  /* Set Initialization mode */
+  if(RTC_EnterInitMode(hrtc) != HAL_OK)
+  {
+    /* Set RTC state */
+    hrtc->State = HAL_RTC_STATE_ERROR;
+    
+    /* Process Unlocked */ 
+    __HAL_UNLOCK(hrtc);
+    
+    return HAL_ERROR;
+  } 
+  else
+  {
+    /* Clear flag alarm A */
+    __HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRAF);
+    
+    /* Set to default values ALRH & ALRL registers */
+    WRITE_REG(hrtc->Instance->ALRH, RTC_ALARM_RESETVALUE_REGISTER);
+    WRITE_REG(hrtc->Instance->ALRL, RTC_ALARM_RESETVALUE_REGISTER);
+
+    /* RTC Alarm Interrupt Configuration: Disable EXTI configuration */
+    __HAL_RTC_ALARM_EXTI_DISABLE_IT();
+    
+    /* Wait for synchro */
+    if(RTC_ExitInitMode(hrtc) != HAL_OK)
+    {       
+      hrtc->State = HAL_RTC_STATE_ERROR;
+      
+      /* Process Unlocked */ 
+      __HAL_UNLOCK(hrtc);
+      
+      return HAL_ERROR;
+    }
+  }
+  hrtc->State = HAL_RTC_STATE_READY; 
+  
+  /* Process Unlocked */ 
+  __HAL_UNLOCK(hrtc);  
+  
+  return HAL_OK; 
+}

@@ -1,0 +1,36 @@
+ppp_ioctl(ppp_pcb *pcb, u8_t cmd, void *arg)
+{
+  LWIP_ASSERT_CORE_LOCKED();
+  if (pcb == NULL) {
+    return ERR_VAL;
+  }
+
+  switch(cmd) {
+    case PPPCTLG_UPSTATUS:      /* Get the PPP up status. */
+      if (!arg) {
+        goto fail;
+      }
+      *(int *)arg = (int)(0
+#if PPP_IPV4_SUPPORT
+           || pcb->if4_up
+#endif /* PPP_IPV4_SUPPORT */
+#if PPP_IPV6_SUPPORT
+           || pcb->if6_up
+#endif /* PPP_IPV6_SUPPORT */
+           );
+      return ERR_OK;
+
+    case PPPCTLG_ERRCODE:       /* Get the PPP error code. */
+      if (!arg) {
+        goto fail;
+      }
+      *(int *)arg = (int)(pcb->err_code);
+      return ERR_OK;
+
+    default:
+      goto fail;
+  }
+
+fail:
+  return ERR_VAL;
+}

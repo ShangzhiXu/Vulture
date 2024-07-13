@@ -1,0 +1,23 @@
+HAL_StatusTypeDef HAL_LTDC_ConfigColorKeying_NoReload(LTDC_HandleTypeDef *hltdc, uint32_t RGBValue, uint32_t LayerIdx)
+{
+  /* Check the parameters */
+  assert_param(IS_LTDC_LAYER(LayerIdx));
+
+  /* Process locked */
+  __HAL_LOCK(hltdc);
+
+  /* Change LTDC peripheral state */
+  hltdc->State = HAL_LTDC_STATE_BUSY;
+
+  /* Configure the default color values */
+  LTDC_LAYER(hltdc, LayerIdx)->CKCR &=  ~(LTDC_LxCKCR_CKBLUE | LTDC_LxCKCR_CKGREEN | LTDC_LxCKCR_CKRED);
+  LTDC_LAYER(hltdc, LayerIdx)->CKCR  = RGBValue;
+
+  /* Change the LTDC state*/
+  hltdc->State = HAL_LTDC_STATE_READY;
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hltdc);
+
+  return HAL_OK;
+}

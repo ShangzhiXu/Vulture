@@ -1,0 +1,54 @@
+static int los_mqtt_tls_connect(Network *n, char *addr, int port)
+{
+    int ret;
+    mbedtls_ssl_context *ssl = NULL;
+    dtls_shakehand_info_s shakehand_info;
+    dtls_establish_info_s establish_info;
+    mqtt_security_info_s *security_info;
+    char port_buf[PORT_BUF_LEN];
+
+    security_info = n->get_security_info();
+
+    if (security_info->security_type == MQTT_SECURITY_TYPE_PSK) {
+        establish_info.psk_or_cert = VERIFY_WITH_PSK;
+        establish_info.v.p.psk = (unsigned char *)security_info->u.psk.psk;
+        establish_info.v.p.psk_len = security_info->u.psk.psk_len;
+        establish_info.v.p.psk_identity = (unsigned char *)security_info->u.psk.psk_id;
+    } else {
+        establish_info.psk_or_cert = VERIFY_WITH_CERT;
+        establish_info.v.c.ca_cert = (const unsigned char *)security_info->u.ca.ca_crt;
+        establish_info.v.c.cert_len = security_info->u.ca.ca_len;
+    }
+    establish_info.udp_or_tcp = MBEDTLS_NET_PROTO_TCP;
+
+    ssl = (void *)dtls_ssl_new(&establish_info, MBEDTLS_SSL_IS_CLIENT);
+    if (ssl == NULL) {
+        ATINY_LOG(LOG_ERR, "create ssl context failed");
+        goto exit;
+    }
+
+    memset(&shakehand_info, 0, sizeof(dtls_shakehand_info_s));
+
+    if (security_info->security_type == MQTT_SECURITY_TYPE_PSK) {
+        shakehand_info.psk_or_cert = VERIFY_WITH_PSK;
+    } else {
+        shakehand_info.psk_or_cert = VERIFY_WITH_CERT;
+    }
+    shakehand_info.client_or_server = MBEDTLS_SSL_IS_CLIENT;
+    shakehand_info.udp_or_tcp = MBEDTLS_NET_PROTO_TCP;
+    shakehand_info.u.c.host = addr;
+    atiny_snprintf(port_buf, PORT_BUF_LEN, "%d", port);
+    shakehand_info.u.c.port = port_buf;
+
+    ret = dtls_shakehand(ssl, &shakehand_info);
+    if (ret != 0) {
+        ATINY_LOG(LOG_ERR, "ssl shake hand failed");
+        goto exit;
+    }
+
+    n->ctx = ssl;
+    return 0;
+exit:
+    dtls_ssl_destroy(ssl);
+    return -1;
+}

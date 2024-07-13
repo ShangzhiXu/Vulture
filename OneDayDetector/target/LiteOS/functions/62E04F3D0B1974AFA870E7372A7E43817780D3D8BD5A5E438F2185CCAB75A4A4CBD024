@@ -1,0 +1,33 @@
+void HAL_RTCEx_RTCIRQHandler(RTC_HandleTypeDef* hrtc)
+{
+  if(__HAL_RTC_SECOND_GET_IT_SOURCE(hrtc, RTC_IT_SEC))
+  {
+    /* Get the status of the Interrupt */
+    if(__HAL_RTC_SECOND_GET_FLAG(hrtc, RTC_FLAG_SEC))
+    {
+      /* Check if Overrun occurred */
+      if (__HAL_RTC_SECOND_GET_FLAG(hrtc, RTC_FLAG_OW))
+      {
+        /* Second error callback */ 
+        HAL_RTCEx_RTCEventErrorCallback(hrtc);
+        
+        /* Clear flag Second */
+        __HAL_RTC_OVERFLOW_CLEAR_FLAG(hrtc, RTC_FLAG_OW);
+        
+        /* Change RTC state */
+        hrtc->State = HAL_RTC_STATE_ERROR; 
+      }
+      else 
+      {
+        /* Second callback */ 
+        HAL_RTCEx_RTCEventCallback(hrtc);
+        
+        /* Change RTC state */
+        hrtc->State = HAL_RTC_STATE_READY; 
+      }
+      
+      /* Clear flag Second */
+      __HAL_RTC_SECOND_CLEAR_FLAG(hrtc, RTC_FLAG_SEC);
+    }
+  }
+}

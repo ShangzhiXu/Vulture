@@ -1,0 +1,21 @@
+dhcp_arp_reply(struct netif *netif, const ip4_addr_t *addr)
+{
+  struct dhcp *dhcp;
+
+  LWIP_ERROR("netif != NULL", (netif != NULL), return;);
+  dhcp = netif_dhcp_data(netif);
+  LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE, ("dhcp_arp_reply()\n"));
+  /* is a DHCP client doing an ARP check? */
+  if ((dhcp != NULL) && (dhcp->state == DHCP_STATE_CHECKING)) {
+    LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("dhcp_arp_reply(): CHECKING, arp reply for 0x%08"X32_F"\n",
+                ip4_addr_get_u32(addr)));
+    /* did a host respond with the address we
+       were offered by the DHCP server? */
+    if (ip4_addr_cmp(addr, &dhcp->offered_ip_addr)) {
+      /* we will not accept the offered address */
+      LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE | LWIP_DBG_LEVEL_WARNING,
+                  ("dhcp_arp_reply(): arp reply matched with offered address, declining\n"));
+      dhcp_decline(netif);
+    }
+  }
+}

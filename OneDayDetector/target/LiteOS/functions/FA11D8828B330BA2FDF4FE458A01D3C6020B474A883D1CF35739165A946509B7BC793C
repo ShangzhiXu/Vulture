@@ -1,0 +1,75 @@
+HAL_StatusTypeDef HAL_UART_Abort(UART_HandleTypeDef *huart)
+{
+  /* Disable TXEIE, TCIE, RXNE, PE and ERR (Frame error, noise error, overrun error) interrupts */
+  CLEAR_BIT(huart->Instance->CR1, (USART_CR1_RXNEIE | USART_CR1_PEIE | USART_CR1_TXEIE | USART_CR1_TCIE));
+  CLEAR_BIT(huart->Instance->CR3, USART_CR3_EIE);
+
+  /* Disable the UART DMA Tx request if enabled */
+  if (HAL_IS_BIT_SET(huart->Instance->CR3, USART_CR3_DMAT))
+  {
+    CLEAR_BIT(huart->Instance->CR3, USART_CR3_DMAT);
+
+    /* Abort the UART DMA Tx channel : use blocking DMA Abort API (no callback) */
+    if (huart->hdmatx != NULL)
+    {
+      /* Set the UART DMA Abort callback to Null.
+         No call back execution at end of DMA abort procedure */
+      huart->hdmatx->XferAbortCallback = NULL;
+
+      if (HAL_DMA_Abort(huart->hdmatx) != HAL_OK)
+      {
+        if (HAL_DMA_GetError(huart->hdmatx) == HAL_DMA_ERROR_TIMEOUT)
+        {
+          /* Set error code to DMA */
+          huart->ErrorCode = HAL_UART_ERROR_DMA;
+
+          return HAL_TIMEOUT;
+        }
+      }
+    }
+  }
+
+  /* Disable the UART DMA Rx request if enabled */
+  if (HAL_IS_BIT_SET(huart->Instance->CR3, USART_CR3_DMAR))
+  {
+    CLEAR_BIT(huart->Instance->CR3, USART_CR3_DMAR);
+
+    /* Abort the UART DMA Rx channel : use blocking DMA Abort API (no callback) */
+    if (huart->hdmarx != NULL)
+    {
+      /* Set the UART DMA Abort callback to Null.
+         No call back execution at end of DMA abort procedure */
+      huart->hdmarx->XferAbortCallback = NULL;
+
+      if (HAL_DMA_Abort(huart->hdmarx) != HAL_OK)
+      {
+        if (HAL_DMA_GetError(huart->hdmarx) == HAL_DMA_ERROR_TIMEOUT)
+        {
+          /* Set error code to DMA */
+          huart->ErrorCode = HAL_UART_ERROR_DMA;
+
+          return HAL_TIMEOUT;
+        }
+      }
+    }
+  }
+
+  /* Reset Tx and Rx transfer counters */
+  huart->TxXferCount = 0U;
+  huart->RxXferCount = 0U;
+
+  /* Clear the Error flags in the ICR register */
+  __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_OREF | UART_CLEAR_NEF | UART_CLEAR_PEF | UART_CLEAR_FEF);
+
+
+  /* Discard the received data */
+  __HAL_UART_SEND_REQ(huart, UART_RXDATA_FLUSH_REQUEST);
+
+  /* Restore huart->gState and huart->RxState to Ready */
+  huart->gState  = HAL_UART_STATE_READY;
+  huart->RxState = HAL_UART_STATE_READY;
+
+  huart->ErrorCode = HAL_UART_ERROR_NONE;
+
+  return HAL_OK;
+}

@@ -1,0 +1,176 @@
+HAL_StatusTypeDef HAL_MMC_WriteBlocks(MMC_HandleTypeDef *hmmc, uint8_t *pData, uint32_t BlockAdd, uint32_t NumberOfBlocks, uint32_t Timeout)
+{
+  SDIO_DataInitTypeDef config;
+  uint32_t errorstate;
+  uint32_t tickstart = HAL_GetTick();
+  uint32_t count, data, dataremaining;
+  uint32_t add = BlockAdd;
+  uint8_t *tempbuff = pData;
+
+  if(NULL == pData)
+  {
+    hmmc->ErrorCode |= HAL_MMC_ERROR_PARAM;
+    return HAL_ERROR;
+  }
+
+  if(hmmc->State == HAL_MMC_STATE_READY)
+  {
+    hmmc->ErrorCode = HAL_MMC_ERROR_NONE;
+
+    if((BlockAdd + NumberOfBlocks) > (hmmc->MmcCard.LogBlockNbr))
+    {
+      hmmc->ErrorCode |= HAL_MMC_ERROR_ADDR_OUT_OF_RANGE;
+      return HAL_ERROR;
+    }
+
+    hmmc->State = HAL_MMC_STATE_BUSY;
+
+    /* Initialize data control register */
+    hmmc->Instance->DCTRL = 0U;
+
+    if ((hmmc->MmcCard.CardType) != MMC_HIGH_CAPACITY_CARD)
+    {
+      add *= 512U;
+    }
+
+    /* Set Block Size for Card */
+    errorstate = SDMMC_CmdBlockLength(hmmc->Instance, MMC_BLOCKSIZE);
+    if(errorstate != HAL_MMC_ERROR_NONE)
+    {
+      /* Clear all the static flags */
+      __HAL_MMC_CLEAR_FLAG(hmmc, SDIO_STATIC_FLAGS);
+      hmmc->ErrorCode |= errorstate;
+      hmmc->State = HAL_MMC_STATE_READY;
+      return HAL_ERROR;
+    }
+
+    /* Write Blocks in Polling mode */
+    if(NumberOfBlocks > 1U)
+    {
+      hmmc->Context = MMC_CONTEXT_WRITE_MULTIPLE_BLOCK;
+
+      /* Write Multi Block command */
+      errorstate = SDMMC_CmdWriteMultiBlock(hmmc->Instance, add);
+    }
+    else
+    {
+      hmmc->Context = MMC_CONTEXT_WRITE_SINGLE_BLOCK;
+
+      /* Write Single Block command */
+      errorstate = SDMMC_CmdWriteSingleBlock(hmmc->Instance, add);
+    }
+    if(errorstate != HAL_MMC_ERROR_NONE)
+    {
+      /* Clear all the static flags */
+      __HAL_MMC_CLEAR_FLAG(hmmc, SDIO_STATIC_FLAGS);
+      hmmc->ErrorCode |= errorstate;
+      hmmc->State = HAL_MMC_STATE_READY;
+      return HAL_ERROR;
+    }
+
+    /* Configure the MMC DPSM (Data Path State Machine) */
+    config.DataTimeOut   = SDMMC_DATATIMEOUT;
+    config.DataLength    = NumberOfBlocks * MMC_BLOCKSIZE;
+    config.DataBlockSize = SDIO_DATABLOCK_SIZE_512B;
+    config.TransferDir   = SDIO_TRANSFER_DIR_TO_CARD;
+    config.TransferMode  = SDIO_TRANSFER_MODE_BLOCK;
+    config.DPSM          = SDIO_DPSM_ENABLE;
+    (void)SDIO_ConfigData(hmmc->Instance, &config);
+
+    /* Write block(s) in polling mode */
+    dataremaining = config.DataLength;
+#if defined(SDIO_STA_STBITERR)
+    while(!__HAL_MMC_GET_FLAG(hmmc, SDIO_FLAG_TXUNDERR | SDIO_FLAG_DCRCFAIL | SDIO_FLAG_DTIMEOUT | SDIO_FLAG_DATAEND | SDIO_FLAG_STBITERR))
+#else /* SDIO_STA_STBITERR not defined */
+    while(!__HAL_MMC_GET_FLAG(hmmc, SDIO_FLAG_TXUNDERR | SDIO_FLAG_DCRCFAIL | SDIO_FLAG_DTIMEOUT | SDIO_FLAG_DATAEND))
+#endif /* SDIO_STA_STBITERR */
+    {
+      if(__HAL_MMC_GET_FLAG(hmmc, SDIO_FLAG_TXFIFOHE) && (dataremaining > 0U))
+      {
+        /* Write data to SDIO Tx FIFO */
+        for(count = 0U; count < 8U; count++)
+        {
+          data = (uint32_t)(*tempbuff);
+          tempbuff++;
+          dataremaining--;
+          data |= ((uint32_t)(*tempbuff) << 8U);
+          tempbuff++;
+          dataremaining--;
+          data |= ((uint32_t)(*tempbuff) << 16U);
+          tempbuff++;
+          dataremaining--;
+          data |= ((uint32_t)(*tempbuff) << 24U);
+          tempbuff++;
+          dataremaining--;
+          (void)SDIO_WriteFIFO(hmmc->Instance, &data);
+        }
+      }
+
+      if(((HAL_GetTick()-tickstart) >=  Timeout) || (Timeout == 0U))
+      {
+        /* Clear all the static flags */
+        __HAL_MMC_CLEAR_FLAG(hmmc, SDIO_STATIC_FLAGS);
+        hmmc->ErrorCode |= errorstate;
+        hmmc->State = HAL_MMC_STATE_READY;
+        return HAL_TIMEOUT;
+      }
+    }
+
+    /* Send stop transmission command in case of multiblock write */
+    if(__HAL_MMC_GET_FLAG(hmmc, SDIO_FLAG_DATAEND) && (NumberOfBlocks > 1U))
+    {
+      /* Send stop transmission command */
+      errorstate = SDMMC_CmdStopTransfer(hmmc->Instance);
+      if(errorstate != HAL_MMC_ERROR_NONE)
+      {
+        /* Clear all the static flags */
+        __HAL_MMC_CLEAR_FLAG(hmmc, SDIO_STATIC_FLAGS);
+        hmmc->ErrorCode |= errorstate;
+        hmmc->State = HAL_MMC_STATE_READY;
+        return HAL_ERROR;
+      }
+    }
+
+    /* Get error state */
+    if(__HAL_MMC_GET_FLAG(hmmc, SDIO_FLAG_DTIMEOUT))
+    {
+      /* Clear all the static flags */
+      __HAL_MMC_CLEAR_FLAG(hmmc, SDIO_STATIC_FLAGS);
+      hmmc->ErrorCode |= HAL_MMC_ERROR_DATA_TIMEOUT;
+      hmmc->State = HAL_MMC_STATE_READY;
+      return HAL_ERROR;
+    }
+    else if(__HAL_MMC_GET_FLAG(hmmc, SDIO_FLAG_DCRCFAIL))
+    {
+      /* Clear all the static flags */
+      __HAL_MMC_CLEAR_FLAG(hmmc, SDIO_STATIC_FLAGS);
+      hmmc->ErrorCode |= HAL_MMC_ERROR_DATA_CRC_FAIL;
+      hmmc->State = HAL_MMC_STATE_READY;
+      return HAL_ERROR;
+    }
+    else if(__HAL_MMC_GET_FLAG(hmmc, SDIO_FLAG_TXUNDERR))
+    {
+      /* Clear all the static flags */
+      __HAL_MMC_CLEAR_FLAG(hmmc, SDIO_STATIC_FLAGS);
+      hmmc->ErrorCode |= HAL_MMC_ERROR_TX_UNDERRUN;
+      hmmc->State = HAL_MMC_STATE_READY;
+      return HAL_ERROR;
+    }
+    else
+    {
+      /* Nothing to do */
+    }
+
+    /* Clear all the static flags */
+    __HAL_MMC_CLEAR_FLAG(hmmc, SDIO_STATIC_DATA_FLAGS);
+
+    hmmc->State = HAL_MMC_STATE_READY;
+
+    return HAL_OK;
+  }
+  else
+  {
+    hmmc->ErrorCode |= HAL_MMC_ERROR_BUSY;
+    return HAL_ERROR;
+  }
+}

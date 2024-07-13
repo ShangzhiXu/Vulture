@@ -1,0 +1,68 @@
+HAL_StatusTypeDef HAL_SPI_Transmit_IT(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t Size)
+{
+  if(hspi->State == HAL_SPI_STATE_READY)
+  {
+    if((pData == NULL) || (Size == 0))
+    {
+      return  HAL_ERROR;
+    }
+
+    /* Check the parameters */
+    assert_param(IS_SPI_DIRECTION_2LINES_OR_1LINE(hspi->Init.Direction));
+
+    /* Process Locked */
+    __HAL_LOCK(hspi);
+
+    /* Configure communication */
+    hspi->State        = HAL_SPI_STATE_BUSY_TX;
+    hspi->ErrorCode    = HAL_SPI_ERROR_NONE;
+
+    hspi->TxISR        = &SPI_TxISR;
+    hspi->pTxBuffPtr   = pData;
+    hspi->TxXferSize   = Size;
+    hspi->TxXferCount  = Size;
+
+    /*Init field not used in handle to zero */
+    hspi->RxISR        = 0;
+    hspi->pRxBuffPtr   = NULL;
+    hspi->RxXferSize   = 0;
+    hspi->RxXferCount  = 0;
+
+    /* Configure communication direction : 1Line */
+    if(hspi->Init.Direction == SPI_DIRECTION_1LINE)
+    {
+      SPI_1LINE_TX(hspi);
+    }
+
+    /* Reset CRC Calculation */
+    if(hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+    {
+      SPI_RESET_CRC(hspi);
+    }
+
+    if (hspi->Init.Direction == SPI_DIRECTION_2LINES)
+    {
+      __HAL_SPI_ENABLE_IT(hspi, (SPI_IT_TXE));
+    }
+    else
+    {
+      /* Enable TXE and ERR interrupt */
+      __HAL_SPI_ENABLE_IT(hspi, (SPI_IT_TXE | SPI_IT_ERR));
+    }
+    /* Process Unlocked */
+    __HAL_UNLOCK(hspi);
+
+    /* Check if the SPI is already enabled */ 
+    if((hspi->Instance->CR1 &SPI_CR1_SPE) != SPI_CR1_SPE)
+    {
+      /* Enable SPI peripheral */
+      __HAL_SPI_ENABLE(hspi);
+    }
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

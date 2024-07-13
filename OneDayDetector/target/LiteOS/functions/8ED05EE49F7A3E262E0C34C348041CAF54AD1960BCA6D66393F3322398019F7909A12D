@@ -1,0 +1,21 @@
+static uint32_t CRC_Handle_16(CRC_HandleTypeDef *hcrc, uint16_t pBuffer[], uint32_t BufferLength)
+{
+  uint32_t i = 0;  /* input data buffer index */
+  __IO uint16_t *pReg;
+
+  /* Processing time optimization: 2 HalfWords are entered in a row with a single word write,
+   * in case of odd length, last HalfWord must be carefully fed to the CRC calculator to ensure
+   * a correct type handling by the IP */
+  for(i = 0; i < (BufferLength/2); i++)
+  {
+    hcrc->Instance->DR = ((uint32_t)pBuffer[2*i]<<16) | (uint32_t)pBuffer[2*i+1];
+  }
+  if ((BufferLength%2) != 0)
+  {
+    pReg = (__IO uint16_t *)(__IO void *)(&hcrc->Instance->DR);
+    *pReg = pBuffer[2*i];
+  }
+
+  /* Return the CRC computed value */
+  return hcrc->Instance->DR;
+}

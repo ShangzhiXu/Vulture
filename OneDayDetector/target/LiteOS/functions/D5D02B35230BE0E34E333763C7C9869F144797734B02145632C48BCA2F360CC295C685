@@ -1,0 +1,18 @@
+static void IRDA_DMATxOnlyAbortCallback(DMA_HandleTypeDef *hdma)
+{
+  IRDA_HandleTypeDef *hirda = (IRDA_HandleTypeDef *)((DMA_HandleTypeDef *)hdma)->Parent;
+
+  hirda->TxXferCount = 0x00U;
+
+  /* Restore hirda->gState to Ready */
+  hirda->gState = HAL_IRDA_STATE_READY;
+
+  /* Call user Abort complete callback */
+#if (USE_HAL_IRDA_REGISTER_CALLBACKS == 1)
+  /* Call registered Abort Transmit Complete Callback */
+  hirda->AbortTransmitCpltCallback(hirda);
+#else
+  /* Call legacy weak Abort Transmit Complete Callback */
+  HAL_IRDA_AbortTransmitCpltCallback(hirda);
+#endif /* USE_HAL_IRDA_REGISTER_CALLBACK */
+}

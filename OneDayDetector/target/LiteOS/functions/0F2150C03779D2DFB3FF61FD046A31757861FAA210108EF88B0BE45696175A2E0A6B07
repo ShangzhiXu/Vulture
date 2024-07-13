@@ -1,0 +1,53 @@
+LITE_OS_SEC_TEXT_MINOR VOID ShellCmdLineParse(CHAR c, pf_OUTPUT outputFunc, ShellCB *shellCB)
+{
+    const CHAR ch = c;
+    INT32 ret;
+
+    if ((shellCB->shellBufOffset == 0) && (ch != '\n') && (ch != '\0')) {
+        (VOID)memset_s(shellCB->shellBuf, SHOW_MAX_LEN, 0, SHOW_MAX_LEN);
+    }
+
+    if (ch == '\r') {
+        if (shellCB->shellBufOffset < (SHOW_MAX_LEN - 1)) {
+            shellCB->shellBuf[shellCB->shellBufOffset] = '\0';
+        }
+        shellCB->shellBufOffset = 0;
+        (VOID)pthread_mutex_lock(&shellCB->keyMutex);
+        OsShellCmdPush(shellCB->shellBuf, shellCB->cmdKeyLink);
+        (VOID)pthread_mutex_unlock(&shellCB->keyMutex);
+        ShellNotify(shellCB);
+        return;
+    } else if ((ch == '\b') || (ch == 0x7F)) { /* backspace or delete(0x7F) */
+        if ((shellCB->shellBufOffset > 0) && (shellCB->shellBufOffset < (SHOW_MAX_LEN - 1))) {
+            shellCB->shellBuf[shellCB->shellBufOffset - 1] = '\0';
+            shellCB->shellBufOffset--;
+            outputFunc("\b \b");
+        }
+        return;
+    } else if (ch == 0x09) { /* 0x09: tab */
+        if ((shellCB->shellBufOffset > 0) && (shellCB->shellBufOffset < (SHOW_MAX_LEN - 1))) {
+            ret = OsTabCompletion(shellCB->shellBuf, &shellCB->shellBufOffset);
+            if (ret > 1) {
+                outputFunc("Huawei LiteOS # %s", shellCB->shellBuf);
+            }
+        }
+        return;
+    }
+    /* parse the up/down/right/left key */
+    ret = ShellCmdLineCheckUDRL(ch, shellCB);
+    if (ret == LOS_OK) {
+        return;
+    }
+
+    if ((ch != '\n') && (ch != '\0')) {
+        if (shellCB->shellBufOffset < (SHOW_MAX_LEN - 1)) {
+            shellCB->shellBuf[shellCB->shellBufOffset] = ch;
+        } else {
+            shellCB->shellBuf[SHOW_MAX_LEN - 1] = '\0';
+        }
+        shellCB->shellBufOffset++;
+        outputFunc("%c", ch);
+    }
+
+    shellCB->shellKeyType = STAT_NOMAL_KEY;
+}

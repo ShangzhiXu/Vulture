@@ -1,0 +1,41 @@
+static HAL_StatusTypeDef SMARTCARD_Receive_IT(SMARTCARD_HandleTypeDef *hsc)
+{
+  uint16_t* tmp;
+
+  /* Check that a Rx process is ongoing */
+  if(hsc->RxState == HAL_SMARTCARD_STATE_BUSY_RX)
+  {
+    tmp = (uint16_t*) hsc->pRxBuffPtr;
+    *tmp = (uint8_t)(hsc->Instance->DR & (uint8_t)0x00FF);
+    hsc->pRxBuffPtr += 1U;
+
+    if(--hsc->RxXferCount == 0U)
+    {
+      CLEAR_BIT(hsc->Instance->CR1, USART_CR1_RXNEIE);
+
+      /* Disable the SMARTCARD Parity Error Interrupt */
+      CLEAR_BIT(hsc->Instance->CR1, USART_CR1_PEIE);
+
+      /* Disable the SMARTCARD Error Interrupt: (Frame error, noise error, overrun error) */
+      CLEAR_BIT(hsc->Instance->CR3, USART_CR3_EIE);
+
+      /* Rx process is completed, restore hsc->RxState to Ready */
+      hsc->RxState = HAL_SMARTCARD_STATE_READY;
+
+#if (USE_HAL_SMARTCARD_REGISTER_CALLBACKS == 1)
+      /* Call registered Rx complete callback */
+      hsc->RxCpltCallback(hsc);
+#else
+      /* Call legacy weak Rx complete callback */
+      HAL_SMARTCARD_RxCpltCallback(hsc);
+#endif /* USE_HAL_SMARTCARD_REGISTER_CALLBACK */
+
+      return HAL_OK;
+    }
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

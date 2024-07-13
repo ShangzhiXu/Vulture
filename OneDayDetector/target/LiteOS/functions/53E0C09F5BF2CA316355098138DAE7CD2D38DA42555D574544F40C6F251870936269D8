@@ -1,0 +1,26 @@
+snmp_get_next_mib(const u32_t *oid, u8_t oid_len)
+{
+  u8_t i;
+  const struct snmp_mib *next_mib = NULL;
+
+  LWIP_ASSERT("'oid' param must not be NULL!", (oid != NULL));
+
+  if (oid_len == 0) {
+    return NULL;
+  }
+
+  for (i = 0; i < snmp_num_mibs; i++) {
+    if (snmp_mibs[i]->base_oid != NULL) {
+      /* check if mib is located behind starting point */
+      if (snmp_oid_compare(snmp_mibs[i]->base_oid, snmp_mibs[i]->base_oid_len, oid, oid_len) > 0) {
+        if ((next_mib == NULL) ||
+            (snmp_oid_compare(snmp_mibs[i]->base_oid, snmp_mibs[i]->base_oid_len,
+                              next_mib->base_oid, next_mib->base_oid_len) < 0)) {
+          next_mib = snmp_mibs[i];
+        }
+      }
+    }
+  }
+
+  return next_mib;
+}

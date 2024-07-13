@@ -1,0 +1,30 @@
+HAL_StatusTypeDef HAL_DCMI_DeInit(DCMI_HandleTypeDef *hdcmi)
+{
+  /* Before aborting any DCMI transfer, check
+     first whether or not DCMI clock is enabled */
+  if (__HAL_RCC_DCMI_IS_CLK_ENABLED())
+  {
+     if (HAL_DCMI_Stop(hdcmi) != HAL_OK)
+     {
+        /* Issue when stopping DCMI IP */       
+        return HAL_ERROR;
+     }
+  }
+  
+  /* DeInit the DCMI low level hardware */
+  HAL_DCMI_MspDeInit(hdcmi);
+  
+  /* Reset DCMI control register */
+  hdcmi->Instance->CR = 0;    
+
+  /* Update error code */
+  hdcmi->ErrorCode = HAL_DCMI_ERROR_NONE;
+
+  /* Initialize the DCMI state*/
+  hdcmi->State = HAL_DCMI_STATE_RESET;
+
+  /* Release Lock */
+  __HAL_UNLOCK(hdcmi);
+
+  return HAL_OK;
+}

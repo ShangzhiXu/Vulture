@@ -1,0 +1,62 @@
+HAL_StatusTypeDef HAL_USART_Transmit_IT(USART_HandleTypeDef *husart, uint8_t *pTxData, uint16_t Size)
+{
+  if (husart->State == HAL_USART_STATE_READY)
+  {
+    if ((pTxData == NULL) || (Size == 0U))
+    {
+      return HAL_ERROR;
+    }
+
+    /* In case of 9bits/No Parity transfer, pTxData buffer provided as input parameter
+       should be aligned on a u16 frontier, as data to be filled into TDR will be
+       handled through a u16 cast. */
+    if ((husart->Init.WordLength == USART_WORDLENGTH_9B) && (husart->Init.Parity == USART_PARITY_NONE))
+    {
+      if ((((uint32_t)pTxData) & 1U) != 0U)
+      {
+        return  HAL_ERROR;
+      }
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(husart);
+
+    husart->pTxBuffPtr  = pTxData;
+    husart->TxXferSize  = Size;
+    husart->TxXferCount = Size;
+    husart->TxISR       = NULL;
+
+    husart->ErrorCode = HAL_USART_ERROR_NONE;
+    husart->State     = HAL_USART_STATE_BUSY_TX;
+
+    /* The USART Error Interrupts: (Frame error, noise error, overrun error)
+    are not managed by the USART Transmit Process to avoid the overrun interrupt
+    when the usart mode is configured for transmit and receive "USART_MODE_TX_RX"
+    to benefit for the frame error and noise interrupts the usart mode should be
+    configured only for transmit "USART_MODE_TX" */
+
+    {
+      /* Set the Tx ISR function pointer according to the data word length */
+      if ((husart->Init.WordLength == USART_WORDLENGTH_9B) && (husart->Init.Parity == USART_PARITY_NONE))
+      {
+        husart->TxISR = USART_TxISR_16BIT;
+      }
+      else
+      {
+        husart->TxISR = USART_TxISR_8BIT;
+      }
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(husart);
+
+      /* Enable the USART Transmit Data Register Empty Interrupt */
+      __HAL_USART_ENABLE_IT(husart, USART_IT_TXE);
+    }
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

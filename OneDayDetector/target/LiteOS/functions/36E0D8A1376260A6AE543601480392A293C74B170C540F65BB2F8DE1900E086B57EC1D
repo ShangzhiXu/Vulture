@@ -1,0 +1,38 @@
+HAL_StatusTypeDef HAL_SAI_DMAStop(SAI_HandleTypeDef *hsai)
+{
+  /* Process Locked */
+  __HAL_LOCK(hsai);
+  
+  /* Disable the SAI DMA request */
+  hsai->Instance->CR1 &= ~SAI_xCR1_DMAEN;
+  
+  /* Abort the SAI DMA Streams */
+  if(hsai->hdmatx != NULL)
+  {
+    if(HAL_DMA_Abort(hsai->hdmatx) != HAL_OK)
+    {
+      return HAL_ERROR;
+    }
+  }
+  
+  if(hsai->hdmarx != NULL)
+  {
+    if(HAL_DMA_Abort(hsai->hdmarx) != HAL_OK)
+    {
+      return HAL_ERROR;
+    }
+  }
+  
+  /* Disable SAI peripheral */
+  SAI_Disable(hsai);
+  
+  /* Flush the fifo */
+  SET_BIT(hsai->Instance->CR2, SAI_xCR2_FFLUSH);
+
+  hsai->State = HAL_SAI_STATE_READY;
+  
+  /* Process Unlocked */
+  __HAL_UNLOCK(hsai);
+  
+  return HAL_OK;
+}

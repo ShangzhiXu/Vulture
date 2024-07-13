@@ -1,0 +1,34 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 OsCmdExec(CmdParsed *cmdParsed, CHAR *cmdStr)
+{
+    UINT32 ret;
+    CmdCallBackFunc cmdHook = NULL;
+    CmdItemNode *curCmdItem = NULL;
+    CHAR *cmdKey = NULL;
+
+    if ((cmdStr == NULL) || (strlen(cmdStr) == 0)) {
+        return (UINT32)OS_ERROR;
+    }
+
+    ret = OsCmdParse(cmdStr, cmdParsed);
+    if (ret != LOS_OK) {
+        return ret;
+    }
+
+    LOS_DL_LIST_FOR_EACH_ENTRY(curCmdItem, &g_cmdInfo.cmdList.list, CmdItemNode, list) {
+        cmdKey = curCmdItem->cmd->cmdKey;
+        if ((cmdParsed->cmdType == curCmdItem->cmd->cmdType) &&
+            (strlen(cmdKey) == strlen(cmdParsed->cmdKeyword)) &&
+            (strncmp(cmdKey, (CHAR *)(cmdParsed->cmdKeyword), strlen(cmdKey)) == 0)) {
+            cmdHook = curCmdItem->cmd->cmdHook;
+            break;
+        }
+    }
+
+    ret = OS_ERROR;
+    if (cmdHook != NULL) {
+        ret = (cmdHook)(cmdParsed->paramCnt, (const CHAR **)cmdParsed->paramArray);
+    }
+    OsFreeCmdPara(cmdParsed);
+
+    return (UINT32)ret;
+}

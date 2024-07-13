@@ -1,0 +1,45 @@
+HAL_StatusTypeDef HAL_HASH_Init(HASH_HandleTypeDef *hhash)
+{
+  /* Check the parameters */
+  assert_param(IS_HASH_DATATYPE(hhash->Init.DataType));
+  
+  /* Check the hash handle allocation */
+  if(hhash == NULL)
+  {
+    return HAL_ERROR;
+  }
+  
+  if(hhash->State == HAL_HASH_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hhash->Lock = HAL_UNLOCKED;
+
+    /* Init the low level hardware */
+    HAL_HASH_MspInit(hhash);
+  }  
+  
+    /* Change the HASH state */
+  hhash->State = HAL_HASH_STATE_BUSY;
+
+  /* Reset HashInCount, HashITCounter, HashBuffSize and NbWordsAlreadyPushed */
+  hhash->HashInCount = 0;
+  hhash->HashBuffSize = 0;
+  hhash->HashITCounter = 0;
+  hhash->NbWordsAlreadyPushed = 0;
+  /* Reset digest calculation bridle (MDMAT bit control) */
+  hhash->DigestCalculationDisable = RESET;
+  /* Set phase to READY */
+  hhash->Phase = HAL_HASH_PHASE_READY;   
+  
+  /* Set the data type and reset MDMAT bit */
+  MODIFY_REG(HASH->CR, HASH_CR_DATATYPE|HASH_CR_MDMAT, hhash->Init.DataType);
+  
+  /* Reset HASH handle status */
+  hhash->Status = HAL_OK;
+  
+  /* Set the HASH state to Ready */
+  hhash->State = HAL_HASH_STATE_READY;
+  
+  /* Return function status */
+  return HAL_OK;
+}

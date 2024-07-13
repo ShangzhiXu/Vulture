@@ -1,0 +1,21 @@
+void HAL_RTC_AlarmIRQHandler(RTC_HandleTypeDef* hrtc)
+{  
+  if(__HAL_RTC_ALARM_GET_IT_SOURCE(hrtc, RTC_IT_ALRA))
+  {
+    /* Get the status of the Interrupt */
+    if(__HAL_RTC_ALARM_GET_FLAG(hrtc, RTC_FLAG_ALRAF) != (uint32_t)RESET)
+    {
+      /* AlarmA callback */ 
+      HAL_RTC_AlarmAEventCallback(hrtc);
+      
+      /* Clear the Alarm interrupt pending bit */
+      __HAL_RTC_ALARM_CLEAR_FLAG(hrtc,RTC_FLAG_ALRAF);
+    }
+  }
+  
+  /* Clear the EXTI's line Flag for RTC Alarm */
+  __HAL_RTC_ALARM_EXTI_CLEAR_FLAG();
+  
+  /* Change RTC state */
+  hrtc->State = HAL_RTC_STATE_READY; 
+}

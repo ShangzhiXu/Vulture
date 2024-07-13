@@ -1,0 +1,50 @@
+HAL_StatusTypeDef HAL_SMARTCARD_Receive(SMARTCARD_HandleTypeDef *hsc, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+{
+  uint16_t* tmp;
+  uint32_t tickstart = 0U;
+
+  if(hsc->RxState == HAL_SMARTCARD_STATE_READY)
+  {
+    if((pData == NULL) || (Size == 0U))
+    {
+      return  HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hsc);
+
+    hsc->ErrorCode = HAL_SMARTCARD_ERROR_NONE;
+    hsc->RxState = HAL_SMARTCARD_STATE_BUSY_RX;
+
+    /* Init tickstart for timeout managment */
+    tickstart = HAL_GetTick();
+
+    hsc->RxXferSize = Size;
+    hsc->RxXferCount = Size;
+
+    /* Check the remain data to be received */
+    while(hsc->RxXferCount > 0U)
+    {
+      hsc->RxXferCount--;
+      if(SMARTCARD_WaitOnFlagUntilTimeout(hsc, SMARTCARD_FLAG_RXNE, RESET, tickstart, Timeout) != HAL_OK)
+      {
+        return HAL_TIMEOUT;
+      }
+      tmp = (uint16_t*) pData;
+      *tmp = (uint8_t)(hsc->Instance->DR & (uint8_t)0xFF);
+      pData +=1U;
+    }
+
+    /* At end of Rx process, restore hsc->RxState to Ready */
+    hsc->RxState = HAL_SMARTCARD_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hsc);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

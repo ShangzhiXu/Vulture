@@ -1,0 +1,68 @@
+HAL_StatusTypeDef HAL_CEC_UnRegisterCallback(CEC_HandleTypeDef *hcec, HAL_CEC_CallbackIDTypeDef CallbackID)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process locked */
+  __HAL_LOCK(hcec);
+
+  if (hcec->gState == HAL_CEC_STATE_READY)
+  {
+    switch (CallbackID)
+    {
+      case HAL_CEC_TX_CPLT_CB_ID :
+        hcec->TxCpltCallback = HAL_CEC_TxCpltCallback;  /* Legacy weak  TxCpltCallback */
+        break;
+
+      case HAL_CEC_ERROR_CB_ID :
+        hcec->ErrorCallback = HAL_CEC_ErrorCallback;  /* Legacy weak ErrorCallback   */
+        break;
+
+      case HAL_CEC_MSPINIT_CB_ID :
+        hcec->MspInitCallback = HAL_CEC_MspInit;
+        break;
+
+      case HAL_CEC_MSPDEINIT_CB_ID :
+        hcec->MspDeInitCallback = HAL_CEC_MspDeInit;
+        break;
+
+      default :
+        /* Update the error code */
+        hcec->ErrorCode |= HAL_CEC_ERROR_INVALID_CALLBACK;
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if (hcec->gState == HAL_CEC_STATE_RESET)
+  {
+    switch (CallbackID)
+    {
+      case HAL_CEC_MSPINIT_CB_ID :
+        hcec->MspInitCallback = HAL_CEC_MspInit;
+        break;
+
+      case HAL_CEC_MSPDEINIT_CB_ID :
+        hcec->MspDeInitCallback = HAL_CEC_MspDeInit;
+        break;
+
+      default :
+        /* Update the error code */
+        hcec->ErrorCode |= HAL_CEC_ERROR_INVALID_CALLBACK;
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    hcec->ErrorCode |= HAL_CEC_ERROR_INVALID_CALLBACK;
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hcec);
+
+  return status;
+}

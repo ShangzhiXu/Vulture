@@ -1,0 +1,63 @@
+mdns_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port)
+{
+  struct dns_hdr hdr;
+  struct mdns_packet packet;
+  struct netif *recv_netif = ip_current_input_netif();
+  u16_t offset = 0;
+
+  LWIP_UNUSED_ARG(arg);
+  LWIP_UNUSED_ARG(pcb);
+
+  LWIP_DEBUGF(MDNS_DEBUG, ("MDNS: Received IPv%d MDNS packet, len %d\n", IP_IS_V6(addr) ? 6 : 4, p->tot_len));
+
+  if (NETIF_TO_HOST(recv_netif) == NULL) {
+    /* From netif not configured for MDNS */
+    goto dealloc;
+  }
+
+  if (pbuf_copy_partial(p, &hdr, SIZEOF_DNS_HDR, offset) < SIZEOF_DNS_HDR) {
+    /* Too small */
+    goto dealloc;
+  }
+  offset += SIZEOF_DNS_HDR;
+
+  if (DNS_HDR_GET_OPCODE(&hdr)) {
+    /* Ignore non-standard queries in multicast packets (RFC 6762, section 18.3) */
+    goto dealloc;
+  }
+
+  memset(&packet, 0, sizeof(packet));
+  SMEMCPY(&packet.source_addr, addr, sizeof(packet.source_addr));
+  packet.source_port = port;
+  packet.netif = recv_netif;
+  packet.pbuf = p;
+  packet.parse_offset = offset;
+  packet.tx_id = lwip_ntohs(hdr.id);
+  packet.questions = packet.questions_left = lwip_ntohs(hdr.numquestions);
+  packet.answers = packet.answers_left = lwip_ntohs(hdr.numanswers) + lwip_ntohs(hdr.numauthrr) + lwip_ntohs(hdr.numextrarr);
+
+#if LWIP_IPV6
+  if (IP_IS_V6(ip_current_dest_addr())) {
+    /* instead of having one 'v6group' per netif, just compare zoneless here */
+    if (!ip_addr_cmp_zoneless(ip_current_dest_addr(), &v6group)) {
+      packet.recv_unicast = 1;
+    }
+  }
+#endif
+#if LWIP_IPV4
+  if (!IP_IS_V6(ip_current_dest_addr())) {
+    if (!ip_addr_cmp(ip_current_dest_addr(), &v4group)) {
+      packet.recv_unicast = 1;
+    }
+  }
+#endif
+
+  if (hdr.flags1 & DNS_FLAG1_RESPONSE) {
+    mdns_handle_response(&packet);
+  } else {
+    mdns_handle_question(&packet);
+  }
+
+dealloc:
+  pbuf_free(p);
+}

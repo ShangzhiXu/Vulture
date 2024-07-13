@@ -1,0 +1,35 @@
+UINT32 FpbDeletePatch(UINT32 oldAddr, FpbCompTypeEnum fpbType)
+{
+    UINT8  regIndex;
+    UINT32 regValue;
+    UINT32 ret;
+
+    if (fpbType >= FPB_TYPE_MAX) {
+        PRINT_ERR("type is wrong, set pfb patch err!\r\n");
+        return FPB_TYPE_ERR;
+    }
+
+    if (fpbType == FPB_TYPE_LITERAL) {
+        regValue = FPB->comp[LITERAL_REG1_INDEX];
+        if ((oldAddr | 0x01UL) == regValue) {
+            FPB->comp[LITERAL_REG1_INDEX] = 0;
+            return FPB_SUCCESS;
+        } else {
+            regValue = FPB->comp[LITERAL_REG2_INDEX];
+            if ((oldAddr | 0x01UL) == regValue) {
+                FPB->comp[LITERAL_REG2_INDEX] = 0;
+                return FPB_SUCCESS;
+            }
+        }
+    } else {
+        ret = GetInstrRegIndex(oldAddr, &regIndex);
+        if (ret == FPB_COMP_REPEAT_ERR) {
+            PRINT_DEBUG("delete comp : %d patch\r\n", regIndex);
+            FPB->comp[regIndex] = 0;
+            return FPB_SUCCESS;
+        }
+    }
+
+    PRINT_DEBUG("no patch need to delete\r\n");
+    return FPB_NO_COMP_ERR;
+}

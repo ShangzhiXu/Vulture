@@ -1,0 +1,27 @@
+LITE_OS_SEC_TEXT_MINOR INT32 SensorMessageProcess(UINT32 index, const UINT32 *buf, UINT32 len)
+{
+    SensorType *st = NULL;
+    SensorScbTable *scbTable = NULL;
+
+    if ((buf == NULL) || (index >= (TAG_END - 1))) {
+        PRINT_ERR("senor message process parameters %u error\n", index);
+        return LOS_NOK;
+    }
+
+    scbTable = SensorTableGet();
+    st = scbTable[index].sensorInterface;
+
+    if ((st == NULL) || (st->tag >= TAG_END) || (st->tag < TAG_BEGIN)) {
+        return LOS_NOK;
+    }
+
+    if (((PktHeader *)buf)->cmd < CMD_PRIVATE) {
+        return SensorMessageSwitchProcess((PktHeader *)buf, &st->commuItem, &g_sensorItemKeep[st->tag - TAG_BEGIN]);
+    }
+
+    if (((const PktParameterReq *)buf)->hd.length + sizeof(PktHeader) > len) {
+        PRINT_ERR("senor message parameter len %d error\n", len);
+        return LOS_NOK;
+    }
+    return SensorMessageConfigProcess((const PktParameterReq *)buf);
+}

@@ -1,0 +1,33 @@
+sntp_send_request(const ip_addr_t *server_addr)
+{
+  struct pbuf *p;
+
+  LWIP_ASSERT("server_addr != NULL", server_addr != NULL);
+
+  p = pbuf_alloc(PBUF_TRANSPORT, SNTP_MSG_LEN, PBUF_RAM);
+  if (p != NULL) {
+    struct sntp_msg *sntpmsg = (struct sntp_msg *)p->payload;
+    LWIP_DEBUGF(SNTP_DEBUG_STATE, ("sntp_send_request: Sending request to server\n"));
+    /* initialize request message */
+    sntp_initialize_request(sntpmsg);
+    /* send request */
+    udp_sendto(sntp_pcb, p, server_addr, SNTP_PORT);
+    /* free the pbuf after sending it */
+    pbuf_free(p);
+#if SNTP_MONITOR_SERVER_REACHABILITY
+    /* indicate new packet has been sent */
+    sntp_servers[sntp_current_server].reachability <<= 1;
+#endif /* SNTP_MONITOR_SERVER_REACHABILITY */
+    /* set up receive timeout: try next server or retry on timeout */
+    sys_timeout((u32_t)SNTP_RECV_TIMEOUT, sntp_try_next_server, NULL);
+#if SNTP_CHECK_RESPONSE >= 1
+    /* save server address to verify it in sntp_recv */
+    ip_addr_copy(sntp_last_server_address, *server_addr);
+#endif /* SNTP_CHECK_RESPONSE >= 1 */
+  } else {
+    LWIP_DEBUGF(SNTP_DEBUG_SERIOUS, ("sntp_send_request: Out of memory, trying again in %"U32_F" ms\n",
+                                     (u32_t)SNTP_RETRY_TIMEOUT));
+    /* out of memory: set up a timer to send a retry */
+    sys_timeout((u32_t)SNTP_RETRY_TIMEOUT, sntp_request, NULL);
+  }
+}

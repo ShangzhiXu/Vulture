@@ -1,0 +1,42 @@
+void HAL_FMPI2C_ER_IRQHandler(FMPI2C_HandleTypeDef *hfmpi2c)
+{
+  uint32_t itflags   = READ_REG(hfmpi2c->Instance->ISR);
+  uint32_t itsources = READ_REG(hfmpi2c->Instance->CR1);
+  uint32_t tmperror;
+
+  /* FMPI2C Bus error interrupt occurred ------------------------------------*/
+  if ((FMPI2C_CHECK_FLAG(itflags, FMPI2C_FLAG_BERR) != RESET) && (FMPI2C_CHECK_IT_SOURCE(itsources, FMPI2C_IT_ERRI) != RESET))
+  {
+    hfmpi2c->ErrorCode |= HAL_FMPI2C_ERROR_BERR;
+
+    /* Clear BERR flag */
+    __HAL_FMPI2C_CLEAR_FLAG(hfmpi2c, FMPI2C_FLAG_BERR);
+  }
+
+  /* FMPI2C Over-Run/Under-Run interrupt occurred ----------------------------------------*/
+  if ((FMPI2C_CHECK_FLAG(itflags, FMPI2C_FLAG_OVR) != RESET) && (FMPI2C_CHECK_IT_SOURCE(itsources, FMPI2C_IT_ERRI) != RESET))
+  {
+    hfmpi2c->ErrorCode |= HAL_FMPI2C_ERROR_OVR;
+
+    /* Clear OVR flag */
+    __HAL_FMPI2C_CLEAR_FLAG(hfmpi2c, FMPI2C_FLAG_OVR);
+  }
+
+  /* FMPI2C Arbitration Loss error interrupt occurred -------------------------------------*/
+  if ((FMPI2C_CHECK_FLAG(itflags, FMPI2C_FLAG_ARLO) != RESET) && (FMPI2C_CHECK_IT_SOURCE(itsources, FMPI2C_IT_ERRI) != RESET))
+  {
+    hfmpi2c->ErrorCode |= HAL_FMPI2C_ERROR_ARLO;
+
+    /* Clear ARLO flag */
+    __HAL_FMPI2C_CLEAR_FLAG(hfmpi2c, FMPI2C_FLAG_ARLO);
+  }
+
+  /* Store current volatile hfmpi2c->ErrorCode, misra rule */
+  tmperror = hfmpi2c->ErrorCode;
+
+  /* Call the Error Callback in case of Error detected */
+  if ((tmperror & (HAL_FMPI2C_ERROR_BERR | HAL_FMPI2C_ERROR_OVR | HAL_FMPI2C_ERROR_ARLO)) !=  HAL_FMPI2C_ERROR_NONE)
+  {
+    FMPI2C_ITError(hfmpi2c, tmperror);
+  }
+}

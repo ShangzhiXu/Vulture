@@ -1,0 +1,20 @@
+int cc3200_write(Network *n, unsigned char *buffer, int len, int timeout_ms)
+{
+    SlTimeval_t timeVal;
+    SlFdSet_t fdset;
+    int rc = 0;
+    int readySock;
+
+    SL_FD_ZERO(&fdset);
+    SL_FD_SET(n->my_socket, &fdset);
+
+    timeVal.tv_sec = 0;
+    timeVal.tv_usec = timeout_ms * 1000;
+    do
+    {
+        readySock = sl_Select(n->my_socket + 1, NULL, &fdset, NULL, &timeVal);
+    }
+    while(readySock != 1);
+    rc = sl_Send(n->my_socket, buffer, len, 0);
+    return rc;
+}

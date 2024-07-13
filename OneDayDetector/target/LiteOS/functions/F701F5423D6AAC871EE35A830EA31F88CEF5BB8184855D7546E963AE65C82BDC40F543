@@ -1,0 +1,61 @@
+HAL_StatusTypeDef HAL_FLASHEx_OBProgram(FLASH_OBProgramInitTypeDef *pOBInit)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  
+  /* Process Locked */
+  __HAL_LOCK(&pFlash);
+
+  /* Check the parameters */
+  assert_param(IS_OPTIONBYTE(pOBInit->OptionType));
+  
+  pFlash.ErrorCode = HAL_FLASH_ERROR_NONE;
+
+  /* Write protection configuration */
+  if((pOBInit->OptionType & OPTIONBYTE_WRP) != RESET)
+  {
+    /* Configure of Write protection on the selected area */
+    if(FLASH_OB_WRPConfig(pOBInit->WRPArea, pOBInit->WRPStartOffset, pOBInit->WRPEndOffset) != HAL_OK)
+    {
+      status = HAL_ERROR;
+    }
+    
+  }
+  
+  /* Read protection configuration */
+  if((pOBInit->OptionType & OPTIONBYTE_RDP) != RESET)
+  {
+    /* Configure the Read protection level */
+    if(FLASH_OB_RDPConfig(pOBInit->RDPLevel) != HAL_OK)
+    {
+      status = HAL_ERROR;
+    }
+  }
+  
+  /* User Configuration */
+  if((pOBInit->OptionType & OPTIONBYTE_USER) != RESET)
+  {
+    /* Configure the user option bytes */
+    if(FLASH_OB_UserConfig(pOBInit->USERType, pOBInit->USERConfig) != HAL_OK)
+    {
+      status = HAL_ERROR;
+    }
+  }
+  
+  /* PCROP Configuration */
+  if((pOBInit->OptionType & OPTIONBYTE_PCROP) != RESET)
+  {
+    if (pOBInit->PCROPStartAddr != pOBInit->PCROPEndAddr)
+    {
+      /* Configure the Proprietary code readout protection */
+      if(FLASH_OB_PCROPConfig(pOBInit->PCROPConfig, pOBInit->PCROPStartAddr, pOBInit->PCROPEndAddr) != HAL_OK)
+      {
+        status = HAL_ERROR;
+      }
+    }
+  }
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(&pFlash);
+
+  return status;
+}

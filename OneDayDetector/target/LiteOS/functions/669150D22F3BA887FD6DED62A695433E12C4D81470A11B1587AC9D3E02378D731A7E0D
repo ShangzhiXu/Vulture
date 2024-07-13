@@ -1,0 +1,277 @@
+HAL_StatusTypeDef HAL_SPI_TransmitReceive(SPI_HandleTypeDef *hspi, uint8_t *pTxData, uint8_t *pRxData, uint16_t Size,
+                                          uint32_t Timeout)
+{
+  uint32_t tmp = 0U, tmp1 = 0U;
+#if (USE_SPI_CRC != 0U)
+  __IO uint16_t tmpreg = 0U;
+#endif /* USE_SPI_CRC */
+  uint32_t tickstart = 0U;
+  /* Variable used to alternate Rx and Tx during transfer */
+  uint32_t txallowed = 1U;
+  HAL_StatusTypeDef errorcode = HAL_OK;
+
+  /* Check Direction parameter */
+  assert_param(IS_SPI_DIRECTION_2LINES(hspi->Init.Direction));
+
+  /* Process Locked */
+  __HAL_LOCK(hspi);
+
+  /* Init tickstart for timeout management*/
+  tickstart = HAL_GetTick();
+
+  tmp  = hspi->State;
+  tmp1 = hspi->Init.Mode;
+
+  if (!((tmp == HAL_SPI_STATE_READY) || \
+        ((tmp1 == SPI_MODE_MASTER) && (hspi->Init.Direction == SPI_DIRECTION_2LINES) && (tmp == HAL_SPI_STATE_BUSY_RX))))
+  {
+    errorcode = HAL_BUSY;
+    goto error;
+  }
+
+  if ((pTxData == NULL) || (pRxData == NULL) || (Size == 0U))
+  {
+    errorcode = HAL_ERROR;
+    goto error;
+  }
+
+  /* Don't overwrite in case of HAL_SPI_STATE_BUSY_RX */
+  if (hspi->State != HAL_SPI_STATE_BUSY_RX)
+  {
+    hspi->State = HAL_SPI_STATE_BUSY_TX_RX;
+  }
+
+  /* Set the transaction information */
+  hspi->ErrorCode   = HAL_SPI_ERROR_NONE;
+  hspi->pRxBuffPtr  = (uint8_t *)pRxData;
+  hspi->RxXferCount = Size;
+  hspi->RxXferSize  = Size;
+  hspi->pTxBuffPtr  = (uint8_t *)pTxData;
+  hspi->TxXferCount = Size;
+  hspi->TxXferSize  = Size;
+
+  /*Init field not used in handle to zero */
+  hspi->RxISR       = NULL;
+  hspi->TxISR       = NULL;
+
+#if (USE_SPI_CRC != 0U)
+  /* Reset CRC Calculation */
+  if (hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+  {
+    SPI_RESET_CRC(hspi);
+  }
+#endif /* USE_SPI_CRC */
+
+  /* Set the Rx Fifo threshold */
+  if ((hspi->Init.DataSize > SPI_DATASIZE_8BIT) || (hspi->RxXferCount > 1U))
+  {
+    /* Set fiforxthreshold according the reception data length: 16bit */
+    CLEAR_BIT(hspi->Instance->CR2, SPI_RXFIFO_THRESHOLD);
+  }
+  else
+  {
+    /* Set fiforxthreshold according the reception data length: 8bit */
+    SET_BIT(hspi->Instance->CR2, SPI_RXFIFO_THRESHOLD);
+  }
+
+  /* Check if the SPI is already enabled */
+  if ((hspi->Instance->CR1 & SPI_CR1_SPE) != SPI_CR1_SPE)
+  {
+    /* Enable SPI peripheral */
+    __HAL_SPI_ENABLE(hspi);
+  }
+
+  /* Transmit and Receive data in 16 Bit mode */
+  if (hspi->Init.DataSize > SPI_DATASIZE_8BIT)
+  {
+    if ((hspi->Init.Mode == SPI_MODE_SLAVE) || (hspi->TxXferCount == 0x01U))
+    {
+      hspi->Instance->DR = *((uint16_t *)pTxData);
+      pTxData += sizeof(uint16_t);
+      hspi->TxXferCount--;
+    }
+    while ((hspi->TxXferCount > 0U) || (hspi->RxXferCount > 0U))
+    {
+      /* Check TXE flag */
+      if (txallowed && (hspi->TxXferCount > 0U) && (__HAL_SPI_GET_FLAG(hspi, SPI_FLAG_TXE)))
+      {
+        hspi->Instance->DR = *((uint16_t *)pTxData);
+        pTxData += sizeof(uint16_t);
+        hspi->TxXferCount--;
+        /* Next Data is a reception (Rx). Tx not allowed */
+        txallowed = 0U;
+
+#if (USE_SPI_CRC != 0U)
+        /* Enable CRC Transmission */
+        if ((hspi->TxXferCount == 0U) && (hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE))
+        {
+          /* Set NSS Soft to received correctly the CRC on slave mode with NSS pulse activated */
+          if (((hspi->Instance->CR1 & SPI_CR1_MSTR) == 0U) && ((hspi->Instance->CR2 & SPI_CR2_NSSP) == SPI_CR2_NSSP))
+          {
+            SET_BIT(hspi->Instance->CR1, SPI_CR1_SSM);
+          }
+          SET_BIT(hspi->Instance->CR1, SPI_CR1_CRCNEXT);
+        }
+#endif /* USE_SPI_CRC */
+      }
+
+      /* Check RXNE flag */
+      if ((hspi->RxXferCount > 0U) && (__HAL_SPI_GET_FLAG(hspi, SPI_FLAG_RXNE)))
+      {
+        *((uint16_t *)pRxData) = hspi->Instance->DR;
+        pRxData += sizeof(uint16_t);
+        hspi->RxXferCount--;
+        /* Next Data is a Transmission (Tx). Tx is allowed */
+        txallowed = 1U;
+      }
+      if ((Timeout != HAL_MAX_DELAY) && ((HAL_GetTick() - tickstart) >=  Timeout))
+      {
+        errorcode = HAL_TIMEOUT;
+        goto error;
+      }
+    }
+  }
+  /* Transmit and Receive data in 8 Bit mode */
+  else
+  {
+    if ((hspi->Init.Mode == SPI_MODE_SLAVE) || (hspi->TxXferCount == 0x01U))
+    {
+      if (hspi->TxXferCount > 1U)
+      {
+        hspi->Instance->DR = *((uint16_t *)pTxData);
+        pTxData += sizeof(uint16_t);
+        hspi->TxXferCount -= 2U;
+      }
+      else
+      {
+        *(__IO uint8_t *)&hspi->Instance->DR = (*pTxData++);
+        hspi->TxXferCount--;
+      }
+    }
+    while ((hspi->TxXferCount > 0U) || (hspi->RxXferCount > 0U))
+    {
+      /* Check TXE flag */
+      if (txallowed && (hspi->TxXferCount > 0U) && (__HAL_SPI_GET_FLAG(hspi, SPI_FLAG_TXE)))
+      {
+        if (hspi->TxXferCount > 1U)
+        {
+          hspi->Instance->DR = *((uint16_t *)pTxData);
+          pTxData += sizeof(uint16_t);
+          hspi->TxXferCount -= 2U;
+        }
+        else
+        {
+          *(__IO uint8_t *)&hspi->Instance->DR = (*pTxData++);
+          hspi->TxXferCount--;
+        }
+        /* Next Data is a reception (Rx). Tx not allowed */
+        txallowed = 0U;
+
+#if (USE_SPI_CRC != 0U)
+        /* Enable CRC Transmission */
+        if ((hspi->TxXferCount == 0U) && (hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE))
+        {
+          /* Set NSS Soft to received correctly the CRC on slave mode with NSS pulse activated */
+          if (((hspi->Instance->CR1 & SPI_CR1_MSTR) == 0U) && ((hspi->Instance->CR2 & SPI_CR2_NSSP) == SPI_CR2_NSSP))
+          {
+            SET_BIT(hspi->Instance->CR1, SPI_CR1_SSM);
+          }
+          SET_BIT(hspi->Instance->CR1, SPI_CR1_CRCNEXT);
+        }
+#endif /* USE_SPI_CRC */
+      }
+
+      /* Wait until RXNE flag is reset */
+      if ((hspi->RxXferCount > 0U) && (__HAL_SPI_GET_FLAG(hspi, SPI_FLAG_RXNE)))
+      {
+        if (hspi->RxXferCount > 1U)
+        {
+          *((uint16_t *)pRxData) = hspi->Instance->DR;
+          pRxData += sizeof(uint16_t);
+          hspi->RxXferCount -= 2U;
+          if (hspi->RxXferCount <= 1U)
+          {
+            /* Set RX Fifo threshold before to switch on 8 bit data size */
+            SET_BIT(hspi->Instance->CR2, SPI_RXFIFO_THRESHOLD);
+          }
+        }
+        else
+        {
+          (*(uint8_t *)pRxData++) = *(__IO uint8_t *)&hspi->Instance->DR;
+          hspi->RxXferCount--;
+        }
+        /* Next Data is a Transmission (Tx). Tx is allowed */
+        txallowed = 1U;
+      }
+      if ((Timeout != HAL_MAX_DELAY) && ((HAL_GetTick() - tickstart) >=  Timeout))
+      {
+        errorcode = HAL_TIMEOUT;
+        goto error;
+      }
+    }
+  }
+
+#if (USE_SPI_CRC != 0U)
+  /* Read CRC from DR to close CRC calculation process */
+  if (hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+  {
+    /* Wait until TXE flag */
+    if (SPI_WaitFlagStateUntilTimeout(hspi, SPI_FLAG_RXNE, SET, Timeout, tickstart) != HAL_OK)
+    {
+      /* Error on the CRC reception */
+      SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_CRC);
+      errorcode = HAL_TIMEOUT;
+      goto error;
+    }
+    /* Read CRC */
+    if (hspi->Init.DataSize == SPI_DATASIZE_16BIT)
+    {
+      tmpreg = hspi->Instance->DR;
+      /* To avoid GCC warning */
+      UNUSED(tmpreg);
+    }
+    else
+    {
+      tmpreg = *(__IO uint8_t *)&hspi->Instance->DR;
+      /* To avoid GCC warning */
+      UNUSED(tmpreg);
+
+      if (hspi->Init.CRCLength == SPI_CRC_LENGTH_16BIT)
+      {
+        if (SPI_WaitFlagStateUntilTimeout(hspi, SPI_FLAG_RXNE, SET, Timeout, tickstart) != HAL_OK)
+        {
+          /* Error on the CRC reception */
+          SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_CRC);
+          errorcode = HAL_TIMEOUT;
+          goto error;
+        }
+        tmpreg = *(__IO uint8_t *)&hspi->Instance->DR;
+        /* To avoid GCC warning */
+        UNUSED(tmpreg);
+      }
+    }
+  }
+
+  /* Check if CRC error occurred */
+  if (__HAL_SPI_GET_FLAG(hspi, SPI_FLAG_CRCERR))
+  {
+    SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_CRC);
+    /* Clear CRC Flag */
+    __HAL_SPI_CLEAR_CRCERRFLAG(hspi);
+
+    errorcode = HAL_ERROR;
+  }
+#endif /* USE_SPI_CRC */
+
+  /* Check the end of the transaction */
+  if (SPI_EndRxTxTransaction(hspi, Timeout, tickstart) != HAL_OK)
+  {
+    errorcode = HAL_ERROR;
+    hspi->ErrorCode = HAL_SPI_ERROR_FLAG;
+  }
+
+error :
+  hspi->State = HAL_SPI_STATE_READY;
+  __HAL_UNLOCK(hspi);
+  return errorcode;
+}

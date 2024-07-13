@@ -1,0 +1,23 @@
+STATIC INLINE VOID InterruptHandle(HwiHandleInfo *hwiForm)
+{
+    hwiForm->respCount++;
+#ifndef LOSCFG_NO_SHARED_IRQ
+    while (hwiForm->next != NULL) {
+        hwiForm = hwiForm->next;
+#endif
+        if (hwiForm->registerInfo) {
+            HWI_PROC_FUNC2 func = (HWI_PROC_FUNC2)hwiForm->hook;
+            if (func != NULL) {
+                UINTPTR *param = (UINTPTR *)(hwiForm->registerInfo);
+                func((INT32)(*param), (VOID *)(*(param + 1)));
+            }
+        } else {
+            HWI_PROC_FUNC0 func = (HWI_PROC_FUNC0)hwiForm->hook;
+            if (func != NULL) {
+                func();
+            }
+        }
+#ifndef LOSCFG_NO_SHARED_IRQ
+    }
+#endif
+}

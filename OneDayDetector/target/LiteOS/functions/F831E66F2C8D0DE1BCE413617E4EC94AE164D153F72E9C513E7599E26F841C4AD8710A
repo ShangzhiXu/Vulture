@@ -1,0 +1,67 @@
+STATIC VOID *OsMemRealloc(VOID *pool, VOID *ptr, UINT32 size)
+{
+    LosMemDynNode *node = NULL;
+    LosMemDynNode *nextNode = NULL;
+    VOID *tmpPtr = NULL;
+    VOID *realPtr = NULL;
+    UINT32 nodeSize;
+    UINT32 allocSize = OS_MEM_ALIGN(size + OS_MEM_NODE_HEAD_SIZE, OS_MEM_ALIGN_SIZE);
+#ifdef LOSCFG_MEM_RECORDINFO
+    const VOID *originPtr = ptr;
+#endif
+
+    realPtr = OsGetRealPtr(pool, ptr);
+    if (realPtr == NULL) {
+        return NULL;
+    }
+
+    node = (LosMemDynNode *)((UINTPTR)realPtr - OS_MEM_NODE_HEAD_SIZE);
+    if (OsMemCheckUsedNode(pool, node) != LOS_OK) {
+#ifdef LOSCFG_MEM_RECORDINFO
+        OsMemRecordFree(originPtr, 0);
+#endif
+        return NULL;
+    }
+
+    nodeSize = OS_MEM_NODE_GET_SIZE(node->selfNode.sizeAndFlag);
+    if (nodeSize >= allocSize) {
+#ifdef LOSCFG_MEM_RECORDINFO
+        OsMemRecordFree(originPtr, node->selfNode.originSize);
+#endif
+        OsMemReAllocSmaller(pool, allocSize, node, nodeSize);
+#ifdef LOSCFG_MEM_RECORDINFO
+        OsMemReallocNodeRecord(node, size, ptr);
+#endif
+        return (VOID *)ptr;
+    }
+
+    nextNode = OS_MEM_NEXT_NODE(node);
+    if (!OS_MEM_NODE_GET_USED_FLAG(nextNode->selfNode.sizeAndFlag) &&
+        ((nextNode->selfNode.sizeAndFlag + nodeSize) >= allocSize)) {
+#ifdef LOSCFG_MEM_RECORDINFO
+        OsMemRecordFree(originPtr, node->selfNode.originSize);
+#endif
+        OsMemMergeNodeForReAllocBigger(pool, allocSize, node, nodeSize, nextNode);
+#ifdef LOSCFG_MEM_RECORDINFO
+        OsMemReallocNodeRecord(node, size, ptr);
+#endif
+        return (VOID *)ptr;
+    }
+
+    tmpPtr = OsMemAllocWithCheck(pool, size);
+    if (tmpPtr != NULL) {
+#ifdef LOSCFG_MEM_RECORDINFO
+        OsMemRecordMalloc(tmpPtr, size);
+#endif
+        UINT32 gapSize = (UINT32)((UINTPTR)ptr - (UINTPTR)realPtr);
+        if (memcpy_s(tmpPtr, size, ptr, (nodeSize - OS_MEM_NODE_HEAD_SIZE - gapSize)) != EOK) {
+            (VOID)OsMemFree((VOID *)pool, (VOID *)tmpPtr);
+            return NULL;
+        }
+#ifdef LOSCFG_MEM_RECORDINFO
+        OsMemRecordFree(originPtr, node->selfNode.originSize);
+#endif
+        OsMemFreeNode(node, pool);
+    }
+    return tmpPtr;
+}

@@ -1,0 +1,74 @@
+void link_terminated(ppp_pcb *pcb) {
+    if (pcb->phase == PPP_PHASE_DEAD
+#ifdef HAVE_MULTILINK
+    || pcb->phase == PPP_PHASE_MASTER
+#endif /* HAVE_MULTILINK */
+    )
+	return;
+    new_phase(pcb, PPP_PHASE_DISCONNECT);
+
+#if 0 /* UNUSED */
+    if (pap_logout_hook) {
+	pap_logout_hook();
+    }
+    session_end(devnam);
+#endif /* UNUSED */
+
+    if (!doing_multilink) {
+	ppp_notice("Connection terminated.");
+#if PPP_STATS_SUPPORT
+	print_link_stats();
+#endif /* PPP_STATS_SUPPORT */
+    } else
+	ppp_notice("Link terminated.");
+
+    lcp_lowerdown(pcb);
+
+    ppp_link_terminated(pcb);
+#if 0
+    /*
+     * Delete pid files before disestablishing ppp.  Otherwise it
+     * can happen that another pppd gets the same unit and then
+     * we delete its pid file.
+     */
+    if (!doing_multilink && !demand)
+	remove_pidfiles();
+
+    /*
+     * If we may want to bring the link up again, transfer
+     * the ppp unit back to the loopback.  Set the
+     * real serial device back to its normal mode of operation.
+     */
+    if (fd_ppp >= 0) {
+	remove_fd(fd_ppp);
+	clean_check();
+	the_channel->disestablish_ppp(devfd);
+	if (doing_multilink)
+	    mp_exit_bundle();
+	fd_ppp = -1;
+    }
+    if (!hungup)
+	lcp_lowerdown(pcb);
+    if (!doing_multilink && !demand)
+	script_unsetenv("IFNAME");
+
+    /*
+     * Run disconnector script, if requested.
+     * XXX we may not be able to do this if the line has hung up!
+     */
+    if (devfd >= 0 && the_channel->disconnect) {
+	the_channel->disconnect();
+	devfd = -1;
+    }
+    if (the_channel->cleanup)
+	(*the_channel->cleanup)();
+
+    if (doing_multilink && multilink_master) {
+	if (!bundle_terminating)
+	    new_phase(pcb, PPP_PHASE_MASTER);
+	else
+	    mp_bundle_terminated();
+    } else
+	new_phase(pcb, PPP_PHASE_DEAD);
+#endif
+}

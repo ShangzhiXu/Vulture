@@ -1,0 +1,22 @@
+LITE_OS_SEC_TEXT_MINOR INT32 SensorItemDisable(SensorItem *item, CloseParam *param, UINT16 id, UINT8 resp)
+{
+    SmMail smMail;
+    UINT32 ret;
+
+    if ((item == NULL) || (item->tag >= TAG_END) || (item->tag < TAG_BEGIN) || (param == NULL)) {
+        return LOS_NOK;
+    }
+
+    smMail.event                  = SM_EVENT_ITEM_DISABLE;
+    smMail.itemDisable.item       = item;
+    smMail.itemDisable.closeParam = *param;
+    smMail.itemDisable.id         = id;
+    smMail.itemDisable.resp       = resp;
+
+    ret = LOS_QueueWriteCopy(g_sensorManagerQueue, (VOID *)&smMail, SM_MAILS_TYPE_SIZE, 0);
+    if (ret != LOS_OK) {
+        PRINT_ERR("sensor item disable write queue fail, ret %u\n", ret);
+        return LOS_NOK;
+    }
+    return LOS_OK;
+}

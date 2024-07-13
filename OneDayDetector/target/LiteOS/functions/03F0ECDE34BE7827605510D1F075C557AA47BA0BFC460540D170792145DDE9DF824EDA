@@ -1,0 +1,26 @@
+osMailQId osMailCreate(const osMailQDef_t *queue_def, osThreadId thread_id)
+{
+    (VOID)thread_id;
+    UINT32 ret;
+    UINT32 queueId;
+    struct osMailQ *mailQ = NULL;
+
+    if ((queue_def == NULL) || (queue_def->pool == NULL) || OS_INT_ACTIVE) {
+        return NULL;
+    }
+
+    ret = LOS_QueueCreate(NULL, (UINT16)(queue_def->queue_sz), &queueId, 0, sizeof(UINT32));
+    if (ret != LOS_OK) {
+        return NULL;
+    }
+
+    mailQ = (struct osMailQ *)(queue_def->pool);
+    mailQ->pool = CreateAndInitMemBox(queue_def->queue_sz, queue_def->item_sz);
+    if (mailQ->pool == NULL) {
+        LOS_QueueDelete(queueId);
+        return NULL;
+    }
+
+    mailQ->queue = queueId;
+    return (osMailQId)mailQ;
+}

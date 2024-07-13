@@ -1,0 +1,20 @@
+__STATIC_FORCEINLINE void SCB_InvalidateICache_by_Addr (void *addr, int32_t isize)
+{
+  #if defined (__ICACHE_PRESENT) && (__ICACHE_PRESENT == 1U)
+    if ( isize > 0 ) {
+       int32_t op_size = isize + (((uint32_t)addr) & (__SCB_ICACHE_LINE_SIZE - 1U));
+      uint32_t op_addr = (uint32_t)addr /* & ~(__SCB_ICACHE_LINE_SIZE - 1U) */;
+
+      __DSB();
+
+      do {
+        SCB->ICIMVAU = op_addr;             /* register accepts only 32byte aligned values, only bits 31..5 are valid */
+        op_addr += __SCB_ICACHE_LINE_SIZE;
+        op_size -= __SCB_ICACHE_LINE_SIZE;
+      } while ( op_size > 0 );
+
+      __DSB();
+      __ISB();
+    }
+  #endif
+}

@@ -1,0 +1,48 @@
+int pthread_detach(pthread_t thread)
+{
+    int ret = 0;
+    LosTaskCB *taskCB = NULL;
+    _pthread_data *detached = NULL;
+
+    if (pthread_mutex_lock(&g_pthreadsDataMutex) != ENOERR) {
+        ret = ESRCH;
+    }
+    detached = pthread_get_data(thread);
+    if (detached == NULL) {
+        ret = ESRCH; /* No such thread */
+    } else if (detached->state == PTHREAD_STATE_DETACHED) {
+        ret = EINVAL; /* Already detached! */
+    } else if (detached->state == PTHREAD_STATE_JOIN) {
+        detached->state = PTHREAD_STATE_EXITED;
+        g_pthreadsExited++;
+    } else {
+        /* Set state to detached and kick any joinees to make them return. */
+        detached->state = PTHREAD_STATE_DETACHED;
+        if (detached->joiner != NULL) {
+            if (LOS_SemPost(detached->joiner->semId) != LOS_OK) {
+                ret = ESRCH;
+            }
+            if (LOS_SemDelete(detached->joiner->semId) != LOS_OK) {
+                ret = ESRCH;
+            }
+        }
+        detached->joiner = NULL;
+        detached->task->threadJoin = NULL;
+
+        taskCB = OS_TCB_FROM_TID(thread);
+        if (taskCB->taskStatus == 0) {
+            detached->state = PTHREAD_STATE_EXITED;
+            g_pthreadsExited++;
+        } else {
+            taskCB->taskFlags |= OS_TASK_FLAG_DETACHED;
+        }
+    }
+
+    /* Dispose of any dead threads */
+    PthreadReap();
+    if (pthread_mutex_unlock(&g_pthreadsDataMutex) != ENOERR) {
+        ret = ESRCH;
+    }
+
+    return ret;
+}

@@ -1,0 +1,30 @@
+STATIC VOID OsMutexPendTaskList(LOS_DL_LIST *list)
+{
+    LOS_DL_LIST *listTmp = NULL;
+    LosTaskCB *pendedTask = NULL;
+    CHAR *name = NULL;
+    UINT32 index = 0;
+    UINT32 id, intSave;
+
+    SCHEDULER_LOCK(intSave);
+    if (LOS_ListEmpty(list) == TRUE) {
+        SCHEDULER_UNLOCK(intSave);
+        PRINTK("Pended Task: null\n");
+        return;
+    }
+
+    LOS_DL_LIST_FOR_EACH(listTmp, list) {
+        pendedTask = OS_TCB_FROM_PENDLIST(listTmp);
+        name = pendedTask->taskName;
+        id = pendedTask->taskId;
+        SCHEDULER_UNLOCK(intSave);
+        if (index == 0) {
+            PRINTK("Pended task: %u. name:%-15s, id:0x%-5x\n", index, name, id);
+        } else {
+            PRINTK("             %u. name:%-15s, id:0x%-5x\n", index, name, id);
+        }
+        index++;
+        SCHEDULER_LOCK(intSave);
+    }
+    SCHEDULER_UNLOCK(intSave);
+}

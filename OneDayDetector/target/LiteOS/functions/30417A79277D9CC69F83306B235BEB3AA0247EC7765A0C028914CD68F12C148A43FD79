@@ -1,0 +1,116 @@
+HAL_StatusTypeDef HAL_OSPI_Command(OSPI_HandleTypeDef *hospi, OSPI_RegularCmdTypeDef *cmd, uint32_t Timeout)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t tickstart = HAL_GetTick();
+
+  /* Check the parameters of the command structure */
+  assert_param(IS_OSPI_OPERATION_TYPE(cmd->OperationType));
+  
+  if (hospi->Init.DualQuad == HAL_OSPI_DUALQUAD_DISABLE)
+  {
+    assert_param(IS_OSPI_FLASH_ID(cmd->FlashId));
+  }
+
+  assert_param(IS_OSPI_INSTRUCTION_MODE(cmd->InstructionMode));
+  if (cmd->InstructionMode != HAL_OSPI_INSTRUCTION_NONE)
+  {
+    assert_param(IS_OSPI_INSTRUCTION_SIZE    (cmd->InstructionSize));
+    assert_param(IS_OSPI_INSTRUCTION_DTR_MODE(cmd->InstructionDtrMode));
+  }
+  
+  assert_param(IS_OSPI_ADDRESS_MODE(cmd->AddressMode));
+  if (cmd->AddressMode != HAL_OSPI_ADDRESS_NONE)
+  {
+    assert_param(IS_OSPI_ADDRESS_SIZE    (cmd->AddressSize));
+    assert_param(IS_OSPI_ADDRESS_DTR_MODE(cmd->AddressDtrMode));
+  }
+
+  assert_param(IS_OSPI_ALT_BYTES_MODE(cmd->AlternateBytesMode));
+  if (cmd->AlternateBytesMode != HAL_OSPI_ALTERNATE_BYTES_NONE)
+  {
+    assert_param(IS_OSPI_ALT_BYTES_SIZE    (cmd->AlternateBytesSize));
+    assert_param(IS_OSPI_ALT_BYTES_DTR_MODE(cmd->AlternateBytesDtrMode));
+  }
+
+  assert_param(IS_OSPI_DATA_MODE(cmd->DataMode));
+  if (cmd->DataMode != HAL_OSPI_DATA_NONE)
+  {
+    if (cmd->OperationType == HAL_OSPI_OPTYPE_COMMON_CFG)
+    {
+      assert_param(IS_OSPI_NUMBER_DATA  (cmd->NbData));
+    }
+    assert_param(IS_OSPI_DATA_DTR_MODE(cmd->DataDtrMode));
+    assert_param(IS_OSPI_DUMMY_CYCLES (cmd->DummyCycles));
+  }
+
+  assert_param(IS_OSPI_DQS_MODE (cmd->DQSMode));
+  assert_param(IS_OSPI_SIOO_MODE(cmd->SIOOMode));
+  
+  /* Check the state of the driver */
+  if (((hospi->State == HAL_OSPI_STATE_READY)         && (hospi->Init.MemoryType != HAL_OSPI_MEMTYPE_HYPERBUS)) || 
+      ((hospi->State == HAL_OSPI_STATE_READ_CMD_CFG)  && (cmd->OperationType == HAL_OSPI_OPTYPE_WRITE_CFG))     || 
+      ((hospi->State == HAL_OSPI_STATE_WRITE_CMD_CFG) && (cmd->OperationType == HAL_OSPI_OPTYPE_READ_CFG)))
+  {
+    /* Wait till busy flag is reset */
+    status = OSPI_WaitFlagStateUntilTimeout(hospi, HAL_OSPI_FLAG_BUSY, RESET, tickstart, Timeout);
+    
+    if (status == HAL_OK)
+    {
+      /* Initialize error code */
+      hospi->ErrorCode = HAL_OSPI_ERROR_NONE;
+    
+      /* Configure the registers */
+      status = OSPI_ConfigCmd(hospi, cmd);
+
+      if (status == HAL_OK)
+      {
+        if (cmd->DataMode == HAL_OSPI_DATA_NONE)
+        {
+          /* When there is no data phase, the transfer start as soon as the configuration is done 
+             so wait until TC flag is set to go back in idle state */
+          status = OSPI_WaitFlagStateUntilTimeout(hospi, HAL_OSPI_FLAG_TC, SET, tickstart, Timeout);
+
+          __HAL_OSPI_CLEAR_FLAG(hospi, HAL_OSPI_FLAG_TC);
+        }
+        else
+        {
+          /* Update the state */
+          if (cmd->OperationType == HAL_OSPI_OPTYPE_COMMON_CFG) 
+          {
+            hospi->State = HAL_OSPI_STATE_CMD_CFG;
+          }
+          else if (cmd->OperationType == HAL_OSPI_OPTYPE_READ_CFG)
+          {
+            if (hospi->State == HAL_OSPI_STATE_WRITE_CMD_CFG)
+            {
+              hospi->State = HAL_OSPI_STATE_CMD_CFG;
+            }
+            else
+            {
+              hospi->State = HAL_OSPI_STATE_READ_CMD_CFG;
+            }
+          }
+          else
+          {
+            if (hospi->State == HAL_OSPI_STATE_READ_CMD_CFG)
+            {
+              hospi->State = HAL_OSPI_STATE_CMD_CFG;
+            }
+            else
+            {
+              hospi->State = HAL_OSPI_STATE_WRITE_CMD_CFG;
+            }
+          }
+        }
+      }
+    }
+  }
+  else
+  {
+    status = HAL_ERROR;
+    hospi->ErrorCode = HAL_OSPI_ERROR_INVALID_SEQUENCE;
+  }
+
+  /* Return function status */
+  return status;
+}

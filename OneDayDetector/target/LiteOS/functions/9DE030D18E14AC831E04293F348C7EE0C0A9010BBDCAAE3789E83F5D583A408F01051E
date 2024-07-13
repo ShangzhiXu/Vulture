@@ -1,0 +1,31 @@
+void HAL_HASH_ContextRestoring(HASH_HandleTypeDef *hhash, uint8_t* pMemBuffer)
+{
+  uint32_t mem_ptr = (uint32_t)pMemBuffer;
+  uint32_t csr_ptr = (uint32_t)HASH->CSR;
+  uint32_t i;
+
+  /* Prevent unused argument(s) compilation warning */
+  UNUSED(hhash);
+
+  /* Restore IMR register content */
+  WRITE_REG(HASH->IMR, (*(uint32_t*)(mem_ptr)));
+  mem_ptr+=4U;
+  /* Restore STR register content */
+  WRITE_REG(HASH->STR, (*(uint32_t*)(mem_ptr)));
+  mem_ptr+=4U;
+  /* Restore CR register content */
+  WRITE_REG(HASH->CR, (*(uint32_t*)(mem_ptr)));
+  mem_ptr+=4U;
+
+  /* Reset the HASH processor before restoring the Context
+  Swap Registers (CSR) */
+  __HAL_HASH_INIT();
+
+  /* By default, restore all CSR registers */
+  for (i = HASH_NUMBER_OF_CSR_REGISTERS; i >0U; i--)
+  {
+    WRITE_REG((*(uint32_t*)(csr_ptr)), (*(uint32_t*)(mem_ptr)));
+    mem_ptr+=4U;
+    csr_ptr+=4U;
+  }
+}

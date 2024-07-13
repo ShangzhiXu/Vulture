@@ -1,0 +1,25 @@
+igmp_leavegroup(const ip4_addr_t *ifaddr, const ip4_addr_t *groupaddr)
+{
+  err_t err = ERR_VAL; /* no matching interface */
+  struct netif *netif;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  /* make sure it is multicast address */
+  LWIP_ERROR("igmp_leavegroup: attempt to leave non-multicast address", ip4_addr_ismulticast(groupaddr), return ERR_VAL;);
+  LWIP_ERROR("igmp_leavegroup: attempt to leave allsystems address", (!ip4_addr_cmp(groupaddr, &allsystems)), return ERR_VAL;);
+
+  /* loop through netif's */
+  NETIF_FOREACH(netif) {
+    /* Should we leave this interface ? */
+    if ((netif->flags & NETIF_FLAG_IGMP) && ((ip4_addr_isany(ifaddr) || ip4_addr_cmp(netif_ip4_addr(netif), ifaddr)))) {
+      err_t res = igmp_leavegroup_netif(netif, groupaddr);
+      if (err != ERR_OK) {
+        /* Store this result if we have not yet gotten a success */
+        err = res;
+      }
+    }
+  }
+
+  return err;
+}

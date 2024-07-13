@@ -1,0 +1,59 @@
+typedef struct {
+    VOID            *stackPointer;      /* Task stack pointer */
+    UINT16          taskStatus;         /* Task status */
+    UINT16          priority;           /* Task priority */
+    UINT32          taskFlags : 31;     /* Task extend flags: taskFlags uses 8 bits now. 23 bits left */
+    UINT32          usrStack : 1;       /* Usr Stack uses the last bit */
+    UINT32          stackSize;          /* Task stack size */
+    UINTPTR         topOfStack;         /* Task stack top */
+    UINT32          taskId;             /* Task ID */
+    TSK_ENTRY_FUNC  taskEntry;          /* Task entrance function */
+    VOID            *taskSem;           /* Task-held semaphore */
+#ifdef LOSCFG_LAZY_STACK
+    UINT32          stackFrame;         /* Stack frame: 0=Basic, 1=Extended */
+#endif
+#ifdef LOSCFG_COMPAT_POSIX
+    VOID            *threadJoin;        /* pthread adaption */
+    VOID            *threadJoinRetval;  /* pthread adaption */
+#endif
+    VOID            *taskMux;           /* Task-held mutex */
+#ifdef LOSCFG_OBSOLETE_API
+    UINTPTR         args[4];            /* Parameter, of which the maximum number is 4 */
+#else
+    VOID            *args;              /* Parameter, of which the type is void * */
+#endif
+    CHAR            *taskName;          /* Task name */
+    LOS_DL_LIST     pendList;           /* Task pend node */
+    SortLinkList    sortList;           /* Task sortlink node */
+#ifdef LOSCFG_BASE_IPC_EVENT
+    EVENT_CB_S      event;
+    UINT32          eventMask;          /* Event mask */
+    UINT32          eventMode;          /* Event mode */
+#endif
+    VOID            *msg;               /* Memory allocated to queues */
+    UINT32          priBitMap;          /* BitMap for recording the change of task priority,
+                                             the priority can not be greater than 31 */
+    UINT32          signal;             /* Task signal */
+#ifdef LOSCFG_BASE_CORE_TIMESLICE
+    UINT16          timeSlice;          /* Remaining time slice */
+#endif
+#ifdef LOSCFG_KERNEL_SMP
+    UINT16          currCpu;            /* CPU core number of this task is running on */
+    UINT16          lastCpu;            /* CPU core number of this task is running on last time */
+    UINT32          timerCpu;           /* CPU core number of this task is delayed or pended */
+    UINT16          cpuAffiMask;        /* CPU affinity mask, support up to 16 cores */
+#ifdef LOSCFG_KERNEL_SMP_TASK_SYNC
+    UINT32          syncSignal;         /* Synchronization for signal handling */
+#endif
+#ifdef LOSCFG_KERNEL_SMP_LOCKDEP
+    LockDep         lockDep;
+#endif
+#endif
+#ifdef LOSCFG_DEBUG_SCHED_STATISTICS
+    SchedStat       schedStat;          /* Schedule statistics */
+#endif
+#ifdef LOSCFG_KERNEL_PERF
+    UINTPTR         pc;
+    UINTPTR         fp;
+#endif
+} LosTaskCB;

@@ -1,0 +1,37 @@
+HAL_StatusTypeDef HAL_DMA_Abort_IT(DMA_HandleTypeDef *hdma)
+{  
+  HAL_StatusTypeDef status = HAL_OK;
+  
+  if(HAL_DMA_STATE_BUSY != hdma->State)
+  {
+    /* no transfer ongoing */
+    hdma->ErrorCode = HAL_DMA_ERROR_NO_XFER;
+        
+    status = HAL_ERROR;
+  }
+  else
+  { 
+  
+    /* Disable DMA IT */
+    hdma->Instance->CCR &= ~(DMA_IT_TC | DMA_IT_HT | DMA_IT_TE);
+    
+    /* Disable the channel */
+    hdma->Instance->CCR &= ~DMA_CCR_EN;
+    
+    /* Clear all flags */
+    hdma->DmaBaseAddress->IFCR = DMA_FLAG_GL1 << hdma->ChannelIndex;
+    
+    /* Change the DMA state */
+    hdma->State = HAL_DMA_STATE_READY;
+    
+    /* Process Unlocked */
+    __HAL_UNLOCK(hdma);
+    
+    /* Call User Abort callback */ 
+    if(hdma->XferAbortCallback != NULL)
+    {
+      hdma->XferAbortCallback(hdma);
+    } 
+  }
+  return status;
+}

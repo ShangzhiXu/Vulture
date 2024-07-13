@@ -1,0 +1,57 @@
+lwip_gethostbyname(const char *name)
+{
+  err_t err;
+  ip_addr_t addr;
+
+  /* buffer variables for lwip_gethostbyname() */
+  HOSTENT_STORAGE struct hostent s_hostent;
+  HOSTENT_STORAGE char *s_aliases;
+  HOSTENT_STORAGE ip_addr_t s_hostent_addr;
+  HOSTENT_STORAGE ip_addr_t *s_phostent_addr[2];
+  HOSTENT_STORAGE char s_hostname[DNS_MAX_NAME_LENGTH + 1];
+
+  /* query host IP address */
+  err = netconn_gethostbyname(name, &addr);
+  if (err != ERR_OK) {
+    LWIP_DEBUGF(DNS_DEBUG, ("lwip_gethostbyname(%s) failed, err=%d\n", name, err));
+    h_errno = HOST_NOT_FOUND;
+    return NULL;
+  }
+
+  /* fill hostent */
+  s_hostent_addr = addr;
+  s_phostent_addr[0] = &s_hostent_addr;
+  s_phostent_addr[1] = NULL;
+  strncpy(s_hostname, name, DNS_MAX_NAME_LENGTH);
+  s_hostname[DNS_MAX_NAME_LENGTH] = 0;
+  s_hostent.h_name = s_hostname;
+  s_aliases = NULL;
+  s_hostent.h_aliases = &s_aliases;
+  s_hostent.h_addrtype = AF_INET;
+  s_hostent.h_length = sizeof(ip_addr_t);
+  s_hostent.h_addr_list = (char **)&s_phostent_addr;
+
+#if DNS_DEBUG
+  /* dump hostent */
+  LWIP_DEBUGF(DNS_DEBUG, ("hostent.h_name           == %s\n", s_hostent.h_name));
+  LWIP_DEBUGF(DNS_DEBUG, ("hostent.h_aliases        == %p\n", (void *)s_hostent.h_aliases));
+  /* h_aliases are always empty */
+  LWIP_DEBUGF(DNS_DEBUG, ("hostent.h_addrtype       == %d\n", s_hostent.h_addrtype));
+  LWIP_DEBUGF(DNS_DEBUG, ("hostent.h_length         == %d\n", s_hostent.h_length));
+  LWIP_DEBUGF(DNS_DEBUG, ("hostent.h_addr_list      == %p\n", (void *)s_hostent.h_addr_list));
+  if (s_hostent.h_addr_list != NULL) {
+    u8_t idx;
+    for (idx = 0; s_hostent.h_addr_list[idx]; idx++) {
+      LWIP_DEBUGF(DNS_DEBUG, ("hostent.h_addr_list[%i]   == %p\n", idx, s_hostent.h_addr_list[idx]));
+      LWIP_DEBUGF(DNS_DEBUG, ("hostent.h_addr_list[%i]-> == %s\n", idx, ipaddr_ntoa((ip_addr_t *)s_hostent.h_addr_list[idx])));
+    }
+  }
+#endif /* DNS_DEBUG */
+
+#if LWIP_DNS_API_HOSTENT_STORAGE
+  /* this function should return the "per-thread" hostent after copy from s_hostent */
+  return sys_thread_hostent(&s_hostent);
+#else
+  return &s_hostent;
+#endif /* LWIP_DNS_API_HOSTENT_STORAGE */
+}

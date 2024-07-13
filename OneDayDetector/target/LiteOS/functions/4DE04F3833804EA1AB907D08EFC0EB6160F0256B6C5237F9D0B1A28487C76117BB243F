@@ -1,0 +1,19 @@
+void location_get_velocity(atiny_velocity_s *velocity,
+                           uint16_t bearing,
+                           uint16_t horizontal_speed,
+                           uint8_t speed_uncertainty)
+{
+    uint8_t tmp[VELOCITY_OCTETS];
+    int copy_len;
+
+    tmp[0] = HORIZONTAL_VELOCITY_WITH_UNCERTAINTY << 4;
+    tmp[0] |= (bearing & 0x100) >> 8;
+    tmp[1] = (bearing & 0xff);
+    tmp[2] = horizontal_speed >> 8;
+    tmp[3] = horizontal_speed & 0xff;
+    tmp[4] = speed_uncertainty;
+
+    copy_len = MAX_VELOCITY_LEN > sizeof(tmp) ? sizeof(tmp) : MAX_VELOCITY_LEN;
+    memcpy(velocity->opaque, tmp, copy_len);
+    velocity->length = copy_len;
+}

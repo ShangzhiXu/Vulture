@@ -1,0 +1,115 @@
+uint32_t HAL_SDEx_HighSpeed(SD_HandleTypeDef *hsd)
+{
+  uint32_t errorstate = HAL_OK;
+  SDMMC_DataInitTypeDef sdmmc_datainitstructure;
+  uint8_t SD_hs[64]  = {0};
+  uint32_t count = 0, *tempbuff = (uint32_t *)SD_hs;
+  uint32_t Timeout = HAL_GetTick();
+  
+  if(hsd->SdCard.CardSpeed == CARD_NORMAL_SPEED)
+  {
+     /* Standard Speed Card <= 12.5Mhz  */
+     return HAL_SD_ERROR_REQUEST_NOT_APPLICABLE; 
+  }
+
+  if((hsd->SdCard.CardSpeed == CARD_ULTRA_HIGH_SPEED) &&
+      (hsd->Init.Transceiver == SDMMC_TRANSCEIVER_ENABLE))
+  {
+    /* Initialize the Data control register */
+    hsd->Instance->DCTRL = 0;
+    errorstate = SDMMC_CmdBlockLength(hsd->Instance, 64);
+    
+    if (errorstate != HAL_OK)
+    {
+      return errorstate;
+    }
+    
+    /* Configure the SD DPSM (Data Path State Machine) */
+    sdmmc_datainitstructure.DataTimeOut   = SDMMC_DATATIMEOUT;
+    sdmmc_datainitstructure.DataLength    = 64;
+    sdmmc_datainitstructure.DataBlockSize = SDMMC_DATABLOCK_SIZE_64B ;
+    sdmmc_datainitstructure.TransferDir   = SDMMC_TRANSFER_DIR_TO_SDMMC;
+    sdmmc_datainitstructure.TransferMode  = SDMMC_TRANSFER_MODE_BLOCK;
+    sdmmc_datainitstructure.DPSM          = SDMMC_DPSM_ENABLE;
+    SDMMC_ConfigData(hsd->Instance, &sdmmc_datainitstructure);
+      
+    errorstate = SDMMC_CmdSwitch(hsd->Instance, SDMMC_SDR25_SWITCH_PATTERN);
+    if(errorstate != HAL_OK)
+    {
+      return errorstate;
+    }
+    
+    while(!__HAL_SD_GET_FLAG(hsd, SDMMC_FLAG_RXOVERR | SDMMC_FLAG_DCRCFAIL | SDMMC_FLAG_DTIMEOUT | SDMMC_FLAG_DBCKEND| SDMMC_FLAG_DATAEND ))
+    {
+      if (__HAL_SD_GET_FLAG(hsd, SDMMC_FLAG_RXFIFOHF))
+      {
+        for (count = 0; count < 8; count++)
+        {
+          *(tempbuff + count) = SDMMC_ReadFIFO(hsd->Instance);
+        }
+        
+        tempbuff += 8;
+      }
+      
+      if((HAL_GetTick()-Timeout) >=  SDMMC_DATATIMEOUT)
+      {
+        hsd->ErrorCode = HAL_SD_ERROR_TIMEOUT;
+        hsd->State= HAL_SD_STATE_READY;
+        return HAL_TIMEOUT;
+      }
+    }
+
+    if (__HAL_SD_GET_FLAG(hsd, SDMMC_FLAG_DTIMEOUT))
+    {
+      __HAL_SD_CLEAR_FLAG(hsd, SDMMC_FLAG_DTIMEOUT);
+      
+      errorstate = 0;
+      
+      return errorstate;
+    }
+    else if (__HAL_SD_GET_FLAG(hsd, SDMMC_FLAG_DCRCFAIL))
+    {
+      __HAL_SD_CLEAR_FLAG(hsd, SDMMC_FLAG_DCRCFAIL);
+      
+      errorstate = SDMMC_ERROR_DATA_CRC_FAIL;
+      
+      return errorstate;
+    }
+    else if (__HAL_SD_GET_FLAG(hsd, SDMMC_FLAG_RXOVERR))
+    {
+      __HAL_SD_CLEAR_FLAG(hsd, SDMMC_FLAG_RXOVERR);
+      
+      errorstate = SDMMC_ERROR_RX_OVERRUN;
+      
+      return errorstate;
+    }
+    else
+    {
+      /* No error flag set */
+    }
+
+    /* Clear all the static flags */
+    __HAL_SD_CLEAR_FLAG(hsd, SDMMC_STATIC_DATA_FLAGS);
+    
+    /* Test if the switch mode HS is ok */
+    if ((SD_hs[13]& 2) != 2)
+    {
+      errorstate = SDMMC_ERROR_UNSUPPORTED_FEATURE;
+    }
+    else
+    {
+      HAL_SDEx_DriveTransceiver_1_8V_Callback(SET);
+    }
+
+    /* Set Block Size for Card */ 
+    errorstate = SDMMC_CmdBlockLength(hsd->Instance, BLOCKSIZE);
+    if(errorstate != HAL_SD_ERROR_NONE)
+    {
+      hsd->State = HAL_SD_STATE_READY;
+      hsd->ErrorCode |= errorstate;
+      return HAL_ERROR;
+    }
+  }
+
+  return errorstate;
+}

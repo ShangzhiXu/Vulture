@@ -1,0 +1,20 @@
+static void prv_handleBootstrapReply(lwm2m_transaction_t *transaction,
+                                     void *message)
+{
+    lwm2m_server_t *bootstrapServer = (lwm2m_server_t *)transaction->userData;
+    coap_packet_t *coapMessage = (coap_packet_t *)message;
+
+    LOG("Entering");
+
+    if (bootstrapServer->status == STATE_BS_INITIATED)
+    {
+        if (NULL != coapMessage && COAP_TYPE_RST != coapMessage->type)
+        {
+            prv_handleResponse(bootstrapServer, coapMessage);
+        }
+        else
+        {
+            bootstrapServer->status = STATE_BS_FAILING;
+        }
+    }
+}

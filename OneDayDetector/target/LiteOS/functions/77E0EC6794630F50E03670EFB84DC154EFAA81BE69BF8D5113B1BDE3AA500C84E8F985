@@ -1,0 +1,13 @@
+STATIC INLINE VOID OsMemMergeNode(LosMemDynNode *node)
+{
+    LosMemDynNode *nextNode = NULL;
+
+    node->selfNode.preNode->selfNode.sizeAndFlag += node->selfNode.sizeAndFlag;
+    nextNode = (LosMemDynNode *)((UINTPTR)node + node->selfNode.sizeAndFlag);
+    nextNode->selfNode.preNode = node->selfNode.preNode;
+#ifdef LOSCFG_MEM_HEAD_BACKUP
+    OsMemNodeSave(node->selfNode.preNode);
+    OsMemNodeSave(nextNode);
+#endif
+    OsMemClearNode(node);
+}

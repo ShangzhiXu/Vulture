@@ -1,0 +1,30 @@
+int mbedtls_ecp_tls_write_point( const mbedtls_ecp_group *grp, const mbedtls_ecp_point *pt,
+                         int format, size_t *olen,
+                         unsigned char *buf, size_t blen )
+{
+    int ret;
+    ECP_VALIDATE_RET( grp  != NULL );
+    ECP_VALIDATE_RET( pt   != NULL );
+    ECP_VALIDATE_RET( olen != NULL );
+    ECP_VALIDATE_RET( buf  != NULL );
+    ECP_VALIDATE_RET( format == MBEDTLS_ECP_PF_UNCOMPRESSED ||
+                      format == MBEDTLS_ECP_PF_COMPRESSED );
+
+    /*
+     * buffer length must be at least one, for our length byte
+     */
+    if( blen < 1 )
+        return( MBEDTLS_ERR_ECP_BAD_INPUT_DATA );
+
+    if( ( ret = mbedtls_ecp_point_write_binary( grp, pt, format,
+                    olen, buf + 1, blen - 1) ) != 0 )
+        return( ret );
+
+    /*
+     * write length to the first byte and update total length
+     */
+    buf[0] = (unsigned char) *olen;
+    ++*olen;
+
+    return( 0 );
+}

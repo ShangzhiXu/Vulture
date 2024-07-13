@@ -1,0 +1,42 @@
+static HAL_StatusTypeDef FLASH_OB_UserConfig(uint8_t UserConfig)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Check the parameters */
+  assert_param(IS_OB_IWDG_SOURCE((UserConfig&OB_IWDG_SW)));
+  assert_param(IS_OB_STOP_SOURCE((UserConfig&OB_STOP_NO_RST)));
+  assert_param(IS_OB_STDBY_SOURCE((UserConfig&OB_STDBY_NO_RST)));
+  assert_param(IS_OB_BOOT1((UserConfig&OB_BOOT1_SET)));
+  assert_param(IS_OB_VDDA_ANALOG((UserConfig&OB_VDDA_ANALOG_ON)));
+  assert_param(IS_OB_SRAM_PARITY((UserConfig&OB_SRAM_PARITY_RESET)));
+#if defined(FLASH_OBR_BOOT_SEL)
+  assert_param(IS_OB_BOOT_SEL((UserConfig&OB_BOOT_SEL_SET)));
+  assert_param(IS_OB_BOOT0((UserConfig&OB_BOOT0_SET)));
+#endif /* FLASH_OBR_BOOT_SEL */
+
+  /* Wait for last operation to be completed */
+  status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+  
+  if(status == HAL_OK)
+  {     
+    /* Clean the error context */
+    pFlash.ErrorCode = HAL_FLASH_ERROR_NONE;
+
+    /* Enable the Option Bytes Programming operation */
+    SET_BIT(FLASH->CR, FLASH_CR_OPTPG); 
+ 
+#if defined(FLASH_OBR_BOOT_SEL)
+    OB->USER = UserConfig;
+#else
+    OB->USER = (UserConfig | 0x88U);
+#endif
+
+    /* Wait for last operation to be completed */
+    status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+
+    /* if the program operation is completed, disable the OPTPG Bit */
+    CLEAR_BIT(FLASH->CR, FLASH_CR_OPTPG);
+  }
+  
+  return status; 
+}

@@ -1,0 +1,32 @@
+static void create_xdir (
+	BYTE* dirb,			/* Pointer to the direcotry entry block buffer */
+	const WCHAR* lfn	/* Pointer to the object name */
+)
+{
+	UINT i;
+	BYTE nc1, nlen;
+	WCHAR wc;
+
+
+	/* Create 85,C0 entry */
+	mem_set(dirb, 0, 2 * SZDIRE);
+	dirb[0 * SZDIRE + XDIR_Type] = 0x85;	/* 85 entry */
+	dirb[1 * SZDIRE + XDIR_Type] = 0xC0;	/* C0 entry */
+
+	/* Create C1 entries */
+	i = SZDIRE * 2;	/* Top of C1 entries */
+	nlen = nc1 = 0; wc = 1;
+	do {
+		dirb[i++] = 0xC1; dirb[i++] = 0;	/* Entry type C1 */
+		do {	/* Fill name field */
+			if (wc != 0 && (wc = lfn[nlen]) != 0) nlen++;	/* Get a character if exist */
+			st_word(dirb + i, wc); 		/* Store it */
+			i += 2;
+		} while (i % SZDIRE != 0);
+		nc1++;
+	} while (lfn[nlen]);	/* Fill next entry if any char follows */
+
+	dirb[XDIR_NumName] = nlen;		/* Set name length */
+	dirb[XDIR_NumSec] = 1 + nc1;	/* Set secondary count (C0 + C1s) */
+	st_word(dirb + XDIR_NameHash, xname_sum(lfn));	/* Set name hash */
+}

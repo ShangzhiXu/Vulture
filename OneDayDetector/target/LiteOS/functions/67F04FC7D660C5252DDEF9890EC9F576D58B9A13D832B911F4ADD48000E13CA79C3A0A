@@ -1,0 +1,49 @@
+lwm2m_object_t *get_object_conn_s(void)
+{
+    /*
+     * The get_object_conn_s() function create the object itself and return
+     * a pointer to the structure that represent it.
+     */
+    lwm2m_object_t *connObj;
+
+    connObj = (lwm2m_object_t *)lwm2m_malloc(sizeof(lwm2m_object_t));
+    if (connObj != NULL) {
+        memset(connObj, 0, sizeof(lwm2m_object_t));
+
+        /*
+         * It assign his unique ID
+         * The 7 is the standard ID for the optional object "Connectivity Statistics".
+         */
+        connObj->objID = LWM2M_CONN_STATS_OBJECT_ID;
+        connObj->instanceList = lwm2m_malloc(sizeof(lwm2m_list_t));
+        if (connObj->instanceList != NULL) {
+            memset(connObj->instanceList, 0, sizeof(lwm2m_list_t));
+        } else {
+            lwm2m_free(connObj);
+            return NULL;
+        }
+
+        /*
+         * And the private function that will access the object.
+         * Those function will be called when a read/execute/close
+         * query is made by the server or core. In fact the library don't need
+         * to know the resources of the object, only the server does.
+         */
+        connObj->readFunc     = prv_read;
+        connObj->executeFunc  = prv_exec;
+        connObj->userData     = lwm2m_malloc(sizeof(conn_s_data_t));
+
+        /*
+         * Also some user data can be stored in the object with a private
+         * structure containing the needed variables.
+         */
+        if (connObj->userData != NULL) {
+            prv_resetCounter(connObj, false);
+        } else {
+            lwm2m_free(connObj->instanceList);
+            lwm2m_free(connObj);
+            connObj = NULL;
+        }
+    }
+    return connObj;
+}

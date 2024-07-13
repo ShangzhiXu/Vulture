@@ -1,0 +1,45 @@
+HAL_StatusTypeDef HAL_CAN_Stop(CAN_HandleTypeDef *hcan)
+{
+  uint32_t tickstart = 0U;
+
+  if (hcan->State == HAL_CAN_STATE_LISTENING)
+  {
+    /* Request initialisation */
+    SET_BIT(hcan->Instance->MCR, CAN_MCR_INRQ);
+
+    /* Get tick */
+    tickstart = HAL_GetTick();
+
+    /* Wait the acknowledge */
+    while ((hcan->Instance->MSR & CAN_MSR_INAK) == RESET)
+    {
+      /* Check for the Timeout */
+      if ((HAL_GetTick() - tickstart) > CAN_TIMEOUT_VALUE)
+      {
+        /* Update error code */
+        hcan->ErrorCode |= HAL_CAN_ERROR_TIMEOUT;
+
+        /* Change CAN state */
+        hcan->State = HAL_CAN_STATE_ERROR;
+
+        return HAL_ERROR;
+      }
+    }
+
+    /* Exit from sleep mode */
+    CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_SLEEP);
+
+    /* Change CAN peripheral state */
+    hcan->State = HAL_CAN_STATE_READY;
+
+    /* Return function status */
+    return HAL_OK;
+  }
+  else
+  {
+    /* Update error code */
+    hcan->ErrorCode |= HAL_CAN_ERROR_NOT_STARTED;
+
+    return HAL_ERROR;
+  }
+}

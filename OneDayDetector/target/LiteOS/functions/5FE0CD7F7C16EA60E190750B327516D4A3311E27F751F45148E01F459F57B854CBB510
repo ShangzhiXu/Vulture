@@ -1,0 +1,23 @@
+int cc3200_read(Network *n, unsigned char *buffer, int len, int timeout_ms)
+{
+    SlTimeval_t timeVal;
+    SlFdSet_t fdset;
+    int rc = 0;
+    int recvLen = 0;
+
+    SL_FD_ZERO(&fdset);
+    SL_FD_SET(n->my_socket, &fdset);
+
+    timeVal.tv_sec = 0;
+    timeVal.tv_usec = timeout_ms * 1000;
+    if (sl_Select(n->my_socket + 1, &fdset, NULL, NULL, &timeVal) == 1)
+    {
+        do
+        {
+            rc = sl_Recv(n->my_socket, buffer + recvLen, len - recvLen, 0);
+            recvLen += rc;
+        }
+        while(recvLen < len);
+    }
+    return recvLen;
+}

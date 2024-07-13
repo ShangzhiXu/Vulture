@@ -1,0 +1,43 @@
+int  atiny_init(atiny_param_t *atiny_params, void **phandle)
+{
+    int result;
+
+    result = atiny_init_rpt();
+    if (result != ATINY_OK) {
+        ATINY_LOG(LOG_FATAL, "atiny_init_rpt fail,ret=%d", result);
+        return result;
+    }
+
+    if ((atiny_params == NULL) || (phandle == NULL)) {
+        ATINY_LOG(LOG_FATAL, "Invalid args");
+        return ATINY_ARG_INVALID;
+    }
+
+    if (atiny_check_bootstrap_init_param(atiny_params) != ATINY_OK) {
+        LOG("[bootstrap_tag]: BOOTSTRAP's params are wrong");
+        return ATINY_ARG_INVALID;
+    }
+
+#ifdef LWM2M_BOOTSTRAP
+    if (atiny_check_psk_init_param(atiny_params) != ATINY_OK) {
+        LOG("[bootstrap_tag]: psk params are wrong");
+    }
+#endif
+
+    memset((void *)&g_atiny_handle, 0, sizeof(handle_data_t));
+
+    g_atiny_handle.quit_sem = atiny_mutex_create();
+    if (g_atiny_handle.quit_sem == NULL) {
+        ATINY_LOG(LOG_FATAL, "atiny_mutex_create fail");
+        return ATINY_RESOURCE_NOT_ENOUGH;
+    }
+    atiny_mutex_lock(g_atiny_handle.quit_sem);
+    g_atiny_handle.atiny_params = *atiny_params;
+    *phandle = &g_atiny_handle;
+
+#ifdef CONFIG_FEATURE_FOTA
+    return atiny_fota_manager_set_storage_device(atiny_fota_manager_get_instance());
+#else
+    return ATINY_OK;
+#endif
+}

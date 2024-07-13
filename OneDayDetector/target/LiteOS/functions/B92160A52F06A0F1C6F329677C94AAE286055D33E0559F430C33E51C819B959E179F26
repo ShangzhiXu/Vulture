@@ -1,0 +1,78 @@
+err_t sys_mbox_new(struct sys_mbox **mb, int size)
+{
+    struct sys_mbox *mbox;
+    unsigned int ret;
+
+    if (size <= 0) {
+        LWIP_DEBUGF(SYS_DEBUG, ("sys_mbox_new: mbox size must bigger than 0\n"));
+        return ERR_MEM;
+    }
+
+    mbox = (struct sys_mbox *)mem_malloc(sizeof(struct sys_mbox));
+    if (mbox == NULL) {
+        goto err_handler;
+    }
+
+    (void)memset(mbox, 0, sizeof(struct sys_mbox));
+    mbox->msgs = (void **)mem_malloc(sizeof(void *) * size);
+
+    if (mbox->msgs == NULL) {
+        goto err_handler;
+    }
+
+    (void)memset(mbox->msgs, 0, (sizeof(void *) * size));
+    mbox->mbox_size = size;
+
+    mbox->first = 0;
+    mbox->last = 0;
+    mbox->isFull = 0;
+    mbox->isEmpty = 1;
+
+    mbox->mutex = (unsigned int)-1;
+    mbox->not_empty = (unsigned int)-1;
+    mbox->not_full = (unsigned int)-1;
+
+    ret = LOS_SemCreate(1, &(mbox->mutex));
+    if (ret != LOS_OK) {
+        goto err_handler;
+    }
+
+    ret = LOS_SemCreate(0, &(mbox->not_empty));
+    if (ret != LOS_OK) {
+        goto err_handler;
+    }
+
+    ret = LOS_SemCreate(0, &(mbox->not_full));
+    if (ret != LOS_OK) {
+        goto err_handler;
+    }
+
+    SYS_STATS_INC_USED(mbox);
+    *mb = mbox;
+    LWIP_DEBUGF(SYS_DEBUG, ("sys_mbox_new: mbox created successfully 0x%p\n", (void *)mbox));
+    return ERR_OK;
+
+err_handler:
+
+    if (mbox != NULL) {
+        if (mbox->msgs != NULL) {
+            mem_free(mbox->msgs);
+        }
+
+        mem_free(mbox);
+    }
+
+    if (mbox->mutex != (unsigned int)-1) {
+        (void)LOS_SemDelete(mbox->mutex);
+    }
+
+    if (mbox->not_empty != (unsigned int)-1) {
+        (void)LOS_SemDelete(mbox->not_empty);
+    }
+
+    if (mbox->not_full != (unsigned int)-1) {
+        (void)LOS_SemDelete(mbox->not_full);
+    }
+
+    return ERR_MEM;
+}

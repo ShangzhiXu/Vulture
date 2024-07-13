@@ -1,0 +1,6 @@
+    uint32_t DR;        // data reg
+    uint32_t DSR;
+    uint32_t FR;        // flag reg at 0x18
+    uint32_t IMSC;      // at offset 0x38
+    uint32_t pad1[4];   // 8+16=24 bytes to FR register
+    uint32_t pad2[7];

@@ -1,0 +1,60 @@
+static int prv_createHeader(uint8_t *header,
+                            bool isInstance,
+                            lwm2m_data_type_t type,
+                            uint16_t id,
+                            size_t data_len)
+{
+    int header_len;
+    int offset;
+    uint8_t hdrType;
+
+    header_len = prv_getHeaderLength(id, data_len);
+    if (isInstance == true)
+    {
+        hdrType = _PRV_TLV_TYPE_RESOURCE_INSTANCE;
+    }
+    else
+    {
+        hdrType = prv_getHeaderType(type);
+    }
+
+    header[0] = 0;
+    header[0] |= hdrType & _PRV_TLV_TYPE_MASK;
+
+    if (id > 0xFF)
+    {
+        header[0] |= 0x20;
+        header[1] = (id >> 8) & 0XFF;
+        header[2] = id & 0XFF;
+        offset = 3;
+    }
+    else
+    {
+        header[1] = id;
+        offset = 2;
+    }
+    if (data_len <= 7)
+    {
+        header[0] += data_len;
+    }
+    else if (data_len <= 0xFF)
+    {
+        header[0] |= 0x08;
+        header[offset] = data_len;
+    }
+    else if (data_len <= 0xFFFF)
+    {
+        header[0] |= 0x10;
+        header[offset] = (data_len >> 8) & 0XFF;
+        header[offset + 1] = data_len & 0XFF;
+    }
+    else if (data_len <= 0xFFFFFF)
+    {
+        header[0] |= 0x18;
+        header[offset] = (data_len >> 16) & 0XFF;
+        header[offset + 1] = (data_len >> 8) & 0XFF;
+        header[offset + 2] = data_len & 0XFF;
+    }
+
+    return header_len;
+}

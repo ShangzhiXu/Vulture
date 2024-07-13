@@ -1,0 +1,27 @@
+STATIC INT32 OsFormatPrintTime(const CHAR *formatStr)
+{
+    CHAR timebuf[SHOW_MAX_LEN] = {0};
+    struct tm *tm = NULL;
+    struct timeval64 nowTime = {0};
+
+    if (strlen(formatStr) < 2) { /* 2:check format string length */
+        OsCmdUsageDate(DATE_ERR_INFO);
+        return DATE_ERR;
+    }
+
+    if (gettimeofday64(&nowTime, NULL)) {
+        return DATE_ERR;
+    }
+    tm = localtime64(&nowTime.tv_sec);
+    if (tm == NULL) {
+        return DATE_ERR;
+    }
+
+    if (strftime(timebuf, SHOW_MAX_LEN - 1, formatStr + 1, tm)) {
+        PRINTK("%s\n", timebuf);
+    } else {
+        OsCmdUsageDate(DATE_ERR_INFO);
+        return DATE_ERR;
+    }
+    return DATE_OK;
+}

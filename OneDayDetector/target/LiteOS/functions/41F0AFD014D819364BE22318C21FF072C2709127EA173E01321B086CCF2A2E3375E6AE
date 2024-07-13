@@ -1,0 +1,32 @@
+mqtt_close(mqtt_client_t *client, mqtt_connection_status_t reason)
+{
+  LWIP_ASSERT("mqtt_close: client != NULL", client != NULL);
+
+  /* Bring down TCP connection if not already done */
+  if (client->conn != NULL) {
+    err_t res;
+    altcp_recv(client->conn, NULL);
+    altcp_err(client->conn,  NULL);
+    altcp_sent(client->conn, NULL);
+    res = altcp_close(client->conn);
+    if (res != ERR_OK) {
+      altcp_abort(client->conn);
+      LWIP_DEBUGF(MQTT_DEBUG_TRACE, ("mqtt_close: Close err=%s\n", lwip_strerr(res)));
+    }
+    client->conn = NULL;
+  }
+
+  /* Remove all pending requests */
+  mqtt_clear_requests(&client->pend_req_queue);
+  /* Stop cyclic timer */
+  sys_untimeout(mqtt_cyclic_timer, client);
+
+  /* Notify upper layer of disconnection if changed state */
+  if (client->conn_state != TCP_DISCONNECTED) {
+
+    client->conn_state = TCP_DISCONNECTED;
+    if (client->connect_cb != NULL) {
+      client->connect_cb(client, client->connect_arg, reason);
+    }
+  }
+}

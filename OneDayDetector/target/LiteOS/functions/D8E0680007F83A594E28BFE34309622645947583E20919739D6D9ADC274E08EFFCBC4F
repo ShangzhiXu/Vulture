@@ -1,0 +1,32 @@
+HAL_StatusTypeDef HAL_SMARTCARDEx_DisableFifoMode(SMARTCARD_HandleTypeDef *hsmartcard)
+{
+  uint32_t tmpcr1 = 0;
+
+  /* Check parameters */
+  assert_param(IS_UART_FIFO_INSTANCE(hsmartcard->Instance));
+
+  /* Process Locked */
+  __HAL_LOCK(hsmartcard);
+  
+  hsmartcard->gState = HAL_SMARTCARD_STATE_BUSY;
+  
+  /* Save actual SMARTCARD configuration */
+  tmpcr1 = READ_REG(hsmartcard->Instance->CR1);
+  
+  /* Disable SMARTCARD */
+  __HAL_SMARTCARD_DISABLE(hsmartcard);
+  
+  /* Enable FIFO mode */
+  CLEAR_BIT(tmpcr1, USART_CR1_FIFOEN);
+  hsmartcard->FifoMode = SMARTCARD_FIFOMODE_DISABLE;
+  
+  /* Restore SMARTCARD configuration */
+  WRITE_REG(hsmartcard->Instance->CR1, tmpcr1);
+  
+  hsmartcard->gState = HAL_SMARTCARD_STATE_READY;
+  
+  /* Process Unlocked */
+  __HAL_UNLOCK(hsmartcard);
+ 
+  return HAL_OK;
+}

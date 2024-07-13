@@ -1,0 +1,42 @@
+static void FMPI2C_DMAMasterTransmitCplt(DMA_HandleTypeDef *hdma)
+{
+  FMPI2C_HandleTypeDef *hfmpi2c = (FMPI2C_HandleTypeDef *)(((DMA_HandleTypeDef *)hdma)->Parent); /* Derogation MISRAC2012-Rule-11.5 */
+
+  /* Disable DMA Request */
+  hfmpi2c->Instance->CR1 &= ~FMPI2C_CR1_TXDMAEN;
+
+  /* If last transfer, enable STOP interrupt */
+  if (hfmpi2c->XferCount == 0U)
+  {
+    /* Enable STOP interrupt */
+    FMPI2C_Enable_IRQ(hfmpi2c, FMPI2C_XFER_CPLT_IT);
+  }
+  /* else prepare a new DMA transfer and enable TCReload interrupt */
+  else
+  {
+    /* Update Buffer pointer */
+    hfmpi2c->pBuffPtr += hfmpi2c->XferSize;
+
+    /* Set the XferSize to transfer */
+    if (hfmpi2c->XferCount > MAX_NBYTE_SIZE)
+    {
+      hfmpi2c->XferSize = MAX_NBYTE_SIZE;
+    }
+    else
+    {
+      hfmpi2c->XferSize = hfmpi2c->XferCount;
+    }
+
+    /* Enable the DMA stream */
+    if (HAL_DMA_Start_IT(hfmpi2c->hdmatx, (uint32_t)hfmpi2c->pBuffPtr, (uint32_t)&hfmpi2c->Instance->TXDR, hfmpi2c->XferSize) != HAL_OK)
+    {
+      /* Call the corresponding callback to inform upper layer of End of Transfer */
+      FMPI2C_ITError(hfmpi2c, HAL_FMPI2C_ERROR_DMA);
+    }
+    else
+    {
+      /* Enable TC interrupts */
+      FMPI2C_Enable_IRQ(hfmpi2c, FMPI2C_XFER_RELOAD_IT);
+    }
+  }
+}

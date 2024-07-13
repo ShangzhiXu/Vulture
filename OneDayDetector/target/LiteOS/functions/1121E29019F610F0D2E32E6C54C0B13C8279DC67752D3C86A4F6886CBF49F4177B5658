@@ -1,0 +1,62 @@
+mqtt_publish(mqtt_client_t *client, const char *topic, const void *payload, u16_t payload_length, u8_t qos, u8_t retain,
+             mqtt_request_cb_t cb, void *arg)
+{
+  struct mqtt_request_t *r;
+  u16_t pkt_id;
+  size_t topic_strlen;
+  size_t total_len;
+  u16_t topic_len;
+  u16_t remaining_length;
+
+  LWIP_ASSERT_CORE_LOCKED();
+  LWIP_ASSERT("mqtt_publish: client != NULL", client);
+  LWIP_ASSERT("mqtt_publish: topic != NULL", topic);
+  LWIP_ERROR("mqtt_publish: TCP disconnected", (client->conn_state != TCP_DISCONNECTED), return ERR_CONN);
+
+  topic_strlen = strlen(topic);
+  LWIP_ERROR("mqtt_publish: topic length overflow", (topic_strlen <= (0xFFFF - 2)), return ERR_ARG);
+  topic_len = (u16_t)topic_strlen;
+  total_len = 2 + topic_len + payload_length;
+
+  if (qos > 0) {
+    total_len += 2;
+    /* Generate pkt_id id for QoS1 and 2 */
+    pkt_id = msg_generate_packet_id(client);
+  } else {
+    /* Use reserved value pkt_id 0 for QoS 0 in request handle */
+    pkt_id = 0;
+  }
+  LWIP_ERROR("mqtt_publish: total length overflow", (total_len <= 0xFFFF), return ERR_ARG);
+  remaining_length = (u16_t)total_len;
+
+  LWIP_DEBUGF(MQTT_DEBUG_TRACE, ("mqtt_publish: Publish with payload length %d to topic \"%s\"\n", payload_length, topic));
+
+  r = mqtt_create_request(client->req_list, LWIP_ARRAYSIZE(client->req_list), pkt_id, cb, arg);
+  if (r == NULL) {
+    return ERR_MEM;
+  }
+
+  if (mqtt_output_check_space(&client->output, remaining_length) == 0) {
+    mqtt_delete_request(r);
+    return ERR_MEM;
+  }
+  /* Append fixed header */
+  mqtt_output_append_fixed_header(&client->output, MQTT_MSG_TYPE_PUBLISH, 0, qos, retain, remaining_length);
+
+  /* Append Topic */
+  mqtt_output_append_string(&client->output, topic, topic_len);
+
+  /* Append packet if for QoS 1 and 2*/
+  if (qos > 0) {
+    mqtt_output_append_u16(&client->output, pkt_id);
+  }
+
+  /* Append optional publish payload */
+  if ((payload != NULL) && (payload_length > 0)) {
+    mqtt_output_append_buf(&client->output, payload, payload_length);
+  }
+
+  mqtt_append_request(&client->pend_req_queue, r);
+  mqtt_output_send(&client->output, client->conn);
+  return ERR_OK;
+}

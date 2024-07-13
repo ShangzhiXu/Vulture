@@ -1,0 +1,28 @@
+int MQTTClientInit(MQTTClient *c, Network *network, unsigned int command_timeout_ms,
+                    unsigned char *sendbuf, size_t sendbuf_size, unsigned char *readbuf, size_t readbuf_size)
+{
+    int i;
+    c->ipstack = network;
+
+    for (i = 0; i < MAX_MESSAGE_HANDLERS; ++i)
+        c->messageHandlers[i].topicFilter = 0;
+    c->command_timeout_ms = command_timeout_ms;
+    c->buf = sendbuf;
+    c->buf_size = sendbuf_size;
+    c->readbuf = readbuf;
+    c->readbuf_size = readbuf_size;
+    c->isconnected = 0;
+    c->cleansession = 0;
+    c->ping_outstanding = 0;
+    c->defaultMessageHandler = NULL;
+	  c->next_packetid = 1;
+    TimerInit(&c->last_sent);
+    TimerInit(&c->last_received);
+#if defined(MQTT_TASK)
+    if (MutexInit(&c->mutex) != 0)
+    {
+        return FAILURE;
+    }
+#endif
+    return MQTT_SUCCESS;
+}

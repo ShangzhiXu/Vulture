@@ -1,0 +1,43 @@
+LV_ATTRIBUTE_FAST_MEM void _lv_memset_00(void * dst, size_t len)
+{
+    uint8_t * d8 = (uint8_t *) dst;
+    uintptr_t d_align = (lv_uintptr_t) d8 & ALIGN_MASK;
+
+
+    /*Make the address aligned*/
+    if(d_align) {
+        d_align = ALIGN_MASK + 1 - d_align;
+        while(d_align && len) {
+            *d8 = 0x00;
+            d8++;
+            len--;
+            d_align--;
+        }
+    }
+
+    uint32_t * d32 = (uint32_t *)d8;
+    while(len > 32) {
+        SET32(0);
+        SET32(0);
+        SET32(0);
+        SET32(0);
+        SET32(0);
+        SET32(0);
+        SET32(0);
+        SET32(0);
+        len -= 32;
+    }
+
+    while(len > 4) {
+        SET32(0);
+        len -= 4;
+    }
+
+
+    d8 = (uint8_t *)d32;
+    while(len) {
+        *d8 = 0;
+        d8++;
+        len--;
+    }
+}

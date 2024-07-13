@@ -1,0 +1,53 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 OsTaskProcSignal(VOID)
+{
+    Percpu    *percpu = NULL;
+    LosTaskCB *runTask = NULL;
+    UINT32    ret;
+
+    /*
+     * private and uninterruptable, no protection needed.
+     * while this task is always running when others cores see it,
+     * so it keeps recieving signals while follow code excuting.
+     */
+    runTask = OsCurrTaskGet();
+    if (runTask->signal == SIGNAL_NONE) {
+        goto EXIT;
+    }
+
+    if (runTask->signal & SIGNAL_KILL) {
+        /*
+         * clear the signal, and do the task deletion. if the signaled task has been
+         * scheduled out, then this deletion will wait until next run.
+         */
+        runTask->signal = SIGNAL_NONE;
+        ret = LOS_TaskDelete(runTask->taskId);
+        if (ret) {
+            PRINT_ERR("%s: tsk del fail err:0x%x\n", __FUNCTION__, ret);
+        }
+    } else if (runTask->signal & SIGNAL_SUSPEND) {
+        runTask->signal &= ~SIGNAL_SUSPEND;
+
+        /* suspend killed task may fail, ignore the result */
+        (VOID)LOS_TaskSuspend(runTask->taskId);
+#ifdef LOSCFG_KERNEL_SMP
+    } else if (runTask->signal & SIGNAL_AFFI) {
+        runTask->signal &= ~SIGNAL_AFFI;
+
+        /* pri-queue has updated, notify the target cpu */
+        LOS_MpSchedule((UINT32)runTask->cpuAffiMask);
+#endif
+    }
+
+EXIT:
+    /* check if needs to schedule */
+    percpu = OsPercpuGet();
+
+    LOS_TRACE(TASK_SIGNAL, runTask->taskId, runTask->signal, percpu->schedFlag);
+
+    if (OsPreemptable() && (percpu->schedFlag == INT_PEND_RESCH)) {
+        percpu->schedFlag = INT_NO_RESCH;
+        return INT_PEND_RESCH;
+    }
+
+    return INT_NO_RESCH;
+}

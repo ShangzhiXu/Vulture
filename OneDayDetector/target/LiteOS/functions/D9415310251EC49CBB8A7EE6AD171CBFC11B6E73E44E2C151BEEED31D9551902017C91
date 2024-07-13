@@ -1,0 +1,93 @@
+lv_obj_t * lv_tabview_add_tab(lv_obj_t * tabview, const char * name)
+{
+    LV_ASSERT_OBJ(tabview, LV_OBJX_NAME);
+    LV_ASSERT_STR(name);
+
+    lv_tabview_ext_t * ext = lv_obj_get_ext_attr(tabview);
+
+    /*Create the container page*/
+    lv_obj_t * h = lv_page_create(ext->content, NULL);
+    lv_obj_set_size(h, lv_obj_get_width(tabview), lv_obj_get_height(ext->content));
+    lv_page_set_scrollbar_mode(h, LV_SCROLLBAR_MODE_AUTO);
+    lv_page_set_scroll_propagation(h, true);
+    lv_theme_apply(h, LV_THEME_TABVIEW_PAGE);
+
+    if(page_signal == NULL) page_signal = lv_obj_get_signal_cb(h);
+
+    /*Extend the button matrix map with the new name*/
+    char * name_dm;
+    name_dm = lv_mem_alloc(strlen(name) + 1); /*+1 for the the closing '\0' */
+    LV_ASSERT_MEM(name_dm);
+    if(name_dm == NULL) return NULL;
+    strcpy(name_dm, name);
+
+    ext->tab_cnt++;
+
+    switch(ext->btns_pos) {
+        case LV_TABVIEW_TAB_POS_TOP:
+        case LV_TABVIEW_TAB_POS_BOTTOM:
+            ext->tab_name_ptr = lv_mem_realloc((void *)ext->tab_name_ptr, sizeof(char *) * (ext->tab_cnt + 1));
+            break;
+        case LV_TABVIEW_TAB_POS_LEFT:
+        case LV_TABVIEW_TAB_POS_RIGHT:
+            ext->tab_name_ptr = lv_mem_realloc((void *)ext->tab_name_ptr, sizeof(char *) * (ext->tab_cnt * 2));
+            break;
+    }
+
+    LV_ASSERT_MEM(ext->tab_name_ptr);
+    if(ext->tab_name_ptr == NULL) return NULL;
+
+    /* FIXME: It is not possible yet to switch tab button position from/to top/bottom from/to left/right at runtime.
+     * Method: clean extra \n when switch from LV_TABVIEW_BTNS_POS_LEFT or LV_TABVIEW_BTNS_POS_RIGHT
+     * to LV_TABVIEW_BTNS_POS_TOP or LV_TABVIEW_BTNS_POS_BOTTOM.
+     */
+    switch(ext->btns_pos) {
+        default: /*default case is prevented in lv_tabview_set_btns_pos(), but here for safety*/
+        case LV_TABVIEW_TAB_POS_NONE:
+        case LV_TABVIEW_TAB_POS_TOP:
+        case LV_TABVIEW_TAB_POS_BOTTOM:
+            ext->tab_name_ptr = lv_mem_realloc(ext->tab_name_ptr, sizeof(char *) * (ext->tab_cnt + 1));
+
+            LV_ASSERT_MEM(ext->tab_name_ptr);
+            if(ext->tab_name_ptr == NULL) return NULL;
+
+            ext->tab_name_ptr[ext->tab_cnt - 1] = name_dm;
+            ext->tab_name_ptr[ext->tab_cnt]     = "";
+
+            break;
+        case LV_TABVIEW_TAB_POS_LEFT:
+        case LV_TABVIEW_TAB_POS_RIGHT:
+            ext->tab_name_ptr = lv_mem_realloc(ext->tab_name_ptr, sizeof(char *) * (ext->tab_cnt * 2));
+
+            LV_ASSERT_MEM(ext->tab_name_ptr);
+            if(ext->tab_name_ptr == NULL) return NULL;
+
+            if(ext->tab_cnt == 1) {
+                ext->tab_name_ptr[0] = name_dm;
+                ext->tab_name_ptr[1] = "";
+            }
+            else {
+                ext->tab_name_ptr[ext->tab_cnt * 2 - 3] = "\n";
+                ext->tab_name_ptr[ext->tab_cnt * 2 - 2] = name_dm;
+                ext->tab_name_ptr[ext->tab_cnt * 2 - 1] = "";
+            }
+            break;
+    }
+
+    /* The button matrix's map still points to the old `tab_name_ptr` which might be freed by
+     * `lv_mem_realloc`. So make its current map invalid*/
+    lv_btnmatrix_ext_t * btnm_ext = lv_obj_get_ext_attr(ext->btns);
+    btnm_ext->map_p          = NULL;
+
+    lv_btnmatrix_set_map(ext->btns, ext->tab_name_ptr);
+    lv_btnmatrix_set_btn_ctrl(ext->btns, ext->tab_cur, LV_BTNMATRIX_CTRL_NO_REPEAT);
+
+    /*Set the first btn as active*/
+    if(ext->tab_cnt == 1)  ext->tab_cur = 0;
+
+    tabview_realign(tabview); /*Set the size of the pages, tab buttons and indicator*/
+
+    lv_tabview_set_tab_act(tabview, ext->tab_cur, false);
+
+    return h;
+}

@@ -1,0 +1,22 @@
+SECUREC_INLINE void SecDecodeScanQualifierI(const SecUnsignedChar **format, SecScanSpec *spec, int *finishFlag)
+{
+    const SecUnsignedChar *fmt = *format;
+    if ((*(fmt + 1) == SECUREC_CHAR('6')) &&
+        (*(fmt + 2) == SECUREC_CHAR('4'))) { /* Offset 2 for I64 */
+        spec->numberArgType = 1;
+        *format = *format + 2; /* Add 2 to skip I64 point to '4' next loop will inc */
+    } else if ((*(fmt + 1) == SECUREC_CHAR('3')) &&
+                (*(fmt + 2) == SECUREC_CHAR('2'))) { /* Offset 2 for I32 */
+        *format = *format + 2; /* Add 2 to skip I32 point to '2' next loop will inc */
+    } else if ((*(fmt + 1) == SECUREC_CHAR('d')) ||
+                (*(fmt + 1) == SECUREC_CHAR('i')) ||
+                (*(fmt + 1) == SECUREC_CHAR('o')) ||
+                (*(fmt + 1) == SECUREC_CHAR('x')) ||
+                (*(fmt + 1) == SECUREC_CHAR('X'))) {
+        spec->numberArgType = SecNumberArgType(sizeof(void *));
+    } else {
+        /* For %I */
+        spec->numberArgType = SecNumberArgType(sizeof(void *));
+        *finishFlag = 1;
+    }
+}

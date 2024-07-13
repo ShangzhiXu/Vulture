@@ -1,0 +1,26 @@
+int los_fs_register(struct file_system *fs)
+{
+    if ((fs == NULL) || (fs->fs_fops == NULL) || (fs->fs_fops->open == NULL)) {
+        return LOS_NOK;
+    }
+
+    if (los_fs_name_check(fs->fs_name) != LOS_OK) {
+        return LOS_NOK;
+    }
+
+    if (LOS_MuxPend(fs_mutex, LOS_WAIT_FOREVER) != LOS_OK) {
+        return LOS_NOK;
+    }
+
+    if (los_fs_find(fs->fs_name) != NULL) {
+        LOS_MuxPost(fs_mutex);
+        return LOS_NOK;
+    }
+
+    fs->fs_next = file_systems;
+    file_systems = fs;
+
+    LOS_MuxPost(fs_mutex);
+
+    return LOS_OK;
+}

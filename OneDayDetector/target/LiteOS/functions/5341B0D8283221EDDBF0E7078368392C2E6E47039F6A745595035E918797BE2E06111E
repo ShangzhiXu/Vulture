@@ -1,0 +1,96 @@
+lwip_accept(int s, struct sockaddr *addr, socklen_t *addrlen)
+{
+  struct lwip_sock *sock, *nsock;
+  struct netconn *newconn;
+  ip_addr_t naddr;
+  u16_t port = 0;
+  int newsock;
+  err_t err;
+  int recvevent;
+  SYS_ARCH_DECL_PROTECT(lev);
+
+  LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_accept(%d)...\n", s));
+  sock = get_socket(s);
+  if (!sock) {
+    return -1;
+  }
+
+  /* wait for a new connection */
+  err = netconn_accept(sock->conn, &newconn);
+  if (err != ERR_OK) {
+    LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_accept(%d): netconn_acept failed, err=%d\n", s, err));
+    if (NETCONNTYPE_GROUP(netconn_type(sock->conn)) != NETCONN_TCP) {
+      sock_set_errno(sock, EOPNOTSUPP);
+    } else if (err == ERR_CLSD) {
+      sock_set_errno(sock, EINVAL);
+    } else {
+      sock_set_errno(sock, err_to_errno(err));
+    }
+    done_socket(sock);
+    return -1;
+  }
+  LWIP_ASSERT("newconn != NULL", newconn != NULL);
+
+  newsock = alloc_socket(newconn, 1);
+  if (newsock == -1) {
+    netconn_delete(newconn);
+    sock_set_errno(sock, ENFILE);
+    done_socket(sock);
+    return -1;
+  }
+  LWIP_ASSERT("invalid socket index", (newsock >= LWIP_SOCKET_OFFSET) && (newsock < NUM_SOCKETS + LWIP_SOCKET_OFFSET));
+  nsock = &sockets[newsock - LWIP_SOCKET_OFFSET];
+
+  /* See event_callback: If data comes in right away after an accept, even
+   * though the server task might not have created a new socket yet.
+   * In that case, newconn->socket is counted down (newconn->socket--),
+   * so nsock->rcvevent is >= 1 here!
+   */
+  SYS_ARCH_PROTECT(lev);
+  recvevent = (s16_t)(-1 - newconn->socket);
+  newconn->socket = newsock;
+  SYS_ARCH_UNPROTECT(lev);
+
+  if (newconn->callback) {
+    LOCK_TCPIP_CORE();
+    while (recvevent > 0) {
+      recvevent--;
+      newconn->callback(newconn, NETCONN_EVT_RCVPLUS, 0);
+    }
+    UNLOCK_TCPIP_CORE();
+  }
+
+  /* Note that POSIX only requires us to check addr is non-NULL. addrlen must
+   * not be NULL if addr is valid.
+   */
+  if ((addr != NULL) && (addrlen != NULL)) {
+    union sockaddr_aligned tempaddr;
+    /* get the IP address and port of the remote host */
+    err = netconn_peer(newconn, &naddr, &port);
+    if (err != ERR_OK) {
+      LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_accept(%d): netconn_peer failed, err=%d\n", s, err));
+      netconn_delete(newconn);
+      free_socket(nsock, 1);
+      sock_set_errno(sock, err_to_errno(err));
+      done_socket(sock);
+      return -1;
+    }
+
+    IPADDR_PORT_TO_SOCKADDR(&tempaddr, &naddr, port);
+    if (*addrlen > tempaddr.sa.sa_len) {
+      *addrlen = tempaddr.sa.sa_len;
+    }
+    MEMCPY(addr, &tempaddr, *addrlen);
+
+    LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_accept(%d) returning new sock=%d addr=", s, newsock));
+    ip_addr_debug_print_val(SOCKETS_DEBUG, naddr);
+    LWIP_DEBUGF(SOCKETS_DEBUG, (" port=%"U16_F"\n", port));
+  } else {
+    LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_accept(%d) returning new sock=%d", s, newsock));
+  }
+
+  sock_set_errno(sock, 0);
+  done_socket(sock);
+  done_socket(nsock);
+  return newsock;
+}

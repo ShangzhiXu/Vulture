@@ -1,0 +1,75 @@
+ErrorStatus LL_ADC_CommonInit(ADC_Common_TypeDef *ADCxy_COMMON, LL_ADC_CommonInitTypeDef *ADC_CommonInitStruct)
+{
+  ErrorStatus status = SUCCESS;
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_COMMON_INSTANCE(ADCxy_COMMON));
+  assert_param(IS_LL_ADC_COMMON_CLOCK(ADC_CommonInitStruct->CommonClock));
+  
+#if defined(ADC_MULTIMODE_SUPPORT)
+  assert_param(IS_LL_ADC_MULTI_MODE(ADC_CommonInitStruct->Multimode));
+  if(ADC_CommonInitStruct->Multimode != LL_ADC_MULTI_INDEPENDENT)
+  {
+    assert_param(IS_LL_ADC_MULTI_DMA_TRANSFER(ADC_CommonInitStruct->MultiDMATransfer));
+    assert_param(IS_LL_ADC_MULTI_TWOSMP_DELAY(ADC_CommonInitStruct->MultiTwoSamplingDelay));
+  }
+#endif /* ADC_MULTIMODE_SUPPORT */
+
+  /* Note: Hardware constraint (refer to description of functions             */
+  /*       "LL_ADC_SetCommonXXX()" and "LL_ADC_SetMultiXXX()"):               */
+  /*       On this STM32 serie, setting of these features is conditioned to   */
+  /*       ADC state:                                                         */
+  /*       All ADC instances of the ADC common group must be disabled.        */
+  if(__LL_ADC_IS_ENABLED_ALL_COMMON_INSTANCE(ADCxy_COMMON) == 0U)
+  {
+    /* Configuration of ADC hierarchical scope:                               */
+    /*  - common to several ADC                                               */
+    /*    (all ADC instances belonging to the same ADC common instance)       */
+    /*    - Set ADC clock (conversion clock)                                  */
+    /*  - multimode (if several ADC instances available on the                */
+    /*    selected device)                                                    */
+    /*    - Set ADC multimode configuration                                   */
+    /*    - Set ADC multimode DMA transfer                                    */
+    /*    - Set ADC multimode: delay between 2 sampling phases                */
+#if defined(ADC_MULTIMODE_SUPPORT)
+    if(ADC_CommonInitStruct->Multimode != LL_ADC_MULTI_INDEPENDENT)
+    {
+      MODIFY_REG(ADCxy_COMMON->CCR,
+                   ADC_CCR_ADCPRE
+                 | ADC_CCR_MULTI
+                 | ADC_CCR_DMA
+                 | ADC_CCR_DDS
+                 | ADC_CCR_DELAY
+                ,
+                   ADC_CommonInitStruct->CommonClock
+                 | ADC_CommonInitStruct->Multimode
+                 | ADC_CommonInitStruct->MultiDMATransfer
+                 | ADC_CommonInitStruct->MultiTwoSamplingDelay
+                );
+    }
+    else
+    {
+      MODIFY_REG(ADCxy_COMMON->CCR,
+                   ADC_CCR_ADCPRE
+                 | ADC_CCR_MULTI
+                 | ADC_CCR_DMA
+                 | ADC_CCR_DDS
+                 | ADC_CCR_DELAY
+                ,
+                   ADC_CommonInitStruct->CommonClock
+                 | LL_ADC_MULTI_INDEPENDENT
+                );
+    }
+#else
+    LL_ADC_SetCommonClock(ADCxy_COMMON, ADC_CommonInitStruct->CommonClock);
+#endif
+  }
+  else
+  {
+    /* Initialization error: One or several ADC instances belonging to        */
+    /* the same ADC common instance are not disabled.                         */
+    status = ERROR;
+  }
+  
+  return status;
+}

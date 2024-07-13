@@ -1,0 +1,56 @@
+uint8_t BSP_TS_Init(uint16_t ts_SizeX, uint16_t ts_SizeY)
+{
+  uint8_t ts_status = TS_OK;
+  uint8_t ts_id1, ts_id2 = 0;
+  /* Note : I2C_Address is un-initialized here, but is not used at all in init function */
+  /* but the prototype of Init() is like that in template and should be respected       */
+
+  /* Initialize the communication channel to sensor (I2C) if necessary */
+  /* that is initialization is done only once after a power up         */
+  ft6x06_ts_drv.Init(I2C_Address);
+
+  ts_id1 = ft6x06_ts_drv.ReadID(TS_I2C_ADDRESS);
+  if(ts_id1 != FT6206_ID_VALUE)
+  {
+    ts_id2 = ft6x06_ts_drv.ReadID(TS_I2C_ADDRESS_A02);
+    I2C_Address    = TS_I2C_ADDRESS_A02;    
+  }
+  else
+  {
+    I2C_Address    = TS_I2C_ADDRESS;    
+  }
+  
+  /* Scan FT6xx6 TouchScreen IC controller ID register by I2C Read       */
+  /* Verify this is a FT6206 or FT6336G, otherwise this is an error case */
+  if((ts_id1 == FT6206_ID_VALUE) || (ts_id2 == FT6206_ID_VALUE))
+  {
+    /* Found FT6206 : Initialize the TS driver structure */
+    ts_driver = &ft6x06_ts_drv;
+
+    /* Get LCD chosen orientation */
+    if(ts_SizeX < ts_SizeY)
+    {
+      ts_orientation = TS_SWAP_NONE;                
+    }
+    else
+    {
+      ts_orientation = TS_SWAP_XY | TS_SWAP_Y;                 
+    }
+
+    if(ts_status == TS_OK)
+    {
+      /* Software reset the TouchScreen */
+      ts_driver->Reset(I2C_Address);
+
+      /* Calibrate, Configure and Start the TouchScreen driver */
+      ts_driver->Start(I2C_Address);
+
+    } /* of if(ts_status == TS_OK) */
+  }
+  else
+  {
+    ts_status = TS_DEVICE_NOT_FOUND;
+  }
+
+  return (ts_status);
+}

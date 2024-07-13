@@ -1,0 +1,40 @@
+http_post_rxpbuf(struct http_state *hs, struct pbuf *p)
+{
+  err_t err;
+
+  if (p != NULL) {
+    /* adjust remaining Content-Length */
+    if (hs->post_content_len_left < p->tot_len) {
+      hs->post_content_len_left = 0;
+    } else {
+      hs->post_content_len_left -= p->tot_len;
+    }
+  }
+#if LWIP_HTTPD_SUPPORT_POST && LWIP_HTTPD_POST_MANUAL_WND
+  /* prevent connection being closed if httpd_post_data_recved() is called nested */
+  hs->unrecved_bytes++;
+#endif
+  if (p != NULL) {
+    err = httpd_post_receive_data(hs, p);
+  } else {
+    err = ERR_OK;
+  }
+#if LWIP_HTTPD_SUPPORT_POST && LWIP_HTTPD_POST_MANUAL_WND
+  hs->unrecved_bytes--;
+#endif
+  if (err != ERR_OK) {
+    /* Ignore remaining content in case of application error */
+    hs->post_content_len_left = 0;
+  }
+  if (hs->post_content_len_left == 0) {
+#if LWIP_HTTPD_SUPPORT_POST && LWIP_HTTPD_POST_MANUAL_WND
+    if (hs->unrecved_bytes != 0) {
+      return ERR_OK;
+    }
+#endif /* LWIP_HTTPD_SUPPORT_POST && LWIP_HTTPD_POST_MANUAL_WND */
+    /* application error or POST finished */
+    return http_handle_post_finished(hs);
+  }
+
+  return ERR_OK;
+}

@@ -1,0 +1,37 @@
+HAL_StatusTypeDef HAL_OSPI_HyperbusCfg(OSPI_HandleTypeDef *hospi, OSPI_HyperbusCfgTypeDef *cfg, uint32_t Timeout)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t tickstart = HAL_GetTick();
+
+  /* Check the parameters of the hyperbus configuration structure */
+  assert_param(IS_OSPI_RW_RECOVERY_TIME  (cfg->RWRecoveryTime));
+  assert_param(IS_OSPI_ACCESS_TIME       (cfg->AccessTime));
+  assert_param(IS_OSPI_WRITE_ZERO_LATENCY(cfg->WriteZeroLatency));
+  assert_param(IS_OSPI_LATENCY_MODE      (cfg->LatencyMode));
+
+  /* Check the state of the driver */
+  if ((hospi->State == HAL_OSPI_STATE_HYPERBUS_INIT) || (hospi->State == HAL_OSPI_STATE_READY))
+  {
+    /* Wait till busy flag is reset */
+    status = OSPI_WaitFlagStateUntilTimeout(hospi, HAL_OSPI_FLAG_BUSY, RESET, tickstart, Timeout);
+    
+    if (status == HAL_OK)
+    {
+      /* Configure Hyperbus configuration Latency register */
+      WRITE_REG(hospi->Instance->HLCR, ((cfg->RWRecoveryTime << OCTOSPI_HLCR_TRWR_Pos) | 
+                                        (cfg->AccessTime << OCTOSPI_HLCR_TACC_Pos)     |
+                                        cfg->WriteZeroLatency | cfg->LatencyMode));
+                                      
+      /* Update the state */
+      hospi->State = HAL_OSPI_STATE_READY;
+    }
+  }
+  else
+  {
+    status = HAL_ERROR;
+    hospi->ErrorCode = HAL_OSPI_ERROR_INVALID_SEQUENCE;
+  }
+  
+  /* Return function status */
+  return status;
+}

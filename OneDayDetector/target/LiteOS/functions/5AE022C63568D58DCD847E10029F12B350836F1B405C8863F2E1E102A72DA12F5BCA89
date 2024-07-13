@@ -1,0 +1,29 @@
+int pthread_setcancelstate(int state, int *oldState)
+{
+    _pthread_data *self = NULL;
+    int ret;
+
+    if ((state != PTHREAD_CANCEL_ENABLE) && (state != PTHREAD_CANCEL_DISABLE)) {
+        return EINVAL;
+    }
+
+    ret = pthread_mutex_lock(&g_pthreadsDataMutex);
+    if (ret != ENOERR) {
+        return ret;
+    }
+
+    self = pthread_get_self_data();
+
+    if (oldState != NULL) {
+        *oldState = self->cancelstate;
+    }
+
+    self->cancelstate = (UINT8)state;
+
+    ret = pthread_mutex_unlock(&g_pthreadsDataMutex);
+    if (ret != ENOERR) {
+        return ret;
+    }
+
+    return ENOERR;
+}

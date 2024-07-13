@@ -1,0 +1,33 @@
+snmp_scalar_array_get_instance(const u32_t *root_oid, u8_t root_oid_len, struct snmp_node_instance *instance)
+{
+  LWIP_UNUSED_ARG(root_oid);
+  LWIP_UNUSED_ARG(root_oid_len);
+
+  if ((instance->instance_oid.len == 2) && (instance->instance_oid.id[1] == 0)) {
+    const struct snmp_scalar_array_node *array_node = (const struct snmp_scalar_array_node *)(const void *)instance->node;
+    const struct snmp_scalar_array_node_def *array_node_def = array_node->array_nodes;
+    u32_t i = 0;
+
+    while (i < array_node->array_node_count) {
+      if (array_node_def->oid == instance->instance_oid.id[0]) {
+        break;
+      }
+
+      array_node_def++;
+      i++;
+    }
+
+    if (i < array_node->array_node_count) {
+      instance->access              = array_node_def->access;
+      instance->asn1_type           = array_node_def->asn1_type;
+      instance->get_value           = snmp_scalar_array_get_value;
+      instance->set_test            = snmp_scalar_array_set_test;
+      instance->set_value           = snmp_scalar_array_set_value;
+      instance->reference.const_ptr = array_node_def;
+
+      return SNMP_ERR_NOERROR;
+    }
+  }
+
+  return SNMP_ERR_NOSUCHINSTANCE;
+}

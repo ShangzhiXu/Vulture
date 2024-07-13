@@ -1,0 +1,19 @@
+static void DCMI_DMAError(DMA_HandleTypeDef *hdma)
+{
+  DCMI_HandleTypeDef* hdcmi = ( DCMI_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+  
+  if(hdcmi->DMA_Handle->ErrorCode != HAL_DMA_ERROR_FE)
+  {
+    /* Initialize the DCMI state*/
+    hdcmi->State = HAL_DCMI_STATE_READY;
+  }
+
+  /* DCMI error Callback */
+#if (USE_HAL_DCMI_REGISTER_CALLBACKS == 1)
+    /*Call registered DCMI error callback*/
+    hdcmi->ErrorCallback(hdcmi);
+#else  
+  HAL_DCMI_ErrorCallback(hdcmi);
+#endif /* USE_HAL_DCMI_REGISTER_CALLBACKS */   
+
+}

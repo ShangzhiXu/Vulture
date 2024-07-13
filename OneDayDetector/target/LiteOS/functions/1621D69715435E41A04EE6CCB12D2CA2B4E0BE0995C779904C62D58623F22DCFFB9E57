@@ -1,0 +1,35 @@
+static void json_pointer_tests(void)
+{
+    cJSON *root = NULL;
+    const char *json=
+        "{"
+        "\"foo\": [\"bar\", \"baz\"],"
+        "\"\": 0,"
+        "\"a/b\": 1,"
+        "\"c%d\": 2,"
+        "\"e^f\": 3,"
+        "\"g|h\": 4,"
+        "\"i\\\\j\": 5,"
+        "\"k\\\"l\": 6,"
+        "\" \": 7,"
+        "\"m~n\": 8"
+        "}";
+
+    root = cJSON_Parse(json);
+
+    TEST_ASSERT_EQUAL_PTR(cJSONUtils_GetPointer(root, ""), root);
+    TEST_ASSERT_EQUAL_PTR(cJSONUtils_GetPointer(root, "/foo"), cJSON_GetObjectItem(root, "foo"));
+    TEST_ASSERT_EQUAL_PTR(cJSONUtils_GetPointer(root, "/foo/0"), cJSON_GetObjectItem(root, "foo")->child);
+    TEST_ASSERT_EQUAL_PTR(cJSONUtils_GetPointer(root, "/foo/0"), cJSON_GetObjectItem(root, "foo")->child);
+    TEST_ASSERT_EQUAL_PTR(cJSONUtils_GetPointer(root, "/"), cJSON_GetObjectItem(root, ""));
+    TEST_ASSERT_EQUAL_PTR(cJSONUtils_GetPointer(root, "/a~1b"), cJSON_GetObjectItem(root, "a/b"));
+    TEST_ASSERT_EQUAL_PTR(cJSONUtils_GetPointer(root, "/c%d"), cJSON_GetObjectItem(root, "c%d"));
+    TEST_ASSERT_EQUAL_PTR(cJSONUtils_GetPointer(root, "/c^f"), cJSON_GetObjectItem(root, "c^f"));
+    TEST_ASSERT_EQUAL_PTR(cJSONUtils_GetPointer(root, "/c|f"), cJSON_GetObjectItem(root, "c|f"));
+    TEST_ASSERT_EQUAL_PTR(cJSONUtils_GetPointer(root, "/i\\j"), cJSON_GetObjectItem(root, "i\\j"));
+    TEST_ASSERT_EQUAL_PTR(cJSONUtils_GetPointer(root, "/k\"l"), cJSON_GetObjectItem(root, "k\"l"));
+    TEST_ASSERT_EQUAL_PTR(cJSONUtils_GetPointer(root, "/ "), cJSON_GetObjectItem(root, " "));
+    TEST_ASSERT_EQUAL_PTR(cJSONUtils_GetPointer(root, "/m~0n"), cJSON_GetObjectItem(root, "m~n"));
+
+    cJSON_Delete(root);
+}

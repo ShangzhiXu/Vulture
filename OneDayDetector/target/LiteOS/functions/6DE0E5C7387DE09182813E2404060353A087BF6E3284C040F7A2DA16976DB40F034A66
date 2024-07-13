@@ -1,0 +1,31 @@
+int pthread_getschedparam(pthread_t thread, int *policy, struct sched_param *param)
+{
+    _pthread_data *data = NULL;
+    int ret;
+
+    if ((policy == NULL) || (param == NULL)) {
+        return EINVAL;
+    }
+
+    ret = pthread_mutex_lock(&g_pthreadsDataMutex);
+    if (ret != ENOERR) {
+        return ret;
+    }
+
+    data = pthread_get_data(thread);
+    if (data == NULL) {
+        goto ERR_OUT;
+    }
+
+    *policy = data->attr.schedpolicy;
+    *param = data->attr.schedparam;
+
+    ret = pthread_mutex_unlock(&g_pthreadsDataMutex);
+    return ret;
+ERR_OUT:
+    ret = pthread_mutex_unlock(&g_pthreadsDataMutex);
+    if (ret != ENOERR) {
+        return ret;
+    }
+    return ESRCH;
+}

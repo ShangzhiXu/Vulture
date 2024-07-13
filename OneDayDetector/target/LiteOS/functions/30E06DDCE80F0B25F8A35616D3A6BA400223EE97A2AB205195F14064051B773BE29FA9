@@ -1,0 +1,35 @@
+int mbedtls_md5_self_test( int verbose )
+{
+    int i, ret = 0;
+    unsigned char md5sum[16];
+
+    for( i = 0; i < 7; i++ )
+    {
+        if( verbose != 0 )
+            mbedtls_printf( "  MD5 test #%d: ", i + 1 );
+
+        ret = mbedtls_md5_ret( md5_test_buf[i], md5_test_buflen[i], md5sum );
+        if( ret != 0 )
+            goto fail;
+
+        if( memcmp( md5sum, md5_test_sum[i], 16 ) != 0 )
+        {
+            ret = 1;
+            goto fail;
+        }
+
+        if( verbose != 0 )
+            mbedtls_printf( "passed\n" );
+    }
+
+    if( verbose != 0 )
+        mbedtls_printf( "\n" );
+
+    return( 0 );
+
+fail:
+    if( verbose != 0 )
+        mbedtls_printf( "failed\n" );
+
+    return( ret );
+}

@@ -1,0 +1,57 @@
+void ramfs_demo(void)
+{
+    int ret;
+    char bufWrite[] = "this is a demo write to file";
+    char bufRead[DEMO_BUF_LEN];
+    struct dir *testdir = NULL;
+    int bufLen;
+
+    ret = ramfs_init();
+    if (ret == LOS_NOK) {
+        FS_LOG_ERR("ramfs_init failed.");
+        return;
+    }
+    ret = ramfs_mount(RAMFS_PATH, RAMFS_SIEZ);
+    if (ret == LOS_NOK) {
+        FS_LOG_ERR("ramfs_mount failed.");
+        return;
+    }
+
+    bufLen = strlen(bufWrite);
+    write_file("/ramfs/test.txt", bufWrite, bufLen);
+
+    memset_s(bufRead, DEMO_BUF_LEN, 0, DEMO_BUF_LEN);
+    read_file("/ramfs/test.txt", bufRead, 1);
+    printf("%s\n", bufRead);
+
+    memset_s(bufRead, DEMO_BUF_LEN, 0, DEMO_BUF_LEN);
+    read_file("/ramfs/test.txt", bufRead, 10);
+    printf("%s\n", bufRead);
+
+    memset_s(bufRead, DEMO_BUF_LEN, 0, DEMO_BUF_LEN);
+    read_file("/ramfs/test.txt", bufRead, bufLen);
+    printf("%s\n", bufRead);
+
+    ret = open_dir("/ramfs/dir", &testdir);
+    if (ret != LOS_OK) {
+        FS_LOG_ERR("failed to open dir");
+        return;
+    }
+
+    write_file("/ramfs/dir/test01.txt", bufWrite, bufLen);
+    write_file("/ramfs/dir/test02.txt", bufWrite, bufLen);
+    write_file("/ramfs/dir/test03.txt", bufWrite, bufLen);
+
+    ret = read_dir("/ramfs/dir", testdir);
+    if (ret != LOS_OK) {
+        FS_LOG_ERR("failed to read dir");
+        return;
+    }
+
+    ret = los_closedir(testdir);
+    if (ret != LOS_OK) {
+        FS_LOG_ERR("failed to close dir");
+        return;
+    }
+    los_fs_unmount("/ramfs");
+}

@@ -1,0 +1,33 @@
+HAL_StatusTypeDef HAL_I2S_DMAPause(I2S_HandleTypeDef *hi2s)
+{
+  /* Process Locked */
+  __HAL_LOCK(hi2s);
+
+  if (hi2s->State == HAL_I2S_STATE_BUSY_TX)
+  {
+    /* Disable the I2S DMA Tx request */
+    CLEAR_BIT(hi2s->Instance->CR2, SPI_CR2_TXDMAEN);
+  }
+  else if (hi2s->State == HAL_I2S_STATE_BUSY_RX)
+  {
+    /* Disable the I2S DMA Rx request */
+    CLEAR_BIT(hi2s->Instance->CR2, SPI_CR2_RXDMAEN);
+  }
+#if defined (SPI_I2S_FULLDUPLEX_SUPPORT)
+  else if (hi2s->State == HAL_I2S_STATE_BUSY_TX_RX)
+  {
+    /* Pause the audio file playing by disabling the I2S DMA request */
+    CLEAR_BIT(hi2s->Instance->CR2, (SPI_CR2_TXDMAEN | SPI_CR2_RXDMAEN));
+    CLEAR_BIT(I2SxEXT(hi2s->Instance)->CR2, (SPI_CR2_TXDMAEN | SPI_CR2_RXDMAEN));
+  }
+#endif /* SPI_I2S_FULLDUPLEX_SUPPORT */
+  else
+  {
+    /* nothing to do */
+  }
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(hi2s);
+
+  return HAL_OK;
+}

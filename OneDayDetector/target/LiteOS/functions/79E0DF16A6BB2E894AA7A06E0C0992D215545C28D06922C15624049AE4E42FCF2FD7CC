@@ -1,0 +1,25 @@
+STATIC VOID OsHeapDoFree(struct LosHeapManager *heapMan, struct LosHeapNode *curNode)
+{
+    struct LosHeapNode *node = curNode;
+    struct LosHeapNode *next = NULL;
+    /* set to unused status */
+    node->used = 0;
+
+    /* unused region before and after combination */
+    while ((node->prev) && (!node->prev->used)) {
+        node = node->prev;
+    }
+
+    next = OsHeapPrvGetNext(heapMan, node);
+    while (next != NULL) {
+        if (next->used) {
+            next->prev = node;
+            break;
+        }
+        node->size += (sizeof(struct LosHeapNode) + next->size);
+        if (heapMan->tail == next) {
+            heapMan->tail = node;
+        }
+        next = OsHeapPrvGetNext(heapMan, node);
+    }
+}

@@ -1,0 +1,30 @@
+VOID OsLogShow(VOID)
+{
+    UINT32 intSave;
+    UINT32 index;
+    UINT32 i = 0;
+    CHAR *p = NULL;
+
+    LOS_SpinLockSave(&g_dmesgSpin, &intSave);
+    index = g_dmesgInfo->logHead;
+    p = (CHAR *)malloc(g_dmesgInfo->logSize + 1);
+    if (p == NULL) {
+        LOS_SpinUnlockRestore(&g_dmesgSpin, intSave);
+        return;
+    }
+    (VOID)memset_s(p, g_dmesgInfo->logSize + 1, 0, g_dmesgInfo->logSize + 1);
+
+    while (i < g_dmesgInfo->logSize) {
+        *(p + i) = *(g_dmesgInfo->logBuf + index++);
+        if (index > BUF_MAX_INDEX) {
+            index = 0;
+        }
+        i++;
+        if (index == g_dmesgInfo->logTail) {
+            break;
+        }
+    }
+    LOS_SpinUnlockRestore(&g_dmesgSpin, intSave);
+    UartPuts(p, i, UART_WITH_LOCK);
+    free(p);
+}

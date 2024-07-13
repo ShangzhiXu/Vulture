@@ -1,0 +1,102 @@
+HAL_StatusTypeDef HAL_SPI_Receive_IT(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t Size)
+{
+  HAL_StatusTypeDef errorcode = HAL_OK;
+
+  if ((hspi->Init.DataSize > SPI_DATASIZE_8BIT) || ((hspi->Init.DataSize <= SPI_DATASIZE_8BIT) && (Size > 1U)))
+  {
+    /* in this case, 16-bit access is performed on Data
+       So, check Data is 16-bit aligned address */
+    assert_param(IS_SPI_16BIT_ALIGNED_ADDRESS(pData));
+  }
+
+  if ((hspi->Init.Direction == SPI_DIRECTION_2LINES) && (hspi->Init.Mode == SPI_MODE_MASTER))
+  {
+    hspi->State = HAL_SPI_STATE_BUSY_RX;
+    /* Call transmit-receive function to send Dummy data on Tx line and generate clock on CLK line */
+    return HAL_SPI_TransmitReceive_IT(hspi, pData, pData, Size);
+  }
+
+  /* Process Locked */
+  __HAL_LOCK(hspi);
+
+  if (hspi->State != HAL_SPI_STATE_READY)
+  {
+    errorcode = HAL_BUSY;
+    goto error;
+  }
+
+  if ((pData == NULL) || (Size == 0U))
+  {
+    errorcode = HAL_ERROR;
+    goto error;
+  }
+
+  /* Set the transaction information */
+  hspi->State       = HAL_SPI_STATE_BUSY_RX;
+  hspi->ErrorCode   = HAL_SPI_ERROR_NONE;
+  hspi->pRxBuffPtr  = (uint8_t *)pData;
+  hspi->RxXferSize  = Size;
+  hspi->RxXferCount = Size;
+
+  /* Init field not used in handle to zero */
+  hspi->pTxBuffPtr  = (uint8_t *)NULL;
+  hspi->TxXferSize  = 0U;
+  hspi->TxXferCount = 0U;
+  hspi->TxISR       = NULL;
+
+  /* Check the data size to adapt Rx threshold and the set the function for IT treatment */
+  if (hspi->Init.DataSize > SPI_DATASIZE_8BIT)
+  {
+    /* Set RX Fifo threshold according the reception data length: 16 bit */
+    CLEAR_BIT(hspi->Instance->CR2, SPI_RXFIFO_THRESHOLD);
+    hspi->RxISR = SPI_RxISR_16BIT;
+  }
+  else
+  {
+    /* Set RX Fifo threshold according the reception data length: 8 bit */
+    SET_BIT(hspi->Instance->CR2, SPI_RXFIFO_THRESHOLD);
+    hspi->RxISR = SPI_RxISR_8BIT;
+  }
+
+  /* Configure communication direction : 1Line */
+  if (hspi->Init.Direction == SPI_DIRECTION_1LINE)
+  {
+    SPI_1LINE_RX(hspi);
+  }
+
+#if (USE_SPI_CRC != 0U)
+  /* Reset CRC Calculation */
+  if (hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+  {
+    hspi->CRCSize = 1U;
+    if ((hspi->Init.DataSize <= SPI_DATASIZE_8BIT) && (hspi->Init.CRCLength == SPI_CRC_LENGTH_16BIT))
+    {
+      hspi->CRCSize = 2U;
+    }
+    SPI_RESET_CRC(hspi);
+  }
+  else
+  {
+    hspi->CRCSize = 0U;
+  }
+#endif /* USE_SPI_CRC */
+
+  /* Enable TXE and ERR interrupt */
+  __HAL_SPI_ENABLE_IT(hspi, (SPI_IT_RXNE | SPI_IT_ERR));
+
+  /* Note : The SPI must be enabled after unlocking current process
+            to avoid the risk of SPI interrupt handle execution before current
+            process unlock */
+
+  /* Check if the SPI is already enabled */
+  if ((hspi->Instance->CR1 & SPI_CR1_SPE) != SPI_CR1_SPE)
+  {
+    /* Enable SPI peripheral */
+    __HAL_SPI_ENABLE(hspi);
+  }
+
+error :
+  /* Process Unlocked */
+  __HAL_UNLOCK(hspi);
+  return errorcode;
+}

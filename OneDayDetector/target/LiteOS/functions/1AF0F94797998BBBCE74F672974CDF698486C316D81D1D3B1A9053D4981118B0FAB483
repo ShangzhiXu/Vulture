@@ -1,0 +1,32 @@
+static void USART_DMAError(DMA_HandleTypeDef *hdma)
+{
+  uint32_t dmarequest = 0x00U;
+  USART_HandleTypeDef *husart = (USART_HandleTypeDef *)((DMA_HandleTypeDef *)hdma)->Parent;
+  husart->RxXferCount = 0x00U;
+  husart->TxXferCount = 0x00U;
+
+  /* Stop USART DMA Tx request if ongoing */
+  dmarequest = HAL_IS_BIT_SET(husart->Instance->CR3, USART_CR3_DMAT);
+  if ((husart->State == HAL_USART_STATE_BUSY_TX) && dmarequest)
+  {
+    USART_EndTxTransfer(husart);
+  }
+
+  /* Stop USART DMA Rx request if ongoing */
+  dmarequest = HAL_IS_BIT_SET(husart->Instance->CR3, USART_CR3_DMAR);
+  if ((husart->State == HAL_USART_STATE_BUSY_RX) && dmarequest)
+  {
+    USART_EndRxTransfer(husart);
+  }
+
+  husart->ErrorCode |= HAL_USART_ERROR_DMA;
+  husart->State = HAL_USART_STATE_READY;
+
+#if (USE_HAL_USART_REGISTER_CALLBACKS == 1)
+  /* Call registered Error Callback */
+  husart->ErrorCallback(husart);
+#else
+  /* Call legacy weak Error Callback */
+  HAL_USART_ErrorCallback(husart);
+#endif /* USE_HAL_USART_REGISTER_CALLBACKS */
+}

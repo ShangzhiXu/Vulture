@@ -1,0 +1,11 @@
+__STATIC_FORCEINLINE void __set_PSPLIM(uint32_t ProcStackPtrLimit)
+{
+#if (!((defined (__ARM_ARCH_8M_MAIN__   ) && (__ARM_ARCH_8M_MAIN__   == 1)) || \
+       (defined (__ARM_ARCH_8_1M_MAIN__ ) && (__ARM_ARCH_8_1M_MAIN__ == 1))   ) && \
+    (!defined (__ARM_FEATURE_CMSE) || (__ARM_FEATURE_CMSE < 3)))
+  // without main extensions, the non-secure PSPLIM is RAZ/WI
+  (void)ProcStackPtrLimit;
+#else
+  __ASM volatile ("MSR psplim, %0" : : "r" (ProcStackPtrLimit));
+#endif
+}

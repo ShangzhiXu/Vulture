@@ -1,0 +1,22 @@
+int flag_upgrade_init(void)
+{
+    int ret;
+    uint32_t crc;
+
+    ret = flag_read(FLAG_BOOTLOADER, &g_flag, sizeof(upgrade_flag_s));
+    if (ret != 0) {
+        return ret;
+    }
+
+    crc = calc_crc32(0, &g_flag, sizeof(upgrade_flag_s) - sizeof(uint32_t));
+    if (crc != g_flag.crc_flag) {
+        g_flag.upgrade_state = OTA_IDLE;
+        g_flag.upgrade_type = UPGRADE_NONE;
+        g_flag.recover_verify = 0;
+        g_flag.image_size = 0;
+        g_flag.old_image_size = 0;
+        return save_flag();
+    }
+
+    return 0;
+}

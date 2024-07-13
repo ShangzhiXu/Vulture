@@ -1,0 +1,26 @@
+HAL_StatusTypeDef HAL_UART_DMAStop(UART_HandleTypeDef *huart)
+{
+  /* The Lock is not implemented on this API to allow the user application
+     to call the HAL UART API under callbacks HAL_UART_TxCpltCallback() / HAL_UART_RxCpltCallback():
+     when calling HAL_DMA_Abort() API the DMA TX/RX Transfer complete interrupt is generated
+     and the correspond call back is executed HAL_UART_TxCpltCallback() / HAL_UART_RxCpltCallback()
+     */
+  
+  /* Disable the UART Tx/Rx DMA requests */
+  CLEAR_BIT(huart->Instance->CR3, (USART_CR3_DMAT | USART_CR3_DMAR));
+  
+  /* Abort the UART DMA tx channel */
+  if(huart->hdmatx != NULL)
+  {
+    HAL_DMA_Abort(huart->hdmatx);
+  }
+  /* Abort the UART DMA rx channel */
+  if(huart->hdmarx != NULL)
+  {
+    HAL_DMA_Abort(huart->hdmarx);
+  }
+  
+  huart->State = HAL_UART_STATE_READY;
+  
+  return HAL_OK;
+}

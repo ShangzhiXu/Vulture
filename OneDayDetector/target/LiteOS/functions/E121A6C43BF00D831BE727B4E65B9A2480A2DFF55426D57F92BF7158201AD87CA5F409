@@ -1,0 +1,64 @@
+HAL_StatusTypeDef HAL_DFSDM_FilterRegularStart_DMA(DFSDM_Filter_HandleTypeDef *hdfsdm_filter,
+                                                   int32_t                    *pData,
+                                                   uint32_t                    Length)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Check parameters */
+  assert_param(IS_DFSDM_FILTER_ALL_INSTANCE(hdfsdm_filter->Instance));
+
+  /* Check destination address and length */
+  if((pData == NULL) || (Length == 0U))
+  {
+    status = HAL_ERROR;
+  }
+  /* Check that DMA is enabled for regular conversion */
+  else if((hdfsdm_filter->Instance->FLTCR1 & DFSDM_FLTCR1_RDMAEN) != DFSDM_FLTCR1_RDMAEN)
+  {
+    status = HAL_ERROR;
+  }
+  /* Check parameters compatibility */
+  else if((hdfsdm_filter->RegularTrigger == DFSDM_FILTER_SW_TRIGGER) && \
+          (hdfsdm_filter->RegularContMode == DFSDM_CONTINUOUS_CONV_OFF) && \
+          (hdfsdm_filter->hdmaReg->Init.Mode == DMA_NORMAL) && \
+          (Length != 1U))
+  {
+    status = HAL_ERROR;
+  }
+  else if((hdfsdm_filter->RegularTrigger == DFSDM_FILTER_SW_TRIGGER) && \
+          (hdfsdm_filter->RegularContMode == DFSDM_CONTINUOUS_CONV_OFF) && \
+          (hdfsdm_filter->hdmaReg->Init.Mode == DMA_CIRCULAR))
+  {
+    status = HAL_ERROR;
+  }
+  /* Check DFSDM filter state */
+  else if((hdfsdm_filter->State == HAL_DFSDM_FILTER_STATE_READY) || \
+          (hdfsdm_filter->State == HAL_DFSDM_FILTER_STATE_INJ))
+  {
+    /* Set callbacks on DMA handler */
+    hdfsdm_filter->hdmaReg->XferCpltCallback = DFSDM_DMARegularConvCplt;
+    hdfsdm_filter->hdmaReg->XferErrorCallback = DFSDM_DMAError;
+    hdfsdm_filter->hdmaReg->XferHalfCpltCallback = (hdfsdm_filter->hdmaReg->Init.Mode == DMA_CIRCULAR) ?\
+                                                   DFSDM_DMARegularHalfConvCplt : NULL;
+    
+    /* Start DMA in interrupt mode */
+    if(HAL_DMA_Start_IT(hdfsdm_filter->hdmaReg, (uint32_t)&hdfsdm_filter->Instance->FLTRDATAR, \
+                        (uint32_t) pData, Length) != HAL_OK)
+    {
+      /* Set DFSDM filter in error state */
+      hdfsdm_filter->State = HAL_DFSDM_FILTER_STATE_ERROR;
+      status = HAL_ERROR;
+    }
+    else
+    {
+      /* Start regular conversion */
+      DFSDM_RegConvStart(hdfsdm_filter);
+    }
+  }
+  else
+  {
+    status = HAL_ERROR;
+  }
+  /* Return function status */
+  return status;
+}

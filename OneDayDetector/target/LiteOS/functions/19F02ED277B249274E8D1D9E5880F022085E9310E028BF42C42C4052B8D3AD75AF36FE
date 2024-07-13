@@ -1,0 +1,19 @@
+snmp_scalar_get_instance(const u32_t *root_oid, u8_t root_oid_len, struct snmp_node_instance *instance)
+{
+  const struct snmp_scalar_node *scalar_node = (const struct snmp_scalar_node *)(const void *)instance->node;
+
+  LWIP_UNUSED_ARG(root_oid);
+  LWIP_UNUSED_ARG(root_oid_len);
+
+  /* scalar only has one dedicated instance: .0 */
+  if ((instance->instance_oid.len != 1) || (instance->instance_oid.id[0] != 0)) {
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  instance->access    = scalar_node->access;
+  instance->asn1_type = scalar_node->asn1_type;
+  instance->get_value = scalar_node->get_value;
+  instance->set_test  = scalar_node->set_test;
+  instance->set_value = scalar_node->set_value;
+  return SNMP_ERR_NOERROR;
+}

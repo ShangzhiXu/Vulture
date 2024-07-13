@@ -1,0 +1,41 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 OsShellCmdHwi(INT32 argc, const CHAR **argv)
+{
+    UINT32 i;
+    HwiHandleInfo *hwiForm = NULL;
+
+    (VOID)argv;
+    if (argc > 0) {
+        PRINTK("\nUsage: hwi\n");
+        return OS_ERROR;
+    }
+
+    PRINTK(" InterruptNo     share      Count          Name          DevId\n");
+    for (i = 0; i < OS_HWI_MAX_NUM; i++) {
+        if (!HWI_IS_REGISTED(i)) {
+            continue;
+        }
+
+        /* Different cores has different hwi form implementation */
+        hwiForm = OsGetHwiForm(i);
+        PRINTK(" %8u:\t   %-s\t      %-10u", i, GetHwiShare(hwiForm) ? "Y" : "N", OsGetHwiFormCnt(i));
+#ifndef LOSCFG_NO_SHARED_IRQ
+        hwiForm = hwiForm->next;
+#endif
+        if ((hwiForm->registerInfo != 0) && ((HWI_IRQ_PARAM_S *)hwiForm->registerInfo)->pName != NULL) {
+            PRINTK(" %-16s %-32u\n",
+                   ((HWI_IRQ_PARAM_S *)hwiForm->registerInfo)->pName,
+                   ((HWI_IRQ_PARAM_S *)hwiForm->registerInfo)->pDevId);
+        } else {
+            PRINTK("\n");
+        }
+
+#ifndef LOSCFG_NO_SHARED_IRQ
+        while ((hwiForm = hwiForm->next) != NULL) {
+            PRINTK("\t\t\t\t\t %-16s %-32u\n",
+                   ((HWI_IRQ_PARAM_S *)hwiForm->registerInfo)->pName,
+                   ((HWI_IRQ_PARAM_S *)hwiForm->registerInfo)->pDevId);
+        }
+#endif
+    }
+    return 0;
+}

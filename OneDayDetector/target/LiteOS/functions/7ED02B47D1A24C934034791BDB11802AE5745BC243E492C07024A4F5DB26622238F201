@@ -1,0 +1,12 @@
+__weak void LCD_Vsync_Init()
+{
+  osSemaphoreDef(SEM);
+  /* VSync will be sychronized by an event from the LCD line ISR */
+  vSyncEvent = osSemaphoreCreate(osSemaphore(SEM),1);
+  osSemaphoreWait(vSyncEvent, 0);
+#ifdef _USE_FreeRTOS
+  /* By default, LCD line as an higher priority than the kernel, we need to reduce it, in order to allow rtos syscall in the ISR */
+  NVIC_SetPriority(LTDC_IRQn, (configMAX_SYSCALL_INTERRUPT_PRIORITY >> 4));
+  HAL_LTDC_ProgramLineEvent(&hltdc_discovery, LTCD_LINE);
+#endif
+}

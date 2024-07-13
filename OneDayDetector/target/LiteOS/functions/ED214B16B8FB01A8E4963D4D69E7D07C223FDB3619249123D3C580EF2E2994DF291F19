@@ -1,0 +1,51 @@
+START_TEST(test_pbuf_queueing_bigger_than_64k)
+{
+  int i;
+  err_t err;
+  struct pbuf *p1, *p2, *p3, *rest2=NULL, *rest3=NULL;
+  LWIP_UNUSED_ARG(_i);
+
+  for(i = 0; i < TESTBUFSIZE_1; i++) {
+    testbuf_1[i] = (u8_t)rand();
+  }
+  for(i = 0; i < TESTBUFSIZE_2; i++) {
+    testbuf_2[i] = (u8_t)rand();
+  }
+  for(i = 0; i < TESTBUFSIZE_3; i++) {
+    testbuf_3[i] = (u8_t)rand();
+  }
+
+  p1 = pbuf_alloc(PBUF_RAW, TESTBUFSIZE_1, PBUF_POOL);
+  fail_unless(p1 != NULL);
+  p2 = pbuf_alloc(PBUF_RAW, TESTBUFSIZE_2, PBUF_POOL);
+  fail_unless(p2 != NULL);
+  p3 = pbuf_alloc(PBUF_RAW, TESTBUFSIZE_3, PBUF_POOL);
+  fail_unless(p3 != NULL);
+  err = pbuf_take(p1, testbuf_1, TESTBUFSIZE_1);
+  fail_unless(err == ERR_OK);
+  err = pbuf_take(p2, testbuf_2, TESTBUFSIZE_2);
+  fail_unless(err == ERR_OK);
+  err = pbuf_take(p3, testbuf_3, TESTBUFSIZE_3);
+  fail_unless(err == ERR_OK);
+
+  pbuf_cat(p1, p2);
+  pbuf_cat(p1, p3);
+
+  pbuf_split_64k(p1, &rest2);
+  fail_unless(p1->tot_len == TESTBUFSIZE_1);
+  fail_unless(rest2->tot_len == (u16_t)((TESTBUFSIZE_2+TESTBUFSIZE_3) & 0xFFFF));
+  pbuf_split_64k(rest2, &rest3);
+  fail_unless(rest2->tot_len == TESTBUFSIZE_2);
+  fail_unless(rest3->tot_len == TESTBUFSIZE_3);
+
+  pbuf_copy_partial(p1, testbuf_1a, TESTBUFSIZE_1, 0);
+  pbuf_copy_partial(rest2, testbuf_2a, TESTBUFSIZE_2, 0);
+  pbuf_copy_partial(rest3, testbuf_3a, TESTBUFSIZE_3, 0);
+  fail_if(memcmp(testbuf_1, testbuf_1a, TESTBUFSIZE_1));
+  fail_if(memcmp(testbuf_2, testbuf_2a, TESTBUFSIZE_2));
+  fail_if(memcmp(testbuf_3, testbuf_3a, TESTBUFSIZE_3));
+
+  pbuf_free(p1);
+  pbuf_free(rest2);
+  pbuf_free(rest3);
+}

@@ -1,0 +1,29 @@
+int atiny_dequeue_rpt_data(rpt_list_t rpt_list,  data_report_t *data)
+{
+    int ret = ATINY_RESOURCE_NOT_FOUND;
+    if ((rpt_list == NULL) || (data == NULL)) {
+        ATINY_LOG(LOG_ERR, "null point");
+        return ATINY_ARG_INVALID;
+    }
+
+    atiny_mutex_lock(g_mutex);
+    do {
+        atiny_rpt_node_t *data_node = NULL;
+        if (atiny_list_empty(&rpt_list->rpt_list)) {
+            ATINY_LOG(LOG_INFO, "dequeue empty rpt list");
+            break;
+        }
+
+        data_node = (atiny_rpt_node_t *)rpt_list->rpt_list.next;
+        atiny_list_delete(&data_node->list);
+        rpt_list->rpt_node_cnt--;
+
+        memcpy((void *)data, (void *)&data_node->data, sizeof(*data));
+        lwm2m_free(data_node);
+
+        ret = ATINY_OK;
+    } while (0);
+
+    atiny_mutex_unlock(g_mutex);
+    return ret;
+}

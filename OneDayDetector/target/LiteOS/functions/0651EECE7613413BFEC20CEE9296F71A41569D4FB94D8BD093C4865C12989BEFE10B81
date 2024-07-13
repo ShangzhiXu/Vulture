@@ -1,0 +1,143 @@
+int mbedtls_ssl_write_record( mbedtls_ssl_context *ssl, uint8_t force_flush )
+{
+    int ret, done = 0;
+    size_t len = ssl->out_msglen;
+    uint8_t flush = force_flush;
+
+    MBEDTLS_SSL_DEBUG_MSG( 2, ( "=> write record" ) );
+
+#if defined(MBEDTLS_ZLIB_SUPPORT)
+    if( ssl->transform_out != NULL &&
+        ssl->session_out->compression == MBEDTLS_SSL_COMPRESS_DEFLATE )
+    {
+        if( ( ret = ssl_compress_buf( ssl ) ) != 0 )
+        {
+            MBEDTLS_SSL_DEBUG_RET( 1, "ssl_compress_buf", ret );
+            return( ret );
+        }
+
+        len = ssl->out_msglen;
+    }
+#endif /*MBEDTLS_ZLIB_SUPPORT */
+
+#if defined(MBEDTLS_SSL_HW_RECORD_ACCEL)
+    if( mbedtls_ssl_hw_record_write != NULL )
+    {
+        MBEDTLS_SSL_DEBUG_MSG( 2, ( "going for mbedtls_ssl_hw_record_write()" ) );
+
+        ret = mbedtls_ssl_hw_record_write( ssl );
+        if( ret != 0 && ret != MBEDTLS_ERR_SSL_HW_ACCEL_FALLTHROUGH )
+        {
+            MBEDTLS_SSL_DEBUG_RET( 1, "mbedtls_ssl_hw_record_write", ret );
+            return( MBEDTLS_ERR_SSL_HW_ACCEL_FAILED );
+        }
+
+        if( ret == 0 )
+            done = 1;
+    }
+#endif /* MBEDTLS_SSL_HW_RECORD_ACCEL */
+    if( !done )
+    {
+        unsigned i;
+        size_t protected_record_size;
+
+        ssl->out_hdr[0] = (unsigned char) ssl->out_msgtype;
+        mbedtls_ssl_write_version( ssl->major_ver, ssl->minor_ver,
+                           ssl->conf->transport, ssl->out_hdr + 1 );
+
+        memcpy( ssl->out_ctr, ssl->cur_out_ctr, 8 );
+        ssl->out_len[0] = (unsigned char)( len >> 8 );
+        ssl->out_len[1] = (unsigned char)( len      );
+
+        if( ssl->transform_out != NULL )
+        {
+            if( ( ret = ssl_encrypt_buf( ssl ) ) != 0 )
+            {
+                MBEDTLS_SSL_DEBUG_RET( 1, "ssl_encrypt_buf", ret );
+                return( ret );
+            }
+
+            len = ssl->out_msglen;
+            ssl->out_len[0] = (unsigned char)( len >> 8 );
+            ssl->out_len[1] = (unsigned char)( len      );
+        }
+
+        protected_record_size = len + mbedtls_ssl_hdr_len( ssl );
+
+#if defined(MBEDTLS_SSL_PROTO_DTLS)
+        /* In case of DTLS, double-check that we don't exceed
+         * the remaining space in the datagram. */
+        if( ssl->conf->transport == MBEDTLS_SSL_TRANSPORT_DATAGRAM )
+        {
+            ret = ssl_get_remaining_space_in_datagram( ssl );
+            if( ret < 0 )
+                return( ret );
+
+            if( protected_record_size > (size_t) ret )
+            {
+                /* Should never happen */
+                return( MBEDTLS_ERR_SSL_INTERNAL_ERROR );
+            }
+        }
+#endif /* MBEDTLS_SSL_PROTO_DTLS */
+
+        MBEDTLS_SSL_DEBUG_MSG( 3, ( "output record: msgtype = %d, "
+                                    "version = [%d:%d], msglen = %d",
+                                    ssl->out_hdr[0], ssl->out_hdr[1],
+                                    ssl->out_hdr[2], len ) );
+
+        MBEDTLS_SSL_DEBUG_BUF( 4, "output record sent to network",
+                               ssl->out_hdr, protected_record_size );
+
+        ssl->out_left += protected_record_size;
+        ssl->out_hdr  += protected_record_size;
+        ssl_update_out_pointers( ssl, ssl->transform_out );
+
+        for( i = 8; i > ssl_ep_len( ssl ); i-- )
+            if( ++ssl->cur_out_ctr[i - 1] != 0 )
+                break;
+
+        /* The loop goes to its end iff the counter is wrapping */
+        if( i == ssl_ep_len( ssl ) )
+        {
+            MBEDTLS_SSL_DEBUG_MSG( 1, ( "outgoing message counter would wrap" ) );
+            return( MBEDTLS_ERR_SSL_COUNTER_WRAPPING );
+        }
+    }
+
+#if defined(MBEDTLS_SSL_PROTO_DTLS)
+    if( ssl->conf->transport == MBEDTLS_SSL_TRANSPORT_DATAGRAM &&
+        flush == SSL_DONT_FORCE_FLUSH )
+    {
+        size_t remaining;
+        ret = ssl_get_remaining_payload_in_datagram( ssl );
+        if( ret < 0 )
+        {
+            MBEDTLS_SSL_DEBUG_RET( 1, "ssl_get_remaining_payload_in_datagram",
+                                   ret );
+            return( ret );
+        }
+
+        remaining = (size_t) ret;
+        if( remaining == 0 )
+        {
+            flush = SSL_FORCE_FLUSH;
+        }
+        else
+        {
+            MBEDTLS_SSL_DEBUG_MSG( 2, ( "Still %u bytes available in current datagram", (unsigned) remaining ) );
+        }
+    }
+#endif /* MBEDTLS_SSL_PROTO_DTLS */
+
+    if( ( flush == SSL_FORCE_FLUSH ) &&
+        ( ret = mbedtls_ssl_flush_output( ssl ) ) != 0 )
+    {
+        MBEDTLS_SSL_DEBUG_RET( 1, "mbedtls_ssl_flush_output", ret );
+        return( ret );
+    }
+
+    MBEDTLS_SSL_DEBUG_MSG( 2, ( "<= write record" ) );
+
+    return( 0 );
+}

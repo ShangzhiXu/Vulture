@@ -1,0 +1,157 @@
+void HAL_OSPI_IRQHandler(OSPI_HandleTypeDef *hospi)
+{
+  __IO uint32_t *data_reg = &hospi->Instance->DR;
+  uint32_t flag           = hospi->Instance->SR;
+  uint32_t itsource       = hospi->Instance->CR;
+  uint32_t currentstate   = hospi->State;
+  
+  /* OctoSPI fifo threshold interrupt occurred -------------------------------*/
+  if (((flag & HAL_OSPI_FLAG_FT) != 0) && ((itsource & HAL_OSPI_IT_FT) != 0))
+  {
+    if (currentstate == HAL_OSPI_STATE_BUSY_TX)
+    {
+      /* Write a data in the fifo */
+      *(__IO uint8_t *)((__IO void *)data_reg) = *hospi->pBuffPtr++;
+      hospi->XferCount--;
+    }
+    else if (currentstate == HAL_OSPI_STATE_BUSY_RX)
+    {
+      /* Read a data from the fifo */
+      *hospi->pBuffPtr++ = *(__IO uint8_t *)((__IO void *)data_reg);
+      hospi->XferCount--;
+    }
+
+    if (hospi->XferCount == 0)
+    {
+      /* All data have been received or transmitted for the transfer */
+      /* Disable fifo threshold interrupt */
+      __HAL_OSPI_DISABLE_IT(hospi, HAL_OSPI_IT_FT);
+    }
+
+    /* Fifo threshold callback */
+    HAL_OSPI_FifoThresholdCallback(hospi);
+  }
+  /* OctoSPI transfer complete interrupt occurred ----------------------------*/
+  else if (((flag & HAL_OSPI_FLAG_TC) != 0) && ((itsource & HAL_OSPI_IT_TC) != 0))
+  {
+    if (currentstate == HAL_OSPI_STATE_BUSY_RX)
+    {
+      if (((flag & OCTOSPI_SR_FLEVEL) != 0) && (hospi->XferCount > 0))
+      {
+        /* Read the last data received in the fifo */
+        *hospi->pBuffPtr++ = *(__IO uint8_t *)((__IO void*)data_reg);
+        hospi->XferCount--;
+      }
+      else if(hospi->XferCount == 0)
+      {
+        /* Clear flag */
+        hospi->Instance->FCR = HAL_OSPI_FLAG_TC;
+
+        /* Disable the interrupts */
+        __HAL_OSPI_DISABLE_IT(hospi, HAL_OSPI_IT_TC | HAL_OSPI_IT_FT | HAL_OSPI_IT_TE);
+
+        /* Update state */
+        hospi->State = HAL_OSPI_STATE_READY;
+
+        /* RX complete callback */
+        HAL_OSPI_RxCpltCallback(hospi);
+      }
+    }
+    else
+    {
+      /* Clear flag */
+      hospi->Instance->FCR = HAL_OSPI_FLAG_TC;
+
+      /* Disable the interrupts */
+      __HAL_OSPI_DISABLE_IT(hospi, HAL_OSPI_IT_TC | HAL_OSPI_IT_FT | HAL_OSPI_IT_TE);
+
+      /* Update state */
+      hospi->State = HAL_OSPI_STATE_READY;
+
+      if (currentstate == HAL_OSPI_STATE_BUSY_TX)
+      {
+        /* TX complete callback */
+        HAL_OSPI_TxCpltCallback(hospi);
+      }
+      else if (currentstate == HAL_OSPI_STATE_BUSY_CMD)
+      {
+        /* Command complete callback */
+        HAL_OSPI_CmdCpltCallback(hospi);
+      }
+      else if (currentstate == HAL_OSPI_STATE_ABORT)
+      {
+        if (hospi->ErrorCode == HAL_OSPI_ERROR_NONE)
+        {
+          /* Abort called by the user */
+          /* Abort complete callback */
+          HAL_OSPI_AbortCpltCallback(hospi);
+        }
+        else
+        {
+          /* Abort due to an error (eg : DMA error) */
+          /* Error callback */
+          HAL_OSPI_ErrorCallback(hospi);
+        }
+      }
+    }
+  }
+  /* OctoSPI status match interrupt occurred ---------------------------------*/
+  else if (((flag & HAL_OSPI_FLAG_SM) != 0) && ((itsource & HAL_OSPI_IT_SM) != 0))
+  {
+    /* Clear flag */
+    hospi->Instance->FCR = HAL_OSPI_FLAG_SM;
+    
+    /* Check if automatic poll mode stop is activated */
+    if ((hospi->Instance->CR & OCTOSPI_CR_APMS) != 0)
+    {
+      /* Disable the interrupts */
+      __HAL_OSPI_DISABLE_IT(hospi, HAL_OSPI_IT_SM | HAL_OSPI_IT_TE);
+      
+      /* Update state */
+      hospi->State = HAL_OSPI_STATE_READY;
+    }
+    
+    /* Status match callback */
+    HAL_OSPI_StatusMatchCallback(hospi);
+  }
+  /* OctoSPI transfer error interrupt occurred -------------------------------*/
+  else if (((flag & HAL_OSPI_FLAG_TE) != 0) && ((itsource & HAL_OSPI_IT_TE) != 0))
+  {
+    /* Clear flag */
+    hospi->Instance->FCR = HAL_OSPI_FLAG_TE;
+
+    /* Disable all interrupts */
+    __HAL_OSPI_DISABLE_IT(hospi, (HAL_OSPI_IT_TO | HAL_OSPI_IT_SM | HAL_OSPI_IT_FT | HAL_OSPI_IT_TC | HAL_OSPI_IT_TE));
+    
+    /* Set error code */
+    hospi->ErrorCode = HAL_OSPI_ERROR_TRANSFER;
+    
+    /* Check if the DMA is enabled */
+    if ((hospi->Instance->CR & OCTOSPI_CR_DMAEN) != 0)
+    {
+      /* Disable the DMA transfer on the OctoSPI side */
+      CLEAR_BIT(hospi->Instance->CR, OCTOSPI_CR_DMAEN);
+      
+      /* Disable the DMA transfer on the DMA side */
+      hospi->hdma->XferAbortCallback = OSPI_DMAAbortCplt;
+      HAL_DMA_Abort_IT(hospi->hdma);
+    }
+    else
+    {
+      /* Update state */
+      hospi->State = HAL_OSPI_STATE_READY;
+      
+      /* Error callback */
+      HAL_OSPI_ErrorCallback(hospi);
+    }
+  }
+  /* OctoSPI timeout interrupt occurred --------------------------------------*/
+  else if (((flag & HAL_OSPI_FLAG_TO) != 0) && ((itsource & HAL_OSPI_IT_TO) != 0))
+  {
+    /* Clear flag */
+    hospi->Instance->FCR = HAL_OSPI_FLAG_TO;
+    
+    /* Timeout callback */
+    HAL_OSPI_TimeOutCallback(hospi);
+  }
+}

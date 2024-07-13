@@ -1,0 +1,50 @@
+void HAL_SPI_IRQHandler(SPI_HandleTypeDef *hspi)
+{
+  /* SPI in mode Receiver and Overrun not occurred ---------------------------*/
+  if((__HAL_SPI_GET_IT_SOURCE(hspi, SPI_IT_RXNE) != RESET) && (__HAL_SPI_GET_FLAG(hspi, SPI_FLAG_RXNE) != RESET) && (__HAL_SPI_GET_FLAG(hspi, SPI_FLAG_OVR) == RESET))
+  {
+    hspi->RxISR(hspi);
+    return;
+  }
+
+  /* SPI in mode Tramitter ---------------------------------------------------*/
+  if((__HAL_SPI_GET_IT_SOURCE(hspi, SPI_IT_TXE) != RESET) && (__HAL_SPI_GET_FLAG(hspi, SPI_FLAG_TXE) != RESET))
+  {
+    hspi->TxISR(hspi);
+    return;
+  }
+
+  if(__HAL_SPI_GET_IT_SOURCE(hspi, SPI_IT_ERR) != RESET)
+  {
+    /* SPI CRC error interrupt occurred ---------------------------------------*/
+    if(__HAL_SPI_GET_FLAG(hspi, SPI_FLAG_CRCERR) != RESET)
+    {
+      SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_CRC);
+      __HAL_SPI_CLEAR_CRCERRFLAG(hspi);
+    }
+    /* SPI Mode Fault error interrupt occurred --------------------------------*/
+    if(__HAL_SPI_GET_FLAG(hspi, SPI_FLAG_MODF) != RESET)
+    {
+      SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_MODF);
+      __HAL_SPI_CLEAR_MODFFLAG(hspi);
+    }
+    
+    /* SPI Overrun error interrupt occurred -----------------------------------*/
+    if(__HAL_SPI_GET_FLAG(hspi, SPI_FLAG_OVR) != RESET)
+    {
+      if(hspi->State != HAL_SPI_STATE_BUSY_TX)
+      {
+        SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_OVR);
+        __HAL_SPI_CLEAR_OVRFLAG(hspi);      
+      }
+    }
+
+    /* Call the Error call Back in case of Errors */
+    if(hspi->ErrorCode!=HAL_SPI_ERROR_NONE)
+    {
+      __HAL_SPI_DISABLE_IT(hspi, SPI_IT_RXNE | SPI_IT_TXE | SPI_IT_ERR);
+      hspi->State = HAL_SPI_STATE_READY;
+      HAL_SPI_ErrorCallback(hspi);
+    }
+  }
+}

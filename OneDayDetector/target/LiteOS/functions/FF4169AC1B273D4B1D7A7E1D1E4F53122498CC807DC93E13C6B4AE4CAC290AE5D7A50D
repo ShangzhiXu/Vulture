@@ -1,0 +1,109 @@
+HAL_StatusTypeDef HAL_RTC_Init(RTC_HandleTypeDef *hrtc)
+{
+  /* Check the RTC peripheral state */
+  if(hrtc == NULL)
+  {
+     return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_RTC_HOUR_FORMAT(hrtc->Init.HourFormat));
+  assert_param(IS_RTC_ASYNCH_PREDIV(hrtc->Init.AsynchPrediv));
+  assert_param(IS_RTC_SYNCH_PREDIV(hrtc->Init.SynchPrediv));
+  assert_param (IS_RTC_OUTPUT(hrtc->Init.OutPut));
+  assert_param (IS_RTC_OUTPUT_POL(hrtc->Init.OutPutPolarity));
+  assert_param(IS_RTC_OUTPUT_TYPE(hrtc->Init.OutPutType));
+
+#if (USE_HAL_RTC_REGISTER_CALLBACKS == 1)
+  if(hrtc->State == HAL_RTC_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hrtc->Lock = HAL_UNLOCKED;
+
+    hrtc->AlarmAEventCallback          =  HAL_RTC_AlarmAEventCallback;        /* Legacy weak AlarmAEventCallback      */
+    hrtc->AlarmBEventCallback          =  HAL_RTCEx_AlarmBEventCallback;      /* Legacy weak AlarmBEventCallback      */
+    hrtc->TimeStampEventCallback       =  HAL_RTCEx_TimeStampEventCallback;   /* Legacy weak TimeStampEventCallback   */
+    hrtc->WakeUpTimerEventCallback     =  HAL_RTCEx_WakeUpTimerEventCallback; /* Legacy weak WakeUpTimerEventCallback */
+    hrtc->Tamper1EventCallback         =  HAL_RTCEx_Tamper1EventCallback;     /* Legacy weak Tamper1EventCallback     */
+    hrtc->Tamper2EventCallback         =  HAL_RTCEx_Tamper2EventCallback;     /* Legacy weak Tamper2EventCallback     */
+
+    if(hrtc->MspInitCallback == NULL)
+    {
+      hrtc->MspInitCallback = HAL_RTC_MspInit;
+    }
+    /* Init the low level hardware */
+    hrtc->MspInitCallback(hrtc);
+
+    if(hrtc->MspDeInitCallback == NULL)
+    {
+      hrtc->MspDeInitCallback = HAL_RTC_MspDeInit;
+    }
+  }
+#else
+  if(hrtc->State == HAL_RTC_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hrtc->Lock = HAL_UNLOCKED;
+
+    /* Initialize RTC MSP */
+    HAL_RTC_MspInit(hrtc);
+  }
+#endif /* (USE_HAL_RTC_REGISTER_CALLBACKS) */
+
+  /* Set RTC state */
+  hrtc->State = HAL_RTC_STATE_BUSY;
+
+  /* Disable the write protection for RTC registers */
+  __HAL_RTC_WRITEPROTECTION_DISABLE(hrtc);
+
+  /* Set Initialization mode */
+  if(RTC_EnterInitMode(hrtc) != HAL_OK)
+  {
+    /* Enable the write protection for RTC registers */
+    __HAL_RTC_WRITEPROTECTION_ENABLE(hrtc);
+
+    /* Set RTC state */
+    hrtc->State = HAL_RTC_STATE_ERROR;
+
+    return HAL_ERROR;
+  }
+  else
+  {
+    /* Clear RTC_CR FMT, OSEL and POL Bits */
+    hrtc->Instance->CR &= ((uint32_t)~(RTC_CR_FMT | RTC_CR_OSEL | RTC_CR_POL));
+    /* Set RTC_CR register */
+    hrtc->Instance->CR |= (uint32_t)(hrtc->Init.HourFormat | hrtc->Init.OutPut | hrtc->Init.OutPutPolarity);
+
+    /* Configure the RTC PRER */
+    hrtc->Instance->PRER = (uint32_t)(hrtc->Init.SynchPrediv);
+    hrtc->Instance->PRER |= (uint32_t)(hrtc->Init.AsynchPrediv << 16U);
+
+    /* Exit Initialization mode */
+    hrtc->Instance->ISR &= (uint32_t)~RTC_ISR_INIT;
+
+    /* If  CR_BYPSHAD bit = 0, wait for synchro else this check is not needed */
+    if((hrtc->Instance->CR & RTC_CR_BYPSHAD) == RESET)
+    {
+      if(HAL_RTC_WaitForSynchro(hrtc) != HAL_OK)
+      {
+        /* Enable the write protection for RTC registers */
+        __HAL_RTC_WRITEPROTECTION_ENABLE(hrtc);
+
+        hrtc->State = HAL_RTC_STATE_ERROR;
+
+        return HAL_ERROR;
+      }
+    }
+
+    hrtc->Instance->TAFCR &= (uint32_t)~RTC_TAFCR_ALARMOUTTYPE;
+    hrtc->Instance->TAFCR |= (uint32_t)(hrtc->Init.OutPutType);
+
+    /* Enable the write protection for RTC registers */
+    __HAL_RTC_WRITEPROTECTION_ENABLE(hrtc);
+
+    /* Set RTC state */
+    hrtc->State = HAL_RTC_STATE_READY;
+
+    return HAL_OK;
+  }
+}

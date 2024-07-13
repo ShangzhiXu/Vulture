@@ -1,0 +1,95 @@
+connection_t *connection_create(connection_t *connList,
+                                lwm2m_object_t *securityObj,
+                                int instanceId,
+                                lwm2m_context_t *lwm2mH,
+                                int client_or_server)
+{
+    connection_t *connP = NULL;
+    char *host;
+    char *port;
+    security_instance_t *targetP;
+    char *uri = NULL;
+    connection_t * ret = NULL;
+
+    ATINY_LOG(LOG_INFO, "now come into connection_create!!!");
+
+    targetP = (security_instance_t *)LWM2M_LIST_FIND(securityObj->instanceList, instanceId);
+    if ((targetP == NULL) || (targetP->uri == NULL)) {
+        return NULL;
+    }
+
+    if (LWM2M_IS_CLIENT == client_or_server) {
+        uri = atiny_strdup(targetP->uri);
+        if (uri == NULL) {
+            ATINY_LOG(LOG_INFO, "atiny_strdup null!!!");
+            goto fail;
+        }
+        if (connection_parse_host_ip(uri, &host, &port) != COAP_NO_ERROR) {
+            goto fail;
+        }
+    } else {
+        host = NULL;
+        port = (char *)((targetP->securityMode != LWM2M_SECURITY_MODE_NONE) ? COAPS_PORT : COAP_PORT);
+    }
+
+    connP = (connection_t *)lwm2m_malloc(sizeof(connection_t));
+    if (connP == NULL) {
+        ATINY_LOG(LOG_INFO, "connP is NULL!!!");
+         goto fail;
+    }
+    memset(connP, 0, sizeof(connection_t));
+
+#ifdef LOSCFG_COMPONENTS_SECURITY_MBEDTLS
+
+    if (targetP->securityMode != LWM2M_SECURITY_MODE_NONE) {
+        if (connection_connect_dtls(connP, targetP, host, port, client_or_server) != COAP_NO_ERROR) {
+            goto fail;
+        }
+    } else
+#endif
+    {
+        // no dtls session
+        if (LWM2M_IS_CLIENT == client_or_server) {
+            atiny_net_context *ctx = (atiny_net_context*)atiny_malloc(sizeof(atiny_net_context));
+            int ret = atiny_net_connect(ctx, host, port, ATINY_PROTO_UDP);
+            if (ret == -1) {
+                ATINY_LOG(LOG_INFO, "net_context create fail!\n");
+            } else {
+                connP->net_context = ctx;
+            }
+        } else {
+            connP->net_context = atiny_net_bind(host, port, ATINY_PROTO_UDP);
+
+            #ifdef LWM2M_BOOTSTRAP
+            if (connP->net_context) {
+                connection_striger_server_initiated_bs(connP);
+                timer_init(&connP->server_triger_timer, LWM2M_TRIGER_SERVER_MODE_INITIATED_TIME, (void(*)(void*))connection_striger_server_initiated_bs, connP);
+                timer_start(&connP->server_triger_timer);
+            }
+            #endif
+        }
+
+        if (connP->net_context == NULL) {
+            ATINY_LOG(LOG_INFO, "net_context is NULL in connection_create");
+            goto fail;
+        }
+        connP->dtls_flag = false;
+    }
+
+    connP->next = connList;
+    connP->securityObj = securityObj;
+    connP->securityInstId = instanceId;
+    connP->lwm2mH = lwm2mH;
+    connP->bootstrap_flag = targetP->isBootstrap;
+
+    ret = connP;
+fail:
+    if (uri) {
+        lwm2m_free(uri);
+    }
+    if ((ret == NULL) && connP) {
+        lwm2m_free(connP);
+    }
+
+    return ret;
+}

@@ -1,0 +1,34 @@
+STATIC UINT32 GetInstrRegIndex(UINT32 oldAddr, UINT8 *regComp)
+{
+    UINT32 regValue;
+    UINT8 regCount;
+    UINT8 flag      = 0;
+
+    for (regCount = 0; regCount < FPB_REG_MAX; regCount++) {
+        if (regCount == LITERAL_REG1_INDEX) {
+            regCount++;
+            continue;
+        }
+
+        regValue = FPB->comp[regCount];
+        if (regValue & 0x01UL) {
+            if (regValue == (oldAddr | 0x01UL)) {
+                PRINT_WARN("the old_func_addr already has patched\r\n");
+                *regComp = regCount;
+                return FPB_COMP_REPEAT_ERR;
+            }
+        } else {
+            if (flag == 0) {
+                *regComp = regCount;
+                flag = 1;
+            }
+        }
+    }
+
+    if ((regCount == FPB_REG_MAX) && (flag == 0)) {
+        PRINT_WARN("there is no free fpb comp regiter\r\n");
+        return FPB_NO_FREE_COMP_ERR;
+    }
+
+    return FPB_SUCCESS;
+}

@@ -1,0 +1,53 @@
+void lv_canvas_draw_polygon(lv_obj_t * canvas, const lv_point_t points[], uint32_t point_cnt,
+                            lv_draw_rect_dsc_t * poly_draw_dsc)
+{
+    LV_ASSERT_OBJ(canvas, LV_OBJX_NAME);
+
+    lv_img_dsc_t * dsc = lv_canvas_get_img(canvas);
+
+    if(dsc->header.cf >= LV_IMG_CF_INDEXED_1BIT && dsc->header.cf <= LV_IMG_CF_INDEXED_8BIT) {
+        LV_LOG_WARN("lv_canvas_draw_polygon: can't raw to LV_IMG_CF_INDEXED canvas");
+        return;
+    }
+
+    /* Create a dummy display to fool the lv_draw function.
+     * It will think it draws to real screen. */
+    lv_area_t mask;
+    mask.x1 = 0;
+    mask.x2 = dsc->header.w - 1;
+    mask.y1 = 0;
+    mask.y2 = dsc->header.h - 1;
+
+    lv_disp_t disp;
+    _lv_memset_00(&disp, sizeof(lv_disp_t));
+
+    lv_disp_buf_t disp_buf;
+    lv_disp_buf_init(&disp_buf, (void *)dsc->data, NULL, dsc->header.w * dsc->header.h);
+    lv_area_copy(&disp_buf.area, &mask);
+
+    lv_disp_drv_init(&disp.driver);
+
+    disp.driver.buffer  = &disp_buf;
+    disp.driver.hor_res = dsc->header.w;
+    disp.driver.ver_res = dsc->header.h;
+
+    set_set_px_cb(&disp.driver, dsc->header.cf);
+
+#if LV_ANTIALIAS
+    /*Disable anti-aliasing if drawing with transparent color to chroma keyed canvas*/
+    lv_color_t ctransp = LV_COLOR_TRANSP;
+    if(dsc->header.cf == LV_IMG_CF_TRUE_COLOR_CHROMA_KEYED &&
+       poly_draw_dsc->bg_color.full == ctransp.full) {
+        disp.driver.antialiasing = 0;
+    }
+#endif
+
+    lv_disp_t * refr_ori = _lv_refr_get_disp_refreshing();
+    _lv_refr_set_disp_refreshing(&disp);
+
+    //    lv_draw_polygon(points, point_cnt, &mask, poly_draw_dsc);
+
+    _lv_refr_set_disp_refreshing(refr_ori);
+
+    lv_obj_invalidate(canvas);
+}

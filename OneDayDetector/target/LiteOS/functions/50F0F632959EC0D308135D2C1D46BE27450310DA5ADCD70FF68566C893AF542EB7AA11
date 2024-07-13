@@ -1,0 +1,26 @@
+void tft_init(void)
+{
+    static lv_color_t *buf = (lv_color_t *)VDB_BUF1_ADDRESS;
+    memset(buf, 0, TFT_HOR_RES * TFT_VER_RES * sizeof(lv_color_t));
+    static lv_disp_buf_t disp_buf;
+    lv_disp_buf_init(&disp_buf, buf, NULL, TFT_HOR_RES * TFT_VER_RES);
+
+    lv_disp_drv_init(&disp_drv);
+    disp_drv.flush_cb = tft_flush_cb;
+    disp_drv.monitor_cb = monitor_cb;
+    disp_drv.buffer = &disp_buf;
+    lv_disp_drv_register(&disp_drv);
+
+    LCD_Config();
+
+    BSP_LCD_LayerDefaultInit(0, LAYER0_ADDRESS);
+    BSP_LCD_SelectLayer(0);
+
+    /* Send Display On DCS Command to display */
+    HAL_DSI_ShortWrite(&(hdsi_discovery),
+                       0,
+                       DSI_DCS_SHORT_PKT_WRITE_P1,
+                       OTM8009A_CMD_DISPON,
+                       0x00);
+    HAL_DSI_Refresh(&hdsi_discovery);
+}

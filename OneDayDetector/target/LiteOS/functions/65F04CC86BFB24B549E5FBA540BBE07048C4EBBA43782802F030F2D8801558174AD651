@@ -1,0 +1,52 @@
+tcp_close_shutdown_fin(struct tcp_pcb *pcb)
+{
+  err_t err;
+  LWIP_ASSERT("pcb != NULL", pcb != NULL);
+
+  switch (pcb->state) {
+    case SYN_RCVD:
+      err = tcp_send_fin(pcb);
+      if (err == ERR_OK) {
+        tcp_backlog_accepted(pcb);
+        MIB2_STATS_INC(mib2.tcpattemptfails);
+        pcb->state = FIN_WAIT_1;
+      }
+      break;
+    case ESTABLISHED:
+      err = tcp_send_fin(pcb);
+      if (err == ERR_OK) {
+        MIB2_STATS_INC(mib2.tcpestabresets);
+        pcb->state = FIN_WAIT_1;
+      }
+      break;
+    case CLOSE_WAIT:
+      err = tcp_send_fin(pcb);
+      if (err == ERR_OK) {
+        MIB2_STATS_INC(mib2.tcpestabresets);
+        pcb->state = LAST_ACK;
+      }
+      break;
+    default:
+      /* Has already been closed, do nothing. */
+      return ERR_OK;
+  }
+
+  if (err == ERR_OK) {
+    /* To ensure all data has been sent when tcp_close returns, we have
+       to make sure tcp_output doesn't fail.
+       Since we don't really have to ensure all data has been sent when tcp_close
+       returns (unsent data is sent from tcp timer functions, also), we don't care
+       for the return value of tcp_output for now. */
+    tcp_output(pcb);
+  } else if (err == ERR_MEM) {
+    /* Mark this pcb for closing. Closing is retried from tcp_tmr. */
+    tcp_set_flags(pcb, TF_CLOSEPEND);
+    /* We have to return ERR_OK from here to indicate to the callers that this
+       pcb should not be used any more as it will be freed soon via tcp_tmr.
+       This is OK here since sending FIN does not guarantee a time frime for
+       actually freeing the pcb, either (it is left in closure states for
+       remote ACK or timeout) */
+    return ERR_OK;
+  }
+  return err;
+}

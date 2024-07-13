@@ -1,0 +1,25 @@
+icmp6_send_response_with_addrs(struct pbuf *p, u8_t code, u32_t data, u8_t type,
+    const ip6_addr_t *src_addr, const ip6_addr_t *dest_addr)
+{
+  const struct ip6_addr *reply_src, *reply_dest;
+  struct netif *netif;
+
+  /* Get the destination address and netif for this ICMP message. */
+  LWIP_ASSERT("must provide both source and destination", src_addr != NULL);
+  LWIP_ASSERT("must provide both source and destination", dest_addr != NULL);
+
+  /* Special case, as ip6_current_xxx is either NULL, or points
+     to a different packet than the one that expired. */
+  IP6_ADDR_ZONECHECK(src_addr);
+  IP6_ADDR_ZONECHECK(dest_addr);
+  /* Swap source and destination for the reply. */
+  reply_dest = src_addr;
+  reply_src = dest_addr;
+  netif = ip6_route(reply_src, reply_dest);
+  if (netif == NULL) {
+    ICMP6_STATS_INC(icmp6.rterr);
+    return;
+  }
+  icmp6_send_response_with_addrs_and_netif(p, code, data, type, reply_src,
+    reply_dest, netif);
+}

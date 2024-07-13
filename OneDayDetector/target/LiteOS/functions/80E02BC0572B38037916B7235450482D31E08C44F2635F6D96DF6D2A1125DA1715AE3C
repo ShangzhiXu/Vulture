@@ -1,0 +1,25 @@
+static void SPI_RxISR_8BIT(struct __SPI_HandleTypeDef *hspi)
+{
+  *hspi->pRxBuffPtr++ = (*(__IO uint8_t *)&hspi->Instance->DR);
+  hspi->RxXferCount--;
+
+#if (USE_SPI_CRC != 0U)
+  /* Enable CRC Transmission */
+  if ((hspi->RxXferCount == 1U) && (hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE))
+  {
+    SET_BIT(hspi->Instance->CR1, SPI_CR1_CRCNEXT);
+  }
+#endif /* USE_SPI_CRC */
+
+  if (hspi->RxXferCount == 0U)
+  {
+#if (USE_SPI_CRC != 0U)
+    if (hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+    {
+      hspi->RxISR =  SPI_RxISR_8BITCRC;
+      return;
+    }
+#endif /* USE_SPI_CRC */
+    SPI_CloseRx_ISR(hspi);
+  }
+}

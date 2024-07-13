@@ -1,0 +1,23 @@
+    lv_fs_res_t (*close_cb)(struct _lv_fs_drv_t * drv, void * file_p);
+    lv_fs_res_t (*dir_close_cb)(struct _lv_fs_drv_t * drv, void * rddir_p);
+    void * dir_d;
+    lv_fs_res_t (*dir_open_cb)(struct _lv_fs_drv_t * drv, void * rddir_p, const char * path);
+    lv_fs_res_t (*dir_read_cb)(struct _lv_fs_drv_t * drv, void * rddir_p, char * fn);
+    lv_fs_drv_t * drv;
+    lv_fs_drv_t * drv;
+    void * file_d;
+    uint16_t file_size;
+    lv_fs_res_t (*free_space_cb)(struct _lv_fs_drv_t * drv, uint32_t * total_p, uint32_t * free_p);
+    char letter;
+    lv_fs_res_t (*open_cb)(struct _lv_fs_drv_t * drv, void * file_p, const char * path, lv_fs_mode_t mode);
+    uint16_t rddir_size;
+    lv_fs_res_t (*read_cb)(struct _lv_fs_drv_t * drv, void * file_p, void * buf, uint32_t btr, uint32_t * br);
+    bool (*ready_cb)(struct _lv_fs_drv_t * drv);
+    lv_fs_res_t (*remove_cb)(struct _lv_fs_drv_t * drv, const char * fn);
+    lv_fs_res_t (*rename_cb)(struct _lv_fs_drv_t * drv, const char * oldname, const char * newname);
+    lv_fs_res_t (*seek_cb)(struct _lv_fs_drv_t * drv, void * file_p, uint32_t pos);
+    lv_fs_res_t (*size_cb)(struct _lv_fs_drv_t * drv, void * file_p, uint32_t * size_p);
+    lv_fs_res_t (*tell_cb)(struct _lv_fs_drv_t * drv, void * file_p, uint32_t * pos_p);
+    lv_fs_res_t (*trunc_cb)(struct _lv_fs_drv_t * drv, void * file_p);
+    lv_fs_drv_user_data_t user_data; /**< Custom file user data */
+    lv_fs_res_t (*write_cb)(struct _lv_fs_drv_t * drv, void * file_p, const void * buf, uint32_t btw, uint32_t * bw);

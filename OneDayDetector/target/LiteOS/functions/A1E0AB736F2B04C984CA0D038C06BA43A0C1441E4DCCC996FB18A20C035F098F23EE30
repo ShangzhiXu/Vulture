@@ -1,0 +1,24 @@
+static void DMA_TransferComplete(DMA_HandleTypeDef *han)
+{
+    y_flush_act ++;
+
+    if(y_flush_act > y2_flush) {
+#if TFT_NO_TEARING
+        if(lv_disp_flush_is_last(&disp_drv)) refr_qry = true;
+        else lv_disp_flush_ready(&disp_drv);
+#else
+        if(lv_disp_flush_is_last(&disp_drv)) HAL_DSI_Refresh(&hdsi_discovery);
+
+        lv_disp_flush_ready(&disp_drv);
+#endif
+    } else {
+      buf_to_flush += x2_flush - x1_flush + 1;
+      /*##-7- Start the DMA transfer using the interrupt mode ####################*/
+      /* Configure the source, destination and buffer size DMA fields and Start DMA Stream transfer */
+      /* Enable All the DMA interrupts */
+      if(HAL_DMA_Start_IT(han,(uint32_t)buf_to_flush, (uint32_t)&my_fb[y_flush_act * TFT_HOR_RES + x1_flush],
+                          (x2_flush - x1_flush + 1)) != HAL_OK) {
+          while(1);    /*Halt on error*/
+      }
+    }
+}

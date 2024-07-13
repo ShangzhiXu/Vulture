@@ -1,0 +1,155 @@
+static void test_tcp_recv_ooseq_double_FINs(int delay_packet)
+{
+  int i, k;
+  struct test_tcp_counters counters;
+  struct tcp_pcb* pcb;
+  struct pbuf *p_normal_fin, *p_data_after_fin, *p, *p_2nd_fin_ooseq;
+  struct netif netif;
+  u32_t exp_rx_calls = 0, exp_rx_bytes = 0, exp_close_calls = 0, exp_oos_pbufs = 0, exp_oos_tcplen = 0;
+  int first_dropped = 0xff;
+
+  for(i = 0; i < (int)sizeof(data_full_wnd); i++) {
+    data_full_wnd[i] = (char)i;
+  }
+
+  /* initialize local vars */
+  test_tcp_init_netif(&netif, NULL, &test_local_ip, &test_netmask);
+  /* initialize counter struct */
+  memset(&counters, 0, sizeof(counters));
+  counters.expected_data_len = TCP_WND;
+  counters.expected_data = data_full_wnd;
+
+  /* create and initialize the pcb */
+  pcb = test_tcp_new_counters_pcb(&counters);
+  EXPECT_RET(pcb != NULL);
+  tcp_set_state(pcb, ESTABLISHED, &test_local_ip, &test_remote_ip, TEST_LOCAL_PORT, TEST_REMOTE_PORT);
+  pcb->rcv_nxt = 0x8000;
+
+  /* create segments */
+  p = tcp_create_rx_segment(pcb, &data_full_wnd[0], TCP_MSS, 0, 0, TCP_ACK);
+  p_normal_fin = tcp_create_rx_segment(pcb, NULL, 0, TCP_MSS, 0, TCP_ACK|TCP_FIN);
+  k = 1;
+  p_data_after_fin = tcp_create_rx_segment(pcb, &data_full_wnd[TCP_MSS+1], k, TCP_MSS+1, 0, TCP_ACK);
+  p_2nd_fin_ooseq = tcp_create_rx_segment(pcb, NULL, 0, TCP_MSS+1+k, 0, TCP_ACK|TCP_FIN);
+
+  if(delay_packet & 1) {
+    /* drop normal data */
+    first_dropped = 1;
+  } else {
+    /* send normal data */
+    test_tcp_input(p, &netif);
+    exp_rx_calls++;
+    exp_rx_bytes += TCP_MSS;
+  }
+  /* check if counters are as expected */
+  check_rx_counters(pcb, &counters, exp_close_calls, exp_rx_calls, exp_rx_bytes, 0, exp_oos_pbufs, exp_oos_tcplen);
+
+  if(delay_packet & 2) {
+    /* drop FIN */
+    if(first_dropped > 2) {
+      first_dropped = 2;
+    }
+  } else {
+    /* send FIN */
+    test_tcp_input(p_normal_fin, &netif);
+    if (first_dropped < 2) {
+      /* already dropped packets, this one is ooseq */
+      exp_oos_pbufs++;
+      exp_oos_tcplen++;
+    } else {
+      /* inseq */
+      exp_close_calls++;
+    }
+  }
+  /* check if counters are as expected */
+  check_rx_counters(pcb, &counters, exp_close_calls, exp_rx_calls, exp_rx_bytes, 0, exp_oos_pbufs, exp_oos_tcplen);
+
+  if(delay_packet & 4) {
+    /* drop data-after-FIN */
+    if(first_dropped > 3) {
+      first_dropped = 3;
+    }
+  } else {
+    /* send data-after-FIN */
+    test_tcp_input(p_data_after_fin, &netif);
+    if (first_dropped < 3) {
+      /* already dropped packets, this one is ooseq */
+      if (delay_packet & 2) {
+        /* correct FIN was ooseq */
+        exp_oos_pbufs++;
+        exp_oos_tcplen += k;
+      }
+    } else {
+      /* inseq: no change */
+    }
+  }
+  /* check if counters are as expected */
+  check_rx_counters(pcb, &counters, exp_close_calls, exp_rx_calls, exp_rx_bytes, 0, exp_oos_pbufs, exp_oos_tcplen);
+
+  if(delay_packet & 8) {
+    /* drop 2nd-FIN */
+    if(first_dropped > 4) {
+      first_dropped = 4;
+    }
+  } else {
+    /* send 2nd-FIN */
+    test_tcp_input(p_2nd_fin_ooseq, &netif);
+    if (first_dropped < 3) {
+      /* already dropped packets, this one is ooseq */
+      if (delay_packet & 2) {
+        /* correct FIN was ooseq */
+        exp_oos_pbufs++;
+        exp_oos_tcplen++;
+      }
+    } else {
+      /* inseq: no change */
+    }
+  }
+  /* check if counters are as expected */
+  check_rx_counters(pcb, &counters, exp_close_calls, exp_rx_calls, exp_rx_bytes, 0, exp_oos_pbufs, exp_oos_tcplen);
+
+  if(delay_packet & 1) {
+    /* dropped normal data before */
+    test_tcp_input(p, &netif);
+    exp_rx_calls++;
+    exp_rx_bytes += TCP_MSS;
+    if((delay_packet & 2) == 0) {
+      /* normal FIN was NOT delayed */
+      exp_close_calls++;
+      exp_oos_pbufs = exp_oos_tcplen = 0;
+    }
+  }
+  /* check if counters are as expected */
+  check_rx_counters(pcb, &counters, exp_close_calls, exp_rx_calls, exp_rx_bytes, 0, exp_oos_pbufs, exp_oos_tcplen);
+
+  if(delay_packet & 2) {
+    /* dropped normal FIN before */
+    test_tcp_input(p_normal_fin, &netif);
+    exp_close_calls++;
+    exp_oos_pbufs = exp_oos_tcplen = 0;
+  }
+  /* check if counters are as expected */
+  check_rx_counters(pcb, &counters, exp_close_calls, exp_rx_calls, exp_rx_bytes, 0, exp_oos_pbufs, exp_oos_tcplen);
+
+  if(delay_packet & 4) {
+    /* dropped data-after-FIN before */
+    test_tcp_input(p_data_after_fin, &netif);
+  }
+  /* check if counters are as expected */
+  check_rx_counters(pcb, &counters, exp_close_calls, exp_rx_calls, exp_rx_bytes, 0, exp_oos_pbufs, exp_oos_tcplen);
+
+  if(delay_packet & 8) {
+    /* dropped 2nd-FIN before */
+    test_tcp_input(p_2nd_fin_ooseq, &netif);
+  }
+  /* check if counters are as expected */
+  check_rx_counters(pcb, &counters, exp_close_calls, exp_rx_calls, exp_rx_bytes, 0, exp_oos_pbufs, exp_oos_tcplen);
+
+  /* check that ooseq data has been dumped */
+  EXPECT(pcb->ooseq == NULL);
+
+  /* make sure the pcb is freed */
+  EXPECT(MEMP_STATS_GET(used, MEMP_TCP_PCB) == 1);
+  tcp_abort(pcb);
+  EXPECT(MEMP_STATS_GET(used, MEMP_TCP_PCB) == 0);
+}

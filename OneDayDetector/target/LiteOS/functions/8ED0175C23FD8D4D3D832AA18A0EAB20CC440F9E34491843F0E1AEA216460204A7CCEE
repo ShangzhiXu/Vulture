@@ -1,0 +1,26 @@
+HAL_StatusTypeDef HAL_SDRAM_SendCommand(SDRAM_HandleTypeDef *hsdram, FMC_SDRAM_CommandTypeDef *Command, uint32_t Timeout)
+{
+  /* Check the SDRAM controller state */
+  if(hsdram->State == HAL_SDRAM_STATE_BUSY)
+  {
+    return HAL_BUSY;
+  }
+  
+  /* Update the SDRAM state */
+  hsdram->State = HAL_SDRAM_STATE_BUSY;
+  
+  /* Send SDRAM command */
+  FMC_SDRAM_SendCommand(hsdram->Instance, Command, Timeout);
+  
+  /* Update the SDRAM controller state state */
+  if(Command->CommandMode == FMC_SDRAM_CMD_PALL)
+  {
+    hsdram->State = HAL_SDRAM_STATE_PRECHARGED;
+  }
+  else
+  {
+    hsdram->State = HAL_SDRAM_STATE_READY;
+  }
+  
+  return HAL_OK;  
+}

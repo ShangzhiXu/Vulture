@@ -1,0 +1,15 @@
+httpd_init_pcb(struct altcp_pcb *pcb, u16_t port)
+{
+  err_t err;
+
+  if (pcb) {
+    altcp_setprio(pcb, HTTPD_TCP_PRIO);
+    /* set SOF_REUSEADDR here to explicitly bind httpd to multiple interfaces */
+    err = altcp_bind(pcb, IP_ANY_TYPE, port);
+    LWIP_UNUSED_ARG(err); /* in case of LWIP_NOASSERT */
+    LWIP_ASSERT("httpd_init: tcp_bind failed", err == ERR_OK);
+    pcb = altcp_listen(pcb);
+    LWIP_ASSERT("httpd_init: tcp_listen failed", pcb != NULL);
+    altcp_accept(pcb, http_accept);
+  }
+}

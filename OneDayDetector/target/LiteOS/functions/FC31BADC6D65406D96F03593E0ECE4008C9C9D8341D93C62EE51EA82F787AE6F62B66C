@@ -1,0 +1,96 @@
+udp_bind(struct udp_pcb *pcb, const ip_addr_t *ipaddr, u16_t port)
+{
+  struct udp_pcb *ipcb;
+  u8_t rebind;
+#if LWIP_IPV6 && LWIP_IPV6_SCOPES
+  ip_addr_t zoned_ipaddr;
+#endif /* LWIP_IPV6 && LWIP_IPV6_SCOPES */
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+#if LWIP_IPV4
+  /* Don't propagate NULL pointer (IPv4 ANY) to subsequent functions */
+  if (ipaddr == NULL) {
+    ipaddr = IP4_ADDR_ANY;
+  }
+#else /* LWIP_IPV4 */
+  LWIP_ERROR("udp_bind: invalid ipaddr", ipaddr != NULL, return ERR_ARG);
+#endif /* LWIP_IPV4 */
+
+  LWIP_ERROR("udp_bind: invalid pcb", pcb != NULL, return ERR_ARG);
+
+  LWIP_DEBUGF(UDP_DEBUG | LWIP_DBG_TRACE, ("udp_bind(ipaddr = "));
+  ip_addr_debug_print(UDP_DEBUG | LWIP_DBG_TRACE, ipaddr);
+  LWIP_DEBUGF(UDP_DEBUG | LWIP_DBG_TRACE, (", port = %"U16_F")\n", port));
+
+  rebind = 0;
+  /* Check for double bind and rebind of the same pcb */
+  for (ipcb = udp_pcbs; ipcb != NULL; ipcb = ipcb->next) {
+    /* is this UDP PCB already on active list? */
+    if (pcb == ipcb) {
+      rebind = 1;
+      break;
+    }
+  }
+
+#if LWIP_IPV6 && LWIP_IPV6_SCOPES
+  /* If the given IP address should have a zone but doesn't, assign one now.
+   * This is legacy support: scope-aware callers should always provide properly
+   * zoned source addresses. Do the zone selection before the address-in-use
+   * check below; as such we have to make a temporary copy of the address. */
+  if (IP_IS_V6(ipaddr) && ip6_addr_lacks_zone(ip_2_ip6(ipaddr), IP6_UNKNOWN)) {
+    ip_addr_copy(zoned_ipaddr, *ipaddr);
+    ip6_addr_select_zone(ip_2_ip6(&zoned_ipaddr), ip_2_ip6(&zoned_ipaddr));
+    ipaddr = &zoned_ipaddr;
+  }
+#endif /* LWIP_IPV6 && LWIP_IPV6_SCOPES */
+
+  /* no port specified? */
+  if (port == 0) {
+    port = udp_new_port();
+    if (port == 0) {
+      /* no more ports available in local range */
+      LWIP_DEBUGF(UDP_DEBUG, ("udp_bind: out of free UDP ports\n"));
+      return ERR_USE;
+    }
+  } else {
+    for (ipcb = udp_pcbs; ipcb != NULL; ipcb = ipcb->next) {
+      if (pcb != ipcb) {
+        /* By default, we don't allow to bind to a port that any other udp
+           PCB is already bound to, unless *all* PCBs with that port have tha
+           REUSEADDR flag set. */
+#if SO_REUSE
+        if (!ip_get_option(pcb, SOF_REUSEADDR) ||
+            !ip_get_option(ipcb, SOF_REUSEADDR))
+#endif /* SO_REUSE */
+        {
+          /* port matches that of PCB in list and REUSEADDR not set -> reject */
+          if ((ipcb->local_port == port) &&
+              /* IP address matches or any IP used? */
+              (ip_addr_cmp(&ipcb->local_ip, ipaddr) || ip_addr_isany(ipaddr) ||
+              ip_addr_isany(&ipcb->local_ip))) {
+            /* other PCB already binds to this local IP and port */
+            LWIP_DEBUGF(UDP_DEBUG,
+                        ("udp_bind: local port %"U16_F" already bound by another pcb\n", port));
+            return ERR_USE;
+          }
+        }
+      }
+    }
+  }
+
+  ip_addr_set_ipaddr(&pcb->local_ip, ipaddr);
+
+  pcb->local_port = port;
+  mib2_udp_bind(pcb);
+  /* pcb not active yet? */
+  if (rebind == 0) {
+    /* place the PCB on the active list if not already there */
+    pcb->next = udp_pcbs;
+    udp_pcbs = pcb;
+  }
+  LWIP_DEBUGF(UDP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("udp_bind: bound to "));
+  ip_addr_debug_print_val(UDP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, pcb->local_ip);
+  LWIP_DEBUGF(UDP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, (", port %"U16_F")\n", pcb->local_port));
+  return ERR_OK;
+}

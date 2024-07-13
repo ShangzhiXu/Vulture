@@ -1,0 +1,21 @@
+static int32_t sota_update_exc_process(const ota_pcp_head_s *head, const uint8_t *pbuf)
+{
+    int ret = SOTA_OK;
+
+    SOTA_LOG("Begin excute update");
+    if (g_at_update_record.state != UPDATING) {
+        return SOTA_UNEXPECT_PACKET;
+    }
+
+    ret = g_storage_device->active_software(g_storage_device);
+    if (ret != SOTA_OK) {
+        SOTA_LOG("Active software failed ret:%d.", ret);
+        sota_send_response_code(MSG_EXC_UPDATE, DEV_INNER_ERROR);
+        return SOTA_WRITE_FLASH_FAILED;
+    } else {
+        g_at_update_record.state = UPDATED;
+        (void)flag_write(FLAG_APP, (void *)&g_at_update_record, sizeof(sota_update_info_t));
+        sota_send_response_code(MSG_EXC_UPDATE, DEV_OK);
+        return SOTA_UPDATED;
+    }
+}

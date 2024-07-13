@@ -1,0 +1,42 @@
+LITE_OS_SEC_TEXT STATIC UINT32 OsEventReadImp(PEVENT_CB_S eventCB, UINT32 eventMask, UINT32 mode,
+                                              UINT32 timeout, BOOL once, UINT32 *intSave)
+{
+    UINT32 ret = 0;
+    LosTaskCB *runTask = OsCurrTaskGet();
+
+    if (once == FALSE) {
+        ret = OsEventPoll(&eventCB->uwEventID, eventMask, mode);
+    }
+
+    if (ret == 0) {
+        if (timeout == 0) {
+            return ret;
+        }
+
+        if (!OsPreemptableInSched()) {
+            return LOS_ERRNO_EVENT_READ_IN_LOCK;
+        }
+
+        runTask->eventMask = eventMask;
+        runTask->eventMode = mode;
+
+        OsTaskWait(&eventCB->stEventList, OS_TASK_STATUS_PEND, timeout);
+
+        /*
+         * it will immediately do the scheduling, so there's no need to release the
+         * task spinlock. when this task's been rescheduled, it will be holding the spinlock.
+         */
+        OsSchedResched();
+
+        SCHEDULER_UNLOCK(*intSave);
+        SCHEDULER_LOCK(*intSave);
+
+        if (runTask->taskStatus & OS_TASK_STATUS_TIMEOUT) {
+            runTask->taskStatus &= ~OS_TASK_STATUS_TIMEOUT;
+            return LOS_ERRNO_EVENT_READ_TIMEOUT;
+        }
+
+        ret = OsEventPoll(&eventCB->uwEventID, eventMask, mode);
+    }
+    return ret;
+}

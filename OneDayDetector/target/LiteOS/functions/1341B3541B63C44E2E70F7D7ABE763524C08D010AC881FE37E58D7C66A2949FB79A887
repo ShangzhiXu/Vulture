@@ -1,0 +1,109 @@
+HAL_StatusTypeDef HAL_CAN_UnRegisterCallback(CAN_HandleTypeDef *hcan, HAL_CAN_CallbackIDTypeDef CallbackID)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (hcan->State == HAL_CAN_STATE_READY)
+  {
+    switch (CallbackID)
+    {
+      case HAL_CAN_TX_MAILBOX0_COMPLETE_CB_ID :
+        hcan->TxMailbox0CompleteCallback = HAL_CAN_TxMailbox0CompleteCallback;
+        break;
+
+      case HAL_CAN_TX_MAILBOX1_COMPLETE_CB_ID :
+        hcan->TxMailbox1CompleteCallback = HAL_CAN_TxMailbox1CompleteCallback;
+        break;
+
+      case HAL_CAN_TX_MAILBOX2_COMPLETE_CB_ID :
+        hcan->TxMailbox2CompleteCallback = HAL_CAN_TxMailbox2CompleteCallback;
+        break;
+
+      case HAL_CAN_TX_MAILBOX0_ABORT_CB_ID :
+        hcan->TxMailbox0AbortCallback = HAL_CAN_TxMailbox0AbortCallback;
+        break;
+
+      case HAL_CAN_TX_MAILBOX1_ABORT_CB_ID :
+        hcan->TxMailbox1AbortCallback = HAL_CAN_TxMailbox1AbortCallback;
+        break;
+
+      case HAL_CAN_TX_MAILBOX2_ABORT_CB_ID :
+        hcan->TxMailbox2AbortCallback = HAL_CAN_TxMailbox2AbortCallback;
+        break;
+
+      case HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID :
+        hcan->RxFifo0MsgPendingCallback = HAL_CAN_RxFifo0MsgPendingCallback;
+        break;
+
+      case HAL_CAN_RX_FIFO0_FULL_CB_ID :
+        hcan->RxFifo0FullCallback = HAL_CAN_RxFifo0FullCallback;
+        break;
+
+      case HAL_CAN_RX_FIFO1_MSG_PENDING_CB_ID :
+        hcan->RxFifo1MsgPendingCallback = HAL_CAN_RxFifo1MsgPendingCallback;
+        break;
+
+      case HAL_CAN_RX_FIFO1_FULL_CB_ID :
+        hcan->RxFifo1FullCallback = HAL_CAN_RxFifo1FullCallback;
+        break;
+
+      case HAL_CAN_SLEEP_CB_ID :
+        hcan->SleepCallback = HAL_CAN_SleepCallback;
+        break;
+
+      case HAL_CAN_WAKEUP_FROM_RX_MSG_CB_ID :
+        hcan->WakeUpFromRxMsgCallback = HAL_CAN_WakeUpFromRxMsgCallback;
+        break;
+
+      case HAL_CAN_ERROR_CB_ID :
+        hcan->ErrorCallback = HAL_CAN_ErrorCallback;
+        break;
+
+      case HAL_CAN_MSPINIT_CB_ID :
+        hcan->MspInitCallback = HAL_CAN_MspInit;
+        break;
+
+      case HAL_CAN_MSPDEINIT_CB_ID :
+        hcan->MspDeInitCallback = HAL_CAN_MspDeInit;
+        break;
+
+      default :
+        /* Update the error code */
+        hcan->ErrorCode |= HAL_CAN_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if (hcan->State == HAL_CAN_STATE_RESET)
+  {
+    switch (CallbackID)
+    {
+      case HAL_CAN_MSPINIT_CB_ID :
+        hcan->MspInitCallback = HAL_CAN_MspInit;
+        break;
+
+      case HAL_CAN_MSPDEINIT_CB_ID :
+        hcan->MspDeInitCallback = HAL_CAN_MspDeInit;
+        break;
+
+      default :
+        /* Update the error code */
+        hcan->ErrorCode |= HAL_CAN_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    hcan->ErrorCode |= HAL_CAN_ERROR_INVALID_CALLBACK;
+
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  return status;
+}

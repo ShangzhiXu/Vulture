@@ -1,0 +1,87 @@
+HAL_StatusTypeDef HAL_FMPSMBUS_Master_Transmit_IT(FMPSMBUS_HandleTypeDef *hfmpsmbus, uint16_t DevAddress, uint8_t *pData, uint16_t Size, uint32_t XferOptions)
+{
+  uint32_t tmp;
+
+  /* Check the parameters */
+  assert_param(IS_FMPSMBUS_TRANSFER_OPTIONS_REQUEST(XferOptions));
+
+  if (hfmpsmbus->State == HAL_FMPSMBUS_STATE_READY)
+  {
+    /* Process Locked */
+    __HAL_LOCK(hfmpsmbus);
+
+    hfmpsmbus->State = HAL_FMPSMBUS_STATE_MASTER_BUSY_TX;
+    hfmpsmbus->ErrorCode = HAL_FMPSMBUS_ERROR_NONE;
+    /* Prepare transfer parameters */
+    hfmpsmbus->pBuffPtr = pData;
+    hfmpsmbus->XferCount = Size;
+    hfmpsmbus->XferOptions = XferOptions;
+
+    /* In case of Quick command, remove autoend mode */
+    /* Manage the stop generation by software */
+    if (hfmpsmbus->pBuffPtr == NULL)
+    {
+      hfmpsmbus->XferOptions &= ~FMPSMBUS_AUTOEND_MODE;
+    }
+
+    if (Size > MAX_NBYTE_SIZE)
+    {
+      hfmpsmbus->XferSize = MAX_NBYTE_SIZE;
+    }
+    else
+    {
+      hfmpsmbus->XferSize = Size;
+    }
+
+    /* Send Slave Address */
+    /* Set NBYTES to write and reload if size > MAX_NBYTE_SIZE and generate RESTART */
+    if ((hfmpsmbus->XferSize < hfmpsmbus->XferCount) && (hfmpsmbus->XferSize == MAX_NBYTE_SIZE))
+    {
+      FMPSMBUS_TransferConfig(hfmpsmbus, DevAddress, (uint8_t)hfmpsmbus->XferSize, FMPSMBUS_RELOAD_MODE | (hfmpsmbus->XferOptions & FMPSMBUS_SENDPEC_MODE), FMPSMBUS_GENERATE_START_WRITE);
+    }
+    else
+    {
+      /* If transfer direction not change, do not generate Restart Condition */
+      /* Mean Previous state is same as current state */
+
+      /* Store current volatile XferOptions, misra rule */
+      tmp = hfmpsmbus->XferOptions;
+
+      if ((hfmpsmbus->PreviousState == HAL_FMPSMBUS_STATE_MASTER_BUSY_TX) && (IS_FMPSMBUS_TRANSFER_OTHER_OPTIONS_REQUEST(tmp) == 0))
+      {
+        FMPSMBUS_TransferConfig(hfmpsmbus, DevAddress, (uint8_t)hfmpsmbus->XferSize, hfmpsmbus->XferOptions, FMPSMBUS_NO_STARTSTOP);
+      }
+      /* Else transfer direction change, so generate Restart with new transfer direction */
+      else
+      {
+        /* Convert OTHER_xxx XferOptions if any */
+        FMPSMBUS_ConvertOtherXferOptions(hfmpsmbus);
+
+        /* Handle Transfer */
+        FMPSMBUS_TransferConfig(hfmpsmbus, DevAddress, (uint8_t)hfmpsmbus->XferSize, hfmpsmbus->XferOptions, FMPSMBUS_GENERATE_START_WRITE);
+      }
+
+      /* If PEC mode is enable, size to transmit manage by SW part should be Size-1 byte, corresponding to PEC byte */
+      /* PEC byte is automatically sent by HW block, no need to manage it in Transmit process */
+      if (FMPSMBUS_GET_PEC_MODE(hfmpsmbus) != 0UL)
+      {
+        hfmpsmbus->XferSize--;
+        hfmpsmbus->XferCount--;
+      }
+    }
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hfmpsmbus);
+
+    /* Note : The FMPSMBUS interrupts must be enabled after unlocking current process
+              to avoid the risk of FMPSMBUS interrupt handle execution before current
+              process unlock */
+    FMPSMBUS_Enable_IRQ(hfmpsmbus, FMPSMBUS_IT_TX);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

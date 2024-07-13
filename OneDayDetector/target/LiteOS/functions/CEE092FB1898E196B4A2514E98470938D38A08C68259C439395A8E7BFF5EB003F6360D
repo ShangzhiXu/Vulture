@@ -1,0 +1,28 @@
+memp_free(memp_t type, void *mem)
+{
+#ifdef LWIP_HOOK_MEMP_AVAILABLE
+  struct memp *old_first;
+#endif
+
+  LWIP_ERROR("memp_free: type < MEMP_MAX", (type < MEMP_MAX), return;);
+
+  if (mem == NULL) {
+    return;
+  }
+
+#if MEMP_OVERFLOW_CHECK >= 2
+  memp_overflow_check_all();
+#endif /* MEMP_OVERFLOW_CHECK >= 2 */
+
+#ifdef LWIP_HOOK_MEMP_AVAILABLE
+  old_first = *memp_pools[type]->tab;
+#endif
+
+  do_memp_free_pool(memp_pools[type], mem);
+
+#ifdef LWIP_HOOK_MEMP_AVAILABLE
+  if (old_first == NULL) {
+    LWIP_HOOK_MEMP_AVAILABLE(type);
+  }
+#endif
+}

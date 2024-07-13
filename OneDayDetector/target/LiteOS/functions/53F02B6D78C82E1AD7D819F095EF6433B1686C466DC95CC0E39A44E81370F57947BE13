@@ -1,0 +1,31 @@
+bool lv_debug_check_str(const void * str)
+{
+    const uint8_t * s = (const uint8_t *)str;
+    uint8_t last_byte = 0;
+    uint32_t rep = 0;
+    uint32_t i;
+
+    for(i = 0; i < LV_DEBUG_STR_MAX_LENGTH && s[i] != '\0'; i++) {
+        if(s[i] != last_byte) {
+            last_byte = s[i];
+            rep = 1;
+        }
+        else if(s[i] > 0x7F) {
+            rep++;
+            if(rep > LV_DEBUG_STR_MAX_REPEAT) {
+                LV_LOG_WARN("lv_debug_check_str: a non-ASCII char has repeated more than LV_DEBUG_STR_MAX_REPEAT times)");
+                return false;
+            }
+        }
+
+        if(s[i] < 10) {
+            LV_LOG_WARN("lv_debug_check_str: invalid char in the string (< 10 value)");
+            return false;   /*Shouldn't occur in strings*/
+        }
+    }
+
+    if(s[i] == '\0') return true;
+
+    LV_LOG_WARN("lv_debug_check_str: string is longer than LV_DEBUG_STR_MAX_LENGTH");
+    return false;
+}

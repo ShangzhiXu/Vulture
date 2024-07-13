@@ -1,0 +1,17 @@
+lwip_tcp_conn_report(lwiperf_state_tcp_t *conn, enum lwiperf_report_type report_type)
+{
+  if ((conn != NULL) && (conn->report_fn != NULL)) {
+    u32_t now, duration_ms, bandwidth_kbitpsec;
+    now = sys_now();
+    duration_ms = now - conn->time_started;
+    if (duration_ms == 0) {
+      bandwidth_kbitpsec = 0;
+    } else {
+      bandwidth_kbitpsec = (conn->bytes_transferred / duration_ms) * 8U;
+    }
+    conn->report_fn(conn->report_arg, report_type,
+                    &conn->conn_pcb->local_ip, conn->conn_pcb->local_port,
+                    &conn->conn_pcb->remote_ip, conn->conn_pcb->remote_port,
+                    conn->bytes_transferred, duration_ms, bandwidth_kbitpsec);
+  }
+}

@@ -1,0 +1,14 @@
+static void I2S_DMATxCplt(DMA_HandleTypeDef *hdma)
+{
+  I2S_HandleTypeDef* hi2s = (I2S_HandleTypeDef*)((DMA_HandleTypeDef*)hdma)->Parent;
+  
+  if(HAL_IS_BIT_CLR(hdma->Instance->CCR, DMA_CCR_CIRC))
+  {
+    /* Disable Tx DMA Request */
+    CLEAR_BIT(hi2s->Instance->CR2, SPI_CR2_TXDMAEN);
+
+    hi2s->TxXferCount = 0;
+    hi2s->State = HAL_I2S_STATE_READY;
+  }
+  HAL_I2S_TxCpltCallback(hi2s);
+}

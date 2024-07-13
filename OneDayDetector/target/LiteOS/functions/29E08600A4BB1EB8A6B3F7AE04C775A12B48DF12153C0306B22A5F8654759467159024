@@ -1,0 +1,18 @@
+tcp_ext_arg_invoke_callbacks_passive_open(struct tcp_pcb_listen *lpcb, struct tcp_pcb *cpcb)
+{
+  int i;
+  LWIP_ASSERT("lpcb != NULL", lpcb != NULL);
+  LWIP_ASSERT("cpcb != NULL", cpcb != NULL);
+
+  for (i = 0; i < LWIP_TCP_PCB_NUM_EXT_ARGS; i++) {
+    if (lpcb->ext_args[i].callbacks != NULL) {
+      if (lpcb->ext_args[i].callbacks->passive_open != NULL) {
+        err_t err = lpcb->ext_args[i].callbacks->passive_open((u8_t)i, lpcb, cpcb);
+        if (err != ERR_OK) {
+          return err;
+        }
+      }
+    }
+  }
+  return ERR_OK;
+}

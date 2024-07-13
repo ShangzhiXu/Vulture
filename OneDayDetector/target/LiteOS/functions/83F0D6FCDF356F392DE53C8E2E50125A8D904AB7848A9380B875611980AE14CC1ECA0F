@@ -1,0 +1,36 @@
+VOID OsTicklessStart(VOID)
+{
+    UINT32 intSave;
+    /*
+     * The system has already started, GET_SYS_CLOCK() muse get a non-zero value and greater or equal to
+     * LOSCFG_BASE_CORE_TICK_PER_SECOND (see OsTickInit). So the cyclesPerTick won't be zero.
+     */
+    UINT32 cyclesPerTick = GET_SYS_CLOCK() / LOSCFG_BASE_CORE_TICK_PER_SECOND;
+    UINT32 maxTicks = OS_NULL_INT / cyclesPerTick;
+    UINT32 sleepTicks;
+    UINT32 cycles, cyclesPre, cyclesCur, cycleCompensate;
+
+    intSave = LOS_IntLock();
+    /*
+     * The sleep tick may be changed afterwards, cause interrupt has been disabled, the sleep tick
+     * may increase but cannot decrease. Thus there's no need to spin here.
+     */
+    sleepTicks = OsSleepTicksGet();
+    cyclesPre = HalClockGetTickTimerCycles();
+
+    if (sleepTicks > 1) {
+        if (sleepTicks >= maxTicks) {
+            sleepTicks = maxTicks;
+        }
+        cycles = sleepTicks * cyclesPerTick;
+        cyclesCur = HalClockGetTickTimerCycles();
+        cycleCompensate = OS_GET_CYCLECOMPENSATE(cyclesPre, cyclesCur);
+        HalClockTickTimerReload(cycles - cycleCompensate);
+        OsTicklessSleepTickSet(sleepTicks);
+        LOS_IntRestore(intSave);
+
+        return;
+    }
+    LOS_IntRestore(intSave);
+    return;
+}

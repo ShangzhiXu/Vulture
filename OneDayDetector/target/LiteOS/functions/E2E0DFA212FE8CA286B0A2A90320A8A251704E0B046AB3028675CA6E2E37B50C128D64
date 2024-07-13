@@ -1,0 +1,31 @@
+int mbedtls_aria_setkey_dec( mbedtls_aria_context *ctx,
+                             const unsigned char *key, unsigned int keybits )
+{
+    int i, j, k, ret;
+    ARIA_VALIDATE_RET( ctx != NULL );
+    ARIA_VALIDATE_RET( key != NULL );
+
+    ret = mbedtls_aria_setkey_enc( ctx, key, keybits );
+    if( ret != 0 )
+        return( ret );
+
+    /* flip the order of round keys */
+    for( i = 0, j = ctx->nr; i < j; i++, j-- )
+    {
+        for( k = 0; k < 4; k++ )
+        {
+            uint32_t t = ctx->rk[i][k];
+            ctx->rk[i][k] = ctx->rk[j][k];
+            ctx->rk[j][k] = t;
+        }
+    }
+
+    /* apply affine transform to middle keys */
+    for( i = 1; i < ctx->nr; i++ )
+    {
+        aria_a( &ctx->rk[i][0], &ctx->rk[i][1],
+                &ctx->rk[i][2], &ctx->rk[i][3] );
+    }
+
+    return( 0 );
+}

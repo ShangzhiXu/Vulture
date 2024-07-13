@@ -1,0 +1,32 @@
+BOOL OsSlabMemFree(VOID *pool, VOID *ptr)
+{
+    struct LosSlabControlHeader *slabMem = OsSlabCtrlHdrGet(pool);
+    BOOL ret = FALSE;
+#ifndef LOSCFG_KERNEL_MEM_SLAB_AUTO_EXPANSION_MODE
+    OsSlabAllocator *slabAlloc = NULL;
+#endif
+    UINT32 idx;
+    OsSlabBlockNode *slabNode = OS_SLAB_BLOCK_HEAD_GET(ptr);
+
+    if (!OS_ALLOC_FROM_SLAB_CHECK(slabNode)) {
+        return FALSE;
+    }
+    for (idx = 0; idx < SLAB_MEM_COUNT; idx++) {
+        if (slabMem->slabClass[idx].blkSz >= OS_SLAB_BLOCK_SIZE_GET(slabNode)) {
+#ifdef LOSCFG_KERNEL_MEM_SLAB_AUTO_EXPANSION_MODE
+            if (OsSlabMemFreeStrollBuckets(pool, slabNode, &(slabMem->slabClass[idx])) == TRUE) {
+                ret = TRUE;
+                slabMem->slabClass[idx].blkUsedCnt--;
+            }
+#else
+            slabAlloc = slabMem->slabClass[idx].alloc;
+            if (OsSlabAllocatorFree(slabAlloc, slabNode) == TRUE) {
+                ret = TRUE;
+                slabMem->slabClass[idx].blkUsedCnt--;
+            }
+#endif
+            return ret;
+        }
+    }
+    return FALSE;
+}

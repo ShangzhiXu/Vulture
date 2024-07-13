@@ -1,0 +1,23 @@
+void sni_free( sni_entry *head )
+{
+    sni_entry *cur = head, *next;
+
+    while( cur != NULL )
+    {
+        mbedtls_x509_crt_free( cur->cert );
+        mbedtls_free( cur->cert );
+
+        mbedtls_pk_free( cur->key );
+        mbedtls_free( cur->key );
+
+        mbedtls_x509_crt_free( cur->ca );
+        mbedtls_free( cur->ca );
+#if defined(MBEDTLS_X509_CRL_PARSE_C)
+        mbedtls_x509_crl_free( cur->crl );
+        mbedtls_free( cur->crl );
+#endif
+        next = cur->next;
+        mbedtls_free( cur );
+        cur = next;
+    }
+}

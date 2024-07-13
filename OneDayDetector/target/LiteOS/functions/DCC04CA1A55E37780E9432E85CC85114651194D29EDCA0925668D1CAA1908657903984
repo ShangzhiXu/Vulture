@@ -1,0 +1,13 @@
+tcp_seg_add_chksum(u16_t chksum, u16_t len, u16_t *seg_chksum,
+                   u8_t *seg_chksum_swapped)
+{
+  u32_t helper;
+  /* add chksum to old chksum and fold to u16_t */
+  helper = chksum + *seg_chksum;
+  chksum = FOLD_U32T(helper);
+  if ((len & 1) != 0) {
+    *seg_chksum_swapped = 1 - *seg_chksum_swapped;
+    chksum = SWAP_BYTES_IN_WORD(chksum);
+  }
+  *seg_chksum = chksum;
+}

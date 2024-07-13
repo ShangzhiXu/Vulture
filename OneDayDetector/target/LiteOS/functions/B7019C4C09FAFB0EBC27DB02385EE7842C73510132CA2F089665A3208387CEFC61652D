@@ -1,0 +1,32 @@
+VOID ArchSecPageEnable(SENCOND_PAGE *page, UINT32 flag)
+{
+    UINT32 pageStart, pageEnd;
+    UINT32 secStart, secEnd;
+    UINT32 ttbBase = FIRST_PAGE_DESCRIPTOR_ADDR;
+    MMU_PARAM para;
+
+    if (page == NULL) {
+        PRINT_ERR("second page table(stPage) can't be NULL\n");
+        return;
+    }
+    para.startAddr = page->page_addr;
+    para.endAddr = page->page_addr + page->page_length;
+    para.uwFlag = flag;
+    para.stPage = page;
+
+    pageStart = page->page_descriptor_addr;
+    /* page size = 2 ^ 12, 4K */
+    pageEnd = page->page_descriptor_addr + ((page->page_length >> SHIFT_4K) * BYTES_PER_ITEM);
+    DisableAPCheck();
+    MmuSetMemPage(&para);
+    dma_cache_clean(pageStart, pageEnd);
+
+    X_MMU_ONE_LEVEL_PAGE(pageStart >> SHIFT_1K, page->page_addr >> SHIFT_1M,
+                         page->page_length >> SHIFT_1M, D_CLIENT);
+
+    secStart = ttbBase + ((para.startAddr >> SHIFT_1M) * BYTES_PER_ITEM);
+    secEnd = ttbBase + ((para.endAddr >> SHIFT_1M) * BYTES_PER_ITEM);
+    dma_cache_clean(secStart, secEnd);
+    CleanTLB();
+    EnableAPCheck();
+}

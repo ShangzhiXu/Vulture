@@ -1,0 +1,59 @@
+HAL_StatusTypeDef HAL_SDRAM_RegisterCallback (SDRAM_HandleTypeDef *hsdram, HAL_SDRAM_CallbackIDTypeDef CallbackId, pSDRAM_CallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  HAL_SDRAM_StateTypeDef state;
+  
+  if(pCallback == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Process locked */
+  __HAL_LOCK(hsdram);
+  
+  state = hsdram->State;
+  if((state == HAL_SDRAM_STATE_READY) || (state == HAL_SDRAM_STATE_WRITE_PROTECTED))
+  {
+    switch (CallbackId)
+    {
+    case HAL_SDRAM_MSP_INIT_CB_ID :
+      hsdram->MspInitCallback = pCallback;
+      break;
+    case HAL_SDRAM_MSP_DEINIT_CB_ID :
+      hsdram->MspDeInitCallback = pCallback;
+      break;
+    case HAL_SDRAM_REFRESH_ERR_CB_ID :
+      hsdram->RefreshErrorCallback = pCallback;
+      break;
+    default :
+      /* update return status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else if(hsdram->State == HAL_SDRAM_STATE_RESET)
+  {
+    switch (CallbackId)
+    {
+    case HAL_SDRAM_MSP_INIT_CB_ID :
+      hsdram->MspInitCallback = pCallback;
+      break;
+    case HAL_SDRAM_MSP_DEINIT_CB_ID :
+      hsdram->MspDeInitCallback = pCallback;
+      break;
+    default :
+      /* update return status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else
+  {
+    /* update return status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hsdram);
+  return status;
+}

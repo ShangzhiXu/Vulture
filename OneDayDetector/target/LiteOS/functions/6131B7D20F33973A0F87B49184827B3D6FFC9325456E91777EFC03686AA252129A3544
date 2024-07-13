@@ -1,0 +1,98 @@
+void HAL_SMBUS_EV_IRQHandler(SMBUS_HandleTypeDef *hsmbus)
+{
+  uint32_t sr2itflags   = READ_REG(hsmbus->Instance->SR2);
+  uint32_t sr1itflags   = READ_REG(hsmbus->Instance->SR1);
+  uint32_t itsources    = READ_REG(hsmbus->Instance->CR2);
+
+  uint32_t CurrentMode  = hsmbus->Mode;
+
+  /* Master mode selected */
+  if (CurrentMode == HAL_SMBUS_MODE_MASTER)
+  {
+    /* SB Set ----------------------------------------------------------------*/
+    if (((sr1itflags & SMBUS_FLAG_SB) != RESET) && ((itsources & SMBUS_IT_EVT) != RESET))
+    {
+      SMBUS_Master_SB(hsmbus);
+    }
+    /* ADD10 Set -------------------------------------------------------------*/
+    else if (((sr1itflags & SMBUS_FLAG_ADD10) != RESET) && ((itsources & SMBUS_IT_EVT) != RESET))
+    {
+      SMBUS_Master_ADD10(hsmbus);
+    }
+    /* ADDR Set --------------------------------------------------------------*/
+    else if (((sr1itflags & SMBUS_FLAG_ADDR) != RESET) && ((itsources & SMBUS_IT_EVT) != RESET))
+    {
+      SMBUS_Master_ADDR(hsmbus);
+    }
+    /* SMBUS in mode Transmitter -----------------------------------------------*/
+    if ((sr2itflags & SMBUS_FLAG_TRA) != RESET)
+    {
+      /* TXE set and BTF reset -----------------------------------------------*/
+      if (((sr1itflags & SMBUS_FLAG_TXE) != RESET) && ((itsources & SMBUS_IT_BUF) != RESET) && ((sr1itflags & SMBUS_FLAG_BTF) == RESET))
+      {
+        SMBUS_MasterTransmit_TXE(hsmbus);
+      }
+      /* BTF set -------------------------------------------------------------*/
+      else if (((sr1itflags & SMBUS_FLAG_BTF) != RESET) && ((itsources & SMBUS_IT_EVT) != RESET))
+      {
+        SMBUS_MasterTransmit_BTF(hsmbus);
+      }
+    }
+    /* SMBUS in mode Receiver --------------------------------------------------*/
+    else
+    {
+      /* RXNE set and BTF reset -----------------------------------------------*/
+      if (((sr1itflags & SMBUS_FLAG_RXNE) != RESET) && ((itsources & SMBUS_IT_BUF) != RESET) && ((sr1itflags & SMBUS_FLAG_BTF) == RESET))
+      {
+        SMBUS_MasterReceive_RXNE(hsmbus);
+      }
+      /* BTF set -------------------------------------------------------------*/
+      else if (((sr1itflags & SMBUS_FLAG_BTF) != RESET) && ((itsources & SMBUS_IT_EVT) != RESET))
+      {
+        SMBUS_MasterReceive_BTF(hsmbus);
+      }
+    }
+  }
+  /* Slave mode selected */
+  else
+  {
+    /* ADDR set --------------------------------------------------------------*/
+    if (((sr1itflags & SMBUS_FLAG_ADDR) != RESET) && ((itsources & SMBUS_IT_EVT) != RESET))
+    {
+      SMBUS_Slave_ADDR(hsmbus);
+    }
+    /* STOPF set --------------------------------------------------------------*/
+    else if (((sr1itflags & SMBUS_FLAG_STOPF) != RESET) && ((itsources & SMBUS_IT_EVT) != RESET))
+    {
+      SMBUS_Slave_STOPF(hsmbus);
+    }
+    /* SMBUS in mode Transmitter -----------------------------------------------*/
+    else if ((sr2itflags & SMBUS_FLAG_TRA) != RESET)
+    {
+      /* TXE set and BTF reset -----------------------------------------------*/
+      if (((sr1itflags & SMBUS_FLAG_TXE) != RESET) && ((itsources & SMBUS_IT_BUF) != RESET) && ((sr1itflags & SMBUS_FLAG_BTF) == RESET))
+      {
+        SMBUS_SlaveTransmit_TXE(hsmbus);
+      }
+      /* BTF set -------------------------------------------------------------*/
+      else if (((sr1itflags & SMBUS_FLAG_BTF) != RESET) && ((itsources & SMBUS_IT_EVT) != RESET))
+      {
+        SMBUS_SlaveTransmit_BTF(hsmbus);
+      }
+    }
+    /* SMBUS in mode Receiver --------------------------------------------------*/
+    else
+    {
+      /* RXNE set and BTF reset ----------------------------------------------*/
+      if (((sr1itflags & SMBUS_FLAG_RXNE) != RESET) && ((itsources & SMBUS_IT_BUF) != RESET) && ((sr1itflags & SMBUS_FLAG_BTF) == RESET))
+      {
+        SMBUS_SlaveReceive_RXNE(hsmbus);
+      }
+      /* BTF set -------------------------------------------------------------*/
+      else if (((sr1itflags & SMBUS_FLAG_BTF) != RESET) && ((itsources & SMBUS_IT_EVT) != RESET))
+      {
+        SMBUS_SlaveReceive_BTF(hsmbus);
+      }
+    }
+  }
+}

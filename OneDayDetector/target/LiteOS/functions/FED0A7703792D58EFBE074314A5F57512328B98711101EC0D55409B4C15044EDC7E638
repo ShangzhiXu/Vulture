@@ -1,0 +1,20 @@
+static HAL_StatusTypeDef OSPI_WaitFlagStateUntilTimeout(OSPI_HandleTypeDef *hospi, uint32_t Flag, 
+                                                        FlagStatus State, uint32_t Tickstart, uint32_t Timeout)
+{
+  /* Wait until flag is in expected state */    
+  while((__HAL_OSPI_GET_FLAG(hospi, Flag)) != State)
+  {
+    /* Check for the Timeout */
+    if (Timeout != HAL_MAX_DELAY)
+    {
+      if((Timeout == 0) || ((HAL_GetTick() - Tickstart) > Timeout))
+      {
+        hospi->State     = HAL_OSPI_STATE_ERROR;
+        hospi->ErrorCode |= HAL_OSPI_ERROR_TIMEOUT;
+        
+        return HAL_ERROR;
+      }
+    }
+  }
+  return HAL_OK;
+}

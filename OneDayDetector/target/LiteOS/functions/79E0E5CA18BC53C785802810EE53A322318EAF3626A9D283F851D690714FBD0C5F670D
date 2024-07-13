@@ -1,0 +1,28 @@
+int pthread_mutex_setprioceiling(pthread_mutex_t *mutex, int prioceiling, int *oldPrioceiling)
+{
+    INT32 ret;
+    INT32 retLock;
+    if ((mutex == NULL) ||
+        (prioceiling < OS_TASK_PRIORITY_HIGHEST) ||
+        (prioceiling > OS_TASK_PRIORITY_LOWEST)) {
+        return EINVAL;
+    }
+
+    retLock = pthread_mutex_lock(mutex);
+    if (retLock != ENOERR) {
+        return retLock;
+    }
+
+    if (oldPrioceiling != NULL) {
+        *oldPrioceiling = mutex->stAttr.prioceiling;
+    }
+
+    ret = pthread_mutexattr_setprioceiling(&mutex->stAttr, prioceiling);
+
+    retLock = pthread_mutex_unlock(mutex);
+    if ((ret == ENOERR) && (retLock != ENOERR)) {
+        return retLock;
+    }
+
+    return ret;
+}

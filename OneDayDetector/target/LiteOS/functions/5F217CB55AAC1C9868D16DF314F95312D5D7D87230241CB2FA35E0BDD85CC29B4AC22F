@@ -1,0 +1,51 @@
+STATIC UINT32 InitPthreadData(pthread_t threadId, pthread_attr_t *userAttr,
+                              const CHAR name[], size_t len)
+{
+    errno_t err;
+    UINT32 semHandle;
+    UINT32 ret = LOS_OK;
+    LosTaskCB *taskCB = OS_TCB_FROM_TID(threadId);
+    _pthread_data *created = &g_pthreadData[threadId];
+
+    err = strncpy_s(created->name, sizeof(created->name), name, len - 1);
+    if (err != EOK) {
+        PRINT_ERR("%s: %d, err: %d\n", __FUNCTION__, __LINE__, err);
+        return LOS_NOK;
+    }
+    if (userAttr->detachstate != PTHREAD_CREATE_JOINABLE) {
+        taskCB->taskFlags |= OS_TASK_FLAG_DETACHED;
+    }
+    userAttr->stacksize   = taskCB->stackSize;
+    taskCB->taskName      = created->name;
+#ifdef LOSCFG_KERNEL_SMP
+    if (userAttr->cpuset.__bits[0] > 0) {
+        taskCB->cpuAffiMask = (UINT16)userAttr->cpuset.__bits[0];
+    }
+#endif
+    created->attr         = *userAttr;
+    created->id           = threadId;
+    created->task         = taskCB;
+    created->state        = (userAttr->detachstate == PTHREAD_CREATE_JOINABLE) ?
+                            PTHREAD_STATE_RUNNING : PTHREAD_STATE_DETACHED;
+    /* need to confirmation */
+    created->cancelstate  = PTHREAD_CANCEL_ENABLE;
+    created->canceltype   = PTHREAD_CANCEL_DEFERRED;
+    created->cancelbuf    = NULL;
+    created->canceled     = 0;
+    created->freestack    = 0; /* no use default : 0 */
+    created->stackmem     = taskCB->topOfStack;
+    created->thread_data  = NULL;
+
+    if (created->state == PTHREAD_STATE_RUNNING) {
+        ret = LOS_SemCreate(0, &semHandle);
+        if (ret) {
+            created->state = PTHREAD_STATE_FREE;
+            return ret;
+        }
+        created->joiner = GET_SEM(semHandle);
+        created->task->threadJoin = (VOID *)GET_SEM(semHandle);
+    } else {
+        created->joiner = NULL;
+    }
+    return ret;
+}

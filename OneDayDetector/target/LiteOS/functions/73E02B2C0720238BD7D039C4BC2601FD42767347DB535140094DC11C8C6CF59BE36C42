@@ -1,0 +1,18 @@
+void lv_group_del(lv_group_t * group)
+{
+    /*Defocus the the currently focused object*/
+    if(group->obj_focus != NULL) {
+        (*group->obj_focus)->signal_cb(*group->obj_focus, LV_SIGNAL_DEFOCUS, NULL);
+        lv_obj_invalidate(*group->obj_focus);
+    }
+
+    /*Remove the objects from the group*/
+    lv_obj_t ** obj;
+    _LV_LL_READ(group->obj_ll, obj) {
+        (*obj)->group_p = NULL;
+    }
+
+    _lv_ll_clear(&(group->obj_ll));
+    _lv_ll_remove(&LV_GC_ROOT(_lv_group_ll), group);
+    lv_mem_free(group);
+}

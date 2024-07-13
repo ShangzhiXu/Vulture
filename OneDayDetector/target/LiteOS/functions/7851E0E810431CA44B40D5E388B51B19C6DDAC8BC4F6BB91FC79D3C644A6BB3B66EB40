@@ -1,0 +1,249 @@
+static int lcp_printpkt(const u_char *p, int plen,
+		void (*printer) (void *, const char *, ...), void *arg) {
+    int code, id, len, olen, i;
+    const u_char *pstart, *optend;
+    u_short cishort;
+    u32_t cilong;
+
+    if (plen < HEADERLEN)
+	return 0;
+    pstart = p;
+    GETCHAR(code, p);
+    GETCHAR(id, p);
+    GETSHORT(len, p);
+    if (len < HEADERLEN || len > plen)
+	return 0;
+
+   if (code >= 1 && code <= (int)LWIP_ARRAYSIZE(lcp_codenames))
+	printer(arg, " %s", lcp_codenames[code-1]);
+    else
+	printer(arg, " code=0x%x", code);
+    printer(arg, " id=0x%x", id);
+    len -= HEADERLEN;
+    switch (code) {
+    case CONFREQ:
+    case CONFACK:
+    case CONFNAK:
+    case CONFREJ:
+	/* print option list */
+	while (len >= 2) {
+	    GETCHAR(code, p);
+	    GETCHAR(olen, p);
+	    p -= 2;
+	    if (olen < 2 || olen > len) {
+		break;
+	    }
+	    printer(arg, " <");
+	    len -= olen;
+	    optend = p + olen;
+	    switch (code) {
+	    case CI_MRU:
+		if (olen == CILEN_SHORT) {
+		    p += 2;
+		    GETSHORT(cishort, p);
+		    printer(arg, "mru %d", cishort);
+		}
+		break;
+	    case CI_ASYNCMAP:
+		if (olen == CILEN_LONG) {
+		    p += 2;
+		    GETLONG(cilong, p);
+		    printer(arg, "asyncmap 0x%x", cilong);
+		}
+		break;
+	    case CI_AUTHTYPE:
+		if (olen >= CILEN_SHORT) {
+		    p += 2;
+		    printer(arg, "auth ");
+		    GETSHORT(cishort, p);
+		    switch (cishort) {
+#if PAP_SUPPORT
+		    case PPP_PAP:
+			printer(arg, "pap");
+			break;
+#endif /* PAP_SUPPORT */
+#if CHAP_SUPPORT
+		    case PPP_CHAP:
+			printer(arg, "chap");
+			if (p < optend) {
+			    switch (*p) {
+			    case CHAP_MD5:
+				printer(arg, " MD5");
+				++p;
+				break;
+#if MSCHAP_SUPPORT
+			    case CHAP_MICROSOFT:
+				printer(arg, " MS");
+				++p;
+				break;
+
+			    case CHAP_MICROSOFT_V2:
+				printer(arg, " MS-v2");
+				++p;
+				break;
+#endif /* MSCHAP_SUPPORT */
+			    default:
+				break;
+			    }
+			}
+			break;
+#endif /* CHAP_SUPPORT */
+#if EAP_SUPPORT
+		    case PPP_EAP:
+			printer(arg, "eap");
+			break;
+#endif /* EAP_SUPPORT */
+		    default:
+			printer(arg, "0x%x", cishort);
+		    }
+		}
+		break;
+#if LQR_SUPPORT
+	    case CI_QUALITY:
+		if (olen >= CILEN_SHORT) {
+		    p += 2;
+		    printer(arg, "quality ");
+		    GETSHORT(cishort, p);
+		    switch (cishort) {
+		    case PPP_LQR:
+			printer(arg, "lqr");
+			break;
+		    default:
+			printer(arg, "0x%x", cishort);
+		    }
+		}
+		break;
+#endif /* LQR_SUPPORT */
+	    case CI_CALLBACK:
+		if (olen >= CILEN_CHAR) {
+		    p += 2;
+		    printer(arg, "callback ");
+		    GETCHAR(cishort, p);
+		    switch (cishort) {
+		    case CBCP_OPT:
+			printer(arg, "CBCP");
+			break;
+		    default:
+			printer(arg, "0x%x", cishort);
+		    }
+		}
+		break;
+	    case CI_MAGICNUMBER:
+		if (olen == CILEN_LONG) {
+		    p += 2;
+		    GETLONG(cilong, p);
+		    printer(arg, "magic 0x%x", cilong);
+		}
+		break;
+	    case CI_PCOMPRESSION:
+		if (olen == CILEN_VOID) {
+		    p += 2;
+		    printer(arg, "pcomp");
+		}
+		break;
+	    case CI_ACCOMPRESSION:
+		if (olen == CILEN_VOID) {
+		    p += 2;
+		    printer(arg, "accomp");
+		}
+		break;
+	    case CI_MRRU:
+		if (olen == CILEN_SHORT) {
+		    p += 2;
+		    GETSHORT(cishort, p);
+		    printer(arg, "mrru %d", cishort);
+		}
+		break;
+	    case CI_SSNHF:
+		if (olen == CILEN_VOID) {
+		    p += 2;
+		    printer(arg, "ssnhf");
+		}
+		break;
+	    case CI_EPDISC:
+#ifdef HAVE_MULTILINK
+		if (olen >= CILEN_CHAR) {
+		    struct epdisc epd;
+		    p += 2;
+		    GETCHAR(epd.class, p);
+		    epd.length = olen - CILEN_CHAR;
+		    if (epd.length > MAX_ENDP_LEN)
+			epd.length = MAX_ENDP_LEN;
+		    if (epd.length > 0) {
+			MEMCPY(epd.value, p, epd.length);
+			p += epd.length;
+		    }
+		    printer(arg, "endpoint [%s]", epdisc_to_str(&epd));
+		}
+#else
+		printer(arg, "endpoint");
+#endif
+		break;
+	    default:
+		break;
+	    }
+	    while (p < optend) {
+		GETCHAR(code, p);
+		printer(arg, " %.2x", code);
+	    }
+	    printer(arg, ">");
+	}
+	break;
+
+    case TERMACK:
+    case TERMREQ:
+	if (len > 0 && *p >= ' ' && *p < 0x7f) {
+	    printer(arg, " ");
+	    ppp_print_string(p, len, printer, arg);
+	    p += len;
+	    len = 0;
+	}
+	break;
+
+    case ECHOREQ:
+    case ECHOREP:
+    case DISCREQ:
+	if (len >= 4) {
+	    GETLONG(cilong, p);
+	    printer(arg, " magic=0x%x", cilong);
+	    len -= 4;
+	}
+	break;
+
+    case IDENTIF:
+    case TIMEREM:
+	if (len >= 4) {
+	    GETLONG(cilong, p);
+	    printer(arg, " magic=0x%x", cilong);
+	    len -= 4;
+	}
+	if (code == TIMEREM) {
+	    if (len < 4)
+		break;
+	    GETLONG(cilong, p);
+	    printer(arg, " seconds=%u", cilong);
+	    len -= 4;
+	}
+	if (len > 0) {
+	    printer(arg, " ");
+	    ppp_print_string(p, len, printer, arg);
+	    p += len;
+	    len = 0;
+	}
+	break;
+    default:
+	break;
+    }
+
+    /* print the rest of the bytes in the packet */
+    for (i = 0; i < len && i < 32; ++i) {
+	GETCHAR(code, p);
+	printer(arg, " %.2x", code);
+    }
+    if (i < len) {
+	printer(arg, " ...");
+	p += len - i;
+    }
+
+    return p - pstart;
+}

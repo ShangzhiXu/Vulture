@@ -1,0 +1,26 @@
+uint16_t ft5336_ReadID(uint16_t DeviceAddr)
+{
+  volatile uint8_t ucReadId = 0;
+  uint8_t nbReadAttempts = 0;
+  uint8_t bFoundDevice = 0; /* Device not found by default */
+
+  /* Initialize I2C link if needed */
+  ft5336_I2C_InitializeIfRequired();
+
+  /* At maximum 4 attempts to read ID : exit at first finding of the searched device ID */
+  for(nbReadAttempts = 0; ((nbReadAttempts < 3) && !(bFoundDevice)); nbReadAttempts++)
+  {
+    /* Read register FT5336_CHIP_ID_REG as DeviceID detection */
+    ucReadId = TS_IO_Read(DeviceAddr, FT5336_CHIP_ID_REG);
+
+    /* Found the searched device ID ? */
+    if(ucReadId == FT5336_ID_VALUE)
+    {
+      /* Set device as found */
+      bFoundDevice = 1;
+    }
+  }
+
+  /* Return the device ID value */
+  return (ucReadId);
+}

@@ -1,0 +1,27 @@
+int MQTTPacket_read(unsigned char *buf, int buflen, int (*getfn)(unsigned char *, int))
+{
+    int rc = -1;
+    MQTTHeader header = {0};
+    int len = 0;
+    int rem_len = 0;
+
+    /* 1. read the header byte.  This has the packet type in it */
+    if ((*getfn)(buf, 1) != 1)
+        goto exit;
+
+    len = 1;
+    /* 2. read the remaining length.  This is variable in itself */
+    MQTTPacket_decode(getfn, &rem_len);
+    len += MQTTPacket_encode(buf + 1, rem_len); /* put the original remaining length back into the buffer */
+
+    /* 3. read the rest of the buffer using a callback to supply the rest of the data */
+    if((rem_len + len) > buflen)
+        goto exit;
+    if (rem_len && ((*getfn)(buf + len, rem_len) != rem_len))
+        goto exit;
+
+    header.byte = buf[0];
+    rc = header.bits.type;
+exit:
+    return rc;
+}

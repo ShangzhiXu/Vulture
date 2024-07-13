@@ -1,0 +1,42 @@
+bool lv_font_get_glyph_dsc_fmt_txt(const lv_font_t * font, lv_font_glyph_dsc_t * dsc_out, uint32_t unicode_letter,
+                                   uint32_t unicode_letter_next)
+{
+    bool is_tab = false;
+    if(unicode_letter == '\t') {
+        unicode_letter = ' ';
+        is_tab = true;
+    }
+    lv_font_fmt_txt_dsc_t * fdsc = (lv_font_fmt_txt_dsc_t *) font->dsc;
+    uint32_t gid = get_glyph_dsc_id(font, unicode_letter);
+    if(!gid) return false;
+
+    int8_t kvalue = 0;
+    if(fdsc->kern_dsc) {
+        uint32_t gid_next = get_glyph_dsc_id(font, unicode_letter_next);
+        if(gid_next) {
+            kvalue = get_kern_value(font, gid, gid_next);
+        }
+    }
+
+    /*Put together a glyph dsc*/
+    const lv_font_fmt_txt_glyph_dsc_t * gdsc = &fdsc->glyph_dsc[gid];
+
+    int32_t kv = ((int32_t)((int32_t)kvalue * fdsc->kern_scale) >> 4);
+
+    uint32_t adv_w = gdsc->adv_w;
+    if(is_tab) adv_w *= 2;
+
+    adv_w += kv;
+    adv_w  = (adv_w + (1 << 3)) >> 4;
+
+    dsc_out->adv_w = adv_w;
+    dsc_out->box_h = gdsc->box_h;
+    dsc_out->box_w = gdsc->box_w;
+    dsc_out->ofs_x = gdsc->ofs_x;
+    dsc_out->ofs_y = gdsc->ofs_y;
+    dsc_out->bpp   = (uint8_t)fdsc->bpp;
+
+    if(is_tab) dsc_out->box_w = dsc_out->box_w * 2;
+
+    return true;
+}

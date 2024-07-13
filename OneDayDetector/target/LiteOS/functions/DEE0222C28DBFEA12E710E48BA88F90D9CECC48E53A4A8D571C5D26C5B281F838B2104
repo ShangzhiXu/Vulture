@@ -1,0 +1,22 @@
+void ppp_start(ppp_pcb *pcb) {
+  PPPDEBUG(LOG_DEBUG, ("ppp_start[%d]\n", pcb->netif->num));
+
+  /* Clean data not taken care by anything else, mostly shared data. */
+#if PPP_STATS_SUPPORT
+  link_stats_valid = 0;
+#endif /* PPP_STATS_SUPPORT */
+#if MPPE_SUPPORT
+  pcb->mppe_keys_set = 0;
+  memset(&pcb->mppe_comp, 0, sizeof(pcb->mppe_comp));
+  memset(&pcb->mppe_decomp, 0, sizeof(pcb->mppe_decomp));
+#endif /* MPPE_SUPPORT */
+#if VJ_SUPPORT
+  vj_compress_init(&pcb->vj_comp);
+#endif /* VJ_SUPPORT */
+
+  /* Start protocol */
+  new_phase(pcb, PPP_PHASE_ESTABLISH);
+  lcp_open(pcb);
+  lcp_lowerup(pcb);
+  PPPDEBUG(LOG_DEBUG, ("ppp_start[%d]: finished\n", pcb->netif->num));
+}

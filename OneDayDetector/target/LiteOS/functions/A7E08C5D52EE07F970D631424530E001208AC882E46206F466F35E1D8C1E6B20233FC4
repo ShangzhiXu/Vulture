@@ -1,0 +1,36 @@
+static cJSON_bool insert_item_in_array(cJSON *array, size_t which, cJSON *newitem)
+{
+    cJSON *child = array->child;
+    while (child && (which > 0))
+    {
+        child = child->next;
+        which--;
+    }
+    if (which > 0)
+    {
+        /* item is after the end of the array */
+        return 0;
+    }
+    if (child == NULL)
+    {
+        cJSON_AddItemToArray(array, newitem);
+        return 1;
+    }
+
+    /* insert into the linked list */
+    newitem->next = child;
+    newitem->prev = child->prev;
+    child->prev = newitem;
+
+    /* was it at the beginning */
+    if (child == array->child)
+    {
+        array->child = newitem;
+    }
+    else
+    {
+        newitem->prev->next = newitem;
+    }
+
+    return 1;
+}

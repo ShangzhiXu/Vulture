@@ -1,0 +1,34 @@
+START_TEST(test_sockets_select)
+{
+#if LWIP_SOCKET_SELECT
+  int s;
+  int ret;
+  fd_set readset;
+  fd_set writeset;
+  fd_set errset;
+  struct timeval tv;
+
+  fail_unless(test_sockets_get_used_count() == 0);
+
+  s = lwip_socket(AF_INET, SOCK_STREAM, 0);
+  fail_unless(s >= 0);
+  fail_unless(test_sockets_get_used_count() == 0);
+
+  FD_ZERO(&readset);
+  FD_SET(s, &readset);
+  FD_ZERO(&writeset);
+  FD_SET(s, &writeset);
+  FD_ZERO(&errset);
+  FD_SET(s, &errset);
+
+  tv.tv_sec = tv.tv_usec = 0;
+  ret = lwip_select(s + 1, &readset, &writeset, &errset, &tv);
+  fail_unless(ret == 0);
+  fail_unless(test_sockets_get_used_count() == 0);
+
+  ret = lwip_close(s);
+  fail_unless(ret == 0);
+
+#endif
+  LWIP_UNUSED_ARG(_i);
+}

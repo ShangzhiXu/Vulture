@@ -1,0 +1,12 @@
+  u16_t datagram_size;
+  u16_t datagram_tag;
+  struct pbuf *frags;
+  u16_t ieee_802154_pan_id;
+  ip6_addr_t lowpan6_context[LWIP_6LOWPAN_NUM_CONTEXTS];
+  struct lowpan6_reass_helper *next_packet;
+  struct pbuf *reass;
+  struct lowpan6_reass_helper *reass_list;
+  struct lowpan6_link_addr sender_addr;
+  u8_t timer;
+  u16_t tx_datagram_tag;
+  u8_t tx_frame_seq_num;

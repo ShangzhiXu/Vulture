@@ -1,0 +1,16 @@
+STATIC VOID SampleFromMail(const MailSample *sample)
+{
+    INT32 ret;
+    SensorType *sensorInterface = NULL;
+
+    sensorInterface = g_sensorScbTable[ScbTableIndex(sample->tag)].sensorInterface;
+    if ((sensorInterface == NULL) || (sensorInterface->sensorOp == NULL) ||
+        (sensorInterface->sensorOp->ReadData == NULL)) {
+        PRINT_ERR("sample_from_mail, TAG:%d read data fail\n", sample->tag);
+        return;
+    }
+    ret = sensorInterface->sensorOp->ReadData(sensorInterface);
+    if (ret != LOS_NOK) {
+        ScbDataUpdate(sensorInterface);
+    }
+}

@@ -1,0 +1,99 @@
+ip6_forward(struct pbuf *p, struct ip6_hdr *iphdr, struct netif *inp)
+{
+  struct netif *netif;
+
+  /* do not forward link-local or loopback addresses */
+  if (ip6_addr_islinklocal(ip6_current_dest_addr()) ||
+      ip6_addr_isloopback(ip6_current_dest_addr())) {
+    LWIP_DEBUGF(IP6_DEBUG, ("ip6_forward: not forwarding link-local address.\n"));
+    IP6_STATS_INC(ip6.rterr);
+    IP6_STATS_INC(ip6.drop);
+    return;
+  }
+
+  /* Find network interface where to forward this IP packet to. */
+  netif = ip6_route(IP6_ADDR_ANY6, ip6_current_dest_addr());
+  if (netif == NULL) {
+    LWIP_DEBUGF(IP6_DEBUG, ("ip6_forward: no route for %"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F"\n",
+        IP6_ADDR_BLOCK1(ip6_current_dest_addr()),
+        IP6_ADDR_BLOCK2(ip6_current_dest_addr()),
+        IP6_ADDR_BLOCK3(ip6_current_dest_addr()),
+        IP6_ADDR_BLOCK4(ip6_current_dest_addr()),
+        IP6_ADDR_BLOCK5(ip6_current_dest_addr()),
+        IP6_ADDR_BLOCK6(ip6_current_dest_addr()),
+        IP6_ADDR_BLOCK7(ip6_current_dest_addr()),
+        IP6_ADDR_BLOCK8(ip6_current_dest_addr())));
+#if LWIP_ICMP6
+    /* Don't send ICMP messages in response to ICMP messages */
+    if (IP6H_NEXTH(iphdr) != IP6_NEXTH_ICMP6) {
+      icmp6_dest_unreach(p, ICMP6_DUR_NO_ROUTE);
+    }
+#endif /* LWIP_ICMP6 */
+    IP6_STATS_INC(ip6.rterr);
+    IP6_STATS_INC(ip6.drop);
+    return;
+  }
+#if LWIP_IPV6_SCOPES
+  /* Do not forward packets with a zoned (e.g., link-local) source address
+   * outside of their zone. We determined the zone a bit earlier, so we know
+   * that the address is properly zoned here, so we can safely use has_zone.
+   * Also skip packets with a loopback source address (link-local implied). */
+  if ((ip6_addr_has_zone(ip6_current_src_addr()) &&
+      !ip6_addr_test_zone(ip6_current_src_addr(), netif)) ||
+      ip6_addr_isloopback(ip6_current_src_addr())) {
+    LWIP_DEBUGF(IP6_DEBUG, ("ip6_forward: not forwarding packet beyond its source address zone.\n"));
+    IP6_STATS_INC(ip6.rterr);
+    IP6_STATS_INC(ip6.drop);
+    return;
+  }
+#endif /* LWIP_IPV6_SCOPES */
+  /* Do not forward packets onto the same network interface on which
+   * they arrived. */
+  if (netif == inp) {
+    LWIP_DEBUGF(IP6_DEBUG, ("ip6_forward: not bouncing packets back on incoming interface.\n"));
+    IP6_STATS_INC(ip6.rterr);
+    IP6_STATS_INC(ip6.drop);
+    return;
+  }
+
+  /* decrement HL */
+  IP6H_HOPLIM_SET(iphdr, IP6H_HOPLIM(iphdr) - 1);
+  /* send ICMP6 if HL == 0 */
+  if (IP6H_HOPLIM(iphdr) == 0) {
+#if LWIP_ICMP6
+    /* Don't send ICMP messages in response to ICMP messages */
+    if (IP6H_NEXTH(iphdr) != IP6_NEXTH_ICMP6) {
+      icmp6_time_exceeded(p, ICMP6_TE_HL);
+    }
+#endif /* LWIP_ICMP6 */
+    IP6_STATS_INC(ip6.drop);
+    return;
+  }
+
+  if (netif->mtu && (p->tot_len > netif->mtu)) {
+#if LWIP_ICMP6
+    /* Don't send ICMP messages in response to ICMP messages */
+    if (IP6H_NEXTH(iphdr) != IP6_NEXTH_ICMP6) {
+      icmp6_packet_too_big(p, netif->mtu);
+    }
+#endif /* LWIP_ICMP6 */
+    IP6_STATS_INC(ip6.drop);
+    return;
+  }
+
+  LWIP_DEBUGF(IP6_DEBUG, ("ip6_forward: forwarding packet to %"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F"\n",
+      IP6_ADDR_BLOCK1(ip6_current_dest_addr()),
+      IP6_ADDR_BLOCK2(ip6_current_dest_addr()),
+      IP6_ADDR_BLOCK3(ip6_current_dest_addr()),
+      IP6_ADDR_BLOCK4(ip6_current_dest_addr()),
+      IP6_ADDR_BLOCK5(ip6_current_dest_addr()),
+      IP6_ADDR_BLOCK6(ip6_current_dest_addr()),
+      IP6_ADDR_BLOCK7(ip6_current_dest_addr()),
+      IP6_ADDR_BLOCK8(ip6_current_dest_addr())));
+
+  /* transmit pbuf on chosen interface */
+  netif->output_ip6(netif, p, ip6_current_dest_addr());
+  IP6_STATS_INC(ip6.fw);
+  IP6_STATS_INC(ip6.xmit);
+  return;
+}

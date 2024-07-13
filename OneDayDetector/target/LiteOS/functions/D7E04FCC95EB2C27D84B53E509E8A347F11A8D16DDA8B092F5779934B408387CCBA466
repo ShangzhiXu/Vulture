@@ -1,0 +1,28 @@
+static uint8_t prv_post_action_check(lwm2m_uri_t *uri, OBJ_ACC_OPERATE op)
+{
+    if (LWM2M_URI_IS_SET_RESOURCE(uri)) {
+        return COAP_NO_ERROR;
+    } else if (LWM2M_URI_IS_SET_INSTANCE(uri)) {
+        if (OBJ_ACC_EXCUTE == op) {
+            return COAP_405_METHOD_NOT_ALLOWED;
+        } else { /*
+             * For the write operation, check whether the resources
+             * can be written or not, is in the write operation of
+             * the specific object.
+             */
+            return COAP_NO_ERROR;
+        }
+    } else {
+        if ((OBJ_ACC_WRITE_ATTR == op) || (OBJ_ACC_CREATE == op)) {
+            return COAP_NO_ERROR;
+        } else if ((OBJ_ACC_NOTIFY == op) || (OBJ_ACC_READ == op) || (OBJ_ACC_OBSERVE == op)) {
+            /*
+             * We should do the auth check in object_read interface
+             * and just ignore here.
+             */
+            return COAP_NO_ERROR;
+        } else {
+            return COAP_405_METHOD_NOT_ALLOWED;
+        }
+    }
+}

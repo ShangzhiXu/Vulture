@@ -1,0 +1,28 @@
+STATIC INLINE VOID OsMemRecordLR(LinkRegNode *linkRegNode)
+{
+    UINTPTR framePtr, framePtrTmp;
+    UINT32 index = 0;
+
+    linkRegNode->linkReg1 = 0;
+    linkRegNode->linkReg2 = 0;
+    linkRegNode->linkReg3 = 0;
+
+    framePtr = ArchGetFp();
+    while ((framePtr > OS_SYS_FUNC_ADDR_START) &&
+           (framePtr < OS_SYS_FUNC_ADDR_END) &&
+           ((framePtr % sizeof(CHAR *)) == 0)) {
+        framePtrTmp = framePtr;
+        if (index == LINK_REG1_INDEX) {
+            linkRegNode->linkReg1 = *((UINTPTR *)(framePtrTmp));
+        } else if (index == LINK_REG2_INDEX) {
+            linkRegNode->linkReg2 = *((UINTPTR *)(framePtrTmp));
+        } else if (index == LINK_REG3_INDEX) {
+            linkRegNode->linkReg3 = *((UINTPTR *)(framePtrTmp));
+        }
+        framePtr = *((UINTPTR *)(framePtrTmp - sizeof(UINTPTR *)));
+        index++;
+        if (index == (LINK_REG_NUM + 1)) {
+            break;
+        }
+    }
+}

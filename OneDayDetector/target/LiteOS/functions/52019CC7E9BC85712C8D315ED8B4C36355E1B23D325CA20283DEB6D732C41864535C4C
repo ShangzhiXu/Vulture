@@ -1,0 +1,40 @@
+mqd_t mq_open(const char *mqName, int openFlag, ...)
+{
+    struct mqarray *mqueueCB = NULL;
+    struct mqpersonal *privateMqPersonal = (struct mqpersonal *)-1;
+    struct mq_attr *attr = NULL;
+    va_list ap;
+
+    if (MqNameCheck(mqName) == -1) {
+        return (mqd_t)-1;
+    }
+
+    (VOID)pthread_mutex_lock(&g_mqueueMutex);
+    mqueueCB = GetMqueueCBByName(mqName);
+    if ((UINT32)openFlag & (UINT32)O_CREAT) {
+        if (mqueueCB != NULL) {
+            if (((UINT32)openFlag & (UINT32)O_EXCL)) {
+                errno = EEXIST;
+                goto OUT;
+            }
+            privateMqPersonal = DoMqueueOpen(mqueueCB, openFlag);
+        } else {
+            va_start(ap, openFlag);
+            (VOID)va_arg(ap, int);
+            attr = va_arg(ap, struct mq_attr *);
+            va_end(ap);
+
+            privateMqPersonal = DoMqueueCreate(attr, mqName, openFlag);
+        }
+    } else {
+        if (mqueueCB == NULL) {
+            errno = ENOENT;
+            goto OUT;
+        }
+        privateMqPersonal = DoMqueueOpen(mqueueCB, openFlag);
+    }
+
+OUT:
+    (VOID)pthread_mutex_unlock(&g_mqueueMutex);
+    return (mqd_t)privateMqPersonal;
+}

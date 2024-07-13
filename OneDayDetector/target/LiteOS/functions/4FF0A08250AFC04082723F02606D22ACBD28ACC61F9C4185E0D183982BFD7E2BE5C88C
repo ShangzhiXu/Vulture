@@ -1,0 +1,26 @@
+static int update_uri_info(char *uri, int uri_len, unsigned char *update_flag)
+{
+    int ret = -1;
+
+    if (!uri || (*uri == '\0') || (uri_len <= 0) || !update_flag) {
+        return -1;
+    }
+
+    if ((g_fw_update_record.in_use == 1) && (g_fw_update_record.uri != NULL) && (memcmp(g_fw_update_record.uri, uri, uri_len) == 0)) {
+        *update_flag = 0;
+        return 0;
+    } else {
+        if (g_fw_update_record.uri != NULL) {
+            lwm2m_free(g_fw_update_record.uri);
+            g_fw_update_record.uri = NULL;
+        }
+        memset(&g_fw_update_record, 0x0, sizeof(g_fw_update_record));
+        ret = record_fw_uri(uri, uri_len);
+        *update_flag = 1;
+        if (ret != 0) {
+            ATINY_LOG(LOG_ERR, "record_fw_uri failed");
+            return -1;
+        }
+        return 0;
+    }
+}

@@ -1,0 +1,37 @@
+HAL_StatusTypeDef HAL_SMARTCARD_DeInit(SMARTCARD_HandleTypeDef *hsc)
+{
+  /* Check the SMARTCARD handle allocation */
+  if(hsc == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_SMARTCARD_INSTANCE(hsc->Instance));
+
+  hsc->gState = HAL_SMARTCARD_STATE_BUSY;
+
+  /* Disable the Peripheral */
+  __HAL_SMARTCARD_DISABLE(hsc);
+
+  /* DeInit the low level hardware */
+#if USE_HAL_SMARTCARD_REGISTER_CALLBACKS == 1
+  if (hsc->MspDeInitCallback == NULL)
+  {
+    hsc->MspDeInitCallback = HAL_SMARTCARD_MspDeInit;
+  }
+  /* DeInit the low level hardware */
+  hsc->MspDeInitCallback(hsc);
+#else
+  HAL_SMARTCARD_MspDeInit(hsc);
+#endif /* USE_HAL_SMARTCARD_REGISTER_CALLBACKS */
+
+  hsc->ErrorCode = HAL_SMARTCARD_ERROR_NONE;
+  hsc->gState = HAL_SMARTCARD_STATE_RESET;
+  hsc->RxState = HAL_SMARTCARD_STATE_RESET;
+
+  /* Release Lock */
+  __HAL_UNLOCK(hsc);
+
+  return HAL_OK;
+}

@@ -1,0 +1,57 @@
+HAL_SD_ErrorTypedef HAL_SD_WideBusOperation_Config(SD_HandleTypeDef *hsd, uint32_t WideMode)
+{
+  HAL_SD_ErrorTypedef errorstate = SD_OK;
+  SDIO_InitTypeDef init = {0};
+  
+  /* MMC Card does not support this feature */
+  if (hsd->CardType == MULTIMEDIA_CARD)
+  {
+    errorstate = SD_UNSUPPORTED_FEATURE;
+  }
+  else if ((hsd->CardType == STD_CAPACITY_SD_CARD_V1_1) || (hsd->CardType == STD_CAPACITY_SD_CARD_V2_0) ||\
+    (hsd->CardType == HIGH_CAPACITY_SD_CARD))
+  {
+    if (WideMode == SDIO_BUS_WIDE_8B)
+    {
+      errorstate = SD_UNSUPPORTED_FEATURE;
+    }
+    else if (WideMode == SDIO_BUS_WIDE_4B)
+    {
+      errorstate = SD_WideBus_Enable(hsd);
+    }
+    else if (WideMode == SDIO_BUS_WIDE_1B)
+    {
+      errorstate = SD_WideBus_Disable(hsd);
+    }
+    else
+    {
+      /* WideMode is not a valid argument*/
+      errorstate = SD_INVALID_PARAMETER;
+    }
+      
+    if (errorstate == SD_OK)
+    {
+      /* Configure the SDIO peripheral */
+      init.ClockEdge           = hsd->Init.ClockEdge;
+      init.ClockBypass         = hsd->Init.ClockBypass;
+      init.ClockPowerSave      = hsd->Init.ClockPowerSave;
+      init.BusWide             = WideMode;
+      init.HardwareFlowControl = hsd->Init.HardwareFlowControl;
+      init.ClockDiv            = hsd->Init.ClockDiv;
+      
+      /* Configure SDIO peripheral interface */
+      SDIO_Init(hsd->Instance, init);
+    }
+    else
+    {
+      /* An error occured while enabling/disabling the wide bus*/
+    }
+  }
+  else
+  {
+    /* Not supported card type */
+    errorstate = SD_ERROR;
+  }
+  
+  return errorstate;
+}

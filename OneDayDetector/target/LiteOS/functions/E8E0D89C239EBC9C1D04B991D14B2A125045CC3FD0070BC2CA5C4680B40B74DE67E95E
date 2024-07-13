@@ -1,0 +1,30 @@
+HAL_StatusTypeDef HAL_I2CEx_ConfigAnalogFilter(I2C_HandleTypeDef *hi2c, uint32_t AnalogFilter)
+{
+  /* Check the parameters */
+  assert_param(IS_I2C_ALL_INSTANCE(hi2c->Instance));
+  assert_param(IS_I2C_ANALOG_FILTER(AnalogFilter));
+
+  if (hi2c->State == HAL_I2C_STATE_READY)
+  {
+    hi2c->State = HAL_I2C_STATE_BUSY;
+
+    /* Disable the selected I2C peripheral */
+    __HAL_I2C_DISABLE(hi2c);
+
+    /* Reset I2Cx ANOFF bit */
+    hi2c->Instance->FLTR &= ~(I2C_FLTR_ANOFF);
+
+    /* Disable the analog filter */
+    hi2c->Instance->FLTR |= AnalogFilter;
+
+    __HAL_I2C_ENABLE(hi2c);
+
+    hi2c->State = HAL_I2C_STATE_READY;
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

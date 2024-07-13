@@ -1,0 +1,78 @@
+lv_obj_t * lv_tileview_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+    LV_LOG_TRACE("tileview create started");
+
+    /*Create the ancestor of tileview*/
+    lv_obj_t * new_tileview = lv_page_create(par, copy);
+    LV_ASSERT_MEM(new_tileview);
+    if(new_tileview == NULL) return NULL;
+
+    /*Allocate the tileview type specific extended data*/
+    lv_tileview_ext_t * ext = lv_obj_allocate_ext_attr(new_tileview, sizeof(lv_tileview_ext_t));
+    LV_ASSERT_MEM(ext);
+    if(ext == NULL) {
+        lv_obj_del(new_tileview);
+        return NULL;
+    }
+
+    if(ancestor_signal == NULL) ancestor_signal = lv_obj_get_signal_cb(new_tileview);
+    if(ancestor_scrl_signal == NULL) ancestor_scrl_signal = lv_obj_get_signal_cb(lv_page_get_scrllable(new_tileview));
+    if(ancestor_design == NULL) ancestor_design = lv_obj_get_design_cb(new_tileview);
+
+    /*Initialize the allocated 'ext' */
+#if LV_USE_ANIMATION
+    ext->anim_time = LV_TILEVIEW_DEF_ANIM_TIME;
+#endif
+    ext->act_id.x      = 0;
+    ext->act_id.y      = 0;
+    ext->valid_pos     = NULL;
+    ext->valid_pos_cnt = 0;
+
+    /*The signal and design functions are not copied so set them here*/
+    lv_obj_set_signal_cb(new_tileview, lv_tileview_signal);
+    lv_obj_set_signal_cb(lv_page_get_scrllable(new_tileview), lv_tileview_scrl_signal);
+
+    /*Init the new tileview*/
+    if(copy == NULL) {
+        /* Set a size which fits into the parent.
+         * Don't use `par` directly because if the tileview is created on a page it is moved to the
+         * scrollable so the parent has changed */
+        lv_coord_t w;
+        lv_coord_t h;
+        if(par) {
+            w = lv_obj_get_width_fit(lv_obj_get_parent(new_tileview));
+            h = lv_obj_get_height_fit(lv_obj_get_parent(new_tileview));
+        }
+        else {
+            w = lv_disp_get_hor_res(NULL);
+            h = lv_disp_get_ver_res(NULL);
+        }
+
+        lv_obj_set_size(new_tileview, w, h);
+        lv_obj_set_drag_throw(lv_page_get_scrllable(new_tileview), true);
+        lv_obj_set_drag_dir(lv_page_get_scrllable(new_tileview), LV_DRAG_DIR_ONE);
+
+        lv_page_set_scrllable_fit(new_tileview, LV_FIT_TIGHT);
+
+        lv_obj_reset_style_list(new_tileview, LV_PAGE_PART_SCROLLABLE);
+        lv_theme_apply(new_tileview, LV_THEME_TILEVIEW);
+    }
+    /*Copy an existing tileview*/
+    else {
+        lv_tileview_ext_t * copy_ext = lv_obj_get_ext_attr(copy);
+        ext->act_id.x                = copy_ext->act_id.x;
+        ext->act_id.y                = copy_ext->act_id.y;
+        ext->valid_pos               = copy_ext->valid_pos;
+        ext->valid_pos_cnt           = copy_ext->valid_pos_cnt;
+#if LV_USE_ANIMATION
+        ext->anim_time = copy_ext->anim_time;
+#endif
+
+        /*Refresh the style with new signal function*/
+        lv_obj_refresh_style(new_tileview, LV_STYLE_PROP_ALL);
+    }
+
+    LV_LOG_INFO("tileview created");
+
+    return new_tileview;
+}

@@ -1,0 +1,33 @@
+void sys_mbox_post(struct sys_mbox **mb, void *msg)
+{
+    struct sys_mbox *mbox;
+    mbox = *mb;
+    LWIP_DEBUGF(SYS_DEBUG, ("sys_mbox_post: mbox 0x%p msg 0x%p\n", (void *)mbox, (void *)msg));
+
+    (void)LOS_SemPend(mbox->mutex, LOS_WAIT_FOREVER);
+
+    while (mbox->isFull) {
+        LWIP_DEBUGF(SYS_DEBUG, ("sys_mbox_post : mbox 0x%p mbox 0x%p, queue is full\n", (void *)mbox, (void *)msg));
+        (void)LOS_SemPost(mbox->mutex);
+        (void)LOS_SemPend(mbox->not_full, LOS_WAIT_FOREVER);
+        (void)LOS_SemPend(mbox->mutex, LOS_WAIT_FOREVER);
+    }
+
+    mbox->msgs[mbox->last] = msg;
+
+    mbox->last = (mbox->last + 1) % mbox->mbox_size;
+
+    if (mbox->first == mbox->last) {
+        mbox->isFull = 1;
+    }
+
+    if (mbox->isEmpty) {
+        mbox->isEmpty = 0;
+        (void)LOS_SemPost(mbox->not_empty);
+        LWIP_DEBUGF(SYS_DEBUG,
+            ("sys_mbox_post : mbox 0x%p msg 0x%p, signalling not empty\n", (void *)mbox, (void *)msg));
+    }
+
+    LWIP_DEBUGF(SYS_DEBUG, ("sys_mbox_post: mbox 0x%p msg 0%p posted\n", (void *)mbox, (void *)msg));
+    (void)LOS_SemPost(mbox->mutex);
+}

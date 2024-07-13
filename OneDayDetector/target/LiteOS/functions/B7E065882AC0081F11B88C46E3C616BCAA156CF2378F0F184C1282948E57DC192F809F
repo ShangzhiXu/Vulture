@@ -1,0 +1,22 @@
+SECUREC_INLINE int SecDecodeWidth(SecChar ch, SecFormatAttr *attr, SecFmtState lastState)
+{
+    if (attr->dynWidth == 0) {
+        if (lastState != STAT_WIDTH) {
+            attr->fldWidth = 0;
+        }
+        if (SECUREC_MUL_TEN_ADD_BEYOND_MAX(attr->fldWidth)) {
+            return -1;
+        }
+        attr->fldWidth = (int)SECUREC_MUL_TEN((unsigned int)attr->fldWidth) +
+            (unsigned char)(ch - SECUREC_CHAR('0'));
+    } else {
+        if (attr->fldWidth < 0) {
+            attr->flags |= SECUREC_FLAG_LEFT;
+            attr->fldWidth = (-attr->fldWidth);
+            if (attr->fldWidth > SECUREC_MAX_WIDTH_LEN) {
+                return -1;
+            }
+        }
+    }
+    return 0;
+}

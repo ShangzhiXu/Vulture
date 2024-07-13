@@ -1,0 +1,56 @@
+static void anim_task(lv_task_t * param)
+{
+    (void)param;
+
+    lv_anim_t * a;
+    _LV_LL_READ(LV_GC_ROOT(_lv_anim_ll), a) {
+        a->has_run = 0;
+    }
+
+    uint32_t elaps = lv_tick_elaps(last_task_run);
+
+    a = _lv_ll_get_head(&LV_GC_ROOT(_lv_anim_ll));
+
+    while(a != NULL) {
+        /*It can be set by `lv_anim_del()` typically in `end_cb`. If set then an animation delete
+         * happened in `anim_ready_handler` which could make this linked list reading corrupt
+         * because the list is changed meanwhile
+         */
+        anim_list_changed = false;
+
+        if(!a->has_run) {
+            a->has_run = 1; /*The list readying might be reseted so need to know which anim has run already*/
+
+            /*The animation will run now for the first time. Call `start_cb`*/
+            int32_t new_act_time = a->act_time + elaps;
+            if(a->act_time <= 0 && new_act_time >= 0) {
+                if(a->start_cb) a->start_cb(a);
+            }
+            a->act_time += elaps;
+            if(a->act_time >= 0) {
+                if(a->act_time > a->time) a->act_time = a->time;
+
+                int32_t new_value;
+                if(a->path.cb) new_value = a->path.cb(&a->path, a);
+                else new_value = lv_anim_path_linear(&a->path, a);
+
+                /*Apply the calculated value*/
+                if(a->exec_cb) a->exec_cb(a->var, new_value);
+
+                /*If the time is elapsed the animation is ready*/
+                if(a->act_time >= a->time) {
+                    anim_ready_handler(a);
+                }
+            }
+        }
+
+        /* If the linked list changed due to anim. delete then it's not safe to continue
+         * the reading of the list from here -> start from the head*/
+        if(anim_list_changed)
+            a = _lv_ll_get_head(&LV_GC_ROOT(_lv_anim_ll));
+        else
+            a = _lv_ll_get_next(&LV_GC_ROOT(_lv_anim_ll), a);
+    }
+
+    last_task_run = lv_tick_get();
+}

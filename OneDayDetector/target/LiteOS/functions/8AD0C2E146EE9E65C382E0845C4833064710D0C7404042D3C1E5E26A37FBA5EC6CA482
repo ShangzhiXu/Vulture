@@ -1,0 +1,28 @@
+FRESULT f_readdir (
+	DIR* dp,			/* Pointer to the open directory object */
+	FILINFO* fno		/* Pointer to file information to return */
+)
+{
+	FRESULT res;
+	FATFS *fs;
+	DEF_NAMBUF
+
+
+	res = validate(&dp->obj, &fs);	/* Check validity of the directory object */
+	if (res == FR_OK) {
+		if (!fno) {
+			res = dir_sdi(dp, 0);			/* Rewind the directory object */
+		} else {
+			INIT_NAMBUF(fs);
+			res = dir_read_file(dp);		/* Read an item */
+			if (res == FR_NO_FILE) res = FR_OK;	/* Ignore end of directory */
+			if (res == FR_OK) {				/* A valid entry is found */
+				get_fileinfo(dp, fno);		/* Get the object information */
+				res = dir_next(dp, 0);		/* Increment index for next */
+				if (res == FR_NO_FILE) res = FR_OK;	/* Ignore end of directory now */
+			}
+			FREE_NAMBUF();
+		}
+	}
+	LEAVE_FF(fs, res);
+}

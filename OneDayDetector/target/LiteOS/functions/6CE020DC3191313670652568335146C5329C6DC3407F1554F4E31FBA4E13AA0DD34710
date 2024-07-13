@@ -1,0 +1,23 @@
+osStatus_t osEventFlagsDelete(osEventFlagsId_t ef_id)
+{
+    PEVENT_CB_S eventCB = (PEVENT_CB_S)ef_id;
+    UINT32 ret;
+
+    if (OS_INT_ACTIVE) {
+        return osErrorISR;
+    }
+
+    ret = LOS_EventDestroy(eventCB);
+    if (ret == LOS_OK) {
+        if (LOS_MemFree(m_aucSysMem0, (VOID *)eventCB) == LOS_OK) {
+            return osOK;
+        } else {
+            PRINT_ERR("[%s] memory free fail!\n", __func__);
+            return osErrorResource;
+        }
+    } else if (ret == LOS_ERRNO_EVENT_PTR_NULL) {
+        return osErrorParameter;
+    } else {
+        return osErrorResource;
+    }
+}

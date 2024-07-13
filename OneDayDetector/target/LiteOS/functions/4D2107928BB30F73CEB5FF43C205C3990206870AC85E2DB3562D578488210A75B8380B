@@ -1,0 +1,112 @@
+HAL_StatusTypeDef HAL_USART_Abort_IT(USART_HandleTypeDef *husart)
+{
+  uint32_t AbortCplt = 0x01U;
+
+  /* Disable TXEIE, TCIE, RXNE, PE and ERR (Frame error, noise error, overrun error) interrupts */
+  CLEAR_BIT(husart->Instance->CR1, (USART_CR1_RXNEIE | USART_CR1_PEIE | USART_CR1_TXEIE | USART_CR1_TCIE));
+  CLEAR_BIT(husart->Instance->CR3, USART_CR3_EIE);
+
+  /* If DMA Tx and/or DMA Rx Handles are associated to USART Handle, DMA Abort complete callbacks should be initialised
+     before any call to DMA Abort functions */
+  /* DMA Tx Handle is valid */
+  if (husart->hdmatx != NULL)
+  {
+    /* Set DMA Abort Complete callback if USART DMA Tx request if enabled.
+       Otherwise, set it to NULL */
+    if (HAL_IS_BIT_SET(husart->Instance->CR3, USART_CR3_DMAT))
+    {
+      husart->hdmatx->XferAbortCallback = USART_DMATxAbortCallback;
+    }
+    else
+    {
+      husart->hdmatx->XferAbortCallback = NULL;
+    }
+  }
+  /* DMA Rx Handle is valid */
+  if (husart->hdmarx != NULL)
+  {
+    /* Set DMA Abort Complete callback if USART DMA Rx request if enabled.
+       Otherwise, set it to NULL */
+    if (HAL_IS_BIT_SET(husart->Instance->CR3, USART_CR3_DMAR))
+    {
+      husart->hdmarx->XferAbortCallback = USART_DMARxAbortCallback;
+    }
+    else
+    {
+      husart->hdmarx->XferAbortCallback = NULL;
+    }
+  }
+
+  /* Disable the USART DMA Tx request if enabled */
+  if (HAL_IS_BIT_SET(husart->Instance->CR3, USART_CR3_DMAT))
+  {
+    /* Disable DMA Tx at USART level */
+    CLEAR_BIT(husart->Instance->CR3, USART_CR3_DMAT);
+
+    /* Abort the USART DMA Tx channel : use non blocking DMA Abort API (callback) */
+    if (husart->hdmatx != NULL)
+    {
+      /* USART Tx DMA Abort callback has already been initialised :
+         will lead to call HAL_USART_AbortCpltCallback() at end of DMA abort procedure */
+
+      /* Abort DMA TX */
+      if (HAL_DMA_Abort_IT(husart->hdmatx) != HAL_OK)
+      {
+        husart->hdmatx->XferAbortCallback = NULL;
+      }
+      else
+      {
+        AbortCplt = 0x00U;
+      }
+    }
+  }
+
+  /* Disable the USART DMA Rx request if enabled */
+  if (HAL_IS_BIT_SET(husart->Instance->CR3, USART_CR3_DMAR))
+  {
+    CLEAR_BIT(husart->Instance->CR3, USART_CR3_DMAR);
+
+    /* Abort the USART DMA Rx channel : use non blocking DMA Abort API (callback) */
+    if (husart->hdmarx != NULL)
+    {
+      /* USART Rx DMA Abort callback has already been initialised :
+         will lead to call HAL_USART_AbortCpltCallback() at end of DMA abort procedure */
+
+      /* Abort DMA RX */
+      if (HAL_DMA_Abort_IT(husart->hdmarx) != HAL_OK)
+      {
+        husart->hdmarx->XferAbortCallback = NULL;
+        AbortCplt = 0x01U;
+      }
+      else
+      {
+        AbortCplt = 0x00U;
+      }
+    }
+  }
+
+  /* if no DMA abort complete callback execution is required => call user Abort Complete callback */
+  if (AbortCplt  == 0x01U)
+  {
+    /* Reset Tx and Rx transfer counters */
+    husart->TxXferCount = 0x00U;
+    husart->RxXferCount = 0x00U;
+
+    /* Reset errorCode */
+    husart->ErrorCode = HAL_USART_ERROR_NONE;
+
+    /* Restore husart->State to Ready */
+    husart->State  = HAL_USART_STATE_READY;
+
+    /* As no DMA to be aborted, call directly user Abort complete callback */
+#if (USE_HAL_USART_REGISTER_CALLBACKS == 1)
+    /* Call registered Abort Complete Callback */
+    husart->AbortCpltCallback(husart);
+#else
+    /* Call legacy weak Abort Complete Callback */
+    HAL_USART_AbortCpltCallback(husart);
+#endif /* USE_HAL_USART_REGISTER_CALLBACKS */
+  }
+
+  return HAL_OK;
+}

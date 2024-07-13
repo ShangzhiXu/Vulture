@@ -1,0 +1,34 @@
+void HAL_RNG_IRQHandler(RNG_HandleTypeDef *hrng)
+{
+  /* RNG clock error interrupt occurred */
+  if((__HAL_RNG_GET_IT(hrng, RNG_IT_CEI) != RESET) ||  (__HAL_RNG_GET_IT(hrng, RNG_IT_SEI) != RESET))
+  { 
+    /* Change RNG peripheral state */
+    hrng->State = HAL_RNG_STATE_ERROR;
+  
+    HAL_RNG_ErrorCallback(hrng);
+    
+    /* Clear the clock error flag */
+    __HAL_RNG_CLEAR_IT(hrng, RNG_IT_CEI|RNG_IT_SEI);
+    
+  }
+  
+  /* Check RNG data ready interrupt occurred */    
+  if(__HAL_RNG_GET_IT(hrng, RNG_IT_DRDY) != RESET)
+  {
+    /* Generate random number once, so disable the IT */
+    __HAL_RNG_DISABLE_IT(hrng);
+    
+    /* Get the 32bit Random number (DRDY flag automatically cleared) */ 
+    hrng->RandomNumber = hrng->Instance->DR;
+    
+    if(hrng->State != HAL_RNG_STATE_ERROR)
+    {
+      /* Change RNG peripheral state */
+      hrng->State = HAL_RNG_STATE_READY; 
+      
+      /* Data Ready callback */ 
+      HAL_RNG_ReadyDataCallback(hrng, hrng->RandomNumber);
+    } 
+  }
+} 

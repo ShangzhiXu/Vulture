@@ -1,0 +1,154 @@
+HAL_StatusTypeDef HAL_SPI_Abort_IT(SPI_HandleTypeDef *hspi)
+{
+  HAL_StatusTypeDef errorcode;
+  uint32_t abortcplt ;
+  __IO uint32_t count;
+  __IO uint32_t resetcount;
+
+  /* Initialized local variable  */
+  errorcode = HAL_OK;
+  abortcplt = 1U;
+  resetcount = SPI_DEFAULT_TIMEOUT * (SystemCoreClock / 24U / 1000U);
+  count = resetcount;
+
+  /* Clear ERRIE interrupt to avoid error interrupts generation during Abort procedure */
+  CLEAR_BIT(hspi->Instance->CR2, SPI_CR2_ERRIE);
+
+  /* Change Rx and Tx Irq Handler to Disable TXEIE, RXNEIE and ERRIE interrupts */
+  if (HAL_IS_BIT_SET(hspi->Instance->CR2, SPI_CR2_TXEIE))
+  {
+    hspi->TxISR = SPI_AbortTx_ISR;
+    /* Wait HAL_SPI_STATE_ABORT state */
+    do
+    {
+      if (count == 0U)
+      {
+        SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_ABORT);
+        break;
+      }
+      count--;
+    } while (hspi->State != HAL_SPI_STATE_ABORT);
+    /* Reset Timeout Counter */
+    count = resetcount;
+  }
+
+  if (HAL_IS_BIT_SET(hspi->Instance->CR2, SPI_CR2_RXNEIE))
+  {
+    hspi->RxISR = SPI_AbortRx_ISR;
+    /* Wait HAL_SPI_STATE_ABORT state */
+    do
+    {
+      if (count == 0U)
+      {
+        SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_ABORT);
+        break;
+      }
+      count--;
+    } while (hspi->State != HAL_SPI_STATE_ABORT);
+    /* Reset Timeout Counter */
+    count = resetcount;
+  }
+
+  /* If DMA Tx and/or DMA Rx Handles are associated to SPI Handle, DMA Abort complete callbacks should be initialised
+     before any call to DMA Abort functions */
+  /* DMA Tx Handle is valid */
+  if (hspi->hdmatx != NULL)
+  {
+    /* Set DMA Abort Complete callback if UART DMA Tx request if enabled.
+       Otherwise, set it to NULL */
+    if (HAL_IS_BIT_SET(hspi->Instance->CR2, SPI_CR2_TXDMAEN))
+    {
+      hspi->hdmatx->XferAbortCallback = SPI_DMATxAbortCallback;
+    }
+    else
+    {
+      hspi->hdmatx->XferAbortCallback = NULL;
+    }
+  }
+  /* DMA Rx Handle is valid */
+  if (hspi->hdmarx != NULL)
+  {
+    /* Set DMA Abort Complete callback if UART DMA Rx request if enabled.
+       Otherwise, set it to NULL */
+    if (HAL_IS_BIT_SET(hspi->Instance->CR2, SPI_CR2_RXDMAEN))
+    {
+      hspi->hdmarx->XferAbortCallback = SPI_DMARxAbortCallback;
+    }
+    else
+    {
+      hspi->hdmarx->XferAbortCallback = NULL;
+    }
+  }
+
+  /* Disable the SPI DMA Tx request if enabled */
+  if (HAL_IS_BIT_SET(hspi->Instance->CR2, SPI_CR2_TXDMAEN))
+  {
+    /* Abort the SPI DMA Tx Stream/Channel */
+    if (hspi->hdmatx != NULL)
+    {
+      /* Abort DMA Tx Handle linked to SPI Peripheral */
+      if (HAL_DMA_Abort_IT(hspi->hdmatx) != HAL_OK)
+      {
+        hspi->hdmatx->XferAbortCallback = NULL;
+        hspi->ErrorCode = HAL_SPI_ERROR_ABORT;
+      }
+      else
+      {
+        abortcplt = 0U;
+      }
+    }
+  }
+  /* Disable the SPI DMA Rx request if enabled */
+  if (HAL_IS_BIT_SET(hspi->Instance->CR2, SPI_CR2_RXDMAEN))
+  {
+    /* Abort the SPI DMA Rx Stream/Channel */
+    if (hspi->hdmarx != NULL)
+    {
+      /* Abort DMA Rx Handle linked to SPI Peripheral */
+      if (HAL_DMA_Abort_IT(hspi->hdmarx) !=  HAL_OK)
+      {
+        hspi->hdmarx->XferAbortCallback = NULL;
+        hspi->ErrorCode = HAL_SPI_ERROR_ABORT;
+      }
+      else
+      {
+        abortcplt = 0U;
+      }
+    }
+  }
+
+  if (abortcplt == 1U)
+  {
+    /* Reset Tx and Rx transfer counters */
+    hspi->RxXferCount = 0U;
+    hspi->TxXferCount = 0U;
+
+    /* Check error during Abort procedure */
+    if (hspi->ErrorCode == HAL_SPI_ERROR_ABORT)
+    {
+      /* return HAL_Error in case of error during Abort procedure */
+      errorcode = HAL_ERROR;
+    }
+    else
+    {
+      /* Reset errorCode */
+      hspi->ErrorCode = HAL_SPI_ERROR_NONE;
+    }
+
+    /* Clear the Error flags in the SR register */
+    __HAL_SPI_CLEAR_OVRFLAG(hspi);
+    __HAL_SPI_CLEAR_FREFLAG(hspi);
+
+    /* Restore hspi->State to Ready */
+    hspi->State = HAL_SPI_STATE_READY;
+
+    /* As no DMA to be aborted, call directly user Abort complete callback */
+#if (USE_HAL_SPI_REGISTER_CALLBACKS == 1U)
+    hspi->AbortCpltCallback(hspi);
+#else
+    HAL_SPI_AbortCpltCallback(hspi);
+#endif /* USE_HAL_SPI_REGISTER_CALLBACKS */
+  }
+
+  return errorcode;
+}

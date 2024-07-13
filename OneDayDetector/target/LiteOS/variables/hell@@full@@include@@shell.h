@@ -1,0 +1,13 @@
+    VOID     *cmdHistoryKeyLink;
+    VOID     *cmdKeyLink;
+    VOID     *cmdMaskKeyLink;
+    UINT32   consoleID;
+    pthread_mutex_t historyMutex;
+    pthread_mutex_t keyMutex;
+    CHAR     shellBuf[SHOW_MAX_LEN];
+    UINT32   shellBufOffset;
+    UINT32   shellEntryHandle;
+    EVENT_CB_S shellEvent;
+    UINT32   shellKeyType;
+    UINT32   shellTaskHandle;
+    CHAR     shellWorkingDirectory[PATH_MAX];

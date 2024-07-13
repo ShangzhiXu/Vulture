@@ -1,0 +1,32 @@
+VOID OsBlockMapsInit(UINT64 flags, UINT64 start, UINT64 end)
+{
+    UINT64 startOffset;
+    UINT64 endOffset;
+    UINT64 pageSize;
+    BlockCB blockCB;
+
+    if ((start & (MMU_1G - 1)) != 0) {
+        PRINT_ERR("%s, %d, the start of mapping addr is 0x%llx, should be aligned as 1G \n",
+                  __FUNCTION__, __LINE__, start);
+        return;
+    }
+    end = ((end + (MMU_1G - 1)) & ~(MMU_1G - 1));
+    pageSize = (sizeof(g_firstPageTable) >> SHIFT_4K) - 1;
+    startOffset = start >> SHIFT_1G;
+    endOffset = end >> SHIFT_1G;
+    if (endOffset > pageSize) {
+        PRINT_ERR("%s, %d, the end of mapping addr is 0x%llx, should not be bigger than 0x%llx \n",
+                  __FUNCTION__, __LINE__, end, pageSize << SHIFT_1G);
+        return;
+    }
+    for (; startOffset < endOffset; ++startOffset) {
+        CreatPgdItem(PGD_ADDR + (startOffset * BYTES_PER_ITEM), PMD_ADDR0 + (startOffset * PAGE_SIZE));
+        blockCB.tbl = PMD_ADDR0 + (startOffset * PAGE_SIZE);
+        blockCB.flags = flags;
+        blockCB.phys = startOffset << SHIFT_1G;
+        blockCB.start = startOffset << SHIFT_1G;
+        blockCB.end = ((startOffset + 1) << SHIFT_1G) - 1;
+        blockCB.blockShift = SHIFT_2M;
+        CreatBlockMap(&blockCB);
+    }
+}

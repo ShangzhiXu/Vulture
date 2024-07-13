@@ -1,0 +1,16 @@
+static int my_send( void *ctx, const unsigned char *buf, size_t len )
+{
+    static int first_try = 1;
+    int ret;
+
+    if( first_try )
+    {
+        first_try = 0;
+        return( MBEDTLS_ERR_SSL_WANT_WRITE );
+    }
+
+    ret = mbedtls_net_send( ctx, buf, len );
+    if( ret != MBEDTLS_ERR_SSL_WANT_WRITE )
+        first_try = 1; /* Next call will be a new operation */
+    return( ret );
+}

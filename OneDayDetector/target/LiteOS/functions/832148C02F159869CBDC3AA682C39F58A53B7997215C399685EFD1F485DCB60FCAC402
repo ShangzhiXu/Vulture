@@ -1,0 +1,84 @@
+int object_getRegisterPayload(lwm2m_context_t *contextP,
+                              uint8_t *buffer,
+                              size_t bufferLen)
+{
+    size_t index;
+    int result;
+    lwm2m_object_t *objectP;
+
+    LOG("Entering");
+    // index can not be greater than bufferLen
+    index = 0;
+
+    result = utils_stringCopy((char *)buffer, bufferLen, REG_START);
+    if (result < 0) return 0;
+    index += result;
+
+    if ((contextP->altPath != NULL)
+            && (contextP->altPath[0] != 0))
+    {
+        result = utils_stringCopy((char *)buffer + index, bufferLen - index, contextP->altPath);
+    }
+    else
+    {
+        result = utils_stringCopy((char *)buffer + index, bufferLen - index, REG_DEFAULT_PATH);
+    }
+    if (result < 0) return 0;
+    index += result;
+
+    result = utils_stringCopy((char *)buffer + index, bufferLen - index, REG_LWM2M_RESOURCE_TYPE);
+    if (result < 0) return 0;
+    index += result;
+
+    for (objectP = contextP->objectList; objectP != NULL; objectP = objectP->next)
+    {
+        size_t start;
+        size_t length;
+
+        if (objectP->objID == LWM2M_SECURITY_OBJECT_ID) continue;
+
+        start = index;
+        result = prv_getObjectTemplate(buffer + index, bufferLen - index, objectP->objID);
+        if (result < 0) return 0;
+        length = result;
+        index += length;
+
+        if (objectP->instanceList == NULL)
+        {
+            index--;
+            result = utils_stringCopy((char *)buffer + index, bufferLen - index, REG_PATH_END);
+            if (result < 0) return 0;
+            index += result;
+        }
+        else
+        {
+            lwm2m_list_t *targetP;
+            for (targetP = objectP->instanceList ; targetP != NULL ; targetP = targetP->next)
+            {
+                if (index != start + length)
+                {
+                    if (bufferLen - index <= length) return 0;
+                    memcpy(buffer + index, buffer + start, length);
+                    index += length;
+                }
+
+                result = utils_intToText(targetP->id, buffer + index, bufferLen - index);
+                if (result == 0) return 0;
+                index += result;
+
+                result = utils_stringCopy((char *)buffer + index, bufferLen - index, REG_PATH_END);
+                if (result < 0) return 0;
+                index += result;
+            }
+        }
+    }
+
+    if (index > 0)
+    {
+        index = index - 1;  // remove trailing ','
+    }
+
+    buffer[index] = 0;
+
+    return index;
+}

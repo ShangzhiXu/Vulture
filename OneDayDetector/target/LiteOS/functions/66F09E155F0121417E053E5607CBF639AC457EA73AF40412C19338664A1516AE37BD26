@@ -1,0 +1,41 @@
+int do_uart_getc(void)
+{
+    int ret;
+    static char *buf = NULL;
+    static int num = 0;
+    static int pos = 0;
+    char ch;
+    HalIrqMask(NUM_HAL_INTERRUPT_UART);
+    if (buf == NULL) {
+        buf = (char *)malloc(INPUT_BUF_SIZE);
+        if (buf == NULL) {
+            HalIrqUnmask(NUM_HAL_INTERRUPT_UART);
+            return EOF;
+        }
+        pos = 0;
+    }
+
+    /* refill buf */
+    if (num == 0) {
+        do {
+            ch = (char)uart_getc();
+            if (ch == '\r' || ch == '\n') {
+                (void)uart_putc('\r');
+                (void)uart_putc('\n');
+                ch = '\n';
+            } else {
+                (void)uart_putc(ch);
+            }
+            if (num <= INPUT_BUF_SIZE - 1) {
+                buf[num] = ch;
+                num++;
+            }
+        } while (ch != '\n');
+        pos = 0;
+    }
+
+    num--;
+    ret = buf[pos++];
+    HalIrqUnmask(NUM_HAL_INTERRUPT_UART);
+    return ret;
+}

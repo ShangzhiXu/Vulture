@@ -1,0 +1,20 @@
+STATIC BOOL OsLockDepCheckDependancy(const LosTaskCB *current, const LosTaskCB *lockOwner)
+{
+    BOOL checkResult = TRUE;
+    const SPIN_LOCK_S *lockTemp = NULL;
+
+    do {
+        if (current == lockOwner) {
+            checkResult = FALSE;
+            return checkResult;
+        }
+        if (lockOwner->lockDep.waitLock != NULL) {
+            lockTemp = lockOwner->lockDep.waitLock;
+            lockOwner = lockTemp->owner;
+        } else {
+            break;
+        }
+    } while (lockOwner != SPINLOCK_OWNER_INIT);
+
+    return checkResult;
+}

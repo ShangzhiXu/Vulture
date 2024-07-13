@@ -1,0 +1,22 @@
+int pthread_mutex_lock(pthread_mutex_t *mutex)
+{
+    MuxBaseCB *muxPended = NULL;
+    LosTaskCB *runTask = NULL;
+    UINT32 ret;
+
+    runTask = (LosTaskCB*)OsCurrTaskGet();
+    ret = OsMuxPreCheck(mutex, runTask);
+    if (ret != ENOERR) {
+        return (INT32)ret;
+    }
+
+    muxPended = &mutex->stLock;
+    if ((mutex->stAttr.type == PTHREAD_MUTEX_ERRORCHECK) &&
+        (muxPended->muxCount != 0) &&
+        (muxPended->owner == runTask)) {
+        return EDEADLK;
+    }
+
+    ret = OsMuxPendForPosix(mutex, LOS_WAIT_FOREVER);
+    return map_errno(ret);
+}

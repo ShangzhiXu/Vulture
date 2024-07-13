@@ -1,0 +1,82 @@
+HAL_StatusTypeDef HAL_SD_Abort_IT(SD_HandleTypeDef *hsd)
+{
+  HAL_SD_CardStateTypedef CardState;
+    
+  /* Disable All interrupts */
+  __HAL_SD_DISABLE_IT(hsd, SDMMC_IT_DATAEND | SDMMC_IT_DCRCFAIL | SDMMC_IT_DTIMEOUT|\
+                           SDMMC_IT_TXUNDERR| SDMMC_IT_RXOVERR);
+  
+#if defined(STM32L4R5xx) || defined(STM32L4R7xx) || defined(STM32L4R9xx) || defined(STM32L4S5xx) || defined(STM32L4S7xx) || defined(STM32L4S9xx)
+  /* If IDMA Context, disable Internal DMA */
+  hsd->Instance->IDMACTRL = SDMMC_DISABLE_IDMA;
+
+  /* Clear All flags */
+  __HAL_SD_CLEAR_FLAG(hsd, SDMMC_STATIC_DATA_FLAGS);
+  
+  CardState = HAL_SD_GetCardState(hsd);
+  hsd->State = HAL_SD_STATE_READY;
+  
+  if((CardState == HAL_SD_CARD_RECEIVING) || (CardState == HAL_SD_CARD_SENDING))
+  {
+    hsd->ErrorCode = SDMMC_CmdStopTransfer(hsd->Instance);
+  }
+  
+  if(hsd->ErrorCode != HAL_SD_ERROR_NONE)
+  {
+    return HAL_ERROR;
+  }
+  else
+  {
+    HAL_SD_AbortCallback(hsd);
+  }
+#else
+  if((hsd->hdmatx != NULL) || (hsd->hdmarx != NULL))
+  {
+    /* Disable the SD DMA request */
+    hsd->Instance->DCTRL &= (uint32_t)~((uint32_t)SDMMC_DCTRL_DMAEN);
+    
+    /* Abort the SD DMA Tx channel */
+    if(hsd->hdmatx != NULL)
+    {
+      hsd->hdmatx->XferAbortCallback =  SD_DMATxAbort;
+      if(HAL_DMA_Abort_IT(hsd->hdmatx) != HAL_OK)
+      {
+        hsd->hdmatx = NULL;
+      }
+    }
+    /* Abort the SD DMA Rx channel */
+    if(hsd->hdmarx != NULL)
+    {
+      hsd->hdmarx->XferAbortCallback =  SD_DMARxAbort;
+      if(HAL_DMA_Abort_IT(hsd->hdmarx) != HAL_OK)
+      {
+        hsd->hdmarx = NULL;
+      }
+    }
+  }
+  
+  /* No transfer ongoing on both DMA channels*/
+  if((hsd->hdmatx == NULL) && (hsd->hdmarx == NULL))
+  {
+    /* Clear All flags */
+    __HAL_SD_CLEAR_FLAG(hsd, SDMMC_STATIC_DATA_FLAGS);
+  
+    CardState = HAL_SD_GetCardState(hsd);
+    hsd->State = HAL_SD_STATE_READY;
+    if((CardState == HAL_SD_CARD_RECEIVING) || (CardState == HAL_SD_CARD_SENDING))
+    {
+      hsd->ErrorCode = SDMMC_CmdStopTransfer(hsd->Instance);
+    }
+    if(hsd->ErrorCode != HAL_SD_ERROR_NONE)
+    {
+      return HAL_ERROR;
+    }
+    else
+    {
+      HAL_SD_AbortCallback(hsd);
+    }
+  }
+#endif /* STM32L4R5xx || STM32L4R7xx || STM32L4R9xx || STM32L4S5xx || STM32L4S7xx || STM32L4S9xx */
+  
+  return HAL_OK;
+}

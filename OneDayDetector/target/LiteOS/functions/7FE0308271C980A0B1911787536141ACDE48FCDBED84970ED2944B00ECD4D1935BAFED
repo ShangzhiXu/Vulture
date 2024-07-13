@@ -1,0 +1,31 @@
+SECUREC_INLINE int SecDecodeClearFormat(const SecUnsignedChar *format, int *convChr)
+{
+    const SecUnsignedChar *fmt = format;
+    /* To lowercase */
+    int ch = SECUREC_TO_LOWERCASE(*fmt);
+    if (!(ch == 'c' || ch == 's' || ch == SECUREC_BRACE)) {
+        return -1;     /* First argument is not a string type */
+    }
+    if (ch == SECUREC_BRACE) {
+#if !(defined(SECUREC_COMPATIBLE_WIN_FORMAT))
+        if (*fmt == SECUREC_CHAR('{')) {
+            return -1;
+        }
+#endif
+        ++fmt;
+        if (*fmt == SECUREC_CHAR('^')) {
+            ++fmt;
+        }
+        if (*fmt == SECUREC_CHAR(']')) {
+            ++fmt;
+        }
+        while (*fmt != SECUREC_CHAR('\0') && *fmt != SECUREC_CHAR(']')) {
+            ++fmt;
+        }
+        if (*fmt == SECUREC_CHAR('\0')) {
+            return -1; /* Trunc'd format string */
+        }
+    }
+    *convChr = ch;
+    return 0;
+}

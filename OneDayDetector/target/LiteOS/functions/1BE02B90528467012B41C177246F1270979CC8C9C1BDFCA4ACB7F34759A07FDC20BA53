@@ -1,0 +1,24 @@
+STATIC INT32 OsDecodeFS(UINT32 bitsFS)
+{
+    switch (bitsFS) {
+        case 0x05:  /* 0b00101 */
+        case 0x07:  /* 0b00111 */
+            PrintExcInfo("Translation fault, %s\n", (bitsFS & 0x2) ? "page" : "section");
+            break;
+        case 0x09:  /* 0b01001 */
+        case 0x0b:  /* 0b01011 */
+            PrintExcInfo("Domain fault, %s\n", (bitsFS & 0x2) ? "page" : "section");
+            break;
+        case 0x0d:  /* 0b01101 */
+        case 0x0f:  /* 0b01111 */
+            PrintExcInfo("Permission fault, %s\n", (bitsFS & 0x2) ? "page" : "section");
+            break;
+        default:
+            PrintExcInfo("Unknown fault! FS:0x%x. "
+                         "Check IFSR and DFSR in ARM Architecture Reference Manual.\n",
+                         bitsFS);
+            break;
+    }
+
+    return LOS_OK;
+}

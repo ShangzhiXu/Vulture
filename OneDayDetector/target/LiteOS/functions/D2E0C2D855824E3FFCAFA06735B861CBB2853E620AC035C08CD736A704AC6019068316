@@ -1,0 +1,21 @@
+osSemaphoreId_t osSemaphoreNew(uint32_t max_count, uint32_t initial_count, const osSemaphoreAttr_t *attr)
+{
+    (VOID)attr;
+    UINT32 ret;
+    UINT32 semId;
+
+    if ((initial_count > max_count) || (max_count > OS_SEM_COUNT_MAX) || OS_INT_ACTIVE) {
+        return NULL;
+    }
+
+    if (max_count == 1) {
+        ret = LOS_BinarySemCreate((UINT16)initial_count, &semId);
+    } else {
+        ret = LOS_SemCreate((UINT16)initial_count, &semId);
+    }
+    if (ret == LOS_OK) {
+        return (osSemaphoreId_t)GET_SEM(semId);
+    } else {
+        return NULL;
+    }
+}

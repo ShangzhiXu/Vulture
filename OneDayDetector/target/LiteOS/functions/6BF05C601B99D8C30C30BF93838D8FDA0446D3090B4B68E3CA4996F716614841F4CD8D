@@ -1,0 +1,34 @@
+static void SMARTCARD_DMATxAbortCallback(DMA_HandleTypeDef *hdma)
+{
+  SMARTCARD_HandleTypeDef* hsc = ( SMARTCARD_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+
+  hsc->hdmatx->XferAbortCallback = NULL;
+
+  /* Check if an Abort process is still ongoing */
+  if(hsc->hdmarx != NULL)
+  {
+    if(hsc->hdmarx->XferAbortCallback != NULL)
+    {
+      return;
+    }
+  }
+
+  /* No Abort process still ongoing : All DMA channels are aborted, call user Abort Complete callback */
+  hsc->TxXferCount = 0x00U;
+  hsc->RxXferCount = 0x00U;
+
+  /* Reset ErrorCode */
+  hsc->ErrorCode = HAL_SMARTCARD_ERROR_NONE;
+
+  /* Restore hsc->gState and hsc->RxState to Ready */
+  hsc->gState  = HAL_SMARTCARD_STATE_READY;
+  hsc->RxState = HAL_SMARTCARD_STATE_READY;
+
+#if (USE_HAL_SMARTCARD_REGISTER_CALLBACKS == 1)
+  /* Call registered Abort complete callback */
+  hsc->AbortCpltCallback(hsc);
+#else
+  /* Call legacy weak Abort complete callback */
+  HAL_SMARTCARD_AbortCpltCallback(hsc);
+#endif /* USE_HAL_SMARTCARD_REGISTER_CALLBACK */
+}

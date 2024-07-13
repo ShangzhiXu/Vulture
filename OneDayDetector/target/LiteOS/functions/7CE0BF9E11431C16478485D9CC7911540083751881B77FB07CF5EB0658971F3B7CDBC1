@@ -1,0 +1,29 @@
+void ppp_print_string(const u_char *p, int len, void (*printer) (void *, const char *, ...), void *arg) {
+    int c;
+
+    printer(arg, "\"");
+    for (; len > 0; --len) {
+	c = *p++;
+	if (' ' <= c && c <= '~') {
+	    if (c == '\\' || c == '"')
+		printer(arg, "\\");
+	    printer(arg, "%c", c);
+	} else {
+	    switch (c) {
+	    case '\n':
+		printer(arg, "\\n");
+		break;
+	    case '\r':
+		printer(arg, "\\r");
+		break;
+	    case '\t':
+		printer(arg, "\\t");
+		break;
+	    default:
+		printer(arg, "\\%.3o", (u8_t)c);
+		/* no break */
+	    }
+	}
+    }
+    printer(arg, "\"");
+}

@@ -1,0 +1,48 @@
+void LCD_IO_WriteMultipleData(uint8_t *pData, uint32_t Size)
+{
+  uint32_t counter = 0;
+  
+  /* Reset LCD control line CS */
+  LCD_CS_LOW();
+  
+  /* Set LCD data/command line DC to High */
+  LCD_DC_HIGH();
+
+  if (Size == 1)
+  {
+    /* Only 1 byte to be sent to LCD - general interface can be used */
+    /* Send Data */
+    SPIx_Write(*pData);
+  }
+  else
+  {
+    /* Several data should be sent in a raw */
+    /* Direct SPI accesses for optimization */
+    for (counter = Size; counter != 0; counter--)
+    {
+      while(((hnucleo_Spi.Instance->SR) & SPI_FLAG_TXE) != SPI_FLAG_TXE)
+      {
+      }
+      /* Need to invert bytes for LCD*/
+      *((__IO uint8_t*)&hnucleo_Spi.Instance->DR) = *(pData+1);
+      
+      while(((hnucleo_Spi.Instance->SR) & SPI_FLAG_TXE) != SPI_FLAG_TXE)
+      {
+      }
+      *((__IO uint8_t*)&hnucleo_Spi.Instance->DR) = *pData;
+      counter--;
+      pData += 2;
+    }
+  
+    /* Wait until the bus is ready before releasing Chip select */ 
+    while(((hnucleo_Spi.Instance->SR) & SPI_FLAG_BSY) != RESET)
+    {
+    } 
+  } 
+
+  /* Empty the Rx fifo */
+  SPIx_FlushFifo();
+  
+  /* Deselect : Chip Select high */
+  LCD_CS_HIGH();
+}

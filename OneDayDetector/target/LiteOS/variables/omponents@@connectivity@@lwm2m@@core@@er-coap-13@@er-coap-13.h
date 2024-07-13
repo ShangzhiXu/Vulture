@@ -1,0 +1,43 @@
+    uint16_t accept[COAP_MAX_ACCEPT_NUM];
+    uint8_t accept_num;
+    uint8_t block1_more;
+    uint32_t block1_num;
+    uint32_t block1_offset;
+    uint16_t block1_size;
+    uint8_t block2_more;
+    uint32_t block2_num;
+    uint32_t block2_offset;
+    uint16_t block2_size;
+    uint8_t* buffer; /* pointer to CoAP header / incoming packet buffer / memory to serialize packet */
+    uint8_t code;
+    coap_content_type_t content_type; /* Parse options once and store; allows setting options in random order  */
+    uint8_t* data;
+    uint8_t etag[COAP_ETAG_LEN];
+    uint8_t etag_len;
+    uint8_t if_match[COAP_ETAG_LEN];
+    uint8_t if_match_len;
+    uint8_t if_none_match;
+    uint8_t is_static;
+    uint8_t len;
+    multi_option_t* location_path;
+    uint8_t* location_query;
+    size_t location_query_len;
+    uint32_t max_age;
+    uint16_t mid;
+    struct _multi_option_t* next;
+    uint32_t observe;
+    uint8_t options[COAP_OPTION_PROXY_URI / OPTION_MAP_SIZE + 1]; /* Bitmap to check if option is set */
+    uint8_t* payload;
+    uint16_t payload_len;
+    const uint8_t* proxy_uri;
+    size_t proxy_uri_len;
+    uint32_t size;
+    uint8_t token[COAP_TOKEN_LEN];
+    uint8_t token_len;
+    coap_message_type_t type;
+    const uint8_t* uri_host;
+    size_t uri_host_len;
+    multi_option_t* uri_path;
+    uint16_t uri_port;
+    multi_option_t* uri_query;
+    uint8_t version;

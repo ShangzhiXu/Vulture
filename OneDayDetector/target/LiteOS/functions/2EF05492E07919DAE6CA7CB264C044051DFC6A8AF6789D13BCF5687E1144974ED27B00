@@ -1,0 +1,25 @@
+int pack_head_check(const pack_head_s *head, uint32_t len)
+{
+    uint32_t save_len;
+
+    if (!pack_head_is_done(head)) {
+        PACK_LOG("head invalid get len, stored len %u, head len %u", head->stored_len, head->head_len);
+        return PACK_ERR;
+    }
+
+    save_len = GET_DWORD(head->buff, PACK_HEADER_TOTAL_LEN_POS);
+    if (len != save_len) {
+        PACK_LOG("len err save len %u, rcv len %u", save_len, len);
+        return PACK_ERR;
+    }
+
+    if ((head->checksum_pos == NULL) || (head->checksum_len == 0)) {
+        PACK_LOG("fota no checksum exist");
+        return PACK_OK;
+    }
+
+    if (head->checksum) {
+        return pack_checksum_check(head->checksum, head->checksum_pos, head->checksum_len);
+    }
+    return PACK_OK;
+}

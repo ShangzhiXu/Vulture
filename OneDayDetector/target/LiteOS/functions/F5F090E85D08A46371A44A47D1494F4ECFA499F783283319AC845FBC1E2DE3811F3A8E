@@ -1,0 +1,32 @@
+SECUREC_INLINE void SecDecodeTypeS(SecFormatAttr *attr, char *argPtr)
+{
+#if (defined(SECUREC_COMPATIBLE_LINUX_FORMAT)) && (!defined(SECUREC_ON_UNIX))
+    attr->flags &= ~SECUREC_FLAG_LEADZERO;
+#endif
+    attr->text.str = argPtr;
+#ifdef SECUREC_FOR_WCHAR
+#if defined(SECUREC_COMPATIBLE_LINUX_FORMAT)
+    if ((attr->flags & SECUREC_FLAG_LONG) == 0) {
+        attr->flags |= SECUREC_FLAG_SHORT;
+    }
+#endif
+    if ((attr->flags & SECUREC_FLAG_SHORT) != 0) {
+        /* The textLen now contains length in multibyte chars */
+        SecDecodeTypeSchar(attr);
+    } else {
+        /* The textLen now contains length in wide chars */
+        SecDecodeTypeSwchar(attr);
+    }
+#else /* SECUREC_FOR_WCHAR */
+    if ((attr->flags & (SECUREC_FLAG_LONG | SECUREC_FLAG_WIDECHAR)) != 0) {
+        /* The textLen now contains length in wide chars */
+        SecDecodeTypeSwchar(attr);
+    } else {
+        /* The textLen now contains length in multibyte chars */
+        SecDecodeTypeSchar(attr);
+    }
+#endif /* SECUREC_FOR_WCHAR */
+    if (attr->textLen < 0) {
+        attr->textLen = 0;
+    }
+}

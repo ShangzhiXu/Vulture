@@ -1,0 +1,38 @@
+int mbedtls_mpi_copy( mbedtls_mpi *X, const mbedtls_mpi *Y )
+{
+    int ret = 0;
+    size_t i;
+    MPI_VALIDATE_RET( X != NULL );
+    MPI_VALIDATE_RET( Y != NULL );
+
+    if( X == Y )
+        return( 0 );
+
+    if( Y->n == 0 )
+    {
+        mbedtls_mpi_free( X );
+        return( 0 );
+    }
+
+    for( i = Y->n - 1; i > 0; i-- )
+        if( Y->p[i] != 0 )
+            break;
+    i++;
+
+    X->s = Y->s;
+
+    if( X->n < i )
+    {
+        MBEDTLS_MPI_CHK( mbedtls_mpi_grow( X, i ) );
+    }
+    else
+    {
+        memset( X->p + i, 0, ( X->n - i ) * ciL );
+    }
+
+    memcpy( X->p, Y->p, i * ciL );
+
+cleanup:
+
+    return( ret );
+}

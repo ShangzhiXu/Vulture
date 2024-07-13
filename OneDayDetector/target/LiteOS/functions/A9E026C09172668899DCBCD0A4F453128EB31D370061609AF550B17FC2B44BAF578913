@@ -1,0 +1,19 @@
+VOID LOS_TaskBackTrace(UINT32 taskID)
+{
+    LosTaskCB *taskCB = NULL;
+
+    if (taskID >= g_taskMaxNum) {
+        PRINT_ERR("\r\nTask PID is invalid!\n");
+        return;
+    }
+    taskCB = OS_TCB_FROM_TID(taskID);
+    if ((taskCB->taskStatus & OS_TASK_STATUS_UNUSED) ||
+        (taskCB->taskEntry == NULL) ||
+        (taskCB->taskName == NULL)) {
+        PRINT_ERR("\r\nThe task is not created!\n");
+        return;
+    }
+    PRINTK("TaskName = %s\n""TaskId = 0x%x\n",
+        taskCB->taskName, taskCB->taskId);
+    ArchBackTraceWithSp(taskCB->stackPointer);
+}

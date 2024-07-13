@@ -1,0 +1,158 @@
+struct mbedtls_ssl_context
+{
+    const mbedtls_ssl_config *conf; /*!< configuration information          */
+
+    /*
+     * Miscellaneous
+     */
+    int state;                  /*!< SSL handshake: current state     */
+#if defined(MBEDTLS_SSL_RENEGOTIATION)
+    int renego_status;          /*!< Initial, in progress, pending?   */
+    int renego_records_seen;    /*!< Records since renego request, or with DTLS,
+                                  number of retransmissions of request if
+                                  renego_max_records is < 0           */
+#endif /* MBEDTLS_SSL_RENEGOTIATION */
+
+    int major_ver;              /*!< equal to  MBEDTLS_SSL_MAJOR_VERSION_3    */
+    int minor_ver;              /*!< either 0 (SSL3) or 1 (TLS1.0)    */
+
+#if defined(MBEDTLS_SSL_DTLS_BADMAC_LIMIT)
+    unsigned badmac_seen;       /*!< records with a bad MAC received    */
+#endif /* MBEDTLS_SSL_DTLS_BADMAC_LIMIT */
+
+    mbedtls_ssl_send_t *f_send; /*!< Callback for network send */
+    mbedtls_ssl_recv_t *f_recv; /*!< Callback for network receive */
+    mbedtls_ssl_recv_timeout_t *f_recv_timeout;
+                                /*!< Callback for network receive with timeout */
+
+    void *p_bio;                /*!< context for I/O operations   */
+
+    /*
+     * Session layer
+     */
+    mbedtls_ssl_session *session_in;            /*!<  current session data (in)   */
+    mbedtls_ssl_session *session_out;           /*!<  current session data (out)  */
+    mbedtls_ssl_session *session;               /*!<  negotiated session data     */
+    mbedtls_ssl_session *session_negotiate;     /*!<  session data in negotiation */
+
+    mbedtls_ssl_handshake_params *handshake;    /*!<  params required only during
+                                              the handshake process        */
+
+    /*
+     * Record layer transformations
+     */
+    mbedtls_ssl_transform *transform_in;        /*!<  current transform params (in)   */
+    mbedtls_ssl_transform *transform_out;       /*!<  current transform params (in)   */
+    mbedtls_ssl_transform *transform;           /*!<  negotiated transform params     */
+    mbedtls_ssl_transform *transform_negotiate; /*!<  transform params in negotiation */
+
+    /*
+     * Timers
+     */
+    void *p_timer;              /*!< context for the timer callbacks */
+
+    mbedtls_ssl_set_timer_t *f_set_timer;       /*!< set timer callback */
+    mbedtls_ssl_get_timer_t *f_get_timer;       /*!< get timer callback */
+
+    /*
+     * Record layer (incoming data)
+     */
+    unsigned char *in_buf;      /*!< input buffer                     */
+    unsigned char *in_ctr;      /*!< 64-bit incoming message counter
+                                     TLS: maintained by us
+                                     DTLS: read from peer             */
+    unsigned char *in_hdr;      /*!< start of record header           */
+    unsigned char *in_len;      /*!< two-bytes message length field   */
+    unsigned char *in_iv;       /*!< ivlen-byte IV                    */
+    unsigned char *in_msg;      /*!< message contents (in_iv+ivlen)   */
+    unsigned char *in_offt;     /*!< read offset in application data  */
+
+    int in_msgtype;             /*!< record header: message type      */
+    size_t in_msglen;           /*!< record header: message length    */
+    size_t in_left;             /*!< amount of data read so far       */
+#if defined(MBEDTLS_SSL_PROTO_DTLS)
+    uint16_t in_epoch;          /*!< DTLS epoch for incoming records  */
+    size_t next_record_offset;  /*!< offset of the next record in datagram
+                                     (equal to in_left if none)       */
+#endif /* MBEDTLS_SSL_PROTO_DTLS */
+#if defined(MBEDTLS_SSL_DTLS_ANTI_REPLAY)
+    uint64_t in_window_top;     /*!< last validated record seq_num    */
+    uint64_t in_window;         /*!< bitmask for replay detection     */
+#endif /* MBEDTLS_SSL_DTLS_ANTI_REPLAY */
+
+    size_t in_hslen;            /*!< current handshake message length,
+                                     including the handshake header   */
+    int nb_zero;                /*!< # of 0-length encrypted messages */
+
+    int keep_current_message;   /*!< drop or reuse current message
+                                     on next call to record layer? */
+
+#if defined(MBEDTLS_SSL_PROTO_DTLS)
+    uint8_t disable_datagram_packing;  /*!< Disable packing multiple records
+                                        *   within a single datagram.  */
+#endif /* MBEDTLS_SSL_PROTO_DTLS */
+
+    /*
+     * Record layer (outgoing data)
+     */
+    unsigned char *out_buf;     /*!< output buffer                    */
+    unsigned char *out_ctr;     /*!< 64-bit outgoing message counter  */
+    unsigned char *out_hdr;     /*!< start of record header           */
+    unsigned char *out_len;     /*!< two-bytes message length field   */
+    unsigned char *out_iv;      /*!< ivlen-byte IV                    */
+    unsigned char *out_msg;     /*!< message contents (out_iv+ivlen)  */
+
+    int out_msgtype;            /*!< record header: message type      */
+    size_t out_msglen;          /*!< record header: message length    */
+    size_t out_left;            /*!< amount of data not yet written   */
+
+    unsigned char cur_out_ctr[8]; /*!<  Outgoing record sequence  number. */
+
+#if defined(MBEDTLS_SSL_PROTO_DTLS)
+    uint16_t mtu;               /*!< path mtu, used to fragment outgoing messages */
+#endif /* MBEDTLS_SSL_PROTO_DTLS */
+
+#if defined(MBEDTLS_ZLIB_SUPPORT)
+    unsigned char *compress_buf;        /*!<  zlib data buffer        */
+#endif /* MBEDTLS_ZLIB_SUPPORT */
+#if defined(MBEDTLS_SSL_CBC_RECORD_SPLITTING)
+    signed char split_done;     /*!< current record already splitted? */
+#endif /* MBEDTLS_SSL_CBC_RECORD_SPLITTING */
+
+    /*
+     * PKI layer
+     */
+    int client_auth;                    /*!<  flag for client auth.   */
+
+    /*
+     * User settings
+     */
+#if defined(MBEDTLS_X509_CRT_PARSE_C)
+    char *hostname;             /*!< expected peer CN for verification
+                                     (and SNI if available)                 */
+#endif /* MBEDTLS_X509_CRT_PARSE_C */
+
+#if defined(MBEDTLS_SSL_ALPN)
+    const char *alpn_chosen;    /*!<  negotiated protocol                   */
+#endif /* MBEDTLS_SSL_ALPN */
+
+    /*
+     * Information for DTLS hello verify
+     */
+#if defined(MBEDTLS_SSL_DTLS_HELLO_VERIFY) && defined(MBEDTLS_SSL_SRV_C)
+    unsigned char  *cli_id;         /*!<  transport-level ID of the client  */
+    size_t          cli_id_len;     /*!<  length of cli_id                  */
+#endif /* MBEDTLS_SSL_DTLS_HELLO_VERIFY && MBEDTLS_SSL_SRV_C */
+
+    /*
+     * Secure renegotiation
+     */
+    /* needed to know when to send extension on server */
+    int secure_renegotiation;           /*!<  does peer support legacy or
+                                              secure renegotiation           */
+#if defined(MBEDTLS_SSL_RENEGOTIATION)
+    size_t verify_data_len;             /*!<  length of verify data stored   */
+    char own_verify_data[MBEDTLS_SSL_VERIFY_DATA_MAX_LEN]; /*!<  previous handshake verify data */
+    char peer_verify_data[MBEDTLS_SSL_VERIFY_DATA_MAX_LEN]; /*!<  previous handshake verify data */
+#endif /* MBEDTLS_SSL_RENEGOTIATION */
+};

@@ -1,0 +1,54 @@
+HAL_StatusTypeDef HAL_MMC_InitCard(MMC_HandleTypeDef *hmmc)
+{
+  uint32_t errorstate;
+  MMC_InitTypeDef Init;
+  HAL_StatusTypeDef status;
+  
+  /* Default SDIO peripheral configuration for MMC card initialization */
+  Init.ClockEdge           = SDIO_CLOCK_EDGE_RISING;
+  Init.ClockBypass         = SDIO_CLOCK_BYPASS_DISABLE;
+  Init.ClockPowerSave      = SDIO_CLOCK_POWER_SAVE_DISABLE;
+  Init.BusWide             = SDIO_BUS_WIDE_1B;
+  Init.HardwareFlowControl = SDIO_HARDWARE_FLOW_CONTROL_DISABLE;
+  Init.ClockDiv            = SDIO_INIT_CLK_DIV;
+
+  /* Initialize SDIO peripheral interface with default configuration */
+  status = SDIO_Init(hmmc->Instance, Init);
+  if(status == HAL_ERROR)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Disable SDIO Clock */
+  __HAL_MMC_DISABLE(hmmc); 
+  
+  /* Set Power State to ON */
+  status = SDIO_PowerState_ON(hmmc->Instance);
+  if(status == HAL_ERROR)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Enable MMC Clock */
+  __HAL_MMC_ENABLE(hmmc);
+
+  /* Identify card operating voltage */
+  errorstate = MMC_PowerON(hmmc);
+  if(errorstate != HAL_MMC_ERROR_NONE)
+  {
+    hmmc->State = HAL_MMC_STATE_READY;
+    hmmc->ErrorCode |= errorstate;
+    return HAL_ERROR;
+  }
+
+  /* Card initialization */
+  errorstate = MMC_InitCard(hmmc);
+  if(errorstate != HAL_MMC_ERROR_NONE)
+  {
+    hmmc->State = HAL_MMC_STATE_READY;
+    hmmc->ErrorCode |= errorstate;
+    return HAL_ERROR;
+  }
+
+  return HAL_OK;
+}

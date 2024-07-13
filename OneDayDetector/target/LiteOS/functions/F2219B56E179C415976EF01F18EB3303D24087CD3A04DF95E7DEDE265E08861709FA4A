@@ -1,0 +1,63 @@
+s32_t SPIFFS_lseek(spiffs *fs, spiffs_file fh, s32_t offs, int whence)
+{
+    SPIFFS_API_DBG("%s "_SPIPRIfd " "_SPIPRIi " %s\n", __func__, fh, offs, (const char *[])
+    {"SET", "CUR", "END", "???"
+    }[MIN(whence, 3)]);
+    SPIFFS_API_CHECK_CFG(fs);
+    SPIFFS_API_CHECK_MOUNT(fs);
+    SPIFFS_LOCK(fs);
+
+    spiffs_fd *fd;
+    s32_t res;
+    fh = SPIFFS_FH_UNOFFS(fs, fh);
+    res = spiffs_fd_get(fs, fh, &fd);
+    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+
+#if SPIFFS_CACHE_WR
+    spiffs_fflush_cache(fs, fh);
+#endif
+
+    s32_t file_size = fd->size == SPIFFS_UNDEFINED_LEN ? 0 : fd->size;
+
+    switch (whence)
+    {
+    case SPIFFS_SEEK_SET:
+        break;
+    case SPIFFS_SEEK_CUR:
+        offs = fd->fdoffset + offs;
+        break;
+    case SPIFFS_SEEK_END:
+        offs = file_size + offs;
+        break;
+    default:
+        res = SPIFFS_ERR_INVALID_PARA;
+        break;
+    }
+    if (offs < 0)
+    {
+        SPIFFS_API_CHECK_RES_UNLOCK(fs, SPIFFS_ERR_INVALID_PARA);
+    }
+    if (offs > file_size)
+    {
+        fd->fdoffset = file_size;
+        res = SPIFFS_ERR_SEEK_BOUNDS;
+    }
+    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+
+    spiffs_span_ix data_spix = (offs > 0 ? (offs - 1) : 0) / SPIFFS_DATA_PAGE_SIZE(fs);
+    spiffs_span_ix objix_spix = SPIFFS_OBJ_IX_ENTRY_SPAN_IX(fs, data_spix);
+    if (fd->cursor_objix_spix != objix_spix)
+    {
+        spiffs_page_ix pix;
+        res = spiffs_obj_lu_find_id_and_span(
+                  fs, fd->obj_id | SPIFFS_OBJ_ID_IX_FLAG, objix_spix, 0, &pix);
+        SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+        fd->cursor_objix_spix = objix_spix;
+        fd->cursor_objix_pix = pix;
+    }
+    fd->fdoffset = offs;
+
+    SPIFFS_UNLOCK(fs);
+
+    return offs;
+}

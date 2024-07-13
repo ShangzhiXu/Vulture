@@ -1,0 +1,41 @@
+HAL_StatusTypeDef HAL_NAND_Read_ID(NAND_HandleTypeDef *hnand, NAND_IDTypeDef *pNAND_ID)
+{
+  __IO uint32_t data = 0;
+  uint32_t deviceaddress = 0;
+
+  /* Process Locked */
+  __HAL_LOCK(hnand);  
+  
+  /* Check the NAND controller state */
+  if(hnand->State == HAL_NAND_STATE_BUSY)
+  {
+     return HAL_BUSY;
+  }
+  
+  /* Identify the device address */
+  deviceaddress = NAND_DEVICE;
+  
+  /* Update the NAND controller state */ 
+  hnand->State = HAL_NAND_STATE_BUSY;
+  
+  /* Send Read ID command sequence */ 	
+  *(__IO uint8_t *)((uint32_t)(deviceaddress | CMD_AREA))  = NAND_CMD_READID;
+  *(__IO uint8_t *)((uint32_t)(deviceaddress | ADDR_AREA)) = 0x00;
+
+  /* Read the electronic signature from NAND flash */	
+  data = *(__IO uint32_t *)deviceaddress;
+  
+  /* Return the data read */
+  pNAND_ID->Maker_Id   = ADDR_1ST_CYCLE(data);
+  pNAND_ID->Device_Id  = ADDR_2ND_CYCLE(data);
+  pNAND_ID->Third_Id   = ADDR_3RD_CYCLE(data);
+  pNAND_ID->Fourth_Id  = ADDR_4TH_CYCLE(data);
+  
+  /* Update the NAND controller state */ 
+  hnand->State = HAL_NAND_STATE_READY;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hnand);   
+   
+  return HAL_OK;
+}

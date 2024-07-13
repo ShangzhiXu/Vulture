@@ -1,0 +1,27 @@
+osStatus_t osThreadSetPriority(osThreadId_t thread_id, osPriority_t priority)
+{
+    LosTaskCB *taskCB = (LosTaskCB *)thread_id;
+    UINT32 ret;
+    UINT16 losPrio;
+
+    if (taskCB == NULL) {
+        return osErrorParameter;
+    }
+    if (OS_INT_ACTIVE) {
+        return osErrorISR;
+    }
+    if ((priority < osPriorityLow3) || (priority > osPriorityHigh)) {
+        PRINT_ERR("[%s] Fail, NOT in adapt priority range: [osPriorityLow3 : osPriorityHigh].\n", __func__);
+        return osErrorParameter;
+    }
+
+    losPrio = (UINT16)(OS_TASK_PRIORITY_LOWEST - (priority - LOS_PRIORITY_WIN));
+    ret = LOS_TaskPriSet(taskCB->taskId, losPrio);
+    if (ret == LOS_OK) {
+        return osOK;
+    } else if ((ret == LOS_ERRNO_TSK_ID_INVALID) || (ret == LOS_ERRNO_TSK_PRIOR_ERROR)) {
+        return osErrorParameter;
+    } else {
+        return osErrorResource;
+    }
+}

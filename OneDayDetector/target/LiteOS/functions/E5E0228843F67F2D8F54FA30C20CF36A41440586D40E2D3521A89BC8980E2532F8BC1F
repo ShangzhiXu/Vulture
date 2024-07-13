@@ -1,0 +1,33 @@
+HAL_StatusTypeDef HAL_USARTEx_DisableSlaveMode(USART_HandleTypeDef *husart)
+{
+  uint32_t tmpcr1 = 0;
+
+  /* Check parameters */
+  assert_param(IS_UART_SPI_SLAVE_INSTANCE(husart->Instance));
+  
+  /* Process Locked */
+  __HAL_LOCK(husart);
+  
+  husart->State = HAL_USART_STATE_BUSY;
+  
+  /* Save actual USART configuration */
+  tmpcr1 = READ_REG(husart->Instance->CR1);
+  
+  /* Disable USART */
+  __HAL_USART_DISABLE(husart);
+
+  /* Disable SPI slave mode */
+  CLEAR_BIT(husart->Instance->CR2, USART_CR2_SLVEN);
+  
+  /* Restore USART configuration */
+  WRITE_REG(husart->Instance->CR1, tmpcr1);
+
+  husart->SlaveMode = USART_SLAVEMODE_ENABLE;
+  
+  husart->State = HAL_USART_STATE_READY;
+  
+  /* Process Unlocked */
+  __HAL_UNLOCK(husart);
+  
+  return HAL_OK;  
+}

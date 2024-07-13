@@ -1,0 +1,127 @@
+HAL_StatusTypeDef HAL_FMPI2C_Slave_Transmit(FMPI2C_HandleTypeDef *hfmpi2c, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+{
+  uint32_t tickstart;
+
+  if (hfmpi2c->State == HAL_FMPI2C_STATE_READY)
+  {
+    if ((pData == NULL) || (Size == 0U))
+    {
+      hfmpi2c->ErrorCode = HAL_FMPI2C_ERROR_INVALID_PARAM;
+      return  HAL_ERROR;
+    }
+    /* Process Locked */
+    __HAL_LOCK(hfmpi2c);
+
+    /* Init tickstart for timeout management*/
+    tickstart = HAL_GetTick();
+
+    hfmpi2c->State     = HAL_FMPI2C_STATE_BUSY_TX;
+    hfmpi2c->Mode      = HAL_FMPI2C_MODE_SLAVE;
+    hfmpi2c->ErrorCode = HAL_FMPI2C_ERROR_NONE;
+
+    /* Prepare transfer parameters */
+    hfmpi2c->pBuffPtr  = pData;
+    hfmpi2c->XferCount = Size;
+    hfmpi2c->XferISR   = NULL;
+
+    /* Enable Address Acknowledge */
+    hfmpi2c->Instance->CR2 &= ~FMPI2C_CR2_NACK;
+
+    /* Wait until ADDR flag is set */
+    if (FMPI2C_WaitOnFlagUntilTimeout(hfmpi2c, FMPI2C_FLAG_ADDR, RESET, Timeout, tickstart) != HAL_OK)
+    {
+      /* Disable Address Acknowledge */
+      hfmpi2c->Instance->CR2 |= FMPI2C_CR2_NACK;
+      return HAL_ERROR;
+    }
+
+    /* Clear ADDR flag */
+    __HAL_FMPI2C_CLEAR_FLAG(hfmpi2c, FMPI2C_FLAG_ADDR);
+
+    /* If 10bit addressing mode is selected */
+    if (hfmpi2c->Init.AddressingMode == FMPI2C_ADDRESSINGMODE_10BIT)
+    {
+      /* Wait until ADDR flag is set */
+      if (FMPI2C_WaitOnFlagUntilTimeout(hfmpi2c, FMPI2C_FLAG_ADDR, RESET, Timeout, tickstart) != HAL_OK)
+      {
+        /* Disable Address Acknowledge */
+        hfmpi2c->Instance->CR2 |= FMPI2C_CR2_NACK;
+        return HAL_ERROR;
+      }
+
+      /* Clear ADDR flag */
+      __HAL_FMPI2C_CLEAR_FLAG(hfmpi2c, FMPI2C_FLAG_ADDR);
+    }
+
+    /* Wait until DIR flag is set Transmitter mode */
+    if (FMPI2C_WaitOnFlagUntilTimeout(hfmpi2c, FMPI2C_FLAG_DIR, RESET, Timeout, tickstart) != HAL_OK)
+    {
+      /* Disable Address Acknowledge */
+      hfmpi2c->Instance->CR2 |= FMPI2C_CR2_NACK;
+      return HAL_ERROR;
+    }
+
+    while (hfmpi2c->XferCount > 0U)
+    {
+      /* Wait until TXIS flag is set */
+      if (FMPI2C_WaitOnTXISFlagUntilTimeout(hfmpi2c, Timeout, tickstart) != HAL_OK)
+      {
+        /* Disable Address Acknowledge */
+        hfmpi2c->Instance->CR2 |= FMPI2C_CR2_NACK;
+        return HAL_ERROR;
+      }
+
+      /* Write data to TXDR */
+      hfmpi2c->Instance->TXDR = *hfmpi2c->pBuffPtr;
+
+      /* Increment Buffer pointer */
+      hfmpi2c->pBuffPtr++;
+
+      hfmpi2c->XferCount--;
+    }
+
+    /* Wait until STOP flag is set */
+    if (FMPI2C_WaitOnSTOPFlagUntilTimeout(hfmpi2c, Timeout, tickstart) != HAL_OK)
+    {
+      /* Disable Address Acknowledge */
+      hfmpi2c->Instance->CR2 |= FMPI2C_CR2_NACK;
+
+      if (hfmpi2c->ErrorCode == HAL_FMPI2C_ERROR_AF)
+      {
+        /* Normal use case for Transmitter mode */
+        /* A NACK is generated to confirm the end of transfer */
+        hfmpi2c->ErrorCode = HAL_FMPI2C_ERROR_NONE;
+      }
+      else
+      {
+        return HAL_ERROR;
+      }
+    }
+
+    /* Clear STOP flag */
+    __HAL_FMPI2C_CLEAR_FLAG(hfmpi2c, FMPI2C_FLAG_STOPF);
+
+    /* Wait until BUSY flag is reset */
+    if (FMPI2C_WaitOnFlagUntilTimeout(hfmpi2c, FMPI2C_FLAG_BUSY, SET, Timeout, tickstart) != HAL_OK)
+    {
+      /* Disable Address Acknowledge */
+      hfmpi2c->Instance->CR2 |= FMPI2C_CR2_NACK;
+      return HAL_ERROR;
+    }
+
+    /* Disable Address Acknowledge */
+    hfmpi2c->Instance->CR2 |= FMPI2C_CR2_NACK;
+
+    hfmpi2c->State = HAL_FMPI2C_STATE_READY;
+    hfmpi2c->Mode  = HAL_FMPI2C_MODE_NONE;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hfmpi2c);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

@@ -1,0 +1,47 @@
+static int pack_wr_begin_not_aligned(pack_writer_s *writer, uint32_t block_begin_offset, uint32_t block_size,
+    uint32_t offset, const uint8_t *buff, uint16_t len, uint16_t *out_len)
+{
+    uint32_t block_left_len = (block_begin_offset + block_size) - offset;
+    uint32_t write_len = MIN(len, block_left_len);
+    int ret;
+
+    if (writer->offset_flag && writer->buffer) {
+        memcpy(writer->buffer + writer->buffer_stored_len, buff, write_len);
+        writer->buffer_stored_len += write_len;
+    } else {
+        if (writer->buffer == NULL) {
+            writer->buffer = PACK_MALLOC(block_size);
+            if (writer->buffer == NULL) {
+                PACK_LOG("malloc null %d", block_size);
+                return PACK_ERR;
+            }
+            writer->block_size = block_size;
+        }
+
+        writer->buffer_stored_len = (offset - block_begin_offset);
+        ret = writer->hardware->read_software(writer->hardware, block_begin_offset, writer->buffer,
+            writer->buffer_stored_len);
+        if (ret != PACK_OK) {
+            PACK_LOG("read_software fail offset %ld, size %ld ret %d", block_begin_offset, writer->buffer_stored_len,
+                ret);
+            return ret;
+        }
+        memcpy(writer->buffer + writer->buffer_stored_len, buff, write_len);
+        writer->offset_flag = true;
+        writer->offset = block_begin_offset;
+        writer->buffer_stored_len += write_len;
+    }
+
+    if (writer->buffer_stored_len >= block_size) {
+        ret = pack_write_data(writer, writer->offset, writer->buffer, block_size);
+        if (ret != PACK_OK) {
+            PACK_LOG("pack_write_data fail,offset %ld, size %ld, ret %ld", writer->offset, block_size, ret);
+            return ret;
+        }
+        writer->offset_flag = false;
+    }
+
+    *out_len = (uint16_t)write_len;
+
+    return PACK_OK;
+}

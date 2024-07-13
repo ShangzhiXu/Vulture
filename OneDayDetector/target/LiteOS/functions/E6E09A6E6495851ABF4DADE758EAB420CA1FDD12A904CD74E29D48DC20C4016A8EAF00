@@ -1,0 +1,16 @@
+int lwm2m_reconnect(lwm2m_context_t *context)
+{
+    if(NULL == context)
+    {
+        LOG("context null point");
+        return COAP_405_METHOD_NOT_ALLOWED;
+    }
+
+    lwm2m_reset_register(context);
+    prv_deleteObservedList(context);
+    prv_deleteTransactionList(context);
+    lwm2m_setBsCtrlStat(context, STATE_REGISTER_REQUIRED);
+    context->state = lwm2m_getBsCtrlStat(context);
+    lwm2m_notify_even(MODULE_LWM2M, STATE_REG_FAILED, NULL, 0);
+    return COAP_NO_ERROR;
+}

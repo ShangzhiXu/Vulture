@@ -1,0 +1,28 @@
+int MQTTDeserialize_connack(unsigned char *sessionPresent, unsigned char *connack_rc, unsigned char *buf, int buflen)
+{
+    MQTTHeader header = {0};
+    unsigned char *curdata = buf;
+    unsigned char *enddata = NULL;
+    int rc = 0;
+    int mylen;
+    MQTTConnackFlags flags = {0};
+
+    FUNC_ENTRY;
+    header.byte = readChar(&curdata);
+    if (header.bits.type != CONNACK)
+        goto exit;
+
+    curdata += (rc = MQTTPacket_decodeBuf(curdata, &mylen)); /* read remaining length */
+    enddata = curdata + mylen;
+    if (enddata - curdata < 2)
+        goto exit;
+
+    flags.all = readChar(&curdata);
+    *sessionPresent = flags.bits.sessionpresent;
+    *connack_rc = readChar(&curdata);
+
+    rc = 1;
+exit:
+    FUNC_EXIT_RC(rc);
+    return rc;
+}

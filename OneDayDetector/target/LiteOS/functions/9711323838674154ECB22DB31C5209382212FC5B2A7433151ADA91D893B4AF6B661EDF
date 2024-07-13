@@ -1,0 +1,48 @@
+START_TEST(test_pbuf_take_at_edge)
+{
+  err_t res;
+  u8_t *out;
+  int i;
+  u8_t testdata[] = { 0x01, 0x08, 0x82, 0x02 };
+  struct pbuf *p = pbuf_alloc(PBUF_RAW, 1024, PBUF_POOL);
+  struct pbuf *q = p->next;
+  LWIP_UNUSED_ARG(_i);
+  /* alloc big enough to get a chain of pbufs */
+  fail_if(p->tot_len == p->len);
+  memset(p->payload, 0, p->len);
+  memset(q->payload, 0, q->len);
+
+  /* copy data to the beginning of first pbuf */
+  res = pbuf_take_at(p, &testdata, sizeof(testdata), 0);
+  fail_unless(res == ERR_OK);
+
+  out = (u8_t*)p->payload;
+  for (i = 0; i < (int)sizeof(testdata); i++) {
+    fail_unless(out[i] == testdata[i],
+      "Bad data at pos %d, was %02X, expected %02X", i, out[i], testdata[i]);
+  }
+
+  /* copy data to the just before end of first pbuf */
+  res = pbuf_take_at(p, &testdata, sizeof(testdata), p->len - 1);
+  fail_unless(res == ERR_OK);
+
+  out = (u8_t*)p->payload;
+  fail_unless(out[p->len - 1] == testdata[0],
+    "Bad data at pos %d, was %02X, expected %02X", p->len - 1, out[p->len - 1], testdata[0]);
+  out = (u8_t*)q->payload;
+  for (i = 1; i < (int)sizeof(testdata); i++) {
+    fail_unless(out[i-1] == testdata[i],
+      "Bad data at pos %d, was %02X, expected %02X", p->len - 1 + i, out[i-1], testdata[i]);
+  }
+
+  /* copy data to the beginning of second pbuf */
+  res = pbuf_take_at(p, &testdata, sizeof(testdata), p->len);
+  fail_unless(res == ERR_OK);
+
+  out = (u8_t*)p->payload;
+  for (i = 0; i < (int)sizeof(testdata); i++) {
+    fail_unless(out[i] == testdata[i],
+      "Bad data at pos %d, was %02X, expected %02X", p->len+i, out[i], testdata[i]);
+  }
+  pbuf_free(p);
+}

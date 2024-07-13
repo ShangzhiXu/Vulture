@@ -1,0 +1,28 @@
+void lv_gauge_set_needle_count(lv_obj_t * gauge, uint8_t needle_cnt, const lv_color_t colors[])
+{
+    LV_ASSERT_OBJ(gauge, LV_OBJX_NAME);
+
+    lv_gauge_ext_t * ext = lv_obj_get_ext_attr(gauge);
+
+    if(ext->needle_count != needle_cnt) {
+        if(ext->values != NULL) {
+            lv_mem_free(ext->values);
+            ext->values = NULL;
+        }
+
+        ext->values = lv_mem_realloc(ext->values, needle_cnt * sizeof(ext->values[0]));
+        LV_ASSERT_MEM(ext->values);
+        if(ext->values == NULL) return;
+
+        int16_t min = lv_gauge_get_min_value(gauge);
+        uint8_t n;
+        for(n = ext->needle_count; n < needle_cnt; n++) {
+            ext->values[n] = min;
+        }
+
+        ext->needle_count = needle_cnt;
+    }
+
+    ext->needle_colors = colors;
+    lv_obj_invalidate(gauge);
+}

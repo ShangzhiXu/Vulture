@@ -1,0 +1,16 @@
+static int mqtt_modify_payload(MessageData *md)
+{
+    char *end = ((char *)md->message->payload) + md->message->payloadlen;
+    static uint32_t callback_err;
+
+    /* add for jason parse,then not need to copy in callback */
+    if ((end >= (char *)g_mqtt_readbuf) && (end < (char *)(g_mqtt_readbuf + sizeof(g_mqtt_readbuf)))) {
+         *end = '\0';
+         return ATINY_OK;
+    }
+
+    /* should not happen */
+    ATINY_LOG(LOG_ERR, "not expect msg callback err, pl %p, len %ld, err num %ld",
+              md->message->payload, md->message->payloadlen, ++callback_err);
+    return ATINY_ERR;
+}

@@ -1,0 +1,25 @@
+HAL_StatusTypeDef SDMMC_ConfigData(SDMMC_TypeDef *SDMMCx, SDMMC_DataInitTypeDef* Data)
+{
+  /* Check the parameters */
+  assert_param(IS_SDMMC_DATA_LENGTH(Data->DataLength));
+  assert_param(IS_SDMMC_BLOCK_SIZE(Data->DataBlockSize));
+  assert_param(IS_SDMMC_TRANSFER_DIR(Data->TransferDir));
+  assert_param(IS_SDMMC_TRANSFER_MODE(Data->TransferMode));
+  assert_param(IS_SDMMC_DPSM(Data->DPSM));
+
+  /* Set the SDMMC Data TimeOut value */
+  SDMMCx->DTIMER = Data->DataTimeOut;
+
+  /* Set the SDMMC DataLength value */
+  SDMMCx->DLEN = Data->DataLength;
+
+  /* Set the SDMMC data configuration parameters */
+  /* Write to SDMMC DCTRL */
+  MODIFY_REG(SDMMCx->DCTRL, DCTRL_CLEAR_MASK, Data->DataBlockSize |\
+                                              Data->TransferDir   |\
+                                              Data->TransferMode  |\
+                                              Data->DPSM);
+
+  return HAL_OK;
+
+}

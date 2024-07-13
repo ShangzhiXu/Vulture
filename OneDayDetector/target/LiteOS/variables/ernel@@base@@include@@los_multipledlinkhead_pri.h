@@ -1,0 +1,1 @@
+    LOS_DL_LIST listHead[OS_MULTI_DLNK_NUM];

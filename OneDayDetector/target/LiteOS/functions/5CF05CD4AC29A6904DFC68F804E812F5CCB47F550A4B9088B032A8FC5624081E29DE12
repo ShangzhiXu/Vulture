@@ -1,0 +1,25 @@
+LITE_OS_SEC_TEXT UINT32 OsMuxPendOp(LosTaskCB *runTask, MuxBaseCB *muxPended, UINT32 timeout,
+                                    UINT32 *intSave)
+{
+    LOS_DL_LIST *node = NULL;
+    UINT32 ret = LOS_OK;
+    LosTaskCB *owner = muxPended->owner;
+
+    runTask->taskMux = (VOID *)muxPended;
+    node = OsMuxPendFindPos(runTask, muxPended);
+    OsTaskWait(node, OS_TASK_STATUS_PEND, timeout);
+    OsSchedResched();
+    SCHEDULER_UNLOCK(*intSave);
+    SCHEDULER_LOCK(*intSave);
+
+    if (runTask->taskStatus & OS_TASK_STATUS_TIMEOUT) {
+        runTask->taskStatus &= ~OS_TASK_STATUS_TIMEOUT;
+        ret = LOS_ERRNO_MUX_TIMEOUT;
+    }
+
+    if (timeout != LOS_WAIT_FOREVER) {
+        OsMuxBitmapRestore(runTask, owner);
+    }
+
+    return ret;
+}

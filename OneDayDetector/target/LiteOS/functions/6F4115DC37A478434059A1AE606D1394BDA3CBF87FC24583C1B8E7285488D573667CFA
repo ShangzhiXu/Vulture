@@ -1,0 +1,83 @@
+HAL_StatusTypeDef HAL_RTCEx_SetTamper(RTC_HandleTypeDef *hrtc, RTC_TamperTypeDef* sTamper)
+{
+  uint32_t tmpreg = 0;
+
+  /* Check the parameters */
+  assert_param(IS_RTC_TAMPER(sTamper->Tamper));
+  assert_param(IS_RTC_TAMPER_TRIGGER(sTamper->Trigger));
+  assert_param(IS_RTC_TAMPER_ERASE_MODE(sTamper->NoErase));
+  assert_param(IS_RTC_TAMPER_MASKFLAG_STATE(sTamper->MaskFlag));
+  assert_param(IS_RTC_TAMPER_FILTER(sTamper->Filter));
+  assert_param(IS_RTC_TAMPER_SAMPLING_FREQ(sTamper->SamplingFrequency));
+  assert_param(IS_RTC_TAMPER_PRECHARGE_DURATION(sTamper->PrechargeDuration));
+  assert_param(IS_RTC_TAMPER_PULLUP_STATE(sTamper->TamperPullUp));
+  assert_param(IS_RTC_TAMPER_TIMESTAMPONTAMPER_DETECTION(sTamper->TimeStampOnTamperDetection));
+
+  /* Process Locked */
+  __HAL_LOCK(hrtc);
+
+  hrtc->State = HAL_RTC_STATE_BUSY;
+
+  /* Configure the tamper trigger */
+  if(sTamper->Trigger != RTC_TAMPERTRIGGER_RISINGEDGE)
+  { 
+    sTamper->Trigger = (uint32_t)(sTamper->Tamper << 1); 
+  }
+
+  if(sTamper->NoErase != RTC_TAMPER_ERASE_BACKUP_ENABLE)
+  { 
+    sTamper->NoErase = 0;
+#if defined(RTC_TAMPER1_SUPPORT)
+    if((sTamper->Tamper & RTC_TAMPER_1) != 0)
+    {
+      sTamper->NoErase |= RTC_TAMPCR_TAMP1NOERASE;
+    }
+#endif /* RTC_TAMPER1_SUPPORT */
+    if((sTamper->Tamper & RTC_TAMPER_2) != 0)
+    {
+      sTamper->NoErase |= RTC_TAMPCR_TAMP2NOERASE;
+    }
+#if defined(RTC_TAMPER3_SUPPORT)
+    if((sTamper->Tamper & RTC_TAMPER_3) != 0)
+    {
+      sTamper->NoErase |= RTC_TAMPCR_TAMP3NOERASE;
+    }
+#endif /* RTC_TAMPER3_SUPPORT */
+  }
+
+  if(sTamper->MaskFlag != RTC_TAMPERMASK_FLAG_DISABLE)
+  {
+    sTamper->MaskFlag = 0;
+#if defined(RTC_TAMPER1_SUPPORT)
+    if((sTamper->Tamper & RTC_TAMPER_1) != 0)
+    {
+      sTamper->MaskFlag |= RTC_TAMPCR_TAMP1MF;
+    }
+#endif /* RTC_TAMPER1_SUPPORT */
+    if((sTamper->Tamper & RTC_TAMPER_2) != 0)
+    {
+      sTamper->MaskFlag |= RTC_TAMPCR_TAMP2MF;
+    }
+#if defined(RTC_TAMPER3_SUPPORT)
+    if((sTamper->Tamper & RTC_TAMPER_3) != 0)
+    {
+      sTamper->MaskFlag |= RTC_TAMPCR_TAMP3MF;
+    }
+#endif /* RTC_TAMPER3_SUPPORT */
+  }
+
+  tmpreg = ((uint32_t)sTamper->Tamper | (uint32_t)sTamper->Trigger  | (uint32_t)sTamper->NoErase |\
+            (uint32_t)sTamper->MaskFlag | (uint32_t)sTamper->Filter | (uint32_t)sTamper->SamplingFrequency |\
+            (uint32_t)sTamper->PrechargeDuration | (uint32_t)sTamper->TamperPullUp | sTamper->TimeStampOnTamperDetection);
+
+  hrtc->Instance->TAMPCR &= (uint32_t)~((uint32_t)sTamper->Tamper | (uint32_t)(sTamper->Tamper << 1) | RTC_TAMPCR_MASK);
+
+  hrtc->Instance->TAMPCR |= tmpreg;
+
+  hrtc->State = HAL_RTC_STATE_READY;
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(hrtc);
+
+  return HAL_OK;
+}

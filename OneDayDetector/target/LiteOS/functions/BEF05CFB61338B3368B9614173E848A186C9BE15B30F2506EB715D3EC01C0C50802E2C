@@ -1,0 +1,16 @@
+STATIC UINT32 OsCreateTraceAgentTask(VOID)
+{
+    UINT32 ret;
+    TSK_INIT_PARAM_S taskInitParam;
+
+    (VOID)memset_s((VOID *)(&taskInitParam), sizeof(TSK_INIT_PARAM_S), 0, sizeof(TSK_INIT_PARAM_S));
+    taskInitParam.pfnTaskEntry = (TSK_ENTRY_FUNC)TraceAgent;
+    taskInitParam.usTaskPrio = LOSCFG_TRACE_TASK_PRIORITY;
+    taskInitParam.pcName = "TraceAgent";
+    taskInitParam.uwStackSize = LOSCFG_BASE_CORE_TSK_DEFAULT_STACK_SIZE;
+#ifdef LOSCFG_KERNEL_SMP
+    taskInitParam.usCpuAffiMask = CPUID_TO_AFFI_MASK(ArchCurrCpuid());
+#endif
+    ret = LOS_TaskCreate(&g_traceTaskId, &taskInitParam);
+    return ret;
+}

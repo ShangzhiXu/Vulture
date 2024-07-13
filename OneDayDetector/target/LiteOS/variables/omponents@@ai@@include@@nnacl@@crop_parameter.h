@@ -1,0 +1,10 @@
+  int64_t axis_;
+  int64_t in_offset_[CROP_OFFSET_MAX_SIZE];
+  const int *in_shape_;
+  int input_dim_;
+  int64_t offset_[CROP_OFFSET_MAX_SIZE];
+  int offset_size_;
+  OpParameter op_parameter_;
+  const int *out_shape_;
+  CropQuantArg quant_arg;
+  int thread_count_;

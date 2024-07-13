@@ -1,0 +1,61 @@
+uint32_t LL_RCC_GetSDIOClockFreq(uint32_t SDIOxSource)
+{
+  uint32_t SDIO_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_SDIO_CLKSOURCE(SDIOxSource));
+
+  if (SDIOxSource == LL_RCC_SDIO_CLKSOURCE)
+  {
+#if defined(RCC_DCKCFGR_SDIOSEL) || defined(RCC_DCKCFGR2_SDIOSEL)
+    /* SDIOCLK clock frequency */
+    switch (LL_RCC_GetSDIOClockSource(SDIOxSource))
+    {
+      case LL_RCC_SDIO_CLKSOURCE_PLL48CLK:         /* PLL48M clock used as SDIO clock source */
+        switch (LL_RCC_GetCK48MClockSource(LL_RCC_CK48M_CLKSOURCE))
+        {
+          case LL_RCC_CK48M_CLKSOURCE_PLL:         /* PLL clock used as 48Mhz domain clock */
+            if (LL_RCC_PLL_IsReady())
+            {
+              SDIO_frequency = RCC_PLL_GetFreqDomain_48M();
+            }
+          break;
+
+#if defined(RCC_PLLSAI_SUPPORT)
+          case LL_RCC_CK48M_CLKSOURCE_PLLSAI:      /* PLLSAI clock used as 48Mhz domain clock */
+          default:
+            if (LL_RCC_PLLSAI_IsReady())
+            {
+              SDIO_frequency = RCC_PLLSAI_GetFreqDomain_48M();
+            }
+            break;
+#endif /* RCC_PLLSAI_SUPPORT */
+
+#if defined(RCC_PLLI2SCFGR_PLLI2SQ) && !defined(RCC_DCKCFGR_PLLI2SDIVQ)
+          case LL_RCC_CK48M_CLKSOURCE_PLLI2S:      /* PLLI2S clock used as 48Mhz domain clock */
+          default:
+            if (LL_RCC_PLLI2S_IsReady())
+            {
+              SDIO_frequency = RCC_PLLI2S_GetFreqDomain_48M();
+            }
+            break;
+#endif /* RCC_PLLI2SCFGR_PLLI2SQ && !RCC_DCKCFGR_PLLI2SDIVQ */
+        }
+        break;
+
+      case LL_RCC_SDIO_CLKSOURCE_SYSCLK:           /* PLL clock used as SDIO clock source */
+      default:
+      SDIO_frequency = RCC_GetSystemClockFreq();
+      break;
+    }
+#else
+    /* PLL clock used as 48Mhz domain clock */
+    if (LL_RCC_PLL_IsReady())
+    {
+      SDIO_frequency = RCC_PLL_GetFreqDomain_48M();
+    }
+#endif /* RCC_DCKCFGR_SDIOSEL || RCC_DCKCFGR2_SDIOSEL */
+  }
+
+  return SDIO_frequency;
+}

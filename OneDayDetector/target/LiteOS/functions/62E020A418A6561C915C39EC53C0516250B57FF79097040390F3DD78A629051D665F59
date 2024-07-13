@@ -1,0 +1,20 @@
+LITE_OS_SEC_TEXT STATIC UINT32 OsEventReadCheck(const PEVENT_CB_S eventCB, UINT32 eventMask, UINT32 mode)
+{
+    UINT32 ret;
+    LosTaskCB *runTask = NULL;
+
+    ret = OsEventParamCheck(eventCB, eventMask, mode);
+    if (ret != LOS_OK) {
+        return ret;
+    }
+
+    if (OS_INT_ACTIVE) {
+        return LOS_ERRNO_EVENT_READ_IN_INTERRUPT;
+    }
+
+    runTask = OsCurrTaskGet();
+    if (runTask->taskFlags & OS_TASK_FLAG_SYSTEM) {
+        PRINT_DEBUG("Warning: DO NOT recommend to use LOS_EventRead or OsEventReadOnce in system tasks.\n");
+    }
+    return LOS_OK;
+}

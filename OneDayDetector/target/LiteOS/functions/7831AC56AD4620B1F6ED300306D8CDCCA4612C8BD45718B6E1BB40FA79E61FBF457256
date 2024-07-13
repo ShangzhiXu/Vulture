@@ -1,0 +1,78 @@
+int json_serialize(lwm2m_uri_t *uriP,
+                   int size,
+                   lwm2m_data_t *tlvP,
+                   uint8_t **bufferP)
+{
+    int index;
+    size_t head;
+    uint8_t bufferJSON[PRV_JSON_BUFFER_SIZE];
+    uint8_t baseUriStr[URI_MAX_STRING_LEN];
+    int baseUriLen;
+    uri_depth_t rootLevel;
+    int num;
+    lwm2m_data_t *targetP;
+
+    LOG_ARG("size: %d", size);
+    LOG_URI(uriP);
+    if (size != 0 && tlvP == NULL) return -1;
+
+    baseUriLen = uri_toString(uriP, baseUriStr, URI_MAX_STRING_LEN, &rootLevel);
+    if (baseUriLen < 0) return -1;
+
+    num = prv_findAndCheckData(uriP, rootLevel, size, tlvP, &targetP);
+    if (num < 0) return -1;
+
+    while (num == 1
+            && (targetP->type == LWM2M_TYPE_OBJECT
+                || targetP->type == LWM2M_TYPE_OBJECT_INSTANCE
+                || targetP->type == LWM2M_TYPE_MULTIPLE_RESOURCE))
+    {
+        int res;
+
+        res = utils_intToText(targetP->id, baseUriStr + baseUriLen, URI_MAX_STRING_LEN - baseUriLen);
+        if (res <= 0) return 0;
+        baseUriLen += res;
+        if (baseUriLen >= URI_MAX_STRING_LEN - 1) return 0;
+        num = targetP->value.asChildren.count;
+        targetP = targetP->value.asChildren.array;
+        baseUriStr[baseUriLen] = '/';
+        baseUriLen++;
+    }
+
+    if (baseUriLen > 0)
+    {
+        memcpy(bufferJSON, JSON_BN_HEADER_1, JSON_BN_HEADER_1_SIZE);
+        head = JSON_BN_HEADER_1_SIZE;
+        memcpy(bufferJSON + head, baseUriStr, baseUriLen);
+        head += baseUriLen;
+        memcpy(bufferJSON + head, JSON_BN_HEADER_2, JSON_BN_HEADER_2_SIZE);
+        head += JSON_BN_HEADER_2_SIZE;
+    }
+    else
+    {
+        memcpy(bufferJSON, JSON_HEADER, JSON_HEADER_SIZE);
+        head = JSON_HEADER_SIZE;
+    }
+
+    for (index = 0 ; index < num && head < PRV_JSON_BUFFER_SIZE ; index++)
+    {
+        int res;
+
+        res = prv_serializeData(targetP + index, NULL, 0, bufferJSON + head, PRV_JSON_BUFFER_SIZE - head);
+        if (res < 0) return 0;
+        head += res;
+    }
+
+    if (head + JSON_FOOTER_SIZE - 1 > PRV_JSON_BUFFER_SIZE) return 0;
+
+    if (num > 0) head = head - 1;
+
+    memcpy(bufferJSON + head, JSON_FOOTER, JSON_FOOTER_SIZE);
+    head = head + JSON_FOOTER_SIZE;
+
+    *bufferP = (uint8_t *)lwm2m_malloc(head);
+    if (*bufferP == NULL) return 0;
+    memcpy(*bufferP, bufferJSON, head);
+
+    return head;
+}

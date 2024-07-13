@@ -1,0 +1,35 @@
+STATIC VOID ShellSaveHistoryCmd(CHAR *string, ShellCB *shellCB)
+{
+    CmdKeyLink *cmdHistory = shellCB->cmdHistoryKeyLink;
+    CmdKeyLink *cmdKey = LOS_DL_LIST_ENTRY(string, CmdKeyLink, cmdString);
+    CmdKeyLink *cmdNxt = NULL;
+
+    if ((string == NULL) || (strlen(string) == 0)) {
+        return;
+    }
+
+    (VOID)pthread_mutex_lock(&shellCB->historyMutex);
+    if (cmdHistory->count != 0) {
+        cmdNxt = LOS_DL_LIST_ENTRY(cmdHistory->list.pstPrev, CmdKeyLink, list);
+        if (strcmp(string, cmdNxt->cmdString) == 0) {
+            (VOID)LOS_MemFree(m_aucSysMem0, (VOID *)cmdKey);
+            (VOID)pthread_mutex_unlock(&shellCB->historyMutex);
+            return;
+        }
+    }
+
+    if (cmdHistory->count == CMD_HISTORY_LEN) {
+        cmdNxt = LOS_DL_LIST_ENTRY(cmdHistory->list.pstNext, CmdKeyLink, list);
+        LOS_ListDelete(&cmdNxt->list);
+        LOS_ListTailInsert(&cmdHistory->list, &cmdKey->list);
+        (VOID)LOS_MemFree(m_aucSysMem0, (VOID *)cmdNxt);
+        (VOID)pthread_mutex_unlock(&shellCB->historyMutex);
+        return;
+    }
+
+    LOS_ListTailInsert(&cmdHistory->list, &cmdKey->list);
+    cmdHistory->count++;
+
+    (VOID)pthread_mutex_unlock(&shellCB->historyMutex);
+    return;
+}

@@ -1,0 +1,465 @@
+static int lcp_reqci(fsm *f, u_char *inp, int *lenp, int reject_if_disagree) {
+    ppp_pcb *pcb = f->pcb;
+    lcp_options *go = &pcb->lcp_gotoptions;
+    lcp_options *ho = &pcb->lcp_hisoptions;
+    lcp_options *ao = &pcb->lcp_allowoptions;
+    u_char *cip, *next;		/* Pointer to current and next CIs */
+    int cilen, citype, cichar;	/* Parsed len, type, char value */
+    u_short cishort;		/* Parsed short value */
+    u32_t cilong;		/* Parse long value */
+    int rc = CONFACK;		/* Final packet return code */
+    int orc;			/* Individual option return code */
+    u_char *p;			/* Pointer to next char to parse */
+    u_char *rejp;		/* Pointer to next char in reject frame */
+    struct pbuf *nakp;          /* Nak buffer */
+    u_char *nakoutp;		/* Pointer to next char in Nak frame */
+    int l = *lenp;		/* Length left */
+
+    /*
+     * Reset all his options.
+     */
+    BZERO(ho, sizeof(*ho));
+
+    /*
+     * Process all his options.
+     */
+    next = inp;
+    nakp = pbuf_alloc(PBUF_RAW, (u16_t)(PPP_CTRL_PBUF_MAX_SIZE), PPP_CTRL_PBUF_TYPE);
+    if(NULL == nakp)
+        return 0;
+    if(nakp->tot_len != nakp->len) {
+        pbuf_free(nakp);
+        return 0;
+    }
+
+    nakoutp = (u_char*)nakp->payload;
+    rejp = inp;
+    while (l) {
+	orc = CONFACK;			/* Assume success */
+	cip = p = next;			/* Remember begining of CI */
+	if (l < 2 ||			/* Not enough data for CI header or */
+	    p[1] < 2 ||			/*  CI length too small or */
+	    p[1] > l) {			/*  CI length too big? */
+	    LCPDEBUG(("lcp_reqci: bad CI length!"));
+	    orc = CONFREJ;		/* Reject bad CI */
+	    cilen = l;			/* Reject till end of packet */
+	    l = 0;			/* Don't loop again */
+	    citype = 0;
+	    goto endswitch;
+	}
+	GETCHAR(citype, p);		/* Parse CI type */
+	GETCHAR(cilen, p);		/* Parse CI length */
+	l -= cilen;			/* Adjust remaining length */
+	next += cilen;			/* Step to next CI */
+
+	switch (citype) {		/* Check CI type */
+	case CI_MRU:
+	    if (!ao->neg_mru ||		/* Allow option? */
+		cilen != CILEN_SHORT) {	/* Check CI length */
+		orc = CONFREJ;		/* Reject CI */
+		break;
+	    }
+	    GETSHORT(cishort, p);	/* Parse MRU */
+
+	    /*
+	     * He must be able to receive at least our minimum.
+	     * No need to check a maximum.  If he sends a large number,
+	     * we'll just ignore it.
+	     */
+	    if (cishort < PPP_MINMRU) {
+		orc = CONFNAK;		/* Nak CI */
+		PUTCHAR(CI_MRU, nakoutp);
+		PUTCHAR(CILEN_SHORT, nakoutp);
+		PUTSHORT(PPP_MINMRU, nakoutp);	/* Give him a hint */
+		break;
+	    }
+	    ho->neg_mru = 1;		/* Remember he sent MRU */
+	    ho->mru = cishort;		/* And remember value */
+	    break;
+
+	case CI_ASYNCMAP:
+	    if (!ao->neg_asyncmap ||
+		cilen != CILEN_LONG) {
+		orc = CONFREJ;
+		break;
+	    }
+	    GETLONG(cilong, p);
+
+	    /*
+	     * Asyncmap must have set at least the bits
+	     * which are set in lcp_allowoptions[unit].asyncmap.
+	     */
+	    if ((ao->asyncmap & ~cilong) != 0) {
+		orc = CONFNAK;
+		PUTCHAR(CI_ASYNCMAP, nakoutp);
+		PUTCHAR(CILEN_LONG, nakoutp);
+		PUTLONG(ao->asyncmap | cilong, nakoutp);
+		break;
+	    }
+	    ho->neg_asyncmap = 1;
+	    ho->asyncmap = cilong;
+	    break;
+
+	case CI_AUTHTYPE:
+	    if (cilen < CILEN_SHORT ||
+		!(0
+#if PAP_SUPPORT
+		|| ao->neg_upap
+#endif /* PAP_SUPPORT */
+#if CHAP_SUPPORT
+		|| ao->neg_chap
+#endif /* CHAP_SUPPORT */
+#if EAP_SUPPORT
+		|| ao->neg_eap
+#endif /* EAP_SUPPORT */
+		)) {
+		/*
+		 * Reject the option if we're not willing to authenticate.
+		 */
+		ppp_dbglog("No auth is possible");
+		orc = CONFREJ;
+		break;
+	    }
+	    GETSHORT(cishort, p);
+
+	    /*
+	     * Authtype must be PAP, CHAP, or EAP.
+	     *
+	     * Note: if more than one of ao->neg_upap, ao->neg_chap, and
+	     * ao->neg_eap are set, and the peer sends a Configure-Request
+	     * with two or more authenticate-protocol requests, then we will
+	     * reject the second request.
+	     * Whether we end up doing CHAP, UPAP, or EAP depends then on
+	     * the ordering of the CIs in the peer's Configure-Request.
+             */
+
+#if PAP_SUPPORT
+	    if (cishort == PPP_PAP) {
+		/* we've already accepted CHAP or EAP */
+		if (0
+#if CHAP_SUPPORT
+		    || ho->neg_chap
+#endif /* CHAP_SUPPORT */
+#if EAP_SUPPORT
+		    || ho->neg_eap
+#endif /* EAP_SUPPORT */
+		    || cilen != CILEN_SHORT) {
+		    LCPDEBUG(("lcp_reqci: rcvd AUTHTYPE PAP, rejecting..."));
+		    orc = CONFREJ;
+		    break;
+		}
+		if (!ao->neg_upap) {	/* we don't want to do PAP */
+		    orc = CONFNAK;	/* NAK it and suggest CHAP or EAP */
+		    PUTCHAR(CI_AUTHTYPE, nakoutp);
+#if EAP_SUPPORT
+		    if (ao->neg_eap) {
+			PUTCHAR(CILEN_SHORT, nakoutp);
+			PUTSHORT(PPP_EAP, nakoutp);
+		    } else {
+#endif /* EAP_SUPPORT */
+#if CHAP_SUPPORT
+			PUTCHAR(CILEN_CHAP, nakoutp);
+			PUTSHORT(PPP_CHAP, nakoutp);
+			PUTCHAR(CHAP_DIGEST(ao->chap_mdtype), nakoutp);
+#endif /* CHAP_SUPPORT */
+#if EAP_SUPPORT
+		    }
+#endif /* EAP_SUPPORT */
+		    break;
+		}
+		ho->neg_upap = 1;
+		break;
+	    }
+#endif /* PAP_SUPPORT */
+#if CHAP_SUPPORT
+	    if (cishort == PPP_CHAP) {
+		/* we've already accepted PAP or EAP */
+		if (
+#if PAP_SUPPORT
+		    ho->neg_upap ||
+#endif /* PAP_SUPPORT */
+#if EAP_SUPPORT
+		    ho->neg_eap ||
+#endif /* EAP_SUPPORT */
+		    cilen != CILEN_CHAP) {
+		    LCPDEBUG(("lcp_reqci: rcvd AUTHTYPE CHAP, rejecting..."));
+		    orc = CONFREJ;
+		    break;
+		}
+		if (!ao->neg_chap) {	/* we don't want to do CHAP */
+		    orc = CONFNAK;	/* NAK it and suggest EAP or PAP */
+		    PUTCHAR(CI_AUTHTYPE, nakoutp);
+		    PUTCHAR(CILEN_SHORT, nakoutp);
+#if EAP_SUPPORT
+		    if (ao->neg_eap) {
+			PUTSHORT(PPP_EAP, nakoutp);
+		    } else
+#endif /* EAP_SUPPORT */
+#if PAP_SUPPORT
+		    if(1) {
+			PUTSHORT(PPP_PAP, nakoutp);
+		    }
+		    else
+#endif /* PAP_SUPPORT */
+		    {}
+		    break;
+		}
+		GETCHAR(cichar, p);	/* get digest type */
+		if (!(CHAP_CANDIGEST(ao->chap_mdtype, cichar))) {
+		    /*
+		     * We can't/won't do the requested type,
+		     * suggest something else.
+		     */
+		    orc = CONFNAK;
+		    PUTCHAR(CI_AUTHTYPE, nakoutp);
+		    PUTCHAR(CILEN_CHAP, nakoutp);
+		    PUTSHORT(PPP_CHAP, nakoutp);
+		    PUTCHAR(CHAP_DIGEST(ao->chap_mdtype), nakoutp);
+		    break;
+		}
+		ho->chap_mdtype = CHAP_MDTYPE_D(cichar); /* save md type */
+		ho->neg_chap = 1;
+		break;
+	    }
+#endif /* CHAP_SUPPORT */
+#if EAP_SUPPORT
+	    if (cishort == PPP_EAP) {
+		/* we've already accepted CHAP or PAP */
+		if (
+#if CHAP_SUPPORT
+		    ho->neg_chap ||
+#endif /* CHAP_SUPPORT */
+#if PAP_SUPPORT
+		    ho->neg_upap ||
+#endif /* PAP_SUPPORT */
+		    cilen != CILEN_SHORT) {
+		    LCPDEBUG(("lcp_reqci: rcvd AUTHTYPE EAP, rejecting..."));
+		    orc = CONFREJ;
+		    break;
+		}
+		if (!ao->neg_eap) {	/* we don't want to do EAP */
+		    orc = CONFNAK;	/* NAK it and suggest CHAP or PAP */
+		    PUTCHAR(CI_AUTHTYPE, nakoutp);
+#if CHAP_SUPPORT
+		    if (ao->neg_chap) {
+			PUTCHAR(CILEN_CHAP, nakoutp);
+			PUTSHORT(PPP_CHAP, nakoutp);
+			PUTCHAR(CHAP_DIGEST(ao->chap_mdtype), nakoutp);
+		    } else
+#endif /* CHAP_SUPPORT */
+#if PAP_SUPPORT
+		    if(1) {
+			PUTCHAR(CILEN_SHORT, nakoutp);
+			PUTSHORT(PPP_PAP, nakoutp);
+		    } else
+#endif /* PAP_SUPPORT */
+		    {}
+		    break;
+		}
+		ho->neg_eap = 1;
+		break;
+	    }
+#endif /* EAP_SUPPORT */
+
+	    /*
+	     * We don't recognize the protocol they're asking for.
+	     * Nak it with something we're willing to do.
+	     * (At this point we know ao->neg_upap || ao->neg_chap ||
+	     * ao->neg_eap.)
+	     */
+	    orc = CONFNAK;
+	    PUTCHAR(CI_AUTHTYPE, nakoutp);
+
+#if EAP_SUPPORT
+	    if (ao->neg_eap) {
+		PUTCHAR(CILEN_SHORT, nakoutp);
+		PUTSHORT(PPP_EAP, nakoutp);
+	    } else
+#endif /* EAP_SUPPORT */
+#if CHAP_SUPPORT
+	    if (ao->neg_chap) {
+		PUTCHAR(CILEN_CHAP, nakoutp);
+		PUTSHORT(PPP_CHAP, nakoutp);
+		PUTCHAR(CHAP_DIGEST(ao->chap_mdtype), nakoutp);
+	    } else
+#endif /* CHAP_SUPPORT */
+#if PAP_SUPPORT
+	    if(1) {
+		PUTCHAR(CILEN_SHORT, nakoutp);
+		PUTSHORT(PPP_PAP, nakoutp);
+	    } else
+#endif /* PAP_SUPPORT */
+	    {}
+	    break;
+
+#if LQR_SUPPORT
+	case CI_QUALITY:
+	    if (!ao->neg_lqr ||
+		cilen != CILEN_LQR) {
+		orc = CONFREJ;
+		break;
+	    }
+
+	    GETSHORT(cishort, p);
+	    GETLONG(cilong, p);
+
+	    /*
+	     * Check the protocol and the reporting period.
+	     * XXX When should we Nak this, and what with?
+	     */
+	    if (cishort != PPP_LQR) {
+		orc = CONFNAK;
+		PUTCHAR(CI_QUALITY, nakoutp);
+		PUTCHAR(CILEN_LQR, nakoutp);
+		PUTSHORT(PPP_LQR, nakoutp);
+		PUTLONG(ao->lqr_period, nakoutp);
+		break;
+	    }
+	    break;
+#endif /* LQR_SUPPORT */
+
+	case CI_MAGICNUMBER:
+	    if (!(ao->neg_magicnumber || go->neg_magicnumber) ||
+		cilen != CILEN_LONG) {
+		orc = CONFREJ;
+		break;
+	    }
+	    GETLONG(cilong, p);
+
+	    /*
+	     * He must have a different magic number.
+	     */
+	    if (go->neg_magicnumber &&
+		cilong == go->magicnumber) {
+		cilong = magic();	/* Don't put magic() inside macro! */
+		orc = CONFNAK;
+		PUTCHAR(CI_MAGICNUMBER, nakoutp);
+		PUTCHAR(CILEN_LONG, nakoutp);
+		PUTLONG(cilong, nakoutp);
+		break;
+	    }
+	    ho->neg_magicnumber = 1;
+	    ho->magicnumber = cilong;
+	    break;
+
+
+	case CI_PCOMPRESSION:
+	    if (!ao->neg_pcompression ||
+		cilen != CILEN_VOID) {
+		orc = CONFREJ;
+		break;
+	    }
+	    ho->neg_pcompression = 1;
+	    break;
+
+	case CI_ACCOMPRESSION:
+	    if (!ao->neg_accompression ||
+		cilen != CILEN_VOID) {
+		orc = CONFREJ;
+		break;
+	    }
+	    ho->neg_accompression = 1;
+	    break;
+
+#ifdef HAVE_MULTILINK
+	case CI_MRRU:
+	    if (!ao->neg_mrru
+		|| !multilink
+		|| cilen != CILEN_SHORT) {
+		orc = CONFREJ;
+		break;
+	    }
+
+	    GETSHORT(cishort, p);
+	    /* possibly should insist on a minimum/maximum MRRU here */
+	    ho->neg_mrru = 1;
+	    ho->mrru = cishort;
+	    break;
+#endif /* HAVE_MULTILINK */
+
+	case CI_SSNHF:
+	    if (!ao->neg_ssnhf
+#ifdef HAVE_MULTILINK
+		|| !multilink
+#endif /* HAVE_MULTILINK */
+		|| cilen != CILEN_VOID) {
+		orc = CONFREJ;
+		break;
+	    }
+	    ho->neg_ssnhf = 1;
+	    break;
+
+	case CI_EPDISC:
+	    if (!ao->neg_endpoint ||
+		cilen < CILEN_CHAR ||
+		cilen > CILEN_CHAR + MAX_ENDP_LEN) {
+		orc = CONFREJ;
+		break;
+	    }
+	    GETCHAR(cichar, p);
+	    cilen -= CILEN_CHAR;
+	    ho->neg_endpoint = 1;
+	    ho->endpoint.class_ = cichar;
+	    ho->endpoint.length = cilen;
+	    MEMCPY(ho->endpoint.value, p, cilen);
+	    INCPTR(cilen, p);
+	    break;
+
+	default:
+	    LCPDEBUG(("lcp_reqci: rcvd unknown option %d", citype));
+	    orc = CONFREJ;
+	    break;
+	}
+
+endswitch:
+	if (orc == CONFACK &&		/* Good CI */
+	    rc != CONFACK)		/*  but prior CI wasnt? */
+	    continue;			/* Don't send this one */
+
+	if (orc == CONFNAK) {		/* Nak this CI? */
+	    if (reject_if_disagree	/* Getting fed up with sending NAKs? */
+		&& citype != CI_MAGICNUMBER) {
+		orc = CONFREJ;		/* Get tough if so */
+	    } else {
+		if (rc == CONFREJ)	/* Rejecting prior CI? */
+		    continue;		/* Don't send this one */
+		rc = CONFNAK;
+	    }
+	}
+	if (orc == CONFREJ) {		/* Reject this CI */
+	    rc = CONFREJ;
+	    if (cip != rejp)		/* Need to move rejected CI? */
+		MEMCPY(rejp, cip, cilen); /* Move it */
+	    INCPTR(cilen, rejp);	/* Update output pointer */
+	}
+    }
+
+    /*
+     * If we wanted to send additional NAKs (for unsent CIs), the
+     * code would go here.  The extra NAKs would go at *nakoutp.
+     * At present there are no cases where we want to ask the
+     * peer to negotiate an option.
+     */
+
+    switch (rc) {
+    case CONFACK:
+	*lenp = next - inp;
+	break;
+    case CONFNAK:
+	/*
+	 * Copy the Nak'd options from the nak buffer to the caller's buffer.
+	 */
+	*lenp = nakoutp - (u_char*)nakp->payload;
+	MEMCPY(inp, nakp->payload, *lenp);
+	break;
+    case CONFREJ:
+	*lenp = rejp - inp;
+	break;
+    default:
+	break;
+    }
+
+    pbuf_free(nakp);
+    LCPDEBUG(("lcp_reqci: returning CONF%s.", CODENAME(rc)));
+    return (rc);			/* Return final code */
+}

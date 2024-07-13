@@ -1,0 +1,50 @@
+static uint8_t prv_read_data(plat_instance_t *targetP,
+                             int data_number,
+                             lwm2m_data_t *dataArrayP,
+                             lwm2m_data_cfg_t *dataCfg)
+{
+    int i;
+    data_report_t data;
+    int ret;
+
+    for (i = 0; i < data_number; i++) {
+        switch (dataArrayP[i].id) {
+        case 0: {
+            // printf("19/0/0 read\r\n");
+            if (dataCfg == NULL) {
+                uint8_t *buf = lwm2m_malloc(sizeof(*buf));
+                if (buf == NULL) {
+                    ATINY_LOG(LOG_ERR, "malloc null");
+                    return COAP_404_NOT_FOUND;
+                }
+                *buf = 0;
+                dataArrayP[i].id = 0;
+                dataArrayP[i].type = LWM2M_TYPE_OPAQUE;
+                dataArrayP[i].value.asBuffer.buffer = buf;
+                dataArrayP[i].value.asBuffer.length = 1;
+            } else {
+                ret = atiny_dequeue_rpt_data((targetP->header), &data);
+                if (ret != ATINY_OK) {
+                    ATINY_LOG(LOG_INFO, "atiny_dequeue_rpt_data fail,ret=%d", ret);
+                    return COAP_404_NOT_FOUND;
+                } else {
+                    ATINY_LOG(LOG_DEBUG, "atiny_dequeue_rpt_data sucessfully");
+                }
+
+                dataArrayP[i].id = 0;
+                dataArrayP[i].type = LWM2M_TYPE_OPAQUE;
+                dataArrayP[i].value.asBuffer.buffer = data.buf;
+                dataArrayP[i].value.asBuffer.length = data.len;
+                dataCfg->type = data.type;
+                dataCfg->cookie = data.cookie;
+                dataCfg->callback = (lwm2m_data_process)data.callback;
+            }
+            break;
+        }
+        default:
+            return COAP_404_NOT_FOUND;
+        }
+    }
+
+    return COAP_205_CONTENT;
+}

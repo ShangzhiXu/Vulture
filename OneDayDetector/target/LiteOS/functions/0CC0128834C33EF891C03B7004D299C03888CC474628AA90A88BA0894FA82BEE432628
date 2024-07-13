@@ -1,0 +1,17 @@
+int samplesend(unsigned char *address, unsigned int bytes)
+{
+    int len;
+
+    if(rand() > (RAND_MAX / 2))	// 50% probability of being busy
+        return 0;
+    if(rand() > (RAND_MAX / 2)) 	// 50% probability of sending half the requested data (no room in buffer)
+    {
+        if(bytes > 1)
+            bytes /= 2;
+    }
+    if((len = write(sockfd, address, bytes)) >= 0)
+        return len;
+    if(errno == EAGAIN)
+        return 0;
+    return -1;
+}

@@ -1,0 +1,38 @@
+void at_irq_handler(void)
+{
+    uint8_t ch;
+    recv_buff recv_buf;
+    at_config *at_user_conf = at_get_config();
+
+    if (__HAL_UART_GET_FLAG(&at_usart, UART_FLAG_RXNE) != RESET) {
+        HAL_UART_Receive(&at_usart, &ch, 1, 0);
+        at.recv_buf[wi++] = ch;
+        if (wi == ri) {
+            buff_full = 1;
+        }
+        if (wi >= at_user_conf->user_buf_len) {
+            wi = 0;
+        }
+    } else if (__HAL_UART_GET_FLAG(&at_usart, UART_FLAG_IDLE) != RESET) {
+        __HAL_UART_CLEAR_IDLEFLAG(&at_usart);
+        /*
+        Ring Buffer ri------------------------>wi
+
+         __________________________________________________
+         |      msg0           |  msg1        |   msg2    |
+         ri(pre_ri0)        pre_ri1         pre_ri2     wi(pre_ri3)
+         __________________________________________________
+
+         read_resp ---->ri= pre_ri1----------->---------->ri=wi=pre_ri3(end)
+        */
+        recv_buf.ori = pre_ri;
+        recv_buf.end = wi;
+
+        pre_ri = recv_buf.end;
+        recv_buf.msg_type = AT_USART_RX;
+
+        if (LOS_QueueWriteCopy(at.rid, &recv_buf, sizeof(recv_buff), 0) != LOS_OK) {
+            g_disscard_cnt++;
+        }
+    }
+}

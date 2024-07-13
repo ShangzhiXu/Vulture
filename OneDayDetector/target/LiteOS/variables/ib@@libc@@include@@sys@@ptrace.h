@@ -1,0 +1,10 @@
+			uint64_t args[6];
+			uint64_t args[6];
+		} entry;
+		} exit;
+			uint8_t is_error;
+			uint64_t nr;
+			uint64_t nr;
+			uint32_t ret_data;
+			int64_t rval;
+		} seccomp;

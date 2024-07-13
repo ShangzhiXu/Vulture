@@ -1,0 +1,8 @@
+#define OS_MEM_ADD_USED(stat, usedSize, taskId)         OsMemstatTaskUsedInc(stat, usedSize, taskId)
+#define OS_MEM_ADD_USED(stat, usedSize, taskId)
+#define OS_MEM_CLEAR(taskId)                            OsMemTaskClear(taskId)
+#define OS_MEM_CLEAR(taskId)
+#define OS_MEM_REDUCE_USED(stat, usedSize, taskId)      OsMemstatTaskUsedDec(stat, usedSize, taskId)
+#define OS_MEM_REDUCE_USED(stat, usedSize, taskId)
+#define OS_MEM_USAGE(taskId)                            OsMemTaskUsage(taskId)
+#define OS_MEM_USAGE(taskId)

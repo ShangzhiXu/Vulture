@@ -1,0 +1,15 @@
+VOID HalIrqHandler(VOID)
+{
+    UINT32 iar = GIC_REG_32(GICC_IAR);
+    UINT32 vector = iar & 0x3FFU;
+
+    if (vector >= OS_HWI_MAX_NUM) {
+        return;
+    }
+
+    g_curIrqNum = vector;
+    OsIntHandle(vector, &g_hwiForm[vector]);
+
+    /* use orignal iar to do the EOI */
+    GIC_REG_32(GICC_EOIR) = iar;
+}

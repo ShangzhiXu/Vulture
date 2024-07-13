@@ -1,0 +1,36 @@
+typedef struct {
+    union {
+        LOS_DL_LIST freeNodeInfo;         /* Free memory node */
+        struct {
+            UINT32 magic;
+            UINT32 taskId   : 16;
+#ifdef LOSCFG_MEM_MUL_MODULE
+            UINT32 moduleId : 16;
+#endif
+        };
+    };
+
+    struct tagLosMemDynNode *preNode; /* Pointer to the previous memory node */
+
+#ifdef LOSCFG_MEM_HEAD_BACKUP
+    UINT32 gapSize;
+    UINTPTR checksum; /* magic = xor checksum */
+#endif
+
+#ifdef LOSCFG_MEM_RECORDINFO
+    UINT32 originSize;
+#ifdef LOSCFG_AARCH64
+    UINT32 reserve1; /* 64-bit alignment */
+#endif
+#endif
+
+#ifdef LOSCFG_MEM_LEAKCHECK
+    UINTPTR linkReg[LOS_RECORD_LR_CNT];
+#endif
+
+#ifdef LOSCFG_AARCH64
+    UINT32 reserve2; /* 64-bit alignment */
+#endif
+    /* Size and flag of the current node (the high two bits represent a flag,and the rest bits specify the size) */
+    UINT32 sizeAndFlag;
+} LosMemCtlNode;

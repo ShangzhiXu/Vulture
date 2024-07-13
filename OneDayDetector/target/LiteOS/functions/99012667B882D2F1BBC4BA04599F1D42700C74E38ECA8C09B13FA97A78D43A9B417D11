@@ -1,0 +1,55 @@
+void * lv_mem_realloc(void * data_p, size_t new_size)
+{
+
+#ifdef LV_ARCH_64
+    /*Round the size up to 8*/
+    if(new_size & 0x7) {
+        new_size = new_size & (~0x7);
+        new_size += 8;
+    }
+#else
+    /*Round the size up to 4*/
+    if(new_size & 0x3) {
+        new_size = new_size & (~0x3);
+        new_size += 4;
+    }
+#endif
+
+    /*data_p could be previously freed pointer (in this case it is invalid)*/
+    if(data_p != NULL) {
+        lv_mem_ent_t * e = (lv_mem_ent_t *)((uint8_t *)data_p - sizeof(lv_mem_header_t));
+        if(e->header.s.used == 0) {
+            data_p = NULL;
+        }
+    }
+
+    uint32_t old_size = _lv_mem_get_size(data_p);
+    if(old_size == new_size) return data_p; /*Also avoid reallocating the same memory*/
+
+#if LV_MEM_CUSTOM == 0
+    /* Truncate the memory if the new size is smaller. */
+    if(new_size < old_size) {
+        lv_mem_ent_t * e = (lv_mem_ent_t *)((uint8_t *)data_p - sizeof(lv_mem_header_t));
+        ent_trunc(e, new_size);
+        return &e->first_data;
+    }
+#endif
+
+    void * new_p;
+    new_p = lv_mem_alloc(new_size);
+    if(new_p == NULL) {
+        LV_LOG_WARN("Couldn't allocate memory");
+        return NULL;
+    }
+
+    if(data_p != NULL) {
+        /*Copy the old data to the new. Use the smaller size*/
+        if(old_size != 0) {
+            _lv_memcpy(new_p, data_p, LV_MATH_MIN(new_size, old_size));
+            lv_mem_free(data_p);
+        }
+    }
+
+
+    return new_p;
+}

@@ -1,0 +1,34 @@
+fs_read_async(struct fs_file *file, char *buffer, int count, fs_wait_cb callback_fn, void *callback_arg)
+#else /* LWIP_HTTPD_FS_ASYNC_READ */
+int
+fs_read(struct fs_file *file, char *buffer, int count)
+#endif /* LWIP_HTTPD_FS_ASYNC_READ */
+{
+  int read;
+  if (file->index == file->len) {
+    return FS_READ_EOF;
+  }
+#if LWIP_HTTPD_FS_ASYNC_READ
+  LWIP_UNUSED_ARG(callback_fn);
+  LWIP_UNUSED_ARG(callback_arg);
+#endif /* LWIP_HTTPD_FS_ASYNC_READ */
+#if LWIP_HTTPD_CUSTOM_FILES
+  if (file->is_custom_file) {
+#if LWIP_HTTPD_FS_ASYNC_READ
+    return fs_read_async_custom(file, buffer, count, callback_fn, callback_arg);
+#else /* LWIP_HTTPD_FS_ASYNC_READ */
+    return fs_read_custom(file, buffer, count);
+#endif /* LWIP_HTTPD_FS_ASYNC_READ */
+  }
+#endif /* LWIP_HTTPD_CUSTOM_FILES */
+
+  read = file->len - file->index;
+  if (read > count) {
+    read = count;
+  }
+
+  MEMCPY(buffer, (file->data + file->index), read);
+  file->index += read;
+
+  return (read);
+}

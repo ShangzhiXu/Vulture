@@ -1,0 +1,126 @@
+static HAL_StatusTypeDef FMPI2C_Master_ISR_DMA(struct __FMPI2C_HandleTypeDef *hfmpi2c, uint32_t ITFlags, uint32_t ITSources)
+{
+  uint16_t devaddress;
+  uint32_t xfermode;
+
+  /* Process Locked */
+  __HAL_LOCK(hfmpi2c);
+
+  if ((FMPI2C_CHECK_FLAG(ITFlags, FMPI2C_FLAG_AF) != RESET) && (FMPI2C_CHECK_IT_SOURCE(ITSources, FMPI2C_IT_NACKI) != RESET))
+  {
+    /* Clear NACK Flag */
+    __HAL_FMPI2C_CLEAR_FLAG(hfmpi2c, FMPI2C_FLAG_AF);
+
+    /* Set corresponding Error Code */
+    hfmpi2c->ErrorCode |= HAL_FMPI2C_ERROR_AF;
+
+    /* No need to generate STOP, it is automatically done */
+    /* But enable STOP interrupt, to treat it */
+    /* Error callback will be send during stop flag treatment */
+    FMPI2C_Enable_IRQ(hfmpi2c, FMPI2C_XFER_CPLT_IT);
+
+    /* Flush TX register */
+    FMPI2C_Flush_TXDR(hfmpi2c);
+  }
+  else if ((FMPI2C_CHECK_FLAG(ITFlags, FMPI2C_FLAG_TCR) != RESET) && (FMPI2C_CHECK_IT_SOURCE(ITSources, FMPI2C_IT_TCI) != RESET))
+  {
+    /* Disable TC interrupt */
+    __HAL_FMPI2C_DISABLE_IT(hfmpi2c, FMPI2C_IT_TCI);
+
+    if (hfmpi2c->XferCount != 0U)
+    {
+      /* Recover Slave address */
+      devaddress = (uint16_t)(hfmpi2c->Instance->CR2 & FMPI2C_CR2_SADD);
+
+      /* Prepare the new XferSize to transfer */
+      if (hfmpi2c->XferCount > MAX_NBYTE_SIZE)
+      {
+        hfmpi2c->XferSize = MAX_NBYTE_SIZE;
+        xfermode = FMPI2C_RELOAD_MODE;
+      }
+      else
+      {
+        hfmpi2c->XferSize = hfmpi2c->XferCount;
+        if (hfmpi2c->XferOptions != FMPI2C_NO_OPTION_FRAME)
+        {
+          xfermode = hfmpi2c->XferOptions;
+        }
+        else
+        {
+          xfermode = FMPI2C_AUTOEND_MODE;
+        }
+      }
+
+      /* Set the new XferSize in Nbytes register */
+      FMPI2C_TransferConfig(hfmpi2c, devaddress, (uint8_t)hfmpi2c->XferSize, xfermode, FMPI2C_NO_STARTSTOP);
+
+      /* Update XferCount value */
+      hfmpi2c->XferCount -= hfmpi2c->XferSize;
+
+      /* Enable DMA Request */
+      if (hfmpi2c->State == HAL_FMPI2C_STATE_BUSY_RX)
+      {
+        hfmpi2c->Instance->CR1 |= FMPI2C_CR1_RXDMAEN;
+      }
+      else
+      {
+        hfmpi2c->Instance->CR1 |= FMPI2C_CR1_TXDMAEN;
+      }
+    }
+    else
+    {
+      /* Call TxCpltCallback() if no stop mode is set */
+      if (FMPI2C_GET_STOP_MODE(hfmpi2c) != FMPI2C_AUTOEND_MODE)
+      {
+        /* Call FMPI2C Master Sequential complete process */
+        FMPI2C_ITMasterSeqCplt(hfmpi2c);
+      }
+      else
+      {
+        /* Wrong size Status regarding TCR flag event */
+        /* Call the corresponding callback to inform upper layer of End of Transfer */
+        FMPI2C_ITError(hfmpi2c, HAL_FMPI2C_ERROR_SIZE);
+      }
+    }
+  }
+  else if ((FMPI2C_CHECK_FLAG(ITFlags, FMPI2C_FLAG_TC) != RESET) && (FMPI2C_CHECK_IT_SOURCE(ITSources, FMPI2C_IT_TCI) != RESET))
+  {
+    if (hfmpi2c->XferCount == 0U)
+    {
+      if (FMPI2C_GET_STOP_MODE(hfmpi2c) != FMPI2C_AUTOEND_MODE)
+      {
+        /* Generate a stop condition in case of no transfer option */
+        if (hfmpi2c->XferOptions == FMPI2C_NO_OPTION_FRAME)
+        {
+          /* Generate Stop */
+          hfmpi2c->Instance->CR2 |= FMPI2C_CR2_STOP;
+        }
+        else
+        {
+          /* Call FMPI2C Master Sequential complete process */
+          FMPI2C_ITMasterSeqCplt(hfmpi2c);
+        }
+      }
+    }
+    else
+    {
+      /* Wrong size Status regarding TC flag event */
+      /* Call the corresponding callback to inform upper layer of End of Transfer */
+      FMPI2C_ITError(hfmpi2c, HAL_FMPI2C_ERROR_SIZE);
+    }
+  }
+  else if ((FMPI2C_CHECK_FLAG(ITFlags, FMPI2C_FLAG_STOPF) != RESET) && (FMPI2C_CHECK_IT_SOURCE(ITSources, FMPI2C_IT_STOPI) != RESET))
+  {
+    /* Call FMPI2C Master complete process */
+    FMPI2C_ITMasterCplt(hfmpi2c, ITFlags);
+  }
+  else
+  {
+    /* Nothing to do */
+  }
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(hfmpi2c);
+
+  return HAL_OK;
+}

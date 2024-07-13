@@ -1,0 +1,26 @@
+static void inf_normalize(void * scrl)
+{
+    lv_obj_t * roller_scrl = (lv_obj_t *)scrl;
+    lv_obj_t * roller      = lv_obj_get_parent(roller_scrl);
+    lv_roller_ext_t * ext  = lv_obj_get_ext_attr(roller);
+
+    if(ext->mode == LV_ROLLER_MODE_INIFINITE) {
+        uint16_t real_id_cnt = ext->option_cnt / LV_ROLLER_INF_PAGES;
+
+        ext->sel_opt_id = ext->sel_opt_id % real_id_cnt;
+
+        ext->sel_opt_id += (LV_ROLLER_INF_PAGES / 2) * real_id_cnt; /*Select the middle page*/
+
+        /*Move to the new id*/
+        const lv_font_t * font = lv_obj_get_style_text_font(roller, LV_ROLLER_PART_BG);
+        lv_style_int_t line_space = lv_obj_get_style_text_line_space(roller, LV_ROLLER_PART_BG);
+        lv_coord_t font_h              = lv_font_get_line_height(font);
+        lv_coord_t h                   = lv_obj_get_height(roller);
+
+        lv_obj_t * label = get_label(roller);
+
+        lv_coord_t line_y1 = ext->sel_opt_id * (font_h + line_space) + label->coords.y1 - roller_scrl->coords.y1;
+        lv_coord_t new_y = -line_y1 + (h - font_h) / 2;
+        lv_obj_set_y(roller_scrl, new_y);
+    }
+}

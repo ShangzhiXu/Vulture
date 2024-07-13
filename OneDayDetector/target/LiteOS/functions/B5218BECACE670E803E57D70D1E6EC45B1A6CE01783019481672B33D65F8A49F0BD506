@@ -1,0 +1,86 @@
+http_send_headers(struct altcp_pcb *pcb, struct http_state *hs)
+{
+  err_t err;
+  u16_t len;
+  u8_t data_to_send = HTTP_NO_DATA_TO_SEND;
+  u16_t hdrlen, sendlen;
+
+  if (hs->hdrs[HDR_STRINGS_IDX_CONTENT_LEN_KEEPALIVE] == NULL) {
+    /* set up "content-length" and "connection:" headers */
+    get_http_content_length(hs);
+  }
+
+  /* How much data can we send? */
+  len = altcp_sndbuf(pcb);
+  sendlen = len;
+
+  while (len && (hs->hdr_index < NUM_FILE_HDR_STRINGS) && sendlen) {
+    const void *ptr;
+    u16_t old_sendlen;
+    u8_t apiflags;
+    /* How much do we have to send from the current header? */
+    hdrlen = (u16_t)strlen(hs->hdrs[hs->hdr_index]);
+
+    /* How much of this can we send? */
+    sendlen = (len < (hdrlen - hs->hdr_pos)) ? len : (hdrlen - hs->hdr_pos);
+
+    /* Send this amount of data or as much as we can given memory
+     * constraints. */
+    ptr = (const void *)(hs->hdrs[hs->hdr_index] + hs->hdr_pos);
+    old_sendlen = sendlen;
+    apiflags = HTTP_IS_HDR_VOLATILE(hs, ptr);
+    if (hs->hdr_index == HDR_STRINGS_IDX_CONTENT_LEN_NR) {
+      /* content-length is always volatile */
+      apiflags |= TCP_WRITE_FLAG_COPY;
+    }
+    if (hs->hdr_index < NUM_FILE_HDR_STRINGS - 1) {
+      apiflags |= TCP_WRITE_FLAG_MORE;
+    }
+    err = http_write(pcb, ptr, &sendlen, apiflags);
+    if ((err == ERR_OK) && (old_sendlen != sendlen)) {
+      /* Remember that we added some more data to be transmitted. */
+      data_to_send = HTTP_DATA_TO_SEND_CONTINUE;
+    } else if (err != ERR_OK) {
+      /* special case: http_write does not try to send 1 byte */
+      sendlen = 0;
+    }
+
+    /* Fix up the header position for the next time round. */
+    hs->hdr_pos += sendlen;
+    len -= sendlen;
+
+    /* Have we finished sending this string? */
+    if (hs->hdr_pos == hdrlen) {
+      /* Yes - move on to the next one */
+      hs->hdr_index++;
+      /* skip headers that are NULL (not all headers are required) */
+      while ((hs->hdr_index < NUM_FILE_HDR_STRINGS) &&
+             (hs->hdrs[hs->hdr_index] == NULL)) {
+        hs->hdr_index++;
+      }
+      hs->hdr_pos = 0;
+    }
+  }
+
+  if ((hs->hdr_index >= NUM_FILE_HDR_STRINGS) && (hs->file == NULL)) {
+    /* When we are at the end of the headers, check for data to send
+     * instead of waiting for ACK from remote side to continue
+     * (which would happen when sending files from async read). */
+    if (http_check_eof(pcb, hs)) {
+      data_to_send = HTTP_DATA_TO_SEND_BREAK;
+    } else {
+      /* At this point, for non-keepalive connections, hs is deallocated an
+         pcb is closed. */
+      return HTTP_DATA_TO_SEND_FREED;
+    }
+  }
+  /* If we get here and there are still header bytes to send, we send
+   * the header information we just wrote immediately. If there are no
+   * more headers to send, but we do have file data to send, drop through
+   * to try to send some file data too. */
+  if ((hs->hdr_index < NUM_FILE_HDR_STRINGS) || !hs->file) {
+    LWIP_DEBUGF(HTTPD_DEBUG, ("tcp_output\n"));
+    return HTTP_DATA_TO_SEND_BREAK;
+  }
+  return data_to_send;
+}

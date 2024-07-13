@@ -1,0 +1,24 @@
+static void FLASH_Program_Fast(uint32_t Address, uint32_t DataAddress)
+{
+  uint8_t row_index = (2*FLASH_NB_DOUBLE_WORDS_IN_ROW);
+  __IO uint32_t *dest_addr = (__IO uint32_t*)Address;
+  __IO uint32_t *src_addr = (__IO uint32_t*)DataAddress;
+
+  /* Check the parameters */
+  assert_param(IS_FLASH_MAIN_MEM_ADDRESS(Address));
+
+  /* Set FSTPG bit */
+  SET_BIT(FLASH->CR, FLASH_CR_FSTPG);
+  
+  /* Disable interrupts to avoid any interruption during the loop */
+  __disable_irq();
+  
+  /* Program the double word of the row */
+  do
+  {
+    *dest_addr++ = *src_addr++;
+  } while (--row_index != 0);
+
+  /* Re-enable the interrupts */
+  __enable_irq();
+}

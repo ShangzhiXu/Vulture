@@ -1,0 +1,36 @@
+tcp_output_control_segment(const struct tcp_pcb *pcb, struct pbuf *p,
+                           const ip_addr_t *src, const ip_addr_t *dst)
+{
+  err_t err;
+  struct netif *netif;
+
+  LWIP_ASSERT("tcp_output_control_segment: invalid pbuf", p != NULL);
+
+  netif = tcp_route(pcb, src, dst);
+  if (netif == NULL) {
+    err = ERR_RTE;
+  } else {
+    u8_t ttl, tos;
+#if CHECKSUM_GEN_TCP
+    IF__NETIF_CHECKSUM_ENABLED(netif, NETIF_CHECKSUM_GEN_TCP) {
+      struct tcp_hdr *tcphdr = (struct tcp_hdr *)p->payload;
+      tcphdr->chksum = ip_chksum_pseudo(p, IP_PROTO_TCP, p->tot_len,
+                                        src, dst);
+    }
+#endif
+    if (pcb != NULL) {
+      NETIF_SET_HINTS(netif, LWIP_CONST_CAST(struct netif_hint*, &(pcb->netif_hints)));
+      ttl = pcb->ttl;
+      tos = pcb->tos;
+    } else {
+      /* Send output with hardcoded TTL/HL since we have no access to the pcb */
+      ttl = TCP_TTL;
+      tos = 0;
+    }
+    TCP_STATS_INC(tcp.xmit);
+    err = ip_output_if(p, src, dst, ttl, tos, IP_PROTO_TCP, netif);
+    NETIF_RESET_HINTS(netif);
+  }
+  pbuf_free(p);
+  return err;
+}

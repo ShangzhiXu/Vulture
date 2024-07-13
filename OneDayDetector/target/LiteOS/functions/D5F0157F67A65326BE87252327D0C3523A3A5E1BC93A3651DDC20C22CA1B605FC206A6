@@ -1,0 +1,30 @@
+int mbedtls_x509_write_sig( unsigned char **p, unsigned char *start,
+                    const char *oid, size_t oid_len,
+                    unsigned char *sig, size_t size )
+{
+    int ret;
+    size_t len = 0;
+
+    if( *p < start || (size_t)( *p - start ) < size )
+        return( MBEDTLS_ERR_ASN1_BUF_TOO_SMALL );
+
+    len = size;
+    (*p) -= len;
+    memcpy( *p, sig, len );
+
+    if( *p - start < 1 )
+        return( MBEDTLS_ERR_ASN1_BUF_TOO_SMALL );
+
+    *--(*p) = 0;
+    len += 1;
+
+    MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_len( p, start, len ) );
+    MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_tag( p, start, MBEDTLS_ASN1_BIT_STRING ) );
+
+    // Write OID
+    //
+    MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_algorithm_identifier( p, start, oid,
+                                                        oid_len, 0 ) );
+
+    return( (int) len );
+}

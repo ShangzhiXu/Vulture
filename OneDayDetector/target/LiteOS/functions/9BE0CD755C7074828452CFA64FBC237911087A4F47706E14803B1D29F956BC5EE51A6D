@@ -1,0 +1,20 @@
+free_socket_locked(struct lwip_sock *sock, int is_tcp, struct netconn **conn,
+                   union lwip_sock_lastdata *lastdata)
+{
+#if LWIP_NETCONN_FULLDUPLEX
+  LWIP_ASSERT("sock->fd_used > 0", sock->fd_used > 0);
+  sock->fd_used--;
+  if (sock->fd_used > 0) {
+    sock->fd_free_pending = LWIP_SOCK_FD_FREE_FREE | (is_tcp ? LWIP_SOCK_FD_FREE_TCP : 0);
+    return 0;
+  }
+#else /* LWIP_NETCONN_FULLDUPLEX */
+  LWIP_UNUSED_ARG(is_tcp);
+#endif /* LWIP_NETCONN_FULLDUPLEX */
+
+  *lastdata = sock->lastdata;
+  sock->lastdata.pbuf = NULL;
+  *conn = sock->conn;
+  sock->conn = NULL;
+  return 1;
+}

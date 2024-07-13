@@ -1,0 +1,250 @@
+void HAL_SMARTCARD_IRQHandler(SMARTCARD_HandleTypeDef *hsmartcard)
+{
+  uint32_t isrflags   = READ_REG(hsmartcard->Instance->ISR);
+  uint32_t cr1its     = READ_REG(hsmartcard->Instance->CR1);
+  uint32_t cr3its     = READ_REG(hsmartcard->Instance->CR3);
+  uint32_t errorflags;
+  
+  /* If no error occurs */
+  errorflags = (isrflags & (uint32_t)(USART_ISR_PE | USART_ISR_FE | USART_ISR_ORE | USART_ISR_NE | USART_ISR_RTOF));
+  if (errorflags == RESET)
+  {
+    /* SMARTCARD in mode Receiver ---------------------------------------------------*/
+#if defined(USART_CR1_FIFOEN)
+    if(((isrflags & USART_ISR_RXNE_RXFNE) != RESET) 
+       && (   ((cr1its & USART_CR1_RXNEIE_RXFNEIE) != RESET)
+           || ((cr3its & USART_CR3_RXFTIE) != RESET)) )
+#else
+    if(((isrflags & USART_ISR_RXNE) != RESET) 
+       && ((cr1its & USART_CR1_RXNEIE) != RESET))
+#endif
+    {
+      if (hsmartcard->RxISR != NULL) {hsmartcard->RxISR(hsmartcard);}
+      return;
+    }
+  }  
+  
+  /* If some errors occur */
+#if defined(USART_CR1_FIFOEN)
+  if(   (errorflags != RESET)
+     && (   (((cr3its & (USART_CR3_RXFTIE | USART_CR3_EIE)) != RESET)
+         ||  ((cr1its & (USART_CR1_RXNEIE_RXFNEIE | USART_CR1_PEIE)) != RESET))) )
+#else
+  if(   (errorflags != RESET)
+     && (   ((cr3its & USART_CR3_EIE) != RESET)
+         || ((cr1its & (USART_CR1_RXNEIE | USART_CR1_PEIE)) != RESET)) )
+#endif
+  {
+    /* SMARTCARD parity error interrupt occurred -------------------------------------*/
+    if(((isrflags & USART_ISR_PE) != RESET) && ((cr1its & USART_CR1_PEIE) != RESET))
+    {
+      __HAL_SMARTCARD_CLEAR_IT(hsmartcard, SMARTCARD_CLEAR_PEF);
+      
+      hsmartcard->ErrorCode |= HAL_SMARTCARD_ERROR_PE;
+    }
+    
+    /* SMARTCARD frame error interrupt occurred --------------------------------------*/
+    if(((isrflags & USART_ISR_FE) != RESET) && ((cr3its & USART_CR3_EIE) != RESET))
+    {
+      __HAL_SMARTCARD_CLEAR_IT(hsmartcard, SMARTCARD_CLEAR_FEF);
+      
+      hsmartcard->ErrorCode |= HAL_SMARTCARD_ERROR_FE;
+    }
+    
+    /* SMARTCARD noise error interrupt occurred --------------------------------------*/
+    if(((isrflags & USART_ISR_NE) != RESET) && ((cr3its & USART_CR3_EIE) != RESET))
+    {
+      __HAL_SMARTCARD_CLEAR_IT(hsmartcard, SMARTCARD_CLEAR_NEF);
+      
+      hsmartcard->ErrorCode |= HAL_SMARTCARD_ERROR_NE;
+    }
+    
+    /* SMARTCARD Over-Run interrupt occurred -----------------------------------------*/
+#if defined(USART_CR1_FIFOEN)
+    if(   ((isrflags & USART_ISR_ORE) != RESET)
+       && (  ((cr1its & USART_CR1_RXNEIE_RXFNEIE) != RESET)
+          || ((cr3its & USART_CR3_RXFTIE) != RESET)
+          || ((cr3its & USART_CR3_EIE) != RESET)) )
+#else
+    if(   ((isrflags & USART_ISR_ORE) != RESET)
+       && (  ((cr1its & USART_CR1_RXNEIE) != RESET)
+          || ((cr3its & USART_CR3_EIE) != RESET)) )
+#endif
+    {
+      __HAL_SMARTCARD_CLEAR_IT(hsmartcard, SMARTCARD_CLEAR_OREF);
+      
+      hsmartcard->ErrorCode |= HAL_SMARTCARD_ERROR_ORE;
+    }
+    
+    /* SMARTCARD receiver timeout interrupt occurred -----------------------------------------*/
+    if(((isrflags & USART_ISR_RTOF) != RESET) && ((cr1its & USART_CR1_RTOIE) != RESET))
+    {
+      __HAL_SMARTCARD_CLEAR_IT(hsmartcard, SMARTCARD_CLEAR_RTOF);
+      
+      hsmartcard->ErrorCode |= HAL_SMARTCARD_ERROR_RTO;
+    }
+    
+    /* Call SMARTCARD Error Call back function if need be --------------------------*/
+    if(hsmartcard->ErrorCode != HAL_SMARTCARD_ERROR_NONE)
+    {
+      /* SMARTCARD in mode Receiver ---------------------------------------------------*/
+#if defined(USART_CR1_FIFOEN)
+      if(((isrflags & USART_ISR_RXNE_RXFNE) != RESET) 
+         && (   ((cr1its & USART_CR1_RXNEIE_RXFNEIE) != RESET)
+             || ((cr3its & USART_CR3_RXFTIE) != RESET)) )
+#else
+      if(((isrflags & USART_ISR_RXNE) != RESET) 
+         && ((cr1its & USART_CR1_RXNEIE) != RESET) )
+#endif
+      {
+        if (hsmartcard->RxISR != NULL) {hsmartcard->RxISR(hsmartcard);}
+      }
+      
+      /* If Error is to be considered as blocking :
+      - Receiver Timeout error in Reception
+      - Overrun error in Reception
+      - any error occurs in DMA mode reception
+      */
+      if (   ((hsmartcard->ErrorCode & (HAL_SMARTCARD_ERROR_RTO | HAL_SMARTCARD_ERROR_ORE)) != RESET)
+          || (HAL_IS_BIT_SET(hsmartcard->Instance->CR3, USART_CR3_DMAR)))
+      {  
+        /* Blocking error : transfer is aborted
+        Set the SMARTCARD state ready to be able to start again the process,
+        Disable Rx Interrupts, and disable Rx DMA request, if ongoing */
+        SMARTCARD_EndRxTransfer(hsmartcard);
+        
+        /* Disable the SMARTCARD DMA Rx request if enabled */
+        if (HAL_IS_BIT_SET(hsmartcard->Instance->CR3, USART_CR3_DMAR))
+        {
+          CLEAR_BIT(hsmartcard->Instance->CR3, USART_CR3_DMAR);
+          
+          /* Abort the SMARTCARD DMA Rx channel */
+          if(hsmartcard->hdmarx != NULL)
+          {
+            /* Set the SMARTCARD DMA Abort callback : 
+            will lead to call HAL_SMARTCARD_ErrorCallback() at end of DMA abort procedure */
+            hsmartcard->hdmarx->XferAbortCallback = SMARTCARD_DMAAbortOnError;
+            
+            /* Abort DMA RX */
+            if(HAL_DMA_Abort_IT(hsmartcard->hdmarx) != HAL_OK)
+            {
+              /* Call Directly hsmartcard->hdmarx->XferAbortCallback function in case of error */
+              hsmartcard->hdmarx->XferAbortCallback(hsmartcard->hdmarx);
+            }
+          }
+          else
+          {
+            /* Call user error callback */
+            HAL_SMARTCARD_ErrorCallback(hsmartcard);
+          }
+        }
+        else
+        {
+          /* Call user error callback */
+          HAL_SMARTCARD_ErrorCallback(hsmartcard);
+        }
+      }
+      /* other error type to be considered as blocking :
+      - Frame error in Transmission
+      */
+      else if (    (hsmartcard->gState == HAL_SMARTCARD_STATE_BUSY_TX) 
+                && ((hsmartcard->ErrorCode & HAL_SMARTCARD_ERROR_FE) != RESET))
+      {
+        /* Blocking error : transfer is aborted
+        Set the SMARTCARD state ready to be able to start again the process,
+        Disable Tx Interrupts, and disable Tx DMA request, if ongoing */
+        SMARTCARD_EndTxTransfer(hsmartcard);
+        
+        /* Disable the SMARTCARD DMA Tx request if enabled */
+        if (HAL_IS_BIT_SET(hsmartcard->Instance->CR3, USART_CR3_DMAT))
+        {
+          CLEAR_BIT(hsmartcard->Instance->CR3, USART_CR3_DMAT);
+          
+          /* Abort the SMARTCARD DMA Tx channel */
+          if(hsmartcard->hdmatx != NULL)
+          {
+            /* Set the SMARTCARD DMA Abort callback : 
+            will lead to call HAL_SMARTCARD_ErrorCallback() at end of DMA abort procedure */
+            hsmartcard->hdmatx->XferAbortCallback = SMARTCARD_DMAAbortOnError;
+            
+            /* Abort DMA TX */
+            if(HAL_DMA_Abort_IT(hsmartcard->hdmatx) != HAL_OK)
+            {
+              /* Call Directly hsmartcard->hdmatx->XferAbortCallback function in case of error */
+              hsmartcard->hdmatx->XferAbortCallback(hsmartcard->hdmatx);
+            }
+          }
+          else
+          {
+            /* Call user error callback */
+            HAL_SMARTCARD_ErrorCallback(hsmartcard);
+          }
+        }
+        else
+        {
+          /* Call user error callback */
+          HAL_SMARTCARD_ErrorCallback(hsmartcard);
+        }
+      }
+      else
+      {
+        /* Non Blocking error : transfer could go on. 
+        Error is notified to user through user error callback */
+        HAL_SMARTCARD_ErrorCallback(hsmartcard);
+        hsmartcard->ErrorCode = HAL_SMARTCARD_ERROR_NONE;
+      }
+    }
+    return;
+    
+  } /* End if some error occurs */
+  
+  /* SMARTCARD in mode Receiver, end of block interruption ------------------------*/
+  if(((isrflags & USART_ISR_EOBF) != RESET) && ((cr1its & USART_CR1_EOBIE) != RESET))
+  {
+    hsmartcard->RxState = HAL_SMARTCARD_STATE_READY;
+    __HAL_UNLOCK(hsmartcard);
+    HAL_SMARTCARD_RxCpltCallback(hsmartcard);
+    /* Clear EOBF interrupt after HAL_SMARTCARD_RxCpltCallback() call for the End of Block information
+    * to be available during HAL_SMARTCARD_RxCpltCallback() processing */
+    __HAL_SMARTCARD_CLEAR_IT(hsmartcard, SMARTCARD_CLEAR_EOBF);
+    return;
+  }
+  
+  /* SMARTCARD in mode Transmitter ------------------------------------------------*/
+#if defined(USART_CR1_FIFOEN)
+  if(((isrflags & USART_ISR_TXE_TXFNF) != RESET) 
+     && (   ((cr1its & USART_CR1_TXEIE_TXFNFIE) != RESET)
+         || ((cr3its & USART_CR3_TXFTIE) != RESET)) )
+#else
+  if(((isrflags & USART_ISR_TXE) != RESET) 
+     && ((cr1its & USART_CR1_TXEIE) != RESET))
+#endif
+  {
+    if (hsmartcard->TxISR != NULL) {hsmartcard->TxISR(hsmartcard);}
+    return;
+  }
+  
+  /* SMARTCARD in mode Transmitter (transmission end) ------------------------*/
+  if(    (__HAL_SMARTCARD_GET_IT(hsmartcard, hsmartcard->AdvancedInit.TxCompletionIndication) != RESET)
+      && (__HAL_SMARTCARD_GET_IT_SOURCE(hsmartcard, hsmartcard->AdvancedInit.TxCompletionIndication) != RESET))
+  {
+    SMARTCARD_EndTransmit_IT(hsmartcard);
+    return;
+  }
+  
+#if defined(USART_CR1_FIFOEN)
+  /* SMARTCARD TX Fifo Empty occurred ----------------------------------------------*/
+  if(((isrflags & USART_ISR_TXFE) != RESET) && ((cr1its & USART_CR1_TXFEIE) != RESET))
+  {
+    HAL_SMARTCARDEx_TxFifoEmptyCallback(hsmartcard);
+    return;
+  }
+  
+  /* SMARTCARD RX Fifo Full occurred ----------------------------------------------*/
+  if(((isrflags & USART_ISR_RXFF) != RESET) && ((cr1its & USART_CR1_RXFFIE) != RESET))
+  {
+    HAL_SMARTCARDEx_RxFifoFullCallback(hsmartcard);
+    return;
+  }
+#endif
+}

@@ -1,0 +1,26 @@
+static void SAI_AUDIO_IN_MspDeInit(SAI_HandleTypeDef *hsai, void *Params)
+{
+  GPIO_InitTypeDef  gpio_init_structure;
+  
+  /* SAI DMA IRQ Channel deactivation */
+  HAL_NVIC_DisableIRQ(AUDIO_IN_SAIx_DMAx_IRQ);
+  
+  if(hsai->Instance == AUDIO_IN_SAIx)
+  {
+    /* Deinitialize the DMA stream */
+    HAL_DMA_DeInit(hsai->hdmatx);
+  }
+  
+  /* Disable SAI peripheral */
+  __HAL_SAI_DISABLE(hsai);  
+  
+  /* Deactivates CODEC_SAI pin SD by putting them in input mode */
+  gpio_init_structure.Pin = AUDIO_IN_SAIx_SD_PIN;
+  HAL_GPIO_DeInit(AUDIO_IN_SAIx_SD_GPIO_PORT, gpio_init_structure.Pin);
+  
+  gpio_init_structure.Pin = AUDIO_IN_INT_GPIO_PIN;
+  HAL_GPIO_DeInit(AUDIO_IN_INT_GPIO_PORT, gpio_init_structure.Pin);
+  
+  /* Disable SAI clock */
+  AUDIO_IN_SAIx_CLK_DISABLE();  
+}

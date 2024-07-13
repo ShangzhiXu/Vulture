@@ -1,0 +1,140 @@
+static lv_res_t lv_page_signal(lv_obj_t * page, lv_signal_t sign, void * param)
+{
+    lv_res_t res;
+    if(sign == LV_SIGNAL_GET_STYLE) {
+        lv_get_style_info_t * info = param;
+        info->result = lv_page_get_style(page, info->part);
+        if(info->result != NULL) return LV_RES_OK;
+        else return ancestor_signal(page, sign, param);
+    }
+    else if(sign == LV_SIGNAL_GET_STATE_DSC) {
+        lv_get_state_info_t * info = param;
+        if(info->part == LV_PAGE_PART_SCROLLABLE) info->result = lv_obj_get_state(lv_page_get_scrllable(page),
+                                                                                      LV_CONT_PART_MAIN);
+        else info->result = lv_obj_get_state(page, info->part);
+        return LV_RES_OK;
+    }
+
+    /* Include the ancient signal function */
+    res = ancestor_signal(page, sign, param);
+    if(res != LV_RES_OK) return res;
+    if(sign == LV_SIGNAL_GET_TYPE) return lv_obj_handle_get_type_signal(param, LV_OBJX_NAME);
+
+    lv_page_ext_t * ext = lv_obj_get_ext_attr(page);
+    if(sign == LV_SIGNAL_CLEANUP) {
+        /*Check whether the object being deleted is propagating scroll to the parent */
+        if(ext->scroll_prop) {
+            lv_obj_t * parent_page = lv_obj_get_parent(lv_obj_get_parent(page));
+            lv_page_ext_t * parent_ext = lv_obj_get_ext_attr(parent_page);
+            if(parent_ext->scroll_prop_obj == page) {
+                parent_ext->scroll_prop_obj = NULL;
+            }
+        }
+
+        lv_obj_clean_style_list(page, LV_PAGE_PART_SCROLLBAR);
+#if LV_USE_ANIMATION
+        lv_obj_clean_style_list(page, LV_PAGE_PART_EDGE_FLASH);
+#endif
+    }
+    /*Automatically move children to the scrollable object*/
+    else if(sign == LV_SIGNAL_CHILD_CHG) {
+        lv_obj_t * child;
+        if(ext->scrl == NULL) return LV_RES_OK;
+
+        lv_fit_t fit_left        = lv_page_get_scrl_fit_left(page);
+        lv_fit_t fit_right        = lv_page_get_scrl_fit_right(page);
+        lv_fit_t fit_top         = lv_page_get_scrl_fit_top(page);
+        lv_bidi_dir_t base_dir = lv_obj_get_base_dir(page);
+
+        lv_style_int_t scrl_left = lv_obj_get_style_pad_left(ext->scrl, LV_CONT_PART_MAIN);
+        lv_style_int_t scrl_right = lv_obj_get_style_pad_right(ext->scrl, LV_CONT_PART_MAIN);
+        lv_style_int_t scrl_top = lv_obj_get_style_pad_top(ext->scrl, LV_CONT_PART_MAIN);
+
+        child = lv_obj_get_child(page, NULL);
+        while(child != NULL) {
+            if(lv_obj_is_protected(child, LV_PROTECT_PARENT) == false) {
+                lv_obj_t * tmp = child;
+                child          = lv_obj_get_child(page, child); /*Get the next child before move this*/
+
+                /* Reposition the child to take padding into account (Only if it's on (0;0) or (widht;height) coordinates now)
+                 * It's required to keep new the object on the same coordinate if FIT is enabled.*/
+                if((tmp->coords.x1 == page->coords.x1)  &&
+                   (fit_left == LV_FIT_TIGHT || fit_left == LV_FIT_MAX) &&
+                   base_dir != LV_BIDI_DIR_RTL) {
+                    tmp->coords.x1 += scrl_left;
+                    tmp->coords.x2 += scrl_left;
+                }
+                else if((tmp->coords.x2 == page->coords.x2) &&
+                        (fit_right == LV_FIT_TIGHT || fit_right == LV_FIT_MAX)
+                        && base_dir == LV_BIDI_DIR_RTL) {
+                    tmp->coords.x1 -= scrl_right;
+                    tmp->coords.x2 -= scrl_right;
+                }
+                if((tmp->coords.y1 == page->coords.y1) && (fit_top == LV_FIT_TIGHT || fit_top == LV_FIT_MAX)) {
+                    tmp->coords.y1 += scrl_top;
+                    tmp->coords.y2 += scrl_top;
+                }
+                lv_obj_set_parent(tmp, ext->scrl);
+            }
+            else {
+                child = lv_obj_get_child(page, child);
+            }
+        }
+    }
+    else if(sign == LV_SIGNAL_STYLE_CHG) {
+        lv_style_int_t sb_width = lv_obj_get_style_size(page, LV_PAGE_PART_SCROLLBAR);
+        lv_area_set_height(&ext->scrlbar.hor_area, sb_width);
+        lv_area_set_width(&ext->scrlbar.ver_area, sb_width);
+
+        /*The scrollbars are important only if they are visible now*/
+        if(ext->scrlbar.hor_draw || ext->scrlbar.ver_draw) scrlbar_refresh(page);
+
+        /*Refresh the ext. size because the scrollbars might be positioned out of the page*/
+        refr_ext_draw_pad(page);
+    }
+    else if(sign == LV_SIGNAL_COORD_CHG) {
+        /*Refresh the scrollbar and notify the scrl if the size is changed*/
+        if(ext->scrl != NULL && (lv_obj_get_width(page) != lv_area_get_width(param) ||
+                                 lv_obj_get_height(page) != lv_area_get_height(param))) {
+            ext->scrl->signal_cb(ext->scrl, LV_SIGNAL_COORD_CHG, &ext->scrl->coords);
+
+            /*The scrollbars are important only if they are visible now*/
+            if(ext->scrlbar.hor_draw || ext->scrlbar.ver_draw) scrlbar_refresh(page);
+        }
+    }
+    else if(sign == LV_SIGNAL_REFR_EXT_DRAW_PAD) {
+        refr_ext_draw_pad(page);
+    }
+    else if(sign == LV_SIGNAL_CONTROL) {
+        uint32_t c = *((uint32_t *)param);
+
+        if(c == LV_KEY_DOWN) {
+            lv_page_scroll_ver(page, -lv_obj_get_height(page) / 4);
+        }
+        else if(c == LV_KEY_UP) {
+            lv_page_scroll_ver(page, lv_obj_get_height(page) / 4);
+        }
+        else if(c == LV_KEY_RIGHT) {
+            /*If the page can't be scrolled horizontally because it's not wide enough then scroll it
+             * vertically*/
+            if(lv_page_get_scrl_width(page) <= lv_obj_get_width(page))
+                lv_page_scroll_ver(page, -lv_obj_get_height(page) / 4);
+            else
+                lv_page_scroll_hor(page, -lv_obj_get_width(page) / 4);
+        }
+        else if(c == LV_KEY_LEFT) {
+            /*If the page can't be scrolled horizontally because it's not wide enough then scroll it
+             * vertically*/
+            if(lv_page_get_scrl_width(page) <= lv_obj_get_width(page))
+                lv_page_scroll_ver(page, lv_obj_get_height(page) / 4);
+            else
+                lv_page_scroll_hor(page, lv_obj_get_width(page) / 4);
+        }
+    }
+    else if(sign == LV_SIGNAL_GET_EDITABLE) {
+        bool * editable = (bool *)param;
+        *editable       = true;
+    }
+
+    return res;
+}

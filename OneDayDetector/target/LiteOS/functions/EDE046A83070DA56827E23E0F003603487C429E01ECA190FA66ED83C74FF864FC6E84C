@@ -1,0 +1,27 @@
+static void TIM_TI3_SetConfig(TIM_TypeDef *TIMx, uint32_t TIM_ICPolarity, uint32_t TIM_ICSelection,
+                       uint32_t TIM_ICFilter)
+{
+  uint32_t tmpccmr2 = 0;
+  uint32_t tmpccer = 0;
+
+  /* Disable the Channel 3: Reset the CC3E Bit */
+  TIMx->CCER &= ~TIM_CCER_CC3E;
+  tmpccmr2 = TIMx->CCMR2;
+  tmpccer = TIMx->CCER;
+
+  /* Select the Input */
+  tmpccmr2 &= ~TIM_CCMR2_CC3S;
+  tmpccmr2 |= TIM_ICSelection;
+
+  /* Set the filter */
+  tmpccmr2 &= ~TIM_CCMR2_IC3F;
+  tmpccmr2 |= ((TIM_ICFilter << 4) & TIM_CCMR2_IC3F);
+
+  /* Select the Polarity and set the CC3E Bit */
+  tmpccer &= ~(TIM_CCER_CC3P | TIM_CCER_CC3NP);
+  tmpccer |= ((TIM_ICPolarity << 8) & (TIM_CCER_CC3P | TIM_CCER_CC3NP));
+
+  /* Write to TIMx CCMR2 and CCER registers */
+  TIMx->CCMR2 = tmpccmr2;
+  TIMx->CCER = tmpccer;
+}

@@ -1,0 +1,66 @@
+HAL_StatusTypeDef HAL_DMA_DeInit(DMA_HandleTypeDef *hdma)
+{
+  DMA_Base_Registers *regs;
+
+  /* Check the DMA peripheral state */
+  if(hdma == NULL)
+  {
+    return HAL_ERROR;
+  }
+  
+  /* Check the DMA peripheral state */
+  if(hdma->State == HAL_DMA_STATE_BUSY)
+  {
+    /* Return error status */
+    return HAL_BUSY;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_DMA_STREAM_ALL_INSTANCE(hdma->Instance));
+
+  /* Disable the selected DMA Streamx */
+  __HAL_DMA_DISABLE(hdma);
+
+  /* Reset DMA Streamx control register */
+  hdma->Instance->CR   = 0U;
+
+  /* Reset DMA Streamx number of data to transfer register */
+  hdma->Instance->NDTR = 0U;
+
+  /* Reset DMA Streamx peripheral address register */
+  hdma->Instance->PAR  = 0U;
+
+  /* Reset DMA Streamx memory 0 address register */
+  hdma->Instance->M0AR = 0U;
+  
+  /* Reset DMA Streamx memory 1 address register */
+  hdma->Instance->M1AR = 0U;
+  
+  /* Reset DMA Streamx FIFO control register */
+  hdma->Instance->FCR  = (uint32_t)0x00000021U;
+  
+  /* Get DMA steam Base Address */  
+  regs = (DMA_Base_Registers *)DMA_CalcBaseAndBitshift(hdma);
+  
+  /* Clear all interrupt flags at correct offset within the register */
+  regs->IFCR = 0x3FU << hdma->StreamIndex;
+  
+  /* Clean all callbacks */
+  hdma->XferCpltCallback = NULL;
+  hdma->XferHalfCpltCallback = NULL;
+  hdma->XferM1CpltCallback = NULL;
+  hdma->XferM1HalfCpltCallback = NULL;
+  hdma->XferErrorCallback = NULL;
+  hdma->XferAbortCallback = NULL;  
+
+  /* Reset the error code */
+  hdma->ErrorCode = HAL_DMA_ERROR_NONE;
+
+  /* Reset the DMA state */
+  hdma->State = HAL_DMA_STATE_RESET;
+
+  /* Release Lock */
+  __HAL_UNLOCK(hdma);
+
+  return HAL_OK;
+}

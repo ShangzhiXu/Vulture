@@ -1,0 +1,46 @@
+int atiny_queue_rpt_data(const lwm2m_uri_t *uri, const data_report_t *data)
+{
+    int ret = ATINY_MALLOC_FAILED;
+    if ((uri == NULL) || (data == NULL)) {
+        ATINY_LOG(LOG_ERR, "null point");
+        return ATINY_ARG_INVALID;
+    }
+
+    atiny_mutex_lock(g_mutex);
+    do {
+        atiny_rpt_list_t *rpt_list = NULL;
+        atiny_rpt_node_t *data_node = NULL;
+
+        rpt_list = atiny_find_rpt_list(uri);
+        if (rpt_list == NULL) {
+            ATINY_LOG(LOG_INFO, "uri rpt list not exit," URI_FORMAT, URI_LOG_PARAM(uri));
+            ret = ATINY_RESOURCE_NOT_FOUND;
+            break;
+        }
+
+        if (rpt_list->rpt_node_cnt >= rpt_list->max_cnt) {
+            ATINY_LOG(LOG_INFO, "uri rpt exceed rpt cnt %d max cnt %d," URI_FORMAT,
+                      rpt_list->rpt_node_cnt, rpt_list->max_cnt, URI_LOG_PARAM(uri));
+            ret = ATINY_RESOURCE_NOT_ENOUGH;
+            break;
+        }
+
+        data_node = lwm2m_malloc(sizeof(*data_node));
+        if (data_node == NULL) {
+            ATINY_LOG(LOG_ERR, "malloc fail," URI_FORMAT, URI_LOG_PARAM(uri));
+            break;
+        }
+
+        memset((void *)&data_node->list, 0, sizeof(data_node->list));
+        memcpy((void *)&data_node->data, (void *)data, sizeof(data_node->data));
+        atiny_list_insert_tail(&rpt_list->rpt_list, &data_node->list);
+        rpt_list->rpt_node_cnt++;
+        ret = ATINY_OK;
+
+    } while (0);
+
+    atiny_mutex_unlock(g_mutex);
+
+    return ret;
+
+}

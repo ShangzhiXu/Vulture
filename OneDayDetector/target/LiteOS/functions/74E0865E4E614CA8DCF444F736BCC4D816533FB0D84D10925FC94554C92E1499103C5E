@@ -1,0 +1,17 @@
+STATIC INLINE VOID OsSwtmrUpdate(LosSwtmrCB *swtmr)
+{
+    if (swtmr->mode == LOS_SWTMR_MODE_ONCE) {
+        OsSwtmrDelete(swtmr);
+
+        if (swtmr->timerId < (OS_SWTMR_MAX_TIMERID - LOSCFG_BASE_CORE_SWTMR_LIMIT)) {
+            swtmr->timerId += LOSCFG_BASE_CORE_SWTMR_LIMIT;
+        } else {
+            swtmr->timerId %= LOSCFG_BASE_CORE_SWTMR_LIMIT;
+        }
+    } else if (swtmr->mode == LOS_SWTMR_MODE_NO_SELFDELETE) {
+        swtmr->state = OS_SWTMR_STATUS_CREATED;
+    } else {
+        swtmr->overrun++;
+        OsSwtmrStart(swtmr);
+    }
+}

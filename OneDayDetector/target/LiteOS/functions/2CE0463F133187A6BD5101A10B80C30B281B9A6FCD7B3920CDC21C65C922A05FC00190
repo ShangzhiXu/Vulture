@@ -1,0 +1,19 @@
+int mbedtls_x509_write_names( unsigned char **p, unsigned char *start,
+                              mbedtls_asn1_named_data *first )
+{
+    int ret;
+    size_t len = 0;
+    mbedtls_asn1_named_data *cur = first;
+
+    while( cur != NULL )
+    {
+        MBEDTLS_ASN1_CHK_ADD( len, x509_write_name( p, start, cur ) );
+        cur = cur->next;
+    }
+
+    MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_len( p, start, len ) );
+    MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_tag( p, start, MBEDTLS_ASN1_CONSTRUCTED |
+                                                 MBEDTLS_ASN1_SEQUENCE ) );
+
+    return( (int) len );
+}

@@ -1,0 +1,17 @@
+UINT32 OsStackWaterLineGet(const UINTPTR *stackBottom, const UINTPTR *stackTop, UINT32 *peakUsed)
+{
+    UINT32 size;
+    const UINTPTR *tmp = NULL;
+    if (*stackTop == OS_STACK_MAGIC_WORD) {
+        tmp = stackTop + 1;
+        while ((tmp < stackBottom) && (*tmp == OS_STACK_INIT)) {
+            tmp++;
+        }
+        size = (UINT32)((UINTPTR)stackBottom - (UINTPTR)tmp);
+        *peakUsed = (size == 0) ? size : (size + sizeof(CHAR *));
+        return LOS_OK;
+    } else {
+        *peakUsed = OS_INVALID_WATERLINE;
+        return LOS_NOK;
+    }
+}

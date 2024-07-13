@@ -1,0 +1,31 @@
+HAL_StatusTypeDef HAL_LTDC_SetAlpha_NoReload(LTDC_HandleTypeDef *hltdc, uint32_t Alpha, uint32_t LayerIdx)
+{
+  LTDC_LayerCfgTypeDef *pLayerCfg;
+
+  /* Check the parameters */
+  assert_param(IS_LTDC_ALPHA(Alpha));
+  assert_param(IS_LTDC_LAYER(LayerIdx));
+
+  /* Process locked */
+  __HAL_LOCK(hltdc);
+
+  /* Change LTDC peripheral state */
+  hltdc->State = HAL_LTDC_STATE_BUSY;
+
+  /* Get layer configuration from handle structure */
+  pLayerCfg = &hltdc->LayerCfg[LayerIdx];
+
+  /* Reconfigure the Alpha value */
+  pLayerCfg->Alpha = Alpha;
+
+  /* Set LTDC parameters */
+  LTDC_SetConfig(hltdc, pLayerCfg, LayerIdx);
+
+  /* Change the LTDC state*/
+  hltdc->State = HAL_LTDC_STATE_READY;
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hltdc);
+
+  return HAL_OK;
+}

@@ -1,0 +1,42 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 LOS_MemFreeNodeShow(VOID *pool)
+{
+    LOS_DL_LIST *listNodeHead = NULL;
+    LosMultipleDlinkHead *headAddr = (LosMultipleDlinkHead *)((UINTPTR)pool + sizeof(LosMemPoolInfo));
+    LosMemPoolInfo *poolInfo = (LosMemPoolInfo *)pool;
+    UINT32 linkHeadIndex;
+    UINT32 countNum[OS_MULTI_DLNK_NUM] = { 0 };
+    UINT32 intSave;
+
+    if ((poolInfo == NULL) || ((UINTPTR)pool != (UINTPTR)poolInfo->pool)) {
+        PRINT_ERR("wrong mem pool addr: %p, line:%d\n", poolInfo, __LINE__);
+        return LOS_NOK;
+    }
+
+    PRINTK("\n   ************************ left free node number**********************");
+    MEM_LOCK(intSave);
+
+    for (linkHeadIndex = 0; linkHeadIndex <= (OS_MULTI_DLNK_NUM - 1);
+         linkHeadIndex++) {
+        listNodeHead = headAddr->listHead[linkHeadIndex].pstNext;
+        while (listNodeHead != &(headAddr->listHead[linkHeadIndex])) {
+            listNodeHead = listNodeHead->pstNext;
+            countNum[linkHeadIndex]++;
+        }
+    }
+
+    linkHeadIndex = 0;
+    while (linkHeadIndex < OS_MULTI_DLNK_NUM) {
+        if (linkHeadIndex + COLUMN_NUM < OS_MULTI_DLNK_NUM) {
+            OsShowFreeNode(linkHeadIndex, COLUMN_NUM, countNum);
+            linkHeadIndex += COLUMN_NUM;
+        } else {
+            OsShowFreeNode(linkHeadIndex, (OS_MULTI_DLNK_NUM - 1 - linkHeadIndex), countNum);
+            break;
+        }
+    }
+
+    MEM_UNLOCK(intSave);
+    PRINTK("\n   ********************************************************************\n\n");
+
+    return LOS_OK;
+}

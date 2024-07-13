@@ -1,0 +1,127 @@
+static lv_res_t lv_list_signal(lv_obj_t * list, lv_signal_t sign, void * param)
+{
+    lv_res_t res;
+    if(sign == LV_SIGNAL_GET_STYLE) {
+        lv_get_style_info_t * info = param;
+        info->result = lv_list_get_style(list, info->part);
+        if(info->result != NULL) return LV_RES_OK;
+        else return ancestor_page_signal(list, sign, param);
+    }
+
+    /* Include the ancient signal function */
+    res = ancestor_page_signal(list, sign, param);
+    if(res != LV_RES_OK) return res;
+    if(sign == LV_SIGNAL_GET_TYPE) return lv_obj_handle_get_type_signal(param, LV_OBJX_NAME);
+
+    if(sign == LV_SIGNAL_RELEASED || sign == LV_SIGNAL_PRESSED || sign == LV_SIGNAL_PRESSING ||
+       sign == LV_SIGNAL_LONG_PRESS || sign == LV_SIGNAL_LONG_PRESS_REP) {
+#if LV_USE_GROUP
+        /*If pressed/released etc by a KEYPAD or ENCODER delegate signal and events to the button*/
+        lv_indev_t * indev         = lv_indev_get_act();
+        lv_indev_type_t indev_type = lv_indev_get_type(indev);
+        if(indev_type == LV_INDEV_TYPE_KEYPAD ||
+           (indev_type == LV_INDEV_TYPE_ENCODER && lv_group_get_editing(lv_obj_get_group(list)))) {
+            lv_list_ext_t * ext = lv_obj_get_ext_attr(list);
+
+            /*The page receives the key presses so the events should be propagated to the selected
+             * button*/
+            if(ext->act_sel_btn) {
+                res = lv_signal_send(ext->act_sel_btn, sign, param);
+                if(res != LV_RES_OK) return res;
+                if(sign == LV_SIGNAL_PRESSED) {
+                    res = lv_event_send(ext->act_sel_btn, LV_EVENT_PRESSED, NULL);
+                    if(res != LV_RES_OK) return res;
+                }
+                else if(sign == LV_SIGNAL_PRESSING) {
+                    res = lv_event_send(ext->act_sel_btn, LV_EVENT_PRESSING, NULL);
+                    if(res != LV_RES_OK) return res;
+                }
+                else if(sign == LV_SIGNAL_LONG_PRESS) {
+                    res = lv_event_send(ext->act_sel_btn, LV_EVENT_LONG_PRESSED, NULL);
+                    if(res != LV_RES_OK) return res;
+                }
+                else if(sign == LV_SIGNAL_LONG_PRESS_REP) {
+                    res = lv_event_send(ext->act_sel_btn, LV_EVENT_LONG_PRESSED_REPEAT, NULL);
+                    if(res != LV_RES_OK) return res;
+                }
+                else if(sign == LV_SIGNAL_RELEASED) {
+                    if(indev->proc.long_pr_sent == 0) {
+                        res = lv_event_send(ext->act_sel_btn, LV_EVENT_SHORT_CLICKED, NULL);
+                        if(res != LV_RES_OK) return res;
+                    }
+                    if(lv_indev_is_dragging(indev) == false) {
+                        res = lv_event_send(ext->act_sel_btn, LV_EVENT_CLICKED, NULL);
+                        if(res != LV_RES_OK) return res;
+                    }
+
+                    res = lv_event_send(ext->act_sel_btn, LV_EVENT_RELEASED, NULL);
+                    if(res != LV_RES_OK) return res;
+                }
+            }
+        }
+#endif
+    }
+    else if(sign == LV_SIGNAL_FOCUS) {
+
+#if LV_USE_GROUP
+        lv_indev_type_t indev_type = lv_indev_get_type(lv_indev_get_act());
+        /*With ENCODER focus the button only in edit mode*/
+        lv_group_t * g = lv_obj_get_group(list);
+        if((indev_type == LV_INDEV_TYPE_KEYPAD) ||
+           (indev_type == LV_INDEV_TYPE_ENCODER && lv_group_get_editing(g))) {
+            lv_list_ext_t * ext = lv_obj_get_ext_attr(list);
+            /* Select the last used button, or use the first no last button */
+            if(ext->last_sel_btn) lv_list_focus_btn(list, ext->last_sel_btn);
+            else lv_list_focus_btn(list, lv_list_get_next_btn(list, NULL));
+        }
+#endif
+    }
+    else if(sign == LV_SIGNAL_DEFOCUS) {
+
+#if LV_USE_GROUP
+        /*De-select the selected btn*/
+        lv_list_focus_btn(list, NULL);
+        lv_list_ext_t * ext = lv_obj_get_ext_attr(list);
+        ext->act_sel_btn   = NULL;
+#endif
+    }
+    else if(sign == LV_SIGNAL_GET_EDITABLE) {
+        bool * editable = (bool *)param;
+        *editable       = true;
+    }
+    else if(sign == LV_SIGNAL_CONTROL) {
+
+#if LV_USE_GROUP
+        char c = *((char *)param);
+        if(c == LV_KEY_RIGHT || c == LV_KEY_DOWN) {
+            lv_list_ext_t * ext = lv_obj_get_ext_attr(list);
+            /*If there is a valid selected button the make the previous selected*/
+            if(ext->act_sel_btn) {
+                lv_obj_t * btn_prev = lv_list_get_next_btn(list, ext->act_sel_btn);
+                if(btn_prev) lv_list_focus_btn(list, btn_prev);
+            }
+            /*If there is no selected button the make the first selected*/
+            else {
+                lv_obj_t * btn = lv_list_get_next_btn(list, NULL);
+                if(btn)
+                    lv_list_focus_btn(list,
+                                      btn); /*If there are no buttons on the list then there is no first button*/
+            }
+        }
+        else if(c == LV_KEY_LEFT || c == LV_KEY_UP) {
+            lv_list_ext_t * ext = lv_obj_get_ext_attr(list);
+            /*If there is a valid selected button the make the next selected*/
+            if(ext->act_sel_btn != NULL) {
+                lv_obj_t * btn_next = lv_list_get_prev_btn(list, ext->act_sel_btn);
+                if(btn_next) lv_list_focus_btn(list, btn_next);
+            }
+            /*If there is no selected button the make the first selected*/
+            else {
+                lv_obj_t * btn = lv_list_get_next_btn(list, NULL);
+                if(btn) lv_list_focus_btn(list, btn);
+            }
+        }
+#endif
+    }
+    return res;
+}

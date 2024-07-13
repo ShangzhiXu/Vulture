@@ -1,0 +1,50 @@
+LITE_OS_SEC_TEXT_MINOR STATIC INT32 UpdateScbPeriod(SensorType *sensor, const SensorItem *currentItem)
+{
+    SensorItem *item       = NULL;
+    struct LOS_DL_LIST *pl = NULL;
+    UINT8 cnt              = 0;
+    UINT8 mode             = 0;
+    OpenParam openParam    = currentItem->openParam;
+
+    LOS_DL_LIST_FOR_EACH(pl, &sensor->slist) {
+        item = LOS_DL_LIST_ENTRY(pl, SensorItem, list);
+        if ((item->state == WORKING) || (item->state == OPEN)) {
+            if (item->openParam.mode >= MODE_END) {
+                item->openParam.mode = 0;
+            }
+            mode |= 1 << item->openParam.mode;
+
+            if (item->openParam.period < openParam.period) {
+                openParam.period = item->openParam.period;
+            }
+            if (item->openParam.batchCount < openParam.batchCount) {
+                openParam.batchCount = item->openParam.batchCount;
+            }
+            cnt++;
+        }
+    }
+
+    if (cnt == 0) {
+        sensor->openParam.period = 0;
+        if (item != NULL) {
+            sensor->closeParam = item->closeParam;
+        }
+        return SENSOR_ATTACH_NONE;
+    }
+
+    if (mode & (1 << REALTIME_MODE)) {
+        openParam.mode = REALTIME_MODE;
+    } else if (mode & (1 << INTEGRATE_MODE)) {
+        openParam.mode = INTEGRATE_MODE;
+    } else if (mode & (1 << AUTO_MODE)) {
+        openParam.mode = AUTO_MODE;
+    } else {
+        openParam.mode = FIFO_MODE;
+    }
+
+    if (memcmp(&(sensor->openParam), &openParam, sizeof(OpenParam))) {
+        sensor->openParam = openParam;
+        return SENSOR_ATTACH_CHANGE;
+    }
+    return SENSOR_ATTACH_UNCHANGE;
+}

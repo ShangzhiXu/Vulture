@@ -1,0 +1,20 @@
+static uint32_t SDMMC_GetCmdError(SDIO_TypeDef *SDIOx)
+{
+  /* 8 is the number of required instructions cycles for the below loop statement.
+  The SDIO_CMDTIMEOUT is expressed in ms */
+  register uint32_t count = SDIO_CMDTIMEOUT * (SystemCoreClock / 8U /1000U);
+  
+  do
+  {
+    if (count-- == 0U)
+    {
+      return SDMMC_ERROR_TIMEOUT;
+    }
+    
+  }while(!__SDIO_GET_FLAG(SDIOx, SDIO_FLAG_CMDSENT));
+  
+  /* Clear all the static flags */
+  __SDIO_CLEAR_FLAG(SDIOx, SDIO_STATIC_CMD_FLAGS);
+  
+  return SDMMC_ERROR_NONE;
+}

@@ -1,0 +1,9 @@
+    atiny_param_t     atiny_params;
+    int atiny_quit;
+    client_data_t     client_data;
+    lwm2m_context_t  *lwm2m_context;
+    lwm2m_object_t   *obj_array[8];
+    void *quit_sem;
+    int reboot_flag;
+    int reconnect_flag;
+    uint8_t *recv_buffer;

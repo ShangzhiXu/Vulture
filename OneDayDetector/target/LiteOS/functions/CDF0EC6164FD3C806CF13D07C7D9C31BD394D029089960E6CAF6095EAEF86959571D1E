@@ -1,0 +1,25 @@
+LITE_OS_SEC_TEXT_MINOR VOID OsShellCmdPush(const CHAR *string, CmdKeyLink *cmdKeyLink)
+{
+    CmdKeyLink *cmdNewNode = NULL;
+    UINT32 len;
+
+    if ((string == NULL) || (strlen(string) == 0)) {
+        return;
+    }
+
+    len = strlen(string);
+    cmdNewNode = (CmdKeyLink *)LOS_MemAlloc(m_aucSysMem0, sizeof(CmdKeyLink) + len + 1);
+    if (cmdNewNode == NULL) {
+        return;
+    }
+
+    (VOID)memset_s(cmdNewNode, sizeof(CmdKeyLink) + len + 1, 0, sizeof(CmdKeyLink) + len + 1);
+    if (strncpy_s(cmdNewNode->cmdString, len + 1, string, len) != EOK) {
+        (VOID)LOS_MemFree(m_aucSysMem0, cmdNewNode);
+        return;
+    }
+
+    LOS_ListTailInsert(&cmdKeyLink->list, &cmdNewNode->list);
+
+    return;
+}

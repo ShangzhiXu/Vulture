@@ -1,0 +1,20 @@
+void eap_authpeer(ppp_pcb *pcb, const char *localname) {
+
+	/* Save the name we're given. */
+	pcb->eap.es_server.ea_name = localname;
+	pcb->eap.es_server.ea_namelen = strlen(localname);
+
+	pcb->eap.es_savedtime = pcb->settings.eap_timeout_time;
+
+	/* Lower layer up yet? */
+	if (pcb->eap.es_server.ea_state == eapInitial ||
+	    pcb->eap.es_server.ea_state == eapPending) {
+		pcb->eap.es_server.ea_state = eapPending;
+		return;
+	}
+
+	pcb->eap.es_server.ea_state = eapPending;
+
+	/* ID number not updated here intentionally; hashed into M1 */
+	eap_send_request(pcb);
+}

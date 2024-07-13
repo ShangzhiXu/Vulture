@@ -1,0 +1,39 @@
+int mbedtls_cipher_setkey( mbedtls_cipher_context_t *ctx,
+                           const unsigned char *key,
+                           int key_bitlen,
+                           const mbedtls_operation_t operation )
+{
+    CIPHER_VALIDATE_RET( ctx != NULL );
+    CIPHER_VALIDATE_RET( key != NULL );
+    CIPHER_VALIDATE_RET( operation == MBEDTLS_ENCRYPT ||
+                         operation == MBEDTLS_DECRYPT );
+    if( ctx->cipher_info == NULL )
+        return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+
+    if( ( ctx->cipher_info->flags & MBEDTLS_CIPHER_VARIABLE_KEY_LEN ) == 0 &&
+        (int) ctx->cipher_info->key_bitlen != key_bitlen )
+    {
+        return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+    }
+
+    ctx->key_bitlen = key_bitlen;
+    ctx->operation = operation;
+
+    /*
+     * For OFB, CFB and CTR mode always use the encryption key schedule
+     */
+    if( MBEDTLS_ENCRYPT == operation ||
+        MBEDTLS_MODE_CFB == ctx->cipher_info->mode ||
+        MBEDTLS_MODE_OFB == ctx->cipher_info->mode ||
+        MBEDTLS_MODE_CTR == ctx->cipher_info->mode )
+    {
+        return( ctx->cipher_info->base->setkey_enc_func( ctx->cipher_ctx, key,
+                                                         ctx->key_bitlen ) );
+    }
+
+    if( MBEDTLS_DECRYPT == operation )
+        return( ctx->cipher_info->base->setkey_dec_func( ctx->cipher_ctx, key,
+                                                         ctx->key_bitlen ) );
+
+    return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+}

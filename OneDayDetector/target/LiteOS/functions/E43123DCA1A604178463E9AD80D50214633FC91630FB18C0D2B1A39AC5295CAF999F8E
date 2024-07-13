@@ -1,0 +1,119 @@
+int main(int argc, char *argv[])
+{
+    MQTTPacket_connectData data = MQTTPacket_connectData_initializer;
+    int rc = 0;
+    int mysock = 0;
+    unsigned char buf[200];
+    int buflen = sizeof(buf);
+    int len = 0;
+    MQTTTransport mytransport;
+    int state;
+
+    stop_init();
+    sampleserial_init();
+
+    mysock = transport_open(&iof);
+    if(mysock < 0)
+        return mysock;
+    /* You will (or already are) 'somehow' connect(ed) to host:port via your hardware specifics. E.g.:
+    	you have a serial (RS-232/UART) link
+    	you have a cell modem and you issue your AT+ magic
+    	you have some TCP/IP which is not lwIP (nor a full-fledged socket compliant one)
+    	 and you TCP connect
+    */
+
+    mytransport.sck = &mysock;
+    mytransport.getfn = transport_getdatanb;
+    mytransport.state = 0;
+    data.clientID.cstring = "me";
+    data.keepAliveInterval = KEEPALIVE_INTERVAL;
+    data.cleansession = 1;
+    data.username.cstring = "testuser";
+    data.password.cstring = "testpassword";
+
+    len = MQTTSerialize_connect(buf, buflen, &data);
+    /* This one blocks until it finishes sending, you will probably not want this in real life,
+    in such a case replace this call by a scheme similar to the one you'll see in the main loop */
+    rc = transport_sendPacketBuffer(mysock, buf, len);
+
+    printf("Sent MQTT connect\n");
+    /* wait for connack */
+    do
+    {
+        int frc;
+        if ((frc = MQTTPacket_readnb(buf, buflen, &mytransport)) == CONNACK)
+        {
+            unsigned char sessionPresent, connack_rc;
+            if (MQTTDeserialize_connack(&sessionPresent, &connack_rc, buf, buflen) != 1 || connack_rc != 0)
+            {
+                printf("Unable to connect, return code %d\n", connack_rc);
+                goto exit;
+            }
+            break;
+        }
+        else if (frc == -1)
+            goto exit;
+    }
+    while (1);   /* handle timeouts here */
+
+    printf("MQTT connected\n");
+    start_ping_timer();
+    state = IDLE;
+    while (!toStop)
+    {
+        switch(state)
+        {
+        case IDLE:
+            if(time_to_ping())
+            {
+                len = MQTTSerialize_pingreq(buf, buflen);
+                transport_sendPacketBuffernb_start(mysock, buf, len);
+                state = SENDPING;
+            }
+            break;
+        case SENDPING:
+            switch(transport_sendPacketBuffernb(mysock))
+            {
+            case TRANSPORT_DONE:
+                printf("Ping...");
+                start_ping_timer();
+                state = GETPONG;
+                break;
+            case TRANSPORT_ERROR:
+                /* handle any I/O errors here */
+                goto exit;
+                break;
+            case TRANSPORT_AGAIN:
+            default:
+                /* handle timeouts here, not probable unless there is a hardware problem */
+                break;
+            }
+            break;
+        case GETPONG:
+            if((rc = MQTTPacket_readnb(buf, buflen, &mytransport)) == PINGRESP)
+            {
+                printf("Pong\n");
+                start_ping_timer();
+                state = IDLE;
+            }
+            else if(rc == -1)
+            {
+                /* handle I/O errors here */
+                printf("OOPS\n");
+                goto exit;
+            }	/* handle timeouts here */
+            break;
+        }
+    }
+
+    printf("disconnecting\n");
+    len = MQTTSerialize_disconnect(buf, buflen);
+    /* Same blocking related stuff here */
+    rc = transport_sendPacketBuffer(mysock, buf, len);
+
+exit:
+    transport_close(mysock);
+
+    sampleserial_close();
+    return 0;
+}

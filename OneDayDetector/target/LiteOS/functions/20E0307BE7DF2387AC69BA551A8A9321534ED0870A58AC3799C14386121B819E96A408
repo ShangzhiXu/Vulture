@@ -1,0 +1,44 @@
+HAL_StatusTypeDef HAL_JPEG_DeInit(JPEG_HandleTypeDef *hjpeg)
+{
+  /* Check the JPEG handle allocation */
+  if (hjpeg == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+  if (hjpeg->MspDeInitCallback == NULL)
+  {
+    hjpeg->MspDeInitCallback = HAL_JPEG_MspDeInit; /* Legacy weak MspDeInit  */
+  }
+
+  /* DeInit the low level hardware */
+  hjpeg->MspDeInitCallback(hjpeg);
+
+#else
+  /* DeInit the low level hardware: CLOCK, NVIC.*/
+  HAL_JPEG_MspDeInit(hjpeg);
+#endif /* USE_HAL_JPEG_REGISTER_CALLBACKS */
+
+  /* Change the JPEG state */
+  hjpeg->State = HAL_JPEG_STATE_BUSY;
+
+  /* Reset the JPEG ErrorCode */
+  hjpeg->ErrorCode = HAL_JPEG_ERROR_NONE;
+
+  /* Reset JpegInCount and JpegOutCount */
+  hjpeg->JpegInCount = 0;
+  hjpeg->JpegOutCount = 0;
+
+  /* Change the JPEG state */
+  hjpeg->State = HAL_JPEG_STATE_RESET;
+
+  /*Clear the context fields*/
+  hjpeg->Context = 0;
+
+  /* Release Lock */
+  __HAL_UNLOCK(hjpeg);
+
+  /* Return function status */
+  return HAL_OK;
+}

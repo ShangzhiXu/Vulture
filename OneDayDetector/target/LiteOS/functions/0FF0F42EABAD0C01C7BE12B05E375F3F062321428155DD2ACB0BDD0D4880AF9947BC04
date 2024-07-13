@@ -1,0 +1,29 @@
+void lv_label_set_long_mode(lv_obj_t * label, lv_label_long_mode_t long_mode)
+{
+    LV_ASSERT_OBJ(label, LV_OBJX_NAME);
+
+    lv_label_ext_t * ext = lv_obj_get_ext_attr(label);
+
+#if LV_USE_ANIMATION
+    /*Delete the old animation (if exists)*/
+    lv_anim_del(label, (lv_anim_exec_xcb_t)lv_obj_set_x);
+    lv_anim_del(label, (lv_anim_exec_xcb_t)lv_obj_set_y);
+    lv_anim_del(label, (lv_anim_exec_xcb_t)lv_label_set_offset_x);
+    lv_anim_del(label, (lv_anim_exec_xcb_t)lv_label_set_offset_y);
+#endif
+    ext->offset.x = 0;
+    ext->offset.y = 0;
+
+    if(long_mode == LV_LABEL_LONG_SROLL || long_mode == LV_LABEL_LONG_SROLL_CIRC || long_mode == LV_LABEL_LONG_CROP)
+        ext->expand = 1;
+    else
+        ext->expand = 0;
+
+    /*Restore the character under the dots*/
+    if(ext->long_mode == LV_LABEL_LONG_DOT && ext->dot_end != LV_LABEL_DOT_END_INV) {
+        lv_label_revert_dots(label);
+    }
+
+    ext->long_mode = long_mode;
+    lv_label_refr_text(label);
+}

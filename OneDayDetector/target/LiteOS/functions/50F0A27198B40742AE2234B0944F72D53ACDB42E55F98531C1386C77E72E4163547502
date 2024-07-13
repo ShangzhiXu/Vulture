@@ -1,0 +1,34 @@
+VOID LOS_MemBadNodeShow(VOID *pool)
+{
+    LosMemDynNode *nodePre = NULL;
+    LosMemDynNode *tmpNode = NULL;
+    LosMemPoolInfo *poolInfo = (LosMemPoolInfo *)pool;
+    UINT32 intSave;
+
+    if (pool == NULL) {
+        return;
+    }
+
+    MEM_LOCK(intSave);
+
+    for (tmpNode = OS_MEM_FIRST_NODE(pool); tmpNode <= OS_MEM_END_NODE(pool, poolInfo->poolSize);
+         tmpNode = OS_MEM_NEXT_NODE(tmpNode)) {
+        OsMemDispCtlNode(&tmpNode->selfNode);
+
+        if (OsMemChecksumVerify(&tmpNode->selfNode)) {
+            continue;
+        }
+
+        nodePre = OsMemNodePrevGet(pool, tmpNode);
+        if (nodePre == NULL) {
+            PRINT_ERR("the current node is invalid, but cannot find its previous Node\n");
+            continue;
+        }
+
+        PRINT_ERR("the detailed information of previous node:\n");
+        OsMemDispMoreDetails(nodePre);
+    }
+
+    MEM_UNLOCK(intSave);
+    PRINTK("check finish\n");
+}

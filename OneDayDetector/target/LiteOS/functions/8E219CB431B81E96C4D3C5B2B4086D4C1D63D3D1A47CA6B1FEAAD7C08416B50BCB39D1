@@ -1,0 +1,72 @@
+static void pppol2tp_connect(ppp_pcb *ppp, void *ctx) {
+  err_t err;
+  pppol2tp_pcb *l2tp = (pppol2tp_pcb *)ctx;
+  lcp_options *lcp_wo;
+  lcp_options *lcp_ao;
+#if PPP_IPV4_SUPPORT && VJ_SUPPORT
+  ipcp_options *ipcp_wo;
+  ipcp_options *ipcp_ao;
+#endif /* PPP_IPV4_SUPPORT && VJ_SUPPORT */
+
+  l2tp->tunnel_port = l2tp->remote_port;
+  l2tp->our_ns = 0;
+  l2tp->peer_nr = 0;
+  l2tp->peer_ns = 0;
+  l2tp->source_tunnel_id = 0;
+  l2tp->remote_tunnel_id = 0;
+  l2tp->source_session_id = 0;
+  l2tp->remote_session_id = 0;
+  /* l2tp->*_retried are cleared when used */
+
+  lcp_wo = &ppp->lcp_wantoptions;
+  lcp_wo->mru = PPPOL2TP_DEFMRU;
+  lcp_wo->neg_asyncmap = 0;
+  lcp_wo->neg_pcompression = 0;
+  lcp_wo->neg_accompression = 0;
+  lcp_wo->passive = 0;
+  lcp_wo->silent = 0;
+
+  lcp_ao = &ppp->lcp_allowoptions;
+  lcp_ao->mru = PPPOL2TP_DEFMRU;
+  lcp_ao->neg_asyncmap = 0;
+  lcp_ao->neg_pcompression = 0;
+  lcp_ao->neg_accompression = 0;
+
+#if PPP_IPV4_SUPPORT && VJ_SUPPORT
+  ipcp_wo = &ppp->ipcp_wantoptions;
+  ipcp_wo->neg_vj = 0;
+  ipcp_wo->old_vj = 0;
+
+  ipcp_ao = &ppp->ipcp_allowoptions;
+  ipcp_ao->neg_vj = 0;
+  ipcp_ao->old_vj = 0;
+#endif /* PPP_IPV4_SUPPORT && VJ_SUPPORT */
+
+  /* Listen to a random source port, we need to do that instead of using udp_connect()
+   * because the L2TP LNS might answer with its own random source port (!= 1701)
+   */
+#if LWIP_IPV6
+  if (IP_IS_V6_VAL(l2tp->udp->local_ip)) {
+    udp_bind(l2tp->udp, IP6_ADDR_ANY, 0);
+  } else
+#endif /* LWIP_IPV6 */
+  udp_bind(l2tp->udp, IP_ADDR_ANY, 0);
+
+#if PPPOL2TP_AUTH_SUPPORT
+  /* Generate random vector */
+  if (l2tp->secret != NULL) {
+    magic_random_bytes(l2tp->secret_rv, sizeof(l2tp->secret_rv));
+  }
+#endif /* PPPOL2TP_AUTH_SUPPORT */
+
+  do {
+    l2tp->remote_tunnel_id = magic();
+  } while(l2tp->remote_tunnel_id == 0);
+  /* save state, in case we fail to send SCCRQ */
+  l2tp->sccrq_retried = 0;
+  l2tp->phase = PPPOL2TP_STATE_SCCRQ_SENT;
+  if ((err = pppol2tp_send_sccrq(l2tp)) != 0) {
+    PPPDEBUG(LOG_DEBUG, ("pppol2tp: failed to send SCCRQ, error=%d\n", err));
+  }
+  sys_timeout(PPPOL2TP_CONTROL_TIMEOUT, pppol2tp_timeout, l2tp);
+}

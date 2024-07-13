@@ -1,0 +1,24 @@
+void lv_tileview_set_valid_positions(lv_obj_t * tileview, const lv_point_t valid_pos[], uint16_t valid_pos_cnt)
+{
+    LV_ASSERT_OBJ(tileview, LV_OBJX_NAME);
+    LV_ASSERT_NULL(valid_pos);
+
+    lv_tileview_ext_t * ext = lv_obj_get_ext_attr(tileview);
+    ext->valid_pos          = valid_pos;
+    ext->valid_pos_cnt      = valid_pos_cnt;
+
+    set_valid_drag_dirs(tileview);
+
+    /*If valid pos. is selected do nothing*/
+    uint16_t i;
+    for(i = 0; i < valid_pos_cnt; i++) {
+        if(valid_pos[i].x == ext->act_id.x && valid_pos[i].y == ext->act_id.y) {
+            return;
+        }
+    }
+
+    /*Set a valid position if now an invalid is selected*/
+    if(valid_pos_cnt > 0) {
+        lv_tileview_set_tile_act(tileview, valid_pos[0].x, valid_pos[0].y, LV_ANIM_OFF);
+    }
+}

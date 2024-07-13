@@ -1,0 +1,28 @@
+uint32_t LL_RCC_GetI2CClockFreq(uint32_t I2CxSource)
+{
+  uint32_t i2c_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_I2C_CLKSOURCE(I2CxSource));
+
+  /* I2C1 CLK clock frequency */
+  if (I2CxSource == LL_RCC_I2C1_CLKSOURCE)
+  {
+    switch (LL_RCC_GetI2CClockSource(I2CxSource))
+    {
+      case LL_RCC_I2C1_CLKSOURCE_SYSCLK: /* I2C1 Clock is System Clock */
+        i2c_frequency = RCC_GetSystemClockFreq();
+        break;
+
+      case LL_RCC_I2C1_CLKSOURCE_HSI:    /* I2C1 Clock is HSI Osc. */
+      default:
+        if (LL_RCC_HSI_IsReady())
+        {
+          i2c_frequency = HSI_VALUE;
+        }
+        break;
+    }
+  }
+
+  return i2c_frequency;
+}

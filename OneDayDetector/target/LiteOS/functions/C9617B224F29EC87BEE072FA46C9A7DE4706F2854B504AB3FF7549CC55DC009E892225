@@ -1,0 +1,168 @@
+void HAL_MMC_IRQHandler(MMC_HandleTypeDef *hmmc)
+{
+  uint32_t errorstate = HAL_MMC_ERROR_NONE;
+  
+  /* Check for SDMMC interrupt flags */
+  if(__HAL_MMC_GET_FLAG(hmmc, SDMMC_IT_DATAEND) != RESET)
+  {
+    __HAL_MMC_CLEAR_FLAG(hmmc, SDMMC_FLAG_DATAEND); 
+    
+    __HAL_MMC_DISABLE_IT(hmmc, SDMMC_IT_DATAEND | SDMMC_IT_DCRCFAIL | SDMMC_IT_DTIMEOUT|\
+                             SDMMC_IT_TXUNDERR| SDMMC_IT_RXOVERR);
+    
+    if((hmmc->Context & MMC_CONTEXT_IT) != RESET)
+    {
+      if(((hmmc->Context & MMC_CONTEXT_READ_MULTIPLE_BLOCK) != RESET) || ((hmmc->Context & MMC_CONTEXT_WRITE_MULTIPLE_BLOCK) != RESET))
+      {
+        errorstate = SDMMC_CmdStopTransfer(hmmc->Instance);
+        if(errorstate != HAL_MMC_ERROR_NONE)
+        {
+          hmmc->ErrorCode |= errorstate;
+#if (USE_HAL_MMC_REGISTER_CALLBACKS == 1)
+          hmmc->ErrorCallback(hmmc);
+#else
+          HAL_MMC_ErrorCallback(hmmc);
+#endif
+        }
+      }
+      
+      /* Clear all the static flags */
+      __HAL_MMC_CLEAR_FLAG(hmmc, SDMMC_STATIC_FLAGS);
+      
+      hmmc->State = HAL_MMC_STATE_READY;
+      if(((hmmc->Context & MMC_CONTEXT_READ_SINGLE_BLOCK) != RESET) || ((hmmc->Context & MMC_CONTEXT_READ_MULTIPLE_BLOCK) != RESET))
+      {
+#if (USE_HAL_MMC_REGISTER_CALLBACKS == 1)
+        hmmc->RxCpltCallback(hmmc);
+#else
+        HAL_MMC_RxCpltCallback(hmmc);
+#endif
+      }
+      else
+      {
+#if (USE_HAL_MMC_REGISTER_CALLBACKS == 1)
+        hmmc->TxCpltCallback(hmmc);
+#else      
+        HAL_MMC_TxCpltCallback(hmmc);
+#endif
+      }
+    }
+    else if((hmmc->Context & MMC_CONTEXT_DMA) != RESET)
+    {
+      if((hmmc->Context & MMC_CONTEXT_WRITE_MULTIPLE_BLOCK) != RESET)
+      {
+        errorstate = SDMMC_CmdStopTransfer(hmmc->Instance);
+        if(errorstate != HAL_MMC_ERROR_NONE)
+        {
+          hmmc->ErrorCode |= errorstate;
+#if (USE_HAL_MMC_REGISTER_CALLBACKS == 1)
+          hmmc->ErrorCallback(hmmc);
+#else
+          HAL_MMC_ErrorCallback(hmmc);
+#endif
+        }
+      }
+      if(((hmmc->Context & MMC_CONTEXT_READ_SINGLE_BLOCK) == RESET) && ((hmmc->Context & MMC_CONTEXT_READ_MULTIPLE_BLOCK) == RESET))
+      {
+        /* Disable the DMA transfer for transmit request by setting the DMAEN bit
+        in the MMC DCTRL register */
+        hmmc->Instance->DCTRL &= (uint32_t)~((uint32_t)SDMMC_DCTRL_DMAEN);
+        
+        hmmc->State = HAL_MMC_STATE_READY;
+        
+#if (USE_HAL_MMC_REGISTER_CALLBACKS == 1)
+        hmmc->TxCpltCallback(hmmc);
+#else      
+        HAL_MMC_TxCpltCallback(hmmc);
+#endif
+      }
+    }
+  }
+  
+  else if(__HAL_MMC_GET_FLAG(hmmc, SDMMC_IT_TXFIFOHE) != RESET)
+  {
+    __HAL_MMC_CLEAR_FLAG(hmmc, SDMMC_FLAG_TXFIFOHE);
+    
+    MMC_Write_IT(hmmc);
+  }
+  
+  else if(__HAL_MMC_GET_FLAG(hmmc, SDMMC_IT_RXFIFOHF) != RESET)
+  {
+    __HAL_MMC_CLEAR_FLAG(hmmc, SDMMC_FLAG_RXFIFOHF);
+    
+    MMC_Read_IT(hmmc);
+  }
+  
+  else if(__HAL_MMC_GET_FLAG(hmmc, SDMMC_IT_DCRCFAIL | SDMMC_IT_DTIMEOUT | SDMMC_IT_RXOVERR | SDMMC_IT_TXUNDERR) != RESET)
+  {
+    /* Set Error code */
+    if(__HAL_MMC_GET_FLAG(hmmc, SDMMC_IT_DCRCFAIL) != RESET)
+    {
+      hmmc->ErrorCode |= HAL_MMC_ERROR_DATA_CRC_FAIL; 
+    }
+    if(__HAL_MMC_GET_FLAG(hmmc, SDMMC_IT_DTIMEOUT) != RESET)
+    {
+      hmmc->ErrorCode |= HAL_MMC_ERROR_DATA_TIMEOUT; 
+    }
+    if(__HAL_MMC_GET_FLAG(hmmc, SDMMC_IT_RXOVERR) != RESET)
+    {
+      hmmc->ErrorCode |= HAL_MMC_ERROR_RX_OVERRUN; 
+    }
+    if(__HAL_MMC_GET_FLAG(hmmc, SDMMC_IT_TXUNDERR) != RESET)
+    {
+      hmmc->ErrorCode |= HAL_MMC_ERROR_TX_UNDERRUN; 
+    }
+	
+    /* Clear All flags */
+    __HAL_MMC_CLEAR_FLAG(hmmc, SDMMC_STATIC_FLAGS);
+    
+    /* Disable all interrupts */
+    __HAL_MMC_DISABLE_IT(hmmc, SDMMC_IT_DATAEND | SDMMC_IT_DCRCFAIL | SDMMC_IT_DTIMEOUT|\
+                             SDMMC_IT_TXUNDERR| SDMMC_IT_RXOVERR);
+    
+    if((hmmc->Context & MMC_CONTEXT_DMA) != RESET)
+    {
+      /* Abort the MMC DMA Streams */
+      if(hmmc->hdmatx != NULL)
+      {
+        /* Set the DMA Tx abort callback */
+        hmmc->hdmatx->XferAbortCallback = MMC_DMATxAbort;
+        /* Abort DMA in IT mode */
+        if(HAL_DMA_Abort_IT(hmmc->hdmatx) != HAL_OK)
+        {
+          MMC_DMATxAbort(hmmc->hdmatx);
+        }
+      }
+      else if(hmmc->hdmarx != NULL)
+      {
+        /* Set the DMA Rx abort callback */
+        hmmc->hdmarx->XferAbortCallback = MMC_DMARxAbort;
+        /* Abort DMA in IT mode */
+        if(HAL_DMA_Abort_IT(hmmc->hdmarx) != HAL_OK)
+        {
+          MMC_DMARxAbort(hmmc->hdmarx);
+        }
+      }
+      else
+      {
+        hmmc->ErrorCode = HAL_MMC_ERROR_NONE;
+        hmmc->State = HAL_MMC_STATE_READY;
+#if (USE_HAL_MMC_REGISTER_CALLBACKS == 1)
+        hmmc->AbortCpltCallback(hmmc);
+#else
+        HAL_MMC_AbortCallback(hmmc);
+#endif
+      }
+    }
+    else if((hmmc->Context & MMC_CONTEXT_IT) != RESET)
+    {
+      /* Set the MMC state to ready to be able to start again the process */
+      hmmc->State = HAL_MMC_STATE_READY;
+#if (USE_HAL_MMC_REGISTER_CALLBACKS == 1)
+      hmmc->ErrorCallback(hmmc);
+#else
+      HAL_MMC_ErrorCallback(hmmc);
+#endif
+    }
+  }   
+}

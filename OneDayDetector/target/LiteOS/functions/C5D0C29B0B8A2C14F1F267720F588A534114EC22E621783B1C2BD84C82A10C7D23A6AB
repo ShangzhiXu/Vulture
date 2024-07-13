@@ -1,0 +1,17 @@
+sys_mbox_new(sys_mbox_t *mbox, int size)
+{
+  int mboxsize = size;
+  LWIP_ASSERT("mbox != NULL", mbox != NULL);
+  LWIP_ASSERT("size >= 0", size >= 0);
+  if (size == 0) {
+    mboxsize = 1024;
+  }
+  mbox->head = mbox->tail = 0;
+  mbox->sem = mbox; /* just point to something for sys_mbox_valid() */
+  mbox->q_mem = (void**)malloc(sizeof(void*)*mboxsize);
+  mbox->size = mboxsize;
+  mbox->used = 0;
+
+  memset(mbox->q_mem, 0, sizeof(void*)*mboxsize);
+  return ERR_OK;
+}

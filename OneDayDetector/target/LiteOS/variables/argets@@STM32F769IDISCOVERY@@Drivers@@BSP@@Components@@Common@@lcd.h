@@ -1,0 +1,14 @@
+  void     (*DisplayOff)(void);
+  void     (*DisplayOn)(void);
+  void     (*DrawBitmap)(uint16_t, uint16_t, uint8_t*);
+  void     (*DrawHLine)(uint16_t, uint16_t, uint16_t, uint16_t);
+  void     (*DrawRGBImage)(uint16_t, uint16_t, uint16_t, uint16_t, uint8_t*);
+  void     (*DrawVLine)(uint16_t, uint16_t, uint16_t, uint16_t);
+  uint16_t (*GetLcdPixelHeight)(void);
+  uint16_t (*GetLcdPixelWidth)(void);
+  void     (*Init)(void);
+  uint16_t (*ReadID)(void);
+  uint16_t (*ReadPixel)(uint16_t, uint16_t);
+  void     (*SetCursor)(uint16_t, uint16_t);
+  void     (*SetDisplayWindow)(uint16_t, uint16_t, uint16_t, uint16_t);
+  void     (*WritePixel)(uint16_t, uint16_t, uint16_t);

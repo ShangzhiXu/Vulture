@@ -1,0 +1,12 @@
+  u16_t comlen;
+  ip_addr_t dip;
+  u8_t enable;
+  const struct snmp_obj_id *enterprise;
+  u32_t gen_trap;
+  u16_t pdulen;
+  u16_t seqlen;
+  ip_addr_t sip;
+  u32_t snmp_version;
+  u32_t spc_trap;
+  u32_t ts;
+  u16_t vbseqlen;

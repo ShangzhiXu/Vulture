@@ -1,0 +1,44 @@
+int idle( mbedtls_net_context *fd,
+          int idle_reason )
+#else
+int idle( mbedtls_net_context *fd,
+          mbedtls_timing_delay_context *timer,
+          int idle_reason )
+#endif
+{
+    int ret;
+    int poll_type = 0;
+
+    if( idle_reason == MBEDTLS_ERR_SSL_WANT_WRITE )
+        poll_type = MBEDTLS_NET_POLL_WRITE;
+    else if( idle_reason == MBEDTLS_ERR_SSL_WANT_READ )
+        poll_type = MBEDTLS_NET_POLL_READ;
+#if !defined(MBEDTLS_TIMING_C)
+    else
+        return( 0 );
+#endif
+
+    while( 1 )
+    {
+        /* Check if timer has expired */
+#if defined(MBEDTLS_TIMING_C)
+        if( timer != NULL &&
+            mbedtls_timing_get_delay( timer ) == 2 )
+        {
+            break;
+        }
+#endif /* MBEDTLS_TIMING_C */
+
+        /* Check if underlying transport became available */
+        if( poll_type != 0 )
+        {
+            ret = mbedtls_net_poll( fd, poll_type, 0 );
+            if( ret < 0 )
+                return( ret );
+            if( ret == poll_type )
+                break;
+        }
+    }
+
+    return( 0 );
+}

@@ -1,0 +1,23 @@
+int tinydir_open_subdir_n(tinydir_dir *dir, size_t i)
+{
+	_tinydir_char_t path[_TINYDIR_PATH_MAX];
+	if (dir == NULL)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+	if (i >= dir->n_files || !dir->_files[i].is_dir)
+	{
+		errno = ENOENT;
+		return -1;
+	}
+
+	_tinydir_strcpy(path, dir->_files[i].path);
+	tinydir_close(dir);
+	if (tinydir_open_sorted(dir, path) == -1)
+	{
+		return -1;
+	}
+
+	return 0;
+}

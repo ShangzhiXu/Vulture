@@ -1,0 +1,29 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 OsShellCmdSemInfoGet(UINT32 argc, const CHAR **argv)
+{
+    size_t semId;
+    CHAR *endPtr = NULL;
+    UINT32 ret;
+
+    if (argc > 1) {
+        PRINTK("\nUsage: sem [fulldata|ID]\n");
+        return OS_ERROR;
+    }
+
+    if (argc == 0) {
+        semId = OS_ALL_SEM_MASK;
+    } else {
+        if (strcmp(argv[0], "fulldata") == 0) {
+            ret = OsSemInfoGetFullData();
+            return ret;
+        }
+
+        semId = strtoul(argv[0], &endPtr, 0);
+        if ((endPtr == NULL) || (*endPtr != 0)) {
+            PRINTK("\nsem ID can't access %s.\n", argv[0]);
+            return OS_ERROR;
+        }
+    }
+
+    ret = OsSemInfoOutput(semId);
+    return ret;
+}

@@ -1,0 +1,75 @@
+int AtCmd(const char *devname, char *cmd, char *buf, int buflen, int argc, char *argv[])
+{
+    char cmdbuf[CN_AT_LEN];
+    int result = 0;
+    int len = 0;
+    int lenleft;
+    int offset;
+    int dev;
+    // open the at command device
+    dev = iodev_open(devname, 0, 0);
+    if (dev == -1) {
+        printf("%s:open %s dev failed \n\r", __FUNCTION__, devname);
+        goto EXIT_OPENFAILED;
+    }
+    // flush the device
+    iodev_flush(dev);
+    // initialize the buf with the specified at command
+    memset(cmdbuf, 0, CN_AT_LEN);
+    snprintf(cmdbuf, CN_AT_LEN, "%s\r\n", cmd); // AT+CGMI
+    // write the command to the device
+    len = strlen(cmdbuf);
+    result = iodev_write(dev, (unsigned char *)cmdbuf, len, CN_IODEV_WTIMEOUT);
+    if (result != len) {
+        printf("%s:only write %d/%d to %s \n\r", __FUNCTION__, result, len, devname);
+        goto EXIT_WRITEFAILED;
+    }
+
+    // if need the result,then we will wait for the timeout
+    if ((buf != NULL) && (buflen > 0)) {
+        // initialize the buf
+        memset(buf, 0, buflen);
+        offset = 0;
+        lenleft = buflen;
+        while (1) {
+            len = iodev_read(dev, (unsigned char *)&buf[offset], lenleft, CN_IODEV_RTIMEOUT);
+            if (len > 0) {
+                offset += len;
+                lenleft -= len;
+                if (offset == buflen) {
+                    break;
+                } else if (offset > buflen) {
+                    printf("%s:read error--driver error\n\r", __FUNCTION__);
+                } else {
+                    // do nothing
+                }
+            } else {
+                break;
+            }
+        }
+        result = offset;
+        if (offset == 0) {
+            printf("%s:read %s error\n\r", __FUNCTION__, devname);
+            goto EXIT_READFAILED;
+        } else {
+            memset(&buf[offset], 0, lenleft); // make the bufleft to zero
+        }
+        if ((argc > 0) && (NULL != argv)) {
+            result = __getpara((char *)buf, "\n\r", argv, argc);
+            if (result <= 0) {
+                printf("%s:get para failed\n\r", __FUNCTION__);
+                goto EXIT_GETPARA;
+            }
+        }
+    }
+    // close the device and return
+    iodev_close(dev);
+    return result;
+
+EXIT_GETPARA:
+EXIT_READFAILED:
+EXIT_WRITEFAILED:
+    iodev_close(dev);
+EXIT_OPENFAILED:
+    return result;
+}

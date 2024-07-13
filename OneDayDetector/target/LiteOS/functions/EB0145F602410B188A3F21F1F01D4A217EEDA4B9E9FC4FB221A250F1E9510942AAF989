@@ -1,0 +1,26 @@
+STATIC INLINE UINT32 OsMemBackupSetup4Next(const VOID *pool, LosMemDynNode *node)
+{
+    LosMemDynNode *nodeNext = OsMemNodeNextGet(pool, node);
+
+    if (!OsMemChecksumVerify(&nodeNext->selfNode)) {
+        PRINT_ERR("[%s]the next node is broken!!\n", __FUNCTION__);
+        OsMemDispCtlNode(&(nodeNext->selfNode));
+        PRINT_ERR("Current node details:\n");
+        OsMemDispMoreDetails(node);
+
+        return LOS_NOK;
+    }
+
+    if (!OsMemChecksumVerify(&node->backupNode)) {
+        node->backupNode.freeNodeInfo.pstNext = nodeNext->selfNode.freeNodeInfo.pstNext;
+        node->backupNode.freeNodeInfo.pstPrev = nodeNext->selfNode.freeNodeInfo.pstPrev;
+        node->backupNode.preNode = nodeNext->selfNode.preNode;
+        node->backupNode.checksum = nodeNext->selfNode.checksum;
+        node->backupNode.gapSize = nodeNext->selfNode.gapSize;
+#ifdef LOSCFG_MEM_RECORDINFO
+        node->backupNode.originSize = nodeNext->selfNode.originSize;
+#endif
+        node->backupNode.sizeAndFlag = nodeNext->selfNode.sizeAndFlag;
+    }
+    return LOS_OK;
+}

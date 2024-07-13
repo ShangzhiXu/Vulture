@@ -1,0 +1,29 @@
+SECUREC_INLINE void SecNumberToBuffer(SecFormatAttr *attr, SecInt64 num64)
+{
+    SecUnsignedInt64 number;
+    /* Check for negative; copy into number */
+    if ((attr->flags & SECUREC_FLAG_SIGNED) != 0 && num64 < 0) {
+        number = (SecUnsignedInt64)(0 - (SecUnsignedInt64)num64); /* Wrap with unsigned int64 numbers */
+        attr->flags |= SECUREC_FLAG_NEGATIVE;
+    } else {
+        number = (SecUnsignedInt64)num64;
+    }
+    if (SecIsNumberNeedTo32Bit(attr) != 0) {
+        number = (number & (SecUnsignedInt64)0xffffffffUL);  /* Use 0xffffffff as 32 bit mask */
+    }
+
+    /* The text.str must be point to buffer.str, this pointer is used outside the function */
+    attr->text.str = &attr->buffer.str[SECUREC_BUFFER_SIZE];
+
+    if (number == 0) {
+        /* Turn off hex prefix default, and textLen is zero */
+        attr->prefixLen = 0;
+        attr->textLen = 0;
+        return;
+    }
+
+    /* Convert integer to string. It must be invoked when number > 0, otherwise the following logic is incorrect */
+    SecNumberToString(number, attr);
+    /* Compute length of number,  text.str must be in buffer.str */
+    attr->textLen = (int)(size_t)((char *)&attr->buffer.str[SECUREC_BUFFER_SIZE] - attr->text.str);
+}

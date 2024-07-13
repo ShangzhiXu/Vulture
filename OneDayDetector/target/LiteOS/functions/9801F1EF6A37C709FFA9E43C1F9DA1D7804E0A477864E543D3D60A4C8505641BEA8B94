@@ -1,0 +1,54 @@
+int mbedtls_blowfish_crypt_cfb64( mbedtls_blowfish_context *ctx,
+                       int mode,
+                       size_t length,
+                       size_t *iv_off,
+                       unsigned char iv[MBEDTLS_BLOWFISH_BLOCKSIZE],
+                       const unsigned char *input,
+                       unsigned char *output )
+{
+    int c;
+    size_t n;
+
+    BLOWFISH_VALIDATE_RET( ctx != NULL );
+    BLOWFISH_VALIDATE_RET( mode == MBEDTLS_BLOWFISH_ENCRYPT ||
+                           mode == MBEDTLS_BLOWFISH_DECRYPT );
+    BLOWFISH_VALIDATE_RET( iv     != NULL );
+    BLOWFISH_VALIDATE_RET( iv_off != NULL );
+    BLOWFISH_VALIDATE_RET( length == 0 || input  != NULL );
+    BLOWFISH_VALIDATE_RET( length == 0 || output != NULL );
+
+    n = *iv_off;
+    if( n >= 8 )
+        return( MBEDTLS_ERR_BLOWFISH_BAD_INPUT_DATA );
+
+    if( mode == MBEDTLS_BLOWFISH_DECRYPT )
+    {
+        while( length-- )
+        {
+            if( n == 0 )
+                mbedtls_blowfish_crypt_ecb( ctx, MBEDTLS_BLOWFISH_ENCRYPT, iv, iv );
+
+            c = *input++;
+            *output++ = (unsigned char)( c ^ iv[n] );
+            iv[n] = (unsigned char) c;
+
+            n = ( n + 1 ) % MBEDTLS_BLOWFISH_BLOCKSIZE;
+        }
+    }
+    else
+    {
+        while( length-- )
+        {
+            if( n == 0 )
+                mbedtls_blowfish_crypt_ecb( ctx, MBEDTLS_BLOWFISH_ENCRYPT, iv, iv );
+
+            iv[n] = *output++ = (unsigned char)( iv[n] ^ *input++ );
+
+            n = ( n + 1 ) % MBEDTLS_BLOWFISH_BLOCKSIZE;
+        }
+    }
+
+    *iv_off = n;
+
+    return( 0 );
+}

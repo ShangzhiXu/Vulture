@@ -1,0 +1,32 @@
+sntp_init(void)
+{
+  /* LWIP_ASSERT_CORE_LOCKED(); is checked by udp_new() */
+
+#ifdef SNTP_SERVER_ADDRESS
+#if SNTP_SERVER_DNS
+  sntp_setservername(0, SNTP_SERVER_ADDRESS);
+#else
+#error SNTP_SERVER_ADDRESS string not supported SNTP_SERVER_DNS==0
+#endif
+#endif /* SNTP_SERVER_ADDRESS */
+
+  if (sntp_pcb == NULL) {
+    sntp_pcb = udp_new_ip_type(IPADDR_TYPE_ANY);
+    LWIP_ASSERT("Failed to allocate udp pcb for sntp client", sntp_pcb != NULL);
+    if (sntp_pcb != NULL) {
+      udp_recv(sntp_pcb, sntp_recv, NULL);
+
+      if (sntp_opmode == SNTP_OPMODE_POLL) {
+        SNTP_RESET_RETRY_TIMEOUT();
+#if SNTP_STARTUP_DELAY
+        sys_timeout((u32_t)SNTP_STARTUP_DELAY_FUNC, sntp_request, NULL);
+#else
+        sntp_request(NULL);
+#endif
+      } else if (sntp_opmode == SNTP_OPMODE_LISTENONLY) {
+        ip_set_option(sntp_pcb, SOF_BROADCAST);
+        udp_bind(sntp_pcb, IP_ANY_TYPE, SNTP_PORT);
+      }
+    }
+  }
+}

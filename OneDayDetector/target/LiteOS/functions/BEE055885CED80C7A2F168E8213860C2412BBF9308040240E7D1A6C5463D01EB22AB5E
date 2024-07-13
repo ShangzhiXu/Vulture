@@ -1,0 +1,28 @@
+int timer_create(clockid_t clockId, struct sigevent *evp, timer_t *timerId)
+{
+    LosSwtmrCB *swtmr = NULL;
+    UINT32 ret;
+    UINT16 swtmrId;
+
+    if ((clockId != CLOCK_REALTIME) || (timerId == NULL) || (evp == NULL)) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if (evp->sigev_notify != SIGEV_THREAD) {
+        errno = EAGAIN;
+        return -1;
+    }
+
+    ret = LOS_SwtmrCreate(1, LOS_SWTMR_MODE_PERIOD, (SWTMR_PROC_FUNC)evp->sigev_notify_function, &swtmrId,
+                          (UINTPTR)evp->sigev_value.sival_int);
+    if (ret != LOS_OK) {
+        errno = EAGAIN;
+        return -1;
+    }
+
+    swtmr = OS_SWT_FROM_SID(swtmrId);
+    *timerId = swtmr;
+
+    return 0;
+}

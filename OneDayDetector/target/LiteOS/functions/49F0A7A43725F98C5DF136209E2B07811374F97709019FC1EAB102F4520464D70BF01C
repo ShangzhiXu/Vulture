@@ -1,0 +1,48 @@
+static HAL_StatusTypeDef I2C_WaitOnFlagUntilTimeout(I2C_HandleTypeDef *hi2c, uint32_t Flag, FlagStatus Status, uint32_t Timeout)
+{
+  uint32_t tickstart = 0;
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  /* Wait until flag is set */
+  if(Status == RESET)
+  {
+    while(__HAL_I2C_GET_FLAG(hi2c, Flag) == RESET)
+    {
+      /* Check for the Timeout */
+      if(Timeout != HAL_MAX_DELAY)
+      {
+        if((Timeout == 0)||((HAL_GetTick() - tickstart ) > Timeout))
+        {
+          hi2c->State= HAL_I2C_STATE_READY;
+
+          /* Process Unlocked */
+          __HAL_UNLOCK(hi2c);
+
+          return HAL_TIMEOUT;
+        }
+      }
+    }
+  }
+  else
+  {
+    while(__HAL_I2C_GET_FLAG(hi2c, Flag) != RESET)
+    {
+      /* Check for the Timeout */
+      if(Timeout != HAL_MAX_DELAY)
+      {
+        if((Timeout == 0)||((HAL_GetTick() - tickstart ) > Timeout))
+        {
+          hi2c->State= HAL_I2C_STATE_READY;
+
+          /* Process Unlocked */
+          __HAL_UNLOCK(hi2c);
+
+          return HAL_TIMEOUT;
+        }
+      }
+    }
+  }
+  return HAL_OK;
+}

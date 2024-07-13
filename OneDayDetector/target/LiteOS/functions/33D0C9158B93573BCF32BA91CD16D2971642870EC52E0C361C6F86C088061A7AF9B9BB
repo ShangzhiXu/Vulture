@@ -1,0 +1,26 @@
+HAL_StatusTypeDef HAL_USART_DMAStop(USART_HandleTypeDef *husart)
+{
+  /* The Lock is not implemented on this API to allow the user application
+     to call the HAL USART API under callbacks HAL_USART_TxCpltCallback() / HAL_USART_RxCpltCallback():
+     when calling HAL_DMA_Abort() API the DMA TX/RX Transfer complete interrupt is generated
+     and the correspond call back is executed HAL_USART_TxCpltCallback() / HAL_USART_RxCpltCallback()
+     */
+
+  /* Abort the USART DMA Tx channel */
+  if(husart->hdmatx != NULL)
+  {
+    HAL_DMA_Abort(husart->hdmatx);
+  }
+  /* Abort the USART DMA Rx channel */
+  if(husart->hdmarx != NULL)
+  {  
+    HAL_DMA_Abort(husart->hdmarx);
+  }
+  
+  /* Disable the USART Tx/Rx DMA requests */
+  CLEAR_BIT(husart->Instance->CR3, (USART_CR3_DMAT | USART_CR3_DMAR));
+
+  husart->State = HAL_USART_STATE_READY;
+
+  return HAL_OK;
+}

@@ -1,0 +1,116 @@
+static void buffer_alloc_free( void *ptr )
+{
+    memory_header *hdr, *old = NULL;
+    unsigned char *p = (unsigned char *) ptr;
+
+    if( ptr == NULL || heap.buf == NULL || heap.first == NULL )
+        return;
+
+    if( p < heap.buf || p >= heap.buf + heap.len )
+    {
+#if defined(MBEDTLS_MEMORY_DEBUG)
+        mbedtls_fprintf( stderr, "FATAL: mbedtls_free() outside of managed "
+                                  "space\n" );
+#endif
+        mbedtls_exit( 1 );
+    }
+
+    p -= sizeof(memory_header);
+    hdr = (memory_header *) p;
+
+    if( verify_header( hdr ) != 0 )
+        mbedtls_exit( 1 );
+
+    if( hdr->alloc != 1 )
+    {
+#if defined(MBEDTLS_MEMORY_DEBUG)
+        mbedtls_fprintf( stderr, "FATAL: mbedtls_free() on unallocated "
+                                  "data\n" );
+#endif
+        mbedtls_exit( 1 );
+    }
+
+    hdr->alloc = 0;
+
+#if defined(MBEDTLS_MEMORY_DEBUG)
+    heap.free_count++;
+    heap.total_used -= hdr->size;
+#endif
+
+#if defined(MBEDTLS_MEMORY_BACKTRACE)
+    free( hdr->trace );
+    hdr->trace = NULL;
+    hdr->trace_count = 0;
+#endif
+
+    // Regroup with block before
+    //
+    if( hdr->prev != NULL && hdr->prev->alloc == 0 )
+    {
+#if defined(MBEDTLS_MEMORY_DEBUG)
+        heap.header_count--;
+#endif
+        hdr->prev->size += sizeof(memory_header) + hdr->size;
+        hdr->prev->next = hdr->next;
+        old = hdr;
+        hdr = hdr->prev;
+
+        if( hdr->next != NULL )
+            hdr->next->prev = hdr;
+
+        memset( old, 0, sizeof(memory_header) );
+    }
+
+    // Regroup with block after
+    //
+    if( hdr->next != NULL && hdr->next->alloc == 0 )
+    {
+#if defined(MBEDTLS_MEMORY_DEBUG)
+        heap.header_count--;
+#endif
+        hdr->size += sizeof(memory_header) + hdr->next->size;
+        old = hdr->next;
+        hdr->next = hdr->next->next;
+
+        if( hdr->prev_free != NULL || hdr->next_free != NULL )
+        {
+            if( hdr->prev_free != NULL )
+                hdr->prev_free->next_free = hdr->next_free;
+            else
+                heap.first_free = hdr->next_free;
+
+            if( hdr->next_free != NULL )
+                hdr->next_free->prev_free = hdr->prev_free;
+        }
+
+        hdr->prev_free = old->prev_free;
+        hdr->next_free = old->next_free;
+
+        if( hdr->prev_free != NULL )
+            hdr->prev_free->next_free = hdr;
+        else
+            heap.first_free = hdr;
+
+        if( hdr->next_free != NULL )
+            hdr->next_free->prev_free = hdr;
+
+        if( hdr->next != NULL )
+            hdr->next->prev = hdr;
+
+        memset( old, 0, sizeof(memory_header) );
+    }
+
+    // Prepend to free_list if we have not merged
+    // (Does not have to stay in same order as prev / next list)
+    //
+    if( old == NULL )
+    {
+        hdr->next_free = heap.first_free;
+        if( heap.first_free != NULL )
+            heap.first_free->prev_free = hdr;
+        heap.first_free = hdr;
+    }
+
+    if( ( heap.verify & MBEDTLS_MEMORY_VERIFY_FREE ) && verify_chain() != 0 )
+        mbedtls_exit( 1 );
+}

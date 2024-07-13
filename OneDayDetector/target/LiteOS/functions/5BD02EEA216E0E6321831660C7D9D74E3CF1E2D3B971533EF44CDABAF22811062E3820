@@ -1,0 +1,14 @@
+static void lcp_down(fsm *f) {
+    ppp_pcb *pcb = f->pcb;
+    lcp_options *go = &pcb->lcp_gotoptions;
+
+    lcp_echo_lowerdown(f->pcb);
+
+    link_down(pcb);
+
+    ppp_send_config(pcb, PPP_MRU, 0xffffffff, 0, 0);
+    ppp_recv_config(pcb, PPP_MRU,
+		    (go->neg_asyncmap? go->asyncmap: 0xffffffff),
+		    go->neg_pcompression, go->neg_accompression);
+    pcb->peer_mru = PPP_MRU;
+}

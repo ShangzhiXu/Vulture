@@ -1,0 +1,33 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 ShellMsgParse(const VOID *msg)
+{
+    CHAR *output = NULL;
+    UINT32 len;
+    CmdParsed cmdParsed;
+    UINT32 ret = OS_INVALID;
+
+    if (msg == NULL) {
+        goto END;
+    }
+
+    len = strlen(msg);
+    output = (CHAR *)LOS_MemAlloc(m_aucSysMem0, len + 1);
+    if (output == NULL) {
+        PRINTK("malloc failure in %s[%d]\n", __FUNCTION__, __LINE__);
+        goto END;
+    }
+    /* Call function 'OsCmdKeyShift' to squeeze and clear useless or overmuch space if string buffer */
+    ret = OsCmdKeyShift((CHAR *)msg, output, len + 1);
+    if ((ret != LOS_OK) || (strlen(output) == 0)) {
+        ret = OS_INVALID;
+        goto END_FREE_OUTPUT;
+    }
+
+    (VOID)memset_s(&cmdParsed, sizeof(CmdParsed), 0, sizeof(CmdParsed));
+
+    ret = ShellMsgNameGetAndExec(&cmdParsed, output, len);
+
+END_FREE_OUTPUT:
+    (VOID)LOS_MemFree(m_aucSysMem0, output);
+END:
+    return ret;
+}

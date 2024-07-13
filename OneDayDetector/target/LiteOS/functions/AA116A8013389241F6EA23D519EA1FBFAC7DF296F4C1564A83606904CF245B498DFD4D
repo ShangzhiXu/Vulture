@@ -1,0 +1,78 @@
+static void lv_spinbox_updatevalue(lv_obj_t * spinbox)
+{
+    lv_spinbox_ext_t * ext = lv_obj_get_ext_attr(spinbox);
+
+    char buf[LV_SPINBOX_MAX_DIGIT_COUNT + 8];
+    _lv_memset_00(buf, sizeof(buf));
+    char * buf_p = buf;
+    uint8_t cur_shift_left = 0;
+
+    if(ext->range_min < 0) {  // hide sign if there are only positive values
+        /*Add the sign*/
+        (*buf_p) = ext->value >= 0 ? '+' : '-';
+        buf_p++;
+    }
+    else {
+        /*Cursor need shift to left*/
+        cur_shift_left++;
+    }
+
+    int32_t i;
+    /*padding left*/
+    for(i = 0; i < ext->digit_padding_left; i++) {
+        (*buf_p) = ' ';
+        buf_p++;
+    }
+
+    char digits[64];
+    /*Convert the numbers to string (the sign is already handled so always covert positive number)*/
+    _lv_utils_num_to_str(ext->value < 0 ? -ext->value : ext->value, digits);
+
+    /*Add leading zeros*/
+    int lz_cnt = ext->digit_count - (int)strlen(digits);
+    if(lz_cnt > 0) {
+        for(i = (uint16_t)strlen(digits); i >= 0; i--) {
+            digits[i + lz_cnt] = digits[i];
+        }
+        for(i = 0; i < lz_cnt; i++) {
+            digits[i] = '0';
+        }
+    }
+
+    int32_t intDigits;
+    intDigits = (ext->dec_point_pos == 0) ? ext->digit_count : ext->dec_point_pos;
+
+    /*Add the decimal part*/
+    for(i = 0; i < intDigits && digits[i] != '\0'; i++) {
+        (*buf_p) = digits[i];
+        buf_p++;
+    }
+
+    if(ext->dec_point_pos != 0) {
+        /*Insert the decimal point*/
+        (*buf_p) = '.';
+        buf_p++;
+
+        for(/*Leave i*/; i < ext->digit_count && digits[i] != '\0'; i++) {
+            (*buf_p) = digits[i];
+            buf_p++;
+        }
+    }
+
+    /*Refresh the text*/
+    lv_textarea_set_text(spinbox, (char *)buf);
+
+    /*Set the cursor position*/
+    int32_t step    = ext->step;
+    uint8_t cur_pos = (uint8_t)ext->digit_count;
+    while(step >= 10) {
+        step /= 10;
+        cur_pos--;
+    }
+
+    if(cur_pos > intDigits) cur_pos++; /*Skip the decimal point*/
+
+    cur_pos += (ext->digit_padding_left - cur_shift_left);
+
+    lv_textarea_set_cursor_pos(spinbox, cur_pos);
+}

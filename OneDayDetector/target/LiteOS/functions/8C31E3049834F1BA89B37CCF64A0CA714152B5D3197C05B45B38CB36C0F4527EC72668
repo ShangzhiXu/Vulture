@@ -1,0 +1,67 @@
+nd6_send_na(struct netif *netif, const ip6_addr_t *target_addr, u8_t flags)
+{
+  struct na_header *na_hdr;
+  struct lladdr_option *lladdr_opt;
+  struct pbuf *p;
+  const ip6_addr_t *src_addr;
+  const ip6_addr_t *dest_addr;
+  u16_t lladdr_opt_len;
+
+  LWIP_ASSERT("target address is required", target_addr != NULL);
+
+  /* Use link-local address as source address. */
+  /* src_addr = netif_ip6_addr(netif, 0); */
+  /* Use target address as source address. */
+  src_addr = target_addr;
+
+  /* Allocate a packet. */
+  lladdr_opt_len = ((netif->hwaddr_len + 2) >> 3) + (((netif->hwaddr_len + 2) & 0x07) ? 1 : 0);
+  p = pbuf_alloc(PBUF_IP, sizeof(struct na_header) + (lladdr_opt_len << 3), PBUF_RAM);
+  if (p == NULL) {
+    ND6_STATS_INC(nd6.memerr);
+    return;
+  }
+
+  /* Set fields. */
+  na_hdr = (struct na_header *)p->payload;
+  lladdr_opt = (struct lladdr_option *)((u8_t*)p->payload + sizeof(struct na_header));
+
+  na_hdr->type = ICMP6_TYPE_NA;
+  na_hdr->code = 0;
+  na_hdr->chksum = 0;
+  na_hdr->flags = flags & 0xf0;
+  na_hdr->reserved[0] = 0;
+  na_hdr->reserved[1] = 0;
+  na_hdr->reserved[2] = 0;
+  ip6_addr_copy_to_packed(na_hdr->target_address, *target_addr);
+
+  lladdr_opt->type = ND6_OPTION_TYPE_TARGET_LLADDR;
+  lladdr_opt->length = (u8_t)lladdr_opt_len;
+  SMEMCPY(lladdr_opt->addr, netif->hwaddr, netif->hwaddr_len);
+
+  /* Generate the solicited node address for the target address. */
+  if (flags & ND6_SEND_FLAG_MULTICAST_DEST) {
+    ip6_addr_set_solicitednode(&multicast_address, target_addr->addr[3]);
+    ip6_addr_assign_zone(&multicast_address, IP6_MULTICAST, netif);
+    dest_addr = &multicast_address;
+  } else if (flags & ND6_SEND_FLAG_ALLNODES_DEST) {
+    ip6_addr_set_allnodes_linklocal(&multicast_address);
+    ip6_addr_assign_zone(&multicast_address, IP6_MULTICAST, netif);
+    dest_addr = &multicast_address;
+  } else {
+    dest_addr = ip6_current_src_addr();
+  }
+
+#if CHECKSUM_GEN_ICMP6
+  IF__NETIF_CHECKSUM_ENABLED(netif, NETIF_CHECKSUM_GEN_ICMP6) {
+    na_hdr->chksum = ip6_chksum_pseudo(p, IP6_NEXTH_ICMP6, p->len, src_addr,
+      dest_addr);
+  }
+#endif /* CHECKSUM_GEN_ICMP6 */
+
+  /* Send the packet out. */
+  ND6_STATS_INC(nd6.xmit);
+  ip6_output_if(p, src_addr, dest_addr,
+      ND6_HOPLIM, 0, IP6_NEXTH_ICMP6, netif);
+  pbuf_free(p);
+}

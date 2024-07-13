@@ -1,0 +1,28 @@
+static void UART_TxISR_16BIT(UART_HandleTypeDef *huart)
+{
+  uint16_t* tmp;
+  
+  /* Check that a Tx process is ongoing */
+  if (huart->gState == HAL_UART_STATE_BUSY_TX)
+  {
+    if(huart->TxXferCount == 0)
+    {
+      /* Disable the UART Transmit Data Register Empty Interrupt */
+#if defined(USART_CR1_FIFOEN)
+      CLEAR_BIT(huart->Instance->CR1, USART_CR1_TXEIE_TXFNFIE);
+#else
+      CLEAR_BIT(huart->Instance->CR1, USART_CR1_TXEIE);
+#endif
+
+      /* Enable the UART Transmit Complete Interrupt */
+      SET_BIT(huart->Instance->CR1, USART_CR1_TCIE);
+    }
+    else
+    {
+      tmp = (uint16_t*) huart->pTxBuffPtr;
+      huart->Instance->TDR = (*tmp & (uint16_t)0x01FF);
+      huart->pTxBuffPtr += 2;
+      huart->TxXferCount--;
+    }
+  }
+}

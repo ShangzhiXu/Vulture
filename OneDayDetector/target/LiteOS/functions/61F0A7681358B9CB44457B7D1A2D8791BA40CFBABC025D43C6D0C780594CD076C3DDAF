@@ -1,0 +1,36 @@
+HAL_StatusTypeDef HAL_RTCEx_SetTamper(RTC_HandleTypeDef *hrtc, RTC_TamperTypeDef* sTamper)
+{
+  /* Check input parameters */
+  if((hrtc == NULL) || (sTamper == NULL))
+  {
+     return HAL_ERROR;
+  }
+  
+  /* Check the parameters */
+  assert_param(IS_RTC_TAMPER(sTamper->Tamper));
+  assert_param(IS_RTC_TAMPER_TRIGGER(sTamper->Trigger));
+
+  /* Process Locked */
+  __HAL_LOCK(hrtc);
+
+  hrtc->State = HAL_RTC_STATE_BUSY;
+  
+  if (HAL_IS_BIT_SET(BKP->RTCCR,(BKP_RTCCR_CCO | BKP_RTCCR_ASOE)))
+  {
+    hrtc->State = HAL_RTC_STATE_ERROR;
+    
+    /* Process Unlocked */
+    __HAL_UNLOCK(hrtc);
+    
+    return HAL_ERROR;
+  }
+
+  MODIFY_REG(BKP->CR, (BKP_CR_TPE | BKP_CR_TPAL), (sTamper->Tamper | (sTamper->Trigger)));
+
+  hrtc->State = HAL_RTC_STATE_READY; 
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(hrtc);
+
+  return HAL_OK;
+}

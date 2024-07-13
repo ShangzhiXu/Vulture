@@ -1,0 +1,43 @@
+HAL_StatusTypeDef HAL_FLASHEx_Erase_IT(FLASH_EraseInitTypeDef *pEraseInit)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process Locked */
+  __HAL_LOCK(&pFlash);
+
+  /* If procedure already ongoing, reject the next one */
+  if (pFlash.ProcedureOnGoing != FLASH_PROC_NONE)
+  {
+    return HAL_ERROR;
+  }
+  
+  /* Check the parameters */
+  assert_param(IS_FLASH_TYPEERASE(pEraseInit->TypeErase));
+
+  /* Enable End of FLASH Operation and Error source interrupts */
+  __HAL_FLASH_ENABLE_IT(FLASH_IT_EOP | FLASH_IT_ERR);
+
+  if (pEraseInit->TypeErase == FLASH_TYPEERASE_MASSERASE)
+  {
+    /*Mass erase to be done*/
+    pFlash.ProcedureOnGoing = FLASH_PROC_MASSERASE;
+        FLASH_MassErase();
+  }
+  else
+  {
+    /* Erase by page to be done*/
+
+    /* Check the parameters */
+    assert_param(IS_FLASH_PROGRAM_ADDRESS(pEraseInit->PageAddress));
+    assert_param(IS_FLASH_NB_PAGES(pEraseInit->PageAddress, pEraseInit->NbPages));
+
+    pFlash.ProcedureOnGoing = FLASH_PROC_PAGEERASE;
+    pFlash.DataRemaining = pEraseInit->NbPages;
+    pFlash.Address = pEraseInit->PageAddress;
+
+    /*Erase 1st page and wait for IT*/
+    FLASH_PageErase(pEraseInit->PageAddress);
+  }
+
+  return status;
+}

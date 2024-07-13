@@ -1,0 +1,17 @@
+osEvent osMailGet(osMailQId queue_id, uint32_t millisec)
+{
+    struct osMailQ *mailQ = (struct osMailQ *)queue_id;
+    osEvent event = {0};
+    osStatus status;
+    UINT32 ret;
+
+    if ((mailQ == NULL) || (OS_INT_ACTIVE && (millisec != 0))) {
+        event.status = osErrorParameter;
+        return event;
+    }
+
+    ret = LOS_QueueRead(mailQ->queue, &(event.value.p), sizeof(UINT32), LOS_MS2Tick(millisec));
+    status = MappingQueueReadRet(ret);
+    event.status = (status == osEventMessage) ? osEventMail : status;
+    return event;
+}

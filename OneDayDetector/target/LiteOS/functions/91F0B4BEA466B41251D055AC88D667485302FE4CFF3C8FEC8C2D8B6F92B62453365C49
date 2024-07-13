@@ -1,0 +1,33 @@
+uint32_t RCC_PLL_GetFreqDomain_SAI(void)
+{
+  uint32_t pllinputfreq = 0U, pllsource = 0U, plloutputfreq = 0U;
+
+  /* PLL_VCO = (HSE_VALUE or HSI_VALUE / PLLM) * PLLN
+     SAICLK = (PLL_VCO / PLLR) / PLLDIVR
+     or
+     SAICLK = PLL_VCO / PLLR
+  */
+  pllsource = LL_RCC_PLL_GetMainSource();
+
+  switch (pllsource)
+  {
+    case LL_RCC_PLLSOURCE_HSE:  /* HSE used as PLL clock source */
+      pllinputfreq = HSE_VALUE;
+      break;
+
+    case LL_RCC_PLLSOURCE_HSI:  /* HSI used as PLL clock source */
+    default:
+      pllinputfreq = HSI_VALUE;
+      break;
+  }
+
+#if defined(RCC_DCKCFGR_PLLDIVR)
+  plloutputfreq = __LL_RCC_CALC_PLLCLK_SAI_FREQ(pllinputfreq, LL_RCC_PLL_GetDivider(),
+                                        LL_RCC_PLL_GetN(), LL_RCC_PLL_GetR(), LL_RCC_PLL_GetDIVR());
+#else
+  plloutputfreq = __LL_RCC_CALC_PLLCLK_SAI_FREQ(pllinputfreq, LL_RCC_PLL_GetDivider(),
+                                        LL_RCC_PLL_GetN(), LL_RCC_PLL_GetR());
+#endif /* RCC_DCKCFGR_PLLDIVR */
+
+  return plloutputfreq;
+}

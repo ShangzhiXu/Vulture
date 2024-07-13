@@ -1,0 +1,39 @@
+HAL_StatusTypeDef HAL_RNG_Init(RNG_HandleTypeDef *hrng)
+{ 
+  /* Check the RNG handle allocation */
+  if(hrng == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  assert_param(IS_RNG_ALL_INSTANCE(hrng->Instance));
+#if defined(RNG_CR_CED)
+  assert_param(IS_RNG_CED(hrng->Init.ClockErrorDetection));
+#endif /* defined(RNG_CR_CED) */
+
+  if(hrng->State == HAL_RNG_STATE_RESET)
+  {  
+    /* Allocate lock resource and initialize it */
+    hrng->Lock = HAL_UNLOCKED;
+
+    /* Init the low level hardware */
+    HAL_RNG_MspInit(hrng);
+  }
+
+  /* Change RNG peripheral state */
+  hrng->State = HAL_RNG_STATE_BUSY;
+
+#if defined(RNG_CR_CED)
+  /* Clock Error Detection configuration */
+  MODIFY_REG(hrng->Instance->CR, RNG_CR_CED, hrng->Init.ClockErrorDetection);
+#endif /* defined(RNG_CR_CED) */
+
+  /* Enable the RNG Peripheral */
+  __HAL_RNG_ENABLE(hrng);
+
+  /* Initialize the RNG state */
+  hrng->State = HAL_RNG_STATE_READY;
+  
+  /* Return function status */
+  return HAL_OK;
+}

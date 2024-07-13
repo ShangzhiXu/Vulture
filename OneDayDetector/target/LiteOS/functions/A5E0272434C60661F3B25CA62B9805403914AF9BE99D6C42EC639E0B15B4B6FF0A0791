@@ -1,0 +1,23 @@
+static int getentropy_urandom(void *buf, size_t len) {
+#if defined(LOSCFG_HW_RANDOM_ENABLE) || defined(LOSCFG_DRIVERS_RANDOM)
+	int ret;
+	u_int read_len;
+	uint8_t local_buf[RANDOM_BUF_MAX_LEN];
+	random_alg_context.ra_pre_read();
+	read_len = roundup(len, RANDOM_BLOCKSIZE);
+	random_alg_context.ra_read(local_buf, read_len);
+	ret = memcpy_s(buf, len, local_buf, len);
+	if (ret != EOK) {
+		errno = EIO;
+		return -1;
+	}
+	(void)memset_s(local_buf, sizeof(local_buf), 0 , sizeof(local_buf));
+
+	return 0;
+#else
+	(void)buf;
+	(void)len;
+	errno = EIO;
+	return -1;
+#endif
+}

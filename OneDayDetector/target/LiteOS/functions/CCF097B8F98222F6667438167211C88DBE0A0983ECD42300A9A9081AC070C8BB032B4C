@@ -1,0 +1,24 @@
+LITE_OS_SEC_TEXT_MINOR INT32 SensorItemInit(
+    SensorItem *item, RespFunc respFunc, ObjTag tag, UpdateFunc updateFunc, UINT32 upArg)
+{
+    SmMail smMail;
+    UINT32 ret;
+
+    if ((item == NULL) || (tag >= TAG_END) || (tag < TAG_BEGIN)) {
+        return LOS_NOK;
+    }
+
+    smMail.event               = SM_EVENT_ITEM_INIT;
+    smMail.itemInit.item       = item;
+    smMail.itemInit.respFunc   = respFunc;
+    smMail.itemInit.tag        = tag;
+    smMail.itemInit.updateFunc = updateFunc;
+    smMail.itemInit.updateArg  = upArg;
+
+    ret = LOS_QueueWriteCopy(g_sensorManagerQueue, (VOID *)&smMail, SM_MAILS_TYPE_SIZE, 0);
+    if (ret != LOS_OK) {
+        PRINT_ERR("sensor item init write queue fail, ret %u\n", ret);
+        return LOS_NOK;
+    }
+    return LOS_OK;
+}

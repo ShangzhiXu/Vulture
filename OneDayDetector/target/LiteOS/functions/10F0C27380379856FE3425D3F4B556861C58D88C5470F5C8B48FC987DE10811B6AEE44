@@ -1,0 +1,37 @@
+static void ccp_init(ppp_pcb *pcb) {
+    fsm *f = &pcb->ccp_fsm;
+
+    f->pcb = pcb;
+    f->protocol = PPP_CCP;
+    f->callbacks = &ccp_callbacks;
+    fsm_init(f);
+
+#if 0 /* Not necessary, everything is cleared in ppp_new() */
+    memset(wo, 0, sizeof(*wo));
+    memset(go, 0, sizeof(*go));
+    memset(ao, 0, sizeof(*ao));
+    memset(ho, 0, sizeof(*ho));
+#endif /* 0 */
+
+#if DEFLATE_SUPPORT
+    wo->deflate = 1;
+    wo->deflate_size = DEFLATE_MAX_SIZE;
+    wo->deflate_correct = 1;
+    wo->deflate_draft = 1;
+    ao->deflate = 1;
+    ao->deflate_size = DEFLATE_MAX_SIZE;
+    ao->deflate_correct = 1;
+    ao->deflate_draft = 1;
+#endif /* DEFLATE_SUPPORT */
+
+#if BSDCOMPRESS_SUPPORT
+    wo->bsd_compress = 1;
+    wo->bsd_bits = BSD_MAX_BITS;
+    ao->bsd_compress = 1;
+    ao->bsd_bits = BSD_MAX_BITS;
+#endif /* BSDCOMPRESS_SUPPORT */
+
+#if PREDICTOR_SUPPORT
+    ao->predictor_1 = 1;
+#endif /* PREDICTOR_SUPPORT */
+}

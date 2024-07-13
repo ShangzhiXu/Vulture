@@ -1,0 +1,89 @@
+HAL_StatusTypeDef HAL_LPTIM_RegisterCallback(LPTIM_HandleTypeDef        *hlptim,
+                                             HAL_LPTIM_CallbackIDTypeDef CallbackID,
+                                             pLPTIM_CallbackTypeDef      pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Process locked */
+  __HAL_LOCK(hlptim);
+
+  if (hlptim->State == HAL_LPTIM_STATE_READY)
+  {
+    switch (CallbackID)
+    {
+      case HAL_LPTIM_MSPINIT_CB_ID :
+        hlptim->MspInitCallback = pCallback;
+        break;
+
+      case HAL_LPTIM_MSPDEINIT_CB_ID :
+        hlptim->MspDeInitCallback = pCallback;
+        break;
+
+      case HAL_LPTIM_COMPARE_MATCH_CB_ID :
+        hlptim->CompareMatchCallback = pCallback;
+        break;
+
+      case HAL_LPTIM_AUTORELOAD_MATCH_CB_ID :
+        hlptim->AutoReloadMatchCallback = pCallback;
+        break;
+
+      case HAL_LPTIM_TRIGGER_CB_ID :
+        hlptim->TriggerCallback = pCallback;
+        break;
+
+      case HAL_LPTIM_COMPARE_WRITE_CB_ID :
+        hlptim->CompareWriteCallback = pCallback;
+        break;
+
+      case HAL_LPTIM_AUTORELOAD_WRITE_CB_ID :
+        hlptim->AutoReloadWriteCallback = pCallback;
+        break;
+
+      case HAL_LPTIM_DIRECTION_UP_CB_ID :
+        hlptim->DirectionUpCallback = pCallback;
+        break;
+
+      case HAL_LPTIM_DIRECTION_DOWN_CB_ID :
+        hlptim->DirectionDownCallback = pCallback;
+        break;
+
+      default :
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if (hlptim->State == HAL_LPTIM_STATE_RESET)
+  {
+    switch (CallbackID)
+    {
+      case HAL_LPTIM_MSPINIT_CB_ID :
+        hlptim->MspInitCallback = pCallback;
+        break;
+
+      case HAL_LPTIM_MSPDEINIT_CB_ID :
+        hlptim->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hlptim);
+
+  return status;
+}

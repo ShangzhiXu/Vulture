@@ -1,0 +1,40 @@
+int pthread_setschedparam(pthread_t thread, int policy, const struct sched_param *param)
+{
+    _pthread_data *data = NULL;
+    int ret;
+
+    if ((param == NULL) || (param->sched_priority > OS_TASK_PRIORITY_LOWEST)) {
+        return EINVAL;
+    }
+
+    if (policy != SCHED_RR) {
+        return EINVAL;
+    }
+
+    /* The parameters seem OK, change the thread. */
+    ret = pthread_mutex_lock(&g_pthreadsDataMutex);
+    if (ret != ENOERR) {
+        return ret;
+    }
+
+    data = pthread_get_data(thread);
+    if (data == NULL) {
+        ret = pthread_mutex_unlock(&g_pthreadsDataMutex);
+        if (ret != ENOERR) {
+            return ret;
+        }
+        return ESRCH;
+    }
+
+    /* Only support one policy now */
+    data->attr.schedpolicy = SCHED_RR;
+    data->attr.schedparam  = *param;
+
+    ret = pthread_mutex_unlock(&g_pthreadsDataMutex);
+    if (ret != ENOERR) {
+        return ret;
+    }
+    (VOID)LOS_TaskPriSet((UINT32)thread, (UINT16)param->sched_priority);
+
+    return ENOERR;
+}

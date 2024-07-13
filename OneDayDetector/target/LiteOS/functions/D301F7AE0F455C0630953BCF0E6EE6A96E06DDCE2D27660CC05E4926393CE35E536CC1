@@ -1,0 +1,36 @@
+SECUREC_INLINE int SecExtendFloatLen(SecFloatSpec *floatSpec)
+{
+    if (floatSpec->floatStrUsedLen >= floatSpec->floatStrTotalLen) {
+        /* Buffer size is len x sizeof(SecChar) */
+        size_t oriSize = floatSpec->floatStrTotalLen * sizeof(SecChar);
+        /* Add one character to clear tool warning */
+        size_t nextSize = (oriSize * 2) + sizeof(SecChar); /* Multiply 2 to extend buffer size */
+
+        /* Prevents integer overflow, the maximum length of SECUREC_MAX_WIDTH_LEN is enough */
+        if (nextSize <= (size_t)SECUREC_MAX_WIDTH_LEN) {
+            void *nextBuffer = (void *)SECUREC_MALLOC(nextSize);
+            if (nextBuffer == NULL) {
+                return -1;
+            }
+            if (memcpy_s(nextBuffer, nextSize, floatSpec->floatStr, oriSize) != EOK) {
+                SECUREC_FREE(nextBuffer);   /* This is a dead code, just to meet the coding requirements */
+                return -1;
+            }
+            /* Clear old buffer memory */
+            if (memset_s(floatSpec->floatStr, oriSize, 0, oriSize) != EOK) {
+                SECUREC_FREE(nextBuffer);   /* This is a dead code, just to meet the coding requirements */
+                return -1;
+            }
+            /* Free old allocated buffer */
+            if (floatSpec->allocatedFloatStr != NULL) {
+                SECUREC_FREE(floatSpec->allocatedFloatStr);
+            }
+            floatSpec->allocatedFloatStr = (SecChar *)(nextBuffer);    /* Use to clear free on stack warning */
+            floatSpec->floatStr = (SecChar *)(nextBuffer);
+            floatSpec->floatStrTotalLen = nextSize / sizeof(SecChar); /* Get buffer total len in character */
+            return 0;
+        }
+        return -1; /* Next size is beyond max */
+    }
+    return 0;
+}

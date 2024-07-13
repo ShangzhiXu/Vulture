@@ -1,0 +1,21 @@
+static int sendPacket(MQTTClient* c, int length, Timer* timer)
+{
+    int rc = FAILURE,
+        sent = 0;
+
+    while (sent < length && !TimerIsExpired(timer))
+    {
+        rc = c->ipstack->mqttwrite(c->ipstack, &c->buf[sent], length, TimerLeftMS(timer));
+        if (rc < 0)  // there was an error writing the data
+            break;
+        sent += rc;
+    }
+    if (sent == length)
+    {
+        TimerCountdown(&c->last_sent, c->keepAliveInterval); // record the fact that we have successfully sent the packet
+        rc = MQTT_SUCCESS;
+    }
+    else
+        rc = FAILURE;
+    return rc;
+}

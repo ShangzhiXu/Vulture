@@ -1,0 +1,38 @@
+LITE_OS_SEC_TEXT_INIT STATIC UINT32 OsQueueCreateInternal(UINT16 len, UINT32 *queueId, UINT16 msgSize,
+                                                          UINT8 *queue, UINT8 queueMemType)
+{
+    LosQueueCB *queueCB = NULL;
+    LOS_DL_LIST *unusedQueue = NULL;
+    UINT32 intSave;
+
+    SCHEDULER_LOCK(intSave);
+    if (LOS_ListEmpty(&g_freeQueueList)) {
+        SCHEDULER_UNLOCK(intSave);
+        OsQueueCheckHook();
+        return LOS_ERRNO_QUEUE_CB_UNAVAILABLE;
+    }
+
+    unusedQueue = LOS_DL_LIST_FIRST(&g_freeQueueList);
+    LOS_ListDelete(unusedQueue);
+    queueCB = GET_QUEUE_LIST(unusedQueue);
+    queueCB->queueLen = len;
+    queueCB->queueSize = msgSize;
+    queueCB->queueHandle = queue;
+    queueCB->queueState = OS_QUEUE_INUSED;
+    queueCB->queueMemType = queueMemType;
+    queueCB->readWriteableCnt[OS_QUEUE_READ] = 0;
+    queueCB->readWriteableCnt[OS_QUEUE_WRITE] = len;
+    queueCB->queueHead = 0;
+    queueCB->queueTail = 0;
+    LOS_ListInit(&queueCB->readWriteList[OS_QUEUE_READ]);
+    LOS_ListInit(&queueCB->readWriteList[OS_QUEUE_WRITE]);
+    LOS_ListInit(&queueCB->memList);
+
+    OsQueueDbgUpdateHook(queueCB->queueId, OsCurrTaskGet()->taskEntry);
+    SCHEDULER_UNLOCK(intSave);
+
+    *queueId = queueCB->queueId;
+
+    LOS_TRACE(QUEUE_CREATE, *queueId, len, msgSize - sizeof(UINT32), (UINTPTR)queue, queueMemType);
+    return LOS_OK;
+}

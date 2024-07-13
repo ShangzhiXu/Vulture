@@ -1,0 +1,46 @@
+int mbedtls_chachapoly_self_test( int verbose )
+{
+    mbedtls_chachapoly_context ctx;
+    unsigned i;
+    int ret;
+    unsigned char output[200];
+    unsigned char mac[16];
+
+    for( i = 0U; i < 1U; i++ )
+    {
+        if( verbose != 0 )
+            mbedtls_printf( "  ChaCha20-Poly1305 test %u ", i );
+
+        mbedtls_chachapoly_init( &ctx );
+
+        ret = mbedtls_chachapoly_setkey( &ctx, test_key[i] );
+        ASSERT( 0 == ret, ( "setkey() error code: %i\n", ret ) );
+
+        ret = mbedtls_chachapoly_encrypt_and_tag( &ctx,
+                                                  test_input_len[i],
+                                                  test_nonce[i],
+                                                  test_aad[i],
+                                                  test_aad_len[i],
+                                                  test_input[i],
+                                                  output,
+                                                  mac );
+
+        ASSERT( 0 == ret, ( "crypt_and_tag() error code: %i\n", ret ) );
+
+        ASSERT( 0 == memcmp( output, test_output[i], test_input_len[i] ),
+                ( "failure (wrong output)\n" ) );
+
+        ASSERT( 0 == memcmp( mac, test_mac[i], 16U ),
+                ( "failure (wrong MAC)\n" ) );
+
+        mbedtls_chachapoly_free( &ctx );
+
+        if( verbose != 0 )
+            mbedtls_printf( "passed\n" );
+    }
+
+    if( verbose != 0 )
+        mbedtls_printf( "\n" );
+
+    return( 0 );
+}

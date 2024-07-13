@@ -1,0 +1,71 @@
+mdns_add_answer(struct mdns_outpacket *reply, struct mdns_domain *domain, u16_t type, u16_t klass, u16_t cache_flush,
+                u32_t ttl, const u8_t *buf, size_t buf_length, struct mdns_domain *answer_domain)
+{
+  u16_t answer_len;
+  u16_t field16;
+  u16_t rdlen_offset;
+  u16_t answer_offset;
+  u32_t field32;
+  err_t res;
+
+  if (!reply->pbuf) {
+    /* If no pbuf is active, allocate one */
+    reply->pbuf = pbuf_alloc(PBUF_TRANSPORT, OUTPACKET_SIZE, PBUF_RAM);
+    if (!reply->pbuf) {
+      return ERR_MEM;
+    }
+    reply->write_offset = SIZEOF_DNS_HDR;
+  }
+
+  /* Worst case calculation. Domain strings might be compressed */
+  answer_len = domain->length + sizeof(type) + sizeof(klass) + sizeof(ttl) + sizeof(field16)/*rd_length*/;
+  if (buf) {
+    answer_len += (u16_t)buf_length;
+  }
+  if (answer_domain) {
+    answer_len += answer_domain->length;
+  }
+  if (reply->write_offset + answer_len > reply->pbuf->tot_len) {
+    /* No space */
+    return ERR_MEM;
+  }
+
+  /* Answer starts with same data as question, then more fields */
+  mdns_add_question(reply, domain, type, klass, cache_flush);
+
+  /* Write TTL */
+  field32 = lwip_htonl(ttl);
+  res = pbuf_take_at(reply->pbuf, &field32, sizeof(field32), reply->write_offset);
+  if (res != ERR_OK) {
+    return res;
+  }
+  reply->write_offset += sizeof(field32);
+
+  /* Store offsets and skip forward to the data */
+  rdlen_offset = reply->write_offset;
+  reply->write_offset += sizeof(field16);
+  answer_offset = reply->write_offset;
+
+  if (buf) {
+    /* Write static data */
+    res = pbuf_take_at(reply->pbuf, buf, (u16_t)buf_length, reply->write_offset);
+    if (res != ERR_OK) {
+      return res;
+    }
+    reply->write_offset += (u16_t)buf_length;
+  }
+
+  if (answer_domain) {
+    /* Write name answer (compressed if possible) */
+    res = mdns_write_domain(reply, answer_domain);
+    if (res != ERR_OK) {
+      return res;
+    }
+  }
+
+  /* Write rd_length after when we know the answer size */
+  field16 = lwip_htons(reply->write_offset - answer_offset);
+  res = pbuf_take_at(reply->pbuf, &field16, sizeof(field16), rdlen_offset);
+
+  return res;
+}

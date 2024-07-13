@@ -1,0 +1,41 @@
+static HAL_StatusTypeDef ADCx_Init(void)
+{
+  /* Set ADC instance */
+  hnucleo_Adc.Instance                   = NUCLEO_ADCx;
+  
+  if(HAL_ADC_GetState(&hnucleo_Adc) == HAL_ADC_STATE_RESET)
+  {
+    /* ADC Config */
+    hnucleo_Adc.Init.ClockPrescaler        = ADC_CLOCK_SYNC_PCLK_DIV4;      /* ADC clock of STM32F0 must not exceed 14MHz */
+    hnucleo_Adc.Init.Resolution            = ADC_RESOLUTION_12B;
+    hnucleo_Adc.Init.DataAlign             = ADC_DATAALIGN_RIGHT;
+    hnucleo_Adc.Init.ScanConvMode          = ADC_SCAN_DIRECTION_FORWARD;    /* Sequencer will convert the number of channels configured below, successively from the lowest to the highest channel number */
+    hnucleo_Adc.Init.EOCSelection          = ADC_EOC_SINGLE_CONV;
+    hnucleo_Adc.Init.LowPowerAutoWait      = DISABLE;
+    hnucleo_Adc.Init.LowPowerAutoPowerOff  = DISABLE;
+    hnucleo_Adc.Init.ContinuousConvMode    = DISABLE;                       /* Continuous mode disabled to have only 1 conversion at each conversion trig */
+    hnucleo_Adc.Init.DiscontinuousConvMode = DISABLE;                       /* Parameter discarded because sequencer is disabled */
+    hnucleo_Adc.Init.ExternalTrigConv      = ADC_SOFTWARE_START;            /* Software start to trig the 1st conversion manually, without external event */
+    hnucleo_Adc.Init.ExternalTrigConvEdge  = ADC_EXTERNALTRIGCONVEDGE_NONE; /* Parameter discarded because trig by software start */
+    hnucleo_Adc.Init.DMAContinuousRequests = DISABLE;
+    hnucleo_Adc.Init.Overrun               = ADC_OVR_DATA_OVERWRITTEN;
+    hnucleo_Adc.Init.SamplingTimeCommon    = ADC_SAMPLETIME_41CYCLES_5;
+    
+    /* Initialize MSP related to ADC */
+    ADCx_MspInit(&hnucleo_Adc);
+    
+    /* Initialize ADC */
+    if (HAL_ADC_Init(&hnucleo_Adc) != HAL_OK)
+    {
+      return HAL_ERROR;
+    }
+
+    /* Run ADC calibration */
+    if (HAL_ADCEx_Calibration_Start(&hnucleo_Adc) != HAL_OK)
+    {
+      return HAL_ERROR;
+    }
+  }
+  
+  return HAL_OK;
+}

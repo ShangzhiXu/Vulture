@@ -1,0 +1,24 @@
+UINT32 ArchRegionDisable(UINT8 number)
+{
+    UINT32 intSave;
+
+    if (number > (MPU_MAX_SUPPORT - 1)) {
+        return LOS_ERRNO_MPU_INVALID_NUMBER;
+    }
+
+    if (g_regionNumBeUsed[number] == 0) {
+        return LOS_ERRNO_MPU_REGION_IS_DISABLED;
+    }
+
+    intSave = LOS_IntLock();
+
+    MPU->RNR = number;
+    MPU->RBAR = 0;
+    MPU->RASR = 0;
+
+    g_regionNumBeUsed[number] = 0;
+
+    LOS_IntRestore(intSave);
+
+    return LOS_OK;
+}

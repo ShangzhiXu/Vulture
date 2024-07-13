@@ -1,0 +1,180 @@
+HAL_StatusTypeDef HAL_CAN_Receive(CAN_HandleTypeDef* hcan, uint8_t FIFONumber, uint32_t Timeout)
+{
+  uint32_t tickstart = 0U;
+  CanRxMsgTypeDef* pRxMsg = NULL;
+ 
+  /* Check the parameters */
+  assert_param(IS_CAN_FIFO(FIFONumber));
+
+  /* Check if CAN state is not busy for RX FIFO0 */
+  if ((FIFONumber == CAN_FIFO0) && ((hcan->State == HAL_CAN_STATE_BUSY_RX0) ||         \
+                                    (hcan->State == HAL_CAN_STATE_BUSY_TX_RX0) ||      \
+                                    (hcan->State == HAL_CAN_STATE_BUSY_RX0_RX1) ||     \
+                                    (hcan->State == HAL_CAN_STATE_BUSY_TX_RX0_RX1)))
+  {
+    return HAL_BUSY;
+  }
+
+  /* Check if CAN state is not busy for RX FIFO1 */
+  if ((FIFONumber == CAN_FIFO1) && ((hcan->State == HAL_CAN_STATE_BUSY_RX1) ||         \
+                                    (hcan->State == HAL_CAN_STATE_BUSY_TX_RX1) ||      \
+                                    (hcan->State == HAL_CAN_STATE_BUSY_RX0_RX1) ||     \
+                                    (hcan->State == HAL_CAN_STATE_BUSY_TX_RX0_RX1)))
+  {
+    return HAL_BUSY;
+  }
+
+  /* Process locked */
+  __HAL_LOCK(hcan);
+
+  /* Change CAN state */
+  if (FIFONumber == CAN_FIFO0)
+  {
+    switch(hcan->State)
+    {
+      case(HAL_CAN_STATE_BUSY_TX):
+        hcan->State = HAL_CAN_STATE_BUSY_TX_RX0;
+        break;
+      case(HAL_CAN_STATE_BUSY_RX1):
+        hcan->State = HAL_CAN_STATE_BUSY_RX0_RX1;
+        break;
+      case(HAL_CAN_STATE_BUSY_TX_RX1):
+        hcan->State = HAL_CAN_STATE_BUSY_TX_RX0_RX1;
+        break;
+      default: /* HAL_CAN_STATE_READY */
+        hcan->State = HAL_CAN_STATE_BUSY_RX0;
+        break;
+    }
+  }
+  else /* FIFONumber == CAN_FIFO1 */
+  {
+    switch(hcan->State)
+    {
+      case(HAL_CAN_STATE_BUSY_TX):
+        hcan->State = HAL_CAN_STATE_BUSY_TX_RX1;
+        break;
+      case(HAL_CAN_STATE_BUSY_RX0):
+        hcan->State = HAL_CAN_STATE_BUSY_RX0_RX1;
+        break;
+      case(HAL_CAN_STATE_BUSY_TX_RX0):
+        hcan->State = HAL_CAN_STATE_BUSY_TX_RX0_RX1;
+        break;
+      default: /* HAL_CAN_STATE_READY */
+        hcan->State = HAL_CAN_STATE_BUSY_RX1;
+        break;
+    }
+  }
+
+  /* Get tick */ 
+  tickstart = HAL_GetTick();
+  
+  /* Check pending message */
+  while(__HAL_CAN_MSG_PENDING(hcan, FIFONumber) == 0U)
+  {
+    /* Check for the Timeout */
+    if(Timeout != HAL_MAX_DELAY)
+    {
+      if((Timeout == 0U)||((HAL_GetTick() - tickstart ) > Timeout))
+      {
+        hcan->State = HAL_CAN_STATE_TIMEOUT;
+        /* Process unlocked */
+        __HAL_UNLOCK(hcan);
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+
+  /* Set RxMsg pointer */
+  if(FIFONumber == CAN_FIFO0)
+  {
+    pRxMsg = hcan->pRxMsg;
+  }
+  else /* FIFONumber == CAN_FIFO1 */
+  {
+    pRxMsg = hcan->pRx1Msg;
+  }
+
+  /* Get the Id */
+  pRxMsg->IDE = (uint8_t)0x04 & hcan->Instance->sFIFOMailBox[FIFONumber].RIR;
+  if (pRxMsg->IDE == CAN_ID_STD)
+  {
+    pRxMsg->StdId = 0x000007FFU & (hcan->Instance->sFIFOMailBox[FIFONumber].RIR >> 21U);
+  }
+  else
+  {
+    pRxMsg->ExtId = 0x1FFFFFFFU & (hcan->Instance->sFIFOMailBox[FIFONumber].RIR >> 3U);
+  }
+  
+  pRxMsg->RTR = (uint8_t)0x02 & hcan->Instance->sFIFOMailBox[FIFONumber].RIR;
+  /* Get the DLC */
+  pRxMsg->DLC = (uint8_t)0x0F & hcan->Instance->sFIFOMailBox[FIFONumber].RDTR;
+  /* Get the FMI */
+  pRxMsg->FMI = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDTR >> 8U);
+  /* Get the FIFONumber */
+  pRxMsg->FIFONumber = FIFONumber;
+  /* Get the data field */
+  pRxMsg->Data[0] = (uint8_t)0xFF & hcan->Instance->sFIFOMailBox[FIFONumber].RDLR;
+  pRxMsg->Data[1] = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDLR >> 8U);
+  pRxMsg->Data[2] = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDLR >> 16U);
+  pRxMsg->Data[3] = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDLR >> 24U);
+  pRxMsg->Data[4] = (uint8_t)0xFF & hcan->Instance->sFIFOMailBox[FIFONumber].RDHR;
+  pRxMsg->Data[5] = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDHR >> 8U);
+  pRxMsg->Data[6] = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDHR >> 16U);
+  pRxMsg->Data[7] = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDHR >> 24U);
+
+  /* Release the FIFO */
+  if(FIFONumber == CAN_FIFO0)
+  {
+    /* Release FIFO0 */
+    __HAL_CAN_FIFO_RELEASE(hcan, CAN_FIFO0);
+  }
+  else /* FIFONumber == CAN_FIFO1 */
+  {
+    /* Release FIFO1 */
+    __HAL_CAN_FIFO_RELEASE(hcan, CAN_FIFO1);
+  }
+
+  /* Change CAN state */
+  if (FIFONumber == CAN_FIFO0)
+  {
+    switch(hcan->State)
+    {
+      case(HAL_CAN_STATE_BUSY_TX_RX0):
+        hcan->State = HAL_CAN_STATE_BUSY_TX;
+        break;
+      case(HAL_CAN_STATE_BUSY_RX0_RX1):
+        hcan->State = HAL_CAN_STATE_BUSY_RX1;
+        break;
+      case(HAL_CAN_STATE_BUSY_TX_RX0_RX1):
+        hcan->State = HAL_CAN_STATE_BUSY_TX_RX1;
+        break;
+      default: /* HAL_CAN_STATE_BUSY_RX0 */
+        hcan->State = HAL_CAN_STATE_READY;
+        break;
+    }
+  }
+  else /* FIFONumber == CAN_FIFO1 */
+  {
+    switch(hcan->State)
+    {
+      case(HAL_CAN_STATE_BUSY_TX_RX1):
+        hcan->State = HAL_CAN_STATE_BUSY_TX;
+        break;
+      case(HAL_CAN_STATE_BUSY_RX0_RX1):
+        hcan->State = HAL_CAN_STATE_BUSY_RX0;
+        break;
+      case(HAL_CAN_STATE_BUSY_TX_RX0_RX1):
+        hcan->State = HAL_CAN_STATE_BUSY_TX_RX0;
+        break;
+      default: /* HAL_CAN_STATE_BUSY_RX1 */
+        hcan->State = HAL_CAN_STATE_READY;
+        break;
+    }
+  }
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hcan);
+  
+  /* Return function status */
+  return HAL_OK;
+}

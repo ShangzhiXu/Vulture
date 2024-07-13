@@ -1,0 +1,96 @@
+HAL_StatusTypeDef  FMC_NORSRAM_Init(FMC_NORSRAM_TypeDef *Device, FMC_NORSRAM_InitTypeDef *Init)
+{
+  /* Check the parameters */
+  assert_param(IS_FMC_NORSRAM_DEVICE(Device));
+  assert_param(IS_FMC_NORSRAM_BANK(Init->NSBank));
+  assert_param(IS_FMC_MUX(Init->DataAddressMux));
+  assert_param(IS_FMC_MEMORY(Init->MemoryType));
+  assert_param(IS_FMC_NORSRAM_MEMORY_WIDTH(Init->MemoryDataWidth));
+  assert_param(IS_FMC_BURSTMODE(Init->BurstAccessMode));
+  assert_param(IS_FMC_WAIT_POLARITY(Init->WaitSignalPolarity));
+  assert_param(IS_FMC_WAIT_SIGNAL_ACTIVE(Init->WaitSignalActive));
+  assert_param(IS_FMC_WRITE_OPERATION(Init->WriteOperation));
+  assert_param(IS_FMC_WAITE_SIGNAL(Init->WaitSignal));
+  assert_param(IS_FMC_EXTENDED_MODE(Init->ExtendedMode));
+  assert_param(IS_FMC_ASYNWAIT(Init->AsynchronousWait));
+  assert_param(IS_FMC_WRITE_BURST(Init->WriteBurst));
+  assert_param(IS_FMC_CONTINOUS_CLOCK(Init->ContinuousClock));
+#if defined(FMC_BCR1_WFDIS)
+  assert_param(IS_FMC_WRITE_FIFO(Init->WriteFifo));
+#endif /* FMC_BCR1_WFDIS */
+#if defined(FMC_BCRx_NBLSET)
+  assert_param(IS_FMC_NBLSETUP_TIME(Init->NBLSetupTime));
+#endif /* FMC_BCRx_NBLSET */
+  assert_param(IS_FMC_PAGESIZE(Init->PageSize));
+
+  /* Disable NORSRAM Device */
+  __FMC_NORSRAM_DISABLE(Device, Init->NSBank);
+
+  /* Set NORSRAM device control parameters */
+  if (Init->MemoryType == FMC_MEMORY_TYPE_NOR)
+  {
+    MODIFY_REG(Device->BTCR[Init->NSBank], BCR_CLEAR_MASK, (uint32_t)(FMC_NORSRAM_FLASH_ACCESS_ENABLE
+               | Init->DataAddressMux
+               | Init->MemoryType
+               | Init->MemoryDataWidth
+               | Init->BurstAccessMode
+               | Init->WaitSignalPolarity
+               | Init->WaitSignalActive
+               | Init->WriteOperation
+               | Init->WaitSignal
+               | Init->ExtendedMode
+               | Init->AsynchronousWait
+               | Init->WriteBurst
+               | Init->ContinuousClock
+#if defined(FMC_BCR1_WFDIS)
+               | Init->WriteFifo
+#endif /* FMC_BCR1_WFDIS */
+#if defined(FMC_BCRx_NBLSET)
+               | Init->NBLSetupTime << POSITION_VAL(FMC_BCRx_NBLSET)
+#endif /* FMC_BCRx_NBLSET */
+               | Init->PageSize
+                                                                     )
+              );
+  }
+  else
+  {
+    MODIFY_REG(Device->BTCR[Init->NSBank], BCR_CLEAR_MASK, (uint32_t)(FMC_NORSRAM_FLASH_ACCESS_DISABLE
+               | Init->DataAddressMux
+               | Init->MemoryType
+               | Init->MemoryDataWidth
+               | Init->BurstAccessMode
+               | Init->WaitSignalPolarity
+               | Init->WaitSignalActive
+               | Init->WriteOperation
+               | Init->WaitSignal
+               | Init->ExtendedMode
+               | Init->AsynchronousWait
+               | Init->WriteBurst
+               | Init->ContinuousClock
+#if defined(FMC_BCR1_WFDIS)
+               | Init->WriteFifo
+#endif /* FMC_BCR1_WFDIS */
+#if defined(FMC_BCRx_NBLSET)
+               | Init->NBLSetupTime << POSITION_VAL(FMC_BCRx_NBLSET)
+#endif /* FMC_BCRx_NBLSET */
+               | Init->PageSize
+                                                                     )
+              );
+  }
+
+  /* Configure synchronous mode when Continuous clock is enabled for bank2..4 */
+  if ((Init->ContinuousClock == FMC_CONTINUOUS_CLOCK_SYNC_ASYNC) && (Init->NSBank != FMC_NORSRAM_BANK1))
+  {
+    MODIFY_REG(Device->BTCR[FMC_NORSRAM_BANK1], FMC_BCR1_CCLKEN, Init->ContinuousClock);
+  }
+
+#if defined(FMC_BCR1_WFDIS)
+  if (Init->NSBank != FMC_NORSRAM_BANK1)
+  {
+    /* Configure Write FIFO mode when Write Fifo is enabled for bank2..4 */
+    SET_BIT(Device->BTCR[FMC_NORSRAM_BANK1], (uint32_t)(Init->WriteFifo));
+  }
+#endif /* FMC_BCR1_WFDIS */
+
+  return HAL_OK;
+}

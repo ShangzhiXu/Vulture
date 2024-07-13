@@ -1,0 +1,46 @@
+HAL_StatusTypeDef HAL_SAI_DeInit(SAI_HandleTypeDef *hsai)
+{
+  /* Check the SAI handle allocation */
+  if(hsai == NULL)
+  {
+    return HAL_ERROR;
+  }
+  
+  hsai->State = HAL_SAI_STATE_BUSY;
+  
+  /* Disabled All interrupt and clear all the flag */
+  hsai->Instance->IMR = 0;
+  hsai->Instance->CLRFR = 0xFFFFFFFFU;
+  
+  /* Disable the SAI */
+  SAI_Disable(hsai);
+  
+  /* Flush the fifo */
+  SET_BIT(hsai->Instance->CR2, SAI_xCR2_FFLUSH);
+  
+#if defined(STM32L4R5xx) || defined(STM32L4R7xx) || defined(STM32L4R9xx) || defined(STM32L4S5xx) || defined(STM32L4S7xx) || defined(STM32L4S9xx)
+  /* Disable SAI PDM interface */
+  if(hsai->Instance == SAI1_Block_A)
+  {
+    /* Reset PDM delays */
+    SAI1->PDMDLY = 0U;
+    
+    /* Disable PDM interface */
+    SAI1->PDMCR &= ~(SAI_PDMCR_PDMEN);
+  }
+#endif /* STM32L4R5xx || STM32L4R7xx || STM32L4R9xx || STM32L4S5xx || STM32L4S7xx || STM32L4S9xx */
+  
+  /* DeInit the low level hardware: GPIO, CLOCK, NVIC and DMA */
+  HAL_SAI_MspDeInit(hsai);
+  
+  /* Initialize the error code */
+  hsai->ErrorCode = HAL_SAI_ERROR_NONE;
+  
+  /* Initialize the SAI state */
+  hsai->State = HAL_SAI_STATE_RESET;
+  
+  /* Release Lock */
+  __HAL_UNLOCK(hsai);
+  
+  return HAL_OK;
+}

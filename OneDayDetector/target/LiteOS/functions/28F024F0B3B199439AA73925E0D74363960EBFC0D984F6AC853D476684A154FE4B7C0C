@@ -1,0 +1,44 @@
+HAL_StatusTypeDef HAL_DFSDM_ChannelPollForScd(DFSDM_Channel_HandleTypeDef *hdfsdm_channel, 
+                                              uint32_t Timeout)
+{
+  uint32_t tickstart;
+  uint32_t channel;
+  
+  /* Check parameters */
+  assert_param(IS_DFSDM_CHANNEL_ALL_INSTANCE(hdfsdm_channel->Instance));
+
+  /* Check DFSDM channel state */
+  if(hdfsdm_channel->State != HAL_DFSDM_CHANNEL_STATE_READY)
+  {
+    /* Return error status */
+    return HAL_ERROR;
+  }
+  else
+  {
+    /* Get channel number from channel instance */
+    channel = DFSDM_GetChannelFromInstance(hdfsdm_channel->Instance);
+    
+    /* Get timeout */
+    tickstart = HAL_GetTick();
+
+    /* Wait short circuit detection */
+    while(((DFSDM1_Filter0->FLTISR & DFSDM_FLTISR_SCDF) >> (DFSDM_FLTISR_SCDF_Pos + channel)) == 0)
+    {
+      /* Check the Timeout */
+      if(Timeout != HAL_MAX_DELAY)
+      {
+        if((Timeout == 0) || ((HAL_GetTick()-tickstart) > Timeout))
+        {
+          /* Return timeout status */
+          return HAL_TIMEOUT;
+        }
+      }
+    }
+    
+    /* Clear short circuit detection flag */
+    DFSDM1_Filter0->FLTICR = (1 << (DFSDM_FLTICR_CLRSCDF_Pos + channel));
+    
+    /* Return function status */
+    return HAL_OK;
+  }
+}

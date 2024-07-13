@@ -1,0 +1,23 @@
+LITE_OS_SEC_TEXT UINT32 OsEventReadWithCond(const EventCond *cond, PEVENT_CB_S eventCB,
+                                            UINT32 eventMask, UINT32 mode, UINT32 timeout)
+{
+    UINT32 ret;
+    UINT32 intSave;
+
+    ret = OsEventReadCheck(eventCB, eventMask, mode);
+    if (ret != LOS_OK) {
+        return ret;
+    }
+
+    SCHEDULER_LOCK(intSave);
+
+    if (*cond->realValue != cond->value) {
+        eventCB->uwEventID &= cond->clearEvent;
+        goto OUT;
+    }
+
+    ret = OsEventReadImp(eventCB, eventMask, mode, timeout, FALSE, &intSave);
+OUT:
+    SCHEDULER_UNLOCK(intSave);
+    return ret;
+}

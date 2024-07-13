@@ -1,0 +1,51 @@
+UINT32 OsMemSysNodeCheck(VOID *dstAddr, VOID *srcAddr, UINT32 nodeLength, UINT8 pos)
+{
+    UINT32 ret;
+    UINT32 totalSize = 0;
+    UINT32 availSize = 0;
+    UINT8 *pool = m_aucSysMem1;
+#ifdef LOSCFG_EXC_INTERACTION
+    if ((UINTPTR)dstAddr < ((UINTPTR)m_aucSysMem0 + g_excInteractMemSize)) {
+        pool = m_aucSysMem0;
+    }
+#endif
+    if (pos == 0) { /* if this func was called by memset */
+        ret = LOS_MemNodeSizeCheck(pool, dstAddr, &totalSize, &availSize);
+        if ((ret == LOS_OK) && (nodeLength > availSize)) {
+            PRINT_ERR("---------------------------------------------\n");
+            PRINT_ERR("memset: dst inode availSize is not enough"
+                      " availSize = 0x%x, memset length = 0x%x\n", availSize, nodeLength);
+            OsBackTrace();
+            PRINT_ERR("---------------------------------------------\n");
+            return LOS_NOK;
+        }
+    } else if (pos == 1) { /* if this func was called by memcpy */
+        ret = LOS_MemNodeSizeCheck(pool, dstAddr, &totalSize, &availSize);
+        if ((ret == LOS_OK) && (nodeLength > availSize)) {
+            PRINT_ERR("---------------------------------------------\n");
+            PRINT_ERR("memcpy: dst inode availSize is not enough"
+                      " availSize = 0x%x, memcpy length = 0x%x\n", availSize, nodeLength);
+            OsBackTrace();
+            PRINT_ERR("---------------------------------------------\n");
+            return LOS_NOK;
+        }
+#ifdef LOSCFG_EXC_INTERACTION
+        if ((UINTPTR)srcAddr < ((UINTPTR)m_aucSysMem0 + g_excInteractMemSize)) {
+            pool = m_aucSysMem0;
+        } else {
+            pool = m_aucSysMem1;
+        }
+#endif
+        ret = LOS_MemNodeSizeCheck(pool, srcAddr, &totalSize, &availSize);
+        if ((ret == LOS_OK) && (nodeLength > availSize)) {
+            PRINT_ERR("---------------------------------------------\n");
+            PRINT_ERR("memcpy: src inode availSize is not enough"
+                      " availSize = 0x%x, memcpy length = 0x%x\n",
+                      availSize, nodeLength);
+            OsBackTrace();
+            PRINT_ERR("---------------------------------------------\n");
+            return LOS_NOK;
+        }
+    }
+    return LOS_OK;
+}

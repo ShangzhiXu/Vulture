@@ -1,0 +1,46 @@
+static void SecFinishNumber64(SecScanSpec *spec)
+{
+#if (defined(SECUREC_COMPATIBLE_LINUX_FORMAT) && !(defined(SECUREC_ON_UNIX)))
+    if (spec->negative != 0) {
+        if (SECUREC_CONVERT_IS_SIGNED(spec->oriConvChr)) {
+            if (spec->number64 > SECUREC_MIN_64BITS_NEG_VALUE) {
+                spec->number64 = SECUREC_MIN_64BITS_NEG_VALUE;
+            } else {
+                spec->number64 = (SecUnsignedInt64)(0U - spec->number64); /* Wrap with unsigned int64 numbers */
+            }
+            if (spec->beyondMax != 0) {
+                spec->number64 = SECUREC_MIN_64BITS_NEG_VALUE;
+            }
+        } else {                /* For o, u, x, X, p */
+            spec->number64 = (SecUnsignedInt64)(0U - spec->number64); /* Wrap with unsigned int64 numbers */
+            if (spec->beyondMax != 0) {
+                spec->number64 = SECUREC_MAX_64BITS_VALUE;
+            }
+        }
+    } else {
+        if (SECUREC_CONVERT_IS_SIGNED(spec->oriConvChr)) {
+            if (spec->number64 > SECUREC_MAX_64BITS_POS_VALUE) {
+                spec->number64 = SECUREC_MAX_64BITS_POS_VALUE;
+            }
+            if (spec->beyondMax != 0) {
+                spec->number64 = SECUREC_MAX_64BITS_POS_VALUE;
+            }
+        } else {
+            if (spec->beyondMax != 0) {
+                spec->number64 = SECUREC_MAX_64BITS_VALUE;
+            }
+        }
+    }
+#else
+    if (spec->negative != 0) {
+#if defined(__hpux)
+        if (spec->oriConvChr != 'p') {
+            spec->number64 = (SecUnsignedInt64)(0U - spec->number64); /* Wrap with unsigned int64 numbers */
+        }
+#else
+        spec->number64 = (SecUnsignedInt64)(0U - spec->number64); /* Wrap with unsigned int64 numbers */
+#endif
+    }
+#endif
+    return;
+}

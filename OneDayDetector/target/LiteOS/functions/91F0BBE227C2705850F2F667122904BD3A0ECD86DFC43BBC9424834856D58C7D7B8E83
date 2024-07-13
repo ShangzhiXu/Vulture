@@ -1,0 +1,16 @@
+SECUREC_INLINE int SecCanInputForBracket(int convChr, SecInt ch, const SecBracketTable *bracketTable)
+{
+    unsigned int tableIndex = SECUREC_BRACKET_INDEX(((unsigned int)(int)ch & SECUREC_BRACKET_CHAR_MASK));
+    unsigned int tableValue = SECUREC_BRACKET_VALUE(((unsigned int)(int)ch & SECUREC_BRACKET_CHAR_MASK));
+#ifdef SECUREC_FOR_WCHAR
+    if (((unsigned int)(int)ch & (~(SECUREC_BRACKET_CHAR_MASK))) != 0) {
+        /* The value of the wide character exceeds the size of two bytes */
+        return 0;
+    }
+    return (int)(convChr == SECUREC_BRACE && bracketTable->table != NULL &&
+        ((bracketTable->table[tableIndex] ^ bracketTable->mask) & tableValue) != 0);
+#else
+    return (int)(convChr == SECUREC_BRACE &&
+        ((bracketTable->table[tableIndex] ^ bracketTable->mask) & tableValue) != 0);
+#endif
+}

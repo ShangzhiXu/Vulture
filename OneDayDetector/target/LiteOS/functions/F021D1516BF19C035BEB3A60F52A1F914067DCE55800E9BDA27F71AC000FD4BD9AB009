@@ -1,0 +1,68 @@
+HAL_StatusTypeDef HAL_DFSDM_FilterPollForInjConversion(DFSDM_Filter_HandleTypeDef *hdfsdm_filter,
+                                                       uint32_t                    Timeout)
+{
+  uint32_t tickstart;
+
+  /* Check parameters */
+  assert_param(IS_DFSDM_FILTER_ALL_INSTANCE(hdfsdm_filter->Instance));
+
+  /* Check DFSDM filter state */
+  if((hdfsdm_filter->State != HAL_DFSDM_FILTER_STATE_INJ) && \
+     (hdfsdm_filter->State != HAL_DFSDM_FILTER_STATE_REG_INJ))
+  {
+    /* Return error status */
+    return HAL_ERROR;
+  }
+  else
+  {
+    /* Get timeout */
+    tickstart = HAL_GetTick();  
+
+    /* Wait end of injected conversions */
+    while((hdfsdm_filter->Instance->FLTISR & DFSDM_FLTISR_JEOCF) != DFSDM_FLTISR_JEOCF)
+    {
+      /* Check the Timeout */
+      if(Timeout != HAL_MAX_DELAY)
+      {
+        if( ((HAL_GetTick()-tickstart) > Timeout) || (Timeout == 0U))
+        {
+          /* Return timeout status */
+          return HAL_TIMEOUT;
+        }
+      }
+    }
+    /* Check if overrun occurs */
+    if((hdfsdm_filter->Instance->FLTISR & DFSDM_FLTISR_JOVRF) == DFSDM_FLTISR_JOVRF)
+    {
+      /* Update error code and call error callback */
+      hdfsdm_filter->ErrorCode = DFSDM_FILTER_ERROR_INJECTED_OVERRUN;
+#if (USE_HAL_DFSDM_REGISTER_CALLBACKS == 1)
+      hdfsdm_filter->ErrorCallback(hdfsdm_filter);
+#else
+      HAL_DFSDM_FilterErrorCallback(hdfsdm_filter);
+#endif
+
+      /* Clear injected overrun flag */
+      hdfsdm_filter->Instance->FLTICR = DFSDM_FLTICR_CLRJOVRF;
+    }
+
+    /* Update remaining injected conversions */
+    hdfsdm_filter->InjConvRemaining--;
+    if(hdfsdm_filter->InjConvRemaining == 0U)
+    {
+      /* Update DFSDM filter state only if trigger is software */
+      if(hdfsdm_filter->InjectedTrigger == DFSDM_FILTER_SW_TRIGGER)
+      {
+        hdfsdm_filter->State = (hdfsdm_filter->State == HAL_DFSDM_FILTER_STATE_INJ) ? \
+                               HAL_DFSDM_FILTER_STATE_READY : HAL_DFSDM_FILTER_STATE_REG;
+      }
+      
+      /* end of injected sequence, reset the value */
+      hdfsdm_filter->InjConvRemaining = (hdfsdm_filter->InjectedScanMode == ENABLE) ? \
+                                         hdfsdm_filter->InjectedChannelsNbr : 1U;
+    }
+
+    /* Return function status */
+    return HAL_OK;
+  }
+}

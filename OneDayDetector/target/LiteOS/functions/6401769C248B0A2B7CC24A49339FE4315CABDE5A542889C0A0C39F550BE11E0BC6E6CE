@@ -1,0 +1,33 @@
+altcp_mbedtls_setup(void *conf, struct altcp_pcb *conn, struct altcp_pcb *inner_conn)
+{
+  int ret;
+  struct altcp_tls_config *config = (struct altcp_tls_config *)conf;
+  altcp_mbedtls_state_t *state;
+  if (!conf) {
+    return ERR_ARG;
+  }
+  LWIP_ASSERT("invalid inner_conn", conn != inner_conn);
+
+  /* allocate mbedtls context */
+  state = altcp_mbedtls_alloc(conf);
+  if (state == NULL) {
+    return ERR_MEM;
+  }
+  /* initialize mbedtls context: */
+  mbedtls_ssl_init(&state->ssl_context);
+  ret = mbedtls_ssl_setup(&state->ssl_context, &config->conf);
+  if (ret != 0) {
+    LWIP_DEBUGF(ALTCP_MBEDTLS_DEBUG, ("mbedtls_ssl_setup failed\n"));
+    /* @todo: convert 'ret' to err_t */
+    altcp_mbedtls_free(conf, state);
+    return ERR_MEM;
+  }
+  /* tell mbedtls about our I/O functions */
+  mbedtls_ssl_set_bio(&state->ssl_context, conn, altcp_mbedtls_bio_send, altcp_mbedtls_bio_recv, NULL);
+
+  altcp_mbedtls_setup_callbacks(conn, inner_conn);
+  conn->inner_conn = inner_conn;
+  conn->fns = &altcp_mbedtls_functions;
+  conn->state = state;
+  return ERR_OK;
+}

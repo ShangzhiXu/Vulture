@@ -1,0 +1,63 @@
+icmp_send_response(struct pbuf *p, u8_t type, u8_t code)
+{
+  struct pbuf *q;
+  struct ip_hdr *iphdr;
+  /* we can use the echo header here */
+  struct icmp_echo_hdr *icmphdr;
+  ip4_addr_t iphdr_src;
+  struct netif *netif;
+
+  /* increase number of messages attempted to send */
+  MIB2_STATS_INC(mib2.icmpoutmsgs);
+
+  /* ICMP header + IP header + 8 bytes of data */
+  q = pbuf_alloc(PBUF_IP, sizeof(struct icmp_echo_hdr) + IP_HLEN + ICMP_DEST_UNREACH_DATASIZE,
+                 PBUF_RAM);
+  if (q == NULL) {
+    LWIP_DEBUGF(ICMP_DEBUG, ("icmp_time_exceeded: failed to allocate pbuf for ICMP packet.\n"));
+    MIB2_STATS_INC(mib2.icmpouterrors);
+    return;
+  }
+  LWIP_ASSERT("check that first pbuf can hold icmp message",
+              (q->len >= (sizeof(struct icmp_echo_hdr) + IP_HLEN + ICMP_DEST_UNREACH_DATASIZE)));
+
+  iphdr = (struct ip_hdr *)p->payload;
+  LWIP_DEBUGF(ICMP_DEBUG, ("icmp_time_exceeded from "));
+  ip4_addr_debug_print_val(ICMP_DEBUG, iphdr->src);
+  LWIP_DEBUGF(ICMP_DEBUG, (" to "));
+  ip4_addr_debug_print_val(ICMP_DEBUG, iphdr->dest);
+  LWIP_DEBUGF(ICMP_DEBUG, ("\n"));
+
+  icmphdr = (struct icmp_echo_hdr *)q->payload;
+  icmphdr->type = type;
+  icmphdr->code = code;
+  icmphdr->id = 0;
+  icmphdr->seqno = 0;
+
+  /* copy fields from original packet */
+  SMEMCPY((u8_t *)q->payload + sizeof(struct icmp_echo_hdr), (u8_t *)p->payload,
+          IP_HLEN + ICMP_DEST_UNREACH_DATASIZE);
+
+  ip4_addr_copy(iphdr_src, iphdr->src);
+#ifdef LWIP_HOOK_IP4_ROUTE_SRC
+  {
+    ip4_addr_t iphdr_dst;
+    ip4_addr_copy(iphdr_dst, iphdr->dest);
+    netif = ip4_route_src(&iphdr_dst, &iphdr_src);
+  }
+#else
+  netif = ip4_route(&iphdr_src);
+#endif
+  if (netif != NULL) {
+    /* calculate checksum */
+    icmphdr->chksum = 0;
+#if CHECKSUM_GEN_ICMP
+    IF__NETIF_CHECKSUM_ENABLED(netif, NETIF_CHECKSUM_GEN_ICMP) {
+      icmphdr->chksum = inet_chksum(icmphdr, q->len);
+    }
+#endif
+    ICMP_STATS_INC(icmp.xmit);
+    ip4_output_if(q, NULL, &iphdr_src, ICMP_TTL, 0, IP_PROTO_ICMP, netif);
+  }
+  pbuf_free(q);
+}

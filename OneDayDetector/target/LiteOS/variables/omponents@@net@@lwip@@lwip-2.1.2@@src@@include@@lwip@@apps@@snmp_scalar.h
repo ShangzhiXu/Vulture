@@ -1,0 +1,15 @@
+  snmp_access_t access;
+  snmp_access_t access;
+  u16_t array_node_count;
+  const struct snmp_scalar_array_node_def* array_nodes;
+  u8_t          asn1_type;
+  u8_t asn1_type;
+  node_instance_get_value_method get_value;
+  snmp_scalar_array_get_value_method get_value;
+  struct snmp_leaf_node node;
+  struct snmp_leaf_node node;
+  u32_t         oid;
+  node_instance_set_test_method set_test;
+  snmp_scalar_array_set_test_method set_test;
+  node_instance_set_value_method set_value;
+  snmp_scalar_array_set_value_method set_value;

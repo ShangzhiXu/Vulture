@@ -1,0 +1,35 @@
+pppoe_send_pads(struct pppoe_softc *sc)
+{
+  struct pbuf *pb;
+  u8_t *p;
+  size_t len, l1 = 0;  /* XXX: gcc */
+
+  sc->sc_session = mono_time.tv_sec % 0xff + 1;
+  /* calc length */
+  len = 0;
+  /* include hunique */
+  len += 2 + 2 + 2 + 2 + sc->sc_hunique_len;  /* service name, host unique*/
+  if (sc->sc_service_name != NULL) {    /* service name tag maybe empty */
+    l1 = strlen(sc->sc_service_name);
+    len += l1;
+  }
+  pb = pbuf_alloc(PBUF_LINK, (u16_t)(PPPOE_HEADERLEN + len), PBUF_RAM);
+  if (!pb) {
+    return ERR_MEM;
+  }
+  LWIP_ASSERT("pb->tot_len == pb->len", pb->tot_len == pb->len);
+  p = (u8_t*)pb->payload;
+  PPPOE_ADD_HEADER(p, PPPOE_CODE_PADS, sc->sc_session, len);
+  PPPOE_ADD_16(p, PPPOE_TAG_SNAME);
+  if (sc->sc_service_name != NULL) {
+    PPPOE_ADD_16(p, l1);
+    MEMCPY(p, sc->sc_service_name, l1);
+    p += l1;
+  } else {
+    PPPOE_ADD_16(p, 0);
+  }
+  PPPOE_ADD_16(p, PPPOE_TAG_HUNIQUE);
+  PPPOE_ADD_16(p, sc->sc_hunique_len);
+  MEMCPY(p, sc->sc_hunique, sc->sc_hunique_len);
+  return pppoe_output(sc, pb);
+}

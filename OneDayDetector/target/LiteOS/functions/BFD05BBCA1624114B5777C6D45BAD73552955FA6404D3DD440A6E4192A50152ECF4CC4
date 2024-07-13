@@ -1,0 +1,22 @@
+static int dispatch_data( mbedtls_net_context *ctx,
+                          const unsigned char * data,
+                          size_t len )
+{
+#if defined(MBEDTLS_TIMING_C)
+    ctx_buffer *buf = NULL;
+    if( opt.pack > 0 )
+    {
+        if( outbuf[0].ctx == ctx )
+            buf = &outbuf[0];
+        else if( outbuf[1].ctx == ctx )
+            buf = &outbuf[1];
+
+        if( buf == NULL )
+            return( -1 );
+
+        return( ctx_buffer_append( buf, data, len ) );
+    }
+#endif /* MBEDTLS_TIMING_C */
+
+    return( mbedtls_net_send( ctx, data, len ) );
+}

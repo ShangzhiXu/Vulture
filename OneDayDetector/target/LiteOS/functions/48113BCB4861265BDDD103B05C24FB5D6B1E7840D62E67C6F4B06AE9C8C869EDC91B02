@@ -1,0 +1,61 @@
+static uint32_t SDMMC_GetCmdResp6(SDMMC_TypeDef *SDMMCx, uint8_t SD_CMD, uint16_t *pRCA)
+{
+  uint32_t response_r1;
+  
+  /* 8 is the number of required instructions cycles for the below loop statement.
+  The SDMMC_CMDTIMEOUT is expressed in ms */
+  register uint32_t count = SDMMC_CMDTIMEOUT * (SystemCoreClock / 8 /1000);
+  
+  do
+  {
+    if (count-- == 0)
+    {
+      return SDMMC_ERROR_TIMEOUT;
+    }
+    
+  }while(!__SDMMC_GET_FLAG(SDMMCx, SDMMC_FLAG_CCRCFAIL | SDMMC_FLAG_CMDREND | SDMMC_FLAG_CTIMEOUT));
+  
+  if(__SDMMC_GET_FLAG(SDMMCx, SDMMC_FLAG_CTIMEOUT))
+  {
+    __SDMMC_CLEAR_FLAG(SDMMCx, SDMMC_FLAG_CTIMEOUT);
+    
+    return SDMMC_ERROR_CMD_RSP_TIMEOUT;
+  }
+  else if(__SDMMC_GET_FLAG(SDMMCx, SDMMC_FLAG_CCRCFAIL))
+  {
+    __SDMMC_CLEAR_FLAG(SDMMCx, SDMMC_FLAG_CCRCFAIL);
+    
+    return SDMMC_ERROR_CMD_CRC_FAIL;
+  }
+  
+  /* Check response received is of desired command */
+  if(SDMMC_GetCommandResponse(SDMMCx) != SD_CMD)
+  {
+    return SDMMC_ERROR_CMD_CRC_FAIL;
+  }
+  
+  /* Clear all the static flags */
+  __SDMMC_CLEAR_FLAG(SDMMCx, SDMMC_STATIC_CMD_FLAGS);
+  
+  /* We have received response, retrieve it.  */
+  response_r1 = SDMMC_GetResponse(SDMMCx, SDMMC_RESP1);
+  
+  if((response_r1 & (SDMMC_R6_GENERAL_UNKNOWN_ERROR | SDMMC_R6_ILLEGAL_CMD | SDMMC_R6_COM_CRC_FAILED)) == SDMMC_ALLZERO)
+  {
+    *pRCA = (uint16_t) (response_r1 >> 16);
+    
+    return SDMMC_ERROR_NONE;
+  }
+  else if((response_r1 & SDMMC_R6_ILLEGAL_CMD) == SDMMC_R6_ILLEGAL_CMD)
+  {
+    return SDMMC_ERROR_ILLEGAL_CMD;
+  }
+  else if((response_r1 & SDMMC_R6_COM_CRC_FAILED) == SDMMC_R6_COM_CRC_FAILED)
+  {
+    return SDMMC_ERROR_COM_CRC_FAILED;
+  }
+  else
+  {
+    return SDMMC_ERROR_GENERAL_UNKNOWN_ERR;
+  }
+}

@@ -1,0 +1,39 @@
+void _lv_img_buf_transform_init(lv_img_transform_dsc_t * dsc)
+{
+    dsc->tmp.pivot_x_256 = dsc->cfg.pivot_x * 256;
+    dsc->tmp.pivot_y_256 = dsc->cfg.pivot_y * 256;
+
+    int32_t angle_low = dsc->cfg.angle / 10;
+    int32_t angle_hight = angle_low + 1;
+    int32_t angle_rem = dsc->cfg.angle  - (angle_low * 10);
+
+    int32_t s1 = _lv_trigo_sin(-angle_low);
+    int32_t s2 = _lv_trigo_sin(-angle_hight);
+
+    int32_t c1 = _lv_trigo_sin(-angle_low + 90);
+    int32_t c2 = _lv_trigo_sin(-angle_hight + 90);
+
+    dsc->tmp.sinma = (s1 * (10 - angle_rem) + s2 * angle_rem) / 10;
+    dsc->tmp.cosma = (c1 * (10 - angle_rem) + c2 * angle_rem) / 10;
+
+    dsc->tmp.chroma_keyed = lv_img_cf_is_chroma_keyed(dsc->cfg.cf) ? 1 : 0;
+    dsc->tmp.has_alpha = lv_img_cf_has_alpha(dsc->cfg.cf) ? 1 : 0;
+    if(dsc->cfg.cf == LV_IMG_CF_TRUE_COLOR || dsc->cfg.cf == LV_IMG_CF_TRUE_COLOR_ALPHA ||
+       dsc->cfg.cf == LV_IMG_CF_TRUE_COLOR_CHROMA_KEYED) {
+        dsc->tmp.native_color = 1;
+    }
+    else {
+        dsc->tmp.native_color = 0;
+    }
+
+    dsc->tmp.img_dsc.data = dsc->cfg.src;
+    dsc->tmp.img_dsc.header.always_zero = 0;
+    dsc->tmp.img_dsc.header.cf = dsc->cfg.cf;
+    dsc->tmp.img_dsc.header.w = dsc->cfg.src_w;
+    dsc->tmp.img_dsc.header.h = dsc->cfg.src_h;
+
+    dsc->tmp.zoom_inv = (256 * 256) / dsc->cfg.zoom;
+
+    dsc->res.opa = LV_OPA_COVER;
+    dsc->res.color = dsc->cfg.color;
+}

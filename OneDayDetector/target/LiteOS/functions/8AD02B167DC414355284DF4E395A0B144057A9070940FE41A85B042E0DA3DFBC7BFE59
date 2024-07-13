@@ -1,0 +1,21 @@
+void _lv_mem_buf_release(void * p)
+{
+    uint8_t i;
+
+    /*Try small static buffers first*/
+    for(i = 0; i < sizeof(mem_buf_small) / sizeof(mem_buf_small[0]); i++) {
+        if(mem_buf_small[i].p == p) {
+            mem_buf_small[i].used = 0;
+            return;
+        }
+    }
+
+    for(i = 0; i < LV_MEM_BUF_MAX_NUM; i++) {
+        if(LV_GC_ROOT(_lv_mem_buf[i]).p == p) {
+            LV_GC_ROOT(_lv_mem_buf[i]).used = 0;
+            return;
+        }
+    }
+
+    LV_LOG_ERROR("lv_mem_buf_release: p is not a known buffer")
+}

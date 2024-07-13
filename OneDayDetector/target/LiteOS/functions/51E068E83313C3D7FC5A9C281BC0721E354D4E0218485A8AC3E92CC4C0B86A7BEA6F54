@@ -1,0 +1,28 @@
+int mbedtls_sha512_ret( const unsigned char *input,
+                    size_t ilen,
+                    unsigned char output[64],
+                    int is384 )
+{
+    int ret;
+    mbedtls_sha512_context ctx;
+
+    SHA512_VALIDATE_RET( is384 == 0 || is384 == 1 );
+    SHA512_VALIDATE_RET( ilen == 0 || input != NULL );
+    SHA512_VALIDATE_RET( (unsigned char *)output != NULL );
+
+    mbedtls_sha512_init( &ctx );
+
+    if( ( ret = mbedtls_sha512_starts_ret( &ctx, is384 ) ) != 0 )
+        goto exit;
+
+    if( ( ret = mbedtls_sha512_update_ret( &ctx, input, ilen ) ) != 0 )
+        goto exit;
+
+    if( ( ret = mbedtls_sha512_finish_ret( &ctx, output ) ) != 0 )
+        goto exit;
+
+exit:
+    mbedtls_sha512_free( &ctx );
+
+    return( ret );
+}

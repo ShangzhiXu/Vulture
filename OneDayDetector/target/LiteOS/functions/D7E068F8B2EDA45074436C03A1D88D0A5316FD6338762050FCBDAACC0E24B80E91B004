@@ -1,0 +1,27 @@
+static err_t pppol2tp_send_zlb(pppol2tp_pcb *l2tp, u16_t ns, u16_t nr) {
+  struct pbuf *pb;
+  u8_t *p;
+  u16_t len;
+
+  /* calculate UDP packet length */
+  len = 12;
+
+  /* allocate a buffer */
+  pb = pbuf_alloc(PBUF_TRANSPORT, len, PBUF_RAM);
+  if (pb == NULL) {
+    return ERR_MEM;
+  }
+  LWIP_ASSERT("pb->tot_len == pb->len", pb->tot_len == pb->len);
+
+  p = (u8_t*)pb->payload;
+  /* fill in pkt */
+  /* L2TP control header */
+  PUTSHORT(PPPOL2TP_HEADERFLAG_CONTROL_MANDATORY, p);
+  PUTSHORT(len, p); /* Length */
+  PUTSHORT(l2tp->source_tunnel_id, p); /* Tunnel Id */
+  PUTSHORT(0, p); /* Session Id */
+  PUTSHORT(ns, p); /* NS Sequence number - to peer */
+  PUTSHORT(nr, p); /* NR Sequence number - expected for peer */
+
+  return pppol2tp_udp_send(l2tp, pb);
+}

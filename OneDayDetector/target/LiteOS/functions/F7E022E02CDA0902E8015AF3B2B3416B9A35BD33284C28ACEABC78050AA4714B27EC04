@@ -1,0 +1,31 @@
+static char *mqtt_add_strings(const char *strs[], uint32_t tmp_len[], uint32_t str_num)
+{
+    uint32_t i;
+    const char hyphen = '_';
+    uint32_t len = 0;
+    char *result;
+    char *cur;
+
+    for (i = 0; i < str_num; i++) {
+        tmp_len[i] = strnlen(strs[i], STRING_MAX_LEN);
+        len += (tmp_len[i] + 1);
+    }
+
+    result = atiny_malloc(len);
+    if (result == NULL) {
+        ATINY_LOG(LOG_FATAL, "mqtt_cmd_ioctl fail");
+        return NULL;
+    }
+
+    cur = result;
+    for (i = 0; i < str_num; i++) {
+        memcpy(cur, strs[i], tmp_len[i]);
+        cur += tmp_len[i];
+        if (i != str_num - 1) {
+            *cur = hyphen;
+            cur++;
+        }
+    }
+    *cur = '\0';
+    return result;
+}

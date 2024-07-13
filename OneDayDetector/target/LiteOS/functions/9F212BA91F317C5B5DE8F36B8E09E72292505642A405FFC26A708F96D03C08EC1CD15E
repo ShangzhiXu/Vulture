@@ -1,0 +1,120 @@
+HAL_StatusTypeDef HAL_ADC_PollForEvent(ADC_HandleTypeDef* hadc, uint32_t EventType, uint32_t Timeout)
+{
+  uint32_t tickstart = 0; 
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+  assert_param(IS_ADC_EVENT_TYPE(EventType));
+  
+  /* Get tick count */
+  tickstart = HAL_GetTick();
+  
+  /* Check selected event flag */
+  while(__HAL_ADC_GET_FLAG(hadc, EventType) == RESET)
+  {
+    /* Check if timeout is disabled (set to infinite wait) */
+    if(Timeout != HAL_MAX_DELAY)
+    {
+      if((Timeout == 0) || ((HAL_GetTick() - tickstart) > Timeout))
+      {
+        /* Update ADC state machine to timeout */
+        SET_BIT(hadc->State, HAL_ADC_STATE_TIMEOUT);
+        
+        /* Process unlocked */
+        __HAL_UNLOCK(hadc);
+        
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+  
+  switch(EventType)
+  {
+  /* End Of Sampling event */
+  case ADC_EOSMP_EVENT:
+    /* Set ADC state */
+    SET_BIT(hadc->State, HAL_ADC_STATE_REG_EOSMP);
+     
+    /* Clear the End Of Sampling flag */
+    __HAL_ADC_CLEAR_FLAG(hadc, ADC_FLAG_EOSMP);
+       
+    break;  
+  
+  /* Analog watchdog (level out of window) event */
+  /* Note: In case of several analog watchdog enabled, if needed to know      */
+  /* which one triggered and on which ADCx, test ADC state of analog watchdog */
+  /* flags HAL_ADC_STATE_AWD1/2/3 using function "HAL_ADC_GetState()".        */
+  /* For example:                                                             */
+  /*  " if (HAL_IS_BIT_SET(HAL_ADC_GetState(hadc1), HAL_ADC_STATE_AWD1)) "    */
+  /*  " if (HAL_IS_BIT_SET(HAL_ADC_GetState(hadc1), HAL_ADC_STATE_AWD2)) "    */
+  /*  " if (HAL_IS_BIT_SET(HAL_ADC_GetState(hadc1), HAL_ADC_STATE_AWD3)) "    */
+  /* Check analog watchdog 1 flag */
+  case ADC_AWD_EVENT:
+    /* Set ADC state */
+    SET_BIT(hadc->State, HAL_ADC_STATE_AWD1);
+    
+    /* Clear ADC analog watchdog flag */
+    __HAL_ADC_CLEAR_FLAG(hadc, ADC_FLAG_AWD1);
+    
+    break;
+  
+  /* Check analog watchdog 2 flag */
+  case ADC_AWD2_EVENT:
+    /* Set ADC state */
+    SET_BIT(hadc->State, HAL_ADC_STATE_AWD2);
+      
+    /* Clear ADC analog watchdog flag */
+    __HAL_ADC_CLEAR_FLAG(hadc, ADC_FLAG_AWD2);
+    
+    break;
+  
+  /* Check analog watchdog 3 flag */
+  case ADC_AWD3_EVENT:
+    /* Set ADC state */
+    SET_BIT(hadc->State, HAL_ADC_STATE_AWD3);
+      
+    /* Clear ADC analog watchdog flag */
+    __HAL_ADC_CLEAR_FLAG(hadc, ADC_FLAG_AWD3);
+    
+    break;
+  
+  /* Injected context queue overflow event */
+  case ADC_JQOVF_EVENT:
+    /* Set ADC state */
+    SET_BIT(hadc->State, HAL_ADC_STATE_INJ_JQOVF);
+    
+    /* Set ADC error code to Injected context queue overflow */
+    SET_BIT(hadc->ErrorCode, HAL_ADC_ERROR_JQOVF);
+    
+    /* Clear ADC Injected context queue overflow flag */
+    __HAL_ADC_CLEAR_FLAG(hadc, ADC_FLAG_JQOVF);
+    
+    break;
+    
+  /* Overrun event */
+  default: /* Case ADC_OVR_EVENT */
+    /* If overrun is set to overwrite previous data, overrun event is not     */
+    /* considered as an error.                                                */
+    /* (cf ref manual "Managing conversions without using the DMA and without */
+    /* overrun ")                                                             */
+    if (hadc->Init.Overrun == ADC_OVR_DATA_PRESERVED)
+    {
+      /* Set ADC state */
+      SET_BIT(hadc->State, HAL_ADC_STATE_REG_OVR);
+        
+      /* Set ADC error code to overrun */
+      SET_BIT(hadc->ErrorCode, HAL_ADC_ERROR_OVR);
+    }
+    else
+    {
+      /* Clear ADC Overrun flag only if Overrun is set to ADC_OVR_DATA_OVERWRITTEN
+         otherwise, data register is potentially overwritten by new converted data as soon
+         as OVR is cleared. */
+      __HAL_ADC_CLEAR_FLAG(hadc, ADC_FLAG_OVR);
+    }
+    break;
+  }
+  
+  /* Return function status */
+  return HAL_OK;
+}

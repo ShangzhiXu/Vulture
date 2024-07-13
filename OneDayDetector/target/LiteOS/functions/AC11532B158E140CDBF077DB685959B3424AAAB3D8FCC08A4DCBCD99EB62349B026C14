@@ -1,0 +1,67 @@
+void lv_label_set_text(lv_obj_t * label, const char * text)
+{
+    LV_ASSERT_OBJ(label, LV_OBJX_NAME);
+
+    lv_obj_invalidate(label);
+
+    lv_label_ext_t * ext = lv_obj_get_ext_attr(label);
+
+    /*If text is NULL then refresh */
+    if(text == NULL) {
+        lv_label_refr_text(label);
+        return;
+    }
+
+    LV_ASSERT_STR(text);
+
+    if(ext->text == text && ext->static_txt == 0) {
+        /*If set its own text then reallocate it (maybe its size changed)*/
+#if LV_USE_ARABIC_PERSIAN_CHARS
+        /*Get the size of the text and process it*/
+        size_t len = _lv_txt_ap_calc_bytes_cnt(text);
+
+        ext->text = lv_mem_realloc(ext->text, len);
+        LV_ASSERT_MEM(ext->text);
+        if(ext->text == NULL) return;
+
+        _lv_txt_ap_proc(ext->text, ext->text);
+#else
+        ext->text = lv_mem_realloc(ext->text, strlen(ext->text) + 1);
+#endif
+
+        LV_ASSERT_MEM(ext->text);
+        if(ext->text == NULL) return;
+    }
+    else {
+        /*Free the old text*/
+        if(ext->text != NULL && ext->static_txt == 0) {
+            lv_mem_free(ext->text);
+            ext->text = NULL;
+        }
+
+#if LV_USE_ARABIC_PERSIAN_CHARS
+        /*Get the size of the text and process it*/
+        size_t len = _lv_txt_ap_calc_bytes_cnt(text);
+
+        ext->text = lv_mem_alloc(len);
+        LV_ASSERT_MEM(ext->text);
+        if(ext->text == NULL) return;
+
+        _lv_txt_ap_proc(text, ext->text);
+#else
+        /*Get the size of the text*/
+        size_t len = strlen(text) + 1;
+
+        /*Allocate space for the new text*/
+        ext->text = lv_mem_alloc(len);
+        LV_ASSERT_MEM(ext->text);
+        if(ext->text == NULL) return;
+        strcpy(ext->text, text);
+#endif
+
+        /*Now the text is dynamically allocated*/
+        ext->static_txt = 0;
+    }
+
+    lv_label_refr_text(label);
+}

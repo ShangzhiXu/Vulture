@@ -1,0 +1,131 @@
+HAL_StatusTypeDef HAL_FMPI2C_Mem_Write_DMA(FMPI2C_HandleTypeDef *hfmpi2c, uint16_t DevAddress, uint16_t MemAddress, uint16_t MemAddSize, uint8_t *pData, uint16_t Size)
+{
+  uint32_t tickstart;
+  uint32_t xfermode;
+  HAL_StatusTypeDef dmaxferstatus;
+
+  /* Check the parameters */
+  assert_param(IS_FMPI2C_MEMADD_SIZE(MemAddSize));
+
+  if (hfmpi2c->State == HAL_FMPI2C_STATE_READY)
+  {
+    if ((pData == NULL) || (Size == 0U))
+    {
+      hfmpi2c->ErrorCode = HAL_FMPI2C_ERROR_INVALID_PARAM;
+      return  HAL_ERROR;
+    }
+
+    if (__HAL_FMPI2C_GET_FLAG(hfmpi2c, FMPI2C_FLAG_BUSY) == SET)
+    {
+      return HAL_BUSY;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hfmpi2c);
+
+    /* Init tickstart for timeout management*/
+    tickstart = HAL_GetTick();
+
+    hfmpi2c->State       = HAL_FMPI2C_STATE_BUSY_TX;
+    hfmpi2c->Mode        = HAL_FMPI2C_MODE_MEM;
+    hfmpi2c->ErrorCode   = HAL_FMPI2C_ERROR_NONE;
+
+    /* Prepare transfer parameters */
+    hfmpi2c->pBuffPtr    = pData;
+    hfmpi2c->XferCount   = Size;
+    hfmpi2c->XferOptions = FMPI2C_NO_OPTION_FRAME;
+    hfmpi2c->XferISR     = FMPI2C_Master_ISR_DMA;
+
+    if (hfmpi2c->XferCount > MAX_NBYTE_SIZE)
+    {
+      hfmpi2c->XferSize = MAX_NBYTE_SIZE;
+      xfermode = FMPI2C_RELOAD_MODE;
+    }
+    else
+    {
+      hfmpi2c->XferSize = hfmpi2c->XferCount;
+      xfermode = FMPI2C_AUTOEND_MODE;
+    }
+
+    /* Send Slave Address and Memory Address */
+    if (FMPI2C_RequestMemoryWrite(hfmpi2c, DevAddress, MemAddress, MemAddSize, FMPI2C_TIMEOUT_FLAG, tickstart) != HAL_OK)
+    {
+      /* Process Unlocked */
+      __HAL_UNLOCK(hfmpi2c);
+      return HAL_ERROR;
+    }
+
+
+    if (hfmpi2c->hdmatx != NULL)
+    {
+      /* Set the FMPI2C DMA transfer complete callback */
+      hfmpi2c->hdmatx->XferCpltCallback = FMPI2C_DMAMasterTransmitCplt;
+
+      /* Set the DMA error callback */
+      hfmpi2c->hdmatx->XferErrorCallback = FMPI2C_DMAError;
+
+      /* Set the unused DMA callbacks to NULL */
+      hfmpi2c->hdmatx->XferHalfCpltCallback = NULL;
+      hfmpi2c->hdmatx->XferAbortCallback = NULL;
+
+      /* Enable the DMA stream */
+      dmaxferstatus = HAL_DMA_Start_IT(hfmpi2c->hdmatx, (uint32_t)pData, (uint32_t)&hfmpi2c->Instance->TXDR, hfmpi2c->XferSize);
+    }
+    else
+    {
+      /* Update FMPI2C state */
+      hfmpi2c->State     = HAL_FMPI2C_STATE_READY;
+      hfmpi2c->Mode      = HAL_FMPI2C_MODE_NONE;
+
+      /* Update FMPI2C error code */
+      hfmpi2c->ErrorCode |= HAL_FMPI2C_ERROR_DMA_PARAM;
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hfmpi2c);
+
+      return HAL_ERROR;
+    }
+
+    if (dmaxferstatus == HAL_OK)
+    {
+      /* Send Slave Address */
+      /* Set NBYTES to write and reload if hfmpi2c->XferCount > MAX_NBYTE_SIZE and generate RESTART */
+      FMPI2C_TransferConfig(hfmpi2c, DevAddress, (uint8_t)hfmpi2c->XferSize, xfermode, FMPI2C_NO_STARTSTOP);
+
+      /* Update XferCount value */
+      hfmpi2c->XferCount -= hfmpi2c->XferSize;
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hfmpi2c);
+
+      /* Note : The FMPI2C interrupts must be enabled after unlocking current process
+                to avoid the risk of FMPI2C interrupt handle execution before current
+                process unlock */
+      /* Enable ERR and NACK interrupts */
+      FMPI2C_Enable_IRQ(hfmpi2c, FMPI2C_XFER_ERROR_IT);
+
+      /* Enable DMA Request */
+      hfmpi2c->Instance->CR1 |= FMPI2C_CR1_TXDMAEN;
+    }
+    else
+    {
+      /* Update FMPI2C state */
+      hfmpi2c->State     = HAL_FMPI2C_STATE_READY;
+      hfmpi2c->Mode      = HAL_FMPI2C_MODE_NONE;
+
+      /* Update FMPI2C error code */
+      hfmpi2c->ErrorCode |= HAL_FMPI2C_ERROR_DMA;
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hfmpi2c);
+
+      return HAL_ERROR;
+    }
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

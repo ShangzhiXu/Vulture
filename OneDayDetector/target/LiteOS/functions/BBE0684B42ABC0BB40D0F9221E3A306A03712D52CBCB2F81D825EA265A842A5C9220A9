@@ -1,0 +1,15 @@
+static void sota_send_request_block(char *ver)
+{
+    char ver_ret[VER_LEN + 2] = {0};
+    char sbuf[64] = {0};
+
+    if ((g_flash_op.firmware_download_stage == BOOTLOADER) && (g_flash_op.current_run_stage == APPLICATION)) {
+        return;
+    }
+
+    memcpy(ver_ret, ver, VER_LEN);
+    ver_ret[VER_LEN] = (g_at_update_record.block_num >> 8) & 0XFF;
+    ver_ret[VER_LEN + 1] = g_at_update_record.block_num & 0XFF;
+    (void)ver_to_hex(ver_ret, (VER_LEN + 2), sbuf);
+    (void)sota_at_send(MSG_GET_BLOCK, sbuf, (VER_LEN + 2) * 2);
+}

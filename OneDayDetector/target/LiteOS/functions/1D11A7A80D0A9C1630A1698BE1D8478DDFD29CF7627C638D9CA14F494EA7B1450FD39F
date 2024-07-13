@@ -1,0 +1,33 @@
+SECUREC_INLINE void SecNumberCompatZero(SecFormatAttr *attr)
+{
+#if SECUREC_IN_KERNEL
+    if ((attr->flags & SECUREC_FLAG_POINTER) != 0) {
+        static char strNullPointer[SECUREC_NULL_STRING_SIZE] = "(null)";
+        attr->text.str = strNullPointer;
+        attr->textLen = 6; /* Length of (null) is 6 */
+        attr->flags &= ~SECUREC_FLAG_LEADZERO;
+        attr->prefixLen = 0;
+        if (attr->precision >= 0 && attr->precision < attr->textLen) {
+            attr->textLen = attr->precision;
+        }
+    }
+    if ((attr->flags & SECUREC_FLAG_POINTER) == 0 && attr->radix == SECUREC_RADIX_HEX &&
+        (attr->flags & SECUREC_FLAG_ALTERNATE) != 0) {
+        /* Add 0x prefix for %x or %X, the prefix string has been set before */
+        attr->prefixLen = SECUREC_PREFIX_LEN;
+    }
+#elif defined(SECUREC_COMPATIBLE_LINUX_FORMAT) && (!defined(SECUREC_ON_UNIX))
+    if ((attr->flags & SECUREC_FLAG_POINTER) != 0) {
+        static char strNullPointer[SECUREC_NULL_STRING_SIZE] = "(nil)";
+        attr->text.str = strNullPointer;
+        attr->textLen = 5; /* Length of (nil) is 5 */
+        attr->flags &= ~SECUREC_FLAG_LEADZERO;
+    }
+#elif defined(SECUREC_VXWORKS_PLATFORM) || defined(__hpux)
+    if ((attr->flags & SECUREC_FLAG_POINTER) != 0 && (attr->flags & SECUREC_FLAG_ALTERNATE) != 0) {
+        /* Add 0x prefix for %p, the prefix string has been set before */
+        attr->prefixLen = SECUREC_PREFIX_LEN;
+    }
+#endif
+    (void)attr; /* To clear e438 last value assigned not used , the compiler will optimize this code */
+}

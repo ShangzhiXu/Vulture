@@ -1,0 +1,28 @@
+static int sota_at_send(msg_code_e msg_code, char *buf, int len)
+{
+    uint32_t ret;
+    char crcretbuf[5] = {0};
+    char tmpbuf[SEND_BUF_LEN + VER_LEN] = {0};
+    ota_pcp_head_s pcp_head = { 0 };
+    unsigned char atwbuf[SEND_BUF_LEN + VER_LEN] = {0};
+    unsigned char hbuf[64] = {0};
+    if (len >= SEND_BUF_LEN) {
+        SOTA_LOG("payload too long");
+        return SOTA_FAILED;
+    }
+    pcp_head.ori_id = htons_ota(PCP_HEAD);
+    pcp_head.ver_num = 1;
+    pcp_head.msg_code = msg_code;
+    pcp_head.data_len = htons_ota(len / 2);
+    (void)ver_to_hex((const char *)&pcp_head, sizeof(ota_pcp_head_s), (char *)hbuf);
+
+    memcpy(atwbuf, hbuf, VER_LEN);
+    memcpy(atwbuf + VER_LEN, buf, len);
+
+    HexStrToByte(atwbuf, (unsigned char *)tmpbuf, len + VER_LEN); // strlen(atwbuf)
+    ret = (uint32_t)crc_check((unsigned char *)tmpbuf, (len + VER_LEN) / 2);
+    (void)snprintf(crcretbuf, sizeof(crcretbuf), "%04X", (unsigned int)ret);
+
+    memcpy(atwbuf + 8, crcretbuf, 4);
+    return g_flash_op.sota_send((char *)atwbuf, len + VER_LEN);
+}

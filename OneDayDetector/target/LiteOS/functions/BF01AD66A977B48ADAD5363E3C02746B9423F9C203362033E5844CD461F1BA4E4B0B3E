@@ -1,0 +1,28 @@
+START_TEST(domain_eq_basic)
+{
+  static const u8_t data[] = {
+      0x05, 'm', 'u', 'l', 't', 'i', 0x04, 'c', 'a', 's', 't', 0x00
+  };
+  struct mdns_domain domain1, domain2;
+  err_t res;
+  LWIP_UNUSED_ARG(_i);
+
+  memset(&domain1, 0, sizeof(domain1));
+  res = mdns_domain_add_label(&domain1, "multi", 5);
+  fail_unless(res == ERR_OK);
+  res = mdns_domain_add_label(&domain1, "cast", 4);
+  fail_unless(res == ERR_OK);
+  res = mdns_domain_add_label(&domain1, NULL, 0);
+  fail_unless(res == ERR_OK);
+  fail_unless(domain1.length == sizeof(data));
+
+  memset(&domain2, 0, sizeof(domain2));
+  res = mdns_domain_add_label(&domain2, "multi", 5);
+  fail_unless(res == ERR_OK);
+  res = mdns_domain_add_label(&domain2, "cast", 4);
+  fail_unless(res == ERR_OK);
+  res = mdns_domain_add_label(&domain2, NULL, 0);
+  fail_unless(res == ERR_OK);
+
+  fail_unless(mdns_domain_eq(&domain1, &domain2));
+}

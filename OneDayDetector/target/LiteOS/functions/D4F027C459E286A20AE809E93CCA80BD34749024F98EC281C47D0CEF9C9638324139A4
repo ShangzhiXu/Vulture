@@ -1,0 +1,32 @@
+snmp_mib_tree_resolve_exact(const struct snmp_mib *mib, const u32_t *oid, u8_t oid_len, u8_t *oid_instance_len)
+{
+  const struct snmp_node *const *node = &mib->root_node;
+  u8_t oid_offset = mib->base_oid_len;
+
+  while ((oid_offset < oid_len) && ((*node)->node_type == SNMP_NODE_TREE)) {
+    /* search for matching sub node */
+    u32_t subnode_oid = *(oid + oid_offset);
+
+    u32_t i = (*(const struct snmp_tree_node * const *)node)->subnode_count;
+    node    = (*(const struct snmp_tree_node * const *)node)->subnodes;
+    while ((i > 0) && ((*node)->oid != subnode_oid)) {
+      node++;
+      i--;
+    }
+
+    if (i == 0) {
+      /* no matching subnode found */
+      return NULL;
+    }
+
+    oid_offset++;
+  }
+
+  if ((*node)->node_type != SNMP_NODE_TREE) {
+    /* we found a leaf node */
+    *oid_instance_len = oid_len - oid_offset;
+    return (*node);
+  }
+
+  return NULL;
+}

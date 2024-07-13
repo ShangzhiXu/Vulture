@@ -1,0 +1,29 @@
+dhcp_coarse_tmr(void)
+{
+  struct netif *netif;
+  LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE, ("dhcp_coarse_tmr()\n"));
+  /* iterate through all network interfaces */
+  NETIF_FOREACH(netif) {
+    /* only act on DHCP configured interfaces */
+    struct dhcp *dhcp = netif_dhcp_data(netif);
+    if ((dhcp != NULL) && (dhcp->state != DHCP_STATE_OFF)) {
+      /* compare lease time to expire timeout */
+      if (dhcp->t0_timeout && (++dhcp->lease_used == dhcp->t0_timeout)) {
+        LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("dhcp_coarse_tmr(): t0 timeout\n"));
+        /* this clients' lease time has expired */
+        dhcp_release_and_stop(netif);
+        dhcp_start(netif);
+        /* timer is active (non zero), and triggers (zeroes) now? */
+      } else if (dhcp->t2_rebind_time && (dhcp->t2_rebind_time-- == 1)) {
+        LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("dhcp_coarse_tmr(): t2 timeout\n"));
+        /* this clients' rebind timeout triggered */
+        dhcp_t2_timeout(netif);
+        /* timer is active (non zero), and triggers (zeroes) now */
+      } else if (dhcp->t1_renew_time && (dhcp->t1_renew_time-- == 1)) {
+        LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("dhcp_coarse_tmr(): t1 timeout\n"));
+        /* this clients' renewal timeout triggered */
+        dhcp_t1_timeout(netif);
+      }
+    }
+  }
+}

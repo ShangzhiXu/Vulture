@@ -1,0 +1,21 @@
+http_eof(struct altcp_pcb *pcb, struct http_state *hs)
+{
+  /* HTTP/1.1 persistent connection? (Not supported for SSI) */
+#if LWIP_HTTPD_SUPPORT_11_KEEPALIVE
+  if (hs->keepalive) {
+    http_remove_connection(hs);
+
+    http_state_eof(hs);
+    http_state_init(hs);
+    /* restore state: */
+    hs->pcb = pcb;
+    hs->keepalive = 1;
+    http_add_connection(hs);
+    /* ensure nagle doesn't interfere with sending all data as fast as possible: */
+    altcp_nagle_disable(pcb);
+  } else
+#endif /* LWIP_HTTPD_SUPPORT_11_KEEPALIVE */
+  {
+    http_close_conn(pcb, hs);
+  }
+}

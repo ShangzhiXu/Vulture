@@ -1,0 +1,44 @@
+HAL_StatusTypeDef HAL_TIM_Encoder_Stop_DMA(TIM_HandleTypeDef *htim, uint32_t Channel)
+{
+  /* Check the parameters */
+  assert_param(IS_TIM_DMA_CC_INSTANCE(htim->Instance));
+
+  /* Disable the Input Capture channels 1 and 2
+    (in the EncoderInterface the two possible channels that can be used are TIM_CHANNEL_1 and TIM_CHANNEL_2) */
+  if (Channel == TIM_CHANNEL_1)
+  {
+    TIM_CCxChannelCmd(htim->Instance, TIM_CHANNEL_1, TIM_CCx_DISABLE);
+
+    /* Disable the capture compare DMA Request 1 */
+    __HAL_TIM_DISABLE_DMA(htim, TIM_DMA_CC1);
+    (void)HAL_DMA_Abort_IT(htim->hdma[TIM_DMA_ID_CC1]);
+  }
+  else if (Channel == TIM_CHANNEL_2)
+  {
+    TIM_CCxChannelCmd(htim->Instance, TIM_CHANNEL_2, TIM_CCx_DISABLE);
+
+    /* Disable the capture compare DMA Request 2 */
+    __HAL_TIM_DISABLE_DMA(htim, TIM_DMA_CC2);
+    (void)HAL_DMA_Abort_IT(htim->hdma[TIM_DMA_ID_CC2]);
+  }
+  else
+  {
+    TIM_CCxChannelCmd(htim->Instance, TIM_CHANNEL_1, TIM_CCx_DISABLE);
+    TIM_CCxChannelCmd(htim->Instance, TIM_CHANNEL_2, TIM_CCx_DISABLE);
+
+    /* Disable the capture compare DMA Request 1 and 2 */
+    __HAL_TIM_DISABLE_DMA(htim, TIM_DMA_CC1);
+    __HAL_TIM_DISABLE_DMA(htim, TIM_DMA_CC2);
+    (void)HAL_DMA_Abort_IT(htim->hdma[TIM_DMA_ID_CC1]);
+    (void)HAL_DMA_Abort_IT(htim->hdma[TIM_DMA_ID_CC2]);
+  }
+
+  /* Disable the Peripheral */
+  __HAL_TIM_DISABLE(htim);
+
+  /* Change the htim state */
+  htim->State = HAL_TIM_STATE_READY;
+
+  /* Return function status */
+  return HAL_OK;
+}

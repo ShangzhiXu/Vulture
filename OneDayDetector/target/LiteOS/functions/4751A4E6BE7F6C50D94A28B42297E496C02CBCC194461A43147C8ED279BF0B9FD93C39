@@ -1,0 +1,137 @@
+static void QSPI_Config(QSPI_HandleTypeDef *hqspi, QSPI_CommandTypeDef *cmd, uint32_t FunctionalMode)
+{
+  assert_param(IS_QSPI_FUNCTIONAL_MODE(FunctionalMode));
+
+  if ((cmd->DataMode != QSPI_DATA_NONE) && (FunctionalMode != QSPI_FUNCTIONAL_MODE_MEMORY_MAPPED))
+  {
+    /* Configure QSPI: DLR register with the number of data to read or write */
+    WRITE_REG(hqspi->Instance->DLR, (cmd->NbData - 1));
+  }
+
+  if (cmd->InstructionMode != QSPI_INSTRUCTION_NONE)
+  {
+    if (cmd->AlternateByteMode != QSPI_ALTERNATE_BYTES_NONE)
+    {
+      /* Configure QSPI: ABR register with alternate bytes value */
+      WRITE_REG(hqspi->Instance->ABR, cmd->AlternateBytes);
+
+      if (cmd->AddressMode != QSPI_ADDRESS_NONE)
+      {
+        /*---- Command with instruction, address and alternate bytes ----*/
+        /* Configure QSPI: CCR register with all communications parameters */
+        WRITE_REG(hqspi->Instance->CCR, (cmd->DdrMode | cmd->DdrHoldHalfCycle | cmd->SIOOMode | 
+                                         cmd->DataMode | (cmd->DummyCycles << QUADSPI_CCR_DCYC_Pos) | 
+                                         cmd->AlternateBytesSize | cmd->AlternateByteMode | 
+                                         cmd->AddressSize | cmd->AddressMode | cmd->InstructionMode | 
+                                         cmd->Instruction | FunctionalMode));
+
+        if (FunctionalMode != QSPI_FUNCTIONAL_MODE_MEMORY_MAPPED)
+        {
+          /* Configure QSPI: AR register with address value */
+          WRITE_REG(hqspi->Instance->AR, cmd->Address);
+        }
+      }
+      else
+      {
+        /*---- Command with instruction and alternate bytes ----*/
+        /* Configure QSPI: CCR register with all communications parameters */
+        WRITE_REG(hqspi->Instance->CCR, (cmd->DdrMode | cmd->DdrHoldHalfCycle | cmd->SIOOMode | 
+                                         cmd->DataMode | (cmd->DummyCycles << QUADSPI_CCR_DCYC_Pos) | 
+                                         cmd->AlternateBytesSize | cmd->AlternateByteMode | 
+                                         cmd->AddressMode | cmd->InstructionMode | 
+                                         cmd->Instruction | FunctionalMode));
+      }
+    }
+    else
+    {
+      if (cmd->AddressMode != QSPI_ADDRESS_NONE)
+      {
+        /*---- Command with instruction and address ----*/
+        /* Configure QSPI: CCR register with all communications parameters */
+        WRITE_REG(hqspi->Instance->CCR, (cmd->DdrMode | cmd->DdrHoldHalfCycle | cmd->SIOOMode | 
+                                         cmd->DataMode | (cmd->DummyCycles << QUADSPI_CCR_DCYC_Pos) | 
+                                         cmd->AlternateByteMode | cmd->AddressSize | cmd->AddressMode | 
+                                         cmd->InstructionMode | cmd->Instruction | FunctionalMode));
+
+        if (FunctionalMode != QSPI_FUNCTIONAL_MODE_MEMORY_MAPPED)
+        {
+          /* Configure QSPI: AR register with address value */
+          WRITE_REG(hqspi->Instance->AR, cmd->Address);
+        }
+      }
+      else
+      {
+        /*---- Command with only instruction ----*/
+        /* Configure QSPI: CCR register with all communications parameters */
+        WRITE_REG(hqspi->Instance->CCR, (cmd->DdrMode | cmd->DdrHoldHalfCycle | cmd->SIOOMode | 
+                                         cmd->DataMode | (cmd->DummyCycles << QUADSPI_CCR_DCYC_Pos) | 
+                                         cmd->AlternateByteMode | cmd->AddressMode | 
+                                         cmd->InstructionMode | cmd->Instruction | FunctionalMode));
+      }
+    }
+  }
+  else
+  {
+    if (cmd->AlternateByteMode != QSPI_ALTERNATE_BYTES_NONE)
+    {
+      /* Configure QSPI: ABR register with alternate bytes value */
+      WRITE_REG(hqspi->Instance->ABR, cmd->AlternateBytes);
+
+      if (cmd->AddressMode != QSPI_ADDRESS_NONE)
+      {
+        /*---- Command with address and alternate bytes ----*/
+        /* Configure QSPI: CCR register with all communications parameters */
+        WRITE_REG(hqspi->Instance->CCR, (cmd->DdrMode | cmd->DdrHoldHalfCycle | cmd->SIOOMode | 
+                                         cmd->DataMode | (cmd->DummyCycles << QUADSPI_CCR_DCYC_Pos) | 
+                                         cmd->AlternateBytesSize | cmd->AlternateByteMode | 
+                                         cmd->AddressSize | cmd->AddressMode | 
+                                         cmd->InstructionMode | FunctionalMode));
+
+        if (FunctionalMode != QSPI_FUNCTIONAL_MODE_MEMORY_MAPPED)
+        {
+          /* Configure QSPI: AR register with address value */
+          WRITE_REG(hqspi->Instance->AR, cmd->Address);
+        }
+      }
+      else
+      {
+        /*---- Command with only alternate bytes ----*/
+        /* Configure QSPI: CCR register with all communications parameters */
+        WRITE_REG(hqspi->Instance->CCR, (cmd->DdrMode | cmd->DdrHoldHalfCycle | cmd->SIOOMode | 
+                                         cmd->DataMode | (cmd->DummyCycles << QUADSPI_CCR_DCYC_Pos) | 
+                                         cmd->AlternateBytesSize | cmd->AlternateByteMode | 
+                                         cmd->AddressMode | cmd->InstructionMode | FunctionalMode));
+      }
+    }
+    else
+    {
+      if (cmd->AddressMode != QSPI_ADDRESS_NONE)
+      {
+        /*---- Command with only address ----*/
+        /* Configure QSPI: CCR register with all communications parameters */
+        WRITE_REG(hqspi->Instance->CCR, (cmd->DdrMode | cmd->DdrHoldHalfCycle | cmd->SIOOMode | 
+                                         cmd->DataMode | (cmd->DummyCycles << QUADSPI_CCR_DCYC_Pos) | 
+                                         cmd->AlternateByteMode | cmd->AddressSize | 
+                                         cmd->AddressMode | cmd->InstructionMode | FunctionalMode));
+
+        if (FunctionalMode != QSPI_FUNCTIONAL_MODE_MEMORY_MAPPED)
+        {
+          /* Configure QSPI: AR register with address value */
+          WRITE_REG(hqspi->Instance->AR, cmd->Address);
+        }
+      }
+      else
+      {
+        /*---- Command with only data phase ----*/
+        if (cmd->DataMode != QSPI_DATA_NONE)
+        {
+          /* Configure QSPI: CCR register with all communications parameters */
+          WRITE_REG(hqspi->Instance->CCR, (cmd->DdrMode | cmd->DdrHoldHalfCycle | cmd->SIOOMode | 
+                                           cmd->DataMode | (cmd->DummyCycles << QUADSPI_CCR_DCYC_Pos) | 
+                                           cmd->AlternateByteMode | cmd->AddressMode | 
+                                           cmd->InstructionMode | FunctionalMode));
+        }
+      }
+    }
+  }
+}

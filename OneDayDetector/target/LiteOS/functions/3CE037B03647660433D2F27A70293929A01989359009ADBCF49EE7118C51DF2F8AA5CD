@@ -1,0 +1,56 @@
+lwm2m_binding_t utils_stringToBinding(uint8_t *buffer,
+                                      size_t length)
+{
+    if (length == 0) return BINDING_UNKNOWN;
+
+    switch (buffer[0])
+    {
+    case 'U':
+        switch (length)
+        {
+        case 1:
+            return BINDING_U;
+        case 2:
+            switch (buffer[1])
+            {
+            case 'Q':
+                return BINDING_UQ;
+            case 'S':
+                return BINDING_US;
+            default:
+                break;
+            }
+            break;
+        case 3:
+            if (buffer[1] == 'Q' && buffer[2] == 'S')
+            {
+                return BINDING_UQS;
+            }
+            break;
+        default:
+            break;
+        }
+        break;
+
+    case 'S':
+        switch (length)
+        {
+        case 1:
+            return BINDING_S;
+        case 2:
+            if (buffer[1] == 'Q')
+            {
+                return BINDING_SQ;
+            }
+            break;
+        default:
+            break;
+        }
+        break;
+
+    default:
+        break;
+    }
+
+    return BINDING_UNKNOWN;
+}

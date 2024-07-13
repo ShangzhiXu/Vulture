@@ -1,0 +1,25 @@
+uint32_t BSP_EEPROM_WritePage(uint8_t* pBuffer, uint16_t WriteAddr, uint8_t* NumByteToWrite)
+{ 
+  uint32_t buffersize = *NumByteToWrite;
+  uint32_t status = EEPROM_OK;
+  
+  /* Set the pointer to the Number of data to be written. This pointer will be used 
+      by the DMA Transfer Completer interrupt Handler in order to reset the 
+      variable to 0. User should check on this variable in order to know if the 
+      DMA transfer has been complete or not. */
+  EEPROMDataWrite = *NumByteToWrite;  
+  
+  if(EEPROM_IO_WriteData(EEPROMAddress, WriteAddr, pBuffer, buffersize) != HAL_OK)
+  {
+    BSP_EEPROM_TIMEOUT_UserCallback();
+    status = EEPROM_FAIL;
+  }
+  
+  if(BSP_EEPROM_WaitEepromStandbyState() != EEPROM_OK) 
+  {
+    return EEPROM_FAIL;
+  }
+  
+  /* If all operations OK, return EEPROM_OK (0) */
+  return status;
+}

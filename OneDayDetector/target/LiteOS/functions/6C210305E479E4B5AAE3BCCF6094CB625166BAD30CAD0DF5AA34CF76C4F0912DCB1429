@@ -1,0 +1,64 @@
+nd6_send_ns(struct netif *netif, const ip6_addr_t *target_addr, u8_t flags)
+{
+  struct ns_header *ns_hdr;
+  struct pbuf *p;
+  const ip6_addr_t *src_addr;
+  u16_t lladdr_opt_len;
+
+  LWIP_ASSERT("target address is required", target_addr != NULL);
+
+  if (!(flags & ND6_SEND_FLAG_ANY_SRC) &&
+      ip6_addr_isvalid(netif_ip6_addr_state(netif,0))) {
+    /* Use link-local address as source address. */
+    src_addr = netif_ip6_addr(netif, 0);
+    /* calculate option length (in 8-byte-blocks) */
+    lladdr_opt_len = ((netif->hwaddr_len + 2) + 7) >> 3;
+  } else {
+    src_addr = IP6_ADDR_ANY6;
+    /* Option "MUST NOT be included when the source IP address is the unspecified address." */
+    lladdr_opt_len = 0;
+  }
+
+  /* Allocate a packet. */
+  p = pbuf_alloc(PBUF_IP, sizeof(struct ns_header) + (lladdr_opt_len << 3), PBUF_RAM);
+  if (p == NULL) {
+    ND6_STATS_INC(nd6.memerr);
+    return;
+  }
+
+  /* Set fields. */
+  ns_hdr = (struct ns_header *)p->payload;
+
+  ns_hdr->type = ICMP6_TYPE_NS;
+  ns_hdr->code = 0;
+  ns_hdr->chksum = 0;
+  ns_hdr->reserved = 0;
+  ip6_addr_copy_to_packed(ns_hdr->target_address, *target_addr);
+
+  if (lladdr_opt_len != 0) {
+    struct lladdr_option *lladdr_opt = (struct lladdr_option *)((u8_t*)p->payload + sizeof(struct ns_header));
+    lladdr_opt->type = ND6_OPTION_TYPE_SOURCE_LLADDR;
+    lladdr_opt->length = (u8_t)lladdr_opt_len;
+    SMEMCPY(lladdr_opt->addr, netif->hwaddr, netif->hwaddr_len);
+  }
+
+  /* Generate the solicited node address for the target address. */
+  if (flags & ND6_SEND_FLAG_MULTICAST_DEST) {
+    ip6_addr_set_solicitednode(&multicast_address, target_addr->addr[3]);
+    ip6_addr_assign_zone(&multicast_address, IP6_MULTICAST, netif);
+    target_addr = &multicast_address;
+  }
+
+#if CHECKSUM_GEN_ICMP6
+  IF__NETIF_CHECKSUM_ENABLED(netif, NETIF_CHECKSUM_GEN_ICMP6) {
+    ns_hdr->chksum = ip6_chksum_pseudo(p, IP6_NEXTH_ICMP6, p->len, src_addr,
+      target_addr);
+  }
+#endif /* CHECKSUM_GEN_ICMP6 */
+
+  /* Send the packet out. */
+  ND6_STATS_INC(nd6.xmit);
+  ip6_output_if(p, (src_addr == IP6_ADDR_ANY6) ? NULL : src_addr, target_addr,
+      ND6_HOPLIM, 0, IP6_NEXTH_ICMP6, netif);
+  pbuf_free(p);
+}

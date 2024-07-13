@@ -1,0 +1,39 @@
+struct spiffs_dirent *SPIFFS_readdir(spiffs_DIR *d, struct spiffs_dirent *e)
+{
+    SPIFFS_API_DBG("%s\n", __func__);
+    if (!SPIFFS_CHECK_MOUNT(d->fs))
+    {
+        d->fs->err_code = SPIFFS_ERR_NOT_MOUNTED;
+        return 0;
+    }
+    SPIFFS_LOCK(d->fs);
+
+    spiffs_block_ix bix;
+    int entry;
+    s32_t res;
+    struct spiffs_dirent *ret = 0;
+
+    res = spiffs_obj_lu_find_entry_visitor(d->fs,
+                                           d->block,
+                                           d->entry,
+                                           SPIFFS_VIS_NO_WRAP,
+                                           0,
+                                           spiffs_read_dir_v,
+                                           0,
+                                           e,
+                                           &bix,
+                                           &entry);
+    if (res == SPIFFS_OK)
+    {
+        d->block = bix;
+        d->entry = entry + 1;
+        e->obj_id &= ~SPIFFS_OBJ_ID_IX_FLAG;
+        ret = e;
+    }
+    else
+    {
+        d->fs->err_code = res;
+    }
+    SPIFFS_UNLOCK(d->fs);
+    return ret;
+}

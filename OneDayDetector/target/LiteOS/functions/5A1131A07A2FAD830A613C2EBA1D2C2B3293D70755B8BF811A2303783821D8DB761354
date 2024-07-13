@@ -1,0 +1,41 @@
+static void DMA_Config(void)
+{
+    /*## -1- Enable DMA2 clock #################################################*/
+    __HAL_RCC_DMA2_CLK_ENABLE();
+
+    /*##-2- Select the DMA functional Parameters ###############################*/
+    DmaHandle.Init.Channel = DMA_CHANNEL;                     /* DMA_CHANNEL_0                    */
+    DmaHandle.Init.Direction = DMA_MEMORY_TO_MEMORY;          /* M2M transfer mode                */
+    DmaHandle.Init.PeriphInc = DMA_PINC_ENABLE;               /* Peripheral increment mode Enable */
+    DmaHandle.Init.MemInc = DMA_MINC_ENABLE;                  /* Memory increment mode Enable     */
+#if LV_COLOR_DEPTH == 16
+    DmaHandle.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD; /* Peripheral data alignment : 16bit */
+    DmaHandle.Init.MemDataAlignment = DMA_MDATAALIGN_HALFWORD;    /* memory data alignment : 16bit     */
+#else
+    DmaHandle.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD; /* Peripheral data alignment : 16bit */
+    DmaHandle.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;    /* memory data alignment : 16bit     */
+#endif
+    DmaHandle.Init.Mode = DMA_NORMAL;                         /* Normal DMA mode                  */
+    DmaHandle.Init.Priority = DMA_PRIORITY_HIGH;              /* priority level : high            */
+    DmaHandle.Init.FIFOMode = DMA_FIFOMODE_ENABLE;            /* FIFO mode enabled                */
+    DmaHandle.Init.FIFOThreshold = DMA_FIFO_THRESHOLD_1QUARTERFULL; /* FIFO threshold: 1/4 full   */
+    DmaHandle.Init.MemBurst = DMA_MBURST_SINGLE;              /* Memory burst                     */
+    DmaHandle.Init.PeriphBurst = DMA_PBURST_SINGLE;           /* Peripheral burst                 */
+
+    /*##-3- Select the DMA instance to be used for the transfer : DMA2_Stream0 #*/
+    DmaHandle.Instance = DMA_STREAM;
+
+    /*##-4- Initialize the DMA stream ##########################################*/
+    if(HAL_DMA_Init(&DmaHandle) != HAL_OK)
+    {
+      while(1);
+    }
+
+    /*##-5- Select Callbacks functions called after Transfer complete and Transfer error */
+    HAL_DMA_RegisterCallback(&DmaHandle, HAL_DMA_XFER_CPLT_CB_ID, DMA_TransferComplete);
+    HAL_DMA_RegisterCallback(&DmaHandle, HAL_DMA_XFER_ERROR_CB_ID, DMA_TransferError);
+
+    /*##-6- Configure NVIC for DMA transfer complete/error interrupts ##########*/
+    HAL_NVIC_SetPriority(DMA_STREAM_IRQ, 0, 0);
+    HAL_NVIC_EnableIRQ(DMA_STREAM_IRQ);
+}

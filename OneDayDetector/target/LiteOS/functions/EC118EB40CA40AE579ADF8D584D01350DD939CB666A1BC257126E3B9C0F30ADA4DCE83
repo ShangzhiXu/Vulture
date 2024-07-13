@@ -1,0 +1,42 @@
+LITE_OS_SEC_TEXT_MINOR VOID OsShellCmdDumpSched(VOID)
+{
+    LosTaskCB *taskCB = NULL;
+    UINT32 loop;
+    UINT32 cpuId;
+#ifdef LOSCFG_KERNEL_SMP
+    UINT32 affinity;
+#endif
+
+    PRINTK("\n");
+    PRINTK("Task                          TID              Total Time     Total CST     "
+           "CPU                   Time           CST\n");
+    PRINTK("----                          ---      ------------------    ----------    -"
+           "---     ------------------    ----------\n");
+
+    for (loop = 0; loop < g_taskMaxNum; loop++) {
+        taskCB = (((LosTaskCB *)g_taskCBArray) + loop);
+        if (taskCB->taskStatus & OS_TASK_STATUS_UNUSED) {
+            continue;
+        }
+#ifdef LOSCFG_KERNEL_SMP
+        affinity = (UINT32)taskCB->cpuAffiMask;
+#endif
+        PRINTK("%-30s0x%-6x%+16lf ms  %10d\n", taskCB->taskName, taskCB->taskId,
+               (DOUBLE)(taskCB->schedStat.allRuntime) / NS_PER_MS,
+               taskCB->schedStat.allContextSwitch);
+
+        for (cpuId = 0; cpuId < LOSCFG_KERNEL_CORE_NUM; cpuId++) {
+#ifdef LOSCFG_KERNEL_SMP
+            if (!((1U << cpuId) & affinity)) {
+                continue;
+            }
+#endif
+            PRINTK("                                                                           "
+                   "CPU%d    %+16lf ms  %12d\n", cpuId,
+                   (DOUBLE)(taskCB->schedStat.schedPercpu[cpuId].runtime) / NS_PER_MS,
+                   taskCB->schedStat.schedPercpu[cpuId].contexSwitch);
+        }
+    }
+
+    PRINTK("\n");
+}

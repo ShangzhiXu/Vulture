@@ -1,0 +1,22 @@
+int32_t bg36_send(int32_t id, const uint8_t *buf, uint32_t len)
+{
+    char *cmd1 = "AT+QISEND=";
+    char cmd[64] = {0};
+    int ret;
+    if ((id < 0) || (id >= MAX_BG36_SOCK_NUM) || (len >= MAX_SEND_DATA_LEN)) {
+        AT_LOG("invalid args sockid:%d len:%d", (int)id, (int)len);
+        return AT_FAILED;
+    }
+    (void)snprintf(cmd, sizeof(cmd), "%s%d,%d%c", cmd1, (int)id, (int)len, '\r');
+    ret = bg36_cmd(cmd, strlen(cmd), ">", NULL, NULL);
+    if (ret) {
+        AT_LOG("socket invalid,no >");
+        return AT_FAILED;
+    }
+    ret = bg36_cmd((char *)buf, len, "OK", NULL, NULL);
+    if (ret) {
+        AT_LOG("data send failed");
+        return AT_FAILED;
+    }
+    return len;
+}

@@ -1,0 +1,42 @@
+STATIC UINT32 OsMemInfoGet(const VOID *pool, LOS_MEM_POOL_STATUS *poolStatus)
+{
+    LosMemPoolInfo *poolInfo = (LosMemPoolInfo *)pool;
+    LosMemDynNode *tmpNode = NULL;
+    UINT32 totalUsedSize = 0;
+    UINT32 totalFreeSize = 0;
+    UINT32 maxFreeNodeSize = 0;
+    UINT32 usedNodeNum = 0;
+    UINT32 freeNodeNum = 0;
+
+    tmpNode = (LosMemDynNode *)OS_MEM_END_NODE(pool, poolInfo->poolSize);
+    tmpNode = (LosMemDynNode *)OS_MEM_ALIGN(tmpNode, OS_MEM_ALIGN_SIZE);
+    if (!OS_MEM_MAGIC_VALID(tmpNode->selfNode.freeNodeInfo.pstPrev)) {
+        PRINT_ERR("wrong mem pool addr: %p\n, line:%d", poolInfo, __LINE__);
+        return LOS_NOK;
+    }
+
+    for (tmpNode = OS_MEM_FIRST_NODE(poolInfo); tmpNode <= OS_MEM_END_NODE(poolInfo, poolInfo->poolSize);
+         tmpNode = OS_MEM_NEXT_NODE(tmpNode)) {
+        if (!OS_MEM_NODE_GET_USED_FLAG(tmpNode->selfNode.sizeAndFlag)) {
+            ++freeNodeNum;
+            totalFreeSize += OS_MEM_NODE_GET_SIZE(tmpNode->selfNode.sizeAndFlag);
+            if (maxFreeNodeSize < OS_MEM_NODE_GET_SIZE(tmpNode->selfNode.sizeAndFlag)) {
+                maxFreeNodeSize = OS_MEM_NODE_GET_SIZE(tmpNode->selfNode.sizeAndFlag);
+            }
+        } else {
+            ++usedNodeNum;
+            totalUsedSize += OS_MEM_NODE_GET_SIZE(tmpNode->selfNode.sizeAndFlag);
+        }
+    }
+
+    poolStatus->uwTotalUsedSize = totalUsedSize;
+    poolStatus->uwTotalFreeSize = totalFreeSize;
+    poolStatus->uwMaxFreeNodeSize = maxFreeNodeSize;
+    poolStatus->uwUsedNodeNum = usedNodeNum;
+    poolStatus->uwFreeNodeNum = freeNodeNum;
+#ifdef LOSCFG_MEM_TASK_STAT
+    poolStatus->uwUsageWaterLine = poolInfo->stat.memTotalPeak;
+#endif
+
+    return LOS_OK;
+}

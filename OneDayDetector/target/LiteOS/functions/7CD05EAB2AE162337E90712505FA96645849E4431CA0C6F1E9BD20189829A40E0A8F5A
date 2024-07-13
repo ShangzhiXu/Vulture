@@ -1,0 +1,25 @@
+HAL_StatusTypeDef USB_EPClearStall(USB_TypeDef *USBx, USB_EPTypeDef *ep)
+{
+  if (ep->doublebuffer == 0U)
+  {
+    if (ep->is_in != 0U)
+    {
+      PCD_CLEAR_TX_DTOG(USBx, ep->num);
+
+      if (ep->type != EP_TYPE_ISOC)
+      {
+        /* Configure NAK status for the Endpoint */
+        PCD_SET_EP_TX_STATUS(USBx, ep->num, USB_EP_TX_NAK);
+      }
+    }
+    else
+    {
+      PCD_CLEAR_RX_DTOG(USBx, ep->num);
+
+      /* Configure VALID status for the Endpoint*/
+      PCD_SET_EP_RX_STATUS(USBx, ep->num, USB_EP_RX_VALID);
+    }
+  }
+
+  return HAL_OK;
+}

@@ -1,0 +1,25 @@
+static FRESULT store_xdir (
+	DIR* dp				/* Pointer to the direcotry object */
+)
+{
+	FRESULT res;
+	UINT nent;
+	BYTE* dirb = dp->obj.fs->dirbuf;	/* Pointer to the direcotry entry block 85+C0+C1s */
+
+	/* Create set sum */
+	st_word(dirb + XDIR_SetSum, xdir_sum(dirb));
+	nent = dirb[XDIR_NumSec] + 1;
+
+	/* Store the direcotry entry block to the directory */
+	res = dir_sdi(dp, dp->blk_ofs);
+	while (res == FR_OK) {
+		res = move_window(dp->obj.fs, dp->sect);
+		if (res != FR_OK) break;
+		mem_cpy(dp->dir, dirb, SZDIRE);
+		dp->obj.fs->wflag = 1;
+		if (--nent == 0) break;
+		dirb += SZDIRE;
+		res = dir_next(dp, 0);
+	}
+	return (res == FR_OK || res == FR_DISK_ERR) ? res : FR_INT_ERR;
+}

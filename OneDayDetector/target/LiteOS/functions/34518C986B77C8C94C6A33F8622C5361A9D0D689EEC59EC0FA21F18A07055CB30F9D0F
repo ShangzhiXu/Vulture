@@ -1,0 +1,133 @@
+HAL_StatusTypeDef HAL_CAN_Transmit(CAN_HandleTypeDef* hcan, uint32_t Timeout)
+{
+  uint32_t transmitmailbox = CAN_TXSTATUS_NOMAILBOX;
+  uint32_t tickstart = 0U;
+
+  /* Check the parameters */
+  assert_param(IS_CAN_IDTYPE(hcan->pTxMsg->IDE));
+  assert_param(IS_CAN_RTR(hcan->pTxMsg->RTR));
+  assert_param(IS_CAN_DLC(hcan->pTxMsg->DLC));
+
+  if(((hcan->Instance->TSR&CAN_TSR_TME0) == CAN_TSR_TME0) || \
+     ((hcan->Instance->TSR&CAN_TSR_TME1) == CAN_TSR_TME1) || \
+     ((hcan->Instance->TSR&CAN_TSR_TME2) == CAN_TSR_TME2))
+  {
+    /* Process locked */
+    __HAL_LOCK(hcan);
+  
+    /* Change CAN state */
+    switch(hcan->State)
+    {
+      case(HAL_CAN_STATE_BUSY_RX0):
+          hcan->State = HAL_CAN_STATE_BUSY_TX_RX0;
+          break;
+      case(HAL_CAN_STATE_BUSY_RX1):
+          hcan->State = HAL_CAN_STATE_BUSY_TX_RX1;
+          break;
+      case(HAL_CAN_STATE_BUSY_RX0_RX1):
+          hcan->State = HAL_CAN_STATE_BUSY_TX_RX0_RX1;
+          break;
+      default: /* HAL_CAN_STATE_READY */
+          hcan->State = HAL_CAN_STATE_BUSY_TX;
+          break;
+    }
+  
+    /* Select one empty transmit mailbox */
+    if ((hcan->Instance->TSR&CAN_TSR_TME0) == CAN_TSR_TME0)
+    {
+      transmitmailbox = CAN_TXMAILBOX_0;
+    }
+    else if ((hcan->Instance->TSR&CAN_TSR_TME1) == CAN_TSR_TME1)
+    {
+      transmitmailbox = CAN_TXMAILBOX_1;
+    }
+    else
+    {
+      transmitmailbox = CAN_TXMAILBOX_2;
+    }
+
+    /* Set up the Id */
+    hcan->Instance->sTxMailBox[transmitmailbox].TIR &= CAN_TI0R_TXRQ;
+    if (hcan->pTxMsg->IDE == CAN_ID_STD)
+    {
+      assert_param(IS_CAN_STDID(hcan->pTxMsg->StdId));
+      hcan->Instance->sTxMailBox[transmitmailbox].TIR |= ((hcan->pTxMsg->StdId << 21U) | \
+                                                  hcan->pTxMsg->RTR);
+    }
+    else
+    {
+      assert_param(IS_CAN_EXTID(hcan->pTxMsg->ExtId));
+      hcan->Instance->sTxMailBox[transmitmailbox].TIR |= ((hcan->pTxMsg->ExtId << 3U) | \
+                                                  hcan->pTxMsg->IDE | \
+                                                  hcan->pTxMsg->RTR);
+    }
+    
+    /* Set up the DLC */
+    hcan->pTxMsg->DLC &= (uint8_t)0x0000000F;
+    hcan->Instance->sTxMailBox[transmitmailbox].TDTR &= (uint32_t)0xFFFFFFF0U;
+    hcan->Instance->sTxMailBox[transmitmailbox].TDTR |= hcan->pTxMsg->DLC;
+
+    /* Set up the data field */
+    hcan->Instance->sTxMailBox[transmitmailbox].TDLR = (((uint32_t)hcan->pTxMsg->Data[3U] << 24U) |
+                                             ((uint32_t)hcan->pTxMsg->Data[2U] << 16U) |
+                                             ((uint32_t)hcan->pTxMsg->Data[1U] << 8U) |
+                                             ((uint32_t)hcan->pTxMsg->Data[0U]));
+    hcan->Instance->sTxMailBox[transmitmailbox].TDHR = (((uint32_t)hcan->pTxMsg->Data[7U] << 24U) |
+                                             ((uint32_t)hcan->pTxMsg->Data[6U] << 16U) |
+                                             ((uint32_t)hcan->pTxMsg->Data[5U] << 8U) |
+                                             ((uint32_t)hcan->pTxMsg->Data[4U]));
+    /* Request transmission */
+    hcan->Instance->sTxMailBox[transmitmailbox].TIR |= CAN_TI0R_TXRQ;
+  
+    /* Get tick */
+    tickstart = HAL_GetTick();
+  
+    /* Check End of transmission flag */
+    while(!(__HAL_CAN_TRANSMIT_STATUS(hcan, transmitmailbox)))
+    {
+      /* Check for the Timeout */
+      if(Timeout != HAL_MAX_DELAY)
+      {
+        if((Timeout == 0U)||((HAL_GetTick() - tickstart ) > Timeout))
+        {
+          hcan->State = HAL_CAN_STATE_TIMEOUT;
+          __HAL_CAN_CANCEL_TRANSMIT(hcan, transmitmailbox);
+          /* Process unlocked */
+          __HAL_UNLOCK(hcan);
+          return HAL_TIMEOUT;
+        }
+      }
+    }
+
+    /* Change CAN state */
+    switch(hcan->State)
+    {
+      case(HAL_CAN_STATE_BUSY_TX_RX0):
+          hcan->State = HAL_CAN_STATE_BUSY_RX0;
+          break;
+      case(HAL_CAN_STATE_BUSY_TX_RX1):
+          hcan->State = HAL_CAN_STATE_BUSY_RX1;
+          break;
+      case(HAL_CAN_STATE_BUSY_TX_RX0_RX1):
+          hcan->State = HAL_CAN_STATE_BUSY_RX0_RX1;
+          break;
+      default: /* HAL_CAN_STATE_BUSY_TX */
+          hcan->State = HAL_CAN_STATE_READY;
+          break;
+    }
+
+    /* Process unlocked */
+    __HAL_UNLOCK(hcan);
+    
+    /* Return function status */
+    return HAL_OK;
+  }
+  else
+  {
+    /* Change CAN state */
+    hcan->State = HAL_CAN_STATE_ERROR;
+
+    /* Return function status */
+    return HAL_ERROR;
+  }
+}

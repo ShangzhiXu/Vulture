@@ -1,0 +1,65 @@
+lv_obj_t * lv_spinbox_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+    LV_LOG_TRACE("spinbox create started");
+
+    /*Create the ancestor of spinbox*/
+    lv_obj_t * spinbox = lv_textarea_create(par, copy);
+    LV_ASSERT_MEM(spinbox);
+    if(spinbox == NULL) return NULL;
+
+    /*Allocate the spinbox type specific extended data*/
+    lv_spinbox_ext_t * ext = lv_obj_allocate_ext_attr(spinbox, sizeof(lv_spinbox_ext_t));
+    LV_ASSERT_MEM(ext);
+    if(ext == NULL) {
+        lv_obj_del(spinbox);
+        return NULL;
+    }
+
+    if(ancestor_signal == NULL) ancestor_signal = lv_obj_get_signal_cb(spinbox);
+    if(ancestor_design == NULL) ancestor_design = lv_obj_get_design_cb(spinbox);
+
+    /*Initialize the allocated 'ext'*/
+    ext->value              = 0;
+    ext->dec_point_pos      = 0;
+    ext->digit_count        = 5;
+    ext->digit_padding_left = 0;
+    ext->step               = 1;
+    ext->range_max          = 99999;
+    ext->range_min          = -99999;
+    ext->rollover           = false;
+
+
+    /*The signal and design functions are not copied so set them here*/
+    lv_obj_set_signal_cb(spinbox, lv_spinbox_signal);
+    lv_obj_set_design_cb(spinbox, ancestor_design); /*Leave the Text area's design function*/
+
+    /*Init the new spinbox*/
+    if(copy == NULL) {
+        /* No scrolling will happen here so make the scrollable non-clickable
+         * It allows to handle input events in the bg object only.*/
+        lv_obj_set_click(lv_page_get_scrllable(spinbox), false);
+        lv_textarea_set_one_line(spinbox, true);
+        lv_textarea_set_cursor_click_pos(spinbox, true);
+        lv_obj_set_width(spinbox, LV_DPI);
+        lv_theme_apply(spinbox, LV_THEME_SPINBOX);
+    }
+    /*Copy an existing spinbox*/
+    else {
+        lv_spinbox_ext_t * copy_ext = lv_obj_get_ext_attr(copy);
+
+        lv_spinbox_set_value(spinbox, copy_ext->value);
+        lv_spinbox_set_digit_format(spinbox, (uint8_t)copy_ext->digit_count, (uint8_t)copy_ext->dec_point_pos);
+        lv_spinbox_set_range(spinbox, copy_ext->range_min, copy_ext->range_max);
+        lv_spinbox_set_step(spinbox, copy_ext->step);
+        lv_spinbox_set_rollover(spinbox, copy_ext->rollover);
+
+        /*Refresh the style with new signal function*/
+        lv_obj_refresh_style(spinbox, LV_STYLE_PROP_ALL);
+    }
+
+    lv_spinbox_updatevalue(spinbox);
+
+    LV_LOG_INFO("spinbox created");
+
+    return spinbox;
+}

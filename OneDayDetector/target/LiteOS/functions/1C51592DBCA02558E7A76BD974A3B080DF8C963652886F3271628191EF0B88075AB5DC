@@ -1,0 +1,118 @@
+tcp_parseopt(struct tcp_pcb *pcb)
+{
+  u8_t data;
+  u16_t mss;
+#if LWIP_TCP_TIMESTAMPS
+  u32_t tsval;
+#endif
+
+  LWIP_ASSERT("tcp_parseopt: invalid pcb", pcb != NULL);
+
+  /* Parse the TCP MSS option, if present. */
+  if (tcphdr_optlen != 0) {
+    for (tcp_optidx = 0; tcp_optidx < tcphdr_optlen; ) {
+      u8_t opt = tcp_get_next_optbyte();
+      switch (opt) {
+        case LWIP_TCP_OPT_EOL:
+          /* End of options. */
+          LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: EOL\n"));
+          return;
+        case LWIP_TCP_OPT_NOP:
+          /* NOP option. */
+          LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: NOP\n"));
+          break;
+        case LWIP_TCP_OPT_MSS:
+          LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: MSS\n"));
+          if (tcp_get_next_optbyte() != LWIP_TCP_OPT_LEN_MSS || (tcp_optidx - 2 + LWIP_TCP_OPT_LEN_MSS) > tcphdr_optlen) {
+            /* Bad length */
+            LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: bad length\n"));
+            return;
+          }
+          /* An MSS option with the right option length. */
+          mss = (u16_t)(tcp_get_next_optbyte() << 8);
+          mss |= tcp_get_next_optbyte();
+          /* Limit the mss to the configured TCP_MSS and prevent division by zero */
+          pcb->mss = ((mss > TCP_MSS) || (mss == 0)) ? TCP_MSS : mss;
+          break;
+#if LWIP_WND_SCALE
+        case LWIP_TCP_OPT_WS:
+          LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: WND_SCALE\n"));
+          if (tcp_get_next_optbyte() != LWIP_TCP_OPT_LEN_WS || (tcp_optidx - 2 + LWIP_TCP_OPT_LEN_WS) > tcphdr_optlen) {
+            /* Bad length */
+            LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: bad length\n"));
+            return;
+          }
+          /* An WND_SCALE option with the right option length. */
+          data = tcp_get_next_optbyte();
+          /* If syn was received with wnd scale option,
+             activate wnd scale opt, but only if this is not a retransmission */
+          if ((flags & TCP_SYN) && !(pcb->flags & TF_WND_SCALE)) {
+            pcb->snd_scale = data;
+            if (pcb->snd_scale > 14U) {
+              pcb->snd_scale = 14U;
+            }
+            pcb->rcv_scale = TCP_RCV_SCALE;
+            tcp_set_flags(pcb, TF_WND_SCALE);
+            /* window scaling is enabled, we can use the full receive window */
+            LWIP_ASSERT("window not at default value", pcb->rcv_wnd == TCPWND_MIN16(TCP_WND));
+            LWIP_ASSERT("window not at default value", pcb->rcv_ann_wnd == TCPWND_MIN16(TCP_WND));
+            pcb->rcv_wnd = pcb->rcv_ann_wnd = TCP_WND;
+          }
+          break;
+#endif /* LWIP_WND_SCALE */
+#if LWIP_TCP_TIMESTAMPS
+        case LWIP_TCP_OPT_TS:
+          LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: TS\n"));
+          if (tcp_get_next_optbyte() != LWIP_TCP_OPT_LEN_TS || (tcp_optidx - 2 + LWIP_TCP_OPT_LEN_TS) > tcphdr_optlen) {
+            /* Bad length */
+            LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: bad length\n"));
+            return;
+          }
+          /* TCP timestamp option with valid length */
+          tsval = tcp_get_next_optbyte();
+          tsval |= (tcp_get_next_optbyte() << 8);
+          tsval |= (tcp_get_next_optbyte() << 16);
+          tsval |= (tcp_get_next_optbyte() << 24);
+          if (flags & TCP_SYN) {
+            pcb->ts_recent = lwip_ntohl(tsval);
+            /* Enable sending timestamps in every segment now that we know
+               the remote host supports it. */
+            tcp_set_flags(pcb, TF_TIMESTAMP);
+          } else if (TCP_SEQ_BETWEEN(pcb->ts_lastacksent, seqno, seqno + tcplen)) {
+            pcb->ts_recent = lwip_ntohl(tsval);
+          }
+          /* Advance to next option (6 bytes already read) */
+          tcp_optidx += LWIP_TCP_OPT_LEN_TS - 6;
+          break;
+#endif /* LWIP_TCP_TIMESTAMPS */
+#if LWIP_TCP_SACK_OUT
+        case LWIP_TCP_OPT_SACK_PERM:
+          LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: SACK_PERM\n"));
+          if (tcp_get_next_optbyte() != LWIP_TCP_OPT_LEN_SACK_PERM || (tcp_optidx - 2 + LWIP_TCP_OPT_LEN_SACK_PERM) > tcphdr_optlen) {
+            /* Bad length */
+            LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: bad length\n"));
+            return;
+          }
+          /* TCP SACK_PERM option with valid length */
+          if (flags & TCP_SYN) {
+            /* We only set it if we receive it in a SYN (or SYN+ACK) packet */
+            tcp_set_flags(pcb, TF_SACK);
+          }
+          break;
+#endif /* LWIP_TCP_SACK_OUT */
+        default:
+          LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: other\n"));
+          data = tcp_get_next_optbyte();
+          if (data < 2) {
+            LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: bad length\n"));
+            /* If the length field is zero, the options are malformed
+               and we don't process them further. */
+            return;
+          }
+          /* All other options have a length field, so that we easily
+             can skip past them. */
+          tcp_optidx += data - 2;
+      }
+    }
+  }
+}

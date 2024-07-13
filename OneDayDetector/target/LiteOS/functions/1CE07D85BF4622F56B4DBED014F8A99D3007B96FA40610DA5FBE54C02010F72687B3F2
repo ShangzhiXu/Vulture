@@ -1,0 +1,16 @@
+static lwm2m_data_t *prv_extendData(lwm2m_data_t *parentP)
+{
+    lwm2m_data_t *newP;
+
+    newP = lwm2m_data_new(parentP->value.asChildren.count + 1);
+    if (newP == NULL) return NULL;
+    if (parentP->value.asChildren.array != NULL)
+    {
+        memcpy(newP, parentP->value.asChildren.array, parentP->value.asChildren.count * sizeof(lwm2m_data_t));
+        lwm2m_free(parentP->value.asChildren.array);     // do not use lwm2m_data_free() to keep pointed values
+    }
+    parentP->value.asChildren.array = newP;
+    parentP->value.asChildren.count += 1;
+
+    return newP + parentP->value.asChildren.count - 1;
+}

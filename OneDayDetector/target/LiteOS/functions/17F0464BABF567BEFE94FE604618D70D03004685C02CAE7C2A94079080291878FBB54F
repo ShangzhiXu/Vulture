@@ -1,0 +1,43 @@
+HAL_StatusTypeDef HAL_USART_TransmitReceive_IT(USART_HandleTypeDef *husart, uint8_t *pTxData, uint8_t *pRxData,  uint16_t Size)
+{
+  if (husart->State == HAL_USART_STATE_READY)
+  {
+    if ((pTxData == NULL) || (pRxData == NULL) || (Size == 0))
+    {
+      return HAL_ERROR;
+    }
+    /* Process Locked */
+    __HAL_LOCK(husart);
+
+    husart->pRxBuffPtr = pRxData;
+    husart->RxXferSize = Size;
+    husart->RxXferCount = Size;
+    husart->pTxBuffPtr = pTxData;
+    husart->TxXferSize = Size;
+    husart->TxXferCount = Size;
+
+    husart->ErrorCode = HAL_USART_ERROR_NONE;
+    husart->State = HAL_USART_STATE_BUSY_TX_RX;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(husart);
+
+    /* Enable the USART Data Register not empty Interrupt */
+    SET_BIT(husart->Instance->CR1, USART_CR1_RXNEIE);
+
+    /* Enable the USART Parity Error Interrupt */
+    SET_BIT(husart->Instance->CR1, USART_CR1_PEIE);
+
+    /* Enable the USART Error Interrupt: (Frame error, noise error, overrun error) */
+    SET_BIT(husart->Instance->CR3, USART_CR3_EIE);
+
+    /* Enable the USART Transmit Data Register Empty Interrupt */
+    SET_BIT(husart->Instance->CR1, USART_CR1_TXEIE);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

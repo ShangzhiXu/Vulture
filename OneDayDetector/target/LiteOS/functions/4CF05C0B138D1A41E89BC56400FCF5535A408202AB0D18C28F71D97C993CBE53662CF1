@@ -1,0 +1,24 @@
+static void report_style_mod_core(void * style, lv_obj_t * obj)
+{
+    uint8_t part_sub;
+    for(part_sub = 0; part_sub != _LV_OBJ_PART_REAL_LAST; part_sub++) {
+        lv_style_list_t * dsc = lv_obj_get_style_list(obj, part_sub);
+        if(dsc == NULL) break;
+
+        uint8_t ci;
+        for(ci = 0; ci < dsc->style_cnt; ci++) {
+            lv_style_t * class = lv_style_list_get_style(dsc, ci);
+            if(class == style || style == NULL) {
+                lv_obj_refresh_style(obj, LV_STYLE_PROP_ALL);
+                break;
+            }
+        }
+    }
+
+    lv_obj_t * child = lv_obj_get_child(obj, NULL);
+    while(child) {
+        report_style_mod_core(style, child);
+        child = lv_obj_get_child(obj, child);
+    }
+
+}

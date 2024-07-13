@@ -1,0 +1,62 @@
+HAL_StatusTypeDef HAL_DFSDM_FilterInjectedMsbStart_DMA(DFSDM_Filter_HandleTypeDef *hdfsdm_filter,
+                                                       int16_t                    *pData,
+                                                       uint32_t                    Length)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Check parameters */
+  assert_param(IS_DFSDM_FILTER_ALL_INSTANCE(hdfsdm_filter->Instance));
+
+  /* Check destination address and length */
+  if((pData == NULL) || (Length == 0))
+  {
+    status = HAL_ERROR;
+  }
+  /* Check that DMA is enabled for injected conversion */
+  else if((hdfsdm_filter->Instance->FLTCR1 & DFSDM_FLTCR1_JDMAEN) != DFSDM_FLTCR1_JDMAEN)
+  {
+    status = HAL_ERROR;
+  }
+  /* Check parameters compatibility */
+  else if((hdfsdm_filter->InjectedTrigger == DFSDM_FILTER_SW_TRIGGER) && \
+          (hdfsdm_filter->hdmaInj->Init.Mode == DMA_NORMAL) && \
+          (Length > hdfsdm_filter->InjConvRemaining))
+  {
+    status = HAL_ERROR;
+  }
+  else if((hdfsdm_filter->InjectedTrigger == DFSDM_FILTER_SW_TRIGGER) && \
+          (hdfsdm_filter->hdmaInj->Init.Mode == DMA_CIRCULAR))
+  {
+    status = HAL_ERROR;
+  }
+  /* Check DFSDM filter state */
+  else if((hdfsdm_filter->State == HAL_DFSDM_FILTER_STATE_READY) || \
+          (hdfsdm_filter->State == HAL_DFSDM_FILTER_STATE_REG))
+  {
+    /* Set callbacks on DMA handler */
+    hdfsdm_filter->hdmaInj->XferCpltCallback = DFSDM_DMAInjectedConvCplt;
+    hdfsdm_filter->hdmaInj->XferErrorCallback = DFSDM_DMAError;
+    hdfsdm_filter->hdmaInj->XferHalfCpltCallback = (hdfsdm_filter->hdmaInj->Init.Mode == DMA_CIRCULAR) ?\
+                                                   DFSDM_DMAInjectedHalfConvCplt : NULL;
+    
+    /* Start DMA in interrupt mode */
+    if(HAL_DMA_Start_IT(hdfsdm_filter->hdmaInj, (uint32_t)(&hdfsdm_filter->Instance->FLTJDATAR) + 2, \
+                        (uint32_t) pData, Length) != HAL_OK)
+    {
+      /* Set DFSDM filter in error state */
+      hdfsdm_filter->State = HAL_DFSDM_FILTER_STATE_ERROR;
+      status = HAL_ERROR;
+    }
+    else
+    {
+      /* Start injected conversion */
+      DFSDM_InjConvStart(hdfsdm_filter);
+    }
+  }
+  else
+  {
+    status = HAL_ERROR;
+  }
+  /* Return function status */
+  return status;
+}

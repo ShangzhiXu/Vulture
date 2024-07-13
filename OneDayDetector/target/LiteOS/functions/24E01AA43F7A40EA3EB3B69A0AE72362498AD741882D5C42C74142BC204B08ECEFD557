@@ -1,0 +1,31 @@
+HAL_StatusTypeDef HAL_FMPSMBUS_RegisterAddrCallback(FMPSMBUS_HandleTypeDef *hfmpsmbus, pFMPSMBUS_AddrCallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    /* Update the error code */
+    hfmpsmbus->ErrorCode |= HAL_FMPSMBUS_ERROR_INVALID_CALLBACK;
+
+    return HAL_ERROR;
+  }
+  /* Process locked */
+  __HAL_LOCK(hfmpsmbus);
+
+  if (HAL_FMPSMBUS_STATE_READY == hfmpsmbus->State)
+  {
+    hfmpsmbus->AddrCallback = pCallback;
+  }
+  else
+  {
+    /* Update the error code */
+    hfmpsmbus->ErrorCode |= HAL_FMPSMBUS_ERROR_INVALID_CALLBACK;
+
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hfmpsmbus);
+  return status;
+}

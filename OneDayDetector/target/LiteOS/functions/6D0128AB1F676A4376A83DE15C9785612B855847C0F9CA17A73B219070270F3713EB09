@@ -1,0 +1,43 @@
+LITE_OS_SEC_TEXT_INIT UINT32 LOS_MemboxInit(VOID *pool, UINT32 poolSize, UINT32 blkSize)
+{
+    LOS_MEMBOX_INFO *boxInfo = (LOS_MEMBOX_INFO *)pool;
+    LOS_MEMBOX_NODE *node = NULL;
+    UINT32 index;
+    UINT32 intSave;
+
+    if (pool == NULL) {
+        return LOS_NOK;
+    }
+
+    if (blkSize == 0) {
+        return LOS_NOK;
+    }
+
+    if (poolSize < sizeof(LOS_MEMBOX_INFO)) {
+        return LOS_NOK;
+    }
+
+    MEMBOX_LOCK(intSave);
+    boxInfo->uwBlkSize = LOS_MEMBOX_ALLIGNED(blkSize + OS_MEMBOX_NODE_HEAD_SIZE);
+    boxInfo->uwBlkNum = (poolSize - sizeof(LOS_MEMBOX_INFO)) / boxInfo->uwBlkSize;
+    boxInfo->uwBlkCnt = 0;
+    if ((boxInfo->uwBlkNum == 0) || (boxInfo->uwBlkSize < blkSize)) {
+        MEMBOX_UNLOCK(intSave);
+        return LOS_NOK;
+    }
+
+    node = (LOS_MEMBOX_NODE *)(boxInfo + 1);
+
+    boxInfo->stFreeList.pstNext = node;
+
+    for (index = 0; index < (boxInfo->uwBlkNum - 1); ++index) {
+        node->pstNext = OS_MEMBOX_NEXT(node, boxInfo->uwBlkSize);
+        node = node->pstNext;
+    }
+
+    node->pstNext = NULL;
+
+    MEMBOX_UNLOCK(intSave);
+
+    return LOS_OK;
+}

@@ -1,0 +1,31 @@
+interfaces_Table_get_next_cell_instance(const u32_t *column, struct snmp_obj_id *row_oid, struct snmp_node_instance *cell_instance)
+{
+  struct netif *netif;
+  struct snmp_next_oid_state state;
+  u32_t result_temp[LWIP_ARRAYSIZE(interfaces_Table_oid_ranges)];
+
+  LWIP_UNUSED_ARG(column);
+
+  /* init struct to search next oid */
+  snmp_next_oid_init(&state, row_oid->id, row_oid->len, result_temp, LWIP_ARRAYSIZE(interfaces_Table_oid_ranges));
+
+  /* iterate over all possible OIDs to find the next one */
+  NETIF_FOREACH(netif) {
+    u32_t test_oid[LWIP_ARRAYSIZE(interfaces_Table_oid_ranges)];
+    test_oid[0] = netif_to_num(netif);
+
+    /* check generated OID: is it a candidate for the next one? */
+    snmp_next_oid_check(&state, test_oid, LWIP_ARRAYSIZE(interfaces_Table_oid_ranges), netif);
+  }
+
+  /* did we find a next one? */
+  if (state.status == SNMP_NEXT_OID_STATUS_SUCCESS) {
+    snmp_oid_assign(row_oid, state.next_oid, state.next_oid_len);
+    /* store netif pointer for subsequent operations (get/test/set) */
+    cell_instance->reference.ptr = /* (struct netif*) */state.reference;
+    return SNMP_ERR_NOERROR;
+  }
+
+  /* not found */
+  return SNMP_ERR_NOSUCHINSTANCE;
+}

@@ -1,0 +1,40 @@
+int mbedtls_platform_entropy_poll( void *data,
+                           unsigned char *output, size_t len, size_t *olen )
+{
+    FILE *file;
+    size_t read_len;
+    int ret;
+    ((void) data);
+
+#if defined(HAVE_GETRANDOM)
+    ret = getrandom_wrapper( output, len, 0 );
+    if( ret >= 0 )
+    {
+        *olen = ret;
+        return( 0 );
+    }
+    else if( errno != ENOSYS )
+        return( MBEDTLS_ERR_ENTROPY_SOURCE_FAILED );
+    /* Fall through if the system call isn't known. */
+#else
+    ((void) ret);
+#endif /* HAVE_GETRANDOM */
+
+    *olen = 0;
+
+    file = fopen( "/dev/urandom", "rb" );
+    if( file == NULL )
+        return( MBEDTLS_ERR_ENTROPY_SOURCE_FAILED );
+
+    read_len = fread( output, 1, len, file );
+    if( read_len != len )
+    {
+        fclose( file );
+        return( MBEDTLS_ERR_ENTROPY_SOURCE_FAILED );
+    }
+
+    fclose( file );
+    *olen = len;
+
+    return( 0 );
+}

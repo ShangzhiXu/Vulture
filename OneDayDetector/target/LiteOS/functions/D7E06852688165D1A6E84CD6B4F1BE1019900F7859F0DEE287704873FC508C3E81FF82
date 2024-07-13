@@ -1,0 +1,28 @@
+static int value_in_set_display_error(
+        const LargestIntegralType value,
+        const CheckIntegerSet * const check_integer_set, const int invert) {
+    int succeeded = invert;
+    assert_true(check_integer_set);
+    {
+        const LargestIntegralType * const set = check_integer_set->set;
+        const size_t size_of_set = check_integer_set->size_of_set;
+        size_t i;
+        for (i = 0; i < size_of_set; i++) {
+            if (set[i] == value) {
+                // If invert = 0 and item is found, succeeded = 1.
+                // If invert = 1 and item is found, succeeded = 0.
+                succeeded = !succeeded;
+                break;
+            }
+        }
+        if (succeeded) {
+            return 1;
+        }
+        print_error("%lld is %sin the set (", value, invert ? "" : "not ");
+        for (i = 0; i < size_of_set; i++) {
+            print_error("%lld, ", set[i]);
+        }
+        print_error(")\n");
+    }
+    return 0;
+}

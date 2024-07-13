@@ -1,0 +1,25 @@
+static void ipcp_clear_addrs(ppp_pcb *pcb, u32_t ouraddr, u32_t hisaddr, u8_t replacedefaultroute) {
+    LWIP_UNUSED_ARG(replacedefaultroute);
+
+#if 0 /* UNUSED - PROXY ARP */
+    if (pcb->proxy_arp_set) {
+	cifproxyarp(pcb, hisaddr);
+	pcb->proxy_arp_set = 0;
+    }
+#endif /* UNUSED - PROXY ARP */
+#if 0 /* UNUSED */
+    /* If replacedefaultroute, sifdefaultroute will be called soon
+     * with replacedefaultroute set and that will overwrite the current
+     * default route. This is the case only when doing demand, otherwise
+     * during demand, this cifdefaultroute would restore the old default
+     * route which is not what we want in this case. In the non-demand
+     * case, we'll delete the default route and restore the old if there
+     * is one saved by an sifdefaultroute with replacedefaultroute.
+     */
+    if (!replacedefaultroute && pcb->default_route_set) {
+	cifdefaultroute(pcb, ouraddr, hisaddr);
+	pcb->default_route_set = 0;
+    }
+#endif /* UNUSED */
+    cifaddr(pcb, ouraddr, hisaddr);
+}

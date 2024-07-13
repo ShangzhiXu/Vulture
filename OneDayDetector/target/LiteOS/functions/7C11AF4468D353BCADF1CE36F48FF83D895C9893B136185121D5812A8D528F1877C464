@@ -1,0 +1,71 @@
+mppe_compress(ppp_pcb *pcb, ppp_mppe_state *state, struct pbuf **pb, u16_t protocol)
+{
+	struct pbuf *n, *np;
+	u8_t *pl;
+	err_t err;
+
+	LWIP_UNUSED_ARG(pcb);
+
+	/* TCP stack requires that we don't change the packet payload, therefore we copy
+	 * the whole packet before encryption.
+	 */
+	np = pbuf_alloc(PBUF_RAW, MPPE_OVHD + sizeof(protocol) + (*pb)->tot_len, PBUF_RAM);
+	if (!np) {
+		return ERR_MEM;
+	}
+
+	/* Hide MPPE header + protocol */
+	pbuf_remove_header(np, MPPE_OVHD + sizeof(protocol));
+
+	if ((err = pbuf_copy(np, *pb)) != ERR_OK) {
+		pbuf_free(np);
+		return err;
+	}
+
+	/* Reveal MPPE header + protocol */
+	pbuf_add_header(np, MPPE_OVHD + sizeof(protocol));
+
+	*pb = np;
+	pl = (u8_t*)np->payload;
+
+	state->ccount = (state->ccount + 1) % MPPE_CCOUNT_SPACE;
+	PPPDEBUG(LOG_DEBUG, ("mppe_compress[%d]: ccount %d\n", pcb->netif->num, state->ccount));
+	/* FIXME: use PUT* macros */
+	pl[0] = state->ccount>>8;
+	pl[1] = state->ccount;
+
+	if (!state->stateful ||	/* stateless mode     */
+	    ((state->ccount & 0xff) == 0xff) ||	/* "flag" packet      */
+	    (state->bits & MPPE_BIT_FLUSHED)) {	/* CCP Reset-Request  */
+		/* We must rekey */
+		if (state->stateful) {
+			PPPDEBUG(LOG_DEBUG, ("mppe_compress[%d]: rekeying\n", pcb->netif->num));
+		}
+		mppe_rekey(state, 0);
+		state->bits |= MPPE_BIT_FLUSHED;
+	}
+	pl[0] |= state->bits;
+	state->bits &= ~MPPE_BIT_FLUSHED;	/* reset for next xmit */
+	pl += MPPE_OVHD;
+
+	/* Add protocol */
+	/* FIXME: add PFC support */
+	pl[0] = protocol >> 8;
+	pl[1] = protocol;
+
+	/* Hide MPPE header */
+	pbuf_remove_header(np, MPPE_OVHD);
+
+	/* Encrypt packet */
+	for (n = np; n != NULL; n = n->next) {
+		lwip_arc4_crypt(&state->arc4, (u8_t*)n->payload, n->len);
+		if (n->tot_len == n->len) {
+			break;
+		}
+	}
+
+	/* Reveal MPPE header */
+	pbuf_add_header(np, MPPE_OVHD);
+
+	return ERR_OK;
+}

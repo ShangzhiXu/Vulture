@@ -1,0 +1,40 @@
+sys_arch_sem_wait(sys_sem_t *sem, u32_t timeout)
+{
+  u32_t ret = 0;
+  LWIP_ASSERT("sem != NULL", sem != NULL);
+  LWIP_ASSERT("*sem > 0", *sem > 0);
+  if (*sem == 1) {
+    /* need to wait */
+    if(!timeout)
+    {
+      /* wait infinite */
+      LWIP_ASSERT("cannot wait without waiting callback", the_waiting_fn != NULL);
+      do {
+        int expectSomething = the_waiting_fn(sem, NULL);
+        LWIP_ASSERT("*sem > 0", *sem > 0);
+        LWIP_ASSERT("expecting a semaphore count but it's 0", !expectSomething || (*sem > 1));
+        ret++;
+        if (ret == SYS_ARCH_TIMEOUT) {
+          ret--;
+        }
+      } while(*sem == 1);
+    }
+    else
+    {
+      if (the_waiting_fn) {
+        int expectSomething = the_waiting_fn(sem, NULL);
+        LWIP_ASSERT("expecting a semaphore count but it's 0", !expectSomething || (*sem > 1));
+      }
+      LWIP_ASSERT("*sem > 0", *sem > 0);
+      if (*sem == 1) {
+        return SYS_ARCH_TIMEOUT;
+      }
+      ret = 1;
+    }
+  }
+  LWIP_ASSERT("*sem > 0", *sem > 0);
+  (*sem)--;
+  LWIP_ASSERT("*sem > 0", *sem > 0);
+  /* return the time we waited for the sem */
+  return ret;
+}

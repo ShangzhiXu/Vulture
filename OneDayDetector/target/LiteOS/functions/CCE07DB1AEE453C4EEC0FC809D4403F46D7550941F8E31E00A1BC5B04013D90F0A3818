@@ -1,0 +1,24 @@
+STATIC VOID GicSgi(UINT32 irq, UINT32 cpuMask)
+{
+    UINT16 tList;
+    UINT32 cpu = 0;
+    UINT64 val, cluster;
+
+    while (cpuMask && (cpu < LOSCFG_KERNEL_CORE_NUM)) {
+        if (cpuMask & (1U << cpu)) {
+            cluster = CPU_MAP_GET(cpu) & ~0xffUL;
+
+            tList = GicTargetList(&cpu, cpuMask, cluster);
+
+            /* Generates a Group 1 interrupt for the current security state */
+            val = ((MPIDR_AFF_LEVEL(cluster, 3) << 48) |
+                   (MPIDR_AFF_LEVEL(cluster, 2) << 32) |
+                   (MPIDR_AFF_LEVEL(cluster, 1) << 16) |
+                   (irq << 24) | tList);
+
+            GiccSetSgi1r(val);
+        }
+
+        cpu++;
+    }
+}

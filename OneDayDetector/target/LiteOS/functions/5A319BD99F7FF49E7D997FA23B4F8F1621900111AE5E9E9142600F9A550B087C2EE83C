@@ -1,0 +1,139 @@
+HAL_StatusTypeDef HASH_Start_IT(HASH_HandleTypeDef *hhash, uint8_t *pInBuffer, uint32_t Size, uint8_t* pOutBuffer, uint32_t Algorithm)
+{
+   HAL_HASH_StateTypeDef State_tmp = hhash->State;
+  __IO uint32_t inputaddr = (uint32_t) pInBuffer;
+  uint32_t polling_step = 0U;
+  uint32_t initialization_skipped = 0U;
+  uint32_t SizeVar = Size;
+
+  /* If State is ready or suspended, start or resume IT-based HASH processing */
+if((State_tmp == HAL_HASH_STATE_READY) || (State_tmp == HAL_HASH_STATE_SUSPENDED))
+  {
+    /* Check input parameters */
+    if ((pInBuffer == NULL) || (Size == 0U) || (pOutBuffer == NULL))
+    {
+      hhash->State = HAL_HASH_STATE_READY;
+      return  HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hhash);
+
+    /* Change the HASH state */
+    hhash->State = HAL_HASH_STATE_BUSY;
+
+    /* Initialize IT counter */
+    hhash->HashITCounter = 1;
+
+    /* Check if initialization phase has already be performed */
+    if(hhash->Phase == HAL_HASH_PHASE_READY)
+    {
+      /* Select the HASH algorithm, clear HMAC mode and long key selection bit, reset the HASH processor core */
+      MODIFY_REG(HASH->CR, HASH_CR_LKEY|HASH_CR_ALGO|HASH_CR_MODE|HASH_CR_INIT, Algorithm | HASH_CR_INIT);
+
+      /* Configure the number of valid bits in last word of the message */
+     __HAL_HASH_SET_NBVALIDBITS(SizeVar);
+
+
+      hhash->HashInCount = SizeVar;            /* Counter used to keep track of number of data
+                                                  to be fed to the Peripheral */
+      hhash->pHashInBuffPtr = pInBuffer;       /* Points at data which will be fed to the Peripheral at
+                                                  the next interruption */
+     /* In case of suspension, hhash->HashInCount and hhash->pHashInBuffPtr contain
+        the information describing where the HASH process is stopped.
+        These variables are used later on to resume the HASH processing at the
+        correct location. */
+
+      hhash->pHashOutBuffPtr = pOutBuffer;     /* Points at the computed digest */
+    }
+    else
+    {
+      initialization_skipped = 1; /* info user later on in case of multi-buffer */
+    }
+
+    /* Set the phase */
+    hhash->Phase = HAL_HASH_PHASE_PROCESS;
+
+   /* If DINIS is equal to 0 (for example if an incomplete block has been previously
+     fed to the Peripheral), the DINIE interruption won't be triggered when DINIE is set.
+     Therefore, first words are manually entered until DINIS raises. */
+    while((!(__HAL_HASH_GET_FLAG(HASH_FLAG_DINIS))) && (SizeVar > 3U))
+    {
+      polling_step = 1U; /* note that some words are entered before enabling the interrupt */
+
+      /* Write input data 4 bytes at a time */
+      HASH->DIN = *(uint32_t*)inputaddr;
+      inputaddr+=4U;
+      SizeVar-=4U;
+    }
+
+    if (polling_step == 1U)
+    {
+      if (SizeVar == 0U)
+      {
+        /* If all the data have been entered at this point, it only remains to
+         read the digest */
+        hhash->pHashOutBuffPtr = pOutBuffer;     /* Points at the computed digest */
+
+        /* Start the Digest calculation */
+         __HAL_HASH_START_DIGEST();
+        /* Process Unlock */
+        __HAL_UNLOCK(hhash);
+
+        /* Enable Interrupts */
+        __HAL_HASH_ENABLE_IT(HASH_IT_DCI);
+
+        /* Return function status */
+        return HAL_OK;
+      }
+      else if (__HAL_HASH_GET_FLAG(HASH_FLAG_DINIS))
+      {
+        /* It remains data to enter and the Peripheral is ready to trigger DINIE,
+           carry on as usual.
+           Update HashInCount and pHashInBuffPtr accordingly. */
+        hhash->HashInCount = SizeVar;
+        hhash->pHashInBuffPtr = (uint8_t *)inputaddr;
+        __HAL_HASH_SET_NBVALIDBITS(SizeVar);  /* Update the configuration of the number of valid bits in last word of the message */
+        hhash->pHashOutBuffPtr = pOutBuffer;  /* Points at the computed digest */
+        if (initialization_skipped == 1U)
+        {
+          hhash->HashITCounter = 3; /* 'cruise-speed' reached during a previous buffer processing */
+        }
+      }
+      else
+      {
+        /* DINIS is not set but it remains a few data to enter (not enough for a full word).
+           Manually enter the last bytes before enabling DCIE. */
+        __HAL_HASH_SET_NBVALIDBITS(SizeVar);
+        HASH->DIN = *(uint32_t*)inputaddr;
+
+         /* Start the Digest calculation */
+        hhash->pHashOutBuffPtr = pOutBuffer;     /* Points at the computed digest */
+         __HAL_HASH_START_DIGEST();
+        /* Process Unlock */
+        __HAL_UNLOCK(hhash);
+
+        /* Enable Interrupts */
+        __HAL_HASH_ENABLE_IT(HASH_IT_DCI);
+
+        /* Return function status */
+        return HAL_OK;
+      }
+    } /*  if (polling_step == 1) */
+
+
+    /* Process Unlock */
+    __HAL_UNLOCK(hhash);
+
+    /* Enable Interrupts */
+    __HAL_HASH_ENABLE_IT(HASH_IT_DINI|HASH_IT_DCI);
+
+    /* Return function status */
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+
+}

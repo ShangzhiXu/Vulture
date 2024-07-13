@@ -1,0 +1,86 @@
+coap_serialize_message(void *packet, uint8_t *buffer)
+{
+    coap_packet_t *const coap_pkt = (coap_packet_t *) packet;
+    uint8_t *option;
+    unsigned int current_number = 0;
+
+    /* Initialize */
+    coap_pkt->buffer = buffer;
+    coap_pkt->version = 1;
+
+    PRINTF("-Serializing MID %u to %p, ", coap_pkt->mid, coap_pkt->buffer);
+
+    /* set header fields */
+    coap_pkt->buffer[0]  = 0x00;
+    coap_pkt->buffer[0] |= COAP_HEADER_VERSION_MASK & (coap_pkt->version) << COAP_HEADER_VERSION_POSITION;
+    coap_pkt->buffer[0] |= COAP_HEADER_TYPE_MASK & (coap_pkt->type) << COAP_HEADER_TYPE_POSITION;
+    coap_pkt->buffer[0] |= COAP_HEADER_TOKEN_LEN_MASK & (coap_pkt->token_len) << COAP_HEADER_TOKEN_LEN_POSITION;
+    coap_pkt->buffer[1] = coap_pkt->code;
+    coap_pkt->buffer[2] = (uint8_t) ((coap_pkt->mid) >> 8);
+    coap_pkt->buffer[3] = (uint8_t) (coap_pkt->mid);
+
+    /* set Token */
+    PRINTF("Token (len %u)", coap_pkt->token_len);
+    option = coap_pkt->buffer + COAP_HEADER_LEN;
+    for (current_number = 0; current_number < coap_pkt->token_len; ++current_number)
+    {
+        PRINTF(" %02X", coap_pkt->token[current_number]);
+        *option = coap_pkt->token[current_number];
+        ++option;
+    }
+    PRINTF("-\n");
+
+    /* Serialize options */
+    current_number = 0;
+
+    PRINTF("-Serializing options at %p-\n", option);
+
+    /* The options must be serialized in the order of their number */
+    COAP_SERIALIZE_BYTE_OPTION(   COAP_OPTION_IF_MATCH,       if_match, "If-Match")
+    COAP_SERIALIZE_STRING_OPTION( COAP_OPTION_URI_HOST,       uri_host, '\0', "Uri-Host")
+    COAP_SERIALIZE_BYTE_OPTION(   COAP_OPTION_ETAG,           etag, "ETag")
+    COAP_SERIALIZE_INT_OPTION(    COAP_OPTION_IF_NONE_MATCH,  content_type - coap_pkt->content_type, "If-None-Match") /* hack to get a zero field */
+    COAP_SERIALIZE_INT_OPTION(    COAP_OPTION_OBSERVE,        observe, "Observe")
+    COAP_SERIALIZE_INT_OPTION(    COAP_OPTION_URI_PORT,       uri_port, "Uri-Port")
+    COAP_SERIALIZE_MULTI_OPTION(  COAP_OPTION_LOCATION_PATH,  location_path, "Location-Path")
+    COAP_SERIALIZE_MULTI_OPTION(  COAP_OPTION_URI_PATH,       uri_path, "Uri-Path")
+    COAP_SERIALIZE_INT_OPTION(    COAP_OPTION_CONTENT_TYPE,   content_type, "Content-Format")
+    COAP_SERIALIZE_INT_OPTION(    COAP_OPTION_MAX_AGE,        max_age, "Max-Age")
+    COAP_SERIALIZE_MULTI_OPTION(  COAP_OPTION_URI_QUERY,      uri_query, "Uri-Query")
+    COAP_SERIALIZE_ACCEPT_OPTION( COAP_OPTION_ACCEPT,         accept, "Accept")
+    COAP_SERIALIZE_STRING_OPTION( COAP_OPTION_LOCATION_QUERY, location_query, '&', "Location-Query")
+    COAP_SERIALIZE_BLOCK_OPTION(  COAP_OPTION_BLOCK2,         block2, "Block2")
+    COAP_SERIALIZE_BLOCK_OPTION(  COAP_OPTION_BLOCK1,         block1, "Block1")
+    COAP_SERIALIZE_INT_OPTION(    COAP_OPTION_SIZE,           size, "Size")
+    COAP_SERIALIZE_STRING_OPTION( COAP_OPTION_PROXY_URI,      proxy_uri, '\0', "Proxy-Uri")
+
+    PRINTF("-Done serializing at %p----\n", option);
+
+    /* Free allocated header fields */
+    coap_free_header(packet);
+
+    /* Pack payload */
+    /* Payload marker */
+    if (coap_pkt->payload_len)
+    {
+        *option = 0xFF;
+        ++option;
+    }
+
+    memmove(option, coap_pkt->payload, coap_pkt->payload_len);
+
+    PRINTF("-Done %u B (header len %u, payload len %u)-\n", coap_pkt->payload_len + option - buffer, option - buffer, coap_pkt->payload_len);
+
+    PRINTF("Dump [0x%02X %02X %02X %02X  %02X %02X %02X %02X]\n",
+           coap_pkt->buffer[0],
+           coap_pkt->buffer[1],
+           coap_pkt->buffer[2],
+           coap_pkt->buffer[3],
+           coap_pkt->buffer[4],
+           coap_pkt->buffer[5],
+           coap_pkt->buffer[6],
+           coap_pkt->buffer[7]
+          );
+
+    return (option - buffer) + coap_pkt->payload_len; /* packet length */
+}

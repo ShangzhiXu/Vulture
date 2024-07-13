@@ -1,0 +1,32 @@
+void lwm2m_data_free(int size,
+                     lwm2m_data_t *dataP)
+{
+    int i;
+
+    LOG_ARG("size: %d", size);
+    if (size == 0 || dataP == NULL) return;
+
+    for (i = 0; i < size; i++)
+    {
+        switch (dataP[i].type)
+        {
+        case LWM2M_TYPE_MULTIPLE_RESOURCE:
+        case LWM2M_TYPE_OBJECT_INSTANCE:
+        case LWM2M_TYPE_OBJECT:
+            lwm2m_data_free(dataP[i].value.asChildren.count, dataP[i].value.asChildren.array);
+            break;
+
+        case LWM2M_TYPE_STRING:
+        case LWM2M_TYPE_OPAQUE:
+            if (dataP[i].value.asBuffer.buffer != NULL)
+            {
+                lwm2m_free(dataP[i].value.asBuffer.buffer);
+            }
+
+        default:
+            // do nothing
+            break;
+        }
+    }
+    lwm2m_free(dataP);
+}

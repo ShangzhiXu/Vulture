@@ -1,0 +1,22 @@
+uint32_t LL_RCC_GetDFSDMClockFreq(uint32_t DFSDMxSource)
+{
+  uint32_t dfsdm_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_DFSDM_CLKSOURCE(DFSDMxSource));
+
+  /* DFSDM1CLK clock frequency */
+  switch (LL_RCC_GetDFSDMClockSource(DFSDMxSource))
+  {
+    case LL_RCC_DFSDM1_CLKSOURCE_SYSCLK:     /* DFSDM1 Clock is SYSCLK */
+      dfsdm_frequency = RCC_GetSystemClockFreq();
+      break;
+
+    case LL_RCC_DFSDM1_CLKSOURCE_PCLK2:      /* DFSDM1 Clock is PCLK2 */
+    default:
+      dfsdm_frequency = RCC_GetPCLK2ClockFreq(RCC_GetHCLKClockFreq(RCC_GetSystemClockFreq()));
+      break;
+  }
+
+  return dfsdm_frequency;
+}

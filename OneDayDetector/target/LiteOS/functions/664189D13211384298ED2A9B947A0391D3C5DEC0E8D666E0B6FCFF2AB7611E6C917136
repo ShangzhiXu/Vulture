@@ -1,0 +1,148 @@
+HAL_StatusTypeDef HAL_FLASHEx_Erase(FLASH_EraseInitTypeDef *pEraseInit, uint32_t *PageError)
+{
+  HAL_StatusTypeDef status = HAL_ERROR;
+  uint32_t address = 0;
+
+  /* Process Locked */
+  __HAL_LOCK(&pFlash);
+
+  /* Check the parameters */
+  assert_param(IS_FLASH_TYPEERASE(pEraseInit->TypeErase));
+
+  if (pEraseInit->TypeErase == FLASH_TYPEERASE_MASSERASE)
+  {
+#if defined(FLASH_BANK2_END)
+    if (pEraseInit->Banks == FLASH_BANK_BOTH)
+    {
+      /* Mass Erase requested for Bank1 and Bank2 */
+      /* Wait for last operation to be completed */
+      if ((FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE) == HAL_OK) && \
+          (FLASH_WaitForLastOperationBank2((uint32_t)FLASH_TIMEOUT_VALUE) == HAL_OK))
+      {
+        /*Mass erase to be done*/
+        FLASH_MassErase(FLASH_BANK_BOTH);
+        
+        /* Wait for last operation to be completed */
+        if ((FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE) == HAL_OK) && \
+            (FLASH_WaitForLastOperationBank2((uint32_t)FLASH_TIMEOUT_VALUE) == HAL_OK))
+        {
+          status = HAL_OK;
+        }
+        
+        /* If the erase operation is completed, disable the MER Bit */
+        CLEAR_BIT(FLASH->CR, FLASH_CR_MER);
+        CLEAR_BIT(FLASH->CR2, FLASH_CR2_MER);
+      }
+    }
+    else if (pEraseInit->Banks == FLASH_BANK_2)
+    {
+      /* Mass Erase requested for Bank2 */
+      /* Wait for last operation to be completed */
+      if (FLASH_WaitForLastOperationBank2((uint32_t)FLASH_TIMEOUT_VALUE) == HAL_OK)
+      {
+        /*Mass erase to be done*/
+        FLASH_MassErase(FLASH_BANK_2);
+        
+        /* Wait for last operation to be completed */
+        status = FLASH_WaitForLastOperationBank2((uint32_t)FLASH_TIMEOUT_VALUE);
+        
+        /* If the erase operation is completed, disable the MER Bit */
+        CLEAR_BIT(FLASH->CR2, FLASH_CR2_MER);
+      }
+    }
+    else 
+#endif /* FLASH_BANK2_END */
+    {
+      /* Mass Erase requested for Bank1 */
+      /* Wait for last operation to be completed */
+      if (FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE) == HAL_OK)
+      {
+        /*Mass erase to be done*/
+        FLASH_MassErase(FLASH_BANK_1);
+        
+        /* Wait for last operation to be completed */
+        status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+        
+        /* If the erase operation is completed, disable the MER Bit */
+        CLEAR_BIT(FLASH->CR, FLASH_CR_MER);
+      }
+    }
+  }
+  else
+  {
+    /* Page Erase is requested */
+    /* Check the parameters */
+    assert_param(IS_FLASH_PROGRAM_ADDRESS(pEraseInit->PageAddress));
+    assert_param(IS_FLASH_NB_PAGES(pEraseInit->PageAddress, pEraseInit->NbPages));
+    
+#if defined(FLASH_BANK2_END)
+    /* Page Erase requested on address located on bank2 */
+    if(pEraseInit->PageAddress > FLASH_BANK1_END)
+    {   
+      /* Wait for last operation to be completed */
+      if (FLASH_WaitForLastOperationBank2((uint32_t)FLASH_TIMEOUT_VALUE) == HAL_OK)
+      {
+        /*Initialization of PageError variable*/
+        *PageError = 0xFFFFFFFF;
+        
+        /* Erase by page by page to be done*/
+        for(address = pEraseInit->PageAddress;
+            address < (pEraseInit->PageAddress + (pEraseInit->NbPages)*FLASH_PAGE_SIZE);
+            address += FLASH_PAGE_SIZE)
+        {
+          FLASH_PageErase(address);
+          
+          /* Wait for last operation to be completed */
+          status = FLASH_WaitForLastOperationBank2((uint32_t)FLASH_TIMEOUT_VALUE);
+          
+          /* If the erase operation is completed, disable the PER Bit */
+          CLEAR_BIT(FLASH->CR2, FLASH_CR2_PER);
+          
+          if (status != HAL_OK)
+          {
+            /* In case of error, stop erase procedure and return the faulty address */
+            *PageError = address;
+            break;
+          }
+        }
+      }
+    }
+    else
+#endif /* FLASH_BANK2_END */
+   {
+      /* Page Erase requested on address located on bank1 */
+      /* Wait for last operation to be completed */
+      if (FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE) == HAL_OK)
+      {
+        /*Initialization of PageError variable*/
+        *PageError = 0xFFFFFFFF;
+        
+        /* Erase page by page to be done*/
+        for(address = pEraseInit->PageAddress;
+            address < ((pEraseInit->NbPages * FLASH_PAGE_SIZE) + pEraseInit->PageAddress);
+            address += FLASH_PAGE_SIZE)
+        {
+          FLASH_PageErase(address);
+          
+          /* Wait for last operation to be completed */
+          status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+          
+          /* If the erase operation is completed, disable the PER Bit */
+          CLEAR_BIT(FLASH->CR, FLASH_CR_PER);
+          
+          if (status != HAL_OK)
+          {
+            /* In case of error, stop erase procedure and return the faulty address */
+            *PageError = address;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(&pFlash);
+
+  return status;
+}

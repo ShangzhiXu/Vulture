@@ -1,0 +1,219 @@
+static int lcp_rejci(fsm *f, u_char *p, int len) {
+    ppp_pcb *pcb = f->pcb;
+    lcp_options *go = &pcb->lcp_gotoptions;
+    u_char cichar;
+    u_short cishort;
+    u32_t cilong;
+    lcp_options try_;		/* options to request next time */
+
+    try_ = *go;
+
+    /*
+     * Any Rejected CIs must be in exactly the same order that we sent.
+     * Check packet length and CI length at each step.
+     * If we find any deviations, then this packet is bad.
+     */
+#define REJCIVOID(opt, neg) \
+    if (go->neg && \
+	len >= CILEN_VOID && \
+	p[1] == CILEN_VOID && \
+	p[0] == opt) { \
+	len -= CILEN_VOID; \
+	INCPTR(CILEN_VOID, p); \
+	try_.neg = 0; \
+    }
+#define REJCISHORT(opt, neg, val) \
+    if (go->neg && \
+	len >= CILEN_SHORT && \
+	p[1] == CILEN_SHORT && \
+	p[0] == opt) { \
+	len -= CILEN_SHORT; \
+	INCPTR(2, p); \
+	GETSHORT(cishort, p); \
+	/* Check rejected value. */ \
+	if (cishort != val) \
+	    goto bad; \
+	try_.neg = 0; \
+    }
+
+#if CHAP_SUPPORT && EAP_SUPPORT && PAP_SUPPORT
+#define REJCICHAP(opt, neg, val) \
+    if (go->neg && \
+	len >= CILEN_CHAP && \
+	p[1] == CILEN_CHAP && \
+	p[0] == opt) { \
+	len -= CILEN_CHAP; \
+	INCPTR(2, p); \
+	GETSHORT(cishort, p); \
+	GETCHAR(cichar, p); \
+	/* Check rejected value. */ \
+	if ((cishort != PPP_CHAP) || (cichar != (CHAP_DIGEST(val)))) \
+	    goto bad; \
+	try_.neg = 0; \
+	try_.neg_eap = try_.neg_upap = 0; \
+    }
+#endif /* CHAP_SUPPORT && EAP_SUPPORT && PAP_SUPPORT */
+
+#if CHAP_SUPPORT && !EAP_SUPPORT && PAP_SUPPORT
+#define REJCICHAP(opt, neg, val) \
+    if (go->neg && \
+	len >= CILEN_CHAP && \
+	p[1] == CILEN_CHAP && \
+	p[0] == opt) { \
+	len -= CILEN_CHAP; \
+	INCPTR(2, p); \
+	GETSHORT(cishort, p); \
+	GETCHAR(cichar, p); \
+	/* Check rejected value. */ \
+	if ((cishort != PPP_CHAP) || (cichar != (CHAP_DIGEST(val)))) \
+	    goto bad; \
+	try_.neg = 0; \
+	try_.neg_upap = 0; \
+    }
+#endif /* CHAP_SUPPORT && !EAP_SUPPORT && PAP_SUPPORT */
+
+#if CHAP_SUPPORT && EAP_SUPPORT && !PAP_SUPPORT
+#define REJCICHAP(opt, neg, val) \
+    if (go->neg && \
+	len >= CILEN_CHAP && \
+	p[1] == CILEN_CHAP && \
+	p[0] == opt) { \
+	len -= CILEN_CHAP; \
+	INCPTR(2, p); \
+	GETSHORT(cishort, p); \
+	GETCHAR(cichar, p); \
+	/* Check rejected value. */ \
+	if ((cishort != PPP_CHAP) || (cichar != (CHAP_DIGEST(val)))) \
+	    goto bad; \
+	try_.neg = 0; \
+	try_.neg_eap = 0; \
+    }
+#endif /* CHAP_SUPPORT && EAP_SUPPORT && !PAP_SUPPORT */
+
+#if CHAP_SUPPORT && !EAP_SUPPORT && !PAP_SUPPORT
+#define REJCICHAP(opt, neg, val) \
+    if (go->neg && \
+	len >= CILEN_CHAP && \
+	p[1] == CILEN_CHAP && \
+	p[0] == opt) { \
+	len -= CILEN_CHAP; \
+	INCPTR(2, p); \
+	GETSHORT(cishort, p); \
+	GETCHAR(cichar, p); \
+	/* Check rejected value. */ \
+	if ((cishort != PPP_CHAP) || (cichar != (CHAP_DIGEST(val)))) \
+	    goto bad; \
+	try_.neg = 0; \
+    }
+#endif /* CHAP_SUPPORT && !EAP_SUPPORT && !PAP_SUPPORT */
+
+#define REJCILONG(opt, neg, val) \
+    if (go->neg && \
+	len >= CILEN_LONG && \
+	p[1] == CILEN_LONG && \
+	p[0] == opt) { \
+	len -= CILEN_LONG; \
+	INCPTR(2, p); \
+	GETLONG(cilong, p); \
+	/* Check rejected value. */ \
+	if (cilong != val) \
+	    goto bad; \
+	try_.neg = 0; \
+    }
+#if LQR_SUPPORT
+#define REJCILQR(opt, neg, val) \
+    if (go->neg && \
+	len >= CILEN_LQR && \
+	p[1] == CILEN_LQR && \
+	p[0] == opt) { \
+	len -= CILEN_LQR; \
+	INCPTR(2, p); \
+	GETSHORT(cishort, p); \
+	GETLONG(cilong, p); \
+	/* Check rejected value. */ \
+	if (cishort != PPP_LQR || cilong != val) \
+	    goto bad; \
+	try_.neg = 0; \
+    }
+#endif /* LQR_SUPPORT */
+#define REJCICBCP(opt, neg, val) \
+    if (go->neg && \
+	len >= CILEN_CBCP && \
+	p[1] == CILEN_CBCP && \
+	p[0] == opt) { \
+	len -= CILEN_CBCP; \
+	INCPTR(2, p); \
+	GETCHAR(cichar, p); \
+	/* Check rejected value. */ \
+	if (cichar != val) \
+	    goto bad; \
+	try_.neg = 0; \
+    }
+#define REJCIENDP(opt, neg, class, val, vlen) \
+    if (go->neg && \
+	len >= CILEN_CHAR + vlen && \
+	p[0] == opt && \
+	p[1] == CILEN_CHAR + vlen) { \
+	int i; \
+	len -= CILEN_CHAR + vlen; \
+	INCPTR(2, p); \
+	GETCHAR(cichar, p); \
+	if (cichar != class) \
+	    goto bad; \
+	for (i = 0; i < vlen; ++i) { \
+	    GETCHAR(cichar, p); \
+	    if (cichar != val[i]) \
+		goto bad; \
+	} \
+	try_.neg = 0; \
+    }
+
+    REJCISHORT(CI_MRU, neg_mru, go->mru);
+    REJCILONG(CI_ASYNCMAP, neg_asyncmap, go->asyncmap);
+#if EAP_SUPPORT
+    REJCISHORT(CI_AUTHTYPE, neg_eap, PPP_EAP);
+    if (!go->neg_eap) {
+#endif /* EAP_SUPPORT */
+#if CHAP_SUPPORT
+	REJCICHAP(CI_AUTHTYPE, neg_chap, go->chap_mdtype);
+	if (!go->neg_chap) {
+#endif /* CHAP_SUPPORT */
+#if PAP_SUPPORT
+	    REJCISHORT(CI_AUTHTYPE, neg_upap, PPP_PAP);
+#endif /* PAP_SUPPORT */
+#if CHAP_SUPPORT
+	}
+#endif /* CHAP_SUPPORT */
+#if EAP_SUPPORT
+    }
+#endif /* EAP_SUPPORT */
+#if LQR_SUPPORT
+    REJCILQR(CI_QUALITY, neg_lqr, go->lqr_period);
+#endif /* LQR_SUPPORT */
+    REJCICBCP(CI_CALLBACK, neg_cbcp, CBCP_OPT);
+    REJCILONG(CI_MAGICNUMBER, neg_magicnumber, go->magicnumber);
+    REJCIVOID(CI_PCOMPRESSION, neg_pcompression);
+    REJCIVOID(CI_ACCOMPRESSION, neg_accompression);
+#ifdef HAVE_MULTILINK
+    REJCISHORT(CI_MRRU, neg_mrru, go->mrru);
+#endif /* HAVE_MULTILINK */
+    REJCIVOID(CI_SSNHF, neg_ssnhf);
+    REJCIENDP(CI_EPDISC, neg_endpoint, go->endpoint.class_,
+	      go->endpoint.value, go->endpoint.length);
+
+    /*
+     * If there are any remaining CIs, then this packet is bad.
+     */
+    if (len != 0)
+	goto bad;
+    /*
+     * Now we can update state.
+     */
+    if (f->state != PPP_FSM_OPENED)
+	*go = try_;
+    return 1;
+
+bad:
+    LCPDEBUG(("lcp_rejci: received bad Reject!"));
+    return 0;
+}

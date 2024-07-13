@@ -1,0 +1,57 @@
+static ErrorStatus UTILS_EnablePLLAndSwitchSystem(uint32_t SYSCLK_Frequency, LL_UTILS_ClkInitTypeDef *UTILS_ClkInitStruct)
+{
+  ErrorStatus status = SUCCESS;
+  uint32_t hclk_frequency = 0U;
+
+  assert_param(IS_LL_UTILS_SYSCLK_DIV(UTILS_ClkInitStruct->AHBCLKDivider));
+  assert_param(IS_LL_UTILS_APB1_DIV(UTILS_ClkInitStruct->APB1CLKDivider));
+  assert_param(IS_LL_UTILS_APB2_DIV(UTILS_ClkInitStruct->APB2CLKDivider));
+
+  /* Calculate HCLK frequency */
+  hclk_frequency = __LL_RCC_CALC_HCLK_FREQ(SYSCLK_Frequency, UTILS_ClkInitStruct->AHBCLKDivider);
+
+  /* Increasing the number of wait states because of higher CPU frequency */
+  if(SystemCoreClock < hclk_frequency)
+  {
+    /* Set FLASH latency to highest latency */
+    status = UTILS_SetFlashLatency(hclk_frequency);
+  }
+
+  /* Update system clock configuration */
+  if(status == SUCCESS)
+  {
+    /* Enable PLL */
+    LL_RCC_PLL_Enable();
+    while (LL_RCC_PLL_IsReady() != 1U)
+    {
+      /* Wait for PLL ready */
+    }
+
+    /* Sysclk activation on the main PLL */
+    LL_RCC_SetAHBPrescaler(UTILS_ClkInitStruct->AHBCLKDivider);
+    LL_RCC_SetSysClkSource(LL_RCC_SYS_CLKSOURCE_PLL);
+    while (LL_RCC_GetSysClkSource() != LL_RCC_SYS_CLKSOURCE_STATUS_PLL)
+    {
+      /* Wait for system clock switch to PLL */
+    }
+
+    /* Set APB1 & APB2 prescaler*/
+    LL_RCC_SetAPB1Prescaler(UTILS_ClkInitStruct->APB1CLKDivider);
+    LL_RCC_SetAPB2Prescaler(UTILS_ClkInitStruct->APB2CLKDivider);
+  }
+    
+  /* Decreasing the number of wait states because of lower CPU frequency */
+  if(SystemCoreClock > hclk_frequency)
+  {
+    /* Set FLASH latency to lowest latency */
+    status = UTILS_SetFlashLatency(hclk_frequency);
+  }
+
+  /* Update SystemCoreClock variable */
+  if(status == SUCCESS)
+  {
+    LL_SetSystemCoreClock(hclk_frequency);
+  }
+
+  return status;
+}

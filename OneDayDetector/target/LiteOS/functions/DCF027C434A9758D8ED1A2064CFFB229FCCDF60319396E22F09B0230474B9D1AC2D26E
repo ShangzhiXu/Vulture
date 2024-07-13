@@ -1,0 +1,35 @@
+http_accept(void *arg, struct altcp_pcb *pcb, err_t err)
+{
+  struct http_state *hs;
+  LWIP_UNUSED_ARG(err);
+  LWIP_UNUSED_ARG(arg);
+  LWIP_DEBUGF(HTTPD_DEBUG, ("http_accept %p / %p\n", (void *)pcb, arg));
+
+  if ((err != ERR_OK) || (pcb == NULL)) {
+    return ERR_VAL;
+  }
+
+  /* Set priority */
+  altcp_setprio(pcb, HTTPD_TCP_PRIO);
+
+  /* Allocate memory for the structure that holds the state of the
+     connection - initialized by that function. */
+  hs = http_state_alloc();
+  if (hs == NULL) {
+    LWIP_DEBUGF(HTTPD_DEBUG, ("http_accept: Out of memory, RST\n"));
+    return ERR_MEM;
+  }
+  hs->pcb = pcb;
+
+  /* Tell TCP that this is the structure we wish to be passed for our
+     callbacks. */
+  altcp_arg(pcb, hs);
+
+  /* Set up the various callback functions */
+  altcp_recv(pcb, http_recv);
+  altcp_err(pcb, http_err);
+  altcp_poll(pcb, http_poll, HTTPD_POLL_INTERVAL);
+  altcp_sent(pcb, http_sent);
+
+  return ERR_OK;
+}

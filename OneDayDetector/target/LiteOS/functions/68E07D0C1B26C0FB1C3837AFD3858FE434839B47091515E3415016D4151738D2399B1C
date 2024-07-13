@@ -1,0 +1,19 @@
+static void I2S_DMARxCplt(DMA_HandleTypeDef *hdma)
+{
+  I2S_HandleTypeDef *hi2s = (I2S_HandleTypeDef *)((DMA_HandleTypeDef *)hdma)->Parent; /* Derogation MISRAC2012-Rule-11.5 */
+
+  /* if DMA is configured in DMA_NORMAL Mode */
+  if (hdma->Init.Mode == DMA_NORMAL)
+  {
+    /* Disable Rx DMA Request */
+    CLEAR_BIT(hi2s->Instance->CR2, SPI_CR2_RXDMAEN);
+    hi2s->RxXferCount = 0U;
+    hi2s->State = HAL_I2S_STATE_READY;
+  }
+  /* Call user Rx complete callback */
+#if (USE_HAL_I2S_REGISTER_CALLBACKS == 1U)
+  hi2s->RxCpltCallback(hi2s);
+#else
+  HAL_I2S_RxCpltCallback(hi2s);
+#endif /* USE_HAL_I2S_REGISTER_CALLBACKS */
+}

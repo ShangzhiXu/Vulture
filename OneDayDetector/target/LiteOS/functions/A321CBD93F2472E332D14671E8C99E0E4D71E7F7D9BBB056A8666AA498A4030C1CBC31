@@ -1,0 +1,59 @@
+static int lcp_cilen(fsm *f) {
+    ppp_pcb *pcb = f->pcb;
+    lcp_options *go = &pcb->lcp_gotoptions;
+
+#define LENCIVOID(neg)	((neg) ? CILEN_VOID : 0)
+#if CHAP_SUPPORT
+#define LENCICHAP(neg)	((neg) ? CILEN_CHAP : 0)
+#endif /* CHAP_SUPPORT */
+#define LENCISHORT(neg)	((neg) ? CILEN_SHORT : 0)
+#define LENCILONG(neg)	((neg) ? CILEN_LONG : 0)
+#if LQR_SUPPORT
+#define LENCILQR(neg)	((neg) ? CILEN_LQR: 0)
+#endif /* LQR_SUPPORT */
+#define LENCICBCP(neg)	((neg) ? CILEN_CBCP: 0)
+    /*
+     * NB: we only ask for one of CHAP, UPAP, or EAP, even if we will
+     * accept more than one.  We prefer EAP first, then CHAP, then
+     * PAP.
+     */
+    return (LENCISHORT(go->neg_mru && go->mru != PPP_DEFMRU) +
+	    LENCILONG(go->neg_asyncmap && go->asyncmap != 0xFFFFFFFF) +
+#if EAP_SUPPORT
+	    LENCISHORT(go->neg_eap) +
+#endif /* EAP_SUPPORT */
+#if CHAP_SUPPORT /* cannot be improved, embedding a directive within macro arguments is not portable */
+#if EAP_SUPPORT
+	    LENCICHAP(!go->neg_eap && go->neg_chap) +
+#endif /* EAP_SUPPORT */
+#if !EAP_SUPPORT
+	    LENCICHAP(go->neg_chap) +
+#endif /* !EAP_SUPPORT */
+#endif /* CHAP_SUPPORT */
+#if PAP_SUPPORT /* cannot be improved, embedding a directive within macro arguments is not portable */
+#if EAP_SUPPORT && CHAP_SUPPORT
+	    LENCISHORT(!go->neg_eap && !go->neg_chap && go->neg_upap) +
+#endif /* EAP_SUPPORT && CHAP_SUPPORT */
+#if EAP_SUPPORT && !CHAP_SUPPORT
+	    LENCISHORT(!go->neg_eap && go->neg_upap) +
+#endif /* EAP_SUPPORT && !CHAP_SUPPORT */
+#if !EAP_SUPPORT && CHAP_SUPPORT
+	    LENCISHORT(!go->neg_chap && go->neg_upap) +
+#endif /* !EAP_SUPPORT && CHAP_SUPPORT */
+#if !EAP_SUPPORT && !CHAP_SUPPORT
+	    LENCISHORT(go->neg_upap) +
+#endif /* !EAP_SUPPORT && !CHAP_SUPPORT */
+#endif /* PAP_SUPPORT */
+#if LQR_SUPPORT
+	    LENCILQR(go->neg_lqr) +
+#endif /* LQR_SUPPORT */
+	    LENCICBCP(go->neg_cbcp) +
+	    LENCILONG(go->neg_magicnumber) +
+	    LENCIVOID(go->neg_pcompression) +
+	    LENCIVOID(go->neg_accompression) +
+#ifdef HAVE_MULTILINK
+	    LENCISHORT(go->neg_mrru) +
+#endif /* HAVE_MULTILINK */
+	    LENCIVOID(go->neg_ssnhf) +
+	    (go->neg_endpoint? CILEN_CHAR + go->endpoint.length: 0));
+}

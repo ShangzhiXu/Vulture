@@ -1,0 +1,7 @@
+#define DOWN_DIV(x, y) (((x) - (y) + (1)) / (y))
+#define MSMAX(x, y) ((x) > (y) ? (x) : (y))
+#define MSMIN(x, y) ((x) < (y) ? (x) : (y))
+#define MSVALID(left, x, right) (MSMIN((MSMAX(left, x)), right))
+#define UP_DIV(x, y) (((x) + (y) - (1)) / (y))
+#define UP_ROUND(x, y) (((x) + (y) - (1)) / (y) * (y))
+#define UP_ROUND_DIV(x, y) (x % y == 0 ? (x / y) : (x / y) + 1)

@@ -1,0 +1,32 @@
+static struct pppoe_softc* pppoe_find_softc_by_hunique(u8_t *token, size_t len, struct netif *rcvif) {
+  struct pppoe_softc *sc, *t;
+
+  if (len != sizeof sc) {
+    return NULL;
+  }
+  MEMCPY(&t, token, len);
+
+  for (sc = pppoe_softc_list; sc != NULL; sc = sc->next) {
+    if (sc == t) {
+      break;
+    }
+  }
+
+  if (sc == NULL) {
+    PPPDEBUG(LOG_DEBUG, ("pppoe: alien host unique tag, no session found\n"));
+    return NULL;
+  }
+
+  /* should be safe to access *sc now */
+  if (sc->sc_state < PPPOE_STATE_PADI_SENT || sc->sc_state >= PPPOE_STATE_SESSION) {
+    PPPDEBUG(LOG_DEBUG, ("%c%c%"U16_F": host unique tag found, but it belongs to a connection in state %d\n",
+      sc->sc_ethif->name[0], sc->sc_ethif->name[1], sc->sc_ethif->num, sc->sc_state));
+    return NULL;
+  }
+  if (sc->sc_ethif != rcvif) {
+    PPPDEBUG(LOG_DEBUG, ("%c%c%"U16_F": wrong interface, not accepting host unique\n",
+      sc->sc_ethif->name[0], sc->sc_ethif->name[1], sc->sc_ethif->num));
+    return NULL;
+  }
+  return sc;
+}

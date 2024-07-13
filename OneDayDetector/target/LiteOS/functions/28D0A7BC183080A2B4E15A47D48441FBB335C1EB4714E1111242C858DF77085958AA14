@@ -1,0 +1,19 @@
+void MQTTRun(void* parm)
+{
+	Timer timer;
+	MQTTClient* c = (MQTTClient*)parm;
+
+	TimerInit(&timer);
+
+	while (1)
+	{
+#if defined(MQTT_TASK)
+		MutexLock(&c->mutex);
+#endif
+		TimerCountdownMS(&timer, 500); /* Don't wait too long if no traffic is incoming */
+		cycle(c, &timer);
+#if defined(MQTT_TASK)
+		MutexUnlock(&c->mutex);
+#endif
+	}
+}

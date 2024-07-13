@@ -1,0 +1,32 @@
+HAL_StatusTypeDef HAL_UARTEx_ConfigNSS(UART_HandleTypeDef *huart, uint32_t NSSConfig)
+{
+  uint32_t tmpcr1 = 0;
+
+  /* Check parameters */
+  assert_param(IS_UART_SPI_SLAVE_INSTANCE(huart->Instance));
+  assert_param(IS_UART_NSS(NSSConfig));
+  
+  /* Process Locked */
+  __HAL_LOCK(huart);
+  
+  huart->gState = HAL_UART_STATE_BUSY;
+  
+  /* Save actual UART configuration */
+  tmpcr1 = READ_REG(huart->Instance->CR1);
+  
+  /* Disable UART */
+  __HAL_UART_DISABLE(huart);
+
+  /* Program DIS_NSS bit in the USART_CR2 register */
+  MODIFY_REG(huart->Instance->CR2, USART_CR2_DIS_NSS, NSSConfig);
+  
+  /* Restore UART configuration */
+  WRITE_REG(huart->Instance->CR1, tmpcr1);
+ 
+  huart->gState = HAL_UART_STATE_READY;
+  
+  /* Process Unlocked */
+  __HAL_UNLOCK(huart);
+
+  return HAL_OK;
+}

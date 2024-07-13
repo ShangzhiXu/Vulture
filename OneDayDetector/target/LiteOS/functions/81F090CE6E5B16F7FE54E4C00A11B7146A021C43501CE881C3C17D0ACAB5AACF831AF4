@@ -1,0 +1,45 @@
+int mbedtls_nist_kw_setkey( mbedtls_nist_kw_context *ctx,
+                            mbedtls_cipher_id_t cipher,
+                            const unsigned char *key,
+                            unsigned int keybits,
+                            const int is_wrap )
+{
+    int ret;
+    const mbedtls_cipher_info_t *cipher_info;
+
+    cipher_info = mbedtls_cipher_info_from_values( cipher,
+                                                   keybits,
+                                                   MBEDTLS_MODE_ECB );
+    if( cipher_info == NULL )
+        return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+
+    if( cipher_info->block_size != 16 )
+        return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+
+    /*
+     * SP 800-38F currently defines AES cipher as the only block cipher allowed:
+     * "For KW and KWP, the underlying block cipher shall be approved, and the
+     *  block size shall be 128 bits. Currently, the AES block cipher, with key
+     *  lengths of 128, 192, or 256 bits, is the only block cipher that fits
+     *  this profile."
+     *  Currently we don't support other 128 bit block ciphers for key wrapping,
+     *  such as Camellia and Aria.
+     */
+    if( cipher != MBEDTLS_CIPHER_ID_AES )
+        return( MBEDTLS_ERR_CIPHER_FEATURE_UNAVAILABLE );
+
+    mbedtls_cipher_free( &ctx->cipher_ctx );
+
+    if( ( ret = mbedtls_cipher_setup( &ctx->cipher_ctx, cipher_info ) ) != 0 )
+        return( ret );
+
+    if( ( ret = mbedtls_cipher_setkey( &ctx->cipher_ctx, key, keybits,
+                                       is_wrap ? MBEDTLS_ENCRYPT :
+                                                 MBEDTLS_DECRYPT )
+                                                                   ) != 0 )
+    {
+        return( ret );
+    }
+
+    return( 0 );
+}

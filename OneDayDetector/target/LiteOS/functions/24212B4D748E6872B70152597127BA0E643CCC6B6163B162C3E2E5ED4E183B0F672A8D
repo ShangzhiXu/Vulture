@@ -1,0 +1,52 @@
+STATIC VOID OsBufFullWrite(const CHAR *dst, UINT32 logLen)
+{
+    UINT32 bufSize = g_logBufSize;
+    UINT32 tail = g_dmesgInfo->logTail;
+    CHAR *buf = g_dmesgInfo->logBuf;
+    errno_t ret;
+
+    if ((logLen == 0) || (dst == NULL)) {
+        return;
+    }
+    if (logLen > bufSize) { /* full re-write */
+        ret = memcpy_s(buf + tail, bufSize - tail, dst, bufSize - tail);
+        if (ret != EOK) {
+            PRINT_ERR("%s,%d memcpy_s failed, err:%d!\n", __FUNCTION__, __LINE__, ret);
+            return;
+        }
+        ret = memcpy_s(buf, bufSize, dst + bufSize - tail, tail);
+        if (ret != EOK) {
+            PRINT_ERR("%s,%d memcpy_s failed, err:%d!\n", __FUNCTION__, __LINE__, ret);
+            return;
+        }
+
+        OsBufFullWrite(dst + bufSize, logLen - bufSize);
+    } else {
+        if (logLen > (bufSize - tail)) { /* need cycle back to start */
+            ret = memcpy_s(buf + tail, bufSize - tail, dst, bufSize - tail);
+            if (ret != EOK) {
+                PRINT_ERR("%s,%d memcpy_s failed, err:%d!\n", __FUNCTION__, __LINE__, ret);
+                return;
+            }
+            ret = memcpy_s(buf, bufSize, dst + bufSize - tail, logLen - (bufSize - tail));
+            if (ret != EOK) {
+                PRINT_ERR("%s,%d memcpy_s failed, err:%d!\n", __FUNCTION__, __LINE__, ret);
+                return;
+            }
+
+            g_dmesgInfo->logTail = logLen - (bufSize - tail);
+            g_dmesgInfo->logHead = g_dmesgInfo->logTail;
+        } else { /* no need cycle back to start */
+            ret = memcpy_s(buf + tail, bufSize - tail, dst, logLen);
+            if (ret != EOK) {
+                PRINT_ERR("%s,%d memcpy_s failed, err:%d!\n", __FUNCTION__, __LINE__, ret);
+                return;
+            }
+            g_dmesgInfo->logTail += logLen;
+            if (g_dmesgInfo->logTail > BUF_MAX_INDEX) {
+                g_dmesgInfo->logTail = 0;
+            }
+            g_dmesgInfo->logHead = g_dmesgInfo->logTail;
+        }
+    }
+}

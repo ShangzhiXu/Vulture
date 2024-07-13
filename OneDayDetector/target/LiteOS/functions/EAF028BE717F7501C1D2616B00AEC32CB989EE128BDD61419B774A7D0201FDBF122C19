@@ -1,0 +1,40 @@
+lv_res_t _lv_style_list_get_int(lv_style_list_t * list, lv_style_property_t prop, lv_style_int_t * res)
+{
+    LV_ASSERT_STYLE_LIST(list);
+
+    if(list == NULL) return LV_RES_INV;
+    if(list->style_list == NULL) return LV_RES_INV;
+
+    lv_style_attr_t attr;
+    attr.full = prop >> 8;
+    int16_t weight_goal = attr.full;
+
+    int16_t weight = -1;
+
+    lv_style_int_t value_act = 0;
+
+    int16_t ci;
+    for(ci = 0; ci < list->style_cnt; ci++) {
+        lv_style_t * class = lv_style_list_get_style(list, ci);
+        int16_t weight_act = _lv_style_get_int(class, prop, &value_act);
+
+        /*On perfect match return the value immediately*/
+        if(weight_act == weight_goal) {
+            *res = value_act;
+            return LV_RES_OK;
+        }
+        else if(list->has_trans && weight_act >= 0 && ci == 0 && !list->skip_trans) {
+            *res = value_act;
+            return LV_RES_OK;
+        }
+        /*If the found ID is better the current candidate then use it*/
+        else if(weight_act > weight) {
+            weight =  weight_act;
+            *res = value_act;
+        }
+    }
+
+    if(weight >= 0) return LV_RES_OK;
+    else return LV_RES_INV;
+
+}

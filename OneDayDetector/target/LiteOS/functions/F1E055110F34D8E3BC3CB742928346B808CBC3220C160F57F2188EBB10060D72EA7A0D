@@ -1,0 +1,32 @@
+static void SAI_DMAAbort(DMA_HandleTypeDef *hdma)
+{
+  SAI_HandleTypeDef* hsai = ( SAI_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+
+  /* Disable DMA request */
+  hsai->Instance->CR1 &= ~SAI_xCR1_DMAEN;
+
+  /* Disable all interrupts and clear all flags */
+  hsai->Instance->IMR = 0U;
+  hsai->Instance->CLRFR = 0xFFFFFFFFU;
+
+  if(hsai->ErrorCode != HAL_SAI_ERROR_WCKCFG)
+  {
+    /* Disable SAI peripheral */
+    SAI_Disable(hsai);
+
+    /* Flush the fifo */
+    SET_BIT(hsai->Instance->CR2, SAI_xCR2_FFLUSH);
+  }
+  /* Set the SAI state to ready to be able to start again the process */
+  hsai->State = HAL_SAI_STATE_READY;
+
+  /* Initialize XferCount */
+  hsai->XferCount = 0U;
+
+  /* SAI error Callback */
+#if (USE_HAL_SAI_REGISTER_CALLBACKS == 1)
+  hsai->ErrorCallback(hsai);
+#else
+  HAL_SAI_ErrorCallback(hsai);
+#endif /* USE_HAL_SAI_REGISTER_CALLBACKS */
+}

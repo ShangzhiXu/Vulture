@@ -1,0 +1,244 @@
+static void pppol2tp_dispatch_control_packet(pppol2tp_pcb *l2tp, u16_t port, struct pbuf *p, u16_t ns, u16_t nr) {
+  u8_t *inp;
+  u16_t avplen, avpflags, vendorid, attributetype, messagetype=0;
+  err_t err;
+#if PPPOL2TP_AUTH_SUPPORT
+  lwip_md5_context md5_ctx;
+  u8_t md5_hash[16];
+  u8_t challenge_id = 0;
+#endif /* PPPOL2TP_AUTH_SUPPORT */
+
+  /* printf("L2TP CTRL INPUT, ns=%d, nr=%d, len=%d\n", ns, nr, p->len); */
+
+  /* Drop unexpected packet */
+  if (ns != l2tp->peer_ns) {
+    PPPDEBUG(LOG_DEBUG, ("pppol2tp: drop unexpected packet: received NS=%d, expected NS=%d\n", ns, l2tp->peer_ns));
+    /*
+     * In order to ensure that all messages are acknowledged properly
+     * (particularly in the case of a lost ZLB ACK message), receipt
+     * of duplicate messages MUST be acknowledged.
+     *
+     * In this very special case we Ack a packet we previously received.
+     * Therefore our NS is the NR we just received. And our NR is the
+     * NS we just received plus one.
+     */
+    if ((s16_t)(ns - l2tp->peer_ns) < 0) {
+      pppol2tp_send_zlb(l2tp, nr, ns+1);
+    }
+    return;
+  }
+
+  l2tp->peer_nr = nr;
+
+  /* Handle the special case of the ICCN acknowledge */
+  if (l2tp->phase == PPPOL2TP_STATE_ICCN_SENT && (s16_t)(l2tp->peer_nr - l2tp->our_ns) > 0) {
+    l2tp->phase = PPPOL2TP_STATE_DATA;
+    sys_untimeout(pppol2tp_timeout, l2tp);
+    ppp_start(l2tp->ppp); /* notify upper layers */
+  }
+
+  /* ZLB packets */
+  if (p->tot_len == 0) {
+    return;
+  }
+  /* A ZLB packet does not consume a NS slot thus we don't record the NS value for ZLB packets */
+  l2tp->peer_ns = ns+1;
+
+  p = pbuf_coalesce(p, PBUF_RAW);
+  inp = (u8_t*)p->payload;
+  /* Decode AVPs */
+  while (p->len > 0) {
+    if (p->len < sizeof(avpflags) + sizeof(vendorid) + sizeof(attributetype) ) {
+      goto packet_too_short;
+    }
+    GETSHORT(avpflags, inp);
+    avplen = avpflags & PPPOL2TP_AVPHEADERFLAG_LENGTHMASK;
+    /* printf("AVPLEN = %d\n", avplen); */
+    if (p->len < avplen || avplen < sizeof(avpflags) + sizeof(vendorid) + sizeof(attributetype)) {
+      goto packet_too_short;
+    }
+    GETSHORT(vendorid, inp);
+    GETSHORT(attributetype, inp);
+    avplen -= sizeof(avpflags) + sizeof(vendorid) + sizeof(attributetype);
+
+    /* Message type must be the first AVP */
+    if (messagetype == 0) {
+      if (attributetype != 0 || vendorid != 0 || avplen != sizeof(messagetype) ) {
+        PPPDEBUG(LOG_DEBUG, ("pppol2tp: message type must be the first AVP\n"));
+        return;
+      }
+      GETSHORT(messagetype, inp);
+      /* printf("Message type = %d\n", messagetype); */
+      switch(messagetype) {
+        /* Start Control Connection Reply */
+        case PPPOL2TP_MESSAGETYPE_SCCRP:
+          /* Only accept SCCRP packet if we sent a SCCRQ */
+          if (l2tp->phase != PPPOL2TP_STATE_SCCRQ_SENT) {
+            goto send_zlb;
+          }
+          break;
+        /* Incoming Call Reply */
+        case PPPOL2TP_MESSAGETYPE_ICRP:
+          /* Only accept ICRP packet if we sent a IRCQ */
+          if (l2tp->phase != PPPOL2TP_STATE_ICRQ_SENT) {
+            goto send_zlb;
+          }
+          break;
+        /* Stop Control Connection Notification */
+        case PPPOL2TP_MESSAGETYPE_STOPCCN:
+          pppol2tp_send_zlb(l2tp, l2tp->our_ns+1, l2tp->peer_ns); /* Ack the StopCCN before we switch to down state */
+          if (l2tp->phase < PPPOL2TP_STATE_DATA) {
+            pppol2tp_abort_connect(l2tp);
+          } else if (l2tp->phase == PPPOL2TP_STATE_DATA) {
+            /* Don't disconnect here, we let the LCP Echo/Reply find the fact
+             * that PPP session is down. Asking the PPP stack to end the session
+             * require strict checking about the PPP phase to prevent endless
+             * disconnection loops.
+             */
+          }
+          return;
+        default:
+          break;
+      }
+      goto nextavp;
+    }
+
+    /* Skip proprietary L2TP extensions */
+    if (vendorid != 0) {
+      goto skipavp;
+    }
+
+    switch (messagetype) {
+      /* Start Control Connection Reply */
+      case PPPOL2TP_MESSAGETYPE_SCCRP:
+       switch (attributetype) {
+          case PPPOL2TP_AVPTYPE_TUNNELID:
+            if (avplen != sizeof(l2tp->source_tunnel_id) ) {
+               PPPDEBUG(LOG_DEBUG, ("pppol2tp: AVP Assign tunnel ID length check failed\n"));
+               return;
+            }
+            GETSHORT(l2tp->source_tunnel_id, inp);
+            PPPDEBUG(LOG_DEBUG, ("pppol2tp: Assigned tunnel ID %"U16_F"\n", l2tp->source_tunnel_id));
+            goto nextavp;
+#if PPPOL2TP_AUTH_SUPPORT
+          case PPPOL2TP_AVPTYPE_CHALLENGE:
+            if (avplen == 0) {
+               PPPDEBUG(LOG_DEBUG, ("pppol2tp: Challenge length check failed\n"));
+               return;
+            }
+            if (l2tp->secret == NULL) {
+              PPPDEBUG(LOG_DEBUG, ("pppol2tp: Received challenge from peer and no secret key available\n"));
+              pppol2tp_abort_connect(l2tp);
+              return;
+            }
+            /* Generate hash of ID, secret, challenge */
+            lwip_md5_init(&md5_ctx);
+            lwip_md5_starts(&md5_ctx);
+            challenge_id = PPPOL2TP_MESSAGETYPE_SCCCN;
+            lwip_md5_update(&md5_ctx, &challenge_id, 1);
+            lwip_md5_update(&md5_ctx, l2tp->secret, l2tp->secret_len);
+            lwip_md5_update(&md5_ctx, inp, avplen);
+            lwip_md5_finish(&md5_ctx, l2tp->challenge_hash);
+            lwip_md5_free(&md5_ctx);
+            l2tp->send_challenge = 1;
+            goto skipavp;
+          case PPPOL2TP_AVPTYPE_CHALLENGERESPONSE:
+            if (avplen != PPPOL2TP_AVPTYPE_CHALLENGERESPONSE_SIZE) {
+               PPPDEBUG(LOG_DEBUG, ("pppol2tp: AVP Challenge Response length check failed\n"));
+               return;
+            }
+            /* Generate hash of ID, secret, challenge */
+            lwip_md5_init(&md5_ctx);
+            lwip_md5_starts(&md5_ctx);
+            challenge_id = PPPOL2TP_MESSAGETYPE_SCCRP;
+            lwip_md5_update(&md5_ctx, &challenge_id, 1);
+            lwip_md5_update(&md5_ctx, l2tp->secret, l2tp->secret_len);
+            lwip_md5_update(&md5_ctx, l2tp->secret_rv, sizeof(l2tp->secret_rv));
+            lwip_md5_finish(&md5_ctx, md5_hash);
+            lwip_md5_free(&md5_ctx);
+            if ( memcmp(inp, md5_hash, sizeof(md5_hash)) ) {
+              PPPDEBUG(LOG_DEBUG, ("pppol2tp: Received challenge response from peer and secret key do not match\n"));
+              pppol2tp_abort_connect(l2tp);
+              return;
+            }
+            goto skipavp;
+#endif /* PPPOL2TP_AUTH_SUPPORT */
+          default:
+            break;
+        }
+        break;
+      /* Incoming Call Reply */
+      case PPPOL2TP_MESSAGETYPE_ICRP:
+        switch (attributetype) {
+         case PPPOL2TP_AVPTYPE_SESSIONID:
+            if (avplen != sizeof(l2tp->source_session_id) ) {
+               PPPDEBUG(LOG_DEBUG, ("pppol2tp: AVP Assign session ID length check failed\n"));
+               return;
+            }
+            GETSHORT(l2tp->source_session_id, inp);
+            PPPDEBUG(LOG_DEBUG, ("pppol2tp: Assigned session ID %"U16_F"\n", l2tp->source_session_id));
+            goto nextavp;
+          default:
+            break;
+        }
+        break;
+      default:
+        break;
+    }
+
+skipavp:
+    INCPTR(avplen, inp);
+nextavp:
+    /* printf("AVP Found, vendor=%d, attribute=%d, len=%d\n", vendorid, attributetype, avplen); */
+    /* next AVP */
+    if (pbuf_remove_header(p, avplen + sizeof(avpflags) + sizeof(vendorid) + sizeof(attributetype)) != 0) {
+      return;
+    }
+  }
+
+  switch(messagetype) {
+    /* Start Control Connection Reply */
+    case PPPOL2TP_MESSAGETYPE_SCCRP:
+      do {
+        l2tp->remote_session_id = magic();
+      } while(l2tp->remote_session_id == 0);
+      l2tp->tunnel_port = port; /* LNS server might have chosen its own local port */
+      l2tp->icrq_retried = 0;
+      l2tp->phase = PPPOL2TP_STATE_ICRQ_SENT;
+      l2tp->our_ns++;
+      if ((err = pppol2tp_send_scccn(l2tp, l2tp->our_ns)) != 0) {
+        PPPDEBUG(LOG_DEBUG, ("pppol2tp: failed to send SCCCN, error=%d\n", err));
+        LWIP_UNUSED_ARG(err); /* if PPPDEBUG is disabled */
+      }
+      l2tp->our_ns++;
+      if ((err = pppol2tp_send_icrq(l2tp, l2tp->our_ns)) != 0) {
+        PPPDEBUG(LOG_DEBUG, ("pppol2tp: failed to send ICRQ, error=%d\n", err));
+        LWIP_UNUSED_ARG(err); /* if PPPDEBUG is disabled */
+      }
+      sys_untimeout(pppol2tp_timeout, l2tp);
+      sys_timeout(PPPOL2TP_CONTROL_TIMEOUT, pppol2tp_timeout, l2tp);
+      break;
+    /* Incoming Call Reply */
+    case PPPOL2TP_MESSAGETYPE_ICRP:
+      l2tp->iccn_retried = 0;
+      l2tp->phase = PPPOL2TP_STATE_ICCN_SENT;
+      l2tp->our_ns++;
+      if ((err = pppol2tp_send_iccn(l2tp, l2tp->our_ns)) != 0) {
+        PPPDEBUG(LOG_DEBUG, ("pppol2tp: failed to send ICCN, error=%d\n", err));
+        LWIP_UNUSED_ARG(err); /* if PPPDEBUG is disabled */
+      }
+      sys_untimeout(pppol2tp_timeout, l2tp);
+      sys_timeout(PPPOL2TP_CONTROL_TIMEOUT, pppol2tp_timeout, l2tp);
+      break;
+    /* Unhandled packet, send ZLB ACK */
+    default:
+      goto send_zlb;
+  }
+  return;
+
+send_zlb:
+  pppol2tp_send_zlb(l2tp, l2tp->our_ns+1, l2tp->peer_ns);
+  return;
+packet_too_short:
+  PPPDEBUG(LOG_DEBUG, ("pppol2tp: packet too short: %d\n", p->len));
+}

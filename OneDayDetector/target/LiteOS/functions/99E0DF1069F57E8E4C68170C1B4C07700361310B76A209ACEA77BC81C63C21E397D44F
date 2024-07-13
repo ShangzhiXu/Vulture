@@ -1,0 +1,21 @@
+vj_compress_init(struct vjcompress *comp)
+{
+  u8_t i;
+  struct cstate *tstate = comp->tstate;
+
+#if MAX_SLOTS == 0
+  memset((char *)comp, 0, sizeof(*comp));
+#endif
+  comp->maxSlotIndex = MAX_SLOTS - 1;
+  comp->compressSlot = 0;    /* Disable slot ID compression by default. */
+  for (i = MAX_SLOTS - 1; i > 0; --i) {
+    tstate[i].cs_id = i;
+    tstate[i].cs_next = &tstate[i - 1];
+  }
+  tstate[0].cs_next = &tstate[MAX_SLOTS - 1];
+  tstate[0].cs_id = 0;
+  comp->last_cs = &tstate[0];
+  comp->last_recv = 255;
+  comp->last_xmit = 255;
+  comp->flags = VJF_TOSS;
+}

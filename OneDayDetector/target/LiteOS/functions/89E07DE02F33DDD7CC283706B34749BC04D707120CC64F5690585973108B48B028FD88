@@ -1,0 +1,16 @@
+static void SAI_DMARxCplt(DMA_HandleTypeDef *hdma)
+{
+  SAI_HandleTypeDef* hsai = ( SAI_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+  if((hdma->Instance->CCR & DMA_CCR_CIRC) == 0)
+  {
+    /* Disable Rx DMA Request */
+    hsai->Instance->CR1 &= (uint32_t)(~SAI_xCR1_DMAEN);
+    hsai->XferCount = 0;
+    
+    /* Stop the interrupts error handling */
+    __HAL_SAI_DISABLE_IT(hsai, SAI_InterruptFlag(hsai, SAI_MODE_DMA));
+    
+    hsai->State = HAL_SAI_STATE_READY;
+  }
+  HAL_SAI_RxCpltCallback(hsai);
+}

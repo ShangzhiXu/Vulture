@@ -1,0 +1,14 @@
+int32_t esp8266_send(int32_t id, const uint8_t *buf, uint32_t len)
+{
+    int32_t ret = AT_FAILED;
+    char cmd[64] = {0};
+    if (at.mux_mode == AT_MUXMODE_SINGLE) {
+        snprintf(cmd, 64, "%s=%lu,\"%s\",%d", AT_CMD_SEND, len, at.linkid[0].remote_ip, at.linkid[0].remote_port);
+    } else {
+        snprintf(cmd, 64, "%s=%ld,%lu,\"%s\",%d", AT_CMD_SEND, id, len, at.linkid[id].remote_ip,
+            at.linkid[id].remote_port);
+    }
+    ret = at.write((int8_t *)cmd, (int8_t *)"SEND OK\r\n", (int8_t *)buf, len);
+
+    return ret;
+}

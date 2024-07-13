@@ -1,0 +1,22 @@
+static void ecp_restart_rsm_free( mbedtls_ecp_restart_mul_ctx *ctx )
+{
+    unsigned char i;
+
+    if( ctx == NULL )
+        return;
+
+    mbedtls_ecp_point_free( &ctx->R );
+
+    if( ctx->T != NULL )
+    {
+        for( i = 0; i < ctx->T_size; i++ )
+            mbedtls_ecp_point_free( ctx->T + i );
+        mbedtls_free( ctx->T );
+    }
+
+#if !defined(MBEDTLS_ECP_NO_INTERNAL_RNG)
+    ecp_drbg_free( &ctx->drbg_ctx );
+#endif
+
+    ecp_restart_rsm_init( ctx );
+}

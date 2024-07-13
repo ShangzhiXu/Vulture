@@ -1,0 +1,35 @@
+int vsscanf_s(const char *buffer, const char *format, va_list argList)
+{
+    size_t count;               /* If initialization causes  e838 */
+    int retVal;
+    SecFileStream fStr;
+
+    /* Validation section */
+    if (buffer == NULL || format == NULL) {
+        SECUREC_ERROR_INVALID_PARAMTER("vsscanf_s");
+        return SECUREC_SCANF_EINVAL;
+    }
+    count = strlen(buffer);
+    if (count == 0 || count > SECUREC_STRING_MAX_LEN) {
+        SecClearDestBuf(buffer, format, argList);
+        SECUREC_ERROR_INVALID_PARAMTER("vsscanf_s");
+        return SECUREC_SCANF_EINVAL;
+    }
+#if defined(SECUREC_VXWORKS_PLATFORM) && !SECUREC_IN_KERNEL
+    /*
+     * On vxworks platform when buffer is white string, will set first %s argument tu zero.like following useage:
+     * "   \v\f\t\r\n", "%s", str, strSize
+     * Do not check all character, just first and last character then consider it is white string
+     */
+    if (isspace((int)(unsigned char)buffer[0]) != 0 && isspace((int)(unsigned char)buffer[count - 1]) != 0) {
+        SecClearDestBuf(buffer, format, argList);
+    }
+#endif
+    SECUREC_FILE_STREAM_FROM_STRING(&fStr, buffer, count);
+    retVal = SecInputS(&fStr, format, argList);
+    if (retVal < 0) {
+        SECUREC_ERROR_INVALID_PARAMTER("vsscanf_s");
+        return SECUREC_SCANF_EINVAL;
+    }
+    return retVal;
+}

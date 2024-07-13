@@ -1,0 +1,79 @@
+void HAL_DMA_IRQHandler(DMA_HandleTypeDef *hdma)
+{
+  uint32_t flag_it = hdma->DmaBaseAddress->ISR;
+  uint32_t source_it = hdma->Instance->CCR;
+
+  /* Half Transfer Complete Interrupt management ******************************/
+  if ((RESET != (flag_it & (DMA_FLAG_HT1 << hdma->ChannelIndex))) && (RESET != (source_it & DMA_IT_HT)))
+  {
+      /* Disable the half transfer interrupt if the DMA mode is not CIRCULAR */
+      if((hdma->Instance->CCR & DMA_CCR_CIRC) == 0)
+      {
+        /* Disable the half transfer interrupt */
+        __HAL_DMA_DISABLE_IT(hdma, DMA_IT_HT);
+      }
+      /* Clear the half transfer complete flag */
+      hdma->DmaBaseAddress->IFCR = (DMA_ISR_HTIF1 << hdma->ChannelIndex);
+
+      /* DMA peripheral state is not updated in Half Transfer */
+      /* but in Transfer Complete case */
+
+     if(hdma->XferHalfCpltCallback != NULL)
+      {
+        /* Half transfer callback */
+        hdma->XferHalfCpltCallback(hdma);
+      }
+  }
+
+  /* Transfer Complete Interrupt management ***********************************/
+  else if ((RESET != (flag_it & (DMA_FLAG_TC1 << hdma->ChannelIndex))) && (RESET != (source_it & DMA_IT_TC)))
+  {
+    if((hdma->Instance->CCR & DMA_CCR_CIRC) == 0)
+    {
+      /* Disable the transfer complete and error interrupt */
+      __HAL_DMA_DISABLE_IT(hdma, DMA_IT_TE | DMA_IT_TC);
+
+      /* Change the DMA state */
+      hdma->State = HAL_DMA_STATE_READY;
+    }
+    /* Clear the transfer complete flag */
+    hdma->DmaBaseAddress->IFCR = (DMA_ISR_TCIF1 << hdma->ChannelIndex);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hdma);
+
+    if(hdma->XferCpltCallback != NULL)
+    {
+      /* Transfer complete callback */
+      hdma->XferCpltCallback(hdma);
+    }
+  }
+
+  /* Transfer Error Interrupt management **************************************/
+  else if (( RESET != (flag_it & (DMA_FLAG_TE1 << hdma->ChannelIndex))) && (RESET != (source_it & DMA_IT_TE)))
+  {
+    /* When a DMA transfer error occurs */
+    /* A hardware clear of its EN bits is performed */
+    /* Disable ALL DMA IT */
+    __HAL_DMA_DISABLE_IT(hdma, (DMA_IT_TC | DMA_IT_HT | DMA_IT_TE));
+
+    /* Clear all flags */
+    hdma->DmaBaseAddress->IFCR = (DMA_ISR_GIF1 << hdma->ChannelIndex);
+
+    /* Update error code */
+    hdma->ErrorCode = HAL_DMA_ERROR_TE;
+
+    /* Change the DMA state */
+    hdma->State = HAL_DMA_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hdma);
+
+    if (hdma->XferErrorCallback != NULL)
+    {
+      /* Transfer error callback */
+      hdma->XferErrorCallback(hdma);
+    }
+  }
+  return;
+}

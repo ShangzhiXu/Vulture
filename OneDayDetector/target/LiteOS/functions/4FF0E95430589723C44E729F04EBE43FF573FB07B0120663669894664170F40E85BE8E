@@ -1,0 +1,29 @@
+static void sort_tests(void)
+{
+    /* Misc tests */
+    const char *random = "QWERTYUIOPASDFGHJKLZXCVBNM";
+    char buf[2] = {'\0', '\0'};
+    cJSON *sortme = NULL;
+    size_t i = 0;
+    cJSON *current_element = NULL;
+
+    /* JSON Sort test: */
+    sortme = cJSON_CreateObject();
+    for (i = 0; i < 26; i++)
+    {
+        buf[0] = random[i];
+        cJSON_AddItemToObject(sortme, buf, cJSON_CreateNumber(1));
+    }
+
+    cJSONUtils_SortObject(sortme);
+
+    /* check sorting */
+    current_element = sortme->child->next;
+    for (i = 1; (i < 26) && (current_element != NULL) && (current_element->prev != NULL); i++)
+    {
+        TEST_ASSERT_TRUE(current_element->string[0] >= current_element->prev->string[0]);
+        current_element = current_element->next;
+    }
+
+    cJSON_Delete(sortme);
+}

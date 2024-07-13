@@ -1,0 +1,26 @@
+static int atiny_check_bootstrap_init_param(atiny_param_t *atiny_params)
+{
+    if (atiny_params == NULL) {
+        return ATINY_ARG_INVALID;
+    }
+
+    if (atiny_params->server_params.bootstrap_mode == BOOTSTRAP_FACTORY) {
+        if ((atiny_params->security_params[0].server_ip == NULL) || (atiny_params->security_params[0].server_port == NULL)) {
+            LOG("[bootstrap_tag]: BOOTSTRAP_FACTORY mode's params is wrong, should have iot server ip/port");
+            return ATINY_ARG_INVALID;
+        }
+    } else if (atiny_params->server_params.bootstrap_mode == BOOTSTRAP_CLIENT_INITIATED) {
+        if ((atiny_params->security_params[1].server_ip == NULL) || (atiny_params->security_params[1].server_port == NULL)) {
+            LOG("[bootstrap_tag]: BOOTSTRAP_CLIENT_INITIATED mode's params is wrong, should have bootstrap server ip/port");
+            return ATINY_ARG_INVALID;
+        }
+    } else if (atiny_params->server_params.bootstrap_mode == BOOTSTRAP_SEQUENCE) {
+        return ATINY_OK;
+    } else {
+        // it is ok? if the mode value is not 0,1,2, we all set it to 2 ?
+        LOG("[bootstrap_tag]: BOOTSTRAP only have three mode, should been :0,1,2");
+        return ATINY_ARG_INVALID;
+    }
+
+    return ATINY_OK;
+}

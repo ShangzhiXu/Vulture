@@ -1,0 +1,16 @@
+LITE_OS_SEC_TEXT_MINOR VOID OsCpupIrqEnd(UINT32 intNum)
+{
+    UINT64 intTimeEnd = OsGetCpuCycle();
+    UINT32 cpuId = ArchCurrCpuid();
+
+    if (g_cpupInitFlg == 0) {
+        return;
+    }
+
+    g_cpup[g_taskMaxNum + intNum].id = intNum;
+    g_cpup[g_taskMaxNum + intNum].status = OS_TASK_STATUS_RUNNING;
+    g_timeInIrqPerTskSwitch[cpuId] += (intTimeEnd - g_intTimeStart[cpuId]);
+    g_cpup[g_taskMaxNum + intNum].allTime += (intTimeEnd - g_intTimeStart[cpuId]);
+
+    return;
+}

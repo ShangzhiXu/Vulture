@@ -1,0 +1,23 @@
+void sys_mbox_free(struct sys_mbox **mb)
+{
+    if ((mb != NULL) && (*mb != SYS_MBOX_NULL)) {
+        struct sys_mbox *mbox = *mb;
+        SYS_STATS_DEC(mbox.used);
+
+        LWIP_DEBUGF(SYS_DEBUG, ("sys_mbox_free: going to free mbox 0x%p\n", (void *)mbox));
+
+        (void)LOS_SemPend(mbox->mutex, LOS_WAIT_FOREVER);
+
+        (void)LOS_SemDelete(mbox->not_empty);
+        (void)LOS_SemDelete(mbox->not_full);
+
+        (void)LOS_SemPost(mbox->mutex);
+        (void)LOS_SemDelete(mbox->mutex);
+
+        mem_free(mbox->msgs);
+        mem_free(mbox);
+        *mb = NULL;
+
+        LWIP_DEBUGF(SYS_DEBUG, ("sys_mbox_free: freed mbox\n"));
+    }
+}

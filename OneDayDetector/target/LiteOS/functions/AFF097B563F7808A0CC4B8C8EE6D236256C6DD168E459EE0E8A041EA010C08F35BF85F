@@ -1,0 +1,47 @@
+HAL_StatusTypeDef HAL_CAN_WakeUp(CAN_HandleTypeDef* hcan)
+{
+  uint32_t tickstart = 0;
+    
+  /* Process locked */
+  __HAL_LOCK(hcan);
+  
+  /* Change CAN state */
+  hcan->State = HAL_CAN_STATE_BUSY;  
+ 
+  /* Wake up request */
+  CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_SLEEP);
+    
+  /* Get timeout */
+  tickstart = HAL_GetTick();   
+  
+  /* Sleep mode status */
+  while((hcan->Instance->MSR & CAN_MSR_SLAK) == CAN_MSR_SLAK)
+  {
+    if((HAL_GetTick()-tickstart) > CAN_TIMEOUT_VALUE)
+    {
+      hcan->State= HAL_CAN_STATE_TIMEOUT;
+      
+      /* Process unlocked */
+      __HAL_UNLOCK(hcan);
+      
+      return HAL_TIMEOUT;
+    }
+  }
+  if(HAL_IS_BIT_SET(hcan->Instance->MSR, CAN_MSR_SLAK))
+  {
+    /* Process unlocked */
+    __HAL_UNLOCK(hcan);
+
+    /* Return function status */
+    return HAL_ERROR;
+  }
+  
+  /* Change CAN state */
+  hcan->State = HAL_CAN_STATE_READY; 
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hcan);
+  
+  /* Return function status */
+  return HAL_OK;
+}

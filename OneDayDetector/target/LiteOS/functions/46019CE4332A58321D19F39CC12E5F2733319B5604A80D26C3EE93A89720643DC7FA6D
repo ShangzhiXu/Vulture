@@ -1,0 +1,53 @@
+HAL_StatusTypeDef HAL_TIM_Base_Start_DMA(TIM_HandleTypeDef *htim, uint32_t *pData, uint16_t Length)
+{
+  uint32_t tmpsmcr;
+
+  /* Check the parameters */
+  assert_param(IS_TIM_DMA_INSTANCE(htim->Instance));
+
+  if (htim->State == HAL_TIM_STATE_BUSY)
+  {
+    return HAL_BUSY;
+  }
+  else if (htim->State == HAL_TIM_STATE_READY)
+  {
+    if ((pData == NULL) && (Length > 0U))
+    {
+      return HAL_ERROR;
+    }
+    else
+    {
+      htim->State = HAL_TIM_STATE_BUSY;
+    }
+  }
+  else
+  {
+    /* nothing to do */
+  }
+
+  /* Set the DMA Period elapsed callbacks */
+  htim->hdma[TIM_DMA_ID_UPDATE]->XferCpltCallback = TIM_DMAPeriodElapsedCplt;
+  htim->hdma[TIM_DMA_ID_UPDATE]->XferHalfCpltCallback = TIM_DMAPeriodElapsedHalfCplt;
+
+  /* Set the DMA error callback */
+  htim->hdma[TIM_DMA_ID_UPDATE]->XferErrorCallback = TIM_DMAError ;
+
+  /* Enable the DMA channel */
+  if (HAL_DMA_Start_IT(htim->hdma[TIM_DMA_ID_UPDATE], (uint32_t)pData, (uint32_t)&htim->Instance->ARR, Length) != HAL_OK)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Enable the TIM Update DMA request */
+  __HAL_TIM_ENABLE_DMA(htim, TIM_DMA_UPDATE);
+
+  /* Enable the Peripheral, except in trigger mode where enable is automatically done with trigger */
+  tmpsmcr = htim->Instance->SMCR & TIM_SMCR_SMS;
+  if (!IS_TIM_SLAVEMODE_TRIGGER_ENABLED(tmpsmcr))
+  {
+    __HAL_TIM_ENABLE(htim);
+  }
+
+  /* Return function status */
+  return HAL_OK;
+}

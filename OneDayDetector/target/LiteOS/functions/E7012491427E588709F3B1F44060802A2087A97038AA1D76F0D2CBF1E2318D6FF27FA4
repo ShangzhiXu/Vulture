@@ -1,0 +1,55 @@
+int UnityParseOptions(int argc, char** argv)
+{
+    UnityOptionIncludeNamed = NULL;
+    UnityOptionExcludeNamed = NULL;
+
+    for (int i = 1; i < argc; i++)
+    {
+        if (argv[i][0] == '-')
+        {
+            switch (argv[i][1])
+            {
+                case 'l': /* list tests */
+                    return -1;
+                case 'n': /* include tests with name including this string */
+                case 'f': /* an alias for -n */
+                    if (argv[i][2] == '=')
+                        UnityOptionIncludeNamed = &argv[i][3];
+                    else if (++i < argc)
+                        UnityOptionIncludeNamed = argv[i];
+                    else
+                    {
+                        UnityPrint("ERROR: No Test String to Include Matches For");
+                        UNITY_PRINT_EOL();
+                        return 1;
+                    }
+                    break;
+                case 'q': /* quiet */
+                    UnityVerbosity = 0;
+                    break;
+                case 'v': /* verbose */
+                    UnityVerbosity = 2;
+                    break;
+                case 'x': /* exclude tests with name including this string */
+                    if (argv[i][2] == '=')
+                        UnityOptionExcludeNamed = &argv[i][3];
+                    else if (++i < argc)
+                        UnityOptionExcludeNamed = argv[i];
+                    else
+                    {
+                        UnityPrint("ERROR: No Test String to Exclude Matches For");
+                        UNITY_PRINT_EOL();
+                        return 1;
+                    }
+                    break;
+                default:
+                    UnityPrint("ERROR: Unknown Option ");
+                    UNITY_OUTPUT_CHAR(argv[i][1]);
+                    UNITY_PRINT_EOL();
+                    return 1;
+            }
+        }
+    }
+
+    return 0;
+}

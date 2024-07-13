@@ -1,0 +1,30 @@
+static void printFloatValue(float f)
+{
+    char expected[18];
+    char expected_lower[18];
+    char expected_higher[18];
+
+    startPutcharSpy();
+
+    UnityPrintFloat(f);
+
+    sprintf(expected, "%.6g", f);
+
+    /* We print all NaN's as "nan", not "-nan" */
+    if(strcmp(expected, "-nan") == 0) strcpy(expected, "nan");
+
+    /* Allow for rounding differences in last digit */
+    double lower = (double)f * 0.9999995;
+    double higher = (double)f * 1.0000005;
+
+    if (isfinite(lower)) sprintf(expected_lower, "%.6g", lower); else strcpy(expected_lower, expected);
+    if (isfinite(higher)) sprintf(expected_higher, "%.6g", higher); else strcpy(expected_higher, expected);
+
+    if (strcmp(expected, getBufferPutcharSpy()) != 0 &&
+        strcmp(expected_lower, getBufferPutcharSpy()) != 0 &&
+        strcmp(expected_higher, getBufferPutcharSpy()) != 0)
+    {
+        /* Fail with diagnostic printing */
+        TEST_ASSERT_EQUAL_PRINT_FLOATING(expected, f);
+    }
+}

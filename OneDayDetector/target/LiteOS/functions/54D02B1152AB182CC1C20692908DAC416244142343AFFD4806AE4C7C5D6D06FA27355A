@@ -1,0 +1,18 @@
+int8_t esp8266_get_localmac(int8_t *mac)
+{
+    char resp[512] = {0};
+    char *p1, *p2;
+    int len = 512;
+
+    esp8266_cmd((int8_t *)AT_CMD_CHECK_MAC, strlen((char *)AT_CMD_CHECK_MAC), "OK", resp, &len);
+    AT_LOG("resp:%s", resp);
+
+    p1 = strstr(resp, ":");
+    if (mac && p1) {
+        p1 = strstr(p1, "\"");
+        p2 = strstr(p1 + 1, "\"");
+        memcpy(mac, p1 + 1, p2 - p1 - 1);
+    }
+
+    return AT_OK;
+}

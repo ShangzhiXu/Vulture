@@ -1,0 +1,32 @@
+static void FMPI2C_TreatErrorCallback(FMPI2C_HandleTypeDef *hfmpi2c)
+{
+  if (hfmpi2c->State == HAL_FMPI2C_STATE_ABORT)
+  {
+    hfmpi2c->State = HAL_FMPI2C_STATE_READY;
+    hfmpi2c->PreviousState = FMPI2C_STATE_NONE;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hfmpi2c);
+
+    /* Call the corresponding callback to inform upper layer of End of Transfer */
+#if (USE_HAL_FMPI2C_REGISTER_CALLBACKS == 1)
+    hfmpi2c->AbortCpltCallback(hfmpi2c);
+#else
+    HAL_FMPI2C_AbortCpltCallback(hfmpi2c);
+#endif /* USE_HAL_FMPI2C_REGISTER_CALLBACKS */
+  }
+  else
+  {
+    hfmpi2c->PreviousState = FMPI2C_STATE_NONE;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hfmpi2c);
+
+    /* Call the corresponding callback to inform upper layer of End of Transfer */
+#if (USE_HAL_FMPI2C_REGISTER_CALLBACKS == 1)
+    hfmpi2c->ErrorCallback(hfmpi2c);
+#else
+    HAL_FMPI2C_ErrorCallback(hfmpi2c);
+#endif /* USE_HAL_FMPI2C_REGISTER_CALLBACKS */
+  }
+}

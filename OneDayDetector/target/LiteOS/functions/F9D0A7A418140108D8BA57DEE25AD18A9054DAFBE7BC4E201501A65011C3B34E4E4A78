@@ -1,0 +1,14 @@
+VOID OsPowerMgrWakeUpFromInterrupt(UINT32 intNum)
+{
+#ifdef LOSCFG_KERNEL_POWER_MGR
+    CALL_PMOPS_FUNC_VOID(resumeFromInterrupt, intNum);
+#else
+    if (g_pmOps == NULL) {
+#ifdef LOSCFG_KERNEL_TICKLESS
+        OsTicklessUpdate(intNum);
+#endif
+    } else {
+        CALL_PMOPS_FUNC_VOID(resumeFromInterrupt, intNum);
+    }
+#endif
+}

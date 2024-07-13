@@ -1,0 +1,21 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 ShellMsgTypeGet(CmdParsed *cmdParsed, const CHAR *cmdType)
+{
+    UINT32 minLen;
+    CmdItemNode *curCmdItem = (CmdItemNode *)NULL;
+    UINT32 len = strlen(cmdType);
+    CmdModInfo *cmdInfo = OsCmdInfoGet();
+
+    LOS_DL_LIST_FOR_EACH_ENTRY(curCmdItem, &cmdInfo->cmdList.list, CmdItemNode, list) {
+        if ((len == strlen(curCmdItem->cmd->cmdKey)) &&
+            (strncmp((CHAR *)(curCmdItem->cmd->cmdKey), cmdType, len) == 0)) {
+            minLen = (len < CMD_KEY_LEN) ? len : (CMD_KEY_LEN - 1);
+            if (strncpy_s((CHAR *)(cmdParsed->cmdKeyword), CMD_KEY_LEN, cmdType, minLen) != EOK) {
+                PRINTK("strncpy_s failure in %s\n", __FUNCTION__);
+            }
+            cmdParsed->cmdType = curCmdItem->cmd->cmdType;
+            return LOS_OK;
+        }
+    }
+
+    return OS_INVALID;
+}

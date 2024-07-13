@@ -1,0 +1,25 @@
+HAL_StatusTypeDef HAL_DCMI_DeInit(DCMI_HandleTypeDef *hdcmi)
+{
+#if (USE_HAL_DCMI_REGISTER_CALLBACKS == 1)  
+  if(hdcmi->MspDeInitCallback == NULL)  
+  {
+    hdcmi->MspDeInitCallback = HAL_DCMI_MspDeInit;
+  }
+  /* De-Initialize the low level hardware (MSP) */
+  hdcmi->MspDeInitCallback(hdcmi);
+#else
+  /* DeInit the low level hardware: GPIO, CLOCK, NVIC and DMA */
+  HAL_DCMI_MspDeInit(hdcmi);
+#endif /* (USE_HAL_DCMI_REGISTER_CALLBACKS) */
+
+  /* Update error code */
+  hdcmi->ErrorCode = HAL_DCMI_ERROR_NONE;
+
+  /* Initialize the DCMI state*/
+  hdcmi->State = HAL_DCMI_STATE_RESET;
+
+  /* Release Lock */
+  __HAL_UNLOCK(hdcmi);
+
+  return HAL_OK;
+}

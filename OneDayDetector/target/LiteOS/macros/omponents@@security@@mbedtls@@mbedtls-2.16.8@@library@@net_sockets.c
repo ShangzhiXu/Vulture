@@ -1,0 +1,5 @@
+#define IS_EINTR( ret ) ( ( ret ) == EINTR )
+#define IS_EINTR( ret ) ( ( ret ) == WSAEINTR )
+#define close(fd)               closesocket(fd)
+#define read(fd,buf,len)        recv( fd, (char*)( buf ), (int)( len ), 0 )
+#define write(fd,buf,len)       send( fd, (char*)( buf ), (int)( len ), 0 )

@@ -1,0 +1,28 @@
+STATIC struct mqpersonal *DoMqueueOpen(struct mqarray *mqueueCB, INT32 openFlag)
+{
+    struct mqpersonal *privateMqPersonal = NULL;
+
+    /* already have the same name of g_squeuetable */
+    if (mqueueCB->unlinkflag == TRUE) {
+        errno = EINVAL;
+        goto ERROUT;
+    }
+    /* alloc mqprivate and add to mqarray */
+    privateMqPersonal = (struct mqpersonal *)LOS_MemAlloc(OS_SYS_MEM_ADDR, sizeof(struct mqpersonal));
+    if (privateMqPersonal == NULL) {
+        errno = ENOSPC;
+        goto ERROUT;
+    }
+
+    privateMqPersonal->mq_next = mqueueCB->mq_personal;
+    mqueueCB->mq_personal = privateMqPersonal;
+
+    privateMqPersonal->mq_posixdes = mqueueCB;
+    privateMqPersonal->mq_flags = openFlag;
+    privateMqPersonal->mq_status = MQ_USE_MAGIC;
+
+    return privateMqPersonal;
+
+ERROUT:
+    return (struct mqpersonal *)-1;
+}

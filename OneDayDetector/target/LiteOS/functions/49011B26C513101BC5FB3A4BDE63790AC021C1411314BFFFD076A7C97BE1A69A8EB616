@@ -1,0 +1,37 @@
+test_ip6_ll_addr_iter(int expected_ctr1, int expected_ctr2)
+{
+  fail_unless(linkoutput_ctr == 0);
+
+  /* test that nothing is sent with link uo but netif down */
+  netif_set_link_up(&test_netif6);
+  ip6_test_handle_timers(500);
+  fail_unless(linkoutput_ctr == 0);
+  netif_set_link_down(&test_netif6);
+  fail_unless(linkoutput_ctr == 0);
+
+  /* test that nothing is sent with link down but netif up */
+  netif_set_up(&test_netif6);
+  ip6_test_handle_timers(500);
+  fail_unless(linkoutput_ctr == 0);
+  netif_set_down(&test_netif6);
+  fail_unless(linkoutput_ctr == 0);
+
+  /* test what is sent with link up + netif up */
+  netif_set_link_up(&test_netif6);
+  netif_set_up(&test_netif6);
+  ip6_test_handle_timers(500);
+  fail_unless(linkoutput_ctr == expected_ctr1);
+  netif_set_down(&test_netif6);
+  netif_set_link_down(&test_netif6);
+  fail_unless(linkoutput_ctr == expected_ctr1);
+  linkoutput_ctr = 0;
+
+  netif_set_up(&test_netif6);
+  netif_set_link_up(&test_netif6);
+  ip6_test_handle_timers(500);
+  fail_unless(linkoutput_ctr == expected_ctr2);
+  netif_set_link_down(&test_netif6);
+  netif_set_down(&test_netif6);
+  fail_unless(linkoutput_ctr == expected_ctr2);
+  linkoutput_ctr = 0;
+}

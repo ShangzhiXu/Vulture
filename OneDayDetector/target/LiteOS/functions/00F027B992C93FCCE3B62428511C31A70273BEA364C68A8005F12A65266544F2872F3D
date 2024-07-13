@@ -1,0 +1,31 @@
+static void test_file_seek_normal(void **state)
+{
+    int fd;
+    int ret;
+    size_t wrlen = sizeof(write_buf);
+
+    fd = los_open(file_name, O_CREAT | O_RDWR | O_TRUNC);
+    assert_in_range(fd, 0, LOS_MAX_FILES);
+
+    ret = los_write(fd, write_buf, wrlen);
+    assert_int_equal(ret, wrlen);
+
+    ret = los_lseek(fd, 0, 1);
+    assert_int_equal(ret, wrlen);
+
+    ret = los_lseek(fd, -10, 2);
+    assert_int_equal(ret, wrlen-10);
+
+    ret = los_lseek(fd, 0, 0);
+    assert_int_equal(ret, 0);
+
+    // spiffs does not support seek offset > file_size
+    if (fs_type != TEST_FS_SPIFFS)
+    {
+        ret = los_lseek(fd, 1, 2);
+        assert_int_equal(ret, wrlen+1);
+    }
+
+    ret = los_close(fd);
+    assert_int_equal(ret, 0);
+}

@@ -1,0 +1,41 @@
+static err_t pppol2tp_netif_output(ppp_pcb *ppp, void *ctx, struct pbuf *p, u_short protocol) {
+  pppol2tp_pcb *l2tp = (pppol2tp_pcb *)ctx;
+  struct pbuf *pb;
+  u8_t *pl;
+  err_t err;
+#if MIB2_STATS
+  u16_t tot_len;
+#else /* MIB2_STATS */
+  LWIP_UNUSED_ARG(ppp);
+#endif /* MIB2_STATS */
+
+  /* @todo: try to use pbuf_header() here! */
+  pb = pbuf_alloc(PBUF_TRANSPORT, PPPOL2TP_OUTPUT_DATA_HEADER_LEN + sizeof(protocol), PBUF_RAM);
+  if(!pb) {
+    LINK_STATS_INC(link.memerr);
+    LINK_STATS_INC(link.proterr);
+    MIB2_STATS_NETIF_INC(ppp->netif, ifoutdiscards);
+    return ERR_MEM;
+  }
+
+  pbuf_remove_header(pb, PPPOL2TP_OUTPUT_DATA_HEADER_LEN);
+
+  pl = (u8_t*)pb->payload;
+  PUTSHORT(protocol, pl);
+
+  pbuf_chain(pb, p);
+#if MIB2_STATS
+  tot_len = pb->tot_len;
+#endif /* MIB2_STATS */
+
+  if( (err = pppol2tp_xmit(l2tp, pb)) != ERR_OK) {
+    LINK_STATS_INC(link.err);
+    MIB2_STATS_NETIF_INC(ppp->netif, ifoutdiscards);
+    return err;
+  }
+
+  MIB2_STATS_NETIF_ADD(ppp->netif, ifoutoctets, tot_len);
+  MIB2_STATS_NETIF_INC(ppp->netif, ifoutucastpkts);
+  LINK_STATS_INC(link.xmit);
+  return ERR_OK;
+}

@@ -1,0 +1,181 @@
+void HAL_USART_IRQHandler(USART_HandleTypeDef *husart)
+{
+  uint32_t isrflags   = READ_REG(husart->Instance->ISR);
+  uint32_t cr1its     = READ_REG(husart->Instance->CR1);
+  uint32_t cr3its     = READ_REG(husart->Instance->CR3);
+
+  uint32_t errorflags;
+  uint32_t errorcode;
+
+  /* If no error occurs */
+  errorflags = (isrflags & (uint32_t)(USART_ISR_PE | USART_ISR_FE | USART_ISR_ORE | USART_ISR_NE));
+  if (errorflags == 0U)
+  {
+    /* USART in mode Receiver ---------------------------------------------------*/
+    if (((isrflags & USART_ISR_RXNE) != 0U)
+        && ((cr1its & USART_CR1_RXNEIE) != 0U))
+    {
+      if (husart->RxISR != NULL)
+      {
+        husart->RxISR(husart);
+      }
+      return;
+    }
+  }
+
+  /* If some errors occur */
+  if ((errorflags != 0U)
+      && (((cr3its & USART_CR3_EIE) != 0U)
+          || ((cr1its & (USART_CR1_RXNEIE | USART_CR1_PEIE)) != 0U)))
+  {
+    /* USART parity error interrupt occurred -------------------------------------*/
+    if (((isrflags & USART_ISR_PE) != 0U) && ((cr1its & USART_CR1_PEIE) != 0U))
+    {
+      __HAL_USART_CLEAR_IT(husart, USART_CLEAR_PEF);
+
+      husart->ErrorCode |= HAL_USART_ERROR_PE;
+    }
+
+    /* USART frame error interrupt occurred --------------------------------------*/
+    if (((isrflags & USART_ISR_FE) != 0U) && ((cr3its & USART_CR3_EIE) != 0U))
+    {
+      __HAL_USART_CLEAR_IT(husart, USART_CLEAR_FEF);
+
+      husart->ErrorCode |= HAL_USART_ERROR_FE;
+    }
+
+    /* USART noise error interrupt occurred --------------------------------------*/
+    if (((isrflags & USART_ISR_NE) != 0U) && ((cr3its & USART_CR3_EIE) != 0U))
+    {
+      __HAL_USART_CLEAR_IT(husart, USART_CLEAR_NEF);
+
+      husart->ErrorCode |= HAL_USART_ERROR_NE;
+    }
+
+    /* USART Over-Run interrupt occurred -----------------------------------------*/
+    if (((isrflags & USART_ISR_ORE) != 0U)
+        && (((cr1its & USART_CR1_RXNEIE) != 0U) ||
+            ((cr3its & USART_CR3_EIE) != 0U)))
+    {
+      __HAL_USART_CLEAR_IT(husart, USART_CLEAR_OREF);
+
+      husart->ErrorCode |= HAL_USART_ERROR_ORE;
+    }
+
+
+    /* Call USART Error Call back function if need be --------------------------*/
+    if (husart->ErrorCode != HAL_USART_ERROR_NONE)
+    {
+      /* USART in mode Receiver ---------------------------------------------------*/
+      if (((isrflags & USART_ISR_RXNE) != 0U)
+          && ((cr1its & USART_CR1_RXNEIE) != 0U))
+      {
+        if (husart->RxISR != NULL)
+        {
+          husart->RxISR(husart);
+        }
+      }
+
+      /* If Overrun error occurs, or if any error occurs in DMA mode reception,
+         consider error as blocking */
+      errorcode = husart->ErrorCode & HAL_USART_ERROR_ORE;
+      if ((HAL_IS_BIT_SET(husart->Instance->CR3, USART_CR3_DMAR)) ||
+          (errorcode != 0U))
+      {
+        /* Blocking error : transfer is aborted
+           Set the USART state ready to be able to start again the process,
+           Disable Interrupts, and disable DMA requests, if ongoing */
+        USART_EndTransfer(husart);
+
+        /* Disable the USART DMA Rx request if enabled */
+        if (HAL_IS_BIT_SET(husart->Instance->CR3, USART_CR3_DMAR))
+        {
+          CLEAR_BIT(husart->Instance->CR3, USART_CR3_DMAR | USART_CR3_DMAR);
+
+          /* Abort the USART DMA Tx channel */
+          if (husart->hdmatx != NULL)
+          {
+            /* Set the USART Tx DMA Abort callback to NULL : no callback
+               executed at end of DMA abort procedure */
+            husart->hdmatx->XferAbortCallback = NULL;
+
+            /* Abort DMA TX */
+            (void)HAL_DMA_Abort_IT(husart->hdmatx);
+          }
+
+          /* Abort the USART DMA Rx channel */
+          if (husart->hdmarx != NULL)
+          {
+            /* Set the USART Rx DMA Abort callback :
+               will lead to call HAL_USART_ErrorCallback() at end of DMA abort procedure */
+            husart->hdmarx->XferAbortCallback = USART_DMAAbortOnError;
+
+            /* Abort DMA RX */
+            if (HAL_DMA_Abort_IT(husart->hdmarx) != HAL_OK)
+            {
+              /* Call Directly husart->hdmarx->XferAbortCallback function in case of error */
+              husart->hdmarx->XferAbortCallback(husart->hdmarx);
+            }
+          }
+          else
+          {
+            /* Call user error callback */
+#if (USE_HAL_USART_REGISTER_CALLBACKS == 1)
+            /* Call registered Error Callback */
+            husart->ErrorCallback(husart);
+#else
+            /* Call legacy weak Error Callback */
+            HAL_USART_ErrorCallback(husart);
+#endif /* USE_HAL_USART_REGISTER_CALLBACKS */
+          }
+        }
+        else
+        {
+          /* Call user error callback */
+#if (USE_HAL_USART_REGISTER_CALLBACKS == 1)
+          /* Call registered Error Callback */
+          husart->ErrorCallback(husart);
+#else
+          /* Call legacy weak Error Callback */
+          HAL_USART_ErrorCallback(husart);
+#endif /* USE_HAL_USART_REGISTER_CALLBACKS */
+        }
+      }
+      else
+      {
+        /* Non Blocking error : transfer could go on.
+           Error is notified to user through user error callback */
+#if (USE_HAL_USART_REGISTER_CALLBACKS == 1)
+        /* Call registered Error Callback */
+        husart->ErrorCallback(husart);
+#else
+        /* Call legacy weak Error Callback */
+        HAL_USART_ErrorCallback(husart);
+#endif /* USE_HAL_USART_REGISTER_CALLBACKS */
+        husart->ErrorCode = HAL_USART_ERROR_NONE;
+      }
+    }
+    return;
+
+  } /* End if some error occurs */
+
+
+  /* USART in mode Transmitter ------------------------------------------------*/
+  if (((isrflags & USART_ISR_TXE) != 0U)
+      && ((cr1its & USART_CR1_TXEIE) != 0U))
+  {
+    if (husart->TxISR != NULL)
+    {
+      husart->TxISR(husart);
+    }
+    return;
+  }
+
+  /* USART in mode Transmitter (transmission end) -----------------------------*/
+  if (((isrflags & USART_ISR_TC) != 0U) && ((cr1its & USART_CR1_TCIE) != 0U))
+  {
+    USART_EndTransmit_IT(husart);
+    return;
+  }
+
+}

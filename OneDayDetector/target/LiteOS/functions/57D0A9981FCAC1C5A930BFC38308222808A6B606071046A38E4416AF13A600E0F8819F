@@ -1,0 +1,15 @@
+static void SMARTCARD_DMATxOnlyAbortCallback(DMA_HandleTypeDef *hdma)
+{
+  SMARTCARD_HandleTypeDef* hsmartcard = (SMARTCARD_HandleTypeDef*)(hdma->Parent);
+
+  hsmartcard->TxXferCount = 0;
+
+  /* Clear the Error flags in the ICR register */
+  __HAL_SMARTCARD_CLEAR_FLAG(hsmartcard, SMARTCARD_CLEAR_FEF);
+
+  /* Restore hsmartcard->gState to Ready */
+  hsmartcard->gState = HAL_SMARTCARD_STATE_READY;
+
+  /* Call user Abort complete callback */
+  HAL_SMARTCARD_AbortTransmitCpltCallback(hsmartcard);
+}

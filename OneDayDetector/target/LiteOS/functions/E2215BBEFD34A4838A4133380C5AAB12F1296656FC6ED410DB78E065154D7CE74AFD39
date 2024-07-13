@@ -1,0 +1,77 @@
+ErrorStatus LL_ADC_REG_Init(ADC_TypeDef *ADCx, LL_ADC_REG_InitTypeDef *ADC_REG_InitStruct)
+{
+  ErrorStatus status = SUCCESS;
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(ADCx));
+  assert_param(IS_LL_ADC_REG_TRIG_SOURCE(ADC_REG_InitStruct->TriggerSource));
+  assert_param(IS_LL_ADC_REG_SEQ_SCAN_LENGTH(ADC_REG_InitStruct->SequencerLength));
+  if(ADC_REG_InitStruct->SequencerLength != LL_ADC_REG_SEQ_SCAN_DISABLE)
+  {
+    assert_param(IS_LL_ADC_REG_SEQ_SCAN_DISCONT_MODE(ADC_REG_InitStruct->SequencerDiscont));
+  }
+  assert_param(IS_LL_ADC_REG_CONTINUOUS_MODE(ADC_REG_InitStruct->ContinuousMode));
+  assert_param(IS_LL_ADC_REG_DMA_TRANSFER(ADC_REG_InitStruct->DMATransfer));
+  
+  /* Note: Hardware constraint (refer to description of this function):       */
+  /*       ADC instance must be disabled.                                     */
+  if(LL_ADC_IsEnabled(ADCx) == 0U)
+  {
+    /* Configuration of ADC hierarchical scope:                               */
+    /*  - ADC group regular                                                   */
+    /*    - Set ADC group regular trigger source                              */
+    /*    - Set ADC group regular sequencer length                            */
+    /*    - Set ADC group regular sequencer discontinuous mode                */
+    /*    - Set ADC group regular continuous mode                             */
+    /*    - Set ADC group regular conversion data transfer: no transfer or    */
+    /*      transfer by DMA, and DMA requests mode                            */
+    /* Note: On this STM32 serie, ADC trigger edge is set when starting       */
+    /*       ADC conversion.                                                  */
+    /*       Refer to function @ref LL_ADC_REG_StartConversionExtTrig().      */
+    if(ADC_REG_InitStruct->SequencerLength != LL_ADC_REG_SEQ_SCAN_DISABLE)
+    {
+      MODIFY_REG(ADCx->CR1,
+                   ADC_CR1_DISCEN
+                 | ADC_CR1_DISCNUM
+                ,
+                   ADC_REG_InitStruct->SequencerDiscont
+                );
+    }
+    else
+    {
+      MODIFY_REG(ADCx->CR1,
+                   ADC_CR1_DISCEN
+                 | ADC_CR1_DISCNUM
+                ,
+                   LL_ADC_REG_SEQ_DISCONT_DISABLE
+                );
+    }
+    
+    MODIFY_REG(ADCx->CR2,
+                 ADC_CR2_EXTSEL
+               | ADC_CR2_EXTEN
+               | ADC_CR2_CONT
+               | ADC_CR2_DMA
+               | ADC_CR2_DDS
+              ,
+                (ADC_REG_InitStruct->TriggerSource & ADC_CR2_EXTSEL)
+               | ADC_REG_InitStruct->ContinuousMode
+               | ADC_REG_InitStruct->DMATransfer
+              );
+
+    /* Set ADC group regular sequencer length and scan direction */
+    /* Note: Hardware constraint (refer to description of this function):     */
+    /* Note: If ADC instance feature scan mode is disabled                    */
+    /*       (refer to  ADC instance initialization structure                 */
+    /*       parameter @ref SequencersScanMode                                */
+    /*       or function @ref LL_ADC_SetSequencersScanMode() ),               */
+    /*       this parameter is discarded.                                     */
+    LL_ADC_REG_SetSequencerLength(ADCx, ADC_REG_InitStruct->SequencerLength);
+  }
+  else
+  {
+    /* Initialization error: ADC instance is not disabled. */
+    status = ERROR;
+  }
+  return status;
+}

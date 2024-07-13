@@ -1,0 +1,98 @@
+ip6_output_if_src(struct pbuf *p, const ip6_addr_t *src, const ip6_addr_t *dest,
+             u8_t hl, u8_t tc,
+             u8_t nexth, struct netif *netif)
+{
+  struct ip6_hdr *ip6hdr;
+  ip6_addr_t dest_addr;
+
+  LWIP_ASSERT_CORE_LOCKED();
+  LWIP_IP_CHECK_PBUF_REF_COUNT_FOR_TX(p);
+
+  /* Should the IPv6 header be generated or is it already included in p? */
+  if (dest != LWIP_IP_HDRINCL) {
+#if LWIP_IPV6_SCOPES
+    /* If the destination address is scoped but lacks a zone, add a zone now,
+     * based on the outgoing interface. The lower layers (e.g., nd6) absolutely
+     * require addresses to be properly zoned for correctness. In some cases,
+     * earlier attempts will have been made to add a zone to the destination,
+     * but this function is the only one that is called in all (other) cases,
+     * so we must do this here. */
+    if (ip6_addr_lacks_zone(dest, IP6_UNKNOWN)) {
+      ip6_addr_copy(dest_addr, *dest);
+      ip6_addr_assign_zone(&dest_addr, IP6_UNKNOWN, netif);
+      dest = &dest_addr;
+    }
+#endif /* LWIP_IPV6_SCOPES */
+
+    /* generate IPv6 header */
+    if (pbuf_add_header(p, IP6_HLEN)) {
+      LWIP_DEBUGF(IP6_DEBUG | LWIP_DBG_LEVEL_SERIOUS, ("ip6_output: not enough room for IPv6 header in pbuf\n"));
+      IP6_STATS_INC(ip6.err);
+      return ERR_BUF;
+    }
+
+    ip6hdr = (struct ip6_hdr *)p->payload;
+    LWIP_ASSERT("check that first pbuf can hold struct ip6_hdr",
+               (p->len >= sizeof(struct ip6_hdr)));
+
+    IP6H_HOPLIM_SET(ip6hdr, hl);
+    IP6H_NEXTH_SET(ip6hdr, nexth);
+
+    /* dest cannot be NULL here */
+    ip6_addr_copy_to_packed(ip6hdr->dest, *dest);
+
+    IP6H_VTCFL_SET(ip6hdr, 6, tc, 0);
+    IP6H_PLEN_SET(ip6hdr, (u16_t)(p->tot_len - IP6_HLEN));
+
+    if (src == NULL) {
+      src = IP6_ADDR_ANY6;
+    }
+    /* src cannot be NULL here */
+    ip6_addr_copy_to_packed(ip6hdr->src, *src);
+
+  } else {
+    /* IP header already included in p */
+    ip6hdr = (struct ip6_hdr *)p->payload;
+    ip6_addr_copy_from_packed(dest_addr, ip6hdr->dest);
+    ip6_addr_assign_zone(&dest_addr, IP6_UNKNOWN, netif);
+    dest = &dest_addr;
+  }
+
+  IP6_STATS_INC(ip6.xmit);
+
+  LWIP_DEBUGF(IP6_DEBUG, ("ip6_output_if: %c%c%"U16_F"\n", netif->name[0], netif->name[1], (u16_t)netif->num));
+  ip6_debug_print(p);
+
+#if ENABLE_LOOPBACK
+  {
+    int i;
+#if !LWIP_HAVE_LOOPIF
+    if (ip6_addr_isloopback(dest)) {
+      return netif_loop_output(netif, p);
+    }
+#endif /* !LWIP_HAVE_LOOPIF */
+    for (i = 0; i < LWIP_IPV6_NUM_ADDRESSES; i++) {
+      if (ip6_addr_isvalid(netif_ip6_addr_state(netif, i)) &&
+          ip6_addr_cmp(dest, netif_ip6_addr(netif, i))) {
+        /* Packet to self, enqueue it for loopback */
+        LWIP_DEBUGF(IP6_DEBUG, ("netif_loop_output()\n"));
+        return netif_loop_output(netif, p);
+      }
+    }
+  }
+#if LWIP_MULTICAST_TX_OPTIONS
+  if ((p->flags & PBUF_FLAG_MCASTLOOP) != 0) {
+    netif_loop_output(netif, p);
+  }
+#endif /* LWIP_MULTICAST_TX_OPTIONS */
+#endif /* ENABLE_LOOPBACK */
+#if LWIP_IPV6_FRAG
+  /* don't fragment if interface has mtu set to 0 [loopif] */
+  if (netif_mtu6(netif) && (p->tot_len > nd6_get_destination_mtu(dest, netif))) {
+    return ip6_frag(p, netif, dest);
+  }
+#endif /* LWIP_IPV6_FRAG */
+
+  LWIP_DEBUGF(IP6_DEBUG, ("netif->output_ip6()\n"));
+  return netif->output_ip6(netif, p, dest);
+}

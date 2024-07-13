@@ -1,0 +1,36 @@
+LITE_OS_SEC_TEXT_INIT UINT32 LOS_SemDelete(UINT32 semHandle)
+{
+    UINT32 intSave;
+    LosSemCB *semDeleted = NULL;
+    UINT32 ret;
+
+    ret = OsSemGetCBWithCheck(semHandle, &semDeleted);
+    if (ret != LOS_OK) {
+        return ret;
+    }
+
+    SCHEDULER_LOCK(intSave);
+
+    ret = OsSemStateVerify(semHandle, semDeleted);
+    if (ret != LOS_OK) {
+        goto OUT;
+    }
+
+    if (!LOS_ListEmpty(&semDeleted->semList)) {
+        ret = LOS_ERRNO_SEM_PENDED;
+        goto OUT;
+    }
+
+#ifndef LOSCFG_RESOURCE_ID_NOT_USE_HIGH_BITS
+    semDeleted->semId = SET_SEM_ID(GET_SEM_COUNT(semDeleted->semId) + 1, GET_SEM_INDEX(semDeleted->semId));
+#endif
+    OsSemNodeRecycle(semDeleted);
+
+    OsSemDbgUpdateHook(semDeleted->semId, NULL, 0);
+
+OUT:
+    SCHEDULER_UNLOCK(intSave);
+
+    LOS_TRACE(SEM_DELETE, semHandle, ret);
+    return ret;
+}

@@ -1,0 +1,50 @@
+HAL_StatusTypeDef HAL_SD_InitCard(SD_HandleTypeDef *hsd)
+{
+  uint32_t errorstate;
+  HAL_StatusTypeDef status;
+  SD_InitTypeDef Init;
+  
+  /* Default SDIO peripheral configuration for SD card initialization */
+  Init.ClockEdge           = SDIO_CLOCK_EDGE_RISING;
+  Init.ClockBypass         = SDIO_CLOCK_BYPASS_DISABLE;
+  Init.ClockPowerSave      = SDIO_CLOCK_POWER_SAVE_DISABLE;
+  Init.BusWide             = SDIO_BUS_WIDE_1B;
+  Init.HardwareFlowControl = SDIO_HARDWARE_FLOW_CONTROL_DISABLE;
+  Init.ClockDiv            = SDIO_INIT_CLK_DIV;
+
+  /* Initialize SDIO peripheral interface with default configuration */
+  status = SDIO_Init(hsd->Instance, Init);
+  if(status != HAL_OK)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Disable SDIO Clock */
+  __HAL_SD_DISABLE(hsd);
+
+  /* Set Power State to ON */
+  (void)SDIO_PowerState_ON(hsd->Instance);
+
+  /* Enable SDIO Clock */
+  __HAL_SD_ENABLE(hsd);
+
+  /* Identify card operating voltage */
+  errorstate = SD_PowerON(hsd);
+  if(errorstate != HAL_SD_ERROR_NONE)
+  {
+    hsd->State = HAL_SD_STATE_READY;
+    hsd->ErrorCode |= errorstate;
+    return HAL_ERROR;
+  }
+
+  /* Card initialization */
+  errorstate = SD_InitCard(hsd);
+  if(errorstate != HAL_SD_ERROR_NONE)
+  {
+    hsd->State = HAL_SD_STATE_READY;
+    hsd->ErrorCode |= errorstate;
+    return HAL_ERROR;
+  }
+
+  return HAL_OK;
+}

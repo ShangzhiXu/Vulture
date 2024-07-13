@@ -1,0 +1,29 @@
+lv_indev_t * lv_indev_drv_register(lv_indev_drv_t * driver)
+{
+
+    if(driver->disp == NULL) driver->disp = lv_disp_get_default();
+
+    if(driver->disp == NULL) {
+        LV_LOG_WARN("lv_indev_drv_register: no display registered hence can't attache the indev to "
+                    "a display");
+        return NULL;
+    }
+
+    lv_indev_t * indev = _lv_ll_ins_head(&LV_GC_ROOT(_lv_indev_ll));
+    if(!indev) {
+        LV_ASSERT_MEM(indev);
+        return NULL;
+    }
+
+    _lv_memset_00(indev, sizeof(lv_indev_t));
+    _lv_memcpy(&indev->driver, driver, sizeof(lv_indev_drv_t));
+
+    indev->proc.reset_query = 1;
+    indev->cursor           = NULL;
+    indev->group            = NULL;
+    indev->btn_points       = NULL;
+
+    indev->driver.read_task = lv_task_create(_lv_indev_read_task, LV_INDEV_DEF_READ_PERIOD, LV_TASK_PRIO_HIGH, indev);
+
+    return indev;
+}

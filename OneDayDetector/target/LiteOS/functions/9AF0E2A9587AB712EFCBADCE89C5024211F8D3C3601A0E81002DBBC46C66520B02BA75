@@ -1,0 +1,21 @@
+dhcp_option_hostname(u16_t options_out_len, u8_t *options, struct netif *netif)
+{
+  if (netif->hostname != NULL) {
+    size_t namelen = strlen(netif->hostname);
+    if (namelen > 0) {
+      size_t len;
+      const char *p = netif->hostname;
+      /* Shrink len to available bytes (need 2 bytes for OPTION_HOSTNAME
+         and 1 byte for trailer) */
+      size_t available = DHCP_OPTIONS_LEN - options_out_len - 3;
+      LWIP_ASSERT("DHCP: hostname is too long!", namelen <= available);
+      len = LWIP_MIN(namelen, available);
+      LWIP_ASSERT("DHCP: hostname is too long!", len <= 0xFF);
+      options_out_len = dhcp_option(options_out_len, options, DHCP_OPTION_HOSTNAME, (u8_t)len);
+      while (len--) {
+        options_out_len = dhcp_option_byte(options_out_len, options, *p++);
+      }
+    }
+  }
+  return options_out_len;
+}

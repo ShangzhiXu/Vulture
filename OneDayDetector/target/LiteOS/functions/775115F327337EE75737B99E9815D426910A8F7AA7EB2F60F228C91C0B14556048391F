@@ -1,0 +1,97 @@
+static HAL_StatusTypeDef IRDA_SetConfig(IRDA_HandleTypeDef *hirda)
+{
+  uint32_t tmpreg                     = 0x00000000;
+  IRDA_ClockSourceTypeDef clocksource = IRDA_CLOCKSOURCE_UNDEFINED;
+  HAL_StatusTypeDef ret               = HAL_OK;
+
+  /* Check the communication parameters */
+  assert_param(IS_IRDA_BAUDRATE(hirda->Init.BaudRate));
+  assert_param(IS_IRDA_WORD_LENGTH(hirda->Init.WordLength));
+  assert_param(IS_IRDA_PARITY(hirda->Init.Parity));
+  assert_param(IS_IRDA_TX_RX_MODE(hirda->Init.Mode));
+  assert_param(IS_IRDA_PRESCALER(hirda->Init.Prescaler));
+  assert_param(IS_IRDA_POWERMODE(hirda->Init.PowerMode));
+#if defined(USART_PRESC_PRESCALER)
+  assert_param(IS_IRDA_CLOCKPRESCALER(hirda->Init.ClockPrescaler));
+#endif
+
+  /*-------------------------- USART CR1 Configuration -----------------------*/
+  /* Configure the IRDA Word Length, Parity and transfer Mode:
+     Set the M bits according to hirda->Init.WordLength value
+     Set PCE and PS bits according to hirda->Init.Parity value
+     Set TE and RE bits according to hirda->Init.Mode value */
+  tmpreg = (uint32_t)hirda->Init.WordLength | hirda->Init.Parity | hirda->Init.Mode ;
+
+  MODIFY_REG(hirda->Instance->CR1, IRDA_CR1_FIELDS, tmpreg);
+
+  /*-------------------------- USART CR3 Configuration -----------------------*/
+  MODIFY_REG(hirda->Instance->CR3, USART_CR3_IRLP, hirda->Init.PowerMode);
+
+#if defined(USART_PRESC_PRESCALER)
+  /*--------------------- USART clock PRESC Configuration ----------------*/
+  /* Configure
+  * - IRDA Clock Prescaler: set PRESCALER according to hirda->Init.ClockPrescaler value */
+  MODIFY_REG(hirda->Instance->PRESC, USART_PRESC_PRESCALER, hirda->Init.ClockPrescaler);
+#endif
+
+  /*-------------------------- USART GTPR Configuration ----------------------*/
+  MODIFY_REG(hirda->Instance->GTPR, USART_GTPR_PSC, hirda->Init.Prescaler);
+
+  /*-------------------------- USART BRR Configuration -----------------------*/
+  IRDA_GETCLOCKSOURCE(hirda, clocksource);
+  tmpreg =   0;
+  switch (clocksource)
+  {
+    case IRDA_CLOCKSOURCE_PCLK1:
+#if defined(USART_PRESC_PRESCALER)
+      tmpreg = (uint16_t)(IRDA_DIV_SAMPLING16(HAL_RCC_GetPCLK1Freq(), hirda->Init.BaudRate, hirda->Init.ClockPrescaler));
+#else
+      tmpreg = (uint16_t)(IRDA_DIV_SAMPLING16(HAL_RCC_GetPCLK1Freq(), hirda->Init.BaudRate));
+#endif
+      break;
+    case IRDA_CLOCKSOURCE_PCLK2:
+#if defined(USART_PRESC_PRESCALER)
+      tmpreg = (uint16_t)(IRDA_DIV_SAMPLING16(HAL_RCC_GetPCLK2Freq(), hirda->Init.BaudRate, hirda->Init.ClockPrescaler));
+#else
+      tmpreg = (uint16_t)(IRDA_DIV_SAMPLING16(HAL_RCC_GetPCLK2Freq(), hirda->Init.BaudRate));
+#endif
+      break;
+    case IRDA_CLOCKSOURCE_HSI:
+#if defined(USART_PRESC_PRESCALER)
+      tmpreg = (uint16_t)(IRDA_DIV_SAMPLING16(HSI_VALUE, hirda->Init.BaudRate, hirda->Init.ClockPrescaler));
+#else
+      tmpreg = (uint16_t)(IRDA_DIV_SAMPLING16(HSI_VALUE, hirda->Init.BaudRate));
+#endif
+      break;
+    case IRDA_CLOCKSOURCE_SYSCLK:
+#if defined(USART_PRESC_PRESCALER)
+      tmpreg = (uint16_t)(IRDA_DIV_SAMPLING16(HAL_RCC_GetSysClockFreq(), hirda->Init.BaudRate, hirda->Init.ClockPrescaler));
+#else
+      tmpreg = (uint16_t)(IRDA_DIV_SAMPLING16(HAL_RCC_GetSysClockFreq(), hirda->Init.BaudRate));
+#endif
+      break;
+    case IRDA_CLOCKSOURCE_LSE:
+#if defined(USART_PRESC_PRESCALER)
+      tmpreg = (uint16_t)(IRDA_DIV_SAMPLING16(LSE_VALUE, hirda->Init.BaudRate, hirda->Init.ClockPrescaler));
+#else
+      tmpreg = (uint16_t)(IRDA_DIV_SAMPLING16(LSE_VALUE, hirda->Init.BaudRate));
+#endif
+      break;
+    case IRDA_CLOCKSOURCE_UNDEFINED:
+    default:
+      ret = HAL_ERROR;
+      break;
+  }
+
+  /* USARTDIV must be greater than or equal to 0d16 */
+  if ((tmpreg >= USART_BRR_MIN) && (tmpreg <= USART_BRR_MAX))
+  {
+    hirda->Instance->BRR = tmpreg;
+  }
+  else
+  {
+    ret = HAL_ERROR;
+  }
+
+  return ret;
+}

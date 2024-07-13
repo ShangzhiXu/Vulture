@@ -1,0 +1,19 @@
+test_tcp_counters_check_rxdata(struct test_tcp_counters* counters, struct pbuf* p)
+{
+  struct pbuf* q;
+  u32_t i, received;
+  if(counters->expected_data == NULL) {
+    /* no data to compare */
+    return;
+  }
+  EXPECT_RET(counters->recved_bytes + p->tot_len <= counters->expected_data_len);
+  received = counters->recved_bytes;
+  for(q = p; q != NULL; q = q->next) {
+    char *data = (char*)q->payload;
+    for(i = 0; i < q->len; i++) {
+      EXPECT_RET(data[i] == counters->expected_data[received]);
+      received++;
+    }
+  }
+  EXPECT(received == counters->recved_bytes + p->tot_len);
+}

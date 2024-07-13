@@ -1,0 +1,35 @@
+do_test_cyclic_timers(u32_t offset)
+{
+  struct sys_timeo** list_head = sys_timeouts_get_next_timeout();
+
+  /* verify normal timer expiration */
+  lwip_sys_now = offset + 0;
+  sys_timeout(test_cyclic.interval_ms, lwip_cyclic_timer, &test_cyclic);
+
+  cyclic_fired = 0;
+  sys_check_timeouts();
+  fail_unless(cyclic_fired == 0);
+
+  lwip_sys_now = offset + test_cyclic.interval_ms;
+  sys_check_timeouts();
+  fail_unless(cyclic_fired == 1);
+
+  fail_unless((*list_head)->time == (u32_t)(lwip_sys_now + test_cyclic.interval_ms - HANDLER_EXECUTION_TIME));
+  
+  sys_untimeout(lwip_cyclic_timer, &test_cyclic);
+
+
+  /* verify "overload" - next cyclic timer execution is already overdue twice */
+  lwip_sys_now = offset + 0;
+  sys_timeout(test_cyclic.interval_ms, lwip_cyclic_timer, &test_cyclic);
+
+  cyclic_fired = 0;
+  sys_check_timeouts();
+  fail_unless(cyclic_fired == 0);
+
+  lwip_sys_now = offset + 2*test_cyclic.interval_ms;
+  sys_check_timeouts();
+  fail_unless(cyclic_fired == 1);
+
+  fail_unless((*list_head)->time == (u32_t)(lwip_sys_now + test_cyclic.interval_ms));
+}

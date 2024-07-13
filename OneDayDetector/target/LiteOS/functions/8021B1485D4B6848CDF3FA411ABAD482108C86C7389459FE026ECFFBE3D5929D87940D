@@ -1,0 +1,45 @@
+netif_ip6_addr_set_parts(struct netif *netif, s8_t addr_idx, u32_t i0, u32_t i1, u32_t i2, u32_t i3)
+{
+  ip_addr_t old_addr;
+  ip_addr_t new_ipaddr;
+  LWIP_ASSERT_CORE_LOCKED();
+  LWIP_ASSERT("netif != NULL", netif != NULL);
+  LWIP_ASSERT("invalid index", addr_idx < LWIP_IPV6_NUM_ADDRESSES);
+
+  ip6_addr_copy(*ip_2_ip6(&old_addr), *netif_ip6_addr(netif, addr_idx));
+  IP_SET_TYPE_VAL(old_addr, IPADDR_TYPE_V6);
+
+  /* address is actually being changed? */
+  if ((ip_2_ip6(&old_addr)->addr[0] != i0) || (ip_2_ip6(&old_addr)->addr[1] != i1) ||
+      (ip_2_ip6(&old_addr)->addr[2] != i2) || (ip_2_ip6(&old_addr)->addr[3] != i3)) {
+    LWIP_DEBUGF(NETIF_DEBUG | LWIP_DBG_STATE, ("netif_ip6_addr_set: netif address being changed\n"));
+
+    IP_ADDR6(&new_ipaddr, i0, i1, i2, i3);
+    ip6_addr_assign_zone(ip_2_ip6(&new_ipaddr), IP6_UNICAST, netif);
+
+    if (ip6_addr_isvalid(netif_ip6_addr_state(netif, addr_idx))) {
+      netif_do_ip_addr_changed(netif_ip_addr6(netif, addr_idx), &new_ipaddr);
+    }
+    /* @todo: remove/readd mib2 ip6 entries? */
+
+    ip_addr_copy(netif->ip6_addr[addr_idx], new_ipaddr);
+
+    if (ip6_addr_isvalid(netif_ip6_addr_state(netif, addr_idx))) {
+      netif_issue_reports(netif, NETIF_REPORT_TYPE_IPV6);
+      NETIF_STATUS_CALLBACK(netif);
+    }
+
+#if LWIP_NETIF_EXT_STATUS_CALLBACK
+    {
+      netif_ext_callback_args_t args;
+      args.ipv6_set.addr_index  = addr_idx;
+      args.ipv6_set.old_address = &old_addr;
+      netif_invoke_ext_callback(netif, LWIP_NSC_IPV6_SET, &args);
+    }
+#endif
+  }
+
+  LWIP_DEBUGF(NETIF_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("netif: IPv6 address %d of interface %c%c set to %s/0x%"X8_F"\n",
+              addr_idx, netif->name[0], netif->name[1], ip6addr_ntoa(netif_ip6_addr(netif, addr_idx)),
+              netif_ip6_addr_state(netif, addr_idx)));
+}

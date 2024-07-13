@@ -1,0 +1,124 @@
+HAL_StatusTypeDef HAL_QSPI_Receive_DMA(QSPI_HandleTypeDef *hqspi, uint8_t *pData)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t *tmp;
+  uint32_t addr_reg = READ_REG(hqspi->Instance->AR);
+  uint32_t data_size = (READ_REG(hqspi->Instance->DLR) + 1);
+  
+  /* Process locked */
+  __HAL_LOCK(hqspi);
+  
+  if(hqspi->State == HAL_QSPI_STATE_READY)
+  {
+    hqspi->ErrorCode = HAL_QSPI_ERROR_NONE;
+    
+    if(pData != NULL ) 
+    {
+      /* Configure counters of the handle */
+      if (hqspi->hdma->Init.PeriphDataAlignment == DMA_PDATAALIGN_BYTE)
+      {
+        hqspi->RxXferCount = data_size;
+      }
+      else if (hqspi->hdma->Init.PeriphDataAlignment == DMA_PDATAALIGN_HALFWORD)
+      {
+        if (((data_size % 2) != 0) || ((hqspi->Init.FifoThreshold % 2) != 0))
+        {
+          /* The number of data or the fifo threshold is not aligned on halfword 
+          => no transfer possible with DMA peripheral access configured as halfword */
+          hqspi->ErrorCode |= HAL_QSPI_ERROR_INVALID_PARAM;
+          status = HAL_ERROR;
+          
+          /* Process unlocked */
+          __HAL_UNLOCK(hqspi);
+        }
+        else
+        {
+          hqspi->RxXferCount = (data_size >> 1);
+        }
+      }
+      else if (hqspi->hdma->Init.PeriphDataAlignment == DMA_PDATAALIGN_WORD)
+      {
+        if (((data_size % 4) != 0) || ((hqspi->Init.FifoThreshold % 4) != 0))
+        {
+          /* The number of data or the fifo threshold is not aligned on word 
+          => no transfer possible with DMA peripheral access configured as word */
+          hqspi->ErrorCode |= HAL_QSPI_ERROR_INVALID_PARAM;
+          status = HAL_ERROR;
+          
+          /* Process unlocked */
+          __HAL_UNLOCK(hqspi);
+        }
+        else
+        {
+          hqspi->RxXferCount = (data_size >> 2);
+        }
+      }
+      
+      if (status == HAL_OK)
+      {
+        
+        /* Update state */
+        hqspi->State = HAL_QSPI_STATE_BUSY_INDIRECT_RX;
+        
+        /* Clear interrupt */
+        __HAL_QSPI_CLEAR_FLAG(hqspi, (QSPI_FLAG_TE | QSPI_FLAG_TC));
+        
+        /* Configure size and pointer of the handle */
+        hqspi->RxXferSize = hqspi->RxXferCount;
+        hqspi->pRxBuffPtr = pData;
+        
+        /* Set the QSPI DMA transfer complete callback */
+        hqspi->hdma->XferCpltCallback = QSPI_DMARxCplt;
+        
+        /* Set the QSPI DMA Half transfer complete callback */
+        hqspi->hdma->XferHalfCpltCallback = QSPI_DMARxHalfCplt;
+        
+        /* Set the DMA error callback */
+        hqspi->hdma->XferErrorCallback = QSPI_DMAError;
+        
+        /* Clear the DMA abort callback */      
+        hqspi->hdma->XferAbortCallback = NULL;
+        
+        /* Configure the direction of the DMA */
+        hqspi->hdma->Init.Direction = DMA_PERIPH_TO_MEMORY;
+        MODIFY_REG(hqspi->hdma->Instance->CR, DMA_SxCR_DIR, hqspi->hdma->Init.Direction);
+        
+        /* Enable the DMA Channel */
+        tmp = (uint32_t*)&pData;
+        HAL_DMA_Start_IT(hqspi->hdma, (uint32_t)&hqspi->Instance->DR, *(uint32_t*)tmp, hqspi->RxXferSize);
+        
+        /* Configure QSPI: CCR register with functional as indirect read */
+        MODIFY_REG(hqspi->Instance->CCR, QUADSPI_CCR_FMODE, QSPI_FUNCTIONAL_MODE_INDIRECT_READ);
+        
+        /* Start the transfer by re-writing the address in AR register */
+        WRITE_REG(hqspi->Instance->AR, addr_reg);
+        
+        /* Process unlocked */
+        __HAL_UNLOCK(hqspi);
+        
+        /* Enable the QSPI transfer error Interrupt */
+        __HAL_QSPI_ENABLE_IT(hqspi, QSPI_IT_TE);
+        
+        /* Enable the DMA transfer by setting the DMAEN bit in the QSPI CR register */
+        SET_BIT(hqspi->Instance->CR, QUADSPI_CR_DMAEN);
+      }
+    }
+    else
+    {
+      hqspi->ErrorCode |= HAL_QSPI_ERROR_INVALID_PARAM;
+      status = HAL_ERROR;
+      
+      /* Process unlocked */
+      __HAL_UNLOCK(hqspi);
+    }
+  }
+  else
+  {
+    status = HAL_BUSY; 
+    
+    /* Process unlocked */
+    __HAL_UNLOCK(hqspi);
+  }
+  
+  return status;
+}

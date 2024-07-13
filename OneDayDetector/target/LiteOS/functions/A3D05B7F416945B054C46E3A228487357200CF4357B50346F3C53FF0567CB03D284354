@@ -1,0 +1,26 @@
+http_get_404_file(struct http_state *hs, const char **uri)
+{
+  err_t err;
+
+  *uri = "/404.html";
+  err = fs_open(&hs->file_handle, *uri);
+  if (err != ERR_OK) {
+    /* 404.html doesn't exist. Try 404.htm instead. */
+    *uri = "/404.htm";
+    err = fs_open(&hs->file_handle, *uri);
+    if (err != ERR_OK) {
+      /* 404.htm doesn't exist either. Try 404.shtml instead. */
+      *uri = "/404.shtml";
+      err = fs_open(&hs->file_handle, *uri);
+      if (err != ERR_OK) {
+        /* 404.htm doesn't exist either. Indicate to the caller that it should
+         * send back a default 404 page.
+         */
+        *uri = NULL;
+        return NULL;
+      }
+    }
+  }
+
+  return &hs->file_handle;
+}

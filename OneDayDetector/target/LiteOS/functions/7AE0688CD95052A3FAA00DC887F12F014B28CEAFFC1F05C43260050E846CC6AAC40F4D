@@ -1,0 +1,27 @@
+static void ssl_update_out_pointers( mbedtls_ssl_context *ssl,
+                                     mbedtls_ssl_transform *transform )
+{
+#if defined(MBEDTLS_SSL_PROTO_DTLS)
+    if( ssl->conf->transport == MBEDTLS_SSL_TRANSPORT_DATAGRAM )
+    {
+        ssl->out_ctr = ssl->out_hdr +  3;
+        ssl->out_len = ssl->out_hdr + 11;
+        ssl->out_iv  = ssl->out_hdr + 13;
+    }
+    else
+#endif
+    {
+        ssl->out_ctr = ssl->out_hdr - 8;
+        ssl->out_len = ssl->out_hdr + 3;
+        ssl->out_iv  = ssl->out_hdr + 5;
+    }
+
+    /* Adjust out_msg to make space for explicit IV, if used. */
+    if( transform != NULL &&
+        ssl->minor_ver >= MBEDTLS_SSL_MINOR_VERSION_2 )
+    {
+        ssl->out_msg = ssl->out_iv + transform->ivlen - transform->fixed_ivlen;
+    }
+    else
+        ssl->out_msg = ssl->out_iv;
+}

@@ -1,0 +1,29 @@
+mdns_probe(void* arg)
+{
+  struct netif *netif = (struct netif *)arg;
+  struct mdns_host* mdns = NETIF_TO_HOST(netif);
+
+  if(mdns->probes_sent >= MDNS_PROBE_COUNT) {
+    /* probing successful, announce the new name */
+    mdns->probing_state = MDNS_PROBING_COMPLETE;
+    mdns_resp_announce(netif);
+    if (mdns_name_result_cb != NULL) {
+      mdns_name_result_cb(netif, MDNS_PROBING_SUCCESSFUL);
+    }
+  } else {
+#if LWIP_IPV4
+    /*if ipv4 wait with probing until address is set*/
+    if (!ip4_addr_isany_val(*netif_ip4_addr(netif)) &&
+        mdns_send_probe(netif, IP4_ADDR_ANY) == ERR_OK)
+#endif
+    {
+#if LWIP_IPV6
+      if (mdns_send_probe(netif, IP6_ADDR_ANY) == ERR_OK)
+#endif
+      {
+        mdns->probes_sent++;
+      }
+    }
+    sys_timeout(MDNS_PROBE_DELAY_MS, mdns_probe, netif);
+  }
+}

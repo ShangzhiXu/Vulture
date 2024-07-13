@@ -1,0 +1,114 @@
+void ft5336_TS_GetXY(uint16_t DeviceAddr, uint16_t *X, uint16_t *Y)
+{
+  volatile uint8_t ucReadData = 0;
+  static uint16_t coord;
+  uint8_t regAddressXLow = 0;
+  uint8_t regAddressXHigh = 0;
+  uint8_t regAddressYLow = 0;
+  uint8_t regAddressYHigh = 0;
+
+  if(ft5336_handle.currActiveTouchIdx < ft5336_handle.currActiveTouchNb)
+  {
+    switch(ft5336_handle.currActiveTouchIdx)
+    {
+    case 0 :
+      regAddressXLow  = FT5336_P1_XL_REG;
+      regAddressXHigh = FT5336_P1_XH_REG;
+      regAddressYLow  = FT5336_P1_YL_REG;
+      regAddressYHigh = FT5336_P1_YH_REG;
+      break;
+
+    case 1 :
+      regAddressXLow  = FT5336_P2_XL_REG;
+      regAddressXHigh = FT5336_P2_XH_REG;
+      regAddressYLow  = FT5336_P2_YL_REG;
+      regAddressYHigh = FT5336_P2_YH_REG;
+      break;
+
+    case 2 :
+      regAddressXLow  = FT5336_P3_XL_REG;
+      regAddressXHigh = FT5336_P3_XH_REG;
+      regAddressYLow  = FT5336_P3_YL_REG;
+      regAddressYHigh = FT5336_P3_YH_REG;
+      break;
+
+    case 3 :
+      regAddressXLow  = FT5336_P4_XL_REG;
+      regAddressXHigh = FT5336_P4_XH_REG;
+      regAddressYLow  = FT5336_P4_YL_REG;
+      regAddressYHigh = FT5336_P4_YH_REG;
+      break;
+
+    case 4 :
+      regAddressXLow  = FT5336_P5_XL_REG;
+      regAddressXHigh = FT5336_P5_XH_REG;
+      regAddressYLow  = FT5336_P5_YL_REG;
+      regAddressYHigh = FT5336_P5_YH_REG;
+      break;
+
+    case 5 :
+      regAddressXLow  = FT5336_P6_XL_REG;
+      regAddressXHigh = FT5336_P6_XH_REG;
+      regAddressYLow  = FT5336_P6_YL_REG;
+      regAddressYHigh = FT5336_P6_YH_REG;
+      break;
+
+    case 6 :
+      regAddressXLow  = FT5336_P7_XL_REG;
+      regAddressXHigh = FT5336_P7_XH_REG;
+      regAddressYLow  = FT5336_P7_YL_REG;
+      regAddressYHigh = FT5336_P7_YH_REG;
+      break;
+
+    case 7 :
+      regAddressXLow  = FT5336_P8_XL_REG;
+      regAddressXHigh = FT5336_P8_XH_REG;
+      regAddressYLow  = FT5336_P8_YL_REG;
+      regAddressYHigh = FT5336_P8_YH_REG;
+      break;
+
+    case 8 :
+      regAddressXLow  = FT5336_P9_XL_REG;
+      regAddressXHigh = FT5336_P9_XH_REG;
+      regAddressYLow  = FT5336_P9_YL_REG;
+      regAddressYHigh = FT5336_P9_YH_REG;
+      break;
+
+    case 9 :
+      regAddressXLow  = FT5336_P10_XL_REG;
+      regAddressXHigh = FT5336_P10_XH_REG;
+      regAddressYLow  = FT5336_P10_YL_REG;
+      regAddressYHigh = FT5336_P10_YH_REG;
+      break;
+
+    default :
+      break;
+
+    } /* end switch(ft5336_handle.currActiveTouchIdx) */
+
+    /* Read low part of X position */
+    ucReadData = TS_IO_Read(DeviceAddr, regAddressXLow);
+    coord = (ucReadData & FT5336_TOUCH_POS_LSB_MASK) >> FT5336_TOUCH_POS_LSB_SHIFT;
+
+    /* Read high part of X position */
+    ucReadData = TS_IO_Read(DeviceAddr, regAddressXHigh);
+    coord |= ((ucReadData & FT5336_TOUCH_POS_MSB_MASK) >> FT5336_TOUCH_POS_MSB_SHIFT) << 8;
+
+    /* Send back ready X position to caller */
+    *X = coord;
+
+    /* Read low part of Y position */
+    ucReadData = TS_IO_Read(DeviceAddr, regAddressYLow);
+    coord = (ucReadData & FT5336_TOUCH_POS_LSB_MASK) >> FT5336_TOUCH_POS_LSB_SHIFT;
+
+    /* Read high part of Y position */
+    ucReadData = TS_IO_Read(DeviceAddr, regAddressYHigh);
+    coord |= ((ucReadData & FT5336_TOUCH_POS_MSB_MASK) >> FT5336_TOUCH_POS_MSB_SHIFT) << 8;
+
+    /* Send back ready Y position to caller */
+    *Y = coord;
+
+    ft5336_handle.currActiveTouchIdx++; /* next call will work on next touch */
+
+  } /* of if(ft5336_handle.currActiveTouchIdx < ft5336_handle.currActiveTouchNb) */
+}

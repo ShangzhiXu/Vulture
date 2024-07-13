@@ -1,0 +1,63 @@
+HAL_StatusTypeDef HAL_FLASHEx_Erase(FLASH_EraseInitTypeDef *pEraseInit, uint32_t *SectorError)
+{
+  HAL_StatusTypeDef status = HAL_ERROR;
+  uint32_t index = 0U;
+  
+  /* Process Locked */
+  __HAL_LOCK(&pFlash);
+
+  /* Check the parameters */
+  assert_param(IS_FLASH_TYPEERASE(pEraseInit->TypeErase));
+
+  /* Wait for last operation to be completed */
+  status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+
+  if(status == HAL_OK)
+  {
+    /*Initialization of SectorError variable*/
+    *SectorError = 0xFFFFFFFFU;
+    
+    if(pEraseInit->TypeErase == FLASH_TYPEERASE_MASSERASE)
+    {
+      /*Mass erase to be done*/
+      FLASH_MassErase((uint8_t) pEraseInit->VoltageRange, pEraseInit->Banks);
+
+      /* Wait for last operation to be completed */
+      status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+      
+      /* if the erase operation is completed, disable the MER Bit */
+      FLASH->CR &= (~FLASH_MER_BIT);
+    }
+    else
+    {
+      /* Check the parameters */
+      assert_param(IS_FLASH_NBSECTORS(pEraseInit->NbSectors + pEraseInit->Sector));
+
+      /* Erase by sector by sector to be done*/
+      for(index = pEraseInit->Sector; index < (pEraseInit->NbSectors + pEraseInit->Sector); index++)
+      {
+        FLASH_Erase_Sector(index, (uint8_t) pEraseInit->VoltageRange);
+
+        /* Wait for last operation to be completed */
+        status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+        
+        /* If the erase operation is completed, disable the SER and SNB Bits */
+        CLEAR_BIT(FLASH->CR, (FLASH_CR_SER | FLASH_CR_SNB));
+
+        if(status != HAL_OK) 
+        {
+          /* In case of error, stop erase procedure and return the faulty sector*/
+          *SectorError = index;
+          break;
+        }
+      }
+    }
+    /* Flush the caches to be sure of the data consistency */
+    FLASH_FlushCaches();    
+  }
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(&pFlash);
+
+  return status;
+}

@@ -1,0 +1,33 @@
+HAL_StatusTypeDef HAL_PCD_RegisterIsoInIncpltCallback(PCD_HandleTypeDef *hpcd, pPCD_IsoInIncpltCallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    /* Update the error code */
+    hpcd->ErrorCode |= HAL_PCD_ERROR_INVALID_CALLBACK;
+
+    return HAL_ERROR;
+  }
+
+  /* Process locked */
+  __HAL_LOCK(hpcd);
+
+  if (hpcd->State == HAL_PCD_STATE_READY)
+  {
+    hpcd->ISOINIncompleteCallback = pCallback;
+  }
+  else
+  {
+    /* Update the error code */
+    hpcd->ErrorCode |= HAL_PCD_ERROR_INVALID_CALLBACK;
+
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hpcd);
+
+  return status;
+}

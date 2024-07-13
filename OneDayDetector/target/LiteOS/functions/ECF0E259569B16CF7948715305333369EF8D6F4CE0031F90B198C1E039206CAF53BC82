@@ -1,0 +1,31 @@
+HAL_StatusTypeDef HAL_SAI_InitProtocol(SAI_HandleTypeDef *hsai, uint32_t protocol, uint32_t datasize, uint32_t nbslot)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Check the parameters */
+  assert_param(IS_SAI_SUPPORTED_PROTOCOL(protocol));
+  assert_param(IS_SAI_PROTOCOL_DATASIZE(datasize));
+
+  switch(protocol)
+  {
+  case SAI_I2S_STANDARD :
+  case SAI_I2S_MSBJUSTIFIED :
+  case SAI_I2S_LSBJUSTIFIED :
+    status = SAI_InitI2S(hsai, protocol, datasize, nbslot);
+    break;
+  case SAI_PCM_LONG :
+  case SAI_PCM_SHORT :
+    status = SAI_InitPCM(hsai, protocol, datasize, nbslot);
+    break;
+  default :
+    status = HAL_ERROR;
+    break;
+  }
+
+  if(status == HAL_OK)
+  {
+    status = HAL_SAI_Init(hsai);
+  }
+
+  return status;
+}

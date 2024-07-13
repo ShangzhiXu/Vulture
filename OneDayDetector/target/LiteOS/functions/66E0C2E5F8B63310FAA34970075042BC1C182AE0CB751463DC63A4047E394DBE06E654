@@ -1,0 +1,16 @@
+VOID LOS_RingbufReset(Ringbuf *ringbuf)
+{
+    UINT32 intSave;
+
+    if ((ringbuf == NULL) || (ringbuf->status != RBUF_INITED)) {
+        return;
+    }
+
+    LOS_SpinLockSave(&ringbuf->lock, &intSave);
+    ringbuf->startIdx = 0;
+    ringbuf->endIdx = 0;
+    ringbuf->remain = ringbuf->size;
+    (VOID)memset_s(ringbuf->fifo, ringbuf->size, 0, ringbuf->size);
+    LOS_SpinUnlockRestore(&ringbuf->lock, intSave);
+    return;
+}

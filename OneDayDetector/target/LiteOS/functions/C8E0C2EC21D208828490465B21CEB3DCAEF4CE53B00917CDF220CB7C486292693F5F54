@@ -1,0 +1,19 @@
+SECUREC_INLINE SecInt SecGetChar(SecFileStream *stream, int *counter)
+{
+    *counter = *counter + 1; /* Always plus 1 */
+    /* The main scenario is scanf str */
+    if ((stream->flag & SECUREC_MEM_STR_FLAG) != 0) {
+        SecInt ch;
+        SECUREC_GET_CHAR(stream, &ch);
+        return ch;
+    }
+#if SECUREC_ENABLE_SCANF_FILE
+    if ((stream->flag & SECUREC_FILE_STREAM_FLAG) != 0) {
+        return SecGetCharFromFile(stream);
+    }
+    if ((stream->flag & SECUREC_PIPE_STREAM_FLAG) != 0) {
+        return SecGetCharFromStream(stream);
+    }
+#endif
+    return SECUREC_EOF;
+}

@@ -1,0 +1,30 @@
+int hal_flash_erase(uint32_t addr, int32_t len)
+{
+    uint32_t begin_sector;
+    uint32_t end_sector;
+    uint32_t i;
+
+    if ((len < 0) || (len >= ADDR_FLASH_SECTOR_END - ADDR_FLASH_SECTOR_0)) {
+        return -1;
+    }
+
+    if (HAL_FLASH_Unlock() != HAL_OK) {
+        return -1;
+    }
+
+    begin_sector = prv_flash_get_sector(addr);
+    end_sector = prv_flash_get_sector(addr + len);
+
+    if ((begin_sector == FLASH_SECTOR_ILEGAL) || (end_sector == FLASH_SECTOR_ILEGAL)) {
+        return -1;
+    }
+
+    __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP | FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR | FLASH_FLAG_PGAERR |
+        FLASH_FLAG_PGPERR | FLASH_FLAG_PGSERR);
+
+    for (i = begin_sector; i <= end_sector; ++i) {
+        FLASH_Erase_Sector(i, FLASH_VOLTAGE_RANGE_3);
+    }
+
+    return 0;
+}

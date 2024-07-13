@@ -1,0 +1,15 @@
+STATIC INLINE INT64 ArchAtomicXchg64bits(Atomic64 *v, INT64 val)
+{
+    INT64 prevVal;
+    UINT32 status;
+
+    do {
+        __asm__ __volatile__("ldrexd   %0, %H0, [%3]\n"
+                             "strexd   %1, %4, %H4, [%3]"
+                             : "=&r"(prevVal), "=&r"(status), "+m"(*v)
+                             : "r"(v), "r"(val)
+                             : "cc");
+    } while (__builtin_expect(status != 0, 0));
+
+    return prevVal;
+}

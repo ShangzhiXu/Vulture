@@ -1,0 +1,17 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 OsWowWriteFlashTaskCreate(VOID)
+{
+    UINT32 ret;
+    UINT32 writeFlashTaskId;
+    TSK_INIT_PARAM_S taskInitParam;
+
+    (VOID)memset_s((VOID *)(&taskInitParam), sizeof(TSK_INIT_PARAM_S), 0, sizeof(TSK_INIT_PARAM_S));
+    taskInitParam.pfnTaskEntry = (TSK_ENTRY_FUNC)OsWriteToFlashTask;
+    taskInitParam.uwStackSize = LOSCFG_BASE_CORE_TSK_DEFAULT_STACK_SIZE;
+    taskInitParam.pcName = "WowWriteFlashTask";
+    taskInitParam.usTaskPrio = OS_TASK_PRIORITY_LOWEST - 1;
+#ifdef LOSCFG_KERNEL_SMP
+    taskInitParam.usCpuAffiMask = CPUID_TO_AFFI_MASK(0);
+#endif
+    ret = LOS_TaskCreate(&writeFlashTaskId, &taskInitParam);
+    return ret;
+}

@@ -1,0 +1,16 @@
+tcp_output_alloc_header(struct tcp_pcb *pcb, u16_t optlen, u16_t datalen,
+                        u32_t seqno_be /* already in network byte order */)
+{
+  struct pbuf *p;
+
+  LWIP_ASSERT("tcp_output_alloc_header: invalid pcb", pcb != NULL);
+
+  p = tcp_output_alloc_header_common(pcb->rcv_nxt, optlen, datalen,
+    seqno_be, pcb->local_port, pcb->remote_port, TCP_ACK,
+    TCPWND_MIN16(RCV_WND_SCALE(pcb, pcb->rcv_ann_wnd)));
+  if (p != NULL) {
+    /* If we're sending a packet, update the announced right window edge */
+    pcb->rcv_ann_right_edge = pcb->rcv_nxt + pcb->rcv_ann_wnd;
+  }
+  return p;
+}

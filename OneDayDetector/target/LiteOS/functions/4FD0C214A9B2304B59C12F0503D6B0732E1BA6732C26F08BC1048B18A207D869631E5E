@@ -1,0 +1,28 @@
+void ethernetif_input(void *pvParameters)
+{
+    struct pbuf *p;
+    err_t err;
+
+    /* move received packet into a new pbuf */
+    do {
+        SYS_ARCH_DECL_PROTECT(sr);
+
+        SYS_ARCH_PROTECT(sr);
+        p = low_level_input(s_pxNetIf);
+        SYS_ARCH_UNPROTECT(sr);
+
+        if (p == NULL) {
+            return;
+        }
+        /* netif_add func now use tcpip_input, sys_init.c
+        netif_add(&gnetif, &ipaddr, &netmask, &gw, NULL, ethernetif_init, tcpip_input);
+        */
+        /* err = s_pxNetIf->input(p, s_pxNetIf); */
+        err = tcpip_input(p, s_pxNetIf);
+        if (err != ERR_OK) {
+            LWIP_DEBUGF(NETIF_DEBUG, ("ethernetif_input: IP input error\n"));
+            pbuf_free(p);
+            p = NULL;
+        }
+    } while (p != NULL);
+}

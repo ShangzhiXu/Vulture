@@ -1,0 +1,152 @@
+static int ipcp_rejci(fsm *f, u_char *p, int len) {
+    ppp_pcb *pcb = f->pcb;
+    ipcp_options *go = &pcb->ipcp_gotoptions;
+    u_char cilen;
+#if VJ_SUPPORT
+    u_char cimaxslotindex, ciflag;
+    u_short cishort;
+#endif /* VJ_SUPPORT */
+    u32_t cilong;
+    ipcp_options try_;		/* options to request next time */
+
+    try_ = *go;
+    /*
+     * Any Rejected CIs must be in exactly the same order that we sent.
+     * Check packet length and CI length at each step.
+     * If we find any deviations, then this packet is bad.
+     */
+#define REJCIADDRS(opt, neg, val1, val2) \
+    if ((neg) && \
+	(cilen = p[1]) == CILEN_ADDRS && \
+	len >= cilen && \
+	p[0] == opt) { \
+	u32_t l; \
+	len -= cilen; \
+	INCPTR(2, p); \
+	GETLONG(l, p); \
+	cilong = lwip_htonl(l); \
+	/* Check rejected value. */ \
+	if (cilong != val1) \
+	    goto bad; \
+	GETLONG(l, p); \
+	cilong = lwip_htonl(l); \
+	/* Check rejected value. */ \
+	if (cilong != val2) \
+	    goto bad; \
+	try_.old_addrs = 0; \
+    }
+
+#if VJ_SUPPORT
+#define REJCIVJ(opt, neg, val, old, maxslot, cflag) \
+    if (go->neg && \
+	p[1] == (old? CILEN_COMPRESS : CILEN_VJ) && \
+	len >= p[1] && \
+	p[0] == opt) { \
+	len -= p[1]; \
+	INCPTR(2, p); \
+	GETSHORT(cishort, p); \
+	/* Check rejected value. */  \
+	if (cishort != val) \
+	    goto bad; \
+	if (!old) { \
+	   GETCHAR(cimaxslotindex, p); \
+	   if (cimaxslotindex != maxslot) \
+	     goto bad; \
+	   GETCHAR(ciflag, p); \
+	   if (ciflag != cflag) \
+	     goto bad; \
+        } \
+	try_.neg = 0; \
+     }
+#endif /* VJ_SUPPORT */
+
+#define REJCIADDR(opt, neg, val) \
+    if (go->neg && \
+	(cilen = p[1]) == CILEN_ADDR && \
+	len >= cilen && \
+	p[0] == opt) { \
+	u32_t l; \
+	len -= cilen; \
+	INCPTR(2, p); \
+	GETLONG(l, p); \
+	cilong = lwip_htonl(l); \
+	/* Check rejected value. */ \
+	if (cilong != val) \
+	    goto bad; \
+	try_.neg = 0; \
+    }
+
+#if LWIP_DNS
+#define REJCIDNS(opt, neg, dnsaddr) \
+    if (go->neg && \
+	((cilen = p[1]) == CILEN_ADDR) && \
+	len >= cilen && \
+	p[0] == opt) { \
+	u32_t l; \
+	len -= cilen; \
+	INCPTR(2, p); \
+	GETLONG(l, p); \
+	cilong = lwip_htonl(l); \
+	/* Check rejected value. */ \
+	if (cilong != dnsaddr) \
+	    goto bad; \
+	try_.neg = 0; \
+    }
+#endif /* LWIP_DNS */
+
+#if 0 /* UNUSED - WINS */
+#define REJCIWINS(opt, addr) \
+    if (addr && \
+	((cilen = p[1]) == CILEN_ADDR) && \
+	len >= cilen && \
+	p[0] == opt) { \
+	u32_t l; \
+	len -= cilen; \
+	INCPTR(2, p); \
+	GETLONG(l, p); \
+	cilong = lwip_htonl(l); \
+	/* Check rejected value. */ \
+	if (cilong != addr) \
+	    goto bad; \
+	try_.winsaddr[opt == CI_MS_WINS2] = 0; \
+    }
+#endif /* UNUSED - WINS */
+
+    REJCIADDRS(CI_ADDRS, !go->neg_addr && go->old_addrs,
+	       go->ouraddr, go->hisaddr);
+
+#if VJ_SUPPORT
+    REJCIVJ(CI_COMPRESSTYPE, neg_vj, go->vj_protocol, go->old_vj,
+	    go->maxslotindex, go->cflag);
+#endif /* VJ_SUPPORT */
+
+    REJCIADDR(CI_ADDR, neg_addr, go->ouraddr);
+
+#if LWIP_DNS
+    REJCIDNS(CI_MS_DNS1, req_dns1, go->dnsaddr[0]);
+
+    REJCIDNS(CI_MS_DNS2, req_dns2, go->dnsaddr[1]);
+#endif /* LWIP_DNS */
+
+#if 0 /* UNUSED - WINS */
+    REJCIWINS(CI_MS_WINS1, go->winsaddr[0]);
+
+    REJCIWINS(CI_MS_WINS2, go->winsaddr[1]);
+#endif /* UNUSED - WINS */
+
+    /*
+     * If there are any remaining CIs, then this packet is bad.
+     */
+    if (len != 0)
+	goto bad;
+    /*
+     * Now we can update state.
+     */
+    if (f->state != PPP_FSM_OPENED)
+	*go = try_;
+    return 1;
+
+bad:
+    IPCPDEBUG(("ipcp_rejci: received bad Reject!"));
+    return 0;
+}

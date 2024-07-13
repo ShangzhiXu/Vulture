@@ -1,0 +1,23 @@
+tftp_tmr(void *arg)
+{
+  LWIP_UNUSED_ARG(arg);
+
+  tftp_state.timer++;
+
+  if (tftp_state.handle == NULL) {
+    return;
+  }
+
+  sys_timeout(TFTP_TIMER_MSECS, tftp_tmr, NULL);
+
+  if ((tftp_state.timer - tftp_state.last_pkt) > (TFTP_TIMEOUT_MSECS / TFTP_TIMER_MSECS)) {
+    if ((tftp_state.last_data != NULL) && (tftp_state.retries < TFTP_MAX_RETRIES)) {
+      LWIP_DEBUGF(TFTP_DEBUG | LWIP_DBG_STATE, ("tftp: timeout, retrying\n"));
+      resend_data();
+      tftp_state.retries++;
+    } else {
+      LWIP_DEBUGF(TFTP_DEBUG | LWIP_DBG_STATE, ("tftp: timeout\n"));
+      close_handle();
+    }
+  }
+}

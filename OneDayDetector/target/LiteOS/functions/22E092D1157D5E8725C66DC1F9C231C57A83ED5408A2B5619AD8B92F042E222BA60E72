@@ -1,0 +1,25 @@
+UINT32 OsShellCmdHelp(UINT32 argc, const CHAR **argv)
+{
+    UINT32 loop = 0;
+    CmdItemNode *curCmdItem = NULL;
+    CmdModInfo *cmdInfo = OsCmdInfoGet();
+
+    (VOID)argv;
+    if (argc > 0) {
+        PRINTK("\nUsage: help\n");
+        return OS_ERROR;
+    }
+
+    PRINTK("*******************shell commands:*************************\n");
+    LOS_DL_LIST_FOR_EACH_ENTRY(curCmdItem, &cmdInfo->cmdList.list, CmdItemNode, list) {
+        if ((loop & (8 - 1)) == 0) { /* 8 - 1:just align print */
+            PRINTK("\n");
+        }
+        PRINTK("%-12s  ", curCmdItem->cmd->cmdKey);
+
+        loop++;
+    }
+
+    PRINTK("\n");
+    return 0;
+}

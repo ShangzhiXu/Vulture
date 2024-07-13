@@ -1,0 +1,49 @@
+mdns_write_domain(struct mdns_outpacket *outpkt, struct mdns_domain *domain)
+{
+  int i;
+  err_t res;
+  u16_t writelen = domain->length;
+  u16_t jump_offset = 0;
+  u16_t jump;
+
+  if (!domain->skip_compression) {
+    for (i = 0; i < NUM_DOMAIN_OFFSETS; i++) {
+      u16_t offset = outpkt->domain_offsets[i];
+      if (offset) {
+        u16_t len = mdns_compress_domain(outpkt->pbuf, &offset, domain);
+        if (len < writelen) {
+          writelen = len;
+          jump_offset = offset;
+        }
+      }
+    }
+  }
+
+  if (writelen) {
+    /* Write uncompressed part of name */
+    res = pbuf_take_at(outpkt->pbuf, domain->name, writelen, outpkt->write_offset);
+    if (res != ERR_OK) {
+      return res;
+    }
+
+    /* Store offset of this new domain */
+    for (i = 0; i < NUM_DOMAIN_OFFSETS; i++) {
+      if (outpkt->domain_offsets[i] == 0) {
+        outpkt->domain_offsets[i] = outpkt->write_offset;
+        break;
+      }
+    }
+
+    outpkt->write_offset += writelen;
+  }
+  if (jump_offset) {
+    /* Write jump */
+    jump = lwip_htons(DOMAIN_JUMP | jump_offset);
+    res = pbuf_take_at(outpkt->pbuf, &jump, DOMAIN_JUMP_SIZE, outpkt->write_offset);
+    if (res != ERR_OK) {
+      return res;
+    }
+    outpkt->write_offset += DOMAIN_JUMP_SIZE;
+  }
+  return ERR_OK;
+}

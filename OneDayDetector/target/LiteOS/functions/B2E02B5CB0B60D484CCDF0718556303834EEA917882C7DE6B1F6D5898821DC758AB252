@@ -1,0 +1,29 @@
+static int ccp_extcode(fsm *f, int code, int id, u_char *p, int len) {
+    ppp_pcb *pcb = f->pcb;
+    LWIP_UNUSED_ARG(p);
+    LWIP_UNUSED_ARG(len);
+
+    switch (code) {
+    case CCP_RESETREQ:
+	if (f->state != PPP_FSM_OPENED)
+	    break;
+	ccp_reset_comp(pcb);
+	/* send a reset-ack, which the transmitter will see and
+	   reset its compression state. */
+	fsm_sdata(f, CCP_RESETACK, id, NULL, 0);
+	break;
+
+    case CCP_RESETACK:
+	if ((pcb->ccp_localstate & RACK_PENDING) && id == f->reqid) {
+	    pcb->ccp_localstate &= ~(RACK_PENDING | RREQ_REPEAT);
+	    UNTIMEOUT(ccp_rack_timeout, f);
+	    ccp_reset_decomp(pcb);
+	}
+	break;
+
+    default:
+	return 0;
+    }
+
+    return 1;
+}

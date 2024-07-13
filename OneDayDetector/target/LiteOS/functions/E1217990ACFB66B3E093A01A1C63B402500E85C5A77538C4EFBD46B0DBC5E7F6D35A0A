@@ -1,0 +1,41 @@
+mdns_resp_add_service(struct netif *netif, const char *name, const char *service, enum mdns_sd_proto proto, u16_t port, u32_t dns_ttl, service_get_txt_fn_t txt_fn, void *txt_data)
+{
+  s8_t i;
+  s8_t slot = -1;
+  struct mdns_service *srv;
+  struct mdns_host *mdns;
+
+  LWIP_ASSERT_CORE_LOCKED();
+  LWIP_ASSERT("mdns_resp_add_service: netif != NULL", netif);
+  mdns = NETIF_TO_HOST(netif);
+  LWIP_ERROR("mdns_resp_add_service: Not an mdns netif", (mdns != NULL), return ERR_VAL);
+
+  LWIP_ERROR("mdns_resp_add_service: Name too long", (strlen(name) <= MDNS_LABEL_MAXLEN), return ERR_VAL);
+  LWIP_ERROR("mdns_resp_add_service: Service too long", (strlen(service) <= MDNS_LABEL_MAXLEN), return ERR_VAL);
+  LWIP_ERROR("mdns_resp_add_service: Bad proto (need TCP or UDP)", (proto == DNSSD_PROTO_TCP || proto == DNSSD_PROTO_UDP), return ERR_VAL);
+
+  for (i = 0; i < MDNS_MAX_SERVICES; i++) {
+    if (mdns->services[i] == NULL) {
+      slot = i;
+      break;
+    }
+  }
+  LWIP_ERROR("mdns_resp_add_service: Service list full (increase MDNS_MAX_SERVICES)", (slot >= 0), return ERR_MEM);
+
+  srv = (struct mdns_service *)mem_calloc(1, sizeof(struct mdns_service));
+  LWIP_ERROR("mdns_resp_add_service: Alloc failed", (srv != NULL), return ERR_MEM);
+
+  MEMCPY(&srv->name, name, LWIP_MIN(MDNS_LABEL_MAXLEN, strlen(name)));
+  MEMCPY(&srv->service, service, LWIP_MIN(MDNS_LABEL_MAXLEN, strlen(service)));
+  srv->txt_fn = txt_fn;
+  srv->txt_userdata = txt_data;
+  srv->proto = (u16_t)proto;
+  srv->port = port;
+  srv->dns_ttl = dns_ttl;
+
+  mdns->services[slot] = srv;
+
+  mdns_resp_restart(netif);
+
+  return slot;
+}

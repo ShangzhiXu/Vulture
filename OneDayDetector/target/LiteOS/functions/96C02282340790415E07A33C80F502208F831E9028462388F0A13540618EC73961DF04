@@ -1,0 +1,16 @@
+STATIC INLINE INT32 ArchAtomicSub(Atomic *v, INT32 subVal)
+{
+    INT32 val;
+    UINT32 status;
+
+    do {
+        __asm__ __volatile__("ldxr   %w1, %2\n"
+                             "sub   %w1, %w1, %w3\n"
+                             "stxr   %w0, %w1, %2"
+                             : "=&r"(status), "=&r"(val), "+Q"(*v)
+                             : "r"(subVal)
+                             : "cc");
+    } while (__builtin_expect(status != 0, 0));
+
+    return val;
+}

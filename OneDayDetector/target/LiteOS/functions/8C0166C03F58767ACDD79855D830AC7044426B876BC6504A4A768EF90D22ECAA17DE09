@@ -1,0 +1,29 @@
+static void tab_btnm_event_cb(lv_obj_t * tab_btnm, lv_event_t event)
+{
+    if(event != LV_EVENT_CLICKED) return;
+
+    uint16_t btn_id = lv_btnmatrix_get_active_btn(tab_btnm);
+    if(btn_id == LV_BTNMATRIX_BTN_NONE) return;
+
+    if(lv_btnmatrix_get_btn_ctrl(tab_btnm, btn_id, LV_BTNMATRIX_CTRL_DISABLED)) return;
+
+    lv_btnmatrix_clear_btn_ctrl_all(tab_btnm, LV_BTNMATRIX_CTRL_CHECK_STATE);
+    lv_btnmatrix_set_btn_ctrl(tab_btnm, btn_id, LV_BTNMATRIX_CTRL_CHECK_STATE);
+
+    lv_obj_t * tabview = lv_obj_get_parent(tab_btnm);
+
+    uint32_t id_prev = lv_tabview_get_tab_act(tabview);
+    lv_tabview_set_tab_act(tabview, btn_id, LV_ANIM_ON);
+    uint32_t id_new = lv_tabview_get_tab_act(tabview);
+
+    lv_res_t res = LV_RES_OK;
+    if(id_prev != id_new) res = lv_event_send(tabview, LV_EVENT_VALUE_CHANGED, &id_new);
+
+#if LV_USE_GROUP
+    if(lv_indev_get_type(lv_indev_get_act()) == LV_INDEV_TYPE_ENCODER) {
+        lv_group_set_editing(lv_obj_get_group(tabview), false);
+    }
+#endif
+
+    if(res != LV_RES_OK) return;
+}

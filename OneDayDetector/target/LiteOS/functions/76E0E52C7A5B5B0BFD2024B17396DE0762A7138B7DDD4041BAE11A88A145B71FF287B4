@@ -1,0 +1,28 @@
+int mbedtls_rsa_rsassa_pss_verify( mbedtls_rsa_context *ctx,
+                           int (*f_rng)(void *, unsigned char *, size_t),
+                           void *p_rng,
+                           int mode,
+                           mbedtls_md_type_t md_alg,
+                           unsigned int hashlen,
+                           const unsigned char *hash,
+                           const unsigned char *sig )
+{
+    mbedtls_md_type_t mgf1_hash_id;
+    RSA_VALIDATE_RET( ctx != NULL );
+    RSA_VALIDATE_RET( mode == MBEDTLS_RSA_PRIVATE ||
+                      mode == MBEDTLS_RSA_PUBLIC );
+    RSA_VALIDATE_RET( sig != NULL );
+    RSA_VALIDATE_RET( ( md_alg  == MBEDTLS_MD_NONE &&
+                        hashlen == 0 ) ||
+                      hash != NULL );
+
+    mgf1_hash_id = ( ctx->hash_id != MBEDTLS_MD_NONE )
+                             ? (mbedtls_md_type_t) ctx->hash_id
+                             : md_alg;
+
+    return( mbedtls_rsa_rsassa_pss_verify_ext( ctx, f_rng, p_rng, mode,
+                                       md_alg, hashlen, hash,
+                                       mgf1_hash_id, MBEDTLS_RSA_SALT_LEN_ANY,
+                                       sig ) );
+
+}

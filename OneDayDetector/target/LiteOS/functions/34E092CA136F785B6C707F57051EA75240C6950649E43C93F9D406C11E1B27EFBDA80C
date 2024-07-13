@@ -1,0 +1,39 @@
+HAL_StatusTypeDef HAL_DAC_DeInit(DAC_HandleTypeDef* hdac)
+{
+  /* Check DAC handle */
+  if(hdac == NULL)
+  {
+     return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_DAC_ALL_INSTANCE(hdac->Instance));
+
+  /* Change DAC state */
+  hdac->State = HAL_DAC_STATE_BUSY;
+
+#if (USE_HAL_DAC_REGISTER_CALLBACKS == 1)
+  if(hdac->MspDeInitCallback == NULL)
+  {
+    hdac->MspDeInitCallback = HAL_DAC_MspDeInit;
+  }
+  /* DeInit the low level hardware */
+  hdac->MspDeInitCallback(hdac);
+  
+#else 
+  /* DeInit the low level hardware */
+  HAL_DAC_MspDeInit(hdac);
+#endif /* USE_HAL_DAC_REGISTER_CALLBACKS */
+
+  /* Set DAC error code to none */
+  hdac->ErrorCode = HAL_DAC_ERROR_NONE;
+
+  /* Change DAC state */
+  hdac->State = HAL_DAC_STATE_RESET;
+
+  /* Release Lock */
+  __HAL_UNLOCK(hdac);
+
+  /* Return function status */
+  return HAL_OK;
+}

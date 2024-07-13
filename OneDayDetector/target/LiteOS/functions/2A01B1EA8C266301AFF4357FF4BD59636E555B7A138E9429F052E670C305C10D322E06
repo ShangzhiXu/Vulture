@@ -1,0 +1,45 @@
+STATIC INT32 OsMuxPostForPosix(pthread_mutex_t *mutex)
+{
+    UINT32 intSave;
+    UINT32 ret;
+    UINT16 bitMapPri;
+    MuxBaseCB *muxPosted = &mutex->stLock;
+    LosTaskCB *runTask = NULL;
+
+    SCHEDULER_LOCK(intSave);
+
+    if (muxPosted->muxCount == 0) {
+        SCHEDULER_UNLOCK(intSave);
+        return EPERM;
+    }
+
+    runTask = OsCurrTaskGet();
+    if (muxPosted->owner != runTask) {
+        SCHEDULER_UNLOCK(intSave);
+        return EPERM;
+    }
+
+    if ((--muxPosted->muxCount != 0) &&
+        (mutex->stAttr.type == PTHREAD_MUTEX_RECURSIVE)) {
+        SCHEDULER_UNLOCK(intSave);
+        return ENOERR;
+    }
+
+    if (mutex->stAttr.protocol == PTHREAD_PRIO_PROTECT) {
+        bitMapPri = LOS_HighBitGet(runTask->priBitMap);
+        if (bitMapPri != LOS_INVALID_BIT_INDEX) {
+            LOS_BitmapClr(&runTask->priBitMap, bitMapPri);
+            OsTaskPriModify(runTask, bitMapPri);
+        }
+    }
+
+    /* Whether a task block the mutex lock. */
+    ret = OsMuxPostOp(runTask, (MuxBaseCB *)muxPosted);
+    SCHEDULER_UNLOCK(intSave);
+    if (ret == MUX_SCHEDULE) {
+        LOS_MpSchedule(OS_MP_CPU_ALL);
+        LOS_Schedule();
+    }
+
+    return ENOERR;
+}

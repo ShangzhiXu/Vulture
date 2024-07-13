@@ -1,0 +1,38 @@
+STATIC UINT32 MmuSetFirstSection(const MMU_PARAM *para, UINT32 itemStart, UINT32 itemEnd)
+{
+    UINT32 intSave;
+    UINT32 itemTemp = itemStart;
+    UINT32 bitsCache, bitsBuf, bitsAP;
+#if defined(LOSCFG_ARCH_CORTEX_A7) || defined(LOSCFG_ARCH_CORTEX_A17) || defined(LOSCFG_ARCH_CORTEX_A53_AARCH32)
+    UINT32 bitsXn = MMU_EXECUTE_STATE(para->uwFlag);
+#endif
+
+    bitsAP = MMU_AP_STATE(para->uwFlag);
+    bitsCache = MMU_CACHE_STATE(para->uwFlag);
+    bitsBuf = MMU_BUFFER_STATE(para->uwFlag);
+
+    while (itemTemp <= itemEnd) {
+        if (((*(UINTPTR *)(UINTPTR)itemTemp) & ITEM_TYPE_MASK) != MMU_FIRST_LEVEL_SECTION_ID) {
+            PRINT_ERR("not all mem belongs to first section(1M every item), mmu table ID:%u\n",
+                      ((*(UINT32 *)(UINTPTR)itemTemp) & ITEM_TYPE_MASK));
+            return LOS_NOK;
+        }
+        itemTemp += sizeof(UINTPTR);
+    }
+
+    itemTemp = itemStart;
+    intSave = LOS_IntLock();
+    DisableAPCheck();
+    while (itemTemp <= itemEnd) {
+#ifdef LOSCFG_ARCH_ARM926
+        SECTION_CHANGE(itemTemp, bitsCache, bitsBuf, bitsAP);
+#elif defined(LOSCFG_ARCH_CORTEX_A7) || defined(LOSCFG_ARCH_CORTEX_A17) || defined(LOSCFG_ARCH_CORTEX_A53_AARCH32)
+        SECTION_CHANGE(itemTemp, bitsCache, bitsBuf, bitsAP, bitsXn);
+#endif
+        itemTemp += sizeof(UINTPTR);
+    }
+    EnableAPCheck();
+    LOS_IntRestore(intSave);
+    dma_cache_clean(itemStart, itemEnd);
+    return LOS_OK;
+}

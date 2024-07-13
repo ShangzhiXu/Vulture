@@ -1,0 +1,23 @@
+VOID recv_Entry(VOID)
+{
+    UINT32 ret = 0;
+    CHAR readBuf[BUFFER_LEN] = {0};
+    UINT32 readLen = BUFFER_LEN;
+
+    while (1) {
+        ret = LOS_QueueReadCopy(g_queue, readBuf, &readLen, 0);
+        if(ret != LOS_OK) {
+            dprintf("recv message failure,error:%x\n", ret);
+            break;
+        }
+
+        dprintf("recv message:%s\n", readBuf);
+        LOS_TaskDelay(5);
+    }
+
+    while (LOS_OK != LOS_QueueDelete(g_queue)) {
+        LOS_TaskDelay(1);
+    }
+
+    dprintf("delete the queue success!\n");
+}

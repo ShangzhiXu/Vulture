@@ -1,0 +1,98 @@
+sntp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port)
+{
+  struct sntp_timestamps timestamps;
+  u8_t mode;
+  u8_t stratum;
+  err_t err;
+
+  LWIP_UNUSED_ARG(arg);
+  LWIP_UNUSED_ARG(pcb);
+
+  err = ERR_ARG;
+#if SNTP_CHECK_RESPONSE >= 1
+  /* check server address and port */
+  if (((sntp_opmode != SNTP_OPMODE_POLL) || ip_addr_cmp(addr, &sntp_last_server_address)) &&
+      (port == SNTP_PORT))
+#else /* SNTP_CHECK_RESPONSE >= 1 */
+  LWIP_UNUSED_ARG(addr);
+  LWIP_UNUSED_ARG(port);
+#endif /* SNTP_CHECK_RESPONSE >= 1 */
+  {
+    /* process the response */
+    if (p->tot_len == SNTP_MSG_LEN) {
+      mode = pbuf_get_at(p, SNTP_OFFSET_LI_VN_MODE) & SNTP_MODE_MASK;
+      /* if this is a SNTP response... */
+      if (((sntp_opmode == SNTP_OPMODE_POLL)       && (mode == SNTP_MODE_SERVER)) ||
+          ((sntp_opmode == SNTP_OPMODE_LISTENONLY) && (mode == SNTP_MODE_BROADCAST))) {
+        stratum = pbuf_get_at(p, SNTP_OFFSET_STRATUM);
+
+        if (stratum == SNTP_STRATUM_KOD) {
+          /* Kiss-of-death packet. Use another server or increase UPDATE_DELAY. */
+          err = SNTP_ERR_KOD;
+          LWIP_DEBUGF(SNTP_DEBUG_STATE, ("sntp_recv: Received Kiss-of-Death\n"));
+        } else {
+          pbuf_copy_partial(p, &timestamps, sizeof(timestamps), SNTP_OFFSET_TIMESTAMPS);
+#if SNTP_CHECK_RESPONSE >= 2
+          /* check originate_timetamp against sntp_last_timestamp_sent */
+          if (timestamps.orig.sec != sntp_last_timestamp_sent.sec ||
+              timestamps.orig.frac != sntp_last_timestamp_sent.frac) {
+            LWIP_DEBUGF(SNTP_DEBUG_WARN,
+                        ("sntp_recv: Invalid originate timestamp in response\n"));
+          } else
+#endif /* SNTP_CHECK_RESPONSE >= 2 */
+            /* @todo: add code for SNTP_CHECK_RESPONSE >= 3 and >= 4 here */
+          {
+            /* correct answer */
+            err = ERR_OK;
+          }
+        }
+      } else {
+        LWIP_DEBUGF(SNTP_DEBUG_WARN, ("sntp_recv: Invalid mode in response: %"U16_F"\n", (u16_t)mode));
+        /* wait for correct response */
+        err = ERR_TIMEOUT;
+      }
+    } else {
+      LWIP_DEBUGF(SNTP_DEBUG_WARN, ("sntp_recv: Invalid packet length: %"U16_F"\n", p->tot_len));
+    }
+  }
+#if SNTP_CHECK_RESPONSE >= 1
+  else {
+    /* packet from wrong remote address or port, wait for correct response */
+    err = ERR_TIMEOUT;
+  }
+#endif /* SNTP_CHECK_RESPONSE >= 1 */
+
+  pbuf_free(p);
+
+  if (err == ERR_OK) {
+    /* correct packet received: process it it */
+    sntp_process(&timestamps);
+
+#if SNTP_MONITOR_SERVER_REACHABILITY
+    /* indicate that server responded */
+    sntp_servers[sntp_current_server].reachability |= 1;
+#endif /* SNTP_MONITOR_SERVER_REACHABILITY */
+    /* Set up timeout for next request (only if poll response was received)*/
+    if (sntp_opmode == SNTP_OPMODE_POLL) {
+      u32_t sntp_update_delay;
+      sys_untimeout(sntp_try_next_server, NULL);
+      sys_untimeout(sntp_request, NULL);
+
+      /* Correct response, reset retry timeout */
+      SNTP_RESET_RETRY_TIMEOUT();
+
+      sntp_update_delay = (u32_t)SNTP_UPDATE_DELAY;
+      sys_timeout(sntp_update_delay, sntp_request, NULL);
+      LWIP_DEBUGF(SNTP_DEBUG_STATE, ("sntp_recv: Scheduled next time request: %"U32_F" ms\n",
+                                     sntp_update_delay));
+    }
+  } else if (err == SNTP_ERR_KOD) {
+    /* KOD errors are only processed in case of an explicit poll response */
+    if (sntp_opmode == SNTP_OPMODE_POLL) {
+      /* Kiss-of-death packet. Use another server or increase UPDATE_DELAY. */
+      sntp_try_next_server(NULL);
+    }
+  } else {
+    /* ignore any broken packet, poll mode: retry after timeout to avoid flooding */
+  }
+}

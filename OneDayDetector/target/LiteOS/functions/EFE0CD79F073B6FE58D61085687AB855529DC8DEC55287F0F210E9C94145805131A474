@@ -1,0 +1,24 @@
+void continue_networks(ppp_pcb *pcb) {
+    int i;
+    const struct protent *protp;
+
+    /*
+     * Start the "real" network protocols.
+     */
+    for (i = 0; (protp = protocols[i]) != NULL; ++i)
+	if (protp->protocol < 0xC000
+#if CCP_SUPPORT
+	    && protp->protocol != PPP_CCP
+#endif /* CCP_SUPPORT */
+#if ECP_SUPPORT
+	    && protp->protocol != PPP_ECP
+#endif /* ECP_SUPPORT */
+	    && protp->open != NULL) {
+	    (*protp->open)(pcb);
+	    ++pcb->num_np_open;
+	}
+
+    if (pcb->num_np_open == 0)
+	/* nothing to do */
+	lcp_close(pcb, "No network protocols running");
+}

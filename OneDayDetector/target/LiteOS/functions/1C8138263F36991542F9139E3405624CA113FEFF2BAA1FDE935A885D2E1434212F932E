@@ -1,0 +1,171 @@
+HAL_StatusTypeDef HAL_RCC_DeInit(void)
+{
+  uint32_t tickstart;
+
+  /* Get Start Tick */
+  tickstart = HAL_GetTick();
+
+  /* Set HSION bit to the reset value */
+  SET_BIT(RCC->CR, RCC_CR_HSION);
+
+  /* Wait till HSI is ready */
+  while (READ_BIT(RCC->CR, RCC_CR_HSIRDY) == RESET)
+  {
+    if ((HAL_GetTick() - tickstart) > HSI_TIMEOUT_VALUE)
+    {
+      return HAL_TIMEOUT;
+    }
+  }
+
+  /* Set HSITRIM[4:0] bits to the reset value */
+  SET_BIT(RCC->CR, RCC_CR_HSITRIM_4);
+
+  /* Get Start Tick */
+  tickstart = HAL_GetTick();
+
+  /* Reset CFGR register */
+  CLEAR_REG(RCC->CFGR);
+
+  /* Wait till clock switch is ready */
+  while (READ_BIT(RCC->CFGR, RCC_CFGR_SWS) != RESET)
+  {
+    if ((HAL_GetTick() - tickstart) > CLOCKSWITCH_TIMEOUT_VALUE)
+    {
+      return HAL_TIMEOUT;
+    }
+  }
+
+  /* Get Start Tick */
+  tickstart = HAL_GetTick();
+
+  /* Clear HSEON, HSEBYP and CSSON bits */
+  CLEAR_BIT(RCC->CR, RCC_CR_HSEON | RCC_CR_HSEBYP | RCC_CR_CSSON);
+
+  /* Wait till HSE is disabled */
+  while (READ_BIT(RCC->CR, RCC_CR_HSERDY) != RESET)
+  {
+    if ((HAL_GetTick() - tickstart) > HSE_TIMEOUT_VALUE)
+    {
+      return HAL_TIMEOUT;
+    }
+  }
+
+  /* Get Start Tick */
+  tickstart = HAL_GetTick();
+
+  /* Clear PLLON bit */
+  CLEAR_BIT(RCC->CR, RCC_CR_PLLON);
+
+  /* Wait till PLL is disabled */
+  while (READ_BIT(RCC->CR, RCC_CR_PLLRDY) != RESET)
+  {
+    if ((HAL_GetTick() - tickstart) > PLL_TIMEOUT_VALUE)
+    {
+      return HAL_TIMEOUT;
+    }
+  }
+
+#if defined(RCC_PLLI2S_SUPPORT)
+  /* Get Start Tick */
+  tickstart = HAL_GetTick();
+
+  /* Reset PLLI2SON bit */
+  CLEAR_BIT(RCC->CR, RCC_CR_PLLI2SON);
+
+  /* Wait till PLLI2S is disabled */
+  while (READ_BIT(RCC->CR, RCC_CR_PLLI2SRDY) != RESET)
+  {
+    if ((HAL_GetTick() - tickstart) > PLLI2S_TIMEOUT_VALUE)
+    {
+      return HAL_TIMEOUT;
+    }
+  }
+#endif /* RCC_PLLI2S_SUPPORT */
+
+#if defined(RCC_PLLSAI_SUPPORT)
+  /* Get Start Tick */
+  tickstart = HAL_GetTick();
+
+  /* Reset PLLSAI bit */
+  CLEAR_BIT(RCC->CR, RCC_CR_PLLSAION);
+
+  /* Wait till PLLSAI is disabled */
+  while (READ_BIT(RCC->CR, RCC_CR_PLLSAIRDY) != RESET)
+  {
+    if ((HAL_GetTick() - tickstart) > PLLSAI_TIMEOUT_VALUE)
+    {
+      return HAL_TIMEOUT;
+    }
+  }
+#endif /* RCC_PLLSAI_SUPPORT */
+
+  /* Once PLL, PLLI2S and PLLSAI are OFF, reset PLLCFGR register to default value */
+#if defined(STM32F412Cx) || defined(STM32F412Rx) || defined(STM32F412Vx) || defined(STM32F412Zx) || defined(STM32F413xx) || \
+    defined(STM32F423xx) || defined(STM32F446xx) || defined(STM32F469xx) || defined(STM32F479xx)
+  RCC->PLLCFGR = RCC_PLLCFGR_PLLM_4 | RCC_PLLCFGR_PLLN_6 | RCC_PLLCFGR_PLLN_7 | RCC_PLLCFGR_PLLQ_2 | RCC_PLLCFGR_PLLR_1;
+#elif defined(STM32F410Tx) || defined(STM32F410Cx) || defined(STM32F410Rx)
+  RCC->PLLCFGR = RCC_PLLCFGR_PLLR_0 | RCC_PLLCFGR_PLLR_1 | RCC_PLLCFGR_PLLR_2 | RCC_PLLCFGR_PLLM_4 | RCC_PLLCFGR_PLLN_6 | RCC_PLLCFGR_PLLN_7 | RCC_PLLCFGR_PLLQ_0 | RCC_PLLCFGR_PLLQ_1 | RCC_PLLCFGR_PLLQ_2 | RCC_PLLCFGR_PLLQ_3;
+#else
+  RCC->PLLCFGR = RCC_PLLCFGR_PLLM_4 | RCC_PLLCFGR_PLLN_6 | RCC_PLLCFGR_PLLN_7 | RCC_PLLCFGR_PLLQ_2;
+#endif /* STM32F412Cx || STM32F412Rx || STM32F412Vx || STM32F412Zx || STM32F413xx || STM32F423xx || STM32F446xx || STM32F469xx || STM32F479xx */
+
+  /* Reset PLLI2SCFGR register to default value */
+#if defined(STM32F412Cx) || defined(STM32F412Rx) || defined(STM32F412Vx) || defined(STM32F412Zx) || defined(STM32F413xx) || \
+    defined(STM32F423xx) || defined(STM32F446xx)
+  RCC->PLLI2SCFGR = RCC_PLLI2SCFGR_PLLI2SM_4 | RCC_PLLI2SCFGR_PLLI2SN_6 | RCC_PLLI2SCFGR_PLLI2SN_7 | RCC_PLLI2SCFGR_PLLI2SQ_2 | RCC_PLLI2SCFGR_PLLI2SR_1;
+#elif defined(STM32F401xC) || defined(STM32F401xE) || defined(STM32F405xx) || defined(STM32F415xx) || defined(STM32F407xx) || defined(STM32F417xx)
+  RCC->PLLI2SCFGR = RCC_PLLI2SCFGR_PLLI2SN_6 | RCC_PLLI2SCFGR_PLLI2SN_7 | RCC_PLLI2SCFGR_PLLI2SR_1;
+#elif defined(STM32F427xx) || defined(STM32F437xx) || defined(STM32F429xx) || defined(STM32F439xx) || defined(STM32F469xx) || defined(STM32F479xx)
+  RCC->PLLI2SCFGR = RCC_PLLI2SCFGR_PLLI2SN_6 | RCC_PLLI2SCFGR_PLLI2SN_7 | RCC_PLLI2SCFGR_PLLI2SQ_2 | RCC_PLLI2SCFGR_PLLI2SR_1;
+#elif defined(STM32F411xE)
+  RCC->PLLI2SCFGR = RCC_PLLI2SCFGR_PLLI2SM_4 | RCC_PLLI2SCFGR_PLLI2SN_6 | RCC_PLLI2SCFGR_PLLI2SN_7 | RCC_PLLI2SCFGR_PLLI2SR_1;
+#endif /* STM32F412Cx || STM32F412Rx || STM32F412Vx || STM32F412Zx || STM32F413xx || STM32F423xx || STM32F446xx */
+
+  /* Reset PLLSAICFGR register */
+#if defined(STM32F427xx) || defined(STM32F429xx) || defined(STM32F437xx) || defined(STM32F439xx) || defined(STM32F469xx) || defined(STM32F479xx)
+  RCC->PLLSAICFGR = RCC_PLLSAICFGR_PLLSAIN_6 | RCC_PLLSAICFGR_PLLSAIN_7 | RCC_PLLSAICFGR_PLLSAIQ_2 | RCC_PLLSAICFGR_PLLSAIR_1;
+#elif defined(STM32F446xx)
+  RCC->PLLSAICFGR = RCC_PLLSAICFGR_PLLSAIM_4 | RCC_PLLSAICFGR_PLLSAIN_6 | RCC_PLLSAICFGR_PLLSAIN_7 | RCC_PLLSAICFGR_PLLSAIQ_2;
+#endif /* STM32F427xx || STM32F429xx || STM32F437xx || STM32F439xx || STM32F469xx || STM32F479xx */
+
+  /* Disable all interrupts */
+  CLEAR_BIT(RCC->CIR, RCC_CIR_LSIRDYIE | RCC_CIR_LSERDYIE | RCC_CIR_HSIRDYIE | RCC_CIR_HSERDYIE | RCC_CIR_PLLRDYIE);
+
+#if defined(RCC_CIR_PLLI2SRDYIE)
+  CLEAR_BIT(RCC->CIR, RCC_CIR_PLLI2SRDYIE);
+#endif /* RCC_CIR_PLLI2SRDYIE */
+
+#if defined(RCC_CIR_PLLSAIRDYIE)
+  CLEAR_BIT(RCC->CIR, RCC_CIR_PLLSAIRDYIE);
+#endif /* RCC_CIR_PLLSAIRDYIE */
+
+  /* Clear all interrupt flags */
+  SET_BIT(RCC->CIR, RCC_CIR_LSIRDYC | RCC_CIR_LSERDYC | RCC_CIR_HSIRDYC | RCC_CIR_HSERDYC | RCC_CIR_PLLRDYC | RCC_CIR_CSSC);
+
+#if defined(RCC_CIR_PLLI2SRDYC)
+  SET_BIT(RCC->CIR, RCC_CIR_PLLI2SRDYC);
+#endif /* RCC_CIR_PLLI2SRDYC */
+
+#if defined(RCC_CIR_PLLSAIRDYC)
+  SET_BIT(RCC->CIR, RCC_CIR_PLLSAIRDYC);
+#endif /* RCC_CIR_PLLSAIRDYC */
+
+  /* Clear LSION bit */
+  CLEAR_BIT(RCC->CSR, RCC_CSR_LSION);
+
+  /* Reset all CSR flags */
+  SET_BIT(RCC->CSR, RCC_CSR_RMVF);
+
+  /* Update the SystemCoreClock global variable */
+  SystemCoreClock = HSI_VALUE;
+
+  /* Adapt Systick interrupt period */
+  if(HAL_InitTick(uwTickPrio) != HAL_OK)
+  {
+    return HAL_ERROR;
+  }
+  else
+  {
+    return HAL_OK;
+  }
+}

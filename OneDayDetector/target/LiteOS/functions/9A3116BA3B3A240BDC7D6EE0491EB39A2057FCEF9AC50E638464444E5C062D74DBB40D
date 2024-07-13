@@ -1,0 +1,122 @@
+HAL_StatusTypeDef HAL_RTC_DeInit(RTC_HandleTypeDef *hrtc)
+{
+#if defined (STM32F030xC) || defined (STM32F070xB) || \
+    defined (STM32F071xB) || defined (STM32F072xB) || defined (STM32F078xx) || \
+    defined (STM32F091xC) || defined (STM32F098xx)
+  uint32_t tickstart = 0;
+#endif /* defined (STM32F030xC) || defined (STM32F070xB) ||\
+          defined (STM32F071xB) || defined (STM32F072xB) || defined (STM32F078xx) || \
+          defined (STM32F091xC) || defined (STM32F098xx) ||*/
+
+  /* Check the parameters */
+  assert_param(IS_RTC_ALL_INSTANCE(hrtc->Instance));
+
+  /* Set RTC state */
+  hrtc->State = HAL_RTC_STATE_BUSY;
+
+  /* Disable the write protection for RTC registers */
+  __HAL_RTC_WRITEPROTECTION_DISABLE(hrtc);
+
+  /* Set Initialization mode */
+  if (RTC_EnterInitMode(hrtc) != HAL_OK)
+  {
+    /* Enable the write protection for RTC registers */
+    __HAL_RTC_WRITEPROTECTION_ENABLE(hrtc);
+
+    /* Set RTC state */
+    hrtc->State = HAL_RTC_STATE_ERROR;
+
+    return HAL_ERROR;
+  }
+  else
+  {
+    /* Reset TR, DR and CR registers */
+    hrtc->Instance->TR = 0x00000000U;
+    hrtc->Instance->DR = 0x00002101U;
+
+#if defined (STM32F030xC) || defined (STM32F070xB) || \
+    defined (STM32F071xB) || defined (STM32F072xB) || defined (STM32F078xx) || \
+    defined (STM32F091xC) || defined (STM32F098xx)
+    /* Reset All CR bits except CR[2:0] */
+    hrtc->Instance->CR &= 0x00000007U;
+
+    tickstart = HAL_GetTick();
+
+    /* Wait till WUTWF flag is set and if Time out is reached exit */
+    while (((hrtc->Instance->ISR) & RTC_ISR_WUTWF) == (uint32_t)RESET)
+    {
+      if ((HAL_GetTick() - tickstart) >  RTC_TIMEOUT_VALUE)
+      {
+        /* Enable the write protection for RTC registers */
+        __HAL_RTC_WRITEPROTECTION_ENABLE(hrtc);
+
+        /* Set RTC state */
+        hrtc->State = HAL_RTC_STATE_TIMEOUT;
+
+        return HAL_TIMEOUT;
+      }
+    }
+#endif /* defined (STM32F030xC) || defined (STM32F070xB) ||\
+          defined (STM32F071xB) || defined (STM32F072xB) || defined (STM32F078xx) || \
+          defined (STM32F091xC) || defined (STM32F098xx) ||*/
+
+    /* Reset all RTC CR register bits */
+    hrtc->Instance->CR &= 0x00000000U;
+#if defined (STM32F030xC) || defined (STM32F070xB) || \
+    defined (STM32F071xB) || defined (STM32F072xB) || defined (STM32F078xx) || \
+    defined (STM32F091xC) || defined (STM32F098xx)
+    hrtc->Instance->WUTR = 0x0000FFFFU;
+#endif /* defined (STM32F030xC) || defined (STM32F070xB) ||\
+          defined (STM32F071xB) || defined (STM32F072xB) || defined (STM32F078xx) || \
+          defined (STM32F091xC) || defined (STM32F098xx) ||*/
+    hrtc->Instance->PRER = 0x007F00FFU;
+    hrtc->Instance->ALRMAR = 0x00000000U;
+    hrtc->Instance->SHIFTR = 0x00000000U;
+    hrtc->Instance->CALR = 0x00000000U;
+    hrtc->Instance->ALRMASSR = 0x00000000U;
+
+    /* Reset ISR register and exit initialization mode */
+    hrtc->Instance->ISR = 0x00000000U;
+
+    /* Reset Tamper and alternate functions configuration register */
+    hrtc->Instance->TAFCR = 0x00000000;
+
+    /* If  RTC_CR_BYPSHAD bit = 0, wait for synchro else this check is not needed */
+    if ((hrtc->Instance->CR & RTC_CR_BYPSHAD) == RESET)
+    {
+      if (HAL_RTC_WaitForSynchro(hrtc) != HAL_OK)
+      {
+        /* Enable the write protection for RTC registers */
+        __HAL_RTC_WRITEPROTECTION_ENABLE(hrtc);
+
+        hrtc->State = HAL_RTC_STATE_ERROR;
+
+        return HAL_ERROR;
+      }
+    }
+  }
+
+  /* Enable the write protection for RTC registers */
+  __HAL_RTC_WRITEPROTECTION_ENABLE(hrtc);
+
+#if (USE_HAL_RTC_REGISTER_CALLBACKS == 1)
+  if (hrtc->MspDeInitCallback == NULL)
+  {
+    hrtc->MspDeInitCallback = HAL_RTC_MspDeInit;
+  }
+
+  /* DeInit the low level hardware: CLOCK, NVIC.*/
+  hrtc->MspDeInitCallback(hrtc);
+
+#else
+  /* De-Initialize RTC MSP */
+  HAL_RTC_MspDeInit(hrtc);
+#endif /* (USE_HAL_RTC_REGISTER_CALLBACKS) */
+
+  hrtc->State = HAL_RTC_STATE_RESET;
+
+  /* Release Lock */
+  __HAL_UNLOCK(hrtc);
+
+  return HAL_OK;
+}

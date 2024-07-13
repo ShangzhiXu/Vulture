@@ -1,0 +1,21 @@
+uint32_t HAL_CAN_IsTxMessagePending(CAN_HandleTypeDef *hcan, uint32_t TxMailboxes)
+{
+  uint32_t status = 0U;
+  HAL_CAN_StateTypeDef state = hcan->State;
+
+  /* Check function parameters */
+  assert_param(IS_CAN_TX_MAILBOX_LIST(TxMailboxes));
+
+  if ((state == HAL_CAN_STATE_READY) ||
+      (state == HAL_CAN_STATE_LISTENING))
+  {
+    /* Check pending transmission request on the selected Tx Mailboxes */
+    if ((hcan->Instance->TSR & (TxMailboxes << CAN_TSR_TME0_Pos)) != (TxMailboxes << CAN_TSR_TME0_Pos))
+    {
+      status = 1U;
+    }
+  }
+
+  /* Return status */
+  return status;
+}

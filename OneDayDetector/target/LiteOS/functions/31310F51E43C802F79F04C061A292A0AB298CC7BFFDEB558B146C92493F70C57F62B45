@@ -1,0 +1,105 @@
+int atiny_net_connect(atiny_net_context *ctx, const char *host, const char *port, int proto)
+{
+#if defined(WITH_LINUX) || defined(LOSCFG_COMPONENTS_NET_LWIP)
+    int flags;
+    int ret;
+    struct addrinfo hints;
+    struct addrinfo *addr_list;
+    struct addrinfo *cur;
+#endif
+
+    if ((port == NULL) || (proto != ATINY_PROTO_UDP && proto != ATINY_PROTO_TCP)) {
+        SOCKET_LOG("ilegal incoming parameters, (%p,%p,%d)", host, port, proto);
+        return -1;
+    }
+
+#if defined(WITH_LINUX) || defined(LOSCFG_COMPONENTS_NET_LWIP)
+    /* Do name resolution with both IPv6 and IPv4 */
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = proto == ATINY_PROTO_UDP ? SOCK_DGRAM : SOCK_STREAM;
+    hints.ai_protocol = proto == ATINY_PROTO_UDP ? IPPROTO_UDP : IPPROTO_TCP;
+
+    SOCKET_LOG("try to do name resolution now...");
+
+    if ((ret = getaddrinfo(host, port, &hints, &addr_list)) != 0) {
+        SOCKET_LOG("getaddrinfo failed: 0x%x", ret);
+        return -1;
+    }
+
+    SOCKET_LOG("do name resolution succeed");
+
+    if (ctx == NULL) {
+        SOCKET_LOG("malloc failed for socket context");
+        freeaddrinfo(addr_list);
+        return -1;
+    }
+
+    ctx->fd = -1;
+
+    /* Try the sockaddrs until a connection succeeds */
+    for (cur = addr_list; cur != NULL; cur = cur->ai_next) {
+        ctx->fd = socket(cur->ai_family, cur->ai_socktype, cur->ai_protocol);
+
+        if (ctx->fd < 0) {
+            continue;
+        }
+
+        if (proto == ATINY_PROTO_UDP) {
+            flags = fcntl(ctx->fd, F_GETFL, 0);
+            if (flags < 0 || fcntl(ctx->fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+                close(ctx->fd);
+                ctx->fd = -1;
+                continue;
+            }
+        }
+
+        if (connect(ctx->fd, cur->ai_addr, cur->ai_addrlen) == 0) {
+            break;
+        }
+
+        close(ctx->fd);
+        ctx->fd = -1;
+    }
+
+    freeaddrinfo(addr_list);
+
+    if (ctx->fd < 0) {
+        SOCKET_LOG("unkown host or port");
+        atiny_free(ctx);
+        return -1;
+    }
+
+    if (proto == ATINY_PROTO_UDP) {
+        SOCKET_LOG("UDP create socket and bind to server finished");
+    } else { /* proto == ATINY_PROTO_TCP */
+        SOCKET_LOG("TCP connect to server succeed");
+    }
+#elif defined(LOSCFG_COMPONNETS_NET_AT)
+    if (ctx == NULL) {
+        SOCKET_LOG("malloc failed for socket context");
+        return -1;
+    }
+
+    ctx->fd = at_api_connect(host, port, proto);
+    if (ctx->fd < 0) {
+        SOCKET_LOG("unkown host or port");
+        atiny_free(ctx);
+        ctx = NULL;
+    }
+#elif defined(WITH_WIZNET)
+    if (ctx == NULL) {
+        SOCKET_LOG("malloc failed for socket context");
+        return -1;
+    }
+
+    ctx->fd = wiznet_connect(host, port, proto);
+    if (ctx->fd < 0) {
+        SOCKET_LOG("unkown host or port");
+        atiny_free(ctx);
+        ctx = NULL;
+    }
+#else
+#endif
+    return 0;
+}

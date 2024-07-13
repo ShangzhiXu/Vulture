@@ -1,0 +1,40 @@
+__weak void BSP_AUDIO_IN_ClockConfig(DFSDM_Filter_HandleTypeDef *hdfsdm_filter, uint32_t AudioFreq, void *Params)
+{ 
+  RCC_PeriphCLKInitTypeDef rcc_ex_clk_init_struct;
+
+  HAL_RCCEx_GetPeriphCLKConfig(&rcc_ex_clk_init_struct);
+  
+  /* Set the PLL configuration according to the audio frequency */
+  if((AudioFreq == AUDIO_FREQUENCY_11K) || (AudioFreq == AUDIO_FREQUENCY_22K) || (AudioFreq == AUDIO_FREQUENCY_44K))
+  {
+    /* Configure PLLSAI prescalers */
+    /* PLLI2S_VCO: VCO_429M 
+    SAI_CLK(first level) = PLLI2S_VCO/PLLI2SQ = 429/2 = 214.5 Mhz
+    SAI_CLK_x = SAI_CLK(first level)/PLLI2SDIVQ = 214.5/19 = 11.289 Mhz */ 
+    rcc_ex_clk_init_struct.PeriphClockSelection = RCC_PERIPHCLK_SAI2;
+    rcc_ex_clk_init_struct.Sai2ClockSelection = RCC_SAI2CLKSOURCE_PLLI2S;
+    rcc_ex_clk_init_struct.PLLI2S.PLLI2SN = 429;
+    rcc_ex_clk_init_struct.PLLI2S.PLLI2SQ = 2;
+    rcc_ex_clk_init_struct.PLLI2SDivQ = 19;
+    
+    HAL_RCCEx_PeriphCLKConfig(&rcc_ex_clk_init_struct);
+    
+  }
+  else /* AUDIO_FREQUENCY_8K, AUDIO_FREQUENCY_16K, AUDIO_FREQUENCY_32K, AUDIO_FREQUENCY_48K, AUDIO_FREQUENCY_96K */
+  {
+    /* SAI clock config 
+    PLLI2S_VCO: VCO_344M 
+    SAI_CLK(first level) = PLLI2S_VCO/PLLI2SQ = 344/7 = 49.142 Mhz 
+    SAI_CLK_x = SAI_CLK(first level)/PLLI2SDIVQ = 49.142/1 = 49.142 Mhz */  
+    rcc_ex_clk_init_struct.PeriphClockSelection = RCC_PERIPHCLK_SAI2;
+    rcc_ex_clk_init_struct.Sai2ClockSelection = RCC_SAI2CLKSOURCE_PLLI2S;
+    rcc_ex_clk_init_struct.PLLI2S.PLLI2SN = 344; 
+    rcc_ex_clk_init_struct.PLLI2S.PLLI2SQ = 7; 
+    rcc_ex_clk_init_struct.PLLI2SDivQ = 1;   
+    HAL_RCCEx_PeriphCLKConfig(&rcc_ex_clk_init_struct);
+  }
+  
+  rcc_ex_clk_init_struct.PeriphClockSelection = RCC_PERIPHCLK_DFSDM1_AUDIO;
+  rcc_ex_clk_init_struct.Dfsdm1AudioClockSelection = RCC_DFSDM1AUDIOCLKSOURCE_SAI2;
+  HAL_RCCEx_PeriphCLKConfig(&rcc_ex_clk_init_struct); 
+}

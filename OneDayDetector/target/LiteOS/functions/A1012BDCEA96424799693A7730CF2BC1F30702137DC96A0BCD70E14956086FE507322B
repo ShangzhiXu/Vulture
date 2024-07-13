@@ -1,0 +1,33 @@
+HAL_StatusTypeDef HAL_RTC_GetTime(RTC_HandleTypeDef *hrtc, RTC_TimeTypeDef *sTime, uint32_t Format)
+{
+  uint32_t tmpreg = 0;
+
+  /* Check the parameters */
+  assert_param(IS_RTC_FORMAT(Format));
+
+  /* Get subseconds structure field from the corresponding register*/
+  sTime->SubSeconds = (uint32_t)(hrtc->Instance->SSR);
+
+  /* Get SecondFraction structure field from the corresponding register field*/
+  sTime->SecondFraction = (uint32_t)(hrtc->Instance->PRER & RTC_PRER_PREDIV_S);
+
+  /* Get the TR register */
+  tmpreg = (uint32_t)(hrtc->Instance->TR & RTC_TR_RESERVED_MASK);
+
+  /* Fill the structure fields with the read parameters */
+  sTime->Hours = (uint8_t)((tmpreg & (RTC_TR_HT | RTC_TR_HU)) >> 16U);
+  sTime->Minutes = (uint8_t)((tmpreg & (RTC_TR_MNT | RTC_TR_MNU)) >> 8U);
+  sTime->Seconds = (uint8_t)(tmpreg & (RTC_TR_ST | RTC_TR_SU));
+  sTime->TimeFormat = (uint8_t)((tmpreg & (RTC_TR_PM)) >> 16U);
+
+  /* Check the input parameters format */
+  if (Format == RTC_FORMAT_BIN)
+  {
+    /* Convert the time structure parameters to Binary format */
+    sTime->Hours = (uint8_t)RTC_Bcd2ToByte(sTime->Hours);
+    sTime->Minutes = (uint8_t)RTC_Bcd2ToByte(sTime->Minutes);
+    sTime->Seconds = (uint8_t)RTC_Bcd2ToByte(sTime->Seconds);
+  }
+
+  return HAL_OK;
+}

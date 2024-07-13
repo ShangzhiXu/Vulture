@@ -1,0 +1,35 @@
+static void UART_DMARxAbortCallback(DMA_HandleTypeDef *hdma)
+{
+  UART_HandleTypeDef* huart = (UART_HandleTypeDef* )(hdma->Parent);
+  
+  huart->hdmarx->XferAbortCallback = NULL;
+  
+  /* Check if an Abort process is still ongoing */
+  if(huart->hdmatx != NULL)
+  {
+    if(huart->hdmatx->XferAbortCallback != NULL)
+    {
+      return;
+    }
+  }
+  
+  /* No Abort process still ongoing : All DMA channels are aborted, call user Abort Complete callback */
+  huart->TxXferCount = 0U;
+  huart->RxXferCount = 0U;
+  
+  /* Reset errorCode */
+  huart->ErrorCode = HAL_UART_ERROR_NONE;
+  
+  /* Clear the Error flags in the ICR register */
+  __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_OREF | UART_CLEAR_NEF | UART_CLEAR_PEF | UART_CLEAR_FEF);
+  
+  /* Discard the received data */
+  __HAL_UART_SEND_REQ(huart, UART_RXDATA_FLUSH_REQUEST);
+  
+  /* Restore huart->gState and huart->RxState to Ready */
+  huart->gState  = HAL_UART_STATE_READY;
+  huart->RxState = HAL_UART_STATE_READY;
+  
+  /* Call user Abort complete callback */
+  HAL_UART_AbortCpltCallback(huart);
+}

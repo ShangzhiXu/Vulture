@@ -1,0 +1,56 @@
+void auth_withpeer_success(ppp_pcb *pcb, int protocol, int prot_flavor) {
+    int bit;
+    const char *prot = "";
+
+    switch (protocol) {
+#if CHAP_SUPPORT
+    case PPP_CHAP:
+	bit = CHAP_WITHPEER;
+	prot = "CHAP";
+	switch (prot_flavor) {
+	case CHAP_MD5:
+	    bit |= CHAP_MD5_WITHPEER;
+	    break;
+#if MSCHAP_SUPPORT
+	case CHAP_MICROSOFT:
+	    bit |= CHAP_MS_WITHPEER;
+	    break;
+	case CHAP_MICROSOFT_V2:
+	    bit |= CHAP_MS2_WITHPEER;
+	    break;
+#endif /* MSCHAP_SUPPORT */
+	default:
+	    break;
+	}
+	break;
+#endif /* CHAP_SUPPORT */
+#if PAP_SUPPORT
+    case PPP_PAP:
+	bit = PAP_WITHPEER;
+	prot = "PAP";
+	break;
+#endif /* PAP_SUPPORT */
+#if EAP_SUPPORT
+    case PPP_EAP:
+	bit = EAP_WITHPEER;
+	prot = "EAP";
+	break;
+#endif /* EAP_SUPPORT */
+    default:
+	ppp_warn("auth_withpeer_success: unknown protocol %x", protocol);
+	bit = 0;
+	/* no break */
+    }
+
+    ppp_notice("%s authentication succeeded", prot);
+
+    /* Save the authentication method for later. */
+    pcb->auth_done |= bit;
+
+    /*
+     * If there is no more authentication still being done,
+     * proceed to the network (or callback) phase.
+     */
+    if ((pcb->auth_pending &= ~bit) == 0)
+	network_phase(pcb);
+}

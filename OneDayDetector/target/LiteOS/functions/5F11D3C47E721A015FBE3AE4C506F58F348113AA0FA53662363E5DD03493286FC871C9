@@ -1,0 +1,63 @@
+static void DMA2D_SetConfig(DMA2D_HandleTypeDef *hdma2d, uint32_t pdata, uint32_t DstAddress, uint32_t Width, uint32_t Height)
+{  
+  uint32_t tmp = 0;
+  uint32_t tmp1 = 0;
+  uint32_t tmp2 = 0;
+  uint32_t tmp3 = 0;
+  uint32_t tmp4 = 0;
+    
+  /* Configure DMA2D data size */
+  MODIFY_REG(hdma2d->Instance->NLR, (DMA2D_NLR_NL|DMA2D_NLR_PL), (Height| (Width << DMA2D_POSITION_NLR_PL))); 
+  
+  /* Configure DMA2D destination address */
+  WRITE_REG(hdma2d->Instance->OMAR, DstAddress);
+ 
+  /* Register to memory DMA2D mode selected */
+  if (hdma2d->Init.Mode == DMA2D_R2M)
+  {    
+    tmp1 = pdata & DMA2D_OCOLR_ALPHA_1;
+    tmp2 = pdata & DMA2D_OCOLR_RED_1;
+    tmp3 = pdata & DMA2D_OCOLR_GREEN_1;
+    tmp4 = pdata & DMA2D_OCOLR_BLUE_1;
+    
+    /* Prepare the value to be written to the OCOLR register according to the color mode */
+    if (hdma2d->Init.ColorMode == DMA2D_OUTPUT_ARGB8888)
+    {
+      tmp = (tmp3 | tmp2 | tmp1| tmp4);
+    }
+    else if (hdma2d->Init.ColorMode == DMA2D_OUTPUT_RGB888)
+    {
+      tmp = (tmp3 | tmp2 | tmp4);  
+    }
+    else if (hdma2d->Init.ColorMode == DMA2D_OUTPUT_RGB565)
+    {
+      tmp2 = (tmp2 >> 19);
+      tmp3 = (tmp3 >> 10);
+      tmp4 = (tmp4 >> 3 );
+      tmp  = ((tmp3 << 5) | (tmp2 << 11) | tmp4); 
+    }
+    else if (hdma2d->Init.ColorMode == DMA2D_OUTPUT_ARGB1555)
+    { 
+      tmp1 = (tmp1 >> 31);
+      tmp2 = (tmp2 >> 19);
+      tmp3 = (tmp3 >> 11);
+      tmp4 = (tmp4 >> 3 );      
+      tmp  = ((tmp3 << 5) | (tmp2 << 10) | (tmp1 << 15) | tmp4);    
+    } 
+    else /* Dhdma2d->Init.ColorMode = DMA2D_OUTPUT_ARGB4444 */
+    {
+      tmp1 = (tmp1 >> 28);
+      tmp2 = (tmp2 >> 20);
+      tmp3 = (tmp3 >> 12);
+      tmp4 = (tmp4 >> 4 );
+      tmp  = ((tmp3 << 4) | (tmp2 << 8) | (tmp1 << 12) | tmp4);
+    }    
+    /* Write to DMA2D OCOLR register */
+    WRITE_REG(hdma2d->Instance->OCOLR, tmp);    
+  } 
+  else /* M2M, M2M_PFC or M2M_Blending DMA2D Mode */
+  {
+    /* Configure DMA2D source address */
+  WRITE_REG(hdma2d->Instance->FGMAR, pdata);
+  }
+}

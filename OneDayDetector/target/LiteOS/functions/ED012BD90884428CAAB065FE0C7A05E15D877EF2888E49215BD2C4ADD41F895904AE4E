@@ -1,0 +1,43 @@
+LITE_OS_SEC_TEXT UINT32 LOS_SwtmrStart(UINT16 swtmrId)
+{
+    LosSwtmrCB *swtmr = NULL;
+    UINT32 intSave;
+    UINT32 ret = LOS_OK;
+    UINT16 swtmrCBId;
+
+    if (swtmrId >= OS_SWTMR_MAX_TIMERID) {
+        return LOS_ERRNO_SWTMR_ID_INVALID;
+    }
+
+    SWTMR_LOCK(intSave);
+    swtmrCBId = swtmrId % LOSCFG_BASE_CORE_SWTMR_LIMIT;
+    swtmr = g_swtmrCBArray + swtmrCBId;
+
+    if (swtmr->timerId != swtmrId) {
+        SWTMR_UNLOCK(intSave);
+        return LOS_ERRNO_SWTMR_ID_INVALID;
+    }
+
+    switch (swtmr->state) {
+        case OS_SWTMR_STATUS_UNUSED:
+            ret = LOS_ERRNO_SWTMR_NOT_CREATED;
+            break;
+        /*
+         * If the status of swtmr is timing, it should stop the swtmr first,
+         * then start the swtmr again.
+         */
+        case OS_SWTMR_STATUS_TICKING:
+            OsSwtmrStop(swtmr);
+            /* fall-through */
+        case OS_SWTMR_STATUS_CREATED:
+            OsSwtmrStart(swtmr);
+            break;
+        default:
+            ret = LOS_ERRNO_SWTMR_STATUS_INVALID;
+            break;
+    }
+
+    SWTMR_UNLOCK(intSave);
+    LOS_TRACE(SWTMR_START, swtmr->timerId, swtmr->mode, swtmr->overrun, swtmr->interval, swtmr->expiry);
+    return ret;
+}

@@ -1,0 +1,34 @@
+struct tcpip_msg {
+  enum tcpip_msg_type type;
+  union {
+#if !LWIP_TCPIP_CORE_LOCKING
+    struct {
+      tcpip_callback_fn function;
+      void* msg;
+    } api_msg;
+    struct {
+      tcpip_api_call_fn function;
+      struct tcpip_api_call_data *arg;
+      sys_sem_t *sem;
+    } api_call;
+#endif /* LWIP_TCPIP_CORE_LOCKING */
+#if !LWIP_TCPIP_CORE_LOCKING_INPUT
+    struct {
+      struct pbuf *p;
+      struct netif *netif;
+      netif_input_fn input_fn;
+    } inp;
+#endif /* !LWIP_TCPIP_CORE_LOCKING_INPUT */
+    struct {
+      tcpip_callback_fn function;
+      void *ctx;
+    } cb;
+#if LWIP_TCPIP_TIMEOUT && LWIP_TIMERS
+    struct {
+      u32_t msecs;
+      sys_timeout_handler h;
+      void *arg;
+    } tmo;
+#endif /* LWIP_TCPIP_TIMEOUT && LWIP_TIMERS */
+  } msg;
+};

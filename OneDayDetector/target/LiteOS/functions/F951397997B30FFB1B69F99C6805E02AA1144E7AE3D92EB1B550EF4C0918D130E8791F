@@ -1,0 +1,122 @@
+static HAL_StatusTypeDef USART_SetConfig(USART_HandleTypeDef *husart)
+{
+  uint32_t tmpreg                      = 0x0;
+  USART_ClockSourceTypeDef clocksource = USART_CLOCKSOURCE_UNDEFINED;
+  HAL_StatusTypeDef ret                = HAL_OK;
+  uint16_t brrtemp                     = 0x0000;
+  uint16_t usartdiv                    = 0x0000;  
+
+  /* Check the parameters */
+  assert_param(IS_USART_POLARITY(husart->Init.CLKPolarity));
+  assert_param(IS_USART_PHASE(husart->Init.CLKPhase));
+  assert_param(IS_USART_LASTBIT(husart->Init.CLKLastBit));
+  assert_param(IS_USART_BAUDRATE(husart->Init.BaudRate));
+  assert_param(IS_USART_WORD_LENGTH(husart->Init.WordLength));
+  assert_param(IS_USART_STOPBITS(husart->Init.StopBits));
+  assert_param(IS_USART_PARITY(husart->Init.Parity));
+  assert_param(IS_USART_MODE(husart->Init.Mode));
+#if defined(USART_PRESC_PRESCALER)
+  assert_param(IS_USART_PRESCALER(husart->Init.ClockPrescaler));
+#endif
+  
+  /*-------------------------- USART CR1 Configuration -----------------------*/
+   /* Clear M, PCE, PS, TE and RE bits and configure
+   *  the USART Word Length, Parity and Mode:
+   *  set the M bits according to husart->Init.WordLength value
+   *  set PCE and PS bits according to husart->Init.Parity value
+   *  set TE and RE bits according to husart->Init.Mode value 
+   *  force OVER8 to 1 to allow to reach the maximum speed (Fclock/8) */
+  tmpreg = (uint32_t)husart->Init.WordLength | husart->Init.Parity | husart->Init.Mode | USART_CR1_OVER8;
+  MODIFY_REG(husart->Instance->CR1, USART_CR1_FIELDS, tmpreg);
+
+  /*---------------------------- USART CR2 Configuration ---------------------*/
+  /* Clear and configure the USART Clock, CPOL, CPHA, LBCL STOP and SLVEN bits:
+   * set CPOL bit according to husart->Init.CLKPolarity value
+   * set CPHA bit according to husart->Init.CLKPhase value
+   * set LBCL bit according to husart->Init.CLKLastBit value (used in SPI master mode only)
+   * set STOP[13:12] bits according to husart->Init.StopBits value */
+  tmpreg = 0;
+  tmpreg = (uint32_t)(USART_CLOCK_ENABLE);
+  tmpreg |= (uint32_t)husart->Init.CLKLastBit;
+  tmpreg |= ((uint32_t)husart->Init.CLKPolarity | (uint32_t)husart->Init.CLKPhase);
+  tmpreg |= (uint32_t)husart->Init.StopBits;
+  MODIFY_REG(husart->Instance->CR2, USART_CR2_FIELDS, tmpreg);
+
+#if defined(USART_PRESC_PRESCALER)
+  /*-------------------------- USART PRESC Configuration -----------------------*/
+  /* Configure
+   * - USART Clock Prescaler : set PRESCALER according to husart->Init.ClockPrescaler value */
+  MODIFY_REG(husart->Instance->PRESC, USART_PRESC_PRESCALER, husart->Init.ClockPrescaler);
+#endif
+
+  /*-------------------------- USART BRR Configuration -----------------------*/
+  /* BRR is filled-up according to OVER8 bit setting which is forced to 1     */ 
+  USART_GETCLOCKSOURCE(husart, clocksource);
+  
+  switch (clocksource)
+  {
+  case USART_CLOCKSOURCE_PCLK1:
+#if defined(USART_PRESC_PRESCALER)
+    usartdiv = (uint16_t)(USART_DIV_SAMPLING8(HAL_RCC_GetPCLK1Freq(), husart->Init.BaudRate, husart->Init.ClockPrescaler));
+#else
+    usartdiv = (uint16_t)(USART_DIV_SAMPLING8(HAL_RCC_GetPCLK1Freq(), husart->Init.BaudRate));
+#endif
+    break;
+  case USART_CLOCKSOURCE_PCLK2:
+#if defined(USART_PRESC_PRESCALER)
+    usartdiv = (uint16_t)(USART_DIV_SAMPLING8(HAL_RCC_GetPCLK2Freq(), husart->Init.BaudRate, husart->Init.ClockPrescaler));
+#else
+    usartdiv = (uint16_t)(USART_DIV_SAMPLING8(HAL_RCC_GetPCLK2Freq(), husart->Init.BaudRate));
+#endif
+    break;
+  case USART_CLOCKSOURCE_HSI:
+#if defined(USART_PRESC_PRESCALER)
+    usartdiv = (uint16_t)(USART_DIV_SAMPLING8(HSI_VALUE, husart->Init.BaudRate, husart->Init.ClockPrescaler));
+#else
+    usartdiv = (uint16_t)(USART_DIV_SAMPLING8(HSI_VALUE, husart->Init.BaudRate));
+#endif
+    break;
+  case USART_CLOCKSOURCE_SYSCLK:
+#if defined(USART_PRESC_PRESCALER)
+    usartdiv = (uint16_t)(USART_DIV_SAMPLING8(HAL_RCC_GetSysClockFreq(), husart->Init.BaudRate, husart->Init.ClockPrescaler));
+#else
+    usartdiv = (uint16_t)(USART_DIV_SAMPLING8(HAL_RCC_GetSysClockFreq(), husart->Init.BaudRate));
+#endif
+    break;
+  case USART_CLOCKSOURCE_LSE:
+#if defined(USART_PRESC_PRESCALER)
+    usartdiv = (uint16_t)(USART_DIV_SAMPLING8(LSE_VALUE, husart->Init.BaudRate, husart->Init.ClockPrescaler));
+#else
+    usartdiv = (uint16_t)(USART_DIV_SAMPLING8(LSE_VALUE, husart->Init.BaudRate));
+#endif
+    break;
+  case USART_CLOCKSOURCE_UNDEFINED:
+  default:
+    ret = HAL_ERROR;
+    break;
+  }
+  
+  /* USARTDIV must be greater than or equal to 0d16 */
+  if (usartdiv >= USART_BRR_MIN)
+  {
+    brrtemp = usartdiv & 0xFFF0U;
+    brrtemp |= (uint16_t)((usartdiv & (uint16_t)0x000FU) >> 1U);
+    husart->Instance->BRR = brrtemp;
+  }
+  else
+  {
+    ret = HAL_ERROR;
+  }
+  
+#if defined(USART_CR1_FIFOEN)
+  /* Initialize the number of data to process during RX/TX ISR execution */
+  husart->NbTxDataToProcess = 1;
+  husart->NbRxDataToProcess = 1;
+#endif
+  
+  /* Clear ISR function pointers */
+  husart->RxISR   = NULL;
+  husart->TxISR   = NULL;
+  
+  return ret;
+}

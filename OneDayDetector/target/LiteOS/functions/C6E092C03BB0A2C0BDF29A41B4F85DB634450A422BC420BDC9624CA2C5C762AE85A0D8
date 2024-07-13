@@ -1,0 +1,21 @@
+lwip_socket_register_membership(int s, const ip4_addr_t *if_addr, const ip4_addr_t *multi_addr)
+{
+  struct lwip_sock *sock = get_socket(s);
+  int i;
+
+  if (!sock) {
+    return 0;
+  }
+
+  for (i = 0; i < LWIP_SOCKET_MAX_MEMBERSHIPS; i++) {
+    if (socket_ipv4_multicast_memberships[i].sock == NULL) {
+      socket_ipv4_multicast_memberships[i].sock = sock;
+      ip4_addr_copy(socket_ipv4_multicast_memberships[i].if_addr, *if_addr);
+      ip4_addr_copy(socket_ipv4_multicast_memberships[i].multi_addr, *multi_addr);
+      done_socket(sock);
+      return 1;
+    }
+  }
+  done_socket(sock);
+  return 0;
+}

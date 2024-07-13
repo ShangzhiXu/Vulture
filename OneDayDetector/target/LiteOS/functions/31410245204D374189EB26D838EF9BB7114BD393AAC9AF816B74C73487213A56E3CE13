@@ -1,0 +1,115 @@
+static lv_res_t lv_spinbox_signal(lv_obj_t * spinbox, lv_signal_t sign, void * param)
+{
+
+    lv_res_t res = LV_RES_OK;
+    if(sign == LV_SIGNAL_GET_STYLE) {
+        lv_get_style_info_t * info = param;
+        info->result = lv_spinbox_get_style(spinbox, info->part);
+        if(info->result != NULL) return LV_RES_OK;
+        else return ancestor_signal(spinbox, sign, param);
+    }
+
+    /* Include the ancient signal function */
+    if(sign != LV_SIGNAL_CONTROL) {
+        res = ancestor_signal(spinbox, sign, param);
+        if(res != LV_RES_OK) return res;
+    }
+    if(sign == LV_SIGNAL_GET_TYPE) return lv_obj_handle_get_type_signal(param, LV_OBJX_NAME);
+
+
+    if(sign == LV_SIGNAL_CLEANUP) {
+        /*Nothing to cleanup. (No dynamically allocated memory in 'ext')*/
+    }
+    else if(sign == LV_SIGNAL_GET_TYPE) {
+        lv_obj_type_t * buf = param;
+        uint8_t i;
+        for(i = 0; i < LV_MAX_ANCESTOR_NUM - 1; i++) { /*Find the last set data*/
+            if(buf->type[i] == NULL) break;
+        }
+        buf->type[i] = "lv_spinbox";
+    }
+    else if(sign == LV_SIGNAL_RELEASED) {
+        /*If released with an ENCODER then move to the next digit*/
+        lv_spinbox_ext_t * ext = lv_obj_get_ext_attr(spinbox);
+        lv_indev_t * indev = lv_indev_get_act();
+        if(lv_indev_get_type(indev) == LV_INDEV_TYPE_ENCODER) {
+#if LV_USE_GROUP
+            if(lv_group_get_editing(lv_obj_get_group(spinbox))) {
+                if(ext->step > 1) {
+                    lv_spinbox_step_next(spinbox);
+                }
+                else {
+                    /*Restart from the MSB*/
+                    ext->step = 1;
+                    uint32_t i;
+                    for(i = 0; i < ext->digit_count; i++) {
+                        int32_t new_step = ext->step * 10;
+                        if(new_step >= ext->range_max) break;
+                        ext->step = new_step;
+                    }
+                    lv_spinbox_step_prev(spinbox);
+                }
+            }
+#endif
+        }
+        else {
+            /*The cursor has been positioned to a digit.
+             * Set `step` accordingly*/
+            const char * txt = lv_textarea_get_text(spinbox);
+            size_t txt_len = strlen(txt);
+
+            if(txt[ext->ta.cursor.pos] == '.') {
+                lv_textarea_cursor_left(spinbox);
+            }
+            else if(ext->ta.cursor.pos == txt_len) {
+                lv_textarea_set_cursor_pos(spinbox, txt_len - 1);
+            }
+            else if(ext->ta.cursor.pos == 0 && ext->range_min < 0) {
+                lv_textarea_set_cursor_pos(spinbox, 1);
+            }
+
+            size_t len = ext->digit_count - 1;
+            uint16_t cp = ext->ta.cursor.pos;
+
+            if(ext->ta.cursor.pos > ext->dec_point_pos && ext->dec_point_pos != 0) cp--;
+            uint32_t pos = len - cp;
+
+            if(ext->range_min < 0) pos++;
+
+            ext->step = 1;
+            uint16_t i;
+            for(i = 0; i < pos; i++) ext->step *= 10;
+
+
+
+        }
+    }
+    else if(sign == LV_SIGNAL_CONTROL) {
+        lv_indev_type_t indev_type = lv_indev_get_type(lv_indev_get_act());
+
+        uint32_t c = *((uint32_t *)param); /*uint32_t because can be UTF-8*/
+        if(c == LV_KEY_RIGHT) {
+            if(indev_type == LV_INDEV_TYPE_ENCODER)
+                lv_spinbox_increment(spinbox);
+            else
+                lv_spinbox_step_next(spinbox);
+        }
+        else if(c == LV_KEY_LEFT) {
+            if(indev_type == LV_INDEV_TYPE_ENCODER)
+                lv_spinbox_decrement(spinbox);
+            else
+                lv_spinbox_step_prev(spinbox);
+        }
+        else if(c == LV_KEY_UP) {
+            lv_spinbox_increment(spinbox);
+        }
+        else if(c == LV_KEY_DOWN) {
+            lv_spinbox_decrement(spinbox);
+        }
+        else {
+            lv_textarea_add_char(spinbox, c);
+        }
+    }
+
+    return res;
+}

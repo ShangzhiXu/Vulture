@@ -1,0 +1,49 @@
+mdns_add_question(struct mdns_outpacket *outpkt, struct mdns_domain *domain, u16_t type, u16_t klass, u16_t unicast)
+{
+  u16_t question_len;
+  u16_t field16;
+  err_t res;
+
+  if (!outpkt->pbuf) {
+    /* If no pbuf is active, allocate one */
+    outpkt->pbuf = pbuf_alloc(PBUF_TRANSPORT, OUTPACKET_SIZE, PBUF_RAM);
+    if (!outpkt->pbuf) {
+      return ERR_MEM;
+    }
+    outpkt->write_offset = SIZEOF_DNS_HDR;
+  }
+
+  /* Worst case calculation. Domain string might be compressed */
+  question_len = domain->length + sizeof(type) + sizeof(klass);
+  if (outpkt->write_offset + question_len > outpkt->pbuf->tot_len) {
+    /* No space */
+    return ERR_MEM;
+  }
+
+  /* Write name */
+  res = mdns_write_domain(outpkt, domain);
+  if (res != ERR_OK) {
+    return res;
+  }
+
+  /* Write type */
+  field16 = lwip_htons(type);
+  res = pbuf_take_at(outpkt->pbuf, &field16, sizeof(field16), outpkt->write_offset);
+  if (res != ERR_OK) {
+    return res;
+  }
+  outpkt->write_offset += sizeof(field16);
+
+  /* Write class */
+  if (unicast) {
+    klass |= 0x8000;
+  }
+  field16 = lwip_htons(klass);
+  res = pbuf_take_at(outpkt->pbuf, &field16, sizeof(field16), outpkt->write_offset);
+  if (res != ERR_OK) {
+    return res;
+  }
+  outpkt->write_offset += sizeof(field16);
+
+  return ERR_OK;
+}

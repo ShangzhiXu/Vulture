@@ -1,0 +1,23 @@
+static void ChapMS(ppp_pcb *pcb, const u_char *rchallenge, const char *secret, int secret_len,
+       unsigned char *response) {
+#if !MPPE_SUPPORT
+    LWIP_UNUSED_ARG(pcb);
+#endif /* !MPPE_SUPPORT */
+    BZERO(response, MS_CHAP_RESPONSE_LEN);
+
+    ChapMS_NT(rchallenge, secret, secret_len, &response[MS_CHAP_NTRESP]);
+
+#ifdef MSLANMAN
+    ChapMS_LANMan(rchallenge, secret, secret_len,
+		  &response[MS_CHAP_LANMANRESP]);
+
+    /* preferred method is set by option  */
+    response[MS_CHAP_USENT] = !ms_lanman;
+#else
+    response[MS_CHAP_USENT] = 1;
+#endif
+
+#if MPPE_SUPPORT
+    Set_Start_Key(pcb, rchallenge, secret, secret_len);
+#endif /* MPPE_SUPPORT */
+}

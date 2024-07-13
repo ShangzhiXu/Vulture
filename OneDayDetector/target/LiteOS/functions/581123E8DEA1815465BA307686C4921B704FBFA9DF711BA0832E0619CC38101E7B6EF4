@@ -1,0 +1,77 @@
+uint32_t LL_DMA_DeInit(DMA_TypeDef *DMAx, uint32_t Channel)
+{
+  DMA_Channel_TypeDef *tmp = (DMA_Channel_TypeDef *)DMA1_Channel1;
+  ErrorStatus status = SUCCESS;
+
+  /* Check the DMA Instance DMAx and Channel parameters*/
+  assert_param(IS_LL_DMA_ALL_CHANNEL_INSTANCE(DMAx, Channel));
+
+    tmp = (DMA_Channel_TypeDef *)(__LL_DMA_GET_CHANNEL_INSTANCE(DMAx, Channel));
+
+    /* Disable the selected DMAx_Channely */
+    CLEAR_BIT(tmp->CCR, DMA_CCR_EN);
+
+    /* Reset DMAx_Channely control register */
+    LL_DMA_WriteReg(tmp, CCR, 0U);
+
+    /* Reset DMAx_Channely remaining bytes register */
+    LL_DMA_WriteReg(tmp, CNDTR, 0U);
+
+    /* Reset DMAx_Channely peripheral address register */
+    LL_DMA_WriteReg(tmp, CPAR, 0U);
+
+    /* Reset DMAx_Channely memory address register */
+    LL_DMA_WriteReg(tmp, CMAR, 0U);
+
+#if (defined(DMA1_CSELR_DEFAULT)||defined(DMA2_CSELR_DEFAULT))
+    /* Reset Request register field for DMAx Channel */
+    LL_DMA_SetPeriphRequest(DMAx, Channel, LL_DMA_REQUEST_0);
+#endif
+
+    if (Channel == LL_DMA_CHANNEL_1)
+    {
+      /* Reset interrupt pending bits for DMAx Channel1 */
+      LL_DMA_ClearFlag_GI1(DMAx);
+    }
+    else if (Channel == LL_DMA_CHANNEL_2)
+    {
+      /* Reset interrupt pending bits for DMAx Channel2 */
+      LL_DMA_ClearFlag_GI2(DMAx);
+    }
+    else if (Channel == LL_DMA_CHANNEL_3)
+    {
+      /* Reset interrupt pending bits for DMAx Channel3 */
+      LL_DMA_ClearFlag_GI3(DMAx);
+    }
+    else if (Channel == LL_DMA_CHANNEL_4)
+    {
+      /* Reset interrupt pending bits for DMAx Channel4 */
+      LL_DMA_ClearFlag_GI4(DMAx);
+    }
+    else if (Channel == LL_DMA_CHANNEL_5)
+    {
+      /* Reset interrupt pending bits for DMAx Channel5 */
+      LL_DMA_ClearFlag_GI5(DMAx);
+    }
+
+#if defined(DMA1_Channel6)
+    else if (Channel == LL_DMA_CHANNEL_6)
+    {
+      /* Reset interrupt pending bits for DMAx Channel6 */
+      LL_DMA_ClearFlag_GI6(DMAx);
+    }
+#endif
+#if defined(DMA1_Channel7)
+    else if (Channel == LL_DMA_CHANNEL_7)
+    {
+      /* Reset interrupt pending bits for DMAx Channel7 */
+      LL_DMA_ClearFlag_GI7(DMAx);
+    }
+#endif
+    else
+    {
+      status = ERROR;
+    }
+
+  return status;
+}

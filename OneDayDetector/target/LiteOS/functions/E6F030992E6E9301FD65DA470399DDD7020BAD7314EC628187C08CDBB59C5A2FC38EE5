@@ -1,0 +1,38 @@
+int mbedtls_rsa_export( const mbedtls_rsa_context *ctx,
+                        mbedtls_mpi *N, mbedtls_mpi *P, mbedtls_mpi *Q,
+                        mbedtls_mpi *D, mbedtls_mpi *E )
+{
+    int ret;
+    int is_priv;
+    RSA_VALIDATE_RET( ctx != NULL );
+
+    /* Check if key is private or public */
+    is_priv =
+        mbedtls_mpi_cmp_int( &ctx->N, 0 ) != 0 &&
+        mbedtls_mpi_cmp_int( &ctx->P, 0 ) != 0 &&
+        mbedtls_mpi_cmp_int( &ctx->Q, 0 ) != 0 &&
+        mbedtls_mpi_cmp_int( &ctx->D, 0 ) != 0 &&
+        mbedtls_mpi_cmp_int( &ctx->E, 0 ) != 0;
+
+    if( !is_priv )
+    {
+        /* If we're trying to export private parameters for a public key,
+         * something must be wrong. */
+        if( P != NULL || Q != NULL || D != NULL )
+            return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+
+    }
+
+    /* Export all requested core parameters. */
+
+    if( ( N != NULL && ( ret = mbedtls_mpi_copy( N, &ctx->N ) ) != 0 ) ||
+        ( P != NULL && ( ret = mbedtls_mpi_copy( P, &ctx->P ) ) != 0 ) ||
+        ( Q != NULL && ( ret = mbedtls_mpi_copy( Q, &ctx->Q ) ) != 0 ) ||
+        ( D != NULL && ( ret = mbedtls_mpi_copy( D, &ctx->D ) ) != 0 ) ||
+        ( E != NULL && ( ret = mbedtls_mpi_copy( E, &ctx->E ) ) != 0 ) )
+    {
+        return( ret );
+    }
+
+    return( 0 );
+}

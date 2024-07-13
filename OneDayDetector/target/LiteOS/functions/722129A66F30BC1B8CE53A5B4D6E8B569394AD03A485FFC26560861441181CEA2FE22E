@@ -1,0 +1,110 @@
+HAL_StatusTypeDef HAL_ADCEx_InjectedPollForConversion(ADC_HandleTypeDef* hadc, uint32_t Timeout)
+{
+  uint32_t tickstart;
+
+  /* Variables for polling in case of scan mode enabled and polling for each  */
+  /* conversion.                                                              */
+  __IO uint32_t Conversion_Timeout_CPU_cycles = 0;
+  uint32_t Conversion_Timeout_CPU_cycles_max = 0;
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+
+  /* Get timeout */
+  tickstart = HAL_GetTick();  
+     
+  /* Polling for end of conversion: differentiation if single/sequence        */
+  /* conversion.                                                              */
+  /* For injected group, flag JEOC is set only at the end of the sequence,    */
+  /* not for each conversion within the sequence.                             */
+  /*  - If single conversion for injected group (scan mode disabled or        */
+  /*    InjectedNbrOfConversion ==1), flag JEOC is used to determine the      */
+  /*    conversion completion.                                                */
+  /*  - If sequence conversion for injected group (scan mode enabled and      */
+  /*    InjectedNbrOfConversion >=2), flag JEOC is set only at the end of the */
+  /*    sequence.                                                             */
+  /*    To poll for each conversion, the maximum conversion time is computed  */
+  /*    from ADC conversion time (selected sampling time + conversion time of */
+  /*    12.5 ADC clock cycles) and APB2/ADC clock prescalers (depending on    */
+  /*    settings, conversion time range can be from 28 to 32256 CPU cycles).  */
+  /*    As flag JEOC is not set after each conversion, no timeout status can  */
+  /*    be set.                                                               */
+  if ((hadc->Instance->JSQR & ADC_JSQR_JL) == RESET)
+  {
+    /* Wait until End of Conversion flag is raised */
+    while(HAL_IS_BIT_CLR(hadc->Instance->SR, ADC_FLAG_JEOC))
+    {
+      /* Check if timeout is disabled (set to infinite wait) */
+      if(Timeout != HAL_MAX_DELAY)
+      {
+        if((Timeout == 0) || ((HAL_GetTick() - tickstart ) > Timeout))
+        {
+          /* Update ADC state machine to timeout */
+          SET_BIT(hadc->State, HAL_ADC_STATE_TIMEOUT);
+          
+          /* Process unlocked */
+          __HAL_UNLOCK(hadc);
+          
+          return HAL_TIMEOUT;
+        }
+      }
+    }
+  }
+  else
+  {
+    /* Replace polling by wait for maximum conversion time */
+    /*  - Computation of CPU clock cycles corresponding to ADC clock cycles   */
+    /*    and ADC maximum conversion cycles on all channels.                  */
+    /*  - Wait for the expected ADC clock cycles delay                        */
+    Conversion_Timeout_CPU_cycles_max = ((SystemCoreClock
+                                          / HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_ADC))
+                                         * ADC_CONVCYCLES_MAX_RANGE(hadc)                 );
+    
+    while(Conversion_Timeout_CPU_cycles < Conversion_Timeout_CPU_cycles_max)
+    {
+      /* Check if timeout is disabled (set to infinite wait) */
+      if(Timeout != HAL_MAX_DELAY)
+      {
+        if((Timeout == 0)||((HAL_GetTick() - tickstart ) > Timeout))
+        {
+          /* Update ADC state machine to timeout */
+          SET_BIT(hadc->State, HAL_ADC_STATE_TIMEOUT);
+
+          /* Process unlocked */
+          __HAL_UNLOCK(hadc);
+          
+          return HAL_TIMEOUT;
+        }
+      }
+      Conversion_Timeout_CPU_cycles ++;
+    }
+  }
+
+  /* Clear injected group conversion flag */
+  /* Note: On STM32F1 ADC, clear regular conversion flag raised               */
+  /* simultaneously.                                                          */
+  __HAL_ADC_CLEAR_FLAG(hadc, ADC_FLAG_JSTRT | ADC_FLAG_JEOC | ADC_FLAG_EOC);
+  
+  /* Update ADC state machine */
+  SET_BIT(hadc->State, HAL_ADC_STATE_INJ_EOC);
+  
+  /* Determine whether any further conversion upcoming on group injected      */
+  /* by external trigger or by automatic injected conversion                  */
+  /* from group regular.                                                      */
+  if(ADC_IS_SOFTWARE_START_INJECTED(hadc)                     || 
+     (HAL_IS_BIT_CLR(hadc->Instance->CR1, ADC_CR1_JAUTO) &&     
+     (ADC_IS_SOFTWARE_START_REGULAR(hadc)        &&
+      (hadc->Init.ContinuousConvMode == DISABLE)   )        )   )
+  {
+    /* Set ADC state */
+    CLEAR_BIT(hadc->State, HAL_ADC_STATE_INJ_BUSY);   
+    
+    if (HAL_IS_BIT_CLR(hadc->State, HAL_ADC_STATE_REG_BUSY))
+    {
+      SET_BIT(hadc->State, HAL_ADC_STATE_READY);
+    }
+  }
+  
+  /* Return ADC state */
+  return HAL_OK;
+}

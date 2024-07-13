@@ -1,0 +1,44 @@
+STATIC VOID OsMemRecordShow(VOID)
+{
+    UINT32 index = 0;
+    UINT32 startIndex = g_memLastEndIndex;
+    UINT32 endIndex;
+    MemRecordInfo *printMemRecord = g_printMemRecord;
+    CHAR printStr[PRINT_STR_LENGTH];
+
+    if (g_curPtr == NULL) {
+        g_curPtr = g_printMemRecord;
+    }
+
+    OsMemRecordCompressInfo();
+
+    if (g_curPtr != NULL) {
+        printStr[index++] = '~';
+        printStr[index++] = '!';
+        if (g_curPtr == printMemRecord) {
+            while (startIndex < RECORD_LEN) {
+                PrintPtrAssign(printStr, PRINT_STR_LENGTH, startIndex, index);
+                startIndex++;
+            }
+            g_memLastEndIndex = 0;
+        }
+    }
+
+    startIndex = g_memLastEndIndex;
+    endIndex = g_memRecordIndex;
+    if ((g_curPtr == g_saveMemRecord) && (g_printMemRecord != NULL) && (startIndex >= endIndex)) {
+        printf("Rec:error:the printf speed is low,Rnd\n");
+        startIndex = 0;
+    }
+
+    g_curPtr = g_saveMemRecord;
+    index = 0;
+    printStr[index++] = '~';
+    printStr[index++] = '!';
+    while (startIndex < endIndex) {
+        PrintPtrAssign(printStr, PRINT_STR_LENGTH, startIndex, index);
+        startIndex++;
+    }
+
+    g_memLastEndIndex = endIndex;
+}

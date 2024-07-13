@@ -1,0 +1,18 @@
+VOID OsLkDefaultFunc(INT32 level, const CHAR *func, INT32 line, const CHAR *fmt, va_list ap)
+{
+    (VOID)func;
+    (VOID)line;
+    if (level > OsLkTraceLvGet()) {
+#ifdef LOSCFG_SHELL_DMESG
+        if ((UINT32)level <= OsDmesgLvGet()) {
+            OsLogCycleRecord(level);
+            DmesgPrintf(fmt, ap);
+        }
+#endif
+        return;
+    }
+    if ((level != TRACE_COMMOM) && ((level > TRACE_EMG) && (level < TRACE_DEBUG))) {
+        dprintf("[%s]", g_logString[level]);
+    }
+    LkDprintf(fmt, ap);
+}

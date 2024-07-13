@@ -1,0 +1,32 @@
+SECUREC_INLINE int SecInputForWchar(SecScanSpec *spec)
+{
+    void *endPtr = spec->argPtr;
+    if (spec->isWCharOrLong > 0) {
+        *(wchar_t UNALIGNED *)endPtr = (wchar_t)spec->ch;
+        endPtr = (wchar_t *)endPtr + 1;
+        --spec->arrayWidth;
+    } else {
+#if SECUREC_HAVE_WCTOMB
+        int temp;
+        char tmpBuf[SECUREC_MB_LEN + 1];
+        SECUREC_MASK_MSVC_CRT_WARNING temp = wctomb(tmpBuf, (wchar_t)spec->ch);
+        SECUREC_END_MASK_MSVC_CRT_WARNING
+        if (temp <= 0 || (size_t)(unsigned int)temp > sizeof(tmpBuf)) {
+            /* If wctomb  error, then ignore character */
+            return 0;
+        }
+        if (((size_t)(unsigned int)temp) > spec->arrayWidth) {
+            return -1;
+        }
+        if (memcpy_s(endPtr, spec->arrayWidth, tmpBuf, (size_t)(unsigned int)temp) != EOK) {
+            return -1;
+        }
+        endPtr = (char *)endPtr + temp;
+        spec->arrayWidth -= (size_t)(unsigned int)temp;
+#else
+        return -1;
+#endif
+    }
+    spec->argPtr = endPtr;
+    return 0;
+}

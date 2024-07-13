@@ -1,0 +1,60 @@
+static HAL_StatusTypeDef SAI_InitPCM(SAI_HandleTypeDef *hsai, uint32_t protocol, uint32_t datasize, uint32_t nbslot)
+{
+  hsai->Init.Protocol            = SAI_FREE_PROTOCOL;
+  hsai->Init.FirstBit            = SAI_FIRSTBIT_MSB;
+  /* Compute ClockStrobing according AudioMode */
+  if((hsai->Init.AudioMode == SAI_MODEMASTER_TX) || (hsai->Init.AudioMode == SAI_MODESLAVE_TX))
+  { /* Transmit */
+    hsai->Init.ClockStrobing     = SAI_CLOCKSTROBING_RISINGEDGE;
+  }
+  else
+  { /* Receive */
+    hsai->Init.ClockStrobing     = SAI_CLOCKSTROBING_FALLINGEDGE;
+  }
+  hsai->FrameInit.FSDefinition   = SAI_FS_STARTFRAME;
+  hsai->FrameInit.FSPolarity     = SAI_FS_ACTIVE_HIGH;
+  hsai->FrameInit.FSOffset       = SAI_FS_BEFOREFIRSTBIT;
+  hsai->SlotInit.FirstBitOffset  = 0;
+  hsai->SlotInit.SlotNumber      = nbslot;
+  hsai->SlotInit.SlotActive      = SAI_SLOTACTIVE_ALL;
+
+  switch(protocol)
+  {
+  case SAI_PCM_SHORT :
+    hsai->FrameInit.ActiveFrameLength = 1;
+    break;
+  case SAI_PCM_LONG :
+    hsai->FrameInit.ActiveFrameLength = 13;
+    break;
+  default :
+    return HAL_ERROR;
+  }
+
+  switch(datasize)
+  {
+  case SAI_PROTOCOL_DATASIZE_16BIT:
+    hsai->Init.DataSize = SAI_DATASIZE_16;
+    hsai->FrameInit.FrameLength = 16 * nbslot;
+    hsai->SlotInit.SlotSize = SAI_SLOTSIZE_16B;
+    break;
+  case SAI_PROTOCOL_DATASIZE_16BITEXTENDED :
+    hsai->Init.DataSize = SAI_DATASIZE_16;
+    hsai->FrameInit.FrameLength = 32 * nbslot;
+    hsai->SlotInit.SlotSize = SAI_SLOTSIZE_32B;
+    break;
+  case SAI_PROTOCOL_DATASIZE_24BIT :
+    hsai->Init.DataSize = SAI_DATASIZE_24;
+    hsai->FrameInit.FrameLength = 32 * nbslot;
+    hsai->SlotInit.SlotSize = SAI_SLOTSIZE_32B;
+    break;
+  case SAI_PROTOCOL_DATASIZE_32BIT:
+    hsai->Init.DataSize = SAI_DATASIZE_32;
+    hsai->FrameInit.FrameLength = 32 * nbslot;
+    hsai->SlotInit.SlotSize = SAI_SLOTSIZE_32B;
+    break;
+  default :
+    return HAL_ERROR;
+  }
+
+  return HAL_OK;
+}

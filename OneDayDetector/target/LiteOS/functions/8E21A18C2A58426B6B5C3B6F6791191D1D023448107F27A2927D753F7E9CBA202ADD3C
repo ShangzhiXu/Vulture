@@ -1,0 +1,99 @@
+static HAL_StatusTypeDef OSPIM_GetConfig(uint8_t instance_nb, OSPIM_CfgTypeDef *cfg)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t reg = 0, value = 0;
+  uint32_t index = 0;
+  
+  if ((instance_nb == 0) || (instance_nb > OSPI_NB_INSTANCE) || (cfg == NULL))
+  {
+    /* Invalid parameter -> error returned */
+    status = HAL_ERROR;
+  }
+  else
+  {
+    /* Initialize the structure */
+    cfg->ClkPort = cfg->DQSPort = cfg->NCSPort = cfg->IOLowPort = cfg->IOHighPort = 0;
+    
+    if (instance_nb == 1)
+    {
+      value = 0;
+    }      
+    else if (instance_nb == 2)
+    {
+      value = (OCTOSPIM_PCR_CLKSRC | OCTOSPIM_PCR_DQSSRC | OCTOSPIM_PCR_NCSSRC | OCTOSPIM_PCR_IOLSRC_1 | OCTOSPIM_PCR_IOHSRC_1);
+    }
+
+    /* Get the information about the instance */
+    for (index = 0; index < OSPI_IOM_NB_PORTS; index ++)
+    {
+      reg = OCTOSPIM->PCR[index];
+
+      if ((reg & OCTOSPIM_PCR_CLKEN) != 0)
+      {
+        /* The clock is enabled on this port */
+        if ((reg & OCTOSPIM_PCR_CLKSRC) == (value & OCTOSPIM_PCR_CLKSRC))
+        {
+          /* The clock correspond to the instance passed as parameter */
+          cfg->ClkPort = index+1;
+        }
+      }
+
+      if ((reg & OCTOSPIM_PCR_DQSEN) != 0)
+      {
+        /* The DQS is enabled on this port */
+        if ((reg & OCTOSPIM_PCR_DQSSRC) == (value & OCTOSPIM_PCR_DQSSRC))
+        {
+          /* The DQS correspond to the instance passed as parameter */
+          cfg->DQSPort = index+1;
+        }
+      }
+
+      if ((reg & OCTOSPIM_PCR_NCSEN) != 0)
+      {
+        /* The nCS is enabled on this port */
+        if ((reg & OCTOSPIM_PCR_NCSSRC) == (value & OCTOSPIM_PCR_NCSSRC))
+        {
+          /* The nCS correspond to the instance passed as parameter */
+          cfg->NCSPort = index+1;
+        }
+      }
+
+      if ((reg & OCTOSPIM_PCR_IOLEN) != 0)
+      {
+        /* The IO Low is enabled on this port */
+        if ((reg & OCTOSPIM_PCR_IOLSRC_1) == (value & OCTOSPIM_PCR_IOLSRC_1))
+        {
+          /* The IO Low correspond to the instance passed as parameter */
+          if ((reg & OCTOSPIM_PCR_IOLSRC_0) == 0)
+          {
+            cfg->IOLowPort = (OCTOSPIM_PCR_IOLEN | (index+1));
+          }
+          else
+          {
+            cfg->IOLowPort = (OCTOSPIM_PCR_IOHEN | (index+1));
+          }
+        }
+      }
+
+      if ((reg & OCTOSPIM_PCR_IOHEN) != 0)
+      {
+        /* The IO High is enabled on this port */
+        if ((reg & OCTOSPIM_PCR_IOHSRC_1) == (value & OCTOSPIM_PCR_IOHSRC_1))
+        {
+          /* The IO High correspond to the instance passed as parameter */
+          if ((reg & OCTOSPIM_PCR_IOHSRC_0) == 0)
+          {
+            cfg->IOHighPort = (OCTOSPIM_PCR_IOLEN | (index+1));
+          }
+          else
+          {
+            cfg->IOHighPort = (OCTOSPIM_PCR_IOHEN | (index+1));
+          }
+        }
+      }
+    }
+  }
+
+  /* Return function status */
+  return status;
+}

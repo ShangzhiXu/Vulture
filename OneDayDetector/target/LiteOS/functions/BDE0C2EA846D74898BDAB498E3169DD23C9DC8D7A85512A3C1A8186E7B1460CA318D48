@@ -1,0 +1,21 @@
+STATIC VOID OsLowpowerChangeFreq(LosFreqMode freq)
+{
+    TRACE_FUNC_CALL();
+    if (g_pmRunOps.changeFreq == NULL) {
+        PRINT_DEBUG("\r\n [PM] freq function is null.\n");
+        return;
+    }
+
+    if (freq >= LOS_SYS_FREQ_MAX) {
+        PRINT_DEBUG("\r\n [PM] freq(%d) is invalid.\n", freq);
+        return;
+    }
+
+    // The OsChangeFreq procedure deals with the latest setting only.
+    LOS_AtomicSet(&g_pmMgr.freqPending, (INT32)freq);
+
+    // We get a high frequency request, then change it
+    if (FreqHigher(g_pmMgr.freqPending, g_pmMgr.freq) && g_pmRunOps.changeFreq != NULL) {
+        OsChangeFreq();
+    }
+}

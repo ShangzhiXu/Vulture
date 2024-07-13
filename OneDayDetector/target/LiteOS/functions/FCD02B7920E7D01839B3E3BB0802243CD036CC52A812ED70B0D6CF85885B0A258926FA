@@ -1,0 +1,22 @@
+STATIC VOID OutputControl(const CHAR *str, UINT32 len, OutputType type)
+{
+    switch (type) {
+        case CONSOLE_OUTPUT:
+#ifdef LOSCFG_KERNEL_CONSOLE
+            if (ConsoleEnable() == TRUE) {
+                (VOID)write(STDOUT_FILENO, str, (size_t)len);
+                break;
+            }
+#endif
+            /* fall-through */
+        case UART_OUTPUT:
+            UartOutput(str, len, UART_WITH_LOCK);
+            break;
+        case EXC_OUTPUT:
+            UartOutput(str, len, UART_WITHOUT_LOCK);
+            break;
+        default:
+            break;
+    }
+    return;
+}

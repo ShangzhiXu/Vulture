@@ -1,0 +1,38 @@
+check_service(struct mdns_service *service, struct mdns_rr_info *rr)
+{
+  err_t res;
+  int replies = 0;
+  struct mdns_domain mydomain;
+
+  if (rr->klass != DNS_RRCLASS_IN && rr->klass != DNS_RRCLASS_ANY) {
+    /* Invalid class */
+    return 0;
+  }
+
+  res = mdns_build_dnssd_domain(&mydomain);
+  if (res == ERR_OK && mdns_domain_eq(&rr->domain, &mydomain) &&
+      (rr->type == DNS_RRTYPE_PTR || rr->type == DNS_RRTYPE_ANY)) {
+    /* Request for all service types */
+    replies |= REPLY_SERVICE_TYPE_PTR;
+  }
+
+  res = mdns_build_service_domain(&mydomain, service, 0);
+  if (res == ERR_OK && mdns_domain_eq(&rr->domain, &mydomain) &&
+      (rr->type == DNS_RRTYPE_PTR || rr->type == DNS_RRTYPE_ANY)) {
+    /* Request for the instance of my service */
+    replies |= REPLY_SERVICE_NAME_PTR;
+  }
+
+  res = mdns_build_service_domain(&mydomain, service, 1);
+  if (res == ERR_OK && mdns_domain_eq(&rr->domain, &mydomain)) {
+    /* Request for info about my service */
+    if (rr->type == DNS_RRTYPE_SRV || rr->type == DNS_RRTYPE_ANY) {
+      replies |= REPLY_SERVICE_SRV;
+    }
+    if (rr->type == DNS_RRTYPE_TXT || rr->type == DNS_RRTYPE_ANY) {
+      replies |= REPLY_SERVICE_TXT;
+    }
+  }
+
+  return replies;
+}

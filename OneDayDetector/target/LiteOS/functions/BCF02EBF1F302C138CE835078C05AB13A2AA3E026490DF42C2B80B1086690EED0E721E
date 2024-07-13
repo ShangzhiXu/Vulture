@@ -1,0 +1,44 @@
+static HAL_StatusTypeDef ADC_ConversionStop(ADC_HandleTypeDef* hadc)
+{
+  uint32_t tickstart = 0U;
+
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+    
+  /* Verification if ADC is not already stopped on regular group to bypass    */
+  /* this function if not needed.                                             */
+  if (ADC_IS_CONVERSION_ONGOING_REGULAR(hadc))
+  {
+    
+    /* Stop potential conversion on going on regular group */
+    /* Software is allowed to set ADSTP only when ADSTART=1 and ADDIS=0 */
+    if (HAL_IS_BIT_SET(hadc->Instance->CR, ADC_CR_ADSTART) && 
+        HAL_IS_BIT_CLR(hadc->Instance->CR, ADC_CR_ADDIS)                  )
+    {
+      /* Stop conversions on regular group */
+      hadc->Instance->CR |= ADC_CR_ADSTP;
+    }
+    
+    /* Wait for conversion effectively stopped */
+    /* Get tick count */
+    tickstart = HAL_GetTick();
+      
+    while((hadc->Instance->CR & ADC_CR_ADSTART) != RESET)
+    {
+      if((HAL_GetTick() - tickstart) > ADC_STOP_CONVERSION_TIMEOUT)
+      {
+        /* Update ADC state machine to error */
+        SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL);
+      
+        /* Set ADC error code to ADC IP internal error */
+        SET_BIT(hadc->ErrorCode, HAL_ADC_ERROR_INTERNAL);
+        
+        return HAL_ERROR;
+      }
+    }
+    
+  }
+   
+  /* Return HAL status */
+  return HAL_OK;
+}

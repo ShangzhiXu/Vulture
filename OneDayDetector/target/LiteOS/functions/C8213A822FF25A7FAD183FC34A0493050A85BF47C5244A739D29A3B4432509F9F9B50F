@@ -1,0 +1,78 @@
+HAL_StatusTypeDef HAL_SMARTCARD_Transmit_DMA(SMARTCARD_HandleTypeDef *hsmartcard, uint8_t *pData, uint16_t Size)
+{
+  /* Check that a Tx process is not already ongoing */
+  if (hsmartcard->gState == HAL_SMARTCARD_STATE_READY)
+  {
+    if ((pData == NULL) || (Size == 0U))
+    {
+      return HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hsmartcard);
+
+    hsmartcard->gState = HAL_SMARTCARD_STATE_BUSY_TX;
+
+    hsmartcard->ErrorCode = HAL_SMARTCARD_ERROR_NONE;
+    hsmartcard->pTxBuffPtr = pData;
+    hsmartcard->TxXferSize = Size;
+    hsmartcard->TxXferCount = Size;
+
+    /* Disable the Peripheral first to update mode for TX master */
+    CLEAR_BIT(hsmartcard->Instance->CR1, USART_CR1_UE);
+
+    /* Disable Rx, enable Tx */
+    CLEAR_BIT(hsmartcard->Instance->CR1, USART_CR1_RE);
+    SET_BIT(hsmartcard->Instance->RQR, (uint16_t)SMARTCARD_RXDATA_FLUSH_REQUEST);
+    SET_BIT(hsmartcard->Instance->CR1, USART_CR1_TE);
+
+    /* Enable the Peripheral */
+    SET_BIT(hsmartcard->Instance->CR1, USART_CR1_UE);
+
+    /* Set the SMARTCARD DMA transfer complete callback */
+    hsmartcard->hdmatx->XferCpltCallback = SMARTCARD_DMATransmitCplt;
+
+    /* Set the SMARTCARD error callback */
+    hsmartcard->hdmatx->XferErrorCallback = SMARTCARD_DMAError;
+
+    /* Set the DMA abort callback */
+    hsmartcard->hdmatx->XferAbortCallback = NULL;
+
+    /* Enable the SMARTCARD transmit DMA channel */
+    if (HAL_DMA_Start_IT(hsmartcard->hdmatx, (uint32_t)hsmartcard->pTxBuffPtr, (uint32_t)&hsmartcard->Instance->TDR,
+                         Size) == HAL_OK)
+    {
+      /* Clear the TC flag in the ICR register */
+      CLEAR_BIT(hsmartcard->Instance->ICR, USART_ICR_TCCF);
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hsmartcard);
+
+      /* Enable the UART Error Interrupt: (Frame error) */
+      SET_BIT(hsmartcard->Instance->CR3, USART_CR3_EIE);
+
+      /* Enable the DMA transfer for transmit request by setting the DMAT bit
+         in the SMARTCARD associated USART CR3 register */
+      SET_BIT(hsmartcard->Instance->CR3, USART_CR3_DMAT);
+
+      return HAL_OK;
+    }
+    else
+    {
+      /* Set error code to DMA */
+      hsmartcard->ErrorCode = HAL_SMARTCARD_ERROR_DMA;
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hsmartcard);
+
+      /* Restore hsmartcard->State to ready */
+      hsmartcard->gState = HAL_SMARTCARD_STATE_READY;
+
+      return HAL_ERROR;
+    }
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

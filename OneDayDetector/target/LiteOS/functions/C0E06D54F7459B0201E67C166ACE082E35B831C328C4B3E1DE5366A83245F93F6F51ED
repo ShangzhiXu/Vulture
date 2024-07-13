@@ -1,0 +1,35 @@
+static size_t prv_encodeInt(int64_t data,
+                            uint8_t *data_buffer)
+{
+    size_t length = 0;
+
+    if (data >= INT8_MIN && data <= INT8_MAX)
+    {
+        length = 1;
+        data_buffer[0] = data;
+    }
+    else if (data >= INT16_MIN && data <= INT16_MAX)
+    {
+        int16_t value;
+
+        value = data;
+        length = 2;
+        data_buffer[0] = (value >> 8) & 0xFF;
+        data_buffer[1] = value & 0xFF;
+    }
+    else if (data >= INT32_MIN && data <= INT32_MAX)
+    {
+        int32_t value;
+
+        value = data;
+        length = 4;
+        utils_copyValue(data_buffer, &value, length);
+    }
+    else if (data >= INT64_MIN && data <= INT64_MAX)
+    {
+        length = 8;
+        utils_copyValue(data_buffer, &data, length);
+    }
+
+    return length;
+}

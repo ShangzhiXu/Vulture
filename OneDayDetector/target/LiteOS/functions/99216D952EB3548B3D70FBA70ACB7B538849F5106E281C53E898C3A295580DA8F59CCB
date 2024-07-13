@@ -1,0 +1,96 @@
+HAL_StatusTypeDef HAL_SMARTCARD_RegisterCallback(SMARTCARD_HandleTypeDef *hsc, HAL_SMARTCARD_CallbackIDTypeDef CallbackID, pSMARTCARD_CallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    /* Update the error code */
+    hsc->ErrorCode |= HAL_SMARTCARD_ERROR_INVALID_CALLBACK;
+
+    return HAL_ERROR;
+  }
+  /* Process locked */
+  __HAL_LOCK(hsc);
+
+  if (hsc->gState == HAL_SMARTCARD_STATE_READY)
+  {
+    switch (CallbackID)
+    {
+
+      case HAL_SMARTCARD_TX_COMPLETE_CB_ID :
+        hsc->TxCpltCallback = pCallback;
+        break;
+
+      case HAL_SMARTCARD_RX_COMPLETE_CB_ID :
+        hsc->RxCpltCallback = pCallback;
+        break;
+
+      case HAL_SMARTCARD_ERROR_CB_ID :
+        hsc->ErrorCallback = pCallback;
+        break;
+
+      case HAL_SMARTCARD_ABORT_COMPLETE_CB_ID :
+        hsc->AbortCpltCallback = pCallback;
+        break;
+
+      case HAL_SMARTCARD_ABORT_TRANSMIT_COMPLETE_CB_ID :
+        hsc->AbortTransmitCpltCallback = pCallback;
+        break;
+
+      case HAL_SMARTCARD_ABORT_RECEIVE_COMPLETE_CB_ID :
+        hsc->AbortReceiveCpltCallback = pCallback;
+        break;
+
+
+      case HAL_SMARTCARD_MSPINIT_CB_ID :
+        hsc->MspInitCallback = pCallback;
+        break;
+
+      case HAL_SMARTCARD_MSPDEINIT_CB_ID :
+        hsc->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hsc->ErrorCode |= HAL_SMARTCARD_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if (hsc->gState == HAL_SMARTCARD_STATE_RESET)
+  {
+    switch (CallbackID)
+    {
+      case HAL_SMARTCARD_MSPINIT_CB_ID :
+        hsc->MspInitCallback = pCallback;
+        break;
+
+      case HAL_SMARTCARD_MSPDEINIT_CB_ID :
+        hsc->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hsc->ErrorCode |= HAL_SMARTCARD_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    hsc->ErrorCode |= HAL_SMARTCARD_ERROR_INVALID_CALLBACK;
+
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hsc);
+
+  return status;
+}

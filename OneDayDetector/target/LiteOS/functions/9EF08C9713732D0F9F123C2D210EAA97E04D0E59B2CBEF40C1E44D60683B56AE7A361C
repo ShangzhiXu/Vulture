@@ -1,0 +1,27 @@
+HAL_StatusTypeDef HAL_WWDG_Init(WWDG_HandleTypeDef *hwwdg)
+{
+  /* Check the WWDG handle allocation */
+  if(hwwdg == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_WWDG_ALL_INSTANCE(hwwdg->Instance));
+  assert_param(IS_WWDG_PRESCALER(hwwdg->Init.Prescaler));
+  assert_param(IS_WWDG_WINDOW(hwwdg->Init.Window));
+  assert_param(IS_WWDG_COUNTER(hwwdg->Init.Counter));
+  assert_param(IS_WWDG_EWI_MODE(hwwdg->Init.EWIMode));
+
+  /* Init the low level hardware */
+  HAL_WWDG_MspInit(hwwdg);
+
+  /* Set WWDG Counter */
+  WRITE_REG(hwwdg->Instance->CR, (WWDG_CR_WDGA | hwwdg->Init.Counter));
+
+  /* Set WWDG Prescaler and Window */
+  WRITE_REG(hwwdg->Instance->CFR, (hwwdg->Init.EWIMode | hwwdg->Init.Prescaler | hwwdg->Init.Window));
+
+  /* Return function status */
+  return HAL_OK;
+}

@@ -1,0 +1,63 @@
+static void FMPI2C_Enable_IRQ(FMPI2C_HandleTypeDef *hfmpi2c, uint16_t InterruptRequest)
+{
+  uint32_t tmpisr = 0U;
+
+  if ((hfmpi2c->XferISR == FMPI2C_Master_ISR_DMA) || \
+      (hfmpi2c->XferISR == FMPI2C_Slave_ISR_DMA))
+  {
+    if ((InterruptRequest & FMPI2C_XFER_LISTEN_IT) == FMPI2C_XFER_LISTEN_IT)
+    {
+      /* Enable ERR, STOP, NACK and ADDR interrupts */
+      tmpisr |= FMPI2C_IT_ADDRI | FMPI2C_IT_STOPI | FMPI2C_IT_NACKI | FMPI2C_IT_ERRI;
+    }
+
+    if (InterruptRequest == FMPI2C_XFER_ERROR_IT)
+    {
+      /* Enable ERR and NACK interrupts */
+      tmpisr |= FMPI2C_IT_ERRI | FMPI2C_IT_NACKI;
+    }
+
+    if (InterruptRequest == FMPI2C_XFER_CPLT_IT)
+    {
+      /* Enable STOP interrupts */
+      tmpisr |= (FMPI2C_IT_STOPI | FMPI2C_IT_TCI);
+    }
+
+    if (InterruptRequest == FMPI2C_XFER_RELOAD_IT)
+    {
+      /* Enable TC interrupts */
+      tmpisr |= FMPI2C_IT_TCI;
+    }
+  }
+  else
+  {
+    if ((InterruptRequest & FMPI2C_XFER_LISTEN_IT) == FMPI2C_XFER_LISTEN_IT)
+    {
+      /* Enable ERR, STOP, NACK, and ADDR interrupts */
+      tmpisr |= FMPI2C_IT_ADDRI | FMPI2C_IT_STOPI | FMPI2C_IT_NACKI | FMPI2C_IT_ERRI;
+    }
+
+    if ((InterruptRequest & FMPI2C_XFER_TX_IT) == FMPI2C_XFER_TX_IT)
+    {
+      /* Enable ERR, TC, STOP, NACK and RXI interrupts */
+      tmpisr |= FMPI2C_IT_ERRI | FMPI2C_IT_TCI | FMPI2C_IT_STOPI | FMPI2C_IT_NACKI | FMPI2C_IT_TXI;
+    }
+
+    if ((InterruptRequest & FMPI2C_XFER_RX_IT) == FMPI2C_XFER_RX_IT)
+    {
+      /* Enable ERR, TC, STOP, NACK and TXI interrupts */
+      tmpisr |= FMPI2C_IT_ERRI | FMPI2C_IT_TCI | FMPI2C_IT_STOPI | FMPI2C_IT_NACKI | FMPI2C_IT_RXI;
+    }
+
+    if (InterruptRequest == FMPI2C_XFER_CPLT_IT)
+    {
+      /* Enable STOP interrupts */
+      tmpisr |= FMPI2C_IT_STOPI;
+    }
+  }
+
+  /* Enable interrupts only at the end */
+  /* to avoid the risk of FMPI2C interrupt handle execution before */
+  /* all interrupts requested done */
+  __HAL_FMPI2C_ENABLE_IT(hfmpi2c, tmpisr);
+}

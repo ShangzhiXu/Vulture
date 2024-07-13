@@ -1,0 +1,33 @@
+HAL_StatusTypeDef HAL_OPAMP_DeInit(OPAMP_HandleTypeDef *hopamp)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  
+  /* Check the OPAMP handle allocation */
+  /* DeInit not allowed if calibration is ongoing */
+  if((hopamp == NULL) || (hopamp->State == HAL_OPAMP_STATE_CALIBBUSY))
+  {
+    status = HAL_ERROR;
+  }
+  else
+  {
+    /* Check the parameter */
+    assert_param(IS_OPAMP_ALL_INSTANCE(hopamp->Instance));
+
+    /* Set OPAMP_CSR register to reset value */
+    /* Mind that OPAMP1_CSR_OPARANGE of CSR of OPAMP1 remains unchanged (applies to both OPAMPs) */ 
+    /* OPAMP shall be disabled first separately */     
+    CLEAR_BIT(hopamp->Instance->CSR, OPAMP_CSR_OPAMPxEN);
+    MODIFY_REG(hopamp->Instance->CSR, OPAMP_CSR_RESET_BITS, OPAMP_CSR_RESET_VALUE);
+    
+    /* DeInit the low level hardware: GPIO, CLOCK and NVIC */
+    HAL_OPAMP_MspDeInit(hopamp);
+
+    /* Update the OPAMP state*/
+    hopamp->State = HAL_OPAMP_STATE_RESET;   
+    
+    /* Process unlocked */
+    __HAL_UNLOCK(hopamp);
+  }
+  
+  return status;
+}

@@ -1,0 +1,35 @@
+void fsm_protreject(fsm *f) {
+    switch( f->state ){
+    case PPP_FSM_CLOSING:
+	UNTIMEOUT(fsm_timeout, f);	/* Cancel timeout */
+	/* fall through */
+	/* no break */
+    case PPP_FSM_CLOSED:
+	f->state = PPP_FSM_CLOSED;
+	if( f->callbacks->finished )
+	    (*f->callbacks->finished)(f);
+	break;
+
+    case PPP_FSM_STOPPING:
+    case PPP_FSM_REQSENT:
+    case PPP_FSM_ACKRCVD:
+    case PPP_FSM_ACKSENT:
+	UNTIMEOUT(fsm_timeout, f);	/* Cancel timeout */
+	/* fall through */
+	/* no break */
+    case PPP_FSM_STOPPED:
+	f->state = PPP_FSM_STOPPED;
+	if( f->callbacks->finished )
+	    (*f->callbacks->finished)(f);
+	break;
+
+    case PPP_FSM_OPENED:
+	terminate_layer(f, PPP_FSM_STOPPING);
+	break;
+
+    default:
+	FSMDEBUG(("%s: Protocol-reject event in state %d!",
+		  PROTO_NAME(f), f->state));
+	/* no break */
+    }
+}

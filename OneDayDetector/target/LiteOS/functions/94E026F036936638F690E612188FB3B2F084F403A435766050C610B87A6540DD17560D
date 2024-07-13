@@ -1,0 +1,20 @@
+httpc_tcp_connected(void *arg, struct altcp_pcb *pcb, err_t err)
+{
+  err_t r;
+  httpc_state_t* req = (httpc_state_t*)arg;
+  LWIP_UNUSED_ARG(pcb);
+  LWIP_UNUSED_ARG(err);
+
+  /* send request; last char is zero termination */
+  r = altcp_write(req->pcb, req->request->payload, req->request->len - 1, TCP_WRITE_FLAG_COPY);
+  if (r != ERR_OK) {
+     /* could not write the single small request -> fail, don't retry */
+     return httpc_close(req, HTTPC_RESULT_ERR_MEM, 0, r);
+  }
+  /* everything written, we can free the request */
+  pbuf_free(req->request);
+  req->request = NULL;
+
+  altcp_output(req->pcb);
+  return ERR_OK;
+}

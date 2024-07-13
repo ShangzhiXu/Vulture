@@ -1,0 +1,37 @@
+HAL_StatusTypeDef FSMC_NAND_GetECC(FSMC_NAND_TypeDef *Device, uint32_t *ECCval, uint32_t Bank, uint32_t Timeout)
+{
+  uint32_t tickstart = 0;
+
+  /* Check the parameters */
+  assert_param(IS_FSMC_NAND_DEVICE(Device));
+  assert_param(IS_FSMC_NAND_BANK(Bank));
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  /* Wait untill FIFO is empty */
+  while (__FSMC_NAND_GET_FLAG(Device, Bank, FSMC_FLAG_FEMPT) == RESET)
+  {
+    /* Check for the Timeout */
+    if (Timeout != HAL_MAX_DELAY)
+    {
+      if ((Timeout == 0) || ((HAL_GetTick() - tickstart) > Timeout))
+      {
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+
+  if (Bank == FSMC_NAND_BANK2)
+  {
+    /* Get the ECCR2 register value */
+    *ECCval = (uint32_t)Device->ECCR2;
+  }
+  else
+  {
+    /* Get the ECCR3 register value */
+    *ECCval = (uint32_t)Device->ECCR3;
+  }
+
+  return HAL_OK;
+}

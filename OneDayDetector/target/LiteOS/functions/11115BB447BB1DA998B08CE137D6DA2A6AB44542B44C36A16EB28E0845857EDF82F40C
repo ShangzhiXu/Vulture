@@ -1,0 +1,51 @@
+tcp_ConnTable_get_cell_value(const u32_t *column, const u32_t *row_oid, u8_t row_oid_len, union snmp_variant_value *value, u32_t *value_len)
+{
+  u8_t i;
+  ip4_addr_t local_ip;
+  ip4_addr_t remote_ip;
+  u16_t local_port;
+  u16_t remote_port;
+  struct tcp_pcb *pcb;
+
+  /* check if incoming OID length and if values are in plausible range */
+  if (!snmp_oid_in_range(row_oid, row_oid_len, tcp_ConnTable_oid_ranges, LWIP_ARRAYSIZE(tcp_ConnTable_oid_ranges))) {
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  /* get IPs and ports from incoming OID */
+  snmp_oid_to_ip4(&row_oid[0], &local_ip); /* we know it succeeds because of oid_in_range check above */
+  local_port = (u16_t)row_oid[4];
+  snmp_oid_to_ip4(&row_oid[5], &remote_ip); /* we know it succeeds because of oid_in_range check above */
+  remote_port = (u16_t)row_oid[9];
+
+  /* find tcp_pcb with requested ips and ports */
+  for (i = 0; i < LWIP_ARRAYSIZE(tcp_pcb_lists); i++) {
+    pcb = *tcp_pcb_lists[i];
+
+    while (pcb != NULL) {
+      /* do local IP and local port match? */
+      if (IP_IS_V4_VAL(pcb->local_ip) &&
+          ip4_addr_cmp(&local_ip, ip_2_ip4(&pcb->local_ip)) && (local_port == pcb->local_port)) {
+
+        /* PCBs in state LISTEN are not connected and have no remote_ip or remote_port */
+        if (pcb->state == LISTEN) {
+          if (ip4_addr_cmp(&remote_ip, IP4_ADDR_ANY4) && (remote_port == 0)) {
+            /* fill in object properties */
+            return tcp_ConnTable_get_cell_value_core(pcb, column, value, value_len);
+          }
+        } else {
+          if (IP_IS_V4_VAL(pcb->remote_ip) &&
+              ip4_addr_cmp(&remote_ip, ip_2_ip4(&pcb->remote_ip)) && (remote_port == pcb->remote_port)) {
+            /* fill in object properties */
+            return tcp_ConnTable_get_cell_value_core(pcb, column, value, value_len);
+          }
+        }
+      }
+
+      pcb = pcb->next;
+    }
+  }
+
+  /* not found */
+  return SNMP_ERR_NOSUCHINSTANCE;
+}

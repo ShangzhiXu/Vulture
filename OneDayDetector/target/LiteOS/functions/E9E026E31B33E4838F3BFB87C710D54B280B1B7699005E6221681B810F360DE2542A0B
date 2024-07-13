@@ -1,0 +1,29 @@
+static void IRDA_DMATransmitCplt(DMA_HandleTypeDef *hdma)
+{
+  IRDA_HandleTypeDef *hirda = (IRDA_HandleTypeDef *)(hdma->Parent);
+
+  /* DMA Normal mode */
+  if (HAL_IS_BIT_CLR(hdma->Instance->CCR, DMA_CCR_CIRC))
+  {
+    hirda->TxXferCount = 0U;
+
+    /* Disable the DMA transfer for transmit request by resetting the DMAT bit
+       in the IRDA CR3 register */
+    CLEAR_BIT(hirda->Instance->CR3, USART_CR3_DMAT);
+
+    /* Enable the IRDA Transmit Complete Interrupt */
+    SET_BIT(hirda->Instance->CR1, USART_CR1_TCIE);
+  }
+  /* DMA Circular mode */
+  else
+  {
+#if (USE_HAL_IRDA_REGISTER_CALLBACKS == 1)
+    /* Call registered Tx complete callback */
+    hirda->TxCpltCallback(hirda);
+#else
+    /* Call legacy weak Tx complete callback */
+    HAL_IRDA_TxCpltCallback(hirda);
+#endif /* USE_HAL_IRDA_REGISTER_CALLBACK */
+  }
+
+}

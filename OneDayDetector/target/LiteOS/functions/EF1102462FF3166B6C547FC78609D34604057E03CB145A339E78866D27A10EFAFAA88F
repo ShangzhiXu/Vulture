@@ -1,0 +1,66 @@
+HAL_StatusTypeDef HAL_SMARTCARD_Init(SMARTCARD_HandleTypeDef *hsmartcard)
+{
+  /* Check the SMARTCARD handle allocation */
+  if (hsmartcard == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the USART associated to the SMARTCARD handle */
+  assert_param(IS_SMARTCARD_INSTANCE(hsmartcard->Instance));
+
+  if (hsmartcard->gState == HAL_SMARTCARD_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hsmartcard->Lock = HAL_UNLOCKED;
+
+#if USE_HAL_SMARTCARD_REGISTER_CALLBACKS == 1
+    SMARTCARD_InitCallbacksToDefault(hsmartcard);
+
+    if (hsmartcard->MspInitCallback == NULL)
+    {
+      hsmartcard->MspInitCallback = HAL_SMARTCARD_MspInit;
+    }
+
+    /* Init the low level hardware */
+    hsmartcard->MspInitCallback(hsmartcard);
+#else
+    /* Init the low level hardware : GPIO, CLOCK */
+    HAL_SMARTCARD_MspInit(hsmartcard);
+#endif /* USE_HAL_SMARTCARD_REGISTER_CALLBACKS */
+  }
+
+  hsmartcard->gState = HAL_SMARTCARD_STATE_BUSY;
+
+  /* Disable the Peripheral to set smartcard mode */
+  CLEAR_BIT(hsmartcard->Instance->CR1, USART_CR1_UE);
+
+  /* In SmartCard mode, the following bits must be kept cleared:
+  - LINEN in the USART_CR2 register,
+  - HDSEL and IREN  bits in the USART_CR3 register.*/
+  CLEAR_BIT(hsmartcard->Instance->CR2, USART_CR2_LINEN);
+  CLEAR_BIT(hsmartcard->Instance->CR3, (USART_CR3_HDSEL | USART_CR3_IREN));
+
+  /* set the USART in SMARTCARD mode */
+  SET_BIT(hsmartcard->Instance->CR3, USART_CR3_SCEN);
+
+  /* Set the SMARTCARD Communication parameters */
+  if (SMARTCARD_SetConfig(hsmartcard) == HAL_ERROR)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Set the SMARTCARD transmission completion indication */
+  SMARTCARD_TRANSMISSION_COMPLETION_SETTING(hsmartcard);
+
+  if (hsmartcard->AdvancedInit.AdvFeatureInit != SMARTCARD_ADVFEATURE_NO_INIT)
+  {
+    SMARTCARD_AdvFeatureConfig(hsmartcard);
+  }
+
+  /* Enable the Peripheral */
+  SET_BIT(hsmartcard->Instance->CR1, USART_CR1_UE);
+
+  /* TEACK and/or REACK to check before moving hsmartcard->gState and hsmartcard->RxState to Ready */
+  return (SMARTCARD_CheckIdleState(hsmartcard));
+}

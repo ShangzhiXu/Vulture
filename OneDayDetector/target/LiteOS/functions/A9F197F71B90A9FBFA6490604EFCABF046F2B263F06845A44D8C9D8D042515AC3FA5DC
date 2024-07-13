@@ -1,0 +1,231 @@
+snmp_complete_outbound_frame(struct snmp_request *request)
+{
+  struct snmp_asn1_tlv tlv;
+  u16_t frame_size;
+  u8_t outbound_padding = 0;
+
+  if (request->version == SNMP_VERSION_1) {
+    if (request->error_status != SNMP_ERR_NOERROR) {
+      /* map v2c error codes to v1 compliant error code (according to RFC 2089) */
+      switch (request->error_status) {
+        /* mapping of implementation specific "virtual" error codes
+         * (during processing of frame we already stored them in error_status field,
+         * so no need to check all varbinds here for those exceptions as suggested by RFC) */
+        case SNMP_ERR_NOSUCHINSTANCE:
+        case SNMP_ERR_NOSUCHOBJECT:
+        case SNMP_ERR_ENDOFMIBVIEW:
+          request->error_status = SNMP_ERR_NOSUCHNAME;
+          break;
+        /* mapping according to RFC */
+        case SNMP_ERR_WRONGVALUE:
+        case SNMP_ERR_WRONGENCODING:
+        case SNMP_ERR_WRONGTYPE:
+        case SNMP_ERR_WRONGLENGTH:
+        case SNMP_ERR_INCONSISTENTVALUE:
+          request->error_status = SNMP_ERR_BADVALUE;
+          break;
+        case SNMP_ERR_NOACCESS:
+        case SNMP_ERR_NOTWRITABLE:
+        case SNMP_ERR_NOCREATION:
+        case SNMP_ERR_INCONSISTENTNAME:
+        case SNMP_ERR_AUTHORIZATIONERROR:
+          request->error_status = SNMP_ERR_NOSUCHNAME;
+          break;
+        case SNMP_ERR_RESOURCEUNAVAILABLE:
+        case SNMP_ERR_COMMITFAILED:
+        case SNMP_ERR_UNDOFAILED:
+        default:
+          request->error_status = SNMP_ERR_GENERROR;
+          break;
+      }
+    }
+  } else {
+    if (request->request_type == SNMP_ASN1_CONTEXT_PDU_SET_REQ) {
+      /* map error codes to according to RFC 1905 (4.2.5.  The SetRequest-PDU) return 'NotWritable' for unknown OIDs) */
+      switch (request->error_status) {
+        case SNMP_ERR_NOSUCHINSTANCE:
+        case SNMP_ERR_NOSUCHOBJECT:
+        case SNMP_ERR_ENDOFMIBVIEW:
+          request->error_status = SNMP_ERR_NOTWRITABLE;
+          break;
+        default:
+          break;
+      }
+    }
+
+    if (request->error_status >= SNMP_VARBIND_EXCEPTION_OFFSET) {
+      /* should never occur because v2 frames store exceptions directly inside varbinds and not as frame error_status */
+      LWIP_DEBUGF(SNMP_DEBUG, ("snmp_complete_outbound_frame() > Found v2 request with varbind exception code stored as error status!\n"));
+      return ERR_ARG;
+    }
+  }
+
+  if ((request->error_status != SNMP_ERR_NOERROR) || (request->request_type == SNMP_ASN1_CONTEXT_PDU_SET_REQ)) {
+    /* all inbound vars are returned in response without any modification for error responses and successful set requests*/
+    struct snmp_pbuf_stream inbound_stream;
+    OF_BUILD_EXEC( snmp_pbuf_stream_init(&inbound_stream, request->inbound_pbuf, request->inbound_varbind_offset, request->inbound_varbind_len) );
+    OF_BUILD_EXEC( snmp_pbuf_stream_init(&(request->outbound_pbuf_stream), request->outbound_pbuf, request->outbound_varbind_offset, request->outbound_pbuf->tot_len - request->outbound_varbind_offset) );
+    OF_BUILD_EXEC( snmp_pbuf_stream_writeto(&inbound_stream, &(request->outbound_pbuf_stream), 0) );
+  }
+
+  frame_size = request->outbound_pbuf_stream.offset;
+
+#if LWIP_SNMP_V3 && LWIP_SNMP_V3_CRYPTO
+  /* Calculate padding for encryption */
+  if (request->version == SNMP_VERSION_3 && (request->msg_flags & SNMP_V3_PRIV_FLAG)) {
+    u8_t i;
+    outbound_padding = (8 - (u8_t)((frame_size - request->outbound_scoped_pdu_seq_offset) & 0x07)) & 0x07;
+    for (i = 0; i < outbound_padding; i++) {
+      OF_BUILD_EXEC( snmp_pbuf_stream_write(&request->outbound_pbuf_stream, 0) );
+    }
+  }
+#endif
+
+  /* complete missing length in 'Message' sequence ; 'Message' tlv is located at the beginning (offset 0) */
+  SNMP_ASN1_SET_TLV_PARAMS(tlv, SNMP_ASN1_TYPE_SEQUENCE, 3, frame_size + outbound_padding - 1 - 3); /* - type - length_len(fixed, see snmp_prepare_outbound_frame()) */
+  OF_BUILD_EXEC( snmp_pbuf_stream_init(&(request->outbound_pbuf_stream), request->outbound_pbuf, 0, request->outbound_pbuf->tot_len) );
+  OF_BUILD_EXEC( snmp_ans1_enc_tlv(&(request->outbound_pbuf_stream), &tlv) );
+
+#if LWIP_SNMP_V3
+  if (request->version == SNMP_VERSION_3) {
+    /* complete missing length in 'globalData' sequence */
+    /* - type - length_len(fixed, see snmp_prepare_outbound_frame()) */
+    SNMP_ASN1_SET_TLV_PARAMS(tlv, SNMP_ASN1_TYPE_SEQUENCE, 1, request->outbound_msg_global_data_end
+                             - request->outbound_msg_global_data_offset - 1 - 1);
+    OF_BUILD_EXEC(snmp_pbuf_stream_seek_abs(&(request->outbound_pbuf_stream), request->outbound_msg_global_data_offset));
+    OF_BUILD_EXEC(snmp_ans1_enc_tlv(&(request->outbound_pbuf_stream), &tlv));
+
+    /* complete missing length in 'msgSecurityParameters' sequence */
+    SNMP_ASN1_SET_TLV_PARAMS(tlv, SNMP_ASN1_TYPE_OCTET_STRING, 1, request->outbound_msg_security_parameters_end
+                             - request->outbound_msg_security_parameters_str_offset - 1 - 1);
+    OF_BUILD_EXEC(snmp_pbuf_stream_seek_abs(&(request->outbound_pbuf_stream), request->outbound_msg_security_parameters_str_offset));
+    OF_BUILD_EXEC(snmp_ans1_enc_tlv(&(request->outbound_pbuf_stream), &tlv));
+
+    SNMP_ASN1_SET_TLV_PARAMS(tlv, SNMP_ASN1_TYPE_SEQUENCE, 1, request->outbound_msg_security_parameters_end
+                             - request->outbound_msg_security_parameters_seq_offset - 1 - 1);
+    OF_BUILD_EXEC(snmp_pbuf_stream_seek_abs(&(request->outbound_pbuf_stream), request->outbound_msg_security_parameters_seq_offset));
+    OF_BUILD_EXEC(snmp_ans1_enc_tlv(&(request->outbound_pbuf_stream), &tlv));
+
+    /* complete missing length in scoped PDU sequence */
+    SNMP_ASN1_SET_TLV_PARAMS(tlv, SNMP_ASN1_TYPE_SEQUENCE, 3, frame_size - request->outbound_scoped_pdu_seq_offset - 1 - 3);
+    OF_BUILD_EXEC(snmp_pbuf_stream_seek_abs(&(request->outbound_pbuf_stream), request->outbound_scoped_pdu_seq_offset));
+    OF_BUILD_EXEC(snmp_ans1_enc_tlv(&(request->outbound_pbuf_stream), &tlv));
+  }
+#endif
+
+  /* complete missing length in 'PDU' sequence */
+  SNMP_ASN1_SET_TLV_PARAMS(tlv, request->request_out_type, 3,
+                           frame_size - request->outbound_pdu_offset - 1 - 3); /* - type - length_len(fixed, see snmp_prepare_outbound_frame()) */
+  OF_BUILD_EXEC( snmp_pbuf_stream_seek_abs(&(request->outbound_pbuf_stream), request->outbound_pdu_offset) );
+  OF_BUILD_EXEC( snmp_ans1_enc_tlv(&(request->outbound_pbuf_stream), &tlv) );
+
+  /* process and encode final error status */
+  if (request->error_status != 0) {
+    u16_t len;
+    snmp_asn1_enc_s32t_cnt(request->error_status, &len);
+    if (len != 1) {
+      /* error, we only reserved one byte for it */
+      return ERR_ARG;
+    }
+    OF_BUILD_EXEC( snmp_pbuf_stream_seek_abs(&(request->outbound_pbuf_stream), request->outbound_error_status_offset) );
+    OF_BUILD_EXEC( snmp_asn1_enc_s32t(&(request->outbound_pbuf_stream), len, request->error_status) );
+
+    /* for compatibility to v1, log statistics; in v2 (RFC 1907) these statistics are obsoleted */
+    switch (request->error_status) {
+      case SNMP_ERR_TOOBIG:
+        snmp_stats.outtoobigs++;
+        break;
+      case SNMP_ERR_NOSUCHNAME:
+        snmp_stats.outnosuchnames++;
+        break;
+      case SNMP_ERR_BADVALUE:
+        snmp_stats.outbadvalues++;
+        break;
+      case SNMP_ERR_GENERROR:
+      default:
+        snmp_stats.outgenerrs++;
+        break;
+    }
+
+    if (request->error_status == SNMP_ERR_TOOBIG) {
+      request->error_index = 0; /* defined by RFC 1157 */
+    } else if (request->error_index == 0) {
+      /* set index to varbind where error occured (if not already set before, e.g. during GetBulk processing) */
+      request->error_index = request->inbound_varbind_enumerator.varbind_count;
+    }
+  } else {
+    if (request->request_type == SNMP_ASN1_CONTEXT_PDU_SET_REQ) {
+      snmp_stats.intotalsetvars += request->inbound_varbind_enumerator.varbind_count;
+    } else {
+      snmp_stats.intotalreqvars += request->inbound_varbind_enumerator.varbind_count;
+    }
+  }
+
+  /* encode final error index*/
+  if (request->error_index != 0) {
+    u16_t len;
+    snmp_asn1_enc_s32t_cnt(request->error_index, &len);
+    if (len != 1) {
+      /* error, we only reserved one byte for it */
+      return ERR_VAL;
+    }
+    OF_BUILD_EXEC( snmp_pbuf_stream_seek_abs(&(request->outbound_pbuf_stream), request->outbound_error_index_offset) );
+    OF_BUILD_EXEC( snmp_asn1_enc_s32t(&(request->outbound_pbuf_stream), len, request->error_index) );
+  }
+
+  /* complete missing length in 'VarBindList' sequence ; 'VarBindList' tlv is located directly before varbind offset */
+  SNMP_ASN1_SET_TLV_PARAMS(tlv, SNMP_ASN1_TYPE_SEQUENCE, 3, frame_size - request->outbound_varbind_offset);
+  OF_BUILD_EXEC( snmp_pbuf_stream_seek_abs(&(request->outbound_pbuf_stream), request->outbound_varbind_offset - 1 - 3) ); /* - type - length_len(fixed, see snmp_prepare_outbound_frame()) */
+  OF_BUILD_EXEC( snmp_ans1_enc_tlv(&(request->outbound_pbuf_stream), &tlv) );
+
+  /* Authenticate response */
+#if LWIP_SNMP_V3 && LWIP_SNMP_V3_CRYPTO
+  /* Encrypt response */
+  if (request->version == SNMP_VERSION_3 && (request->msg_flags & SNMP_V3_PRIV_FLAG)) {
+    u8_t key[20];
+    snmpv3_priv_algo_t algo;
+
+    /* complete missing length in PDU sequence */
+    OF_BUILD_EXEC(snmp_pbuf_stream_init(&request->outbound_pbuf_stream, request->outbound_pbuf, 0, request->outbound_pbuf->tot_len));
+    OF_BUILD_EXEC(snmp_pbuf_stream_seek_abs(&(request->outbound_pbuf_stream), request->outbound_scoped_pdu_string_offset));
+    SNMP_ASN1_SET_TLV_PARAMS(tlv, SNMP_ASN1_TYPE_OCTET_STRING, 3, frame_size + outbound_padding
+                             - request->outbound_scoped_pdu_string_offset - 1 - 3);
+    OF_BUILD_EXEC(snmp_ans1_enc_tlv(&(request->outbound_pbuf_stream), &tlv));
+
+    OF_BUILD_EXEC(snmpv3_get_user((char *)request->msg_user_name, NULL, NULL, &algo, key));
+
+    OF_BUILD_EXEC(snmpv3_crypt(&request->outbound_pbuf_stream, tlv.value_len, key,
+                               request->msg_privacy_parameters, request->msg_authoritative_engine_boots,
+                               request->msg_authoritative_engine_time, algo, SNMP_V3_PRIV_MODE_ENCRYPT));
+  }
+
+  if (request->version == SNMP_VERSION_3 && (request->msg_flags & SNMP_V3_AUTH_FLAG)) {
+    u8_t key[20];
+    snmpv3_auth_algo_t algo;
+    u8_t hmac[20];
+
+    OF_BUILD_EXEC(snmpv3_get_user((char *)request->msg_user_name, &algo, key, NULL, NULL));
+    OF_BUILD_EXEC(snmp_pbuf_stream_init(&(request->outbound_pbuf_stream),
+                                        request->outbound_pbuf, 0, request->outbound_pbuf->tot_len));
+    OF_BUILD_EXEC(snmpv3_auth(&request->outbound_pbuf_stream, frame_size + outbound_padding, key, algo, hmac));
+
+    MEMCPY(request->msg_authentication_parameters, hmac, SNMP_V3_MAX_AUTH_PARAM_LENGTH);
+    OF_BUILD_EXEC(snmp_pbuf_stream_init(&request->outbound_pbuf_stream,
+                                        request->outbound_pbuf, 0, request->outbound_pbuf->tot_len));
+    OF_BUILD_EXEC(snmp_pbuf_stream_seek_abs(&request->outbound_pbuf_stream,
+                                            request->outbound_msg_authentication_parameters_offset));
+
+    SNMP_ASN1_SET_TLV_PARAMS(tlv, SNMP_ASN1_TYPE_OCTET_STRING, 1, SNMP_V3_MAX_AUTH_PARAM_LENGTH);
+    OF_BUILD_EXEC(snmp_ans1_enc_tlv(&request->outbound_pbuf_stream, &tlv));
+    OF_BUILD_EXEC(snmp_asn1_enc_raw(&request->outbound_pbuf_stream,
+                                    request->msg_authentication_parameters, SNMP_V3_MAX_AUTH_PARAM_LENGTH));
+  }
+#endif
+
+  pbuf_realloc(request->outbound_pbuf, frame_size + outbound_padding);
+
+  snmp_stats.outgetresponses++;
+  snmp_stats.outpkts++;
+
+  return ERR_OK;
+}

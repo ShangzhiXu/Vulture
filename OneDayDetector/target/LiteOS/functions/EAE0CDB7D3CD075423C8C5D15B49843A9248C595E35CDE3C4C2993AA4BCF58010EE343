@@ -1,0 +1,26 @@
+void HAL_JPEG_IRQHandler(JPEG_HandleTypeDef *hjpeg)
+{
+  switch (hjpeg->State)
+  {
+    case HAL_JPEG_STATE_BUSY_ENCODING:
+    case HAL_JPEG_STATE_BUSY_DECODING:
+      /* continue JPEG data encoding/Decoding*/
+      /* JPEG data processing : In/Out FIFO transfer*/
+      if ((hjpeg->Context & JPEG_CONTEXT_METHOD_MASK) == JPEG_CONTEXT_IT)
+      {
+        (void) JPEG_Process(hjpeg);
+      }
+      else if ((hjpeg->Context & JPEG_CONTEXT_METHOD_MASK) == JPEG_CONTEXT_DMA)
+      {
+        JPEG_DMA_ContinueProcess(hjpeg);
+      }
+      else
+      {
+        /* Nothing to do */
+      }
+      break;
+
+    default:
+      break;
+  }
+}

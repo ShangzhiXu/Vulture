@@ -1,0 +1,50 @@
+static inline lv_color_t color_blend_true_color_additive(lv_color_t fg, lv_color_t bg, lv_opa_t opa)
+{
+
+    if(opa <= LV_OPA_MIN) return bg;
+
+    uint32_t tmp;
+#if LV_COLOR_DEPTH == 1
+    tmp = bg.full + fg.full;
+    fg.full = LV_MATH_MIN(tmp, 1);
+#else
+    tmp = bg.ch.red + fg.ch.red;
+#if LV_COLOR_DEPTH == 8
+    fg.ch.red = LV_MATH_MIN(tmp, 7);
+#elif LV_COLOR_DEPTH == 16
+    fg.ch.red = LV_MATH_MIN(tmp, 31);
+#elif LV_COLOR_DEPTH == 32
+    fg.ch.red = LV_MATH_MIN(tmp, 255);
+#endif
+
+#if LV_COLOR_DEPTH == 8
+    fg.ch.green = LV_MATH_MIN(tmp, 7);
+#elif LV_COLOR_DEPTH == 16
+#if LV_COLOR_16_SWAP == 0
+    tmp = bg.ch.green + fg.ch.green;
+    fg.ch.green = LV_MATH_MIN(tmp, 63);
+#else
+    tmp = (bg.ch.green_h << 3) + bg.ch.green_l + (fg.ch.green_h << 3) + fg.ch.green_l;
+    tmp = LV_MATH_MIN(tmp, 63);
+    fg.ch.green_h = tmp >> 3;
+    fg.ch.green_l = tmp & 0x7;
+#endif
+
+#elif LV_COLOR_DEPTH == 32
+    fg.ch.green = LV_MATH_MIN(tmp, 255);
+#endif
+
+    tmp = bg.ch.blue + fg.ch.blue;
+#if LV_COLOR_DEPTH == 8
+    fg.ch.blue = LV_MATH_MIN(tmp, 4);
+#elif LV_COLOR_DEPTH == 16
+    fg.ch.blue = LV_MATH_MIN(tmp, 31);
+#elif LV_COLOR_DEPTH == 32
+    fg.ch.blue = LV_MATH_MIN(tmp, 255);
+#endif
+#endif
+
+    if(opa == LV_OPA_COVER) return fg;
+
+    return lv_color_mix(fg, bg, opa);
+}

@@ -1,0 +1,27 @@
+HAL_StatusTypeDef SDIO_Init(SDIO_TypeDef *SDIOx, SDIO_InitTypeDef Init)
+{
+  uint32_t tmpreg = 0;
+
+  /* Check the parameters */
+  assert_param(IS_SDIO_ALL_INSTANCE(SDIOx));
+  assert_param(IS_SDIO_CLOCK_EDGE(Init.ClockEdge)); 
+  assert_param(IS_SDIO_CLOCK_BYPASS(Init.ClockBypass));
+  assert_param(IS_SDIO_CLOCK_POWER_SAVE(Init.ClockPowerSave));
+  assert_param(IS_SDIO_BUS_WIDE(Init.BusWide));
+  assert_param(IS_SDIO_HARDWARE_FLOW_CONTROL(Init.HardwareFlowControl));
+  assert_param(IS_SDIO_CLKDIV(Init.ClockDiv));
+  
+  /* Set SDMMC configuration parameters */
+  tmpreg |= (Init.ClockEdge           |\
+             Init.ClockBypass         |\
+             Init.ClockPowerSave      |\
+             Init.BusWide             |\
+             Init.HardwareFlowControl |\
+             Init.ClockDiv
+             ); 
+  
+  /* Write to SDMMC CLKCR */
+  MODIFY_REG(SDIOx->CLKCR, CLKCR_CLEAR_MASK, tmpreg);  
+
+  return HAL_OK;
+}

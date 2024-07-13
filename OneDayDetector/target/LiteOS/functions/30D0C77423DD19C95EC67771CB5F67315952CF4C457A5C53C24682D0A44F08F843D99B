@@ -1,0 +1,29 @@
+HAL_StatusTypeDef HAL_RNG_GenerateRandomNumber_IT(RNG_HandleTypeDef *hrng)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  
+  /* Process Locked */
+  __HAL_LOCK(hrng);
+  
+  /* Check RNG peripheral state */
+  if(hrng->State == HAL_RNG_STATE_READY)
+  {
+    /* Change RNG peripheral state */  
+    hrng->State = HAL_RNG_STATE_BUSY;  
+  
+    /* Process Unlocked */
+    __HAL_UNLOCK(hrng);
+    
+    /* Enable the RNG Interrupts: Data Ready, Clock error, Seed error */ 
+    __HAL_RNG_ENABLE_IT(hrng);
+  }
+  else
+  {
+    /* Process Unlocked */
+    __HAL_UNLOCK(hrng);
+    
+    status = HAL_ERROR;
+  }
+  
+  return status;
+}

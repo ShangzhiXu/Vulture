@@ -1,0 +1,52 @@
+int MQTTPacket_readnb(unsigned char *buf, int buflen, MQTTTransport *trp)
+{
+    int rc = -1, frc;
+    MQTTHeader header = {0};
+
+    switch(trp->state)
+    {
+    default:
+        trp->state = 0;
+    /*FALLTHROUGH*/
+    case 0:
+        /* read the header byte.  This has the packet type in it */
+        if ((frc = (*trp->getfn)(trp->sck, buf, 1)) == -1)
+            goto exit;
+        if (frc == 0)
+            return 0;
+        trp->len = 0;
+        ++trp->state;
+    /*FALLTHROUGH*/
+    /* read the remaining length.  This is variable in itself */
+    case 1:
+        if((frc = MQTTPacket_decodenb(trp)) == MQTTPACKET_READ_ERROR)
+            goto exit;
+        if(frc == 0)
+            return 0;
+        trp->len = 1 + MQTTPacket_encode(buf + 1, trp->rem_len); /* put the original remaining length back into the buffer */
+        if((trp->rem_len + trp->len) > buflen)
+            goto exit;
+        ++trp->state;
+    /*FALLTHROUGH*/
+    case 2:
+        if(trp->rem_len)
+        {
+            /* read the rest of the buffer using a callback to supply the rest of the data */
+            if ((frc = (*trp->getfn)(trp->sck, buf + trp->len, trp->rem_len)) == -1)
+                goto exit;
+            if (frc == 0)
+                return 0;
+            trp->rem_len -= frc;
+            trp->len += frc;
+            if(trp->rem_len)
+                return 0;
+        }
+        header.byte = buf[0];
+        rc = header.bits.type;
+        break;
+    }
+
+exit:
+    trp->state = 0;
+    return rc;
+}

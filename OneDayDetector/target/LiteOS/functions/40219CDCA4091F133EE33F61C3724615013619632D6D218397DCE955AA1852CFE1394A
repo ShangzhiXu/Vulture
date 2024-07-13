@@ -1,0 +1,64 @@
+static int ssl_async_start( mbedtls_ssl_context *ssl,
+                            mbedtls_x509_crt *cert,
+                            ssl_async_operation_type_t op_type,
+                            mbedtls_md_type_t md_alg,
+                            const unsigned char *input,
+                            size_t input_len )
+{
+    ssl_async_key_context_t *config_data =
+        mbedtls_ssl_conf_get_async_config_data( ssl->conf );
+    unsigned slot;
+    ssl_async_operation_context_t *ctx = NULL;
+    const char *op_name = ssl_async_operation_names[op_type];
+
+    {
+        char dn[100];
+        if( mbedtls_x509_dn_gets( dn, sizeof( dn ), &cert->subject ) > 0 )
+            mbedtls_printf( "Async %s callback: looking for DN=%s\n",
+                            op_name, dn );
+    }
+
+    /* Look for a private key that matches the public key in cert.
+     * Since this test code has the private key inside Mbed TLS,
+     * we call mbedtls_pk_check_pair to match a private key with the
+     * public key. */
+    for( slot = 0; slot < config_data->slots_used; slot++ )
+    {
+        if( mbedtls_pk_check_pair( &cert->pk,
+                                   config_data->slots[slot].pk ) == 0 )
+            break;
+    }
+    if( slot == config_data->slots_used )
+    {
+        mbedtls_printf( "Async %s callback: no key matches this certificate.\n",
+                        op_name );
+        return( MBEDTLS_ERR_SSL_HW_ACCEL_FALLTHROUGH );
+    }
+    mbedtls_printf( "Async %s callback: using key slot %u, delay=%u.\n",
+                    op_name, slot, config_data->slots[slot].delay );
+
+    if( config_data->inject_error == SSL_ASYNC_INJECT_ERROR_START )
+    {
+        mbedtls_printf( "Async %s callback: injected error\n", op_name );
+        return( MBEDTLS_ERR_PK_FEATURE_UNAVAILABLE );
+    }
+
+    if( input_len > SSL_ASYNC_INPUT_MAX_SIZE )
+        return( MBEDTLS_ERR_SSL_BAD_INPUT_DATA );
+
+    ctx = mbedtls_calloc( 1, sizeof( *ctx ) );
+    if( ctx == NULL )
+        return( MBEDTLS_ERR_SSL_ALLOC_FAILED );
+    ctx->slot = slot;
+    ctx->operation_type = op_type;
+    ctx->md_alg = md_alg;
+    memcpy( ctx->input, input, input_len );
+    ctx->input_len = input_len;
+    ctx->remaining_delay = config_data->slots[slot].delay;
+    mbedtls_ssl_set_async_operation_data( ssl, ctx );
+
+    if( ctx->remaining_delay == 0 )
+        return( 0 );
+    else
+        return( MBEDTLS_ERR_SSL_ASYNC_IN_PROGRESS );
+}

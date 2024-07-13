@@ -1,0 +1,24 @@
+static uint16_t LCD_IO_GetID(void)
+{ 
+#if defined(USE_LCD_HDMI)  
+  HDMI_IO_Init();
+  
+  HDMI_IO_Delay(120);
+  
+  if(ADV7533_ID == adv7533_drv.ReadID(ADV7533_CEC_DSI_I2C_ADDR))
+  {
+    return ADV7533_ID;
+  }  
+  else if(((HDMI_IO_Read(LCD_DSI_ADDRESS, LCD_DSI_ID_REG) == LCD_DSI_ID)) || \
+           (HDMI_IO_Read(LCD_DSI_ADDRESS_A02, LCD_DSI_ID_REG) == LCD_DSI_ID))
+  {
+    return LCD_DSI_ID;
+  }
+  else
+  {
+    return 0;
+  }
+#else 
+  return LCD_DSI_ID; 
+#endif /* USE_LCD_HDMI */
+}

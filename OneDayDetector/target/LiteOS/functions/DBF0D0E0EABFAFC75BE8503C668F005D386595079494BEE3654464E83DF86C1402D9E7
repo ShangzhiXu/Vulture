@@ -1,0 +1,31 @@
+void BSP_PB_Init(Button_TypeDef Button, ButtonMode_TypeDef ButtonMode)
+{
+  GPIO_InitTypeDef gpioinitstruct;
+
+  /* Enable the BUTTON Clock */
+  BUTTONx_GPIO_CLK_ENABLE(Button);
+
+  gpioinitstruct.Pin = BUTTON_PIN[Button];
+  gpioinitstruct.Pull = GPIO_NOPULL;
+  gpioinitstruct.Speed = GPIO_SPEED_FREQ_HIGH;
+
+  if(ButtonMode == BUTTON_MODE_GPIO)
+  {
+    /* Configure Button pin as input */
+    gpioinitstruct.Mode = GPIO_MODE_INPUT;
+
+    HAL_GPIO_Init(BUTTON_PORT[Button], &gpioinitstruct);
+  }
+
+  if(ButtonMode == BUTTON_MODE_EXTI)
+  {
+    /* Configure Button pin as input with External interrupt */
+    gpioinitstruct.Mode = GPIO_MODE_IT_FALLING;
+
+    HAL_GPIO_Init(BUTTON_PORT[Button], &gpioinitstruct);
+
+    /* Enable and set Button EXTI Interrupt to the lowest priority */
+    HAL_NVIC_SetPriority((IRQn_Type)(BUTTON_IRQn[Button]), 0x03, 0x00);
+    HAL_NVIC_EnableIRQ((IRQn_Type)(BUTTON_IRQn[Button]));
+  }
+}

@@ -1,0 +1,24 @@
+snmp_trap_varbind_sum(struct snmp_msg_trap *trap, struct snmp_varbind *varbinds)
+{
+  struct snmp_varbind *varbind;
+  u16_t tot_len;
+  u8_t tot_len_len;
+
+  tot_len = 0;
+  varbind = varbinds;
+  while (varbind != NULL) {
+    struct snmp_varbind_len len;
+
+    if (snmp_varbind_length(varbind, &len) == ERR_OK) {
+      tot_len += 1 + len.vb_len_len + len.vb_value_len;
+    }
+
+    varbind = varbind->next;
+  }
+
+  trap->vbseqlen = tot_len;
+  snmp_asn1_enc_length_cnt(trap->vbseqlen, &tot_len_len);
+  tot_len += 1 + tot_len_len;
+
+  return tot_len;
+}

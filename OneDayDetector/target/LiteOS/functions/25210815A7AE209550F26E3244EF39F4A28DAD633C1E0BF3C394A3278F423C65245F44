@@ -1,0 +1,79 @@
+static lv_bidi_dir_t bracket_process(const char * txt, uint32_t next_pos, uint32_t len, uint32_t letter,
+                                     lv_bidi_dir_t base_dir)
+{
+    lv_bidi_dir_t bracket_dir = LV_BIDI_DIR_NEUTRAL;
+
+    uint8_t i;
+    /*Is the letter an opening bracket?*/
+    for(i = 0; bracket_left[i] != '\0'; i++) {
+        if(bracket_left[i] == letter) {
+            /* If so find it's matching closing bracket.
+             * If a char with base dir. direction is found then the brackets will have `base_dir` direction*/
+            uint32_t txt_i = next_pos;
+            while(txt_i < len) {
+                uint32_t letter_next = _lv_txt_encoded_next(txt, &txt_i);
+                if(letter_next == bracket_right[i]) {
+                    /*Closing bracket found*/
+                    break;
+                }
+                else {
+                    /*Save the dir*/
+                    lv_bidi_dir_t letter_dir = lv_bidi_get_letter_dir(letter_next);
+                    if(letter_dir == base_dir) {
+                        bracket_dir = base_dir;
+                    }
+                }
+            }
+
+            /*There were no matching closing bracket*/
+            if(txt_i > len)  return LV_BIDI_DIR_NEUTRAL;
+
+            /*There where a strong char with base dir in the bracket so the dir is found.*/
+            if(bracket_dir != LV_BIDI_DIR_NEUTRAL && bracket_dir != LV_BIDI_DIR_WEAK) break;
+
+            /*If there were no matching strong chars in the brackets then check the previous chars*/
+            txt_i = next_pos;
+            if(txt_i) _lv_txt_encoded_prev(txt, &txt_i);
+            while(txt_i > 0) {
+                uint32_t letter_next = _lv_txt_encoded_prev(txt, &txt_i);
+                lv_bidi_dir_t letter_dir = lv_bidi_get_letter_dir(letter_next);
+                if(letter_dir == LV_BIDI_DIR_LTR || letter_dir == LV_BIDI_DIR_RTL) {
+                    bracket_dir = letter_dir;
+                    break;
+                }
+            }
+
+
+            /*There where a previous strong char which can be used*/
+            if(bracket_dir != LV_BIDI_DIR_NEUTRAL) break;
+
+            /*There were no strong chars before the bracket, so use the base dir.*/
+            if(txt_i == 0) bracket_dir = base_dir;
+
+            break;
+        }
+    }
+
+
+    /*The letter was an opening bracket*/
+    if(bracket_left[i] != '\0') {
+
+        if(bracket_dir == LV_BIDI_DIR_NEUTRAL || br_stack_p == LV_BIDI_BRACKLET_DEPTH) return LV_BIDI_DIR_NEUTRAL;
+
+        br_stack[br_stack_p].bracklet_pos = i;
+        br_stack[br_stack_p].dir = bracket_dir;
+
+        br_stack_p++;
+        return bracket_dir;
+    }
+    else if(br_stack_p > 0) {
+        /*Is the letter a closing bracket of the last opening?*/
+        if(letter == bracket_right[br_stack[br_stack_p - 1].bracklet_pos]) {
+            bracket_dir = br_stack[br_stack_p - 1].dir;
+            br_stack_p--;
+            return bracket_dir;
+        }
+    }
+
+    return LV_BIDI_DIR_NEUTRAL;
+}

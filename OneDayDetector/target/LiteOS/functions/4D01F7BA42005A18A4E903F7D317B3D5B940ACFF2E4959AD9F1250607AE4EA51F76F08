@@ -1,0 +1,45 @@
+SECUREC_INLINE wchar_t SecConvertInputCharToWchar(SecScanSpec *spec, SecFileStream *stream)
+{
+    wchar_t tempWChar = L'?';   /* Set default char is ? */
+#if SECUREC_HAVE_MBTOWC
+    char temp[SECUREC_MULTI_BYTE_MAX_LEN + 1];
+    temp[0] = (char)spec->ch;
+    temp[1] = '\0';
+#if defined(SECUREC_COMPATIBLE_WIN_FORMAT)
+    if (SecIsLeadByte(spec->ch) != 0) {
+        spec->ch = SecGetChar(stream, &(spec->charCount));
+        temp[1] = (char)spec->ch;
+        temp[2] = '\0'; /* 2 of string terminator position */
+    }
+    if (mbtowc(&tempWChar, temp, sizeof(temp)) <= 0) {
+        /* No string termination error for tool */
+        tempWChar = L'?';
+    }
+#else
+    if (SecIsLeadByte(spec->ch) != 0) {
+        int convRes = 0;
+        int di = 1;
+        /* On Linux like system, the string is encoded in UTF-8 */
+        while (convRes <= 0 && di < (int)MB_CUR_MAX && di < SECUREC_MULTI_BYTE_MAX_LEN) {
+            spec->ch = SecGetChar(stream, &(spec->charCount));
+            temp[di] = (char)spec->ch;
+            ++di;
+            temp[di] = '\0';
+            convRes = mbtowc(&tempWChar, temp, sizeof(temp));
+        }
+        if (convRes <= 0) {
+            tempWChar = L'?';
+        }
+    } else {
+        if (mbtowc(&tempWChar, temp, sizeof(temp)) <= 0) {
+            tempWChar = L'?';
+        }
+    }
+#endif
+#else
+    (void)spec;      /* To clear e438 last value assigned not used , the compiler will optimize this code */
+    (void)stream;    /* To clear e438 last value assigned not used , the compiler will optimize this code */
+#endif /* SECUREC_HAVE_MBTOWC */
+
+    return tempWChar;
+}

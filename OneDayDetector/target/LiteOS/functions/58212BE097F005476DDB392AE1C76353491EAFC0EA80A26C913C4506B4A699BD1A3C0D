@@ -1,0 +1,95 @@
+HAL_StatusTypeDef HAL_DFSDM_ChannelCkabStart_IT(DFSDM_Channel_HandleTypeDef *hdfsdm_channel)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t channel;
+  uint32_t tickstart;
+#if defined(DFSDM2_Channel0)
+  DFSDM_Filter_TypeDef*       filter0Instance;
+#endif /* defined(DFSDM2_Channel0) */
+
+  /* Check parameters */
+  assert_param(IS_DFSDM_CHANNEL_ALL_INSTANCE(hdfsdm_channel->Instance));
+  
+  /* Check DFSDM channel state */
+  if(hdfsdm_channel->State != HAL_DFSDM_CHANNEL_STATE_READY)
+  {
+    /* Return error status */
+    status = HAL_ERROR;
+  }
+  else
+  {
+#if defined(DFSDM2_Channel0)
+
+    /* Get channel counter, channel handle table and channel 0 instance */
+    if(IS_DFSDM1_CHANNEL_INSTANCE(hdfsdm_channel->Instance))
+    {
+      filter0Instance   = DFSDM1_Filter0;
+    }
+    else
+    {
+      filter0Instance   = DFSDM2_Filter0;
+    }
+
+    /* Get channel number from channel instance */
+    channel = DFSDM_GetChannelFromInstance(hdfsdm_channel->Instance);
+
+    /* Get timeout */
+    tickstart = HAL_GetTick();
+
+    /* Clear clock absence flag */
+    while((((filter0Instance->FLTISR & DFSDM_FLTISR_CKABF) >> (DFSDM_FLTISR_CKABF_Pos + channel)) & 1U) != 0U)
+    {
+      filter0Instance->FLTICR = (1U << (DFSDM_FLTICR_CLRCKABF_Pos + channel));
+
+      /* Check the Timeout */
+      if((HAL_GetTick()-tickstart) > DFSDM_CKAB_TIMEOUT)
+      {
+        /* Set timeout status */
+        status = HAL_TIMEOUT;
+        break;
+      }
+    }
+
+    if(status == HAL_OK)
+    {
+      /* Activate clock absence detection interrupt */
+      filter0Instance->FLTCR2 |= DFSDM_FLTCR2_CKABIE;
+
+      /* Start clock absence detection */
+      hdfsdm_channel->Instance->CHCFGR1 |= DFSDM_CHCFGR1_CKABEN;
+    }
+#else  
+    /* Get channel number from channel instance */
+    channel = DFSDM_GetChannelFromInstance(hdfsdm_channel->Instance);
+
+    /* Get timeout */
+    tickstart = HAL_GetTick();
+
+    /* Clear clock absence flag */
+    while((((DFSDM1_Filter0->FLTISR & DFSDM_FLTISR_CKABF) >> (DFSDM_FLTISR_CKABF_Pos + channel)) & 1U) != 0U)
+    {
+      DFSDM1_Filter0->FLTICR = (1U << (DFSDM_FLTICR_CLRCKABF_Pos + channel));
+
+      /* Check the Timeout */
+      if((HAL_GetTick()-tickstart) > DFSDM_CKAB_TIMEOUT)
+      {
+        /* Set timeout status */
+        status = HAL_TIMEOUT;
+        break;
+      }
+    }
+
+    if(status == HAL_OK)
+    {
+      /* Activate clock absence detection interrupt */
+      DFSDM1_Filter0->FLTCR2 |= DFSDM_FLTCR2_CKABIE;
+
+      /* Start clock absence detection */
+      hdfsdm_channel->Instance->CHCFGR1 |= DFSDM_CHCFGR1_CKABEN;
+    }
+
+#endif /* defined(DFSDM2_Channel0) */ 
+  }
+  /* Return function status */
+  return status;
+}

@@ -1,0 +1,58 @@
+pbuf_realloc(struct pbuf *p, u16_t new_len)
+{
+  struct pbuf *q;
+  u16_t rem_len; /* remaining length */
+  u16_t shrink;
+
+  LWIP_ASSERT("pbuf_realloc: p != NULL", p != NULL);
+
+  /* desired length larger than current length? */
+  if (new_len >= p->tot_len) {
+    /* enlarging not yet supported */
+    return;
+  }
+
+  /* the pbuf chain grows by (new_len - p->tot_len) bytes
+   * (which may be negative in case of shrinking) */
+  shrink = (u16_t)(p->tot_len - new_len);
+
+  /* first, step over any pbufs that should remain in the chain */
+  rem_len = new_len;
+  q = p;
+  /* should this pbuf be kept? */
+  while (rem_len > q->len) {
+    /* decrease remaining length by pbuf length */
+    rem_len = (u16_t)(rem_len - q->len);
+    /* decrease total length indicator */
+    q->tot_len = (u16_t)(q->tot_len - shrink);
+    /* proceed to next pbuf in chain */
+    q = q->next;
+    LWIP_ASSERT("pbuf_realloc: q != NULL", q != NULL);
+  }
+  /* we have now reached the new last pbuf (in q) */
+  /* rem_len == desired length for pbuf q */
+
+  /* shrink allocated memory for PBUF_RAM */
+  /* (other types merely adjust their length fields */
+  if (pbuf_match_allocsrc(q, PBUF_TYPE_ALLOC_SRC_MASK_STD_HEAP) && (rem_len != q->len)
+#if LWIP_SUPPORT_CUSTOM_PBUF
+      && ((q->flags & PBUF_FLAG_IS_CUSTOM) == 0)
+#endif /* LWIP_SUPPORT_CUSTOM_PBUF */
+     ) {
+    /* reallocate and adjust the length of the pbuf that will be split */
+    q = (struct pbuf *)mem_trim(q, (mem_size_t)(((u8_t *)q->payload - (u8_t *)q) + rem_len));
+    LWIP_ASSERT("mem_trim returned q == NULL", q != NULL);
+  }
+  /* adjust length fields for new last pbuf */
+  q->len = rem_len;
+  q->tot_len = q->len;
+
+  /* any remaining pbufs in chain? */
+  if (q->next != NULL) {
+    /* free remaining pbufs in chain */
+    pbuf_free(q->next);
+  }
+  /* q is last packet in chain */
+  q->next = NULL;
+
+}

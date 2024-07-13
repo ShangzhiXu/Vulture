@@ -1,0 +1,24 @@
+__STATIC_INLINE uint32_t LL_LPUART_GetBaudRate(USART_TypeDef *LPUARTx, uint32_t PeriphClk, uint32_t PrescalerValue)
+#else
+__STATIC_INLINE uint32_t LL_LPUART_GetBaudRate(USART_TypeDef *LPUARTx, uint32_t PeriphClk)
+#endif
+{
+  register uint32_t lpuartdiv = 0x0U;
+  register uint32_t brrresult = 0x0U;
+#if defined(USART_PRESC_PRESCALER)
+  register uint32_t periphclkpresc = (uint32_t)(PeriphClk / (LPUART_PRESCALER_TAB[PrescalerValue]));
+#endif
+
+  lpuartdiv = LPUARTx->BRR & LPUART_BRR_MASK;
+
+  if (lpuartdiv >= LPUART_BRR_MIN_VALUE)
+  {
+#if defined(USART_PRESC_PRESCALER)
+    brrresult = (uint32_t)(((uint64_t)(periphclkpresc) * LPUART_LPUARTDIV_FREQ_MUL) / lpuartdiv);
+#else
+    brrresult = (uint32_t)(((uint64_t)(PeriphClk) * LPUART_LPUARTDIV_FREQ_MUL) / lpuartdiv);
+#endif
+  }
+
+  return (brrresult);
+}

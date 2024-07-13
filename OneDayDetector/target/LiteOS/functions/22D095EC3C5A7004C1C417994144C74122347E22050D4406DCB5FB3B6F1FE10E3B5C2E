@@ -1,0 +1,21 @@
+UINT32 OsMuxPreCheck(pthread_mutex_t *mutex, LosTaskCB *runTask)
+{
+    if (mutex == NULL) {
+        return EINVAL;
+    }
+
+    if (OS_INT_ACTIVE) {
+        return EPERM;
+    }
+
+    /* DO NOT recommend to use blocking API in system tasks */
+    if (runTask->taskFlags & OS_TASK_FLAG_SYSTEM) {
+        PRINT_DEBUG("Warning: DO NOT recommend to use %s in system tasks.\n", __FUNCTION__);
+    }
+
+    if (CheckMutexAttr(&mutex->stAttr) != LOS_OK) {
+        return EINVAL;
+    }
+
+    return ENOERR;
+}

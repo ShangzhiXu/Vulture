@@ -1,0 +1,26 @@
+STATIC VOID *OsGetRealPtr(const VOID *pool, VOID *ptr)
+{
+    VOID *realPtr = ptr;
+    UINT32 gapSize = *((UINT32 *)((UINTPTR)ptr - sizeof(UINT32)));
+
+    if (OS_MEM_NODE_GET_ALIGNED_FLAG(gapSize) && OS_MEM_NODE_GET_USED_FLAG(gapSize)) {
+#ifdef LOSCFG_MEM_RECORDINFO
+        OsMemRecordFree(ptr, 0);
+#endif
+        PRINT_ERR("[%s:%d]gapSize:0x%x error\n", __FUNCTION__, __LINE__, gapSize);
+        return NULL;
+    }
+    if (OS_MEM_NODE_GET_ALIGNED_FLAG(gapSize)) {
+        gapSize = OS_MEM_NODE_GET_ALIGNED_GAPSIZE(gapSize);
+        if ((gapSize & (OS_MEM_ALIGN_SIZE - 1)) ||
+            (gapSize > ((UINTPTR)ptr - OS_MEM_NODE_HEAD_SIZE - (UINTPTR)pool))) {
+            PRINT_ERR("[%s:%d]gapSize:0x%x error\n", __FUNCTION__, __LINE__, gapSize);
+#ifdef LOSCFG_MEM_RECORDINFO
+            OsMemRecordFree(ptr, 0);
+#endif
+            return NULL;
+        }
+        realPtr = (VOID *)((UINTPTR)ptr - (UINTPTR)gapSize);
+    }
+    return realPtr;
+}

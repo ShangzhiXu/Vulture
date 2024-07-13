@@ -1,0 +1,23 @@
+static inline void aria_a( uint32_t *a, uint32_t *b,
+                           uint32_t *c, uint32_t *d )
+{
+    uint32_t ta, tb, tc;
+    ta  =  *b;                      // 4567
+    *b  =  *a;                      // 0123
+    *a  =  ARIA_P2( ta );           // 6745
+    tb  =  ARIA_P2( *d );           // efcd
+    *d  =  ARIA_P1( *c );           // 98ba
+    *c  =  ARIA_P1( tb );           // fedc
+    ta  ^= *d;                      // 4567+98ba
+    tc  =  ARIA_P2( *b );           // 2301
+    ta  =  ARIA_P1( ta ) ^ tc ^ *c; // 2301+5476+89ab+fedc
+    tb  ^= ARIA_P2( *d );           // ba98+efcd
+    tc  ^= ARIA_P1( *a );           // 2301+7654
+    *b  ^= ta ^ tb;                 // 0123+2301+5476+89ab+ba98+efcd+fedc OUT
+    tb  =  ARIA_P2( tb ) ^ ta;      // 2301+5476+89ab+98ba+cdef+fedc
+    *a  ^= ARIA_P1( tb );           // 3210+4567+6745+89ab+98ba+dcfe+efcd OUT
+    ta  =  ARIA_P2( ta );           // 0123+7654+ab89+dcfe
+    *d  ^= ARIA_P1( ta ) ^ tc;      // 1032+2301+6745+7654+98ba+ba98+cdef OUT
+    tc  =  ARIA_P2( tc );           // 0123+5476
+    *c  ^= ARIA_P1( tc ) ^ ta;      // 0123+1032+4567+7654+ab89+dcfe+fedc OUT
+}

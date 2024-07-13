@@ -1,0 +1,70 @@
+HAL_StatusTypeDef HAL_MDIOS_UnRegisterCallback(MDIOS_HandleTypeDef *hmdios, HAL_MDIOS_CallbackIDTypeDef CallbackID)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process locked */
+  __HAL_LOCK(hmdios);
+
+  if(hmdios->State == HAL_MDIOS_STATE_READY)
+  {
+    switch (CallbackID)
+    {
+    case HAL_MDIOS_WRITE_COMPLETE_CB_ID :
+      hmdios->WriteCpltCallback = HAL_MDIOS_WriteCpltCallback;
+      break;
+
+    case HAL_MDIOS_READ_COMPLETE_CB_ID :
+      hmdios->ReadCpltCallback = HAL_MDIOS_ReadCpltCallback;
+      break;
+
+    case HAL_MDIOS_ERROR_CB_ID :
+      hmdios->ErrorCallback = HAL_MDIOS_ErrorCallback;
+      break;
+
+    case HAL_MDIOS_WAKEUP_CB_ID :
+      hmdios->WakeUpCallback = HAL_MDIOS_WakeUpCallback;
+      break;
+
+    case HAL_MDIOS_MSPINIT_CB_ID :
+      hmdios->MspInitCallback = HAL_MDIOS_MspInit;
+      break;
+
+    case HAL_MDIOS_MSPDEINIT_CB_ID :
+      hmdios->MspDeInitCallback = HAL_MDIOS_MspDeInit;
+      break;
+
+    default :
+      /* Return error status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else if(hmdios->State == HAL_MDIOS_STATE_RESET)
+  {
+    switch (CallbackID)
+    {
+    case HAL_MDIOS_MSPINIT_CB_ID :
+      hmdios->MspInitCallback = HAL_MDIOS_MspInit;
+      break;
+
+    case HAL_MDIOS_MSPDEINIT_CB_ID :
+      hmdios->MspDeInitCallback = HAL_MDIOS_MspDeInit;
+      break;
+
+    default :
+      /* Return error status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else
+  {
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hmdios);
+
+  return status;
+}

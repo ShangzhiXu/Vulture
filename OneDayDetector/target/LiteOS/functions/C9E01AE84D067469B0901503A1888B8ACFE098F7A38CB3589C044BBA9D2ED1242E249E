@@ -1,0 +1,15 @@
+SECUREC_INLINE int SecIsNumberNeedTo32Bit(const SecFormatAttr *attr)
+{
+    return (int)(((attr->flags & SECUREC_FLAG_I64) == 0) &&
+#ifdef SECUREC_COMPATIBLE_LINUX_FORMAT
+            ((attr->flags & SECUREC_FLAG_INTMAX) == 0) &&
+#endif
+#ifdef SECUREC_ON_64BITS
+            ((attr->flags & SECUREC_FLAG_PTRDIFF) == 0) &&
+            ((attr->flags & SECUREC_FLAG_SIZE) == 0) &&
+#if !defined(SECUREC_COMPATIBLE_WIN_FORMAT)  /* on window 64 system sizeof long is 32bit */
+            ((attr->flags & SECUREC_FLAG_LONG) == 0) &&
+#endif
+#endif
+            ((attr->flags & SECUREC_FLAG_LONGLONG) == 0));
+}

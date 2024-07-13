@@ -1,0 +1,101 @@
+HAL_StatusTypeDef  FSMC_NORSRAM_Init(FSMC_NORSRAM_TypeDef *Device, FSMC_NORSRAM_InitTypeDef* Init)
+{ 
+  uint32_t tmpr = 0U;
+    
+  /* Check the parameters */
+  assert_param(IS_FSMC_NORSRAM_DEVICE(Device));
+  assert_param(IS_FSMC_NORSRAM_BANK(Init->NSBank));
+  assert_param(IS_FSMC_MUX(Init->DataAddressMux));
+  assert_param(IS_FSMC_MEMORY(Init->MemoryType));
+  assert_param(IS_FSMC_NORSRAM_MEMORY_WIDTH(Init->MemoryDataWidth));
+  assert_param(IS_FSMC_BURSTMODE(Init->BurstAccessMode));
+  assert_param(IS_FSMC_WAIT_POLARITY(Init->WaitSignalPolarity));
+#if defined(STM32F405xx) || defined(STM32F415xx) || defined(STM32F407xx) || defined(STM32F417xx)
+  assert_param(IS_FSMC_WRAP_MODE(Init->WrapMode));
+#endif /* STM32F405xx || STM32F415xx || STM32F407xx || STM32F417xx */
+  assert_param(IS_FSMC_WAIT_SIGNAL_ACTIVE(Init->WaitSignalActive));
+  assert_param(IS_FSMC_WRITE_OPERATION(Init->WriteOperation));
+  assert_param(IS_FSMC_WAITE_SIGNAL(Init->WaitSignal));
+  assert_param(IS_FSMC_EXTENDED_MODE(Init->ExtendedMode));
+  assert_param(IS_FSMC_ASYNWAIT(Init->AsynchronousWait));
+  assert_param(IS_FSMC_WRITE_BURST(Init->WriteBurst));
+  assert_param(IS_FSMC_PAGESIZE(Init->PageSize));
+#if defined(STM32F412Zx) || defined(STM32F412Vx) || defined(STM32F412Rx) || defined(STM32F413xx) || defined(STM32F423xx)
+  assert_param(IS_FSMC_WRITE_FIFO(Init->WriteFifo));
+  assert_param(IS_FSMC_CONTINOUS_CLOCK(Init->ContinuousClock));
+#endif /* STM32F412Zx || STM32F412Vx || STM32F413xx || STM32F423xx */
+  
+  /* Get the BTCR register value */
+  tmpr = Device->BTCR[Init->NSBank];
+
+#if defined(STM32F405xx) || defined(STM32F415xx) || defined(STM32F407xx) || defined(STM32F417xx)
+  /* Clear MBKEN, MUXEN, MTYP, MWID, FACCEN, BURSTEN, WAITPOL, WRAPMOD, WAITCFG, WREN,
+           WAITEN, EXTMOD, ASYNCWAIT, CPSIZE and CBURSTRW bits */
+  tmpr &= ((uint32_t)~(FSMC_BCR1_MBKEN     | FSMC_BCR1_MUXEN    | FSMC_BCR1_MTYP     | \
+                       FSMC_BCR1_MWID      | FSMC_BCR1_FACCEN   | FSMC_BCR1_BURSTEN  | \
+                       FSMC_BCR1_WAITPOL   | FSMC_BCR1_WRAPMOD  | FSMC_BCR1_WAITCFG  | \
+                       FSMC_BCR1_WREN      | FSMC_BCR1_WAITEN   | FSMC_BCR1_EXTMOD   | \
+                       FSMC_BCR1_ASYNCWAIT | FSMC_BCR1_CPSIZE   | FSMC_BCR1_CBURSTRW));
+  /* Set NORSRAM device control parameters */
+  tmpr |= (uint32_t)(Init->DataAddressMux       |\
+                     Init->MemoryType           |\
+                     Init->MemoryDataWidth      |\
+                     Init->BurstAccessMode      |\
+                     Init->WaitSignalPolarity   |\
+                     Init->WrapMode             |\
+                     Init->WaitSignalActive     |\
+                     Init->WriteOperation       |\
+                     Init->WaitSignal           |\
+                     Init->ExtendedMode         |\
+                     Init->AsynchronousWait     |\
+                     Init->PageSize             |\
+                     Init->WriteBurst
+                     );
+#else /* STM32F412Zx || STM32F412Vx || STM32F412Rx || STM32F413xx || STM32F423xx */
+  /* Clear MBKEN, MUXEN, MTYP, MWID, FACCEN, BURSTEN, WAITPOL, WAITCFG, WREN,
+           WAITEN, EXTMOD, ASYNCWAIT,CPSIZE,  CBURSTRW, CCLKEN and WFDIS bits */
+  tmpr &= ((uint32_t)~(FSMC_BCR1_MBKEN     | FSMC_BCR1_MUXEN    | FSMC_BCR1_MTYP      | \
+                       FSMC_BCR1_MWID      | FSMC_BCR1_FACCEN   | FSMC_BCR1_BURSTEN   | \
+                       FSMC_BCR1_WAITPOL   | FSMC_BCR1_WAITCFG  | FSMC_BCR1_WREN      | \
+                       FSMC_BCR1_WAITEN    | FSMC_BCR1_EXTMOD   | FSMC_BCR1_ASYNCWAIT | \
+                       FSMC_BCR1_CPSIZE    | FSMC_BCR1_CBURSTRW | FSMC_BCR1_CCLKEN    | \
+                       FSMC_BCR1_WFDIS));
+  /* Set NORSRAM device control parameters */
+  tmpr |= (uint32_t)(Init->DataAddressMux       |\
+                     Init->MemoryType           |\
+                     Init->MemoryDataWidth      |\
+                     Init->BurstAccessMode      |\
+                     Init->WaitSignalPolarity   |\
+                     Init->WaitSignalActive     |\
+                     Init->WriteOperation       |\
+                     Init->WaitSignal           |\
+                     Init->ExtendedMode         |\
+                     Init->AsynchronousWait     |\
+                     Init->WriteBurst           |\
+                     Init->ContinuousClock      |\
+                     Init->PageSize             |\
+                     Init->WriteFifo);
+#endif /* STM32F405xx || STM32F415xx || STM32F407xx || STM32F417xx */ 
+            
+  if(Init->MemoryType == FSMC_MEMORY_TYPE_NOR)
+  {
+    tmpr |= (uint32_t)FSMC_NORSRAM_FLASH_ACCESS_ENABLE;
+  }
+
+  Device->BTCR[Init->NSBank] = tmpr;
+
+#if defined(STM32F412Zx) || defined(STM32F412Vx) || defined(STM32F412Rx) || defined(STM32F413xx) || defined(STM32F423xx)
+  /* Configure synchronous mode when Continuous clock is enabled for bank2..4 */
+  if((Init->ContinuousClock == FSMC_CONTINUOUS_CLOCK_SYNC_ASYNC) && (Init->NSBank != FSMC_NORSRAM_BANK1))
+  {
+    Device->BTCR[FSMC_NORSRAM_BANK1] |= (uint32_t)(Init->ContinuousClock);
+  }
+
+  if(Init->NSBank != FSMC_NORSRAM_BANK1)
+  {
+    Device->BTCR[FSMC_NORSRAM_BANK1] |= (uint32_t)(Init->WriteFifo);
+  }
+#endif /* STM32F412Zx || STM32F412Vx || STM32F412Rx || STM32F413xx || STM32F423xx */
+
+  return HAL_OK;
+}

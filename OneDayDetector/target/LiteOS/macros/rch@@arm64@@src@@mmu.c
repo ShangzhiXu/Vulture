@@ -1,0 +1,5 @@
+#define PMD_ADDR_GET(addr)   (PMD_PAGE_GET(addr) + PMD_OFFSET_GET(addr))
+#define PMD_OFFSET_GET(addr) ((((addr) & (MMU_1G - 1)) >> SHIFT_2M) * 8)
+#define PMD_PAGE_GET(addr)   (((addr) >> SHIFT_1G) * PAGE_SIZE + PMD_ADDR0)
+#define PTE_TABLE_GET(addr)  (*(UINT64 *)(PMD_ADDR_GET(addr)) >> SHIFT_4K << SHIFT_4K)
+#define SECOND_PAGE_TABLE_MAPPING_LEN(table) ((sizeof(table) >> 3) << 12)

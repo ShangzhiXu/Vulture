@@ -1,0 +1,62 @@
+HAL_StatusTypeDef USB_HostInit (USB_OTG_GlobalTypeDef *USBx, USB_OTG_CfgTypeDef cfg)
+{
+  uint32_t index = 0;
+  
+  /* Restart the Phy Clock */
+  USBx_PCGCCTL = 0;
+  
+  /* no VBUS sensing*/
+  USBx->GCCFG &=~ (USB_OTG_GCCFG_VBUSASEN);
+  USBx->GCCFG &=~ (USB_OTG_GCCFG_VBUSBSEN);
+  
+  /* Disable the FS/LS support mode only */
+  if((cfg.speed == USB_OTG_SPEED_FULL)&&
+     (USBx != USB_OTG_FS))
+  {
+    USBx_HOST->HCFG |= USB_OTG_HCFG_FSLSS; 
+  }
+  else
+  {
+    USBx_HOST->HCFG &= ~(USB_OTG_HCFG_FSLSS);  
+  }
+  
+  /* Make sure the FIFOs are flushed. */
+  USB_FlushTxFifo(USBx, 0x10 ); /* all Tx FIFOs */
+  USB_FlushRxFifo(USBx);
+  
+  /* Clear all pending HC Interrupts */
+  for (index = 0; index < cfg.Host_channels; index++)
+  {
+    USBx_HC(index)->HCINT = 0xFFFFFFFF;
+    USBx_HC(index)->HCINTMSK = 0;
+  }
+  
+  /* Enable VBUS driving */
+  USB_DriveVbus(USBx, 1);
+  
+  HAL_Delay(200);
+  
+  /* Disable all interrupts. */
+  USBx->GINTMSK = 0;
+  
+  /* Clear any pending interrupts */
+  USBx->GINTSTS = 0xFFFFFFFF;
+  
+  if(USBx == USB_OTG_FS)
+  {
+    /* set Rx FIFO size */
+    USBx->GRXFSIZ  = (uint32_t )0x80; 
+    USBx->DIEPTXF0_HNPTXFSIZ = (uint32_t )(((0x60 << 16)& USB_OTG_NPTXFD) | 0x80);
+    USBx->HPTXFSIZ = (uint32_t )(((0x40 << 16)& USB_OTG_HPTXFSIZ_PTXFD) | 0xE0);
+  }
+  
+  /* Enable the common interrupts */
+  USBx->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM;
+  
+  /* Enable interrupts matching to the Host mode ONLY */
+  USBx->GINTMSK |= (USB_OTG_GINTMSK_PRTIM            | USB_OTG_GINTMSK_HCIM |\
+                    USB_OTG_GINTMSK_SOFM             |USB_OTG_GINTSTS_DISCINT|\
+                    USB_OTG_GINTMSK_PXFRM_IISOOXFRM  | USB_OTG_GINTMSK_WUIM);
+  
+  return HAL_OK;
+}

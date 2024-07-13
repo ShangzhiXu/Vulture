@@ -1,0 +1,68 @@
+uint32_t wm8994_SetVolume(uint16_t DeviceAddr, uint8_t Volume)
+{
+  uint32_t counter = 0;
+  uint8_t convertedvol = VOLUME_CONVERT(Volume);
+
+  /* Output volume */
+  if (outputEnabled != 0)
+  {
+    if(convertedvol > 0x3E)
+    {
+      /* Unmute audio codec */
+      counter += wm8994_SetMute(DeviceAddr, AUDIO_MUTE_OFF);
+
+      /* Left Headphone Volume */
+      counter += CODEC_IO_Write(DeviceAddr, 0x1C, 0x3F | 0x140);
+
+      /* Right Headphone Volume */
+      counter += CODEC_IO_Write(DeviceAddr, 0x1D, 0x3F | 0x140);
+
+      /* Left Speaker Volume */
+      counter += CODEC_IO_Write(DeviceAddr, 0x26, 0x3F | 0x140);
+
+      /* Right Speaker Volume */
+      counter += CODEC_IO_Write(DeviceAddr, 0x27, 0x3F | 0x140);
+    }
+    else if (Volume == 0)
+    {
+      /* Mute audio codec */
+      counter += wm8994_SetMute(DeviceAddr, AUDIO_MUTE_ON);
+    }
+    else
+    {
+      /* Unmute audio codec */
+      counter += wm8994_SetMute(DeviceAddr, AUDIO_MUTE_OFF);
+
+      /* Left Headphone Volume */
+      counter += CODEC_IO_Write(DeviceAddr, 0x1C, convertedvol | 0x140);
+
+      /* Right Headphone Volume */
+      counter += CODEC_IO_Write(DeviceAddr, 0x1D, convertedvol | 0x140);
+
+      /* Left Speaker Volume */
+      counter += CODEC_IO_Write(DeviceAddr, 0x26, convertedvol | 0x140);
+
+      /* Right Speaker Volume */
+      counter += CODEC_IO_Write(DeviceAddr, 0x27, convertedvol | 0x140);
+    }
+  }
+
+  /* Input volume */
+  if (inputEnabled != 0)
+  {
+    convertedvol = VOLUME_IN_CONVERT(Volume);
+
+    /* Left AIF1 ADC1 volume */
+    counter += CODEC_IO_Write(DeviceAddr, 0x400, convertedvol | 0x100);
+
+    /* Right AIF1 ADC1 volume */
+    counter += CODEC_IO_Write(DeviceAddr, 0x401, convertedvol | 0x100);
+
+    /* Left AIF1 ADC2 volume */
+    counter += CODEC_IO_Write(DeviceAddr, 0x404, convertedvol | 0x100);
+
+    /* Right AIF1 ADC2 volume */
+    counter += CODEC_IO_Write(DeviceAddr, 0x405, convertedvol | 0x100);
+  }
+  return counter;
+}

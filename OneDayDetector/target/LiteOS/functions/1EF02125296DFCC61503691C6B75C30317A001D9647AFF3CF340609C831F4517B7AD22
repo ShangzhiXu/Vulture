@@ -1,0 +1,25 @@
+void HAL_DSI_EndOfRefreshCallback(DSI_HandleTypeDef *hdsi)
+{
+    if(LCD_ActiveRegion < ZONES ) {
+        /* Disable DSI Wrapper */
+        __HAL_DSI_WRAPPER_DISABLE(hdsi);
+        /* Update LTDC configuaration */
+        LTDC_LAYER(&hltdc_discovery, 0)->CFBAR  = LAYER0_ADDRESS + LCD_ActiveRegion  * HACT * sizeof(lv_color_t);
+        __HAL_LTDC_RELOAD_CONFIG(&hltdc_discovery);
+        __HAL_DSI_WRAPPER_ENABLE(hdsi);
+
+        LCD_SetUpdateRegion(LCD_ActiveRegion++);
+        /* Refresh the right part of the display */
+        HAL_DSI_Refresh(hdsi);
+    }
+    else {
+        __HAL_DSI_WRAPPER_DISABLE(&hdsi_discovery);
+        LTDC_LAYER(&hltdc_discovery, 0)->CFBAR  = LAYER0_ADDRESS;
+
+        __HAL_LTDC_RELOAD_CONFIG(&hltdc_discovery);
+        __HAL_DSI_WRAPPER_ENABLE(&hdsi_discovery);
+
+        LCD_SetUpdateRegion(0);
+        if(disp_drv.buffer)  lv_disp_flush_ready(&disp_drv);
+    }
+}

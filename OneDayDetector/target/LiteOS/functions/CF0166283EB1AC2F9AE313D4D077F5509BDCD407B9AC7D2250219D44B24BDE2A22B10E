@@ -1,0 +1,28 @@
+tcp_keepalive(struct tcp_pcb *pcb)
+{
+  err_t err;
+  struct pbuf *p;
+  u8_t optlen = LWIP_TCP_OPT_LENGTH_SEGMENT(0, pcb);
+
+  LWIP_ASSERT("tcp_keepalive: invalid pcb", pcb != NULL);
+
+  LWIP_DEBUGF(TCP_DEBUG, ("tcp_keepalive: sending KEEPALIVE probe to "));
+  ip_addr_debug_print_val(TCP_DEBUG, pcb->remote_ip);
+  LWIP_DEBUGF(TCP_DEBUG, ("\n"));
+
+  LWIP_DEBUGF(TCP_DEBUG, ("tcp_keepalive: tcp_ticks %"U32_F"   pcb->tmr %"U32_F" pcb->keep_cnt_sent %"U16_F"\n",
+                          tcp_ticks, pcb->tmr, (u16_t)pcb->keep_cnt_sent));
+
+  p = tcp_output_alloc_header(pcb, optlen, 0, lwip_htonl(pcb->snd_nxt - 1));
+  if (p == NULL) {
+    LWIP_DEBUGF(TCP_DEBUG,
+                ("tcp_keepalive: could not allocate memory for pbuf\n"));
+    return ERR_MEM;
+  }
+  tcp_output_fill_options(pcb, p, 0, optlen);
+  err = tcp_output_control_segment(pcb, p, &pcb->local_ip, &pcb->remote_ip);
+
+  LWIP_DEBUGF(TCP_DEBUG, ("tcp_keepalive: seqno %"U32_F" ackno %"U32_F" err %d.\n",
+                          pcb->snd_nxt - 1, pcb->rcv_nxt, (int)err));
+  return err;
+}

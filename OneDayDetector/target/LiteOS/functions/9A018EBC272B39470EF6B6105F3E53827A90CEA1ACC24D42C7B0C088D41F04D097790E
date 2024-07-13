@@ -1,0 +1,64 @@
+HAL_StatusTypeDef HAL_RTCEx_SetWakeUpTimer(RTC_HandleTypeDef *hrtc, uint32_t WakeUpCounter, uint32_t WakeUpClock)
+{
+  uint32_t tickstart = 0;
+
+  /* Check the parameters */
+  assert_param(IS_RTC_WAKEUP_CLOCK(WakeUpClock));
+  assert_param(IS_RTC_WAKEUP_COUNTER(WakeUpCounter));
+
+  /* Process Locked */
+  __HAL_LOCK(hrtc);
+
+  hrtc->State = HAL_RTC_STATE_BUSY;
+
+  /* Disable the write protection for RTC registers */
+  __HAL_RTC_WRITEPROTECTION_DISABLE(hrtc);
+
+  __HAL_RTC_WAKEUPTIMER_DISABLE(hrtc);
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  /*Check RTC WUTWF flag is reset only when wake up timer enabled*/
+  if((hrtc->Instance->CR & RTC_CR_WUTE) != RESET)
+  {
+    /* Wait till RTC WUTWF flag is set and if Time out is reached exit */
+    while(__HAL_RTC_WAKEUPTIMER_GET_FLAG(hrtc, RTC_FLAG_WUTWF) == RESET)
+    {
+      if((HAL_GetTick() - tickstart ) > RTC_TIMEOUT_VALUE)
+      {
+        /* Enable the write protection for RTC registers */
+        __HAL_RTC_WRITEPROTECTION_ENABLE(hrtc);
+
+        hrtc->State = HAL_RTC_STATE_TIMEOUT;
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(hrtc);
+
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+
+  /* Clear the Wakeup Timer clock source bits in CR register */
+  hrtc->Instance->CR &= (uint32_t)~RTC_CR_WUCKSEL;
+
+  /* Configure the clock source */
+  hrtc->Instance->CR |= (uint32_t)WakeUpClock;
+
+  /* Configure the Wakeup Timer counter */
+  hrtc->Instance->WUTR = (uint32_t)WakeUpCounter;
+
+   /* Enable the Wakeup Timer */
+  __HAL_RTC_WAKEUPTIMER_ENABLE(hrtc);
+
+  /* Enable the write protection for RTC registers */
+  __HAL_RTC_WRITEPROTECTION_ENABLE(hrtc);
+
+  hrtc->State = HAL_RTC_STATE_READY;
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(hrtc);
+
+  return HAL_OK;
+}

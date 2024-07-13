@@ -1,0 +1,118 @@
+HAL_StatusTypeDef HAL_SPI_Init(SPI_HandleTypeDef *hspi)
+{
+  uint32_t frxth;
+
+  /* Check the SPI handle allocation */
+  if (hspi == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_SPI_ALL_INSTANCE(hspi->Instance));
+  assert_param(IS_SPI_MODE(hspi->Init.Mode));
+  assert_param(IS_SPI_DIRECTION(hspi->Init.Direction));
+  assert_param(IS_SPI_DATASIZE(hspi->Init.DataSize));
+  assert_param(IS_SPI_NSS(hspi->Init.NSS));
+  assert_param(IS_SPI_NSSP(hspi->Init.NSSPMode));
+  assert_param(IS_SPI_BAUDRATE_PRESCALER(hspi->Init.BaudRatePrescaler));
+  assert_param(IS_SPI_FIRST_BIT(hspi->Init.FirstBit));
+  assert_param(IS_SPI_TIMODE(hspi->Init.TIMode));
+  if (hspi->Init.TIMode == SPI_TIMODE_DISABLE)
+  {
+    assert_param(IS_SPI_CPOL(hspi->Init.CLKPolarity));
+    assert_param(IS_SPI_CPHA(hspi->Init.CLKPhase));
+  }
+#if (USE_SPI_CRC != 0U)
+  assert_param(IS_SPI_CRC_CALCULATION(hspi->Init.CRCCalculation));
+  if (hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+  {
+    assert_param(IS_SPI_CRC_POLYNOMIAL(hspi->Init.CRCPolynomial));
+    assert_param(IS_SPI_CRC_LENGTH(hspi->Init.CRCLength));
+  }
+#else
+  hspi->Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+#endif /* USE_SPI_CRC */
+
+  if (hspi->State == HAL_SPI_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hspi->Lock = HAL_UNLOCKED;
+
+    /* Init the low level hardware : GPIO, CLOCK, NVIC... */
+    HAL_SPI_MspInit(hspi);
+  }
+
+  hspi->State = HAL_SPI_STATE_BUSY;
+
+  /* Disable the selected SPI peripheral */
+  __HAL_SPI_DISABLE(hspi);
+
+  /* Align by default the rs fifo threshold on the data size */
+  if (hspi->Init.DataSize > SPI_DATASIZE_8BIT)
+  {
+    frxth = SPI_RXFIFO_THRESHOLD_HF;
+  }
+  else
+  {
+    frxth = SPI_RXFIFO_THRESHOLD_QF;
+  }
+
+  /* CRC calculation is valid only for 16Bit and 8 Bit */
+  if ((hspi->Init.DataSize != SPI_DATASIZE_16BIT) && (hspi->Init.DataSize != SPI_DATASIZE_8BIT))
+  {
+    /* CRC must be disabled */
+    hspi->Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  }
+
+  /* Align the CRC Length on the data size */
+  if (hspi->Init.CRCLength == SPI_CRC_LENGTH_DATASIZE)
+  {
+    /* CRC Length aligned on the data size : value set by default */
+    if (hspi->Init.DataSize > SPI_DATASIZE_8BIT)
+    {
+      hspi->Init.CRCLength = SPI_CRC_LENGTH_16BIT;
+    }
+    else
+    {
+      hspi->Init.CRCLength = SPI_CRC_LENGTH_8BIT;
+    }
+  }
+
+  /*----------------------- SPIx CR1 & CR2 Configuration ---------------------*/
+  /* Configure : SPI Mode, Communication Mode, Clock polarity and phase, NSS management,
+  Communication speed, First bit and CRC calculation state */
+  WRITE_REG(hspi->Instance->CR1, (hspi->Init.Mode | hspi->Init.Direction |
+                                  hspi->Init.CLKPolarity | hspi->Init.CLKPhase | (hspi->Init.NSS & SPI_CR1_SSM) |
+                                  hspi->Init.BaudRatePrescaler | hspi->Init.FirstBit  | hspi->Init.CRCCalculation));
+#if (USE_SPI_CRC != 0U)
+  /* Configure : CRC Length */
+  if (hspi->Init.CRCLength == SPI_CRC_LENGTH_16BIT)
+  {
+    hspi->Instance->CR1 |= SPI_CR1_CRCL;
+  }
+#endif /* USE_SPI_CRC */
+
+  /* Configure : NSS management, TI Mode, NSS Pulse, Data size and Rx Fifo threshold */
+  WRITE_REG(hspi->Instance->CR2, (((hspi->Init.NSS >> 16U) & SPI_CR2_SSOE) | hspi->Init.TIMode |
+                                  hspi->Init.NSSPMode | hspi->Init.DataSize) | frxth);
+
+#if (USE_SPI_CRC != 0U)
+  /*---------------------------- SPIx CRCPOLY Configuration ------------------*/
+  /* Configure : CRC Polynomial */
+  if (hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+  {
+    WRITE_REG(hspi->Instance->CRCPR, hspi->Init.CRCPolynomial);
+  }
+#endif /* USE_SPI_CRC */
+
+#if defined(SPI_I2SCFGR_I2SMOD)
+  /* Activate the SPI mode (Make sure that I2SMOD bit in I2SCFGR register is reset) */
+  CLEAR_BIT(hspi->Instance->I2SCFGR, SPI_I2SCFGR_I2SMOD);
+#endif /* SPI_I2SCFGR_I2SMOD */
+
+  hspi->ErrorCode = HAL_SPI_ERROR_NONE;
+  hspi->State     = HAL_SPI_STATE_READY;
+
+  return HAL_OK;
+}

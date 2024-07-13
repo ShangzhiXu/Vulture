@@ -1,0 +1,53 @@
+HAL_StatusTypeDef HAL_EXTI_GetConfigLine(EXTI_HandleTypeDef *hexti, EXTI_ConfigTypeDef *pExtiConfig)
+{
+  /* Check null pointer */
+  if ((hexti == NULL) || (pExtiConfig == NULL))
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameter */
+  assert_param(IS_EXTI_LINE(hexti->Line));
+
+  /* Store handle line number to configuration structure */
+  pExtiConfig->Line = hexti->Line;
+
+  /* Get EXTI mode to configiguration structure */
+  if ((EXTI->IMR & hexti->Line) == hexti->Line)
+  {
+    pExtiConfig->Mode = EXTI_MODE_INTERRUPT;
+  }
+  else if ((EXTI->EMR & hexti->Line) == hexti->Line)
+  {
+    pExtiConfig->Mode = EXTI_MODE_EVENT;
+  }
+  else
+  {
+    /* No MODE selected */
+    pExtiConfig->Mode = 0x0Bu;
+  }
+
+  /* Get EXTI Trigger to configiguration structure */
+  if ((EXTI->RTSR & hexti->Line) == hexti->Line)
+  {
+    if ((EXTI->FTSR & hexti->Line) == hexti->Line)
+    {
+      pExtiConfig->Trigger = EXTI_TRIGGER_RISING_FALLING;
+    }
+    else
+    {
+      pExtiConfig->Trigger = EXTI_TRIGGER_RISING;
+    }
+  }
+  else if ((EXTI->FTSR & hexti->Line) == hexti->Line)
+  {
+    pExtiConfig->Trigger = EXTI_TRIGGER_FALLING;
+  }
+  else
+  {
+    /* No Trigger selected */
+    pExtiConfig->Trigger = 0x00u;
+  }
+
+  return HAL_OK;
+}

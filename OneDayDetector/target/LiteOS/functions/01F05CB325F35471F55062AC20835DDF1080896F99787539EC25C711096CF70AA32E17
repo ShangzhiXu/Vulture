@@ -1,0 +1,31 @@
+static void iterate_bundle_links(void (*func)(char *))
+{
+	TDB_DATA key, rec, pp;
+	char *p, *q;
+
+	key.dptr = blinks_id;
+	key.dsize = strlen(blinks_id);
+	rec = tdb_fetch(pppdb, key);
+	if (rec.dptr == NULL || rec.dsize <= 0) {
+		error("bundle link list not found (iterating list)");
+		if (rec.dptr != NULL)
+			free(rec.dptr);
+		return;
+	}
+	p = rec.dptr;
+	p[rec.dsize-1] = 0;
+	while ((q = strchr(p, ';')) != NULL) {
+		*q = 0;
+		key.dptr = p;
+		key.dsize = q - p;
+		pp = tdb_fetch(pppdb, key);
+		if (pp.dptr != NULL && pp.dsize > 0) {
+			pp.dptr[pp.dsize-1] = 0;
+			func(pp.dptr);
+		}
+		if (pp.dptr != NULL)
+			free(pp.dptr);
+		p = q + 1;
+	}
+	free(rec.dptr);
+}

@@ -1,0 +1,47 @@
+static int chapms_verify_response(ppp_pcb *pcb, int id, const char *name,
+		       const unsigned char *secret, int secret_len,
+		       const unsigned char *challenge, const unsigned char *response,
+		       char *message, int message_space) {
+	unsigned char md[MS_CHAP_RESPONSE_LEN];
+	int diff;
+	int challenge_len, response_len;
+	LWIP_UNUSED_ARG(id);
+	LWIP_UNUSED_ARG(name);
+
+	challenge_len = *challenge++;	/* skip length, is 8 */
+	response_len = *response++;
+	if (response_len != MS_CHAP_RESPONSE_LEN)
+		goto bad;
+
+#ifndef MSLANMAN
+	if (!response[MS_CHAP_USENT]) {
+		/* Should really propagate this into the error packet. */
+		ppp_notice("Peer request for LANMAN auth not supported");
+		goto bad;
+	}
+#endif
+
+	/* Generate the expected response. */
+	ChapMS(pcb, (const u_char *)challenge, (const char *)secret, secret_len, md);
+
+#ifdef MSLANMAN
+	/* Determine which part of response to verify against */
+	if (!response[MS_CHAP_USENT])
+		diff = memcmp(&response[MS_CHAP_LANMANRESP],
+			      &md[MS_CHAP_LANMANRESP], MS_CHAP_LANMANRESP_LEN);
+	else
+#endif
+		diff = memcmp(&response[MS_CHAP_NTRESP], &md[MS_CHAP_NTRESP],
+			      MS_CHAP_NTRESP_LEN);
+
+	if (diff == 0) {
+		ppp_slprintf(message, message_space, "Access granted");
+		return 1;
+	}
+
+ bad:
+	/* See comments below for MS-CHAP V2 */
+	ppp_slprintf(message, message_space, "E=691 R=1 C=%0.*B V=0",
+		 challenge_len, challenge);
+	return 0;
+}

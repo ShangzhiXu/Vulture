@@ -1,0 +1,24 @@
+HAL_PCCARD_StatusTypeDef HAL_PCCARD_ReadStatus(PCCARD_HandleTypeDef *hpccard)
+{
+  uint8_t data = 0U, status_pccard = PCCARD_BUSY;
+  
+  /* Check the PCCARD controller state */
+  if(hpccard->State == HAL_PCCARD_STATE_BUSY)
+  {
+     return HAL_PCCARD_STATUS_ONGOING;
+  } 
+
+  /* Read status operation */
+  data =  *(__IO uint8_t *)(PCCARD_IO_SPACE_PRIMARY_ADDR | ATA_STATUS_CMD_ALTERNATE);
+
+  if((data & PCCARD_TIMEOUT_ERROR) == PCCARD_TIMEOUT_ERROR)
+  {
+    status_pccard = PCCARD_TIMEOUT_ERROR;
+  } 
+  else if((data & PCCARD_READY) == PCCARD_READY)
+  {
+    status_pccard = PCCARD_READY;
+  }
+  
+  return (HAL_PCCARD_StatusTypeDef) status_pccard;
+}  

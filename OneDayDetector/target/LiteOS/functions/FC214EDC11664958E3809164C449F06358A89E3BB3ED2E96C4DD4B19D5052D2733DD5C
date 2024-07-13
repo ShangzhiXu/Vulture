@@ -1,0 +1,96 @@
+slipif_rxbyte(struct netif *netif, u8_t c)
+{
+  struct slipif_priv *priv;
+  struct pbuf *t;
+
+  LWIP_ASSERT("netif != NULL", (netif != NULL));
+  LWIP_ASSERT("netif->state != NULL", (netif->state != NULL));
+
+  priv = (struct slipif_priv *)netif->state;
+
+  switch (priv->state) {
+    case SLIP_RECV_NORMAL:
+      switch (c) {
+        case SLIP_END:
+          if (priv->recved > 0) {
+            /* Received whole packet. */
+            /* Trim the pbuf to the size of the received packet. */
+            pbuf_realloc(priv->q, priv->recved);
+
+            LINK_STATS_INC(link.recv);
+
+            LWIP_DEBUGF(SLIP_DEBUG, ("slipif: Got packet (%"U16_F" bytes)\n", priv->recved));
+            t = priv->q;
+            priv->p = priv->q = NULL;
+            priv->i = priv->recved = 0;
+            return t;
+          }
+          return NULL;
+        case SLIP_ESC:
+          priv->state = SLIP_RECV_ESCAPE;
+          return NULL;
+        default:
+          break;
+      } /* end switch (c) */
+      break;
+    case SLIP_RECV_ESCAPE:
+      /* un-escape END or ESC bytes, leave other bytes
+         (although that would be a protocol error) */
+      switch (c) {
+        case SLIP_ESC_END:
+          c = SLIP_END;
+          break;
+        case SLIP_ESC_ESC:
+          c = SLIP_ESC;
+          break;
+        default:
+          break;
+      }
+      priv->state = SLIP_RECV_NORMAL;
+      break;
+    default:
+      break;
+  } /* end switch (priv->state) */
+
+  /* byte received, packet not yet completely received */
+  if (priv->p == NULL) {
+    /* allocate a new pbuf */
+    LWIP_DEBUGF(SLIP_DEBUG, ("slipif_input: alloc\n"));
+    priv->p = pbuf_alloc(PBUF_LINK, (PBUF_POOL_BUFSIZE - PBUF_LINK_HLEN - PBUF_LINK_ENCAPSULATION_HLEN), PBUF_POOL);
+
+    if (priv->p == NULL) {
+      LINK_STATS_INC(link.drop);
+      LWIP_DEBUGF(SLIP_DEBUG, ("slipif_input: no new pbuf! (DROP)\n"));
+      /* don't process any further since we got no pbuf to receive to */
+      return NULL;
+    }
+
+    if (priv->q != NULL) {
+      /* 'chain' the pbuf to the existing chain */
+      pbuf_cat(priv->q, priv->p);
+    } else {
+      /* p is the first pbuf in the chain */
+      priv->q = priv->p;
+    }
+  }
+
+  /* this automatically drops bytes if > SLIP_MAX_SIZE */
+  if ((priv->p != NULL) && (priv->recved <= SLIP_MAX_SIZE)) {
+    ((u8_t *)priv->p->payload)[priv->i] = c;
+    priv->recved++;
+    priv->i++;
+    if (priv->i >= priv->p->len) {
+      /* on to the next pbuf */
+      priv->i = 0;
+      if (priv->p->next != NULL && priv->p->next->len > 0) {
+        /* p is a chain, on to the next in the chain */
+        priv->p = priv->p->next;
+      } else {
+        /* p is a single pbuf, set it to NULL so next time a new
+         * pbuf is allocated */
+        priv->p = NULL;
+      }
+    }
+  }
+  return NULL;
+}

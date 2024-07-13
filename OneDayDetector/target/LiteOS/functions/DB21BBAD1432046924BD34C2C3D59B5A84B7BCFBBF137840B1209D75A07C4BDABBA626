@@ -1,0 +1,55 @@
+LITE_OS_SEC_TEXT_INIT STATIC VOID OsTaskCBInit(LosTaskCB *taskCB, const TSK_INIT_PARAM_S *initParam,
+                                               VOID *stackPtr, const VOID *topStack, BOOL useUsrStack)
+{
+    taskCB->stackPointer = stackPtr;
+#ifdef LOSCFG_OBSOLETE_API
+    taskCB->args[0]      = initParam->auwArgs[0]; /* 0~3: just for args array index */
+    taskCB->args[1]      = initParam->auwArgs[1];
+    taskCB->args[2]      = initParam->auwArgs[2];
+    taskCB->args[3]      = initParam->auwArgs[3];
+#else
+    taskCB->args         = initParam->pArgs;
+#endif
+    taskCB->topOfStack   = (UINTPTR)topStack;
+    taskCB->stackSize    = initParam->uwStackSize;
+    taskCB->taskSem      = NULL;
+#ifdef LOSCFG_COMPAT_POSIX
+    taskCB->threadJoin   = NULL;
+#endif
+    taskCB->taskMux      = NULL;
+    taskCB->taskStatus   = OS_TASK_STATUS_SUSPEND;
+    taskCB->priority     = initParam->usTaskPrio;
+    taskCB->priBitMap    = 0;
+    taskCB->taskEntry    = initParam->pfnTaskEntry;
+#ifdef LOSCFG_BASE_IPC_EVENT
+    LOS_ListInit(&taskCB->event.stEventList);
+    taskCB->event.uwEventID = 0;
+    taskCB->eventMask    = 0;
+#endif
+
+    taskCB->taskName     = initParam->pcName;
+    taskCB->msg          = NULL;
+
+    taskCB->taskFlags    = ((initParam->uwResved == LOS_TASK_STATUS_DETACHED) ?
+                            OS_TASK_FLAG_DETACHED : 0); /* set the task is detached or joinable */
+    taskCB->usrStack     = useUsrStack ? 1 : 0; /* 0: dynamicly alloc stack space;1: user inputs stack space */
+    taskCB->signal       = SIGNAL_NONE;
+
+#ifdef LOSCFG_KERNEL_SMP
+    taskCB->currCpu      = OS_TASK_INVALID_CPUID;
+#if (LOSCFG_SCHED_MQ == YES)
+    taskCB->lastCpu      = OS_TASK_INVALID_CPUID;
+#endif
+    taskCB->cpuAffiMask  = (initParam->usCpuAffiMask) ? initParam->usCpuAffiMask : LOSCFG_KERNEL_CPU_MASK;
+#endif
+#ifdef LOSCFG_BASE_CORE_TIMESLICE
+    taskCB->timeSlice    = 0;
+#endif
+#ifdef LOSCFG_KERNEL_SMP_LOCKDEP
+    taskCB->lockDep.waitLock  = NULL;
+    taskCB->lockDep.lockDepth = 0;
+#endif
+#ifdef LOSCFG_DEBUG_SCHED_STATISTICS
+    (VOID)memset_s(&taskCB->schedStat, sizeof(SchedStat), 0, sizeof(SchedStat));
+#endif
+}

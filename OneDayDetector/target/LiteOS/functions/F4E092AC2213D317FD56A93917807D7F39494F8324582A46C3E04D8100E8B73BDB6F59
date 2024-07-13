@@ -1,0 +1,28 @@
+int mbedtls_sha256_ret( const unsigned char *input,
+                        size_t ilen,
+                        unsigned char output[32],
+                        int is224 )
+{
+    int ret;
+    mbedtls_sha256_context ctx;
+
+    SHA256_VALIDATE_RET( is224 == 0 || is224 == 1 );
+    SHA256_VALIDATE_RET( ilen == 0 || input != NULL );
+    SHA256_VALIDATE_RET( (unsigned char *)output != NULL );
+
+    mbedtls_sha256_init( &ctx );
+
+    if( ( ret = mbedtls_sha256_starts_ret( &ctx, is224 ) ) != 0 )
+        goto exit;
+
+    if( ( ret = mbedtls_sha256_update_ret( &ctx, input, ilen ) ) != 0 )
+        goto exit;
+
+    if( ( ret = mbedtls_sha256_finish_ret( &ctx, output ) ) != 0 )
+        goto exit;
+
+exit:
+    mbedtls_sha256_free( &ctx );
+
+    return( ret );
+}

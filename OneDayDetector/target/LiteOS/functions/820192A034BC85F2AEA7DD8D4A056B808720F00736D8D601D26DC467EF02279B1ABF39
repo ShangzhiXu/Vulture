@@ -1,0 +1,37 @@
+static int write_checksums(FILE *struct_file, const char *varname,
+                           u16_t hdr_len, u16_t hdr_chksum, const u8_t *file_data, size_t file_size)
+{
+  int chunk_size = TCP_MSS;
+  int offset, src_offset;
+  size_t len;
+  int i = 0;
+#if LWIP_TCP_TIMESTAMPS
+  /* when timestamps are used, usable space is 12 bytes less per segment */
+  chunk_size -= 12;
+#endif
+
+  fprintf(struct_file, "#if HTTPD_PRECALCULATED_CHECKSUM" NEWLINE);
+  fprintf(struct_file, "const struct fsdata_chksum chksums_%s[] = {" NEWLINE, varname);
+
+  if (hdr_len > 0) {
+    /* add checksum for HTTP header */
+    fprintf(struct_file, "{%d, 0x%04x, %d}," NEWLINE, 0, hdr_chksum, hdr_len);
+    i++;
+  }
+  src_offset = 0;
+  for (offset = hdr_len; ; offset += len) {
+    unsigned short chksum;
+    const void *data = (const void *)&file_data[src_offset];
+    len = LWIP_MIN(chunk_size, (int)file_size - src_offset);
+    if (len == 0) {
+      break;
+    }
+    chksum = ~inet_chksum(data, (u16_t)len);
+    /* add checksum for data */
+    fprintf(struct_file, "{%d, 0x%04x, %"SZT_F"}," NEWLINE, offset, chksum, len);
+    i++;
+  }
+  fprintf(struct_file, "};" NEWLINE);
+  fprintf(struct_file, "#endif /* HTTPD_PRECALCULATED_CHECKSUM */" NEWLINE);
+  return i;
+}

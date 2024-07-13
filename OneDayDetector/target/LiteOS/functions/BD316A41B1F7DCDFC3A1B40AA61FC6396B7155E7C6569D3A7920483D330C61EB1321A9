@@ -1,0 +1,79 @@
+static void I2Cx_MspInit(I2C_HandleTypeDef *i2c_handler)
+{
+  GPIO_InitTypeDef  gpio_init_structure;
+
+  if (i2c_handler == (I2C_HandleTypeDef*)(&hI2cAudioHandler))
+  {
+  /*** Configure the GPIOs ***/
+  /* Enable GPIO clock */
+  DISCOVERY_AUDIO_I2Cx_SCL_GPIO_CLK_ENABLE();
+  DISCOVERY_AUDIO_I2Cx_SDA_GPIO_CLK_ENABLE();
+  /* Configure I2C Tx as alternate function */
+  gpio_init_structure.Pin = DISCOVERY_AUDIO_I2Cx_SCL_PIN;
+  gpio_init_structure.Mode = GPIO_MODE_AF_OD;
+  gpio_init_structure.Pull = GPIO_NOPULL;
+  gpio_init_structure.Speed = GPIO_SPEED_FAST;
+  gpio_init_structure.Alternate = DISCOVERY_AUDIO_I2Cx_SCL_AF;
+  HAL_GPIO_Init(DISCOVERY_AUDIO_I2Cx_SCL_GPIO_PORT, &gpio_init_structure);
+
+  /* Configure I2C Rx as alternate function */
+  gpio_init_structure.Pin = DISCOVERY_AUDIO_I2Cx_SDA_PIN;
+  gpio_init_structure.Alternate = DISCOVERY_AUDIO_I2Cx_SDA_AF;
+  HAL_GPIO_Init(DISCOVERY_AUDIO_I2Cx_SDA_GPIO_PORT, &gpio_init_structure);
+
+  /*** Configure the I2C peripheral ***/
+  /* Enable I2C clock */
+  DISCOVERY_AUDIO_I2Cx_CLK_ENABLE();
+
+  /* Force the I2C peripheral clock reset */
+  DISCOVERY_AUDIO_I2Cx_FORCE_RESET();
+
+  /* Release the I2C peripheral clock reset */
+  DISCOVERY_AUDIO_I2Cx_RELEASE_RESET();
+
+  /* Enable and set I2C1 Interrupt to a lower priority */
+  HAL_NVIC_SetPriority(DISCOVERY_AUDIO_I2Cx_EV_IRQn, 0x0F, 0);
+  HAL_NVIC_EnableIRQ(DISCOVERY_AUDIO_I2Cx_EV_IRQn);
+
+  /* Enable and set I2C1 Interrupt to a lower priority */
+  HAL_NVIC_SetPriority(DISCOVERY_AUDIO_I2Cx_ER_IRQn, 0x0F, 0);
+  HAL_NVIC_EnableIRQ(DISCOVERY_AUDIO_I2Cx_ER_IRQn);    
+    
+  }
+  else
+  {
+  /*** Configure the GPIOs ***/
+  /* Enable GPIO clock */
+  DISCOVERY_EXT_I2Cx_SCL_SDA_GPIO_CLK_ENABLE();
+
+  /* Configure I2C Tx as alternate function */
+  gpio_init_structure.Pin = DISCOVERY_EXT_I2Cx_SCL_PIN;
+  gpio_init_structure.Mode = GPIO_MODE_AF_OD;
+  gpio_init_structure.Pull = GPIO_NOPULL;
+  gpio_init_structure.Speed = GPIO_SPEED_FAST;
+  gpio_init_structure.Alternate = DISCOVERY_EXT_I2Cx_SCL_SDA_AF;
+  HAL_GPIO_Init(DISCOVERY_EXT_I2Cx_SCL_SDA_GPIO_PORT, &gpio_init_structure);
+
+  /* Configure I2C Rx as alternate function */
+  gpio_init_structure.Pin = DISCOVERY_EXT_I2Cx_SDA_PIN;
+  HAL_GPIO_Init(DISCOVERY_EXT_I2Cx_SCL_SDA_GPIO_PORT, &gpio_init_structure);
+
+  /*** Configure the I2C peripheral ***/
+  /* Enable I2C clock */
+  DISCOVERY_EXT_I2Cx_CLK_ENABLE();
+
+  /* Force the I2C peripheral clock reset */
+  DISCOVERY_EXT_I2Cx_FORCE_RESET();
+
+  /* Release the I2C peripheral clock reset */
+  DISCOVERY_EXT_I2Cx_RELEASE_RESET();
+
+  /* Enable and set I2C1 Interrupt to a lower priority */
+  HAL_NVIC_SetPriority(DISCOVERY_EXT_I2Cx_EV_IRQn, 0x0F, 0);
+  HAL_NVIC_EnableIRQ(DISCOVERY_EXT_I2Cx_EV_IRQn);
+
+  /* Enable and set I2C1 Interrupt to a lower priority */
+  HAL_NVIC_SetPriority(DISCOVERY_EXT_I2Cx_ER_IRQn, 0x0F, 0);
+  HAL_NVIC_EnableIRQ(DISCOVERY_EXT_I2Cx_ER_IRQn);
+  }
+}

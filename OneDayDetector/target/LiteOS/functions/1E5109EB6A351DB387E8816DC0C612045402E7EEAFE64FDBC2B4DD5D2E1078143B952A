@@ -1,0 +1,178 @@
+uint32_t HAL_RCCEx_GetPeriphCLKFreq(uint32_t PeriphClk)
+{
+  uint32_t tmpreg = 0;
+  /* This variable is used to store the SAI clock frequency (value in Hz) */
+  uint32_t frequency = 0;
+  /* This variable is used to store the VCO Input (value in Hz) */
+  uint32_t vcoinput = 0;
+  /* This variable is used to store the SAI clock source */
+  uint32_t saiclocksource = 0;
+
+  if (PeriphClk == RCC_PERIPHCLK_SAI1)
+  {
+    saiclocksource = RCC->DCKCFGR1;
+    saiclocksource &= RCC_DCKCFGR1_SAI1SEL;
+    switch (saiclocksource)
+    {
+    case 0: /* PLLSAI is the clock source for SAI1 */
+      {
+        /* Configure the PLLSAI division factor */
+        /* PLLSAI_VCO Input  = PLL_SOURCE/PLLM */
+        if((RCC->PLLCFGR & RCC_PLLCFGR_PLLSRC) == RCC_PLLSOURCE_HSI)
+        {
+          /* In Case the PLL Source is HSI (Internal Clock) */
+          vcoinput = (HSI_VALUE / (uint32_t)(RCC->PLLCFGR & RCC_PLLCFGR_PLLM));
+        }
+        else
+        {
+          /* In Case the PLL Source is HSE (External Clock) */
+          vcoinput = ((HSE_VALUE / (uint32_t)(RCC->PLLCFGR & RCC_PLLCFGR_PLLM)));
+        }
+        /* PLLSAI_VCO Output = PLLSAI_VCO Input * PLLSAIN */
+        /* SAI_CLK(first level) = PLLSAI_VCO Output/PLLSAIQ */
+        tmpreg = (RCC->PLLSAICFGR & RCC_PLLSAICFGR_PLLSAIQ) >> 24;
+        frequency = (vcoinput * ((RCC->PLLSAICFGR & RCC_PLLSAICFGR_PLLSAIN) >> 6))/(tmpreg);
+
+        /* SAI_CLK_x = SAI_CLK(first level)/PLLSAIDIVQ */
+        tmpreg = (((RCC->DCKCFGR1 & RCC_DCKCFGR1_PLLSAIDIVQ) >> 8) + 1);
+        frequency = frequency/(tmpreg);
+        break;
+      }
+    case RCC_DCKCFGR1_SAI1SEL_0: /* PLLI2S is the clock source for SAI1 */
+      {
+        /* Configure the PLLI2S division factor */
+        /* PLLI2S_VCO Input  = PLL_SOURCE/PLLM */
+        if((RCC->PLLCFGR & RCC_PLLCFGR_PLLSRC) == RCC_PLLSOURCE_HSI)
+        {
+          /* In Case the PLL Source is HSI (Internal Clock) */
+          vcoinput = (HSI_VALUE / (uint32_t)(RCC->PLLCFGR & RCC_PLLCFGR_PLLM));
+        }
+        else
+        {
+          /* In Case the PLL Source is HSE (External Clock) */
+          vcoinput = ((HSE_VALUE / (uint32_t)(RCC->PLLCFGR & RCC_PLLCFGR_PLLM)));
+        }
+
+        /* PLLI2S_VCO Output = PLLI2S_VCO Input * PLLI2SN */
+        /* SAI_CLK(first level) = PLLI2S_VCO Output/PLLI2SQ */
+        tmpreg = (RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SQ) >> 24;
+        frequency = (vcoinput * ((RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SN) >> 6))/(tmpreg);
+
+        /* SAI_CLK_x = SAI_CLK(first level)/PLLI2SDIVQ */
+        tmpreg = ((RCC->DCKCFGR1 & RCC_DCKCFGR1_PLLI2SDIVQ) + 1);
+        frequency = frequency/(tmpreg);
+        break;
+      }
+    case RCC_DCKCFGR1_SAI1SEL_1: /* External clock is the clock source for SAI1 */
+      {
+        frequency = EXTERNAL_CLOCK_VALUE;
+        break;
+      }
+#if defined (STM32F765xx) || defined (STM32F767xx) || defined (STM32F769xx) || defined (STM32F777xx) || defined (STM32F779xx)
+    case RCC_DCKCFGR1_SAI1SEL: /* HSI or HSE is the clock source for SAI*/
+      {
+        if((RCC->PLLCFGR & RCC_PLLCFGR_PLLSRC) == RCC_PLLSOURCE_HSI)
+        {
+          /* In Case the main PLL Source is HSI */
+          frequency = HSI_VALUE;
+        }
+        else
+        {
+          /* In Case the main PLL Source is HSE */
+          frequency = HSE_VALUE;
+        }
+        break;
+      }
+#endif /* STM32F767xx || STM32F769xx || STM32F777xx || STM32F779xx */
+    default :
+      {
+        break;
+      }
+    }
+  }
+
+  if (PeriphClk == RCC_PERIPHCLK_SAI2)
+  {
+    saiclocksource = RCC->DCKCFGR1;
+    saiclocksource &= RCC_DCKCFGR1_SAI2SEL;
+    switch (saiclocksource)
+    {
+    case 0: /* PLLSAI is the clock source for SAI*/
+      {
+        /* Configure the PLLSAI division factor */
+        /* PLLSAI_VCO Input  = PLL_SOURCE/PLLM */
+        if((RCC->PLLCFGR & RCC_PLLCFGR_PLLSRC) == RCC_PLLSOURCE_HSI)
+        {
+          /* In Case the PLL Source is HSI (Internal Clock) */
+          vcoinput = (HSI_VALUE / (uint32_t)(RCC->PLLCFGR & RCC_PLLCFGR_PLLM));
+        }
+        else
+        {
+          /* In Case the PLL Source is HSE (External Clock) */
+          vcoinput = ((HSE_VALUE / (uint32_t)(RCC->PLLCFGR & RCC_PLLCFGR_PLLM)));
+        }
+        /* PLLSAI_VCO Output = PLLSAI_VCO Input * PLLSAIN */
+        /* SAI_CLK(first level) = PLLSAI_VCO Output/PLLSAIQ */
+        tmpreg = (RCC->PLLSAICFGR & RCC_PLLSAICFGR_PLLSAIQ) >> 24;
+        frequency = (vcoinput * ((RCC->PLLSAICFGR & RCC_PLLSAICFGR_PLLSAIN) >> 6))/(tmpreg);
+
+        /* SAI_CLK_x = SAI_CLK(first level)/PLLSAIDIVQ */
+        tmpreg = (((RCC->DCKCFGR1 & RCC_DCKCFGR1_PLLSAIDIVQ) >> 8) + 1);
+        frequency = frequency/(tmpreg);
+        break;
+      }
+    case RCC_DCKCFGR1_SAI2SEL_0: /* PLLI2S is the clock source for SAI2 */
+      {
+        /* Configure the PLLI2S division factor */
+        /* PLLI2S_VCO Input  = PLL_SOURCE/PLLM */
+        if((RCC->PLLCFGR & RCC_PLLCFGR_PLLSRC) == RCC_PLLSOURCE_HSI)
+        {
+          /* In Case the PLL Source is HSI (Internal Clock) */
+          vcoinput = (HSI_VALUE / (uint32_t)(RCC->PLLCFGR & RCC_PLLCFGR_PLLM));
+        }
+        else
+        {
+          /* In Case the PLL Source is HSE (External Clock) */
+          vcoinput = ((HSE_VALUE / (uint32_t)(RCC->PLLCFGR & RCC_PLLCFGR_PLLM)));
+        }
+
+        /* PLLI2S_VCO Output = PLLI2S_VCO Input * PLLI2SN */
+        /* SAI_CLK(first level) = PLLI2S_VCO Output/PLLI2SQ */
+        tmpreg = (RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SQ) >> 24;
+        frequency = (vcoinput * ((RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SN) >> 6))/(tmpreg);
+
+        /* SAI_CLK_x = SAI_CLK(first level)/PLLI2SDIVQ */
+        tmpreg = ((RCC->DCKCFGR1 & RCC_DCKCFGR1_PLLI2SDIVQ) + 1);
+        frequency = frequency/(tmpreg);
+        break;
+      }
+    case RCC_DCKCFGR1_SAI2SEL_1: /* External clock is the clock source for SAI2 */
+      {
+        frequency = EXTERNAL_CLOCK_VALUE;
+        break;
+      }
+#if defined (STM32F765xx) || defined (STM32F767xx) || defined (STM32F769xx) || defined (STM32F777xx) || defined (STM32F779xx)
+    case RCC_DCKCFGR1_SAI2SEL: /* HSI or HSE is the clock source for SAI2 */
+      {
+        if((RCC->PLLCFGR & RCC_PLLCFGR_PLLSRC) == RCC_PLLSOURCE_HSI)
+        {
+          /* In Case the main PLL Source is HSI */
+          frequency = HSI_VALUE;
+        }
+        else
+        {
+          /* In Case the main PLL Source is HSE */
+          frequency = HSE_VALUE;
+        }
+        break;
+      }
+#endif /* STM32F767xx || STM32F769xx || STM32F777xx || STM32F779xx */
+    default :
+      {
+        break;
+      }
+    }
+  }
+
+  return frequency;
+}

@@ -1,0 +1,68 @@
+ErrorStatus LL_DMA2D_Init(DMA2D_TypeDef *DMA2Dx, LL_DMA2D_InitTypeDef *DMA2D_InitStruct)
+{
+  ErrorStatus status = ERROR;
+  LL_DMA2D_ColorTypeDef DMA2D_ColorStruct;
+  uint32_t tmp, tmp1, tmp2;
+  uint32_t regMask, regValue;
+
+  /* Check the parameters */
+  assert_param(IS_DMA2D_ALL_INSTANCE(DMA2Dx));
+  assert_param(IS_LL_DMA2D_MODE(DMA2D_InitStruct->Mode));
+  assert_param(IS_LL_DMA2D_OCMODE(DMA2D_InitStruct->ColorMode));
+  assert_param(IS_LL_DMA2D_LINE(DMA2D_InitStruct->NbrOfLines));
+  assert_param(IS_LL_DMA2D_PIXEL(DMA2D_InitStruct->NbrOfPixelsPerLines));
+  assert_param(IS_LL_DMA2D_GREEN(DMA2D_InitStruct->OutputGreen));
+  assert_param(IS_LL_DMA2D_RED(DMA2D_InitStruct->OutputRed));
+  assert_param(IS_LL_DMA2D_BLUE(DMA2D_InitStruct->OutputBlue));
+  assert_param(IS_LL_DMA2D_ALPHA(DMA2D_InitStruct->OutputAlpha));
+  assert_param(IS_LL_DMA2D_OFFSET(DMA2D_InitStruct->LineOffset));
+#if defined (DMA2D_ALPHA_INV_RB_SWAP_SUPPORT)
+  assert_param(IS_LL_DMA2D_ALPHAINV(DMA2D_InitStruct->AlphaInversionMode));
+  assert_param(IS_LL_DMA2D_RBSWAP(DMA2D_InitStruct->RBSwapMode));
+#endif /* DMA2D_ALPHA_INV_RB_SWAP_SUPPORT */
+
+  /* DMA2D transfers must be disabled to configure bits in initialization registers */
+  tmp = LL_DMA2D_IsTransferOngoing(DMA2Dx);
+  tmp1 = LL_DMA2D_FGND_IsEnabledCLUTLoad(DMA2Dx);
+  tmp2 = LL_DMA2D_BGND_IsEnabledCLUTLoad(DMA2Dx);
+  if ((tmp == 0U) && (tmp1 == 0U) && (tmp2 == 0U))
+  {
+    /* DMA2D CR register configuration -------------------------------------------*/
+    LL_DMA2D_SetMode(DMA2Dx, DMA2D_InitStruct->Mode);
+
+    /* DMA2D OPFCCR register configuration ---------------------------------------*/
+    regMask = DMA2D_OPFCCR_CM;
+    regValue = DMA2D_InitStruct->ColorMode;
+
+
+#if defined(DMA2D_ALPHA_INV_RB_SWAP_SUPPORT)
+    regMask |= (DMA2D_OPFCCR_RBS | DMA2D_OPFCCR_AI);
+    regValue |= (DMA2D_InitStruct->AlphaInversionMode | DMA2D_InitStruct->RBSwapMode);
+#endif /* DMA2D_ALPHA_INV_RB_SWAP_SUPPORT */
+
+
+    MODIFY_REG(DMA2Dx->OPFCCR, regMask, regValue);
+
+    /* DMA2D OOR register configuration ------------------------------------------*/
+    LL_DMA2D_SetLineOffset(DMA2Dx, DMA2D_InitStruct->LineOffset);
+
+    /* DMA2D NLR register configuration ------------------------------------------*/
+    LL_DMA2D_ConfigSize(DMA2Dx, DMA2D_InitStruct->NbrOfLines, DMA2D_InitStruct->NbrOfPixelsPerLines);
+
+    /* DMA2D OMAR register configuration ------------------------------------------*/
+    LL_DMA2D_SetOutputMemAddr(DMA2Dx, DMA2D_InitStruct->OutputMemoryAddress);
+
+    /* DMA2D OCOLR register configuration ------------------------------------------*/
+    DMA2D_ColorStruct.ColorMode   = DMA2D_InitStruct->ColorMode;
+    DMA2D_ColorStruct.OutputBlue  = DMA2D_InitStruct->OutputBlue;
+    DMA2D_ColorStruct.OutputGreen = DMA2D_InitStruct->OutputGreen;
+    DMA2D_ColorStruct.OutputRed   = DMA2D_InitStruct->OutputRed;
+    DMA2D_ColorStruct.OutputAlpha = DMA2D_InitStruct->OutputAlpha;
+    LL_DMA2D_ConfigOutputColor(DMA2Dx, &DMA2D_ColorStruct);
+
+    status = SUCCESS;
+  }
+  /* If DMA2D transfers are not disabled, return ERROR */
+
+  return (status);
+}

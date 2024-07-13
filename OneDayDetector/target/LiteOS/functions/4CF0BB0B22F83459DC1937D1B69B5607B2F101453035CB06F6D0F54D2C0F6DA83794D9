@@ -1,0 +1,44 @@
+HAL_StatusTypeDef HAL_LTDC_SetWindowSize(LTDC_HandleTypeDef *hltdc, uint32_t XSize, uint32_t YSize, uint32_t LayerIdx)
+{
+  LTDC_LayerCfgTypeDef *pLayerCfg;
+
+  /* Check the parameters (Layers parameters)*/
+  assert_param(IS_LTDC_LAYER(LayerIdx));
+  assert_param(IS_LTDC_CFBLL(XSize));
+  assert_param(IS_LTDC_CFBLNBR(YSize));
+
+  /* Process locked */
+  __HAL_LOCK(hltdc);
+
+  /* Change LTDC peripheral state */
+  hltdc->State = HAL_LTDC_STATE_BUSY;
+
+  /* Get layer configuration from handle structure */
+  pLayerCfg = &hltdc->LayerCfg[LayerIdx];
+
+  /* update horizontal stop */
+  pLayerCfg->WindowX1 = XSize + pLayerCfg->WindowX0;
+
+  /* update vertical stop */
+  pLayerCfg->WindowY1 = YSize + pLayerCfg->WindowY0;
+
+  /* Reconfigures the color frame buffer pitch in byte */
+  pLayerCfg->ImageWidth = XSize;
+
+  /* Reconfigures the frame buffer line number */
+  pLayerCfg->ImageHeight = YSize;
+
+  /* Set LTDC parameters */
+  LTDC_SetConfig(hltdc, pLayerCfg, LayerIdx);
+
+  /* Set the Immediate Reload type */
+  hltdc->Instance->SRCR = LTDC_SRCR_IMR;
+
+  /* Change the LTDC state*/
+  hltdc->State = HAL_LTDC_STATE_READY;
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hltdc);
+
+  return HAL_OK;
+}

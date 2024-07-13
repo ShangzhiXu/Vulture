@@ -1,0 +1,34 @@
+static HAL_SD_ErrorTypedef SD_CmdResp2Error(SD_HandleTypeDef *hsd)
+{
+  HAL_SD_ErrorTypedef errorstate = SD_OK;
+  
+  while (!__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_FLAG_CCRCFAIL | SDIO_FLAG_CMDREND | SDIO_FLAG_CTIMEOUT))
+  {
+  }
+    
+  if (__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_FLAG_CTIMEOUT))
+  {
+    errorstate = SD_CMD_RSP_TIMEOUT;
+    
+    __HAL_SD_SDIO_CLEAR_FLAG(hsd, SDIO_FLAG_CTIMEOUT);
+    
+    return errorstate;
+  }
+  else if (__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_FLAG_CCRCFAIL))
+  {
+    errorstate = SD_CMD_CRC_FAIL;
+    
+    __HAL_SD_SDIO_CLEAR_FLAG(hsd, SDIO_FLAG_CCRCFAIL);
+    
+    return errorstate;
+  }
+  else
+  {
+    /* No error flag set */
+  }
+  
+  /* Clear all the static flags */
+  __HAL_SD_SDIO_CLEAR_FLAG(hsd, SDIO_STATIC_FLAGS);
+  
+  return errorstate;
+}

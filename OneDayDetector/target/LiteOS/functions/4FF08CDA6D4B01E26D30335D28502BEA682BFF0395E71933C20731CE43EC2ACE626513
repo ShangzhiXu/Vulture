@@ -1,0 +1,43 @@
+void HAL_DMAEx_MUX_IRQHandler(DMA_HandleTypeDef *hdma)
+{
+  /* Check for DMAMUX Synchronization overrun */
+  if((hdma->DMAmuxChannelStatus->CSR & hdma->DMAmuxChannelStatusMask) != 0U)
+  {
+    /* Disable the synchro overrun interrupt */
+    hdma->DMAmuxChannel->CCR &= ~DMAMUX_CxCR_SOIE;
+
+    /* Clear the DMAMUX synchro overrun flag */
+    hdma->DMAmuxChannelStatus->CFR = hdma->DMAmuxChannelStatusMask;
+
+    /* Update error code */
+    hdma->ErrorCode |= HAL_DMA_ERROR_SYNC;
+
+    if(hdma->XferErrorCallback != NULL)
+    {
+      /* Transfer error callback */
+      hdma->XferErrorCallback(hdma);
+    }
+  }
+
+  if(hdma->DMAmuxRequestGen != 0)
+  {
+   /* if using a DMAMUX request generator block Check for DMAMUX request generator overrun */
+    if((hdma->DMAmuxRequestGenStatus->RGSR & hdma->DMAmuxRequestGenStatusMask) != 0U)
+    {
+      /* Disable the request gen overrun interrupt */
+      hdma->DMAmuxRequestGen->RGCR &= ~DMAMUX_RGxCR_OIE;
+
+      /* Clear the DMAMUX request generator overrun flag */
+      hdma->DMAmuxRequestGenStatus->RGCFR = hdma->DMAmuxRequestGenStatusMask;
+
+      /* Update error code */
+      hdma->ErrorCode |= HAL_DMA_ERROR_REQGEN;
+
+      if(hdma->XferErrorCallback != NULL)
+      {
+        /* Transfer error callback */
+        hdma->XferErrorCallback(hdma);
+      }
+    }
+  }
+}

@@ -1,0 +1,55 @@
+HAL_StatusTypeDef HAL_SMBUS_Master_Abort_IT(SMBUS_HandleTypeDef *hsmbus, uint16_t DevAddress)
+{
+  if (hsmbus->State == HAL_SMBUS_STATE_READY)
+  {
+    /* Process Locked */
+    __HAL_LOCK(hsmbus);
+
+    /* Keep the same state as previous */
+    /* to perform as well the call of the corresponding end of transfer callback */
+    if (hsmbus->PreviousState == HAL_SMBUS_STATE_MASTER_BUSY_TX)
+    {
+      hsmbus->State = HAL_SMBUS_STATE_MASTER_BUSY_TX;
+    }
+    else if (hsmbus->PreviousState == HAL_SMBUS_STATE_MASTER_BUSY_RX)
+    {
+      hsmbus->State = HAL_SMBUS_STATE_MASTER_BUSY_RX;
+    }
+    else
+    {
+      /* Wrong usage of abort function */
+      /* This function should be used only in case of abort monitored by master device */
+      return HAL_ERROR;
+    }
+    hsmbus->ErrorCode = HAL_SMBUS_ERROR_NONE;
+
+    /* Set NBYTES to 1 to generate a dummy read on SMBUS peripheral */
+    /* Set AUTOEND mode, this will generate a NACK then STOP condition to abort the current transfer */
+    SMBUS_TransferConfig(hsmbus, DevAddress, 1, SMBUS_AUTOEND_MODE, SMBUS_NO_STARTSTOP);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hsmbus);
+
+    /* Note : The SMBUS interrupts must be enabled after unlocking current process
+              to avoid the risk of SMBUS interrupt handle execution before current
+              process unlock */
+    if (hsmbus->State == HAL_SMBUS_STATE_MASTER_BUSY_TX)
+    {
+      SMBUS_Enable_IRQ(hsmbus, SMBUS_IT_TX);
+    }
+    else if (hsmbus->State == HAL_SMBUS_STATE_MASTER_BUSY_RX)
+    {
+      SMBUS_Enable_IRQ(hsmbus, SMBUS_IT_RX);
+    }
+    else
+    {
+      /* Nothing to do */
+    }
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

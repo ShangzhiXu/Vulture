@@ -1,0 +1,23 @@
+mdns_resp_announce(struct netif *netif)
+{
+  struct mdns_host* mdns;
+  LWIP_ASSERT_CORE_LOCKED();
+  LWIP_ERROR("mdns_resp_announce: netif != NULL", (netif != NULL), return);
+
+  mdns = NETIF_TO_HOST(netif);
+  if (mdns == NULL) {
+    return;
+  }
+
+  if (mdns->probing_state == MDNS_PROBING_COMPLETE) {
+    /* Announce on IPv6 and IPv4 */
+#if LWIP_IPV6
+    mdns_announce(netif, IP6_ADDR_ANY);
+#endif
+#if LWIP_IPV4
+    if (!ip4_addr_isany_val(*netif_ip4_addr(netif))) {
+      mdns_announce(netif, IP4_ADDR_ANY);
+    }
+#endif
+  } /* else: ip address changed while probing was ongoing? @todo reset counter to restart? */
+}

@@ -1,0 +1,58 @@
+s32_t spiffs_page_allocate_data(
+    spiffs *fs,
+    spiffs_obj_id obj_id,
+    spiffs_page_header *ph,
+    u8_t *data,
+    u32_t len,
+    u32_t page_offs,
+    u8_t finalize,
+    spiffs_page_ix *pix)
+{
+    s32_t res = SPIFFS_OK;
+    spiffs_block_ix bix;
+    int entry;
+
+    // find free entry
+    res = spiffs_obj_lu_find_free(fs, fs->free_cursor_block_ix, fs->free_cursor_obj_lu_entry, &bix, &entry);
+    SPIFFS_CHECK_RES(res);
+
+    // occupy page in object lookup
+    res = _spiffs_wr(fs, SPIFFS_OP_T_OBJ_LU | SPIFFS_OP_C_UPDT,
+                     0, SPIFFS_BLOCK_TO_PADDR(fs, bix) + entry * sizeof(spiffs_obj_id), sizeof(spiffs_obj_id), (u8_t *)&obj_id);
+    SPIFFS_CHECK_RES(res);
+
+    fs->stats_p_allocated++;
+
+    // write page header
+    ph->flags &= ~SPIFFS_PH_FLAG_USED;
+    res = _spiffs_wr(fs, SPIFFS_OP_T_OBJ_DA | SPIFFS_OP_C_UPDT,
+                     0, SPIFFS_OBJ_LOOKUP_ENTRY_TO_PADDR(fs, bix, entry), sizeof(spiffs_page_header), (u8_t *)ph);
+    SPIFFS_CHECK_RES(res);
+
+    // write page data
+    if (data)
+    {
+        res = _spiffs_wr(fs,  SPIFFS_OP_T_OBJ_DA | SPIFFS_OP_C_UPDT,
+                         0, SPIFFS_OBJ_LOOKUP_ENTRY_TO_PADDR(fs, bix, entry) + sizeof(spiffs_page_header) + page_offs, len, data);
+        SPIFFS_CHECK_RES(res);
+    }
+
+    // finalize header if necessary
+    if (finalize && (ph->flags & SPIFFS_PH_FLAG_FINAL))
+    {
+        ph->flags &= ~SPIFFS_PH_FLAG_FINAL;
+        res = _spiffs_wr(fs, SPIFFS_OP_T_OBJ_DA | SPIFFS_OP_C_UPDT,
+                         0, SPIFFS_OBJ_LOOKUP_ENTRY_TO_PADDR(fs, bix, entry) + offsetof(spiffs_page_header, flags),
+                         sizeof(u8_t),
+                         (u8_t *)&ph->flags);
+        SPIFFS_CHECK_RES(res);
+    }
+
+    // return written page
+    if (pix)
+    {
+        *pix = SPIFFS_OBJ_LOOKUP_ENTRY_TO_PIX(fs, bix, entry);
+    }
+
+    return res;
+}

@@ -1,0 +1,21 @@
+static uint8_t prv_pre_auth_check(acc_ctrl_oi_t *accCtrlOiP, lwm2m_uri_t *uri,
+                                  OBJ_ACC_OPERATE op, uint16_t serverId)
+{
+    if (op == OBJ_ACC_CREATE) {
+        if (!prv_check_instance_auth(accCtrlOiP, uri->objectId, MAX_DATA_VAL, serverId, op)) {
+            return COAP_401_UNAUTHORIZED;
+        }
+        return COAP_NO_ERROR;
+    } else if (op == OBJ_ACC_DISCOVER) {
+        return COAP_NO_ERROR;
+    } else if (uri->objectId == LWM2M_ACL_OBJECT_ID) {
+        return prv_acc_self_auth_check(accCtrlOiP, uri, op, serverId);
+    } else {
+        if (LWM2M_URI_IS_SET_INSTANCE(uri)) {
+            if (!prv_check_instance_auth(accCtrlOiP, uri->objectId, uri->instanceId, serverId, op)) {
+                return COAP_401_UNAUTHORIZED;
+            }
+        }
+    }
+    return COAP_NO_ERROR;
+}

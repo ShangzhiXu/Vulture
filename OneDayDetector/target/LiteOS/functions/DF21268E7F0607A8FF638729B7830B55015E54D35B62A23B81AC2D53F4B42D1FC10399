@@ -1,0 +1,58 @@
+int mbedtls_ctr_drbg_self_test( int verbose )
+{
+    mbedtls_ctr_drbg_context ctx;
+    unsigned char buf[16];
+
+    mbedtls_ctr_drbg_init( &ctx );
+
+    /*
+     * Based on a NIST CTR_DRBG test vector (PR = True)
+     */
+    if( verbose != 0 )
+        mbedtls_printf( "  CTR_DRBG (PR = TRUE) : " );
+
+    test_offset = 0;
+    mbedtls_ctr_drbg_set_entropy_len( &ctx, 32 );
+    CHK( mbedtls_ctr_drbg_seed( &ctx,
+                                ctr_drbg_self_test_entropy,
+                                (void *) entropy_source_pr,
+                                nonce_pers_pr, 16 ) );
+    mbedtls_ctr_drbg_set_prediction_resistance( &ctx, MBEDTLS_CTR_DRBG_PR_ON );
+    CHK( mbedtls_ctr_drbg_random( &ctx, buf, MBEDTLS_CTR_DRBG_BLOCKSIZE ) );
+    CHK( mbedtls_ctr_drbg_random( &ctx, buf, MBEDTLS_CTR_DRBG_BLOCKSIZE ) );
+    CHK( memcmp( buf, result_pr, MBEDTLS_CTR_DRBG_BLOCKSIZE ) );
+
+    mbedtls_ctr_drbg_free( &ctx );
+
+    if( verbose != 0 )
+        mbedtls_printf( "passed\n" );
+
+    /*
+     * Based on a NIST CTR_DRBG test vector (PR = FALSE)
+     */
+    if( verbose != 0 )
+        mbedtls_printf( "  CTR_DRBG (PR = FALSE): " );
+
+    mbedtls_ctr_drbg_init( &ctx );
+
+    test_offset = 0;
+    mbedtls_ctr_drbg_set_entropy_len( &ctx, 32 );
+    CHK( mbedtls_ctr_drbg_seed( &ctx,
+                                ctr_drbg_self_test_entropy,
+                                (void *) entropy_source_nopr,
+                                nonce_pers_nopr, 16 ) );
+    CHK( mbedtls_ctr_drbg_random( &ctx, buf, 16 ) );
+    CHK( mbedtls_ctr_drbg_reseed( &ctx, NULL, 0 ) );
+    CHK( mbedtls_ctr_drbg_random( &ctx, buf, 16 ) );
+    CHK( memcmp( buf, result_nopr, 16 ) );
+
+    mbedtls_ctr_drbg_free( &ctx );
+
+    if( verbose != 0 )
+        mbedtls_printf( "passed\n" );
+
+    if( verbose != 0 )
+            mbedtls_printf( "\n" );
+
+    return( 0 );
+}

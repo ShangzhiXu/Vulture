@@ -1,0 +1,18 @@
+LITE_OS_SEC_TEXT_INIT STATIC VOID OsTaskStackAlloc(VOID **topStack, UINT32 stackSize, VOID *pool)
+{
+#ifdef LOSCFG_TASK_STACK_PROTECT
+    UINTPTR MMUProtectAddr;
+    UINT32 alignStackSize;
+
+    alignStackSize = ALIGN(stackSize, MMU_4K);
+    MMUProtectAddr = (UINTPTR)LOS_MemAllocAlign(pool, (alignStackSize + MMU_4K), MMU_4K);
+    if (MMUProtectAddr == 0) {
+        *topStack = NULL;
+    } else {
+        *topStack = (VOID *)(MMUProtectAddr + MMU_4K);
+        OsTaskStackProtect(MMUProtectAddr, MMU_4K, ACCESS_PERM_RO_RO);
+    }
+#else
+    *topStack = (VOID *)LOS_MemAllocAlign(pool, stackSize, LOSCFG_STACK_POINT_ALIGN_SIZE);
+#endif
+}

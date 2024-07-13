@@ -1,0 +1,30 @@
+void lcp_close(ppp_pcb *pcb, const char *reason) {
+    fsm *f = &pcb->lcp_fsm;
+    int oldstate;
+
+    if (pcb->phase != PPP_PHASE_DEAD
+#ifdef HAVE_MULTILINK
+    && pcb->phase != PPP_PHASE_MASTER
+#endif /* HAVE_MULTILINK */
+    )
+	new_phase(pcb, PPP_PHASE_TERMINATE);
+
+    if (f->flags & DELAYED_UP) {
+	UNTIMEOUT(lcp_delayed_up, f);
+	f->state = PPP_FSM_STOPPED;
+    }
+    oldstate = f->state;
+
+    fsm_close(f, reason);
+    if (oldstate == PPP_FSM_STOPPED && (f->flags & (OPT_PASSIVE|OPT_SILENT|DELAYED_UP))) {
+	/*
+	 * This action is not strictly according to the FSM in RFC1548,
+	 * but it does mean that the program terminates if you do a
+	 * lcp_close() when a connection hasn't been established
+	 * because we are in passive/silent mode or because we have
+	 * delayed the fsm_lowerup() call and it hasn't happened yet.
+	 */
+	f->flags &= ~DELAYED_UP;
+	lcp_finished(f);
+    }
+}

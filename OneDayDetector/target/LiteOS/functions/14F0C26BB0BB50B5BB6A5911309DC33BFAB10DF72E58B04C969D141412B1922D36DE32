@@ -1,0 +1,29 @@
+int atiny_fota_manager_start_download(atiny_fota_manager_s *thi, const char *uri, uint32_t len)
+{
+    ASSERT_THIS(return ATINY_ARG_INVALID);
+    if (thi->state != thi->rpt_state) {
+        ATINY_LOG(LOG_ERR, "start download busy state %u rpt state %u",
+                  thi->state, thi->rpt_state);
+        return ATINY_ERR;
+    }
+
+    if ((thi->current == NULL) || (uri == NULL)) {
+        ATINY_LOG(LOG_ERR, "null pointer");
+        return ATINY_ERR;
+    }
+
+    if (thi->pkg_uri != NULL) {
+        atiny_free(thi->pkg_uri);
+        thi->pkg_uri = NULL;
+    }
+
+    thi->pkg_uri = atiny_malloc(len + 1);
+    if (thi->pkg_uri == NULL) {
+        ATINY_LOG(LOG_ERR, "lwm2m_strdup fail");
+        return ATINY_ERR;
+    }
+    memcpy(thi->pkg_uri, uri, len);
+    thi->pkg_uri[len] = '\0';
+    ATINY_LOG(LOG_INFO, "start download");
+    return thi->current->start_download(thi->current, thi->pkg_uri);
+}

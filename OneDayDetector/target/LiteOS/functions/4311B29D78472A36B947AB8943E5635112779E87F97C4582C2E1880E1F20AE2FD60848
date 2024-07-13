@@ -1,0 +1,58 @@
+static int ssl_load_session( mbedtls_ssl_session *session,
+                             const unsigned char *buf, size_t len )
+{
+    const unsigned char *p = buf;
+    const unsigned char * const end = buf + len;
+#if defined(MBEDTLS_X509_CRT_PARSE_C)
+    size_t cert_len;
+#endif /* MBEDTLS_X509_CRT_PARSE_C */
+
+    if( sizeof( mbedtls_ssl_session ) > (size_t)( end - p ) )
+        return( MBEDTLS_ERR_SSL_BAD_INPUT_DATA );
+
+    memcpy( session, p, sizeof( mbedtls_ssl_session ) );
+    p += sizeof( mbedtls_ssl_session );
+
+#if defined(MBEDTLS_X509_CRT_PARSE_C)
+    if( 3 > (size_t)( end - p ) )
+        return( MBEDTLS_ERR_SSL_BAD_INPUT_DATA );
+
+    cert_len = ( p[0] << 16 ) | ( p[1] << 8 ) | p[2];
+    p += 3;
+
+    if( cert_len == 0 )
+    {
+        session->peer_cert = NULL;
+    }
+    else
+    {
+        int ret;
+
+        if( cert_len > (size_t)( end - p ) )
+            return( MBEDTLS_ERR_SSL_BAD_INPUT_DATA );
+
+        session->peer_cert = mbedtls_calloc( 1, sizeof( mbedtls_x509_crt ) );
+
+        if( session->peer_cert == NULL )
+            return( MBEDTLS_ERR_SSL_ALLOC_FAILED );
+
+        mbedtls_x509_crt_init( session->peer_cert );
+
+        if( ( ret = mbedtls_x509_crt_parse_der( session->peer_cert,
+                                                p, cert_len ) ) != 0 )
+        {
+            mbedtls_x509_crt_free( session->peer_cert );
+            mbedtls_free( session->peer_cert );
+            session->peer_cert = NULL;
+            return( ret );
+        }
+
+        p += cert_len;
+    }
+#endif /* MBEDTLS_X509_CRT_PARSE_C */
+
+    if( p != end )
+        return( MBEDTLS_ERR_SSL_BAD_INPUT_DATA );
+
+    return( 0 );
+}

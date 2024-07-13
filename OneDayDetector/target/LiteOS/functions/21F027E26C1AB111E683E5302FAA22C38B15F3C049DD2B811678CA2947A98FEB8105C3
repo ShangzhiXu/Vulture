@@ -1,0 +1,32 @@
+void ft6x06_TS_GetXY(uint16_t DeviceAddr, uint16_t *X, uint16_t *Y)
+{
+  uint8_t regAddress = 0;
+  uint8_t  dataxy[4];
+  
+  if(ft6x06_handle.currActiveTouchIdx < ft6x06_handle.currActiveTouchNb)
+  {
+    switch(ft6x06_handle.currActiveTouchIdx)
+    {
+    case 0 :    
+      regAddress = FT6206_P1_XH_REG; 
+      break;
+    case 1 :
+      regAddress = FT6206_P2_XH_REG; 
+      break;
+
+    default :
+      break;
+    }
+    
+    /* Read X and Y positions */
+    TS_IO_ReadMultiple(DeviceAddr, regAddress, dataxy, sizeof(dataxy)); 
+
+    /* Send back ready X position to caller */
+    *X = ((dataxy[0] & FT6206_MSB_MASK) << 8) | (dataxy[1] & FT6206_LSB_MASK);
+    
+    /* Send back ready Y position to caller */
+    *Y = ((dataxy[2] & FT6206_MSB_MASK) << 8) | (dataxy[3] & FT6206_LSB_MASK);
+    
+    ft6x06_handle.currActiveTouchIdx++;
+  }
+}

@@ -1,0 +1,22 @@
+uint32_t SDMMC_CmdOperCond(SDMMC_TypeDef *SDMMCx)
+{
+  SDMMC_CmdInitTypeDef  sdmmc_cmdinit;
+  uint32_t errorstate = SDMMC_ERROR_NONE;
+  
+  /* Send CMD8 to verify SD card interface operating condition */
+  /* Argument: - [31:12]: Reserved (shall be set to '0')
+  - [11:8]: Supply Voltage (VHS) 0x1 (Range: 2.7-3.6 V)
+  - [7:0]: Check Pattern (recommended 0xAA) */
+  /* CMD Response: R7 */
+  sdmmc_cmdinit.Argument         = SDMMC_CHECK_PATTERN;
+  sdmmc_cmdinit.CmdIndex         = SDMMC_CMD_HS_SEND_EXT_CSD;
+  sdmmc_cmdinit.Response         = SDMMC_RESPONSE_SHORT;
+  sdmmc_cmdinit.WaitForInterrupt = SDMMC_WAIT_NO;
+  sdmmc_cmdinit.CPSM             = SDMMC_CPSM_ENABLE;
+  SDMMC_SendCommand(SDMMCx, &sdmmc_cmdinit);
+  
+  /* Check for error conditions */
+  errorstate = SDMMC_GetCmdResp7(SDMMCx);
+
+  return errorstate;
+}

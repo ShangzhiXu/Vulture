@@ -1,0 +1,31 @@
+VOID OsDecodeDataAbortISS(UINT32 bitsISS)
+{
+    UINT32 bitFnV = bitsISS & (1U << 10);   /* FnV bit[10] */
+    UINT32 bitWnR = bitsISS & (1U << 6);    /* WnR bit[6] */
+    UINT32 bitsDFSC = NBIT(bitsISS, 5, 0);  /* DFSC bits[5:0] */
+
+    if (!bitFnV) {
+        if (bitWnR) {
+            PRINTK("Abort caused by a write instruction.");
+        } else {
+            PRINTK("Abort caused by a read instruction.");
+        }
+        switch (bitsDFSC) {
+            case 0x21:  /* 0b100001 */
+                PRINTK("Alignment fault.\n");
+                break;
+            case 0x0:   /* 0b000000 */
+            case 0x01:  /* 0b000001 */
+            case 0x03:  /* 0b000011 */
+            case 0x04:  /* 0b000100 */
+                PRINTK("Address size fault.\n");
+                break;
+            default:
+                PRINTK("\nOMG!UNKNOWN fault, "
+                       "check ISS encoding for an exception from a Data Abort in AARM for armv8-a.\n");
+                break;
+        }
+    } else {
+        PRINTK("FAR is not valid, and holds an UNKNOWN value.\n");
+    }
+}

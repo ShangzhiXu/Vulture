@@ -1,0 +1,25 @@
+static void lwm2m_setBsCtrlStatWithoutCheck(lwm2m_context_t *contextP, lwm2m_client_state_t state)
+{
+    if (contextP->bsCtrl.state != state)
+    {
+        contextP->bsCtrl.state = state;
+        contextP->bsCtrl.cnt = 0;
+        return;
+    }
+    {
+        uint32_t maxValue = ((STATE_REGISTER_REQUIRED == state)
+                            ? MAX_FACTORY_BS_RETRY_CNT : MAX_CLIENT_INITIATED_BS_RETRY_CNT);
+
+        if ((STATE_BOOTSTRAP_REQUIRED == state) && (BOOTSTRAP_SEQUENCE == contextP->bsCtrl.bsType))
+        {
+            maxValue++;
+        }
+        if(++(contextP->bsCtrl.cnt) >= maxValue)
+        {
+            contextP->bsCtrl.state = ((STATE_REGISTER_REQUIRED == contextP->bsCtrl.state)
+                                     ? STATE_BOOTSTRAP_REQUIRED :STATE_REGISTER_REQUIRED);
+            contextP->bsCtrl.cnt = 0;
+        }
+    }
+
+}

@@ -1,0 +1,34 @@
+STATIC VOID OsWriteTailToHead(const CHAR *dst, UINT32 logLen)
+{
+    UINT32 writeLen;
+    UINT32 bufSize = g_logBufSize;
+    UINT32 logSize = g_dmesgInfo->logSize;
+    UINT32 tail = g_dmesgInfo->logTail;
+    CHAR *buf = g_dmesgInfo->logBuf;
+    errno_t ret;
+
+    if ((logLen == 0) || (dst == NULL)) {
+        return;
+    }
+    if (logLen > (bufSize - logSize)) { /* space-need > space-remain */
+        writeLen = bufSize - logSize;
+        ret = memcpy_s(buf + tail, bufSize - tail, dst, writeLen);
+        if (ret != EOK) {
+            PRINT_ERR("%s,%d memcpy_s failed, err:%d!\n", __FUNCTION__, __LINE__, ret);
+            return;
+        }
+
+        g_dmesgInfo->logTail = g_dmesgInfo->logHead;
+        g_dmesgInfo->logSize = g_logBufSize;
+        OsBufFullWrite(dst + writeLen, logLen - writeLen);
+    } else {
+        ret = memcpy_s(buf + tail, bufSize - tail, dst, logLen);
+        if (ret != EOK) {
+            PRINT_ERR("%s,%d memcpy_s failed, err:%d!\n", __FUNCTION__, __LINE__, ret);
+            return;
+        }
+
+        g_dmesgInfo->logTail += logLen;
+        g_dmesgInfo->logSize += logLen;
+    }
+}

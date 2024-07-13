@@ -1,0 +1,45 @@
+sys_check_timeouts(void)
+{
+  u32_t now;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  /* Process only timers expired at the start of the function. */
+  now = sys_now();
+
+  do {
+    struct sys_timeo *tmptimeout;
+    sys_timeout_handler handler;
+    void *arg;
+
+    PBUF_CHECK_FREE_OOSEQ();
+
+    tmptimeout = next_timeout;
+    if (tmptimeout == NULL) {
+      return;
+    }
+
+    if (TIME_LESS_THAN(now, tmptimeout->time)) {
+      return;
+    }
+
+    /* Timeout has expired */
+    next_timeout = tmptimeout->next;
+    handler = tmptimeout->h;
+    arg = tmptimeout->arg;
+    current_timeout_due_time = tmptimeout->time;
+#if LWIP_DEBUG_TIMERNAMES
+    if (handler != NULL) {
+      LWIP_DEBUGF(TIMERS_DEBUG, ("sct calling h=%s t=%"U32_F" arg=%p\n",
+                                 tmptimeout->handler_name, sys_now() - tmptimeout->time, arg));
+    }
+#endif /* LWIP_DEBUG_TIMERNAMES */
+    memp_free(MEMP_SYS_TIMEOUT, tmptimeout);
+    if (handler != NULL) {
+      handler(arg);
+    }
+    LWIP_TCPIP_THREAD_ALIVE();
+
+    /* Repeat until all expired timers have been called */
+  } while (1);
+}

@@ -1,0 +1,71 @@
+int fs_test_main(void)
+{
+    const UnitTest tests[] =
+    {
+        unit_test(test_file_open_normal),
+        unit_test(test_file_open_exception),
+        unit_test(test_file_read_normal),
+        unit_test(test_file_read_exception),
+        unit_test(test_file_write_normal),
+        unit_test(test_file_write_exception),
+        unit_test(test_file_seek_normal),
+        unit_test(test_file_seek_exception),
+        unit_test(test_file_sync_normal),
+        unit_test(test_file_sync_exception),
+        unit_test(test_file_close_normal),
+        unit_test(test_file_close_exception),
+        unit_test(test_file_stat_normal),
+        unit_test(test_file_stat_exception),
+        unit_test(test_file_rename_normal),
+        unit_test(test_file_rename_exception),
+        unit_test(test_file_unlink_normal),
+        unit_test(test_file_unlink_exception),
+        unit_test(test_dir_make_normal),
+        unit_test(test_dir_make_exception),
+        unit_test(test_dir_open_normal),
+        unit_test(test_dir_open_exception),
+        unit_test(test_dir_read_normal),
+        unit_test(test_dir_read_exception),
+        unit_test(test_dir_close_normal),
+        unit_test(test_dir_close_exception),
+    };
+
+    printf("Huawei LiteOS File System Test\n");
+
+    // spiffs
+    int ret = stm32f4xx_spiffs_init(0);
+    if(ret < 0)
+    {
+        FS_PRINTF("stm32f4xx_spiffs_init failed: %d", ret);
+        return -1;
+    }
+
+    snprintf(file_name, sizeof(file_name), "%s/%s", SPIFFS_PATH, LOS_FILE);
+    snprintf(file_rename, sizeof(file_rename), "%s/%s", SPIFFS_PATH, LOS_FILE_RN);
+    snprintf(dir_name, sizeof(dir_name), "%s/%s", SPIFFS_PATH, LOS_DIR);
+    snprintf(path_name, sizeof(path_name), "%s/%s", dir_name, LOS_FILE);
+
+    print_dir("/spiffs", 1);
+    fs_type = TEST_FS_SPIFFS;
+    run_tests(tests);
+    spiffs_unmount("/spiffs/");
+
+    // fatfs
+    int drive = stm32f4xx_fatfs_init(0);
+    if(drive < 0)
+    {
+        FS_PRINTF("stm32f4xx_fatfs_init failed, drive: %d", drive);
+    }
+
+    snprintf(file_name, sizeof(file_name), "%s/%d:/%s", FATFS_PATH, drive, LOS_FILE);
+    snprintf(file_rename, sizeof(file_rename), "%s/%d:/%s", FATFS_PATH, drive, LOS_FILE_RN);
+    snprintf(dir_name, sizeof(dir_name), "%s/%d:/%s", FATFS_PATH, drive, LOS_DIR);
+    snprintf(path_name, sizeof(path_name), "%s/%s", dir_name, LOS_FILE);
+
+    print_dir("/fatfs/0:", 1);
+    fs_type = TEST_FS_FATFS;
+    run_tests(tests);
+    fatfs_unmount("/fatfs/", drive);
+
+    return 0;
+}

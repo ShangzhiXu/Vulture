@@ -1,0 +1,21 @@
+pppoe_xmit(struct pppoe_softc *sc, struct pbuf *pb)
+{
+  u8_t *p;
+  size_t len;
+
+  len = pb->tot_len;
+
+  /* make room for PPPoE header - should not fail */
+  if (pbuf_add_header(pb, PPPOE_HEADERLEN) != 0) {
+    /* bail out */
+    PPPDEBUG(LOG_ERR, ("pppoe: %c%c%"U16_F": pppoe_xmit: could not allocate room for PPPoE header\n", sc->sc_ethif->name[0], sc->sc_ethif->name[1], sc->sc_ethif->num));
+    LINK_STATS_INC(link.lenerr);
+    pbuf_free(pb);
+    return ERR_BUF;
+  }
+
+  p = (u8_t*)pb->payload;
+  PPPOE_ADD_HEADER(p, 0, sc->sc_session, len);
+
+  return pppoe_output(sc, pb);
+}

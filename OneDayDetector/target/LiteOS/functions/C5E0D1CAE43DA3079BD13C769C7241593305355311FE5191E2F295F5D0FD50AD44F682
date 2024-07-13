@@ -1,0 +1,26 @@
+STATIC UINT32 OsHwiCreateNoShared(HwiHandleInfo *hwiForm, HWI_MODE_T hwiMode, HWI_PROC_FUNC hwiHandler,
+                                  const HWI_IRQ_PARAM_S *irqParam)
+{
+    UINT32 intSave;
+
+    if (hwiMode & IRQF_SHARED) {
+        return OS_ERRNO_HWI_SHARED_ERROR;
+    }
+    HWI_LOCK(intSave);
+    if (hwiForm->hook == NULL) {
+        hwiForm->hook = hwiHandler;
+
+        if (irqParam != NULL) {
+            hwiForm->registerInfo = OsHwiCpIrqParam(irqParam);
+            if (hwiForm->registerInfo == (HWI_ARG_T)NULL) {
+                HWI_UNLOCK(intSave);
+                return OS_ERRNO_HWI_NO_MEMORY;
+            }
+        }
+    } else {
+        HWI_UNLOCK(intSave);
+        return OS_ERRNO_HWI_ALREADY_CREATED;
+    }
+    HWI_UNLOCK(intSave);
+    return LOS_OK;
+}

@@ -1,0 +1,18 @@
+raw_connect(struct raw_pcb *pcb, const ip_addr_t *ipaddr)
+{
+  LWIP_ASSERT_CORE_LOCKED();
+  if ((pcb == NULL) || (ipaddr == NULL)) {
+    return ERR_VAL;
+  }
+  ip_addr_set_ipaddr(&pcb->remote_ip, ipaddr);
+#if LWIP_IPV6 && LWIP_IPV6_SCOPES
+  /* If the given IP address should have a zone but doesn't, assign one now,
+   * using the bound address to make a more informed decision when possible. */
+  if (IP_IS_V6(&pcb->remote_ip) &&
+      ip6_addr_lacks_zone(ip_2_ip6(&pcb->remote_ip), IP6_UNKNOWN)) {
+    ip6_addr_select_zone(ip_2_ip6(&pcb->remote_ip), ip_2_ip6(&pcb->local_ip));
+  }
+#endif /* LWIP_IPV6 && LWIP_IPV6_SCOPES */
+  raw_set_flags(pcb, RAW_FLAGS_CONNECTED);
+  return ERR_OK;
+}

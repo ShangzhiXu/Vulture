@@ -1,0 +1,31 @@
+STATIC VOID OsSemPendedTaskNamePrint(LosSemCB *semNode)
+{
+    LosTaskCB *tskCB = NULL;
+    CHAR *nameArr[LOSCFG_BASE_CORE_TSK_LIMIT] = {0};
+    UINT32 i, intSave;
+    UINT32 num = 0;
+
+    SCHEDULER_LOCK(intSave);
+    if ((semNode->semStat == OS_SEM_UNUSED) || (LOS_ListEmpty(&semNode->semList))) {
+        SCHEDULER_UNLOCK(intSave);
+        return;
+    }
+
+    LOS_DL_LIST_FOR_EACH_ENTRY(tskCB, &semNode->semList, LosTaskCB, pendList) {
+        nameArr[num++] = tskCB->taskName;
+        if (num == LOSCFG_BASE_CORE_TSK_LIMIT) {
+            break;
+        }
+    }
+    SCHEDULER_UNLOCK(intSave);
+
+    PRINTK("Pended task list : ");
+    for (i = 0; i < num; i++) {
+        if (i == 0) {
+            PRINTK("%s\n", nameArr[i]);
+        } else {
+            PRINTK(", %s", nameArr[i]);
+        }
+    }
+    PRINTK("\n");
+}

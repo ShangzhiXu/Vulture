@@ -1,0 +1,21 @@
+void fsm_lowerup(fsm *f) {
+    switch( f->state ){
+    case PPP_FSM_INITIAL:
+	f->state = PPP_FSM_CLOSED;
+	break;
+
+    case PPP_FSM_STARTING:
+	if( f->flags & OPT_SILENT )
+	    f->state = PPP_FSM_STOPPED;
+	else {
+	    /* Send an initial configure-request */
+	    fsm_sconfreq(f, 0);
+	    f->state = PPP_FSM_REQSENT;
+	}
+	break;
+
+    default:
+	FSMDEBUG(("%s: Up event in state %d!", PROTO_NAME(f), f->state));
+	/* no break */
+    }
+}

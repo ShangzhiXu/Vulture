@@ -1,0 +1,11 @@
+  ip_addr_t addr;
+  u16_t blknum;
+  const struct tftp_context *ctx;
+  void *handle;
+  struct pbuf *last_data;
+  int last_pkt;
+  u8_t mode_write;
+  u16_t port;
+  u8_t retries;
+  int timer;
+  struct udp_pcb *upcb;

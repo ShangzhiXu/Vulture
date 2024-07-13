@@ -1,0 +1,22 @@
+FRESULT f_closedir (
+	DIR *dp		/* Pointer to the directory object to be closed */
+)
+{
+	FRESULT res;
+	FATFS *fs;
+
+
+	res = validate(&dp->obj, &fs);	/* Check validity of the file object */
+	if (res == FR_OK) {
+#if FF_FS_LOCK != 0
+		if (dp->obj.lockid) res = dec_lock(dp->obj.lockid);	/* Decrement sub-directory open counter */
+		if (res == FR_OK) dp->obj.fs = 0;	/* Invalidate directory object */
+#else
+		dp->obj.fs = 0;	/* Invalidate directory object */
+#endif
+#if FF_FS_REENTRANT
+		unlock_fs(fs, FR_OK);		/* Unlock volume */
+#endif
+	}
+	return res;
+}

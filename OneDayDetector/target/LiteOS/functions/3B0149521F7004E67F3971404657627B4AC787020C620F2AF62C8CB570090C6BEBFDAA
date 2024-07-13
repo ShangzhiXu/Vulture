@@ -1,0 +1,59 @@
+HAL_StatusTypeDef HAL_SAI_Abort(SAI_HandleTypeDef *hsai)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process Locked */
+  __HAL_LOCK(hsai);
+
+  /* Check SAI DMA is enabled or not */
+  if((hsai->Instance->CR1 & SAI_xCR1_DMAEN) == SAI_xCR1_DMAEN)
+  {
+    /* Disable the SAI DMA request */
+    hsai->Instance->CR1 &= ~SAI_xCR1_DMAEN;
+
+    /* Abort the SAI Tx DMA Stream */
+    if((hsai->hdmatx != NULL) && (hsai->State == HAL_SAI_STATE_BUSY_TX))
+    {
+      if(HAL_DMA_Abort(hsai->hdmatx) != HAL_OK)
+      {
+        /* If the DMA Tx errorCode is different from DMA No Transfer then return Error */
+        if(hsai->hdmatx->ErrorCode != HAL_DMA_ERROR_NO_XFER)
+        {
+          status = HAL_ERROR;
+          hsai->ErrorCode |= HAL_SAI_ERROR_DMA;
+        }
+      }
+    }
+
+    /* Abort the SAI Rx DMA Stream */
+    if((hsai->hdmarx != NULL) && (hsai->State == HAL_SAI_STATE_BUSY_RX))
+    {
+      if(HAL_DMA_Abort(hsai->hdmarx) != HAL_OK)
+      {
+        /* If the DMA Rx errorCode is different from DMA No Transfer then return Error */
+        if(hsai->hdmarx->ErrorCode != HAL_DMA_ERROR_NO_XFER)
+        {
+          status = HAL_ERROR;
+          hsai->ErrorCode |= HAL_SAI_ERROR_DMA;
+        }
+      }
+    }
+  }
+  /* Disabled All interrupt and clear all the flag */
+  hsai->Instance->IMR = 0;
+  hsai->Instance->CLRFR = 0xFFFFFFFFU;
+
+  /* Disable SAI peripheral */
+  SAI_Disable(hsai);
+
+  /* Flush the fifo */
+  SET_BIT(hsai->Instance->CR2, SAI_xCR2_FFLUSH);
+
+  /* Set hsai state to ready */
+  hsai->State = HAL_SAI_STATE_READY;
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(hsai);
+
+  return status;
+}

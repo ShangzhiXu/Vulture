@@ -1,0 +1,32 @@
+static HAL_StatusTypeDef CRYP_SetInitVector(CRYP_HandleTypeDef *hcryp)
+{
+  uint32_t ivaddr = 0x0;
+  
+#if !defined(AES_CR_NPBLB)
+  if (hcryp->Init.ChainingMode == CRYP_CHAINMODE_AES_CMAC)
+  {
+    hcryp->Instance->IVR3 = 0;
+    hcryp->Instance->IVR2 = 0;
+    hcryp->Instance->IVR1 = 0;        
+    hcryp->Instance->IVR0 = 0;
+  }
+  else
+#endif
+  {
+    if (hcryp->Init.pInitVect == NULL)
+    {
+      return HAL_ERROR;
+    } 
+  
+    ivaddr = (uint32_t)(hcryp->Init.pInitVect);
+  
+    hcryp->Instance->IVR3 = __REV(*(uint32_t*)(ivaddr));
+    ivaddr+=4;
+    hcryp->Instance->IVR2 = __REV(*(uint32_t*)(ivaddr));
+    ivaddr+=4;
+    hcryp->Instance->IVR1 = __REV(*(uint32_t*)(ivaddr));
+    ivaddr+=4;
+    hcryp->Instance->IVR0 = __REV(*(uint32_t*)(ivaddr));
+  }
+  return HAL_OK;
+}

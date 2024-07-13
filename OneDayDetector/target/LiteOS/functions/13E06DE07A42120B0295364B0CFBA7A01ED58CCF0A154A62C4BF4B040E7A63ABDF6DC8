@@ -1,0 +1,25 @@
+SECUREC_INLINE int SecInputFloat(SecFileStream *stream, SecScanSpec *spec, SecFloatSpec *floatSpec)
+{
+    floatSpec->floatStrUsedLen = 0;
+
+    /* The following code sequence is strict */
+    if (SecInputFloatSign(stream, spec, floatSpec) != 0) {
+        return -1;
+    }
+    if (SecInputFloatDigit(stream, spec, floatSpec) != 0) {
+        return -1;
+    }
+    if (SecInputFloatFractional(stream, spec, floatSpec) != 0) {
+        return -1;
+    }
+    if (SecInputFloatExponent(stream, spec, floatSpec) != 0) {
+        return -1;
+    }
+
+    /* Make sure  have a string terminator, buffer is large enough */
+    floatSpec->floatStr[floatSpec->floatStrUsedLen] = SECUREC_CHAR('\0');
+    if (spec->numberState == SECUREC_NUMBER_STATE_STARTED) {
+        return 0;
+    }
+    return -1;
+}

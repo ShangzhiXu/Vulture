@@ -1,0 +1,11 @@
+STATIC_INLINE BOOL OsTraceHwiFilter(UINT32 hwiNum)
+{
+    BOOL ret = ((hwiNum == NUM_HAL_INTERRUPT_UART) || (hwiNum == OS_TICK_INT_NUM));
+#ifdef LOSCFG_KERNEL_SMP
+    ret |= (hwiNum == LOS_MP_IPI_SCHEDULE);
+#endif
+    if (g_traceHwiFliterHook != NULL) {
+        ret |= g_traceHwiFliterHook(hwiNum);
+    }
+    return ret;
+}

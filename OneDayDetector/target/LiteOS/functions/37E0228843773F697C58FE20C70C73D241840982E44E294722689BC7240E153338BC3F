@@ -1,0 +1,33 @@
+HAL_StatusTypeDef HAL_UARTEx_DisableSlaveMode(UART_HandleTypeDef *huart)
+{
+  uint32_t tmpcr1 = 0;
+
+  /* Check parameters */
+  assert_param(IS_UART_SPI_SLAVE_INSTANCE(huart->Instance));
+  
+  /* Process Locked */
+  __HAL_LOCK(huart);
+  
+  huart->gState = HAL_UART_STATE_BUSY;
+  
+  /* Save actual UART configuration */
+  tmpcr1 = READ_REG(huart->Instance->CR1);
+  
+  /* Disable UART */
+  __HAL_UART_DISABLE(huart);
+
+  /* Disable SPI slave mode */
+  CLEAR_BIT(huart->Instance->CR2, USART_CR2_SLVEN);
+  
+  /* Restore UART configuration */
+  WRITE_REG(huart->Instance->CR1, tmpcr1);
+
+  huart->SlaveMode = UART_SLAVEMODE_ENABLE;
+  
+  huart->gState = HAL_UART_STATE_READY;
+  
+  /* Process Unlocked */
+  __HAL_UNLOCK(huart);
+  
+  return HAL_OK;  
+}

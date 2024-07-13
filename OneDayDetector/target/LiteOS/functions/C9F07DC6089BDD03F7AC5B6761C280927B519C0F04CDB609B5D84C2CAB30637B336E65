@@ -1,0 +1,29 @@
+static char *mqtt_get_send_password(char *password, char *time)
+{
+    uint8_t hmac[32];
+    const uint32_t len = sizeof(hmac) * 2 + 1;
+    char *result;
+    int ret;
+    mbedtls_hmac_t hmac_info;
+
+    hmac_info.secret = (uint8_t *)time;
+    hmac_info.secret_len = strnlen(time, MQTT_TIME_BUF_LEN);
+    hmac_info.input = (uint8_t *)password;
+    hmac_info.input_len = strnlen(password, STRING_MAX_LEN);
+    hmac_info.digest = hmac;
+    hmac_info.digest_len = sizeof(hmac);
+    hmac_info.hmac_type = MBEDTLS_MD_SHA256;
+    ret = mbedtls_hmac_calc(&hmac_info);
+    if (ret != ATINY_OK) {
+        ATINY_LOG(LOG_FATAL, "mbedtls_hmac_calc fail,ret %d", ret);
+        return NULL;
+    }
+
+    result = atiny_malloc(len);
+    if (result == NULL) {
+        ATINY_LOG(LOG_FATAL, "atiny_malloc fail");
+        return NULL;
+    }
+    mqtt_bin_to_str(hmac, result, sizeof(hmac));
+    return result;
+}

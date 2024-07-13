@@ -1,0 +1,27 @@
+HAL_TSC_StateTypeDef HAL_TSC_GetState(TSC_HandleTypeDef *htsc)
+{
+  /* Check the parameters */
+  assert_param(IS_TSC_ALL_INSTANCE(htsc->Instance));
+
+  if (htsc->State == HAL_TSC_STATE_BUSY)
+  {
+    /* Check end of acquisition flag */
+    if (__HAL_TSC_GET_FLAG(htsc, TSC_FLAG_EOA) != RESET)
+    {
+      /* Check max count error flag */
+      if (__HAL_TSC_GET_FLAG(htsc, TSC_FLAG_MCE) != RESET)
+      {
+        /* Change TSC state */
+        htsc->State = HAL_TSC_STATE_ERROR;
+      }
+      else
+      {
+        /* Change TSC state */
+        htsc->State = HAL_TSC_STATE_READY;
+      }
+    }
+  }
+
+  /* Return TSC state */
+  return htsc->State;
+}

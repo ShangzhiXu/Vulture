@@ -1,0 +1,46 @@
+ErrorStatus LL_RTC_DeInit(RTC_TypeDef *RTCx)
+{
+  ErrorStatus status = ERROR;
+
+  /* Check the parameter */
+  assert_param(IS_RTC_ALL_INSTANCE(RTCx));
+
+  /* Disable the write protection for RTC registers */
+  LL_RTC_DisableWriteProtection(RTCx);
+
+  /* Set Initialization mode */
+  if (LL_RTC_EnterInitMode(RTCx) != ERROR)
+  {
+    /* Reset TR, DR and CR registers */
+    LL_RTC_WriteReg(RTCx, TR,       0x00000000U);
+#if defined(RTC_WAKEUP_SUPPORT)
+    LL_RTC_WriteReg(RTCx, WUTR,     RTC_WUTR_WUT);
+#endif /* RTC_WAKEUP_SUPPORT */
+    LL_RTC_WriteReg(RTCx, DR, (RTC_DR_WDU_0 | RTC_DR_MU_0 | RTC_DR_DU_0));
+    /* Reset All CR bits except CR[2:0] */
+#if defined(RTC_WAKEUP_SUPPORT)
+    LL_RTC_WriteReg(RTCx, CR, (LL_RTC_ReadReg(RTCx, CR) & RTC_CR_WUCKSEL));
+#else
+    LL_RTC_WriteReg(RTCx, CR, 0x00000000U);
+#endif /* RTC_WAKEUP_SUPPORT */
+    LL_RTC_WriteReg(RTCx, PRER, (RTC_PRER_PREDIV_A | RTC_SYNCH_PRESC_DEFAULT));
+    LL_RTC_WriteReg(RTCx, ALRMAR,   0x00000000U);
+    LL_RTC_WriteReg(RTCx, SHIFTR,   0x00000000U);
+    LL_RTC_WriteReg(RTCx, CALR,     0x00000000U);
+    LL_RTC_WriteReg(RTCx, ALRMASSR, 0x00000000U);
+
+    /* Reset ISR register and exit initialization mode */
+    LL_RTC_WriteReg(RTCx, ISR,      0x00000000U);
+
+    /* Reset Tamper and alternate functions configuration register */
+    LL_RTC_WriteReg(RTCx, TAFCR, 0x00000000U);
+
+    /* Wait till the RTC RSF flag is set */
+    status = LL_RTC_WaitForSynchro(RTCx);
+  }
+
+  /* Enable the write protection for RTC registers */
+  LL_RTC_EnableWriteProtection(RTCx);
+
+  return status;
+}

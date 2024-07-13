@@ -1,0 +1,32 @@
+static lv_res_t double_click_reset(lv_obj_t * cpicker)
+{
+    lv_cpicker_ext_t * ext = lv_obj_get_ext_attr(cpicker);
+    lv_indev_t * indev = lv_indev_get_act();
+    /*Double clicked? Use long press time as double click time out*/
+    if(lv_tick_elaps(ext->last_click_time) < indev->driver.long_press_time) {
+        lv_color_hsv_t hsv_cur;
+        hsv_cur = ext->hsv;
+
+        switch(ext->color_mode) {
+            case LV_CPICKER_COLOR_MODE_HUE:
+                hsv_cur.h = LV_CPICKER_DEF_HUE;
+                break;
+            case LV_CPICKER_COLOR_MODE_SATURATION:
+                hsv_cur.s = LV_CPICKER_DEF_SATURATION;
+                break;
+            case LV_CPICKER_COLOR_MODE_VALUE:
+                hsv_cur.v = LV_CPICKER_DEF_VALUE;
+                break;
+        }
+
+        lv_indev_wait_release(indev);
+
+        if(lv_cpicker_set_hsv(cpicker, hsv_cur)) {
+            lv_res_t res = lv_event_send(cpicker, LV_EVENT_VALUE_CHANGED, NULL);
+            if(res != LV_RES_OK) return res;
+        }
+    }
+    ext->last_click_time = lv_tick_get();
+
+    return LV_RES_OK;
+}

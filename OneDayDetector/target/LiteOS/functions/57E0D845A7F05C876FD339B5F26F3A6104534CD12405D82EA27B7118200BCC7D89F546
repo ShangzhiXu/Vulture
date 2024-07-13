@@ -1,0 +1,25 @@
+HAL_StatusTypeDef HAL_DFSDM_FilterRegularStop_IT(DFSDM_Filter_HandleTypeDef *hdfsdm_filter)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Check parameters */
+  assert_param(IS_DFSDM_FILTER_ALL_INSTANCE(hdfsdm_filter->Instance));
+
+  /* Check DFSDM filter state */
+  if((hdfsdm_filter->State != HAL_DFSDM_FILTER_STATE_REG) && \
+     (hdfsdm_filter->State != HAL_DFSDM_FILTER_STATE_REG_INJ))
+  {
+    /* Return error status */
+    status = HAL_ERROR;
+  }
+  else
+  {
+    /* Disable interrupts for regular conversions */
+    hdfsdm_filter->Instance->FLTCR2 &= ~(DFSDM_FLTCR2_REOCIE | DFSDM_FLTCR2_ROVRIE);
+    
+    /* Stop regular conversion */
+    DFSDM_RegConvStop(hdfsdm_filter);
+  }
+  /* Return function status */
+  return status;
+}

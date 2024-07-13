@@ -1,0 +1,21 @@
+osStatus osMailDelete(osMailQId queue_id)
+{
+    struct osMailQ *mailQ = (struct osMailQ *)queue_id;
+    osStatus ret1;
+    UINT32 ret2;
+
+    if (mailQ == NULL) {
+        return osErrorParameter;
+    }
+    if (OS_INT_ACTIVE) {
+        return osErrorISR;
+    }
+
+    ret1 = osPoolDelete(mailQ->pool);
+    ret2 = LOS_QueueDelete(mailQ->queue);
+    if ((ret1 == osOK) && (ret2 == LOS_OK)) {
+        return osOK;
+    } else {
+        return osErrorOS;
+    }
+}

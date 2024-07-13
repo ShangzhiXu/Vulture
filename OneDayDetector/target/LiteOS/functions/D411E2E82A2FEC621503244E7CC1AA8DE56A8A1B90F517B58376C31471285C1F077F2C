@@ -1,0 +1,61 @@
+uint8_t BSP_QSPI_Init(void)
+{ 
+  QSPIHandle.Instance = QUADSPI;
+  
+  /* Call the DeInit function to reset the driver */
+  if (HAL_QSPI_DeInit(&QSPIHandle) != HAL_OK)
+  {
+    return QSPI_ERROR;
+  }
+  
+  /* System level initialization */
+  BSP_QSPI_MspInit(&QSPIHandle, NULL);
+  
+  /* QSPI initialization */
+  /* QSPI freq = SYSCLK /(1 + ClockPrescaler) = 216 MHz/(1+1) = 108 Mhz */
+  QSPIHandle.Init.ClockPrescaler     = 1;   /* QSPI freq = 216 MHz/(1+1) = 108 Mhz */
+  QSPIHandle.Init.FifoThreshold      = 16;
+  QSPIHandle.Init.SampleShifting     = QSPI_SAMPLE_SHIFTING_HALFCYCLE; 
+  QSPIHandle.Init.FlashSize          = POSITION_VAL(MX25L512_FLASH_SIZE) - 1;
+  QSPIHandle.Init.ChipSelectHighTime = QSPI_CS_HIGH_TIME_4_CYCLE; /* Min 30ns for nonRead */
+  QSPIHandle.Init.ClockMode          = QSPI_CLOCK_MODE_0;
+  QSPIHandle.Init.FlashID            = QSPI_FLASH_ID_1;
+  QSPIHandle.Init.DualFlash          = QSPI_DUALFLASH_DISABLE;
+  
+  if (HAL_QSPI_Init(&QSPIHandle) != HAL_OK)
+  {
+    return QSPI_ERROR;
+  }
+  
+  /* QSPI memory reset */
+  if (QSPI_ResetMemory(&QSPIHandle) != QSPI_OK)
+  {
+    return QSPI_NOT_SUPPORTED;
+  }
+  
+  /* Put QSPI memory in QPI mode */
+  if( QSPI_EnterMemory_QPI( &QSPIHandle )!=QSPI_OK )
+  {
+    return QSPI_NOT_SUPPORTED;
+  }
+  
+  /* Set the QSPI memory in 4-bytes address mode */
+  if (QSPI_EnterFourBytesAddress(&QSPIHandle) != QSPI_OK)
+  {
+    return QSPI_NOT_SUPPORTED;
+  }
+  
+  /* Configuration of the dummy cycles on QSPI memory side */
+  if (QSPI_DummyCyclesCfg(&QSPIHandle) != QSPI_OK)
+  {
+    return QSPI_NOT_SUPPORTED;
+  }
+  
+  /* Configuration of the Output driver strength on memory side */
+  if( QSPI_OutDrvStrengthCfg( &QSPIHandle ) != QSPI_OK )
+  {
+    return QSPI_NOT_SUPPORTED;
+  }
+  
+  return QSPI_OK;
+}

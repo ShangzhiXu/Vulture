@@ -1,0 +1,409 @@
+static void eap_request(ppp_pcb *pcb, u_char *inp, int id, int len) {
+	u_char typenum;
+	u_char vallen;
+	int secret_len;
+	char secret[MAXSECRETLEN];
+	char rhostname[MAXNAMELEN];
+	lwip_md5_context mdContext;
+	u_char hash[MD5_SIGNATURE_SIZE];
+#ifdef USE_SRP
+	struct t_client *tc;
+	struct t_num sval, gval, Nval, *Ap, Bval;
+	u_char vals[2];
+	SHA1_CTX ctxt;
+	u_char dig[SHA_DIGESTSIZE];
+	int fd;
+#endif /* USE_SRP */
+
+	/*
+	 * Note: we update es_client.ea_id *only if* a Response
+	 * message is being generated.  Otherwise, we leave it the
+	 * same for duplicate detection purposes.
+	 */
+
+	pcb->eap.es_client.ea_requests++;
+	if (pcb->settings.eap_allow_req != 0 &&
+	    pcb->eap.es_client.ea_requests > pcb->settings.eap_allow_req) {
+		ppp_info("EAP: received too many Request messages");
+		if (pcb->settings.eap_req_time > 0) {
+			UNTIMEOUT(eap_client_timeout, pcb);
+		}
+		auth_withpeer_fail(pcb, PPP_EAP);
+		return;
+	}
+
+	if (len <= 0) {
+		ppp_error("EAP: empty Request message discarded");
+		return;
+	}
+
+	GETCHAR(typenum, inp);
+	len--;
+
+	switch (typenum) {
+	case EAPT_IDENTITY:
+		if (len > 0)
+			ppp_info("EAP: Identity prompt \"%.*q\"", len, inp);
+#ifdef USE_SRP
+		if (pcb->eap.es_usepseudo &&
+		    (pcb->eap.es_usedpseudo == 0 ||
+			(pcb->eap.es_usedpseudo == 1 &&
+			    id == pcb->eap.es_client.ea_id))) {
+			pcb->eap.es_usedpseudo = 1;
+			/* Try to get a pseudonym */
+			if ((fd = open_pn_file(O_RDONLY)) >= 0) {
+				strcpy(rhostname, SRP_PSEUDO_ID);
+				len = read(fd, rhostname + SRP_PSEUDO_LEN,
+				    sizeof (rhostname) - SRP_PSEUDO_LEN);
+				/* XXX NAI unsupported */
+				if (len > 0) {
+					eap_send_response(pcb, id, typenum,
+					    rhostname, len + SRP_PSEUDO_LEN);
+				}
+				(void) close(fd);
+				if (len > 0)
+					break;
+			}
+		}
+		/* Stop using pseudonym now. */
+		if (pcb->eap.es_usepseudo && pcb->eap.es_usedpseudo != 2) {
+			remove_pn_file();
+			pcb->eap.es_usedpseudo = 2;
+		}
+#endif /* USE_SRP */
+		eap_send_response(pcb, id, typenum, (const u_char*)pcb->eap.es_client.ea_name,
+		    pcb->eap.es_client.ea_namelen);
+		break;
+
+	case EAPT_NOTIFICATION:
+		if (len > 0)
+			ppp_info("EAP: Notification \"%.*q\"", len, inp);
+		eap_send_response(pcb, id, typenum, NULL, 0);
+		break;
+
+	case EAPT_NAK:
+		/*
+		 * Avoid the temptation to send Response Nak in reply
+		 * to Request Nak here.  It can only lead to trouble.
+		 */
+		ppp_warn("EAP: unexpected Nak in Request; ignored");
+		/* Return because we're waiting for something real. */
+		return;
+
+	case EAPT_MD5CHAP:
+		if (len < 1) {
+			ppp_error("EAP: received MD5-Challenge with no data");
+			/* Bogus request; wait for something real. */
+			return;
+		}
+		GETCHAR(vallen, inp);
+		len--;
+		if (vallen < 8 || vallen > len) {
+			ppp_error("EAP: MD5-Challenge with bad length %d (8..%d)",
+			    vallen, len);
+			/* Try something better. */
+			eap_send_nak(pcb, id, EAPT_SRP);
+			break;
+		}
+
+		/* Not so likely to happen. */
+		if (vallen >= len + sizeof (rhostname)) {
+			ppp_dbglog("EAP: trimming really long peer name down");
+			MEMCPY(rhostname, inp + vallen, sizeof (rhostname) - 1);
+			rhostname[sizeof (rhostname) - 1] = '\0';
+		} else {
+			MEMCPY(rhostname, inp + vallen, len - vallen);
+			rhostname[len - vallen] = '\0';
+		}
+
+#if PPP_REMOTENAME
+		/* In case the remote doesn't give us his name. */
+		if (pcb->settings.explicit_remote ||
+		    (pcb->settings.remote_name[0] != '\0' && vallen == len))
+			strlcpy(rhostname, pcb->settings.remote_name, sizeof (rhostname));
+#endif /* PPP_REMOTENAME */
+
+		/*
+		 * Get the secret for authenticating ourselves with
+		 * the specified host.
+		 */
+		if (!get_secret(pcb, pcb->eap.es_client.ea_name,
+		    rhostname, secret, &secret_len, 0)) {
+			ppp_dbglog("EAP: no MD5 secret for auth to %q", rhostname);
+			eap_send_nak(pcb, id, EAPT_SRP);
+			break;
+		}
+		lwip_md5_init(&mdContext);
+		lwip_md5_starts(&mdContext);
+		typenum = id;
+		lwip_md5_update(&mdContext, &typenum, 1);
+		lwip_md5_update(&mdContext, (u_char *)secret, secret_len);
+		BZERO(secret, sizeof (secret));
+		lwip_md5_update(&mdContext, inp, vallen);
+		lwip_md5_finish(&mdContext, hash);
+		lwip_md5_free(&mdContext);
+		eap_chap_response(pcb, id, hash, pcb->eap.es_client.ea_name,
+		    pcb->eap.es_client.ea_namelen);
+		break;
+
+#ifdef USE_SRP
+	case EAPT_SRP:
+		if (len < 1) {
+			ppp_error("EAP: received empty SRP Request");
+			/* Bogus request; wait for something real. */
+			return;
+		}
+
+		/* Get subtype */
+		GETCHAR(vallen, inp);
+		len--;
+		switch (vallen) {
+		case EAPSRP_CHALLENGE:
+			tc = NULL;
+			if (pcb->eap.es_client.ea_session != NULL) {
+				tc = (struct t_client *)pcb->eap.es_client.
+				    ea_session;
+				/*
+				 * If this is a new challenge, then start
+				 * over with a new client session context.
+				 * Otherwise, just resend last response.
+				 */
+				if (id != pcb->eap.es_client.ea_id) {
+					t_clientclose(tc);
+					pcb->eap.es_client.ea_session = NULL;
+					tc = NULL;
+				}
+			}
+			/* No session key just yet */
+			pcb->eap.es_client.ea_skey = NULL;
+			if (tc == NULL) {
+				int rhostnamelen;
+
+				GETCHAR(vallen, inp);
+				len--;
+				if (vallen >= len) {
+					ppp_error("EAP: badly-formed SRP Challenge"
+					    " (name)");
+					/* Ignore badly-formed messages */
+					return;
+				}
+				MEMCPY(rhostname, inp, vallen);
+				rhostname[vallen] = '\0';
+				INCPTR(vallen, inp);
+				len -= vallen;
+
+				/*
+				 * In case the remote doesn't give us his name,
+				 * use configured name.
+				 */
+				if (explicit_remote ||
+				    (remote_name[0] != '\0' && vallen == 0)) {
+					strlcpy(rhostname, remote_name,
+					    sizeof (rhostname));
+				}
+
+				rhostnamelen = (int)strlen(rhostname);
+				if (rhostnamelen > MAXNAMELEN) {
+					rhostnamelen = MAXNAMELEN;
+				}
+				MEMCPY(pcb->eap.es_client.ea_peer, rhostname, rhostnamelen);
+				pcb->eap.es_client.ea_peer[rhostnamelen] = '\0';
+				pcb->eap.es_client.ea_peerlen = rhostnamelen;
+
+				GETCHAR(vallen, inp);
+				len--;
+				if (vallen >= len) {
+					ppp_error("EAP: badly-formed SRP Challenge"
+					    " (s)");
+					/* Ignore badly-formed messages */
+					return;
+				}
+				sval.data = inp;
+				sval.len = vallen;
+				INCPTR(vallen, inp);
+				len -= vallen;
+
+				GETCHAR(vallen, inp);
+				len--;
+				if (vallen > len) {
+					ppp_error("EAP: badly-formed SRP Challenge"
+					    " (g)");
+					/* Ignore badly-formed messages */
+					return;
+				}
+				/* If no generator present, then use value 2 */
+				if (vallen == 0) {
+					gval.data = (u_char *)"\002";
+					gval.len = 1;
+				} else {
+					gval.data = inp;
+					gval.len = vallen;
+				}
+				INCPTR(vallen, inp);
+				len -= vallen;
+
+				/*
+				 * If no modulus present, then use well-known
+				 * value.
+				 */
+				if (len == 0) {
+					Nval.data = (u_char *)wkmodulus;
+					Nval.len = sizeof (wkmodulus);
+				} else {
+					Nval.data = inp;
+					Nval.len = len;
+				}
+				tc = t_clientopen(pcb->eap.es_client.ea_name,
+				    &Nval, &gval, &sval);
+				if (tc == NULL) {
+					eap_send_nak(pcb, id, EAPT_MD5CHAP);
+					break;
+				}
+				pcb->eap.es_client.ea_session = (void *)tc;
+
+				/* Add Challenge ID & type to verifier */
+				vals[0] = id;
+				vals[1] = EAPT_SRP;
+				t_clientaddexdata(tc, vals, 2);
+			}
+			Ap = t_clientgenexp(tc);
+			eap_srp_response(esp, id, EAPSRP_CKEY, Ap->data,
+			    Ap->len);
+			break;
+
+		case EAPSRP_SKEY:
+			tc = (struct t_client *)pcb->eap.es_client.ea_session;
+			if (tc == NULL) {
+				ppp_warn("EAP: peer sent Subtype 2 without 1");
+				eap_send_nak(pcb, id, EAPT_MD5CHAP);
+				break;
+			}
+			if (pcb->eap.es_client.ea_skey != NULL) {
+				/*
+				 * ID number should not change here.  Warn
+				 * if it does (but otherwise ignore).
+				 */
+				if (id != pcb->eap.es_client.ea_id) {
+					ppp_warn("EAP: ID changed from %d to %d "
+					    "in SRP Subtype 2 rexmit",
+					    pcb->eap.es_client.ea_id, id);
+				}
+			} else {
+				if (get_srp_secret(pcb->eap.es_unit,
+				    pcb->eap.es_client.ea_name,
+				    pcb->eap.es_client.ea_peer, secret, 0) == 0) {
+					/*
+					 * Can't work with this peer because
+					 * the secret is missing.  Just give
+					 * up.
+					 */
+					eap_send_nak(pcb, id, EAPT_MD5CHAP);
+					break;
+				}
+				Bval.data = inp;
+				Bval.len = len;
+				t_clientpasswd(tc, secret);
+				BZERO(secret, sizeof (secret));
+				pcb->eap.es_client.ea_skey =
+				    t_clientgetkey(tc, &Bval);
+				if (pcb->eap.es_client.ea_skey == NULL) {
+					/* Server is rogue; stop now */
+					ppp_error("EAP: SRP server is rogue");
+					goto client_failure;
+				}
+			}
+			eap_srpval_response(esp, id, SRPVAL_EBIT,
+			    t_clientresponse(tc));
+			break;
+
+		case EAPSRP_SVALIDATOR:
+			tc = (struct t_client *)pcb->eap.es_client.ea_session;
+			if (tc == NULL || pcb->eap.es_client.ea_skey == NULL) {
+				ppp_warn("EAP: peer sent Subtype 3 without 1/2");
+				eap_send_nak(pcb, id, EAPT_MD5CHAP);
+				break;
+			}
+			/*
+			 * If we're already open, then this ought to be a
+			 * duplicate.  Otherwise, check that the server is
+			 * who we think it is.
+			 */
+			if (pcb->eap.es_client.ea_state == eapOpen) {
+				if (id != pcb->eap.es_client.ea_id) {
+					ppp_warn("EAP: ID changed from %d to %d "
+					    "in SRP Subtype 3 rexmit",
+					    pcb->eap.es_client.ea_id, id);
+				}
+			} else {
+				len -= sizeof (u32_t) + SHA_DIGESTSIZE;
+				if (len < 0 || t_clientverify(tc, inp +
+					sizeof (u32_t)) != 0) {
+					ppp_error("EAP: SRP server verification "
+					    "failed");
+					goto client_failure;
+				}
+				GETLONG(pcb->eap.es_client.ea_keyflags, inp);
+				/* Save pseudonym if user wants it. */
+				if (len > 0 && pcb->eap.es_usepseudo) {
+					INCPTR(SHA_DIGESTSIZE, inp);
+					write_pseudonym(esp, inp, len, id);
+				}
+			}
+			/*
+			 * We've verified our peer.  We're now mostly done,
+			 * except for waiting on the regular EAP Success
+			 * message.
+			 */
+			eap_srp_response(esp, id, EAPSRP_ACK, NULL, 0);
+			break;
+
+		case EAPSRP_LWRECHALLENGE:
+			if (len < 4) {
+				ppp_warn("EAP: malformed Lightweight rechallenge");
+				return;
+			}
+			SHA1Init(&ctxt);
+			vals[0] = id;
+			SHA1Update(&ctxt, vals, 1);
+			SHA1Update(&ctxt, pcb->eap.es_client.ea_skey,
+			    SESSION_KEY_LEN);
+			SHA1Update(&ctxt, inp, len);
+			SHA1Update(&ctxt, pcb->eap.es_client.ea_name,
+			    pcb->eap.es_client.ea_namelen);
+			SHA1Final(dig, &ctxt);
+			eap_srp_response(esp, id, EAPSRP_LWRECHALLENGE, dig,
+			    SHA_DIGESTSIZE);
+			break;
+
+		default:
+			ppp_error("EAP: unknown SRP Subtype %d", vallen);
+			eap_send_nak(pcb, id, EAPT_MD5CHAP);
+			break;
+		}
+		break;
+#endif /* USE_SRP */
+
+	default:
+		ppp_info("EAP: unknown authentication type %d; Naking", typenum);
+		eap_send_nak(pcb, id, EAPT_SRP);
+		break;
+	}
+
+	if (pcb->settings.eap_req_time > 0) {
+		UNTIMEOUT(eap_client_timeout, pcb);
+		TIMEOUT(eap_client_timeout, pcb,
+		    pcb->settings.eap_req_time);
+	}
+	return;
+
+#ifdef USE_SRP
+client_failure:
+	pcb->eap.es_client.ea_state = eapBadAuth;
+	if (pcb->settings.eap_req_time > 0) {
+		UNTIMEOUT(eap_client_timeout, (void *)esp);
+	}
+	pcb->eap.es_client.ea_session = NULL;
+	t_clientclose(tc);
+	auth_withpeer_fail(pcb, PPP_EAP);
+#endif /* USE_SRP */
+}

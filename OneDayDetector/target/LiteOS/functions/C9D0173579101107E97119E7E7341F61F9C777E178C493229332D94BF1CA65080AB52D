@@ -1,0 +1,18 @@
+LITE_OS_SEC_TEXT STATIC VOID OsSwtmrStop(LosSwtmrCB *swtmr)
+{
+    SortLinkAttribute *sortLinkHeader = NULL;
+
+#ifdef LOSCFG_KERNEL_SMP
+    /*
+     * the timer is running on the specific processor,
+     * we need delete the timer from that processor's sortlink.
+     */
+    sortLinkHeader = &g_percpu[swtmr->cpuid].swtmrSortLink;
+#else
+    sortLinkHeader = &g_percpu[0].swtmrSortLink;
+#endif
+    OsDeleteSortLink(sortLinkHeader, &swtmr->sortList);
+
+    swtmr->state = OS_SWTMR_STATUS_CREATED;
+    swtmr->overrun = 0;
+}

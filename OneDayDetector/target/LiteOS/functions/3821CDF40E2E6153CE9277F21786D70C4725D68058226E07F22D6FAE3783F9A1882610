@@ -1,0 +1,66 @@
+void HAL_SD_IRQHandler(SD_HandleTypeDef *hsd)
+{  
+  /* Check for SDIO interrupt flags */
+  if (__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_IT_DATAEND))
+  {
+    __HAL_SD_SDIO_CLEAR_FLAG(hsd, SDIO_IT_DATAEND);  
+      
+    /* SD transfer is complete */
+    hsd->SdTransferCplt = 1;
+
+    /* No transfer error */ 
+    hsd->SdTransferErr  = SD_OK;
+
+    HAL_SD_XferCpltCallback(hsd);  
+  }  
+  else if (__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_IT_DCRCFAIL))
+  {
+    __HAL_SD_SDIO_CLEAR_FLAG(hsd, SDIO_FLAG_DCRCFAIL);
+    
+    hsd->SdTransferErr = SD_DATA_CRC_FAIL;
+    
+    HAL_SD_XferErrorCallback(hsd);
+    
+  }
+  else if (__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_IT_DTIMEOUT))
+  {
+    __HAL_SD_SDIO_CLEAR_FLAG(hsd, SDIO_FLAG_DTIMEOUT);
+    
+    hsd->SdTransferErr = SD_DATA_TIMEOUT;
+    
+    HAL_SD_XferErrorCallback(hsd);
+  }
+  else if (__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_IT_RXOVERR))
+  {
+    __HAL_SD_SDIO_CLEAR_FLAG(hsd, SDIO_FLAG_RXOVERR);
+    
+    hsd->SdTransferErr = SD_RX_OVERRUN;
+    
+    HAL_SD_XferErrorCallback(hsd);
+  }
+  else if (__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_IT_TXUNDERR))
+  {
+    __HAL_SD_SDIO_CLEAR_FLAG(hsd, SDIO_FLAG_TXUNDERR);
+    
+    hsd->SdTransferErr = SD_TX_UNDERRUN;
+    
+    HAL_SD_XferErrorCallback(hsd);
+  }
+  else if (__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_IT_STBITERR))
+  {
+    __HAL_SD_SDIO_CLEAR_FLAG(hsd, SDIO_FLAG_STBITERR);
+    
+    hsd->SdTransferErr = SD_START_BIT_ERR;
+    
+    HAL_SD_XferErrorCallback(hsd);
+  }
+  else
+  {
+    /* No error flag set */
+  }
+
+  /* Disable all SDIO peripheral interrupt sources */
+  __HAL_SD_SDIO_DISABLE_IT(hsd, SDIO_IT_DCRCFAIL | SDIO_IT_DTIMEOUT | SDIO_IT_DATAEND  |\
+                                SDIO_IT_TXFIFOHE | SDIO_IT_RXFIFOHF | SDIO_IT_TXUNDERR |\
+                                SDIO_IT_RXOVERR  | SDIO_IT_STBITERR);                               
+}

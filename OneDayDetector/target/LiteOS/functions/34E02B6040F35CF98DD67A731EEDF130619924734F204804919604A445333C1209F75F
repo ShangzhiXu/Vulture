@@ -1,0 +1,19 @@
+altcp_proxyconnect_lower_sent(void *arg, struct altcp_pcb *inner_conn, u16_t len)
+{
+  struct altcp_pcb *conn = (struct altcp_pcb *)arg;
+  LWIP_UNUSED_ARG(len);
+  if (conn) {
+    altcp_proxyconnect_state_t *state = (altcp_proxyconnect_state_t *)conn->state;
+    LWIP_ASSERT("pcb mismatch", conn->inner_conn == inner_conn);
+    LWIP_UNUSED_ARG(inner_conn); /* for LWIP_NOASSERT */
+    if (!state || !(state->flags & ALTCP_PROXYCONNECT_FLAGS_HANDSHAKE_DONE)) {
+      /* @todo: do something here? */
+      return ERR_OK;
+    }
+    /* pass this on to upper sent */
+    if (conn->sent) {
+      return conn->sent(conn->arg, conn, len);
+    }
+  }
+  return ERR_OK;
+}

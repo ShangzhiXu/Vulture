@@ -1,0 +1,34 @@
+s32_t SPIFFS_format(spiffs *fs)
+{
+#if SPIFFS_READ_ONLY
+    (void)fs;
+    return SPIFFS_ERR_RO_NOT_IMPL;
+#else
+    SPIFFS_API_CHECK_CFG(fs);
+    if (SPIFFS_CHECK_MOUNT(fs))
+    {
+        fs->err_code = SPIFFS_ERR_MOUNTED;
+        return -1;
+    }
+
+    s32_t res;
+    SPIFFS_LOCK(fs);
+
+    spiffs_block_ix bix = 0;
+    while (bix < fs->block_count)
+    {
+        fs->max_erase_count = 0;
+        res = spiffs_erase_block(fs, bix);
+        if (res != SPIFFS_OK)
+        {
+            res = SPIFFS_ERR_ERASE_FAIL;
+        }
+        SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+        bix++;
+    }
+
+    SPIFFS_UNLOCK(fs);
+
+    return 0;
+#endif // SPIFFS_READ_ONLY
+}

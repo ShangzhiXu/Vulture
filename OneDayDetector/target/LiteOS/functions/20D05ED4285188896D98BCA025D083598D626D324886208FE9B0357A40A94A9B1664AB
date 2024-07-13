@@ -1,0 +1,20 @@
+uint32_t osThreadGetCount(void)
+{
+    UINT32 count = 0;
+    UINT32 taskId;
+    LosTaskCB *taskCB = NULL;
+
+    if (OS_INT_ACTIVE) {
+        return 0;
+    }
+
+    for (taskId = 0; taskId <= LOSCFG_BASE_CORE_TSK_LIMIT; taskId++) {
+        taskCB = OS_TCB_FROM_TID(taskId);
+        if (taskCB->taskStatus & OS_TASK_STATUS_UNUSED) {
+            continue;
+        }
+        count++;
+    }
+
+    return (uint32_t)count;
+}

@@ -1,0 +1,122 @@
+mem_trim(void *rmem, mem_size_t new_size)
+{
+  mem_size_t size, newsize;
+  mem_size_t ptr, ptr2;
+  struct mem *mem, *mem2;
+  /* use the FREE_PROTECT here: it protects with sem OR SYS_ARCH_PROTECT */
+  LWIP_MEM_FREE_DECL_PROTECT();
+
+  /* Expand the size of the allocated memory region so that we can
+     adjust for alignment. */
+  newsize = (mem_size_t)LWIP_MEM_ALIGN_SIZE(new_size);
+  if (newsize < MIN_SIZE_ALIGNED) {
+    /* every data block must be at least MIN_SIZE_ALIGNED long */
+    newsize = MIN_SIZE_ALIGNED;
+  }
+#if MEM_OVERFLOW_CHECK
+  newsize += MEM_SANITY_REGION_BEFORE_ALIGNED + MEM_SANITY_REGION_AFTER_ALIGNED;
+#endif
+  if ((newsize > MEM_SIZE_ALIGNED) || (newsize < new_size)) {
+    return NULL;
+  }
+
+  LWIP_ASSERT("mem_trim: legal memory", (u8_t *)rmem >= (u8_t *)ram &&
+              (u8_t *)rmem < (u8_t *)ram_end);
+
+  if ((u8_t *)rmem < (u8_t *)ram || (u8_t *)rmem >= (u8_t *)ram_end) {
+    LWIP_DEBUGF(MEM_DEBUG | LWIP_DBG_LEVEL_SEVERE, ("mem_trim: illegal memory\n"));
+    /* protect mem stats from concurrent access */
+    MEM_STATS_INC_LOCKED(illegal);
+    return rmem;
+  }
+  /* Get the corresponding struct mem ... */
+  /* cast through void* to get rid of alignment warnings */
+  mem = (struct mem *)(void *)((u8_t *)rmem - (SIZEOF_STRUCT_MEM + MEM_SANITY_OFFSET));
+#if MEM_OVERFLOW_CHECK
+  mem_overflow_check_element(mem);
+#endif
+  /* ... and its offset pointer */
+  ptr = mem_to_ptr(mem);
+
+  size = (mem_size_t)((mem_size_t)(mem->next - ptr) - (SIZEOF_STRUCT_MEM + MEM_SANITY_OVERHEAD));
+  LWIP_ASSERT("mem_trim can only shrink memory", newsize <= size);
+  if (newsize > size) {
+    /* not supported */
+    return NULL;
+  }
+  if (newsize == size) {
+    /* No change in size, simply return */
+    return rmem;
+  }
+
+  /* protect the heap from concurrent access */
+  LWIP_MEM_FREE_PROTECT();
+
+  mem2 = ptr_to_mem(mem->next);
+  if (mem2->used == 0) {
+    /* The next struct is unused, we can simply move it at little */
+    mem_size_t next;
+    LWIP_ASSERT("invalid next ptr", mem->next != MEM_SIZE_ALIGNED);
+    /* remember the old next pointer */
+    next = mem2->next;
+    /* create new struct mem which is moved directly after the shrinked mem */
+    ptr2 = (mem_size_t)(ptr + SIZEOF_STRUCT_MEM + newsize);
+    if (lfree == mem2) {
+      lfree = ptr_to_mem(ptr2);
+    }
+    mem2 = ptr_to_mem(ptr2);
+    mem2->used = 0;
+    /* restore the next pointer */
+    mem2->next = next;
+    /* link it back to mem */
+    mem2->prev = ptr;
+    /* link mem to it */
+    mem->next = ptr2;
+    /* last thing to restore linked list: as we have moved mem2,
+     * let 'mem2->next->prev' point to mem2 again. but only if mem2->next is not
+     * the end of the heap */
+    if (mem2->next != MEM_SIZE_ALIGNED) {
+      ptr_to_mem(mem2->next)->prev = ptr2;
+    }
+    MEM_STATS_DEC_USED(used, (size - newsize));
+    /* no need to plug holes, we've already done that */
+  } else if (newsize + SIZEOF_STRUCT_MEM + MIN_SIZE_ALIGNED <= size) {
+    /* Next struct is used but there's room for another struct mem with
+     * at least MIN_SIZE_ALIGNED of data.
+     * Old size ('size') must be big enough to contain at least 'newsize' plus a struct mem
+     * ('SIZEOF_STRUCT_MEM') with some data ('MIN_SIZE_ALIGNED').
+     * @todo we could leave out MIN_SIZE_ALIGNED. We would create an empty
+     *       region that couldn't hold data, but when mem->next gets freed,
+     *       the 2 regions would be combined, resulting in more free memory */
+    ptr2 = (mem_size_t)(ptr + SIZEOF_STRUCT_MEM + newsize);
+    LWIP_ASSERT("invalid next ptr", mem->next != MEM_SIZE_ALIGNED);
+    mem2 = ptr_to_mem(ptr2);
+    if (mem2 < lfree) {
+      lfree = mem2;
+    }
+    mem2->used = 0;
+    mem2->next = mem->next;
+    mem2->prev = ptr;
+    mem->next = ptr2;
+    if (mem2->next != MEM_SIZE_ALIGNED) {
+      ptr_to_mem(mem2->next)->prev = ptr2;
+    }
+    MEM_STATS_DEC_USED(used, (size - newsize));
+    /* the original mem->next is used, so no need to plug holes! */
+  }
+  /* else {
+    next struct mem is used but size between mem and mem2 is not big enough
+    to create another struct mem
+    -> don't do anyhting.
+    -> the remaining space stays unused since it is too small
+  } */
+#if MEM_OVERFLOW_CHECK
+  mem_overflow_init_element(mem, new_size);
+#endif
+  MEM_SANITY();
+#if LWIP_ALLOW_MEM_FREE_FROM_OTHER_CONTEXT
+  mem_free_count = 1;
+#endif /* LWIP_ALLOW_MEM_FREE_FROM_OTHER_CONTEXT */
+  LWIP_MEM_FREE_UNPROTECT();
+  return rmem;
+}

@@ -1,0 +1,30 @@
+HAL_StatusTypeDef HAL_PCD_DeInit(PCD_HandleTypeDef *hpcd)
+{
+  /* Check the PCD handle allocation */
+  if (hpcd == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  hpcd->State = HAL_PCD_STATE_BUSY;
+
+  /* Stop Device */
+  (void)HAL_PCD_Stop(hpcd);
+
+#if (USE_HAL_PCD_REGISTER_CALLBACKS == 1U)
+  if (hpcd->MspDeInitCallback == NULL)
+  {
+    hpcd->MspDeInitCallback = HAL_PCD_MspDeInit; /* Legacy weak MspDeInit  */
+  }
+
+  /* DeInit the low level hardware */
+  hpcd->MspDeInitCallback(hpcd);
+#else
+  /* DeInit the low level hardware: CLOCK, NVIC.*/
+  HAL_PCD_MspDeInit(hpcd);
+#endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
+
+  hpcd->State = HAL_PCD_STATE_RESET;
+
+  return HAL_OK;
+}

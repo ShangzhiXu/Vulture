@@ -1,0 +1,139 @@
+static void pppol2tp_input(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port) {
+  pppol2tp_pcb *l2tp = (pppol2tp_pcb*)arg;
+  u16_t hflags, hlen, len=0, tunnel_id=0, session_id=0, ns=0, nr=0, offset=0;
+  u8_t *inp;
+  LWIP_UNUSED_ARG(pcb);
+
+  /* we can't unbound a UDP pcb, thus we can still receive UDP frames after the link is closed */
+  if (l2tp->phase < PPPOL2TP_STATE_SCCRQ_SENT) {
+    goto free_and_return;
+  }
+
+  if (!ip_addr_cmp(&l2tp->remote_ip, addr)) {
+    goto free_and_return;
+  }
+
+  /* discard packet if port mismatch, but only if we received a SCCRP */
+  if (l2tp->phase > PPPOL2TP_STATE_SCCRQ_SENT && l2tp->tunnel_port != port) {
+    goto free_and_return;
+  }
+
+  /* printf("-----------\nL2TP INPUT, %d\n", p->len); */
+
+  /* L2TP header */
+  if (p->len < sizeof(hflags) + sizeof(tunnel_id) + sizeof(session_id) ) {
+    goto packet_too_short;
+  }
+
+  inp = (u8_t*)p->payload;
+  GETSHORT(hflags, inp);
+
+  if (hflags & PPPOL2TP_HEADERFLAG_CONTROL) {
+    /* check mandatory flags for a control packet */
+    if ( (hflags & PPPOL2TP_HEADERFLAG_CONTROL_MANDATORY) != PPPOL2TP_HEADERFLAG_CONTROL_MANDATORY ) {
+      PPPDEBUG(LOG_DEBUG, ("pppol2tp: mandatory header flags for control packet not set\n"));
+      goto free_and_return;
+    }
+    /* check forbidden flags for a control packet */
+    if (hflags & PPPOL2TP_HEADERFLAG_CONTROL_FORBIDDEN) {
+      PPPDEBUG(LOG_DEBUG, ("pppol2tp: forbidden header flags for control packet found\n"));
+      goto free_and_return;
+    }
+  } else {
+    /* check mandatory flags for a data packet */
+    if ( (hflags & PPPOL2TP_HEADERFLAG_DATA_MANDATORY) != PPPOL2TP_HEADERFLAG_DATA_MANDATORY) {
+      PPPDEBUG(LOG_DEBUG, ("pppol2tp: mandatory header flags for data packet not set\n"));
+      goto free_and_return;
+    }
+  }
+
+  /* Expected header size  */
+  hlen = sizeof(hflags) + sizeof(tunnel_id) + sizeof(session_id);
+  if (hflags & PPPOL2TP_HEADERFLAG_LENGTH) {
+    hlen += sizeof(len);
+  }
+  if (hflags & PPPOL2TP_HEADERFLAG_SEQUENCE) {
+    hlen += sizeof(ns) + sizeof(nr);
+  }
+  if (hflags & PPPOL2TP_HEADERFLAG_OFFSET) {
+    hlen += sizeof(offset);
+  }
+  if (p->len < hlen) {
+    goto packet_too_short;
+  }
+
+  if (hflags & PPPOL2TP_HEADERFLAG_LENGTH) {
+    GETSHORT(len, inp);
+    if (p->len < len || len < hlen) {
+      goto packet_too_short;
+    }
+  }
+  GETSHORT(tunnel_id, inp);
+  GETSHORT(session_id, inp);
+  if (hflags & PPPOL2TP_HEADERFLAG_SEQUENCE) {
+    GETSHORT(ns, inp);
+    GETSHORT(nr, inp);
+  }
+  if (hflags & PPPOL2TP_HEADERFLAG_OFFSET) {
+    GETSHORT(offset, inp)
+    if (offset > 4096) { /* don't be fooled with large offset which might overflow hlen */
+      PPPDEBUG(LOG_DEBUG, ("pppol2tp: strange packet received, offset=%d\n", offset));
+      goto free_and_return;
+    }
+    hlen += offset;
+    if (p->len < hlen) {
+      goto packet_too_short;
+    }
+    INCPTR(offset, inp);
+  }
+
+  /* printf("HLEN = %d\n", hlen); */
+
+  /* skip L2TP header */
+  if (pbuf_remove_header(p, hlen) != 0) {
+    goto free_and_return;
+  }
+
+  /* printf("LEN=%d, TUNNEL_ID=%d, SESSION_ID=%d, NS=%d, NR=%d, OFFSET=%d\n", len, tunnel_id, session_id, ns, nr, offset); */
+  PPPDEBUG(LOG_DEBUG, ("pppol2tp: input packet, len=%"U16_F", tunnel=%"U16_F", session=%"U16_F", ns=%"U16_F", nr=%"U16_F"\n",
+    len, tunnel_id, session_id, ns, nr));
+
+  /* Control packet */
+  if (hflags & PPPOL2TP_HEADERFLAG_CONTROL) {
+    pppol2tp_dispatch_control_packet(l2tp, port, p, ns, nr);
+    goto free_and_return;
+  }
+
+  /* Data packet */
+  if(l2tp->phase != PPPOL2TP_STATE_DATA) {
+    goto free_and_return;
+  }
+  if(tunnel_id != l2tp->remote_tunnel_id) {
+     PPPDEBUG(LOG_DEBUG, ("pppol2tp: tunnel ID mismatch, assigned=%d, received=%d\n", l2tp->remote_tunnel_id, tunnel_id));
+     goto free_and_return;
+  }
+  if(session_id != l2tp->remote_session_id) {
+     PPPDEBUG(LOG_DEBUG, ("pppol2tp: session ID mismatch, assigned=%d, received=%d\n", l2tp->remote_session_id, session_id));
+     goto free_and_return;
+  }
+  /*
+   * skip address & flags if necessary
+   *
+   * RFC 2661 does not specify whether the PPP frame in the L2TP payload should
+   * have a HDLC header or not. We handle both cases for compatibility.
+   */
+  if (p->len >= 2) {
+    GETSHORT(hflags, inp);
+    if (hflags == 0xff03) {
+      pbuf_remove_header(p, 2);
+    }
+  }
+  /* Dispatch the packet thereby consuming it. */
+  ppp_input(l2tp->ppp, p);
+  return;
+
+packet_too_short:
+  PPPDEBUG(LOG_DEBUG, ("pppol2tp: packet too short: %d\n", p->len));
+free_and_return:
+  pbuf_free(p);
+}

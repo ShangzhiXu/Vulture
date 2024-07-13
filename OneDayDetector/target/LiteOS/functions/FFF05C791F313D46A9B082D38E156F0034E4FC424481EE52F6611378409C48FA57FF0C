@@ -1,0 +1,47 @@
+HAL_StatusTypeDef ADC_Enable(ADC_HandleTypeDef* hadc)
+{
+  uint32_t tickstart = 0;
+  __IO uint32_t wait_loop_index = 0;
+  
+  /* ADC enable and wait for ADC ready (in case of ADC is disabled or         */
+  /* enabling phase not yet completed: flag ADC ready not yet set).           */
+  /* Timeout implemented to not be stuck if ADC cannot be enabled (possible   */
+  /* causes: ADC clock not running, ...).                                     */
+  if (ADC_IS_ENABLE(hadc) == RESET)
+  {
+    /* Enable the Peripheral */
+    __HAL_ADC_ENABLE(hadc);
+    
+    /* Delay for ADC stabilization time */
+    /* Compute number of CPU cycles to wait for */
+    wait_loop_index = (ADC_STAB_DELAY_US * (SystemCoreClock / 1000000));
+    while(wait_loop_index != 0)
+    {
+      wait_loop_index--;
+    }
+    
+    /* Get tick count */
+    tickstart = HAL_GetTick();
+
+    /* Wait for ADC effectively enabled */
+    while(ADC_IS_ENABLE(hadc) == RESET)
+    {
+      if((HAL_GetTick() - tickstart) > ADC_ENABLE_TIMEOUT)
+      {
+        /* Update ADC state machine to error */
+        SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL);
+      
+        /* Set ADC error code to ADC IP internal error */
+        SET_BIT(hadc->ErrorCode, HAL_ADC_ERROR_INTERNAL);
+        
+        /* Process unlocked */
+        __HAL_UNLOCK(hadc);
+      
+        return HAL_ERROR;
+      }
+    }
+  }
+   
+  /* Return HAL status */
+  return HAL_OK;
+}

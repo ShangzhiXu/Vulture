@@ -1,0 +1,24 @@
+LITE_OS_SEC_TEXT STATIC UINT32 OsQueueWriteParameterCheck(UINT32 queueId, const VOID *bufferAddr,
+                                                          const UINT32 *bufferSize, UINT32 timeout)
+{
+    if (GET_QUEUE_INDEX(queueId) >= LOSCFG_BASE_IPC_QUEUE_LIMIT) {
+        return LOS_ERRNO_QUEUE_INVALID;
+    }
+
+    if (bufferAddr == NULL) {
+        return LOS_ERRNO_QUEUE_WRITE_PTR_NULL;
+    }
+
+    if (*bufferSize == 0) {
+        return LOS_ERRNO_QUEUE_WRITESIZE_ISZERO;
+    }
+
+    OsQueueDbgTimeUpdateHook(queueId);
+
+    if (timeout != LOS_NO_WAIT) {
+        if (OS_INT_ACTIVE) {
+            return LOS_ERRNO_QUEUE_WRITE_IN_INTERRUPT;
+        }
+    }
+    return LOS_OK;
+}

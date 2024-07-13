@@ -1,0 +1,49 @@
+HAL_SD_ErrorTypedef HAL_SD_Init(SD_HandleTypeDef *hsd, HAL_SD_CardInfoTypedef *SDCardInfo)
+{ 
+  __IO HAL_SD_ErrorTypedef errorstate = SD_OK;
+  SD_InitTypeDef tmpinit = {0};
+  
+  /* Initialize the low level hardware (MSP) */
+  HAL_SD_MspInit(hsd);
+  
+  /* Default SDIO peripheral configuration for SD card initialization */
+  tmpinit.ClockEdge           = SDIO_CLOCK_EDGE_RISING;
+  tmpinit.ClockBypass         = SDIO_CLOCK_BYPASS_DISABLE;
+  tmpinit.ClockPowerSave      = SDIO_CLOCK_POWER_SAVE_DISABLE;
+  tmpinit.BusWide             = SDIO_BUS_WIDE_1B;
+  tmpinit.HardwareFlowControl = SDIO_HARDWARE_FLOW_CONTROL_DISABLE;
+  tmpinit.ClockDiv            = SDIO_INIT_CLK_DIV;
+  
+  /* Initialize SDIO peripheral interface with default configuration */
+  SDIO_Init(hsd->Instance, tmpinit);
+  
+  /* Identify card operating voltage */
+  errorstate = SD_PowerON(hsd); 
+  
+  if(errorstate != SD_OK)     
+  {
+    return errorstate;
+  }
+  
+  /* Initialize the present SDIO card(s) and put them in idle state */
+  errorstate = SD_Initialize_Cards(hsd);
+  
+  if (errorstate != SD_OK)
+  {
+    return errorstate;
+  }
+  
+  /* Read CSD/CID MSD registers */
+  errorstate = HAL_SD_Get_CardInfo(hsd, SDCardInfo);
+  
+  if (errorstate == SD_OK)
+  {
+    /* Select the Card */
+    errorstate = SD_Select_Deselect(hsd, (uint32_t)(((uint32_t)SDCardInfo->RCA) << 16));
+  }
+  
+  /* Configure SDIO peripheral interface */
+  SDIO_Init(hsd->Instance, hsd->Init);   
+  
+  return errorstate;
+}

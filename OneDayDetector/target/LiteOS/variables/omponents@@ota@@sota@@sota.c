@@ -1,0 +1,17 @@
+    uint32_t block_num;
+    uint32_t block_offset;
+    WORD block_size;
+    uint16_t block_size;
+    uint32_t block_tolen;
+    WORD block_totalnum;
+    uint32_t block_totalnum;
+    WORD chk_code;
+    WORD data_len;
+    BYTE msg_code;
+    WORD ori_id;
+    uint8_t state;
+    BYTE ver[VER_LEN];
+    char ver[VER_LEN];
+    WORD ver_chk_code;
+    uint32_t ver_chk_code;
+    BYTE ver_num;

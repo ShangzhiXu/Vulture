@@ -1,0 +1,82 @@
+netconn_write_vectors_partly(struct netconn *conn, struct netvector *vectors, u16_t vectorcnt,
+                             u8_t apiflags, size_t *bytes_written)
+{
+  API_MSG_VAR_DECLARE(msg);
+  err_t err;
+  u8_t dontblock;
+  size_t size;
+  int i;
+
+  LWIP_ERROR("netconn_write: invalid conn",  (conn != NULL), return ERR_ARG;);
+  LWIP_ERROR("netconn_write: invalid conn->type",  (NETCONNTYPE_GROUP(conn->type) == NETCONN_TCP), return ERR_VAL;);
+  dontblock = netconn_is_nonblocking(conn) || (apiflags & NETCONN_DONTBLOCK);
+#if LWIP_SO_SNDTIMEO
+  if (conn->send_timeout != 0) {
+    dontblock = 1;
+  }
+#endif /* LWIP_SO_SNDTIMEO */
+  if (dontblock && !bytes_written) {
+    /* This implies netconn_write() cannot be used for non-blocking send, since
+       it has no way to return the number of bytes written. */
+    return ERR_VAL;
+  }
+
+  /* sum up the total size */
+  size = 0;
+  for (i = 0; i < vectorcnt; i++) {
+    size += vectors[i].len;
+    if (size < vectors[i].len) {
+      /* overflow */
+      return ERR_VAL;
+    }
+  }
+  if (size == 0) {
+    return ERR_OK;
+  } else if (size > SSIZE_MAX) {
+    ssize_t limited;
+    /* this is required by the socket layer (cannot send full size_t range) */
+    if (!bytes_written) {
+      return ERR_VAL;
+    }
+    /* limit the amount of data to send */
+    limited = SSIZE_MAX;
+    size = (size_t)limited;
+  }
+
+  API_MSG_VAR_ALLOC(msg);
+  /* non-blocking write sends as much  */
+  API_MSG_VAR_REF(msg).conn = conn;
+  API_MSG_VAR_REF(msg).msg.w.vector = vectors;
+  API_MSG_VAR_REF(msg).msg.w.vector_cnt = vectorcnt;
+  API_MSG_VAR_REF(msg).msg.w.vector_off = 0;
+  API_MSG_VAR_REF(msg).msg.w.apiflags = apiflags;
+  API_MSG_VAR_REF(msg).msg.w.len = size;
+  API_MSG_VAR_REF(msg).msg.w.offset = 0;
+#if LWIP_SO_SNDTIMEO
+  if (conn->send_timeout != 0) {
+    /* get the time we started, which is later compared to
+        sys_now() + conn->send_timeout */
+    API_MSG_VAR_REF(msg).msg.w.time_started = sys_now();
+  } else {
+    API_MSG_VAR_REF(msg).msg.w.time_started = 0;
+  }
+#endif /* LWIP_SO_SNDTIMEO */
+
+  /* For locking the core: this _can_ be delayed on low memory/low send buffer,
+     but if it is, this is done inside api_msg.c:do_write(), so we can use the
+     non-blocking version here. */
+  err = netconn_apimsg(lwip_netconn_do_write, &API_MSG_VAR_REF(msg));
+  if (err == ERR_OK) {
+    if (bytes_written != NULL) {
+      *bytes_written = API_MSG_VAR_REF(msg).msg.w.offset;
+    }
+    /* for blocking, check all requested bytes were written, NOTE: send_timeout is
+       treated as dontblock (see dontblock assignment above) */
+    if (!dontblock) {
+      LWIP_ASSERT("do_write failed to write all bytes", API_MSG_VAR_REF(msg).msg.w.offset == size);
+    }
+  }
+  API_MSG_VAR_FREE(msg);
+
+  return err;
+}

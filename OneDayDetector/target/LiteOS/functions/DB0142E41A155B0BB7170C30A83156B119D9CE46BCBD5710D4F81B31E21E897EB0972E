@@ -1,0 +1,43 @@
+UINT32 Example_Dyn_Mem(VOID)
+{
+    UINT32 *mem = NULL;
+    UINT32 ret;
+    printf("Kernel dynamic memory demo begin.\n");
+    ret = LOS_MemInit(g_demoDynMem, MEM_DYN_SIZE);
+    if (ret == LOS_OK) {
+        printf("Mempool init ok.\n");
+    } else {
+        printf("Mempool init failed.\n");
+        return LOS_NOK;
+    }
+
+    /* mem alloc */
+    mem = (UINT32 *)LOS_MemAlloc(g_demoDynMem, 4);
+    if (mem == NULL) {
+        printf("Mem alloc failed.\n");
+        return LOS_NOK;
+    }
+    printf("Mem alloc ok.\n");
+
+    /* assignment */
+    *mem = 828;
+    printf("*mem = %d.\n", *mem);
+
+    /* mem free */
+    ret = LOS_MemFree(g_demoDynMem, mem);
+    if (ret == LOS_OK) {
+        printf("Mem free ok.\n");
+        ret = LOS_InspectStatusSetById(LOS_INSPECT_DMEM, LOS_INSPECT_STU_SUCCESS);
+        if (ret != LOS_OK) {
+            printf("Set Inspect Status Err.\n");
+        }
+    } else {
+        printf("Mem free failed.\n");
+        ret = LOS_InspectStatusSetById(LOS_INSPECT_DMEM, LOS_INSPECT_STU_ERROR);
+        if (ret != LOS_OK) {
+            printf("Set Inspect Status Err.\n");
+        }
+        return LOS_NOK;
+    }
+    return LOS_OK;
+}

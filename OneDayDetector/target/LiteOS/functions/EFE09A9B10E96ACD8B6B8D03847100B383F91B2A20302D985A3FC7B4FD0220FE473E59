@@ -1,0 +1,13 @@
+smtp_prepare_auth_login_uname(struct smtp_session *s, u16_t *tx_buf_len)
+{
+  size_t base64_len = smtp_base64_encode(s->tx_buf, SMTP_TX_BUF_LEN,
+    SMTP_USERNAME(s), strlen(SMTP_USERNAME(s)));
+  /* @todo: support base64-encoded longer than 64k */
+  LWIP_ASSERT("string too long", base64_len <= 0xffff);
+  LWIP_ASSERT("tx_buf overflow detected", base64_len <= SMTP_TX_BUF_LEN - SMTP_CRLF_LEN);
+  *tx_buf_len = (u16_t)(base64_len + SMTP_CRLF_LEN);
+
+  SMEMCPY(&s->tx_buf[base64_len], SMTP_CRLF, SMTP_CRLF_LEN);
+  s->tx_buf[*tx_buf_len] = 0;
+  return SMTP_AUTH_LOGIN_PASS;
+}

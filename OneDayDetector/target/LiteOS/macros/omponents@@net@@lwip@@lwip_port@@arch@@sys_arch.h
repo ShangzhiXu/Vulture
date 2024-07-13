@@ -1,0 +1,5 @@
+#define sys_arch_mbox_tryfetch(mbox,msg)   sys_arch_mbox_fetch(mbox,msg,1)
+#define sys_mbox_set_invalid(mbox) do { if((mbox) != NULL) { *(mbox) = NULL; }}while(0)
+#define sys_mbox_valid(mbox)  (*(mbox) != NULL)
+#define sys_sem_set_invalid(x)  ( (*x).sem = NULL)
+#define sys_sem_valid(x)        (((*x).sem == NULL) ? 0 : 1)

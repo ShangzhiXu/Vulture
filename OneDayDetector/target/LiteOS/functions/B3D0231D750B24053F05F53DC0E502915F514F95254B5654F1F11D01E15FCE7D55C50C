@@ -1,0 +1,17 @@
+STATIC INLINE INT64 ArchAtomic64Sub(Atomic64 *v, INT64 subVal)
+{
+    INT64 val;
+    UINT32 status;
+
+    do {
+        __asm__ __volatile__("ldrexd   %1, %H1, [%2]\n"
+                             "subs   %Q1, %Q1, %Q3\n"
+                             "sbc   %R1, %R1, %R3\n"
+                             "strexd   %0, %1, %H1, [%2]"
+                             : "=&r"(status), "=&r"(val)
+                             : "r"(v), "r"(subVal)
+                             : "cc");
+    } while (__builtin_expect(status != 0, 0));
+
+    return val;
+}

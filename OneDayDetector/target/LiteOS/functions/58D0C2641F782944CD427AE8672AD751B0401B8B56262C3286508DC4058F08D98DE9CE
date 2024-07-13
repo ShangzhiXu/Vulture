@@ -1,0 +1,32 @@
+HAL_StatusTypeDef HAL_DMA2D_ProgramLineEvent(DMA2D_HandleTypeDef *hdma2d, uint32_t Line)
+{
+  /* Check the parameters */
+  assert_param(IS_DMA2D_LINEWATERMARK(Line));
+
+  if (Line > DMA2D_LWR_LW)
+  {
+    return HAL_ERROR;
+  }
+  else
+  {
+    /* Process locked */
+    __HAL_LOCK(hdma2d);
+
+    /* Change DMA2D peripheral state */
+    hdma2d->State = HAL_DMA2D_STATE_BUSY;
+
+    /* Sets the Line watermark configuration */
+    WRITE_REG(hdma2d->Instance->LWR, Line);
+
+    /* Enable the Line interrupt */
+    __HAL_DMA2D_ENABLE_IT(hdma2d, DMA2D_IT_TW);
+
+    /* Initialize the DMA2D state*/
+    hdma2d->State = HAL_DMA2D_STATE_READY;
+
+    /* Process unlocked */
+    __HAL_UNLOCK(hdma2d);
+
+    return HAL_OK;
+  }
+}

@@ -1,0 +1,22 @@
+STATIC UINT32 GetInstr(UINT32 instrAddr, UINT32 targetAddr, UINT32 *newInstr, UINT8 blInstr)
+{
+    UINT32 tmpInstr;
+
+    if (blInstr != 0) {
+        tmpInstr = CalcBranchWLinkInstr(instrAddr, targetAddr);
+    } else {
+        tmpInstr = CalcBranchInstr(instrAddr, targetAddr);
+    }
+
+    if (tmpInstr == NOP_INSTR) {
+        return FPB_TARGET_ADDR_ERR;
+    }
+    if (((instrAddr & (~0x1)) & INSTR_ALIGN) == 0) { // check aligned
+        *newInstr = LittleEndian16Bit(tmpInstr);
+    } else {
+        PRINT_ERR("target addr is not 4 aligned,not support!\r\n");
+        return FPB_ADDR_NOT_ALIGN_ERR;
+    }
+
+    return FPB_SUCCESS;
+}

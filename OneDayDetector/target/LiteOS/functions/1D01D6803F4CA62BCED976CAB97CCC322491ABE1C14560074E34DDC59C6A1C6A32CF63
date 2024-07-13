@@ -1,0 +1,32 @@
+void lv_msgbox_add_btns(lv_obj_t * mbox, const char * btn_map[])
+{
+    LV_ASSERT_OBJ(mbox, LV_OBJX_NAME);
+    LV_ASSERT_NULL(btn_map);
+
+    lv_msgbox_ext_t * ext = lv_obj_get_ext_attr(mbox);
+
+    /*Create a button matrix if not exists yet*/
+    if(ext->btnm == NULL) {
+        ext->btnm = lv_btnmatrix_create(mbox, NULL);
+
+        lv_theme_apply(mbox, LV_THEME_MSGBOX_BTNS);
+    }
+
+    lv_btnmatrix_set_map(ext->btnm, btn_map);
+    lv_btnmatrix_set_btn_ctrl_all(ext->btnm, LV_BTNMATRIX_CTRL_CLICK_TRIG | LV_BTNMATRIX_CTRL_NO_REPEAT);
+    lv_obj_set_event_cb(ext->btnm, lv_msgbox_btnm_event_cb);
+
+    if(lv_obj_is_focused(mbox)) {
+        lv_state_t state = lv_obj_get_state(mbox, LV_MSGBOX_PART_BG);
+        if(state & LV_STATE_EDITED) {
+            lv_obj_set_state(ext->btnm, LV_STATE_FOCUSED | LV_STATE_EDITED);
+        }
+        else {
+            lv_obj_set_state(ext->btnm, LV_STATE_FOCUSED);
+        }
+
+        lv_btnmatrix_set_focused_btn(ext->btnm, 0);
+    }
+
+    mbox_realign(mbox);
+}

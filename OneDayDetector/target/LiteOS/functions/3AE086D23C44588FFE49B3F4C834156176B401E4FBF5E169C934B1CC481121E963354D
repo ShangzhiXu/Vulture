@@ -1,0 +1,14 @@
+UINT32 OsSlabAllocatorGetIndex(const OsSlabAllocator *allocator, VOID* ptr)
+{
+    UINT8 *ptrTmp = (UINT8*)ptr;
+    UINT32 itemOffset = (UINT32)(ptrTmp - allocator->dataChunks);
+    UINT32 itemIdx = itemOffset / allocator->itemSz;
+
+    if ((itemOffset % allocator->itemSz) ||
+        (itemIdx >= OsAtomicBitsetGetNumBits(allocator->bitset)) ||
+        !(OsAtomicBitsetGetBit(allocator->bitset, itemIdx))) {
+        return (UINT32)(-1);
+    }
+
+    return itemIdx;
+}

@@ -1,0 +1,51 @@
+uint32_t LL_RCC_GetUSBClockFreq(uint32_t USBxSource)
+{
+  uint32_t usb_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_USB_CLKSOURCE(USBxSource));
+
+  /* USBCLK clock frequency */
+  switch (LL_RCC_GetUSBClockSource(USBxSource))
+  {
+    case LL_RCC_USB_CLKSOURCE_PLLSAI1:       /* PLLSAI1 clock used as USB clock source */
+      if (LL_RCC_PLLSAI1_IsReady())
+      {
+        usb_frequency = RCC_PLLSAI1_GetFreqDomain_48M();
+      }
+      break;
+
+    case LL_RCC_USB_CLKSOURCE_PLL:           /* PLL clock used as USB clock source */
+      if (LL_RCC_PLL_IsReady())
+      {
+        usb_frequency = RCC_PLL_GetFreqDomain_48M();
+      }
+      break;
+
+    case LL_RCC_USB_CLKSOURCE_MSI:           /* MSI clock used as USB clock source */
+      if (LL_RCC_MSI_IsReady())
+      {
+        usb_frequency = __LL_RCC_CALC_MSI_FREQ(LL_RCC_MSI_IsEnabledRangeSelect(),
+                                    (LL_RCC_MSI_IsEnabledRangeSelect() ?
+                                     LL_RCC_MSI_GetRange() :
+                                     LL_RCC_MSI_GetRangeAfterStandby()));
+      }
+      break;
+
+#if defined(RCC_HSI48_SUPPORT)
+    case LL_RCC_USB_CLKSOURCE_HSI48:      /* HSI48 used as USB clock source */
+      if (LL_RCC_HSI48_IsReady())
+      {
+        usb_frequency = HSI48_VALUE;
+      }
+      break;
+#else
+    case LL_RCC_USB_CLKSOURCE_NONE:       /* No clock used as USB clock source */
+#endif
+    default:
+      usb_frequency = LL_RCC_PERIPH_FREQUENCY_NA;
+      break;
+  }
+
+  return usb_frequency;
+}

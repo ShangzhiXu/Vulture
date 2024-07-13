@@ -1,0 +1,49 @@
+smtp_prepare_auth_or_mail(struct smtp_session *s, u16_t *tx_buf_len)
+{
+  /* check response for supported authentication method */
+  u16_t auth = pbuf_strstr(s->p, SMTP_KEYWORD_AUTH_SP);
+  if (auth == 0xFFFF) {
+    auth = pbuf_strstr(s->p, SMTP_KEYWORD_AUTH_EQ);
+  }
+  if (auth != 0xFFFF) {
+    u16_t crlf = pbuf_memfind(s->p, SMTP_CRLF, SMTP_CRLF_LEN, auth);
+    if ((crlf != 0xFFFF) && (crlf > auth)) {
+      /* use tx_buf temporarily */
+      u16_t copied = pbuf_copy_partial(s->p, s->tx_buf, (u16_t)(crlf - auth), auth);
+      if (copied != 0) {
+        char *sep = s->tx_buf + SMTP_KEYWORD_AUTH_LEN;
+        s->tx_buf[copied] = 0;
+#if SMTP_SUPPORT_AUTH_PLAIN
+        /* favour PLAIN over LOGIN since it involves less requests */
+        if (strstr(sep, SMTP_AUTH_PARAM_PLAIN) != NULL) {
+          size_t auth_len;
+          /* server supports AUTH PLAIN */
+          SMEMCPY(s->tx_buf, SMTP_CMD_AUTHPLAIN_1, SMTP_CMD_AUTHPLAIN_1_LEN);
+
+          /* add base64-encoded string "\0username\0password" */
+          auth_len = smtp_base64_encode(&s->tx_buf[SMTP_CMD_AUTHPLAIN_1_LEN],
+            SMTP_TX_BUF_LEN - SMTP_CMD_AUTHPLAIN_1_LEN, SMTP_AUTH_PLAIN_DATA(s),
+            SMTP_AUTH_PLAIN_LEN(s));
+          LWIP_ASSERT("string too long", auth_len <= (SMTP_TX_BUF_LEN-SMTP_CMD_AUTHPLAIN_1_LEN-SMTP_CMD_AUTHPLAIN_2_LEN));
+          *tx_buf_len = (u16_t)(SMTP_CMD_AUTHPLAIN_1_LEN + SMTP_CMD_AUTHPLAIN_2_LEN + (u16_t)auth_len);
+          SMEMCPY(&s->tx_buf[SMTP_CMD_AUTHPLAIN_1_LEN + auth_len], SMTP_CMD_AUTHPLAIN_2,
+            SMTP_CMD_AUTHPLAIN_2_LEN);
+          return SMTP_AUTH_PLAIN;
+        } else
+#endif /* SMTP_SUPPORT_AUTH_PLAIN */
+        {
+#if SMTP_SUPPORT_AUTH_LOGIN
+          if (strstr(sep, SMTP_AUTH_PARAM_LOGIN) != NULL) {
+            /* server supports AUTH LOGIN */
+            *tx_buf_len = SMTP_CMD_AUTHLOGIN_LEN;
+            SMEMCPY(s->tx_buf, SMTP_CMD_AUTHLOGIN, SMTP_CMD_AUTHLOGIN_LEN);
+            return SMTP_AUTH_LOGIN_UNAME;
+          }
+#endif /* SMTP_SUPPORT_AUTH_LOGIN */
+        }
+      }
+    }
+  }
+  /* server didnt's send correct keywords for AUTH, try sending directly */
+  return smtp_prepare_mail(s, tx_buf_len);
+}

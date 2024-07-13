@@ -1,0 +1,27 @@
+int los_ioctl(int fd, int func, ...)
+{
+    va_list ap;
+    unsigned long arg;
+    struct file *file;
+    int ret = -1;
+
+    va_start(ap, func);
+    arg = va_arg(ap, unsigned long);
+    va_end(ap);
+
+    file = los_attach_file(fd);
+
+    if (file == NULL) {
+        return ret;
+    }
+
+    if (file->f_fops->ioctl != NULL) {
+        ret = file->f_fops->ioctl(file, func, arg);
+    } else {
+        VFS_ERRNO_SET(ENOTSUP);
+    }
+
+    los_detach_file(file);
+
+    return ret;
+}

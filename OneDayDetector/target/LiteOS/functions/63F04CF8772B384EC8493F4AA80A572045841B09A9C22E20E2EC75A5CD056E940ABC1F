@@ -1,0 +1,39 @@
+HAL_StatusTypeDef HAL_DAC_ConfigChannel(DAC_HandleTypeDef* hdac, DAC_ChannelConfTypeDef* sConfig, uint32_t Channel)
+{
+  uint32_t tmpreg1 = 0, tmpreg2 = 0;
+
+  /* Check the DAC parameters */
+  assert_param(IS_DAC_TRIGGER(sConfig->DAC_Trigger));
+  assert_param(IS_DAC_OUTPUT_BUFFER_STATE(sConfig->DAC_OutputBuffer));
+  assert_param(IS_DAC_CHANNEL(Channel));
+  
+  /* Process locked */
+  __HAL_LOCK(hdac);
+  
+  /* Change DAC state */
+  hdac->State = HAL_DAC_STATE_BUSY;
+  
+  /* Get the DAC CR value */
+  tmpreg1 = hdac->Instance->CR;
+  /* Clear BOFFx, TENx, TSELx, WAVEx and MAMPx bits */
+  tmpreg1 &= ~(((uint32_t)(DAC_CR_MAMP1 | DAC_CR_WAVE1 | DAC_CR_TSEL1 | DAC_CR_TEN1 | DAC_CR_BOFF1)) << Channel);
+  /* Configure for the selected DAC channel: buffer output, trigger */
+  /* Set TSELx and TENx bits according to DAC_Trigger value */
+  /* Set BOFFx bit according to DAC_OutputBuffer value */   
+  tmpreg2 = (sConfig->DAC_Trigger | sConfig->DAC_OutputBuffer);
+  /* Calculate CR register value depending on DAC_Channel */
+  tmpreg1 |= tmpreg2 << Channel;
+  /* Write to DAC CR */
+  hdac->Instance->CR = tmpreg1;
+  /* Disable wave generation */
+  hdac->Instance->CR &= ~(DAC_CR_WAVE1 << Channel);
+  
+  /* Change DAC state */
+  hdac->State = HAL_DAC_STATE_READY;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hdac);
+  
+  /* Return function status */
+  return HAL_OK;
+}

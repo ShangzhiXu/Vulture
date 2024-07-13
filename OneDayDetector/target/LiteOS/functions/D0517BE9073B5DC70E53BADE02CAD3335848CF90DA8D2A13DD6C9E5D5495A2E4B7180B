@@ -1,0 +1,106 @@
+HAL_StatusTypeDef HAL_SMBUS_Init(SMBUS_HandleTypeDef *hsmbus)
+{
+  uint32_t freqrange = 0U;
+  uint32_t pclk1 = 0U;
+
+  /* Check the SMBUS handle allocation */
+  if (hsmbus == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_SMBUS_ALL_INSTANCE(hsmbus->Instance));
+#if  defined(I2C_FLTR_ANOFF)
+  assert_param(IS_SMBUS_ANALOG_FILTER(hsmbus->Init.AnalogFilter));
+#endif
+  assert_param(IS_SMBUS_CLOCK_SPEED(hsmbus->Init.ClockSpeed));
+  assert_param(IS_SMBUS_OWN_ADDRESS1(hsmbus->Init.OwnAddress1));
+  assert_param(IS_SMBUS_ADDRESSING_MODE(hsmbus->Init.AddressingMode));
+  assert_param(IS_SMBUS_DUAL_ADDRESS(hsmbus->Init.DualAddressMode));
+  assert_param(IS_SMBUS_OWN_ADDRESS2(hsmbus->Init.OwnAddress2));
+  assert_param(IS_SMBUS_GENERAL_CALL(hsmbus->Init.GeneralCallMode));
+  assert_param(IS_SMBUS_NO_STRETCH(hsmbus->Init.NoStretchMode));
+  assert_param(IS_SMBUS_PEC(hsmbus->Init.PacketErrorCheckMode));
+  assert_param(IS_SMBUS_PERIPHERAL_MODE(hsmbus->Init.PeripheralMode));
+
+  if (hsmbus->State == HAL_SMBUS_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hsmbus->Lock = HAL_UNLOCKED;
+    /* Init the low level hardware : GPIO, CLOCK, NVIC */
+#if (USE_HAL_SMBUS_REGISTER_CALLBACKS == 1)
+    /* Init the SMBUS Callback settings */
+    hsmbus->MasterTxCpltCallback = HAL_SMBUS_MasterTxCpltCallback; /* Legacy weak MasterTxCpltCallback */
+    hsmbus->MasterRxCpltCallback = HAL_SMBUS_MasterRxCpltCallback; /* Legacy weak MasterRxCpltCallback */
+    hsmbus->SlaveTxCpltCallback  = HAL_SMBUS_SlaveTxCpltCallback;  /* Legacy weak SlaveTxCpltCallback  */
+    hsmbus->SlaveRxCpltCallback  = HAL_SMBUS_SlaveRxCpltCallback;  /* Legacy weak SlaveRxCpltCallback  */
+    hsmbus->ListenCpltCallback   = HAL_SMBUS_ListenCpltCallback;   /* Legacy weak ListenCpltCallback   */
+    hsmbus->ErrorCallback        = HAL_SMBUS_ErrorCallback;        /* Legacy weak ErrorCallback        */
+    hsmbus->AbortCpltCallback    = HAL_SMBUS_AbortCpltCallback;    /* Legacy weak AbortCpltCallback    */
+    hsmbus->AddrCallback         = HAL_SMBUS_AddrCallback;         /* Legacy weak AddrCallback         */
+
+    if (hsmbus->MspInitCallback == NULL)
+    {
+      hsmbus->MspInitCallback = HAL_SMBUS_MspInit; /* Legacy weak MspInit  */
+    }
+
+    /* Init the low level hardware : GPIO, CLOCK, NVIC */
+    hsmbus->MspInitCallback(hsmbus);
+#else
+    /* Init the low level hardware : GPIO, CLOCK, NVIC */
+    HAL_SMBUS_MspInit(hsmbus);
+#endif /* USE_HAL_SMBUS_REGISTER_CALLBACKS */
+  }
+
+  hsmbus->State = HAL_SMBUS_STATE_BUSY;
+
+  /* Disable the selected SMBUS peripheral */
+  __HAL_SMBUS_DISABLE(hsmbus);
+
+  /* Get PCLK1 frequency */
+  pclk1 = HAL_RCC_GetPCLK1Freq();
+
+  /* Calculate frequency range */
+  freqrange = SMBUS_FREQRANGE(pclk1);
+
+  /*---------------------------- SMBUSx CR2 Configuration ----------------------*/
+  /* Configure SMBUSx: Frequency range */
+  MODIFY_REG(hsmbus->Instance->CR2, I2C_CR2_FREQ, freqrange);
+
+  /*---------------------------- SMBUSx TRISE Configuration --------------------*/
+  /* Configure SMBUSx: Rise Time */
+  MODIFY_REG(hsmbus->Instance->TRISE, I2C_TRISE_TRISE, SMBUS_RISE_TIME(freqrange));
+
+  /*---------------------------- SMBUSx CCR Configuration ----------------------*/
+  /* Configure SMBUSx: Speed */
+  MODIFY_REG(hsmbus->Instance->CCR, (I2C_CCR_FS | I2C_CCR_DUTY | I2C_CCR_CCR), SMBUS_SPEED_STANDARD(pclk1, hsmbus->Init.ClockSpeed));
+
+  /*---------------------------- SMBUSx CR1 Configuration ----------------------*/
+  /* Configure SMBUSx: Generalcall , PEC , Peripheral mode and  NoStretch mode */
+  MODIFY_REG(hsmbus->Instance->CR1, (I2C_CR1_NOSTRETCH | I2C_CR1_ENGC | I2C_CR1_PEC | I2C_CR1_ENARP | I2C_CR1_SMBTYPE | I2C_CR1_SMBUS), (hsmbus->Init.NoStretchMode | hsmbus->Init.GeneralCallMode |  hsmbus->Init.PacketErrorCheckMode | hsmbus->Init.PeripheralMode));
+
+  /*---------------------------- SMBUSx OAR1 Configuration ---------------------*/
+  /* Configure SMBUSx: Own Address1 and addressing mode */
+  MODIFY_REG(hsmbus->Instance->OAR1, (I2C_OAR1_ADDMODE | I2C_OAR1_ADD8_9 | I2C_OAR1_ADD1_7 | I2C_OAR1_ADD0), (hsmbus->Init.AddressingMode | hsmbus->Init.OwnAddress1));
+
+  /*---------------------------- SMBUSx OAR2 Configuration ---------------------*/
+  /* Configure SMBUSx: Dual mode and Own Address2 */
+  MODIFY_REG(hsmbus->Instance->OAR2, (I2C_OAR2_ENDUAL | I2C_OAR2_ADD2), (hsmbus->Init.DualAddressMode | hsmbus->Init.OwnAddress2));
+#if  defined(I2C_FLTR_ANOFF)
+  /*---------------------------- SMBUSx FLTR Configuration ------------------------*/
+  /* Configure SMBUSx: Analog noise filter */
+  SET_BIT(hsmbus->Instance->FLTR, hsmbus->Init.AnalogFilter);
+#endif
+
+  /* Enable the selected SMBUS peripheral */
+  __HAL_SMBUS_ENABLE(hsmbus);
+
+  hsmbus->ErrorCode = HAL_SMBUS_ERROR_NONE;
+  hsmbus->State = HAL_SMBUS_STATE_READY;
+  hsmbus->PreviousState = SMBUS_STATE_NONE;
+  hsmbus->Mode = HAL_SMBUS_MODE_NONE;
+  hsmbus->XferPEC = 0x00;
+
+  return HAL_OK;
+}

@@ -1,0 +1,47 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 OsCmdTokenSplit(CHAR *cmdStr, CHAR split, CmdParsed *cmdParsed)
+{
+    enum {
+        STAT_INIT,
+        STAT_TOKEN_IN,
+        STAT_TOKEN_OUT
+    } state = STAT_INIT;
+    UINT32 count = 0;
+    CHAR *p = NULL;
+    CHAR *token = cmdStr;
+    UINT32 ret = LOS_OK;
+    BOOL quotes = FALSE;
+
+    if (cmdStr == NULL) {
+        return (UINT32)OS_ERROR;
+    }
+
+    for (p = cmdStr; (*p != '\0') && (ret == LOS_OK); p++) {
+        if (*p == '\"') {
+            SWITCH_QUOTES_STATUS(quotes);
+        }
+        switch (state) {
+            case STAT_INIT:
+            case STAT_TOKEN_IN:
+                if ((*p == split) && QUOTES_STATUS_CLOSE(quotes)) {
+                    *p = '\0';
+                    ret = OsCmdParseOneToken(cmdParsed, count++, token);
+                    state = STAT_TOKEN_OUT;
+                }
+                break;
+            case STAT_TOKEN_OUT:
+                if (*p != split) {
+                    token = p;
+                    state = STAT_TOKEN_IN;
+                }
+                break;
+            default:
+                break;
+        }
+    }
+
+    if (((ret == LOS_OK) && (state == STAT_TOKEN_IN)) || (state == STAT_INIT)) {
+        ret = OsCmdParseOneToken(cmdParsed, count, token);
+    }
+
+    return ret;
+}

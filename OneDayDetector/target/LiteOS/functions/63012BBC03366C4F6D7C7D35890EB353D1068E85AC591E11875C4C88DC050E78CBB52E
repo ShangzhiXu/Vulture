@@ -1,0 +1,63 @@
+HAL_StatusTypeDef HAL_RTC_DeInit(RTC_HandleTypeDef *hrtc)
+{
+  /* Check input parameters */
+  if(hrtc == NULL)
+  {
+     return HAL_ERROR;
+  }
+  
+  /* Check the parameters */
+  assert_param(IS_RTC_ALL_INSTANCE(hrtc->Instance));
+
+  /* Set RTC state */
+  hrtc->State = HAL_RTC_STATE_BUSY; 
+  
+  /* Set Initialization mode */
+  if(RTC_EnterInitMode(hrtc) != HAL_OK)
+  {
+    /* Set RTC state */
+    hrtc->State = HAL_RTC_STATE_ERROR;
+    
+    /* Release Lock */
+    __HAL_UNLOCK(hrtc);
+
+    return HAL_ERROR;
+  }  
+  else
+  {
+    CLEAR_REG(hrtc->Instance->CNTL);
+    CLEAR_REG(hrtc->Instance->CNTH);
+    WRITE_REG(hrtc->Instance->PRLL, 0x00008000);
+    CLEAR_REG(hrtc->Instance->PRLH);
+
+    /* Reset All CRH/CRL bits */
+    CLEAR_REG(hrtc->Instance->CRH);
+    CLEAR_REG(hrtc->Instance->CRL);
+    
+    if(RTC_ExitInitMode(hrtc) != HAL_OK)
+    {       
+      hrtc->State = HAL_RTC_STATE_ERROR;
+      
+      /* Process Unlocked */ 
+      __HAL_UNLOCK(hrtc);
+      
+      return HAL_ERROR;
+    }
+  }
+
+  /* Wait for synchro*/
+  HAL_RTC_WaitForSynchro(hrtc);
+
+  /* Clear RSF flag */
+  CLEAR_BIT(hrtc->Instance->CRL, RTC_FLAG_RSF);
+    
+  /* De-Initialize RTC MSP */
+  HAL_RTC_MspDeInit(hrtc);
+
+  hrtc->State = HAL_RTC_STATE_RESET; 
+  
+  /* Release Lock */
+  __HAL_UNLOCK(hrtc);
+
+  return HAL_OK;
+}

@@ -1,0 +1,67 @@
+HAL_StatusTypeDef HAL_USART_Transmit(USART_HandleTypeDef *husart, uint8_t *pTxData, uint16_t Size, uint32_t Timeout)
+{
+  uint16_t* tmp=0;
+
+  if(husart->State == HAL_USART_STATE_READY)
+  {
+    if((pTxData == NULL) || (Size == 0)) 
+    {
+      return  HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(husart);
+
+    husart->ErrorCode = HAL_USART_ERROR_NONE;
+    husart->State = HAL_USART_STATE_BUSY_TX;
+
+    husart->TxXferSize = Size;
+    husart->TxXferCount = Size;
+    while(husart->TxXferCount > 0)
+    {
+      husart->TxXferCount--;
+      if(husart->Init.WordLength == USART_WORDLENGTH_9B)
+      {
+        /* Wait for TC flag in order to write data in DR */
+        if(USART_WaitOnFlagUntilTimeout(husart, USART_FLAG_TXE, RESET, Timeout) != HAL_OK)
+        {
+          return HAL_TIMEOUT;
+        }
+        tmp = (uint16_t*) pTxData;
+        WRITE_REG(husart->Instance->DR, (*tmp & (uint16_t)0x01FF));
+        if(husart->Init.Parity == USART_PARITY_NONE)
+        {
+          pTxData += 2;
+        }
+        else
+        {
+          pTxData += 1;
+        }
+      }
+      else
+      {
+        if(USART_WaitOnFlagUntilTimeout(husart, USART_FLAG_TXE, RESET, Timeout) != HAL_OK)
+        {
+          return HAL_TIMEOUT;
+        }
+        WRITE_REG(husart->Instance->DR, (*pTxData++ & (uint8_t)0xFF));
+      }
+    }
+
+    if(USART_WaitOnFlagUntilTimeout(husart, USART_FLAG_TC, RESET, Timeout) != HAL_OK)
+    { 
+      return HAL_TIMEOUT;
+    }
+
+    husart->State = HAL_USART_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(husart);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

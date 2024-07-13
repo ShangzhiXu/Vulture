@@ -1,0 +1,21 @@
+static void I2S_Transmit_IT(I2S_HandleTypeDef *hi2s)
+{
+  /* Transmit data */
+  hi2s->Instance->DR = (*hi2s->pTxBuffPtr);
+  hi2s->pTxBuffPtr++;
+  hi2s->TxXferCount--;
+
+  if (hi2s->TxXferCount == 0U)
+  {
+    /* Disable TXE and ERR interrupt */
+    __HAL_I2S_DISABLE_IT(hi2s, (I2S_IT_TXE | I2S_IT_ERR));
+
+    hi2s->State = HAL_I2S_STATE_READY;
+    /* Call user Tx complete callback */
+#if (USE_HAL_I2S_REGISTER_CALLBACKS == 1U)
+    hi2s->TxCpltCallback(hi2s);
+#else
+    HAL_I2S_TxCpltCallback(hi2s);
+#endif /* USE_HAL_I2S_REGISTER_CALLBACKS */
+  }
+}

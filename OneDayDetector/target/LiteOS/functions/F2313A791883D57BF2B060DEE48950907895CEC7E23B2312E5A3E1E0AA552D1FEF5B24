@@ -1,0 +1,146 @@
+LITE_OS_SEC_TEXT_INIT UINT32 OsMain(VOID)
+{
+    UINT32 ret;
+
+#ifdef LOSCFG_EXC_INTERACTION
+    ret = OsMemExcInteractionInit((UINTPTR)&__bss_end);
+    if (ret != LOS_OK) {
+        return ret;
+    }
+#endif
+
+    ret = OsMemSystemInit((UINTPTR)&__bss_end + g_excInteractMemSize);
+    if (ret != LOS_OK) {
+        return ret;
+    }
+
+    OsRegister();
+
+#ifdef LOSCFG_SHELL_LK
+    OsLkLoggerInit(NULL);
+#endif
+
+#ifdef LOSCFG_SHELL_DMESG
+    ret = OsDmesgInit();
+    if (ret != LOS_OK) {
+        return ret;
+    }
+#endif
+
+    OsHwiInit();
+
+    ArchExcInit();
+
+    ret = OsTickInit(GET_SYS_CLOCK(), LOSCFG_BASE_CORE_TICK_PER_SECOND);
+    if (ret != LOS_OK) {
+        return ret;
+    }
+
+#ifdef LOSCFG_PLATFORM_UART_WITHOUT_VFS
+    uart_init();
+#ifdef LOSCFG_SHELL
+    uart_hwiCreate();
+#endif /* LOSCFG_SHELL */
+#endif /* LOSCFG_PLATFORM_UART_WITHOUT_VFS */
+    ret = OsTaskInit();
+    if (ret != LOS_OK) {
+        PRINT_ERR("OsTaskInit error\n");
+        return ret;
+    }
+
+#ifdef LOSCFG_KERNEL_TRACE
+    ret = LOS_TraceInit(NULL, LOS_TRACE_BUFFER_SIZE);
+    if (ret != LOS_OK) {
+        PRINT_ERR("LOS_TraceInit error\n");
+        return ret;
+    }
+#endif
+
+#ifdef LOSCFG_BASE_CORE_TSK_MONITOR
+    OsTaskMonInit();
+#endif
+
+    ret = OsIpcInit();
+    if (ret != LOS_OK) {
+        return ret;
+    }
+
+    /*
+     * CPUP should be inited before first task creation which depends on the semaphore
+     * when LOSCFG_KERNEL_SMP_TASK_SYNC is enabled. So don't change this init sequence
+     * if not necessary. The sequence should be like this:
+     * 1. OsIpcInit
+     * 2. OsCpupInit -> has first task creation
+     * 3. other inits have task creation
+     */
+#ifdef LOSCFG_KERNEL_CPUP
+    ret = OsCpupInit();
+    if (ret != LOS_OK) {
+        PRINT_ERR("OsCpupInit error\n");
+        return ret;
+    }
+#endif
+
+#ifdef LOSCFG_BASE_CORE_SWTMR
+    ret = OsSwtmrInit();
+    if (ret != LOS_OK) {
+        return ret;
+    }
+#endif
+
+#ifdef LOSCFG_KERNEL_SMP
+    (VOID)OsMpInit();
+#endif
+
+#ifdef LOSCFG_KERNEL_DYNLOAD
+    ret = OsDynloadInit();
+    if (ret != LOS_OK) {
+        return ret;
+    }
+#endif
+
+#if defined(LOSCFG_HW_RANDOM_ENABLE) || defined (LOSCFG_DRIVERS_RANDOM)
+    random_alg_context.ra_init_alg(NULL);
+    run_harvester_iterate(NULL);
+#endif
+
+    ret = OsIdleTaskCreate();
+    if (ret != LOS_OK) {
+        return ret;
+    }
+
+#ifdef LOSCFG_KERNEL_RUNSTOP
+    ret = OsWowWriteFlashTaskCreate();
+    if (ret != LOS_OK) {
+        return ret;
+    }
+#endif
+
+#ifdef LOSCFG_DRIVERS_BASE
+    ret = OsDriverBaseInit();
+    if (ret != LOS_OK) {
+        return ret;
+    }
+#ifdef LOSCFG_COMPAT_LINUX
+    (VOID)do_initCalls(LEVEL_ARCH);
+#endif
+#endif
+
+#ifdef LOSCFG_KERNEL_PERF
+    ret = LOS_PerfInit(NULL, LOS_PERF_BUFFER_SIZE);
+    if (ret != LOS_OK) {
+        return ret;
+    }
+#endif
+
+#ifdef LOSCFG_PLATFORM_OSAPPINIT
+    ret = osAppInit();
+#else /* LOSCFG_TEST */
+    ret = OsTestInit();
+#endif
+    if (ret != LOS_OK) {
+        return ret;
+    }
+
+    return LOS_OK;
+}

@@ -1,0 +1,22 @@
+LITE_OS_SEC_TEXT_MINOR UINT16 LOS_TaskPriGet(UINT32 taskId)
+{
+    UINT32 intSave;
+    LosTaskCB *taskCB = NULL;
+    UINT16 priority;
+
+    if (OS_TASK_ID_CHECK_INVALID(taskId)) {
+        return (UINT16)OS_INVALID;
+    }
+
+    taskCB = OS_TCB_FROM_TID(taskId);
+
+    SCHEDULER_LOCK(intSave);
+    if (taskCB->taskStatus & OS_TASK_STATUS_UNUSED) {
+        SCHEDULER_UNLOCK(intSave);
+        return (UINT16)OS_INVALID;
+    }
+
+    priority = taskCB->priority;
+    SCHEDULER_UNLOCK(intSave);
+    return priority;
+}

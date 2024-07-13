@@ -1,0 +1,59 @@
+LITE_OS_SEC_TEXT_INIT UINT32 LOS_QueueDelete(UINT32 queueId)
+{
+    LosQueueCB *queueCB = NULL;
+    UINT8 *queue = NULL;
+    UINT32 intSave;
+    UINT32 ret = LOS_OK;
+
+    if (GET_QUEUE_INDEX(queueId) >= LOSCFG_BASE_IPC_QUEUE_LIMIT) {
+        return LOS_ERRNO_QUEUE_NOT_FOUND;
+    }
+
+    queueCB = (LosQueueCB *)GET_QUEUE_HANDLE(queueId);
+
+    LOS_TRACE(QUEUE_DELETE, queueId, queueCB->queueState, queueCB->readWriteableCnt[OS_QUEUE_READ]);
+
+    SCHEDULER_LOCK(intSave);
+    if ((queueCB->queueId != queueId) || (queueCB->queueState == OS_QUEUE_UNUSED)) {
+        ret = LOS_ERRNO_QUEUE_NOT_CREATE;
+        goto QUEUE_END;
+    }
+
+    if (!LOS_ListEmpty(&queueCB->readWriteList[OS_QUEUE_READ])) {
+        ret = LOS_ERRNO_QUEUE_IN_TSKUSE;
+        goto QUEUE_END;
+    }
+
+    if (!LOS_ListEmpty(&queueCB->readWriteList[OS_QUEUE_WRITE])) {
+        ret = LOS_ERRNO_QUEUE_IN_TSKUSE;
+        goto QUEUE_END;
+    }
+
+    if (!LOS_ListEmpty(&queueCB->memList)) {
+        ret = LOS_ERRNO_QUEUE_IN_TSKUSE;
+        goto QUEUE_END;
+    }
+
+    if ((queueCB->readWriteableCnt[OS_QUEUE_WRITE] + queueCB->readWriteableCnt[OS_QUEUE_READ]) !=
+        queueCB->queueLen) {
+        ret = LOS_ERRNO_QUEUE_IN_TSKWRITE;
+        goto QUEUE_END;
+    }
+
+    queue = queueCB->queueHandle;
+    queueCB->queueHandle = NULL;
+    queueCB->queueState = OS_QUEUE_UNUSED;
+    queueCB->queueId = SET_QUEUE_ID(GET_QUEUE_COUNT(queueCB->queueId) + 1, GET_QUEUE_INDEX(queueCB->queueId));
+    OsQueueDbgUpdateHook(queueCB->queueId, NULL);
+
+    LOS_ListTailInsert(&g_freeQueueList, &queueCB->readWriteList[OS_QUEUE_WRITE]);
+    SCHEDULER_UNLOCK(intSave);
+    if (queueCB->queueMemType == OS_QUEUE_ALLOC_DYNAMIC) {
+        ret = LOS_MemFree(m_aucSysMem1, (VOID *)queue);
+    }
+    return ret;
+
+QUEUE_END:
+    SCHEDULER_UNLOCK(intSave);
+    return ret;
+}

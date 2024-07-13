@@ -1,0 +1,23 @@
+HAL_StatusTypeDef HAL_CEC_UnRegisterRxCpltCallback(CEC_HandleTypeDef *hcec)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process locked */
+  __HAL_LOCK(hcec);
+
+  if (HAL_CEC_STATE_READY == hcec->RxState)
+  {
+    hcec->RxCpltCallback = HAL_CEC_RxCpltCallback; /* Legacy weak  CEC RxCpltCallback  */
+  }
+  else
+  {
+    /* Update the error code */
+    hcec->ErrorCode |= HAL_CEC_ERROR_INVALID_CALLBACK;
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hcec);
+  return status;
+}

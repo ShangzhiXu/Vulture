@@ -3,7 +3,7 @@ import os
 # JSON data
 json_data = ""
 cve_with_overflow = []
-dic_path = "C:\\Users\\mxu49\\Downloads\\cvelistV5-main\\cvelistV5-main\\cves"
+dic_path = ""
 # walk through the directory
 for root, dirs, files in os.walk(dic_path):
     for file in files:

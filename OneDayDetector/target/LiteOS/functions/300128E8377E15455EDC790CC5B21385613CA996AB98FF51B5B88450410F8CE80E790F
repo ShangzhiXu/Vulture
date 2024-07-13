@@ -1,0 +1,64 @@
+HAL_StatusTypeDef HAL_DSI_EnterULPM(DSI_HandleTypeDef *hdsi)
+{
+  uint32_t tickstart;
+
+  /* Process locked */
+  __HAL_LOCK(hdsi);
+
+  /* Clock lane configuration: no more HS request */
+  hdsi->Instance->CLCR &= ~DSI_CLCR_DPCC;
+
+  /* Use system PLL as byte lane clock source before stopping DSIPHY clock source */
+  __HAL_RCC_DSI_CONFIG(RCC_DSICLKSOURCE_PLLSAI2);
+
+  /* ULPS Request on Clock and Data Lanes */
+  hdsi->Instance->PUCR |= (DSI_PUCR_URCL | DSI_PUCR_URDL);
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  /* Wait until all active lanes exit ULPM */
+  if((hdsi->Instance->PCONFR & DSI_PCONFR_NL) == DSI_ONE_DATA_LANE)
+  {
+    while((hdsi->Instance->PSR & (DSI_PSR_UAN0 | DSI_PSR_UANC)) != RESET)
+    {
+      /* Check for the Timeout */
+      if((HAL_GetTick() - tickstart ) > DSI_TIMEOUT_VALUE)
+      {
+        /* Process Unlocked */
+        __HAL_UNLOCK(hdsi);
+
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+  else if ((hdsi->Instance->PCONFR & DSI_PCONFR_NL) == DSI_TWO_DATA_LANES)
+  {
+    while((hdsi->Instance->PSR & (DSI_PSR_UAN0 | DSI_PSR_UAN1 | DSI_PSR_UANC)) != RESET)
+    {
+      /* Check for the Timeout */
+      if((HAL_GetTick() - tickstart ) > DSI_TIMEOUT_VALUE)
+      {
+        /* Process Unlocked */
+        __HAL_UNLOCK(hdsi);
+
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+  else
+  {
+    /* Process unlocked */
+    __HAL_UNLOCK(hdsi);
+
+    return HAL_ERROR;
+  }
+
+  /* Turn off the DSI PLL */
+  __HAL_DSI_PLL_DISABLE(hdsi);
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hdsi);
+
+  return HAL_OK;
+}

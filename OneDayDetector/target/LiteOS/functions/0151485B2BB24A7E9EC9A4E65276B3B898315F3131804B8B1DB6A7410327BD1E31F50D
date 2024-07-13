@@ -1,0 +1,195 @@
+HAL_StatusTypeDef HAL_OPAMP_SelfCalibrate(OPAMP_HandleTypeDef *hopamp)
+{ 
+
+  HAL_StatusTypeDef status = HAL_OK;
+  
+  uint32_t trimmingvaluen = 0;
+  uint32_t trimmingvaluep = 0;
+  uint32_t delta;
+  uint32_t opampmode;
+  
+  __IO uint32_t* tmp_opamp_reg_trimming;   /* Selection of register of trimming depending on power mode: OTR or LPOTR */
+    
+  /* Check the OPAMP handle allocation */
+  /* Check if OPAMP locked */
+  if((hopamp == NULL) || (hopamp->State == HAL_OPAMP_STATE_BUSYLOCKED))
+  {
+    status = HAL_ERROR;
+  }
+  else
+  {
+    /* Check if OPAMP in calibration mode and calibration not yet enable */
+    if(hopamp->State ==  HAL_OPAMP_STATE_READY)
+    {
+      /* Check the parameter */
+      assert_param(IS_OPAMP_ALL_INSTANCE(hopamp->Instance));
+      assert_param(IS_OPAMP_POWERMODE(hopamp->Init.PowerMode));
+
+      /* Save OPAMP mode as in                                       */
+      /* STM32L471xx STM32L475xx STM32L476xx STM32L485xx STM32L486xx */
+      /* the calibration is not working in PGA mode                  */
+      opampmode = READ_BIT(hopamp->Instance->CSR,OPAMP_CSR_OPAMODE);
+      
+      /* Use of standalone mode */ 
+      MODIFY_REG(hopamp->Instance->CSR, OPAMP_CSR_OPAMODE, OPAMP_STANDALONE_MODE); 
+
+      /*  user trimming values are used for offset calibration */
+      SET_BIT(hopamp->Instance->CSR, OPAMP_CSR_USERTRIM);
+      
+      /* Select trimming settings depending on power mode */
+      if (hopamp->Init.PowerMode == OPAMP_POWERMODE_NORMAL)
+      {
+        tmp_opamp_reg_trimming = &hopamp->Instance->OTR;
+      }
+      else
+      {
+        tmp_opamp_reg_trimming = &hopamp->Instance->LPOTR;
+      }
+      
+      /* Enable calibration */
+      SET_BIT (hopamp->Instance->CSR, OPAMP_CSR_CALON);
+  
+      /* 1st calibration - N */
+      CLEAR_BIT (hopamp->Instance->CSR, OPAMP_CSR_CALSEL);
+      
+      /* Enable the selected opamp */
+      SET_BIT (hopamp->Instance->CSR, OPAMP_CSR_OPAMPxEN);
+      
+      /* Init trimming counter */    
+      /* Medium value */
+      trimmingvaluen = 16; 
+      delta = 8;
+           
+      while (delta != 0)
+      {
+        /* Set candidate trimming */
+        /* OPAMP_POWERMODE_NORMAL */
+        MODIFY_REG(*tmp_opamp_reg_trimming, OPAMP_OTR_TRIMOFFSETN, trimmingvaluen);
+        
+        /* OFFTRIMmax delay 1 ms as per datasheet (electrical characteristics */ 
+        /* Offset trim time: during calibration, minimum time needed between */
+        /* two steps to have 1 mV accuracy */
+        HAL_Delay(OPAMP_TRIMMING_DELAY);
+
+        if (READ_BIT(hopamp->Instance->CSR, OPAMP_CSR_CALOUT) != RESET)
+        { 
+          /* OPAMP_CSR_CALOUT is HIGH try higher trimming */
+          trimmingvaluen -= delta;
+        }
+        else
+        {
+          /* OPAMP_CSR_CALOUT is LOW try lower trimming */
+          trimmingvaluen += delta;
+        }
+        /* Divide range by 2 to continue dichotomy sweep */       
+        delta >>= 1;
+      }
+
+      /* Still need to check if right calibration is current value or one step below */
+      /* Indeed the first value that causes the OUTCAL bit to change from 0 to 1  */
+      /* Set candidate trimming */
+      MODIFY_REG(*tmp_opamp_reg_trimming, OPAMP_OTR_TRIMOFFSETN, trimmingvaluen);
+           
+      /* OFFTRIMmax delay 1 ms as per datasheet (electrical characteristics */ 
+      /* Offset trim time: during calibration, minimum time needed between */
+      /* two steps to have 1 mV accuracy */
+      HAL_Delay(OPAMP_TRIMMING_DELAY);
+      
+      if ((READ_BIT(hopamp->Instance->CSR, OPAMP_CSR_CALOUT)) == 0)
+      { 
+        /* Trimming value is actually one value more */
+        trimmingvaluen++;
+        /* Set right trimming */
+        MODIFY_REG(*tmp_opamp_reg_trimming, OPAMP_OTR_TRIMOFFSETN, trimmingvaluen);
+      }
+
+      /* 2nd calibration - P */
+      SET_BIT (hopamp->Instance->CSR, OPAMP_CSR_CALSEL);
+      
+      /* Init trimming counter */    
+      /* Medium value */
+      trimmingvaluep = 16; 
+      delta = 8;
+      
+      while (delta != 0)
+      {
+        /* Set candidate trimming */
+        /* OPAMP_POWERMODE_NORMAL */
+        MODIFY_REG(*tmp_opamp_reg_trimming, OPAMP_OTR_TRIMOFFSETP, (trimmingvaluep<<OPAMP_INPUT_NONINVERTING));
+
+        /* OFFTRIMmax delay 1 ms as per datasheet (electrical characteristics */ 
+        /* Offset trim time: during calibration, minimum time needed between */
+        /* two steps to have 1 mV accuracy */
+        HAL_Delay(OPAMP_TRIMMING_DELAY);
+
+        if (READ_BIT(hopamp->Instance->CSR, OPAMP_CSR_CALOUT) != RESET)
+        { 
+          /* OPAMP_CSR_CALOUT is HIGH try higher trimming */
+          trimmingvaluep += delta;
+        }
+        else
+        {
+          /* OPAMP_CSR_CALOUT  is LOW try lower trimming */
+          trimmingvaluep -= delta;
+        }
+        
+        /* Divide range by 2 to continue dichotomy sweep */
+        delta >>= 1;
+      }
+      
+      /* Still need to check if right calibration is current value or one step below */
+      /* Indeed the first value that causes the OUTCAL bit to change from 1 to 0  */
+      /* Set candidate trimming */
+      MODIFY_REG(*tmp_opamp_reg_trimming, OPAMP_OTR_TRIMOFFSETP, (trimmingvaluep<<OPAMP_INPUT_NONINVERTING));
+
+      /* OFFTRIMmax delay 1 ms as per datasheet (electrical characteristics */ 
+      /* Offset trim time: during calibration, minimum time needed between */
+      /* two steps to have 1 mV accuracy */
+      HAL_Delay(OPAMP_TRIMMING_DELAY);
+      
+      if (READ_BIT(hopamp->Instance->CSR, OPAMP_CSR_CALOUT) != RESET)
+      {
+        /* Trimming value is actually one value more */
+        trimmingvaluep++;
+        MODIFY_REG(*tmp_opamp_reg_trimming, OPAMP_OTR_TRIMOFFSETP, (trimmingvaluep<<OPAMP_INPUT_NONINVERTING));
+      }
+      
+      /* Disable the OPAMP */
+      CLEAR_BIT (hopamp->Instance->CSR, OPAMP_CSR_OPAMPxEN);
+      
+      /* Disable calibration & set normal mode (operating mode) */
+      CLEAR_BIT (hopamp->Instance->CSR, OPAMP_CSR_CALON);
+                 
+      /* Self calibration is successful  */
+      /* Store calibration(user trimming) results in init structure. */
+
+      /* Set user trimming mode */  
+      hopamp->Init.UserTrimming = OPAMP_TRIMMING_USER;
+
+      /* Affect calibration parameters depending on mode normal/low power */
+      if (hopamp->Init.PowerMode != OPAMP_POWERMODE_LOWPOWER)
+      {
+        /* Write calibration result N */
+        hopamp->Init.TrimmingValueN = trimmingvaluen;
+        /* Write calibration result P */
+        hopamp->Init.TrimmingValueP = trimmingvaluep;
+      }
+      else
+      {
+        /* Write calibration result N */
+        hopamp->Init.TrimmingValueNLowPower = trimmingvaluen;
+        /* Write calibration result P */
+        hopamp->Init.TrimmingValuePLowPower = trimmingvaluep;
+      }
+    
+    /* Restore OPAMP mode after calibration */
+    MODIFY_REG(hopamp->Instance->CSR, OPAMP_CSR_OPAMODE, opampmode);
+    }
+    else
+    {
+      /* OPAMP can not be calibrated from this mode */ 
+      status = HAL_ERROR;
+    }   
+  }
+  return status;
+}

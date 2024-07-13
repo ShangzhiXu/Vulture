@@ -1,0 +1,55 @@
+int mbedtls_aes_crypt_cfb128( mbedtls_aes_context *ctx,
+                       int mode,
+                       size_t length,
+                       size_t *iv_off,
+                       unsigned char iv[16],
+                       const unsigned char *input,
+                       unsigned char *output )
+{
+    int c;
+    size_t n;
+
+    AES_VALIDATE_RET( ctx != NULL );
+    AES_VALIDATE_RET( mode == MBEDTLS_AES_ENCRYPT ||
+                      mode == MBEDTLS_AES_DECRYPT );
+    AES_VALIDATE_RET( iv_off != NULL );
+    AES_VALIDATE_RET( iv != NULL );
+    AES_VALIDATE_RET( input != NULL );
+    AES_VALIDATE_RET( output != NULL );
+
+    n = *iv_off;
+
+    if( n > 15 )
+        return( MBEDTLS_ERR_AES_BAD_INPUT_DATA );
+
+    if( mode == MBEDTLS_AES_DECRYPT )
+    {
+        while( length-- )
+        {
+            if( n == 0 )
+                mbedtls_aes_crypt_ecb( ctx, MBEDTLS_AES_ENCRYPT, iv, iv );
+
+            c = *input++;
+            *output++ = (unsigned char)( c ^ iv[n] );
+            iv[n] = (unsigned char) c;
+
+            n = ( n + 1 ) & 0x0F;
+        }
+    }
+    else
+    {
+        while( length-- )
+        {
+            if( n == 0 )
+                mbedtls_aes_crypt_ecb( ctx, MBEDTLS_AES_ENCRYPT, iv, iv );
+
+            iv[n] = *output++ = (unsigned char)( iv[n] ^ *input++ );
+
+            n = ( n + 1 ) & 0x0F;
+        }
+    }
+
+    *iv_off = n;
+
+    return( 0 );
+}

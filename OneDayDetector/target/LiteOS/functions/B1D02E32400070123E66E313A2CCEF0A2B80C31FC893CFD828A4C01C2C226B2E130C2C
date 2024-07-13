@@ -1,0 +1,11 @@
+SECUREC_INLINE void SecWriteStringToStream(SecPrintfStream *stream, const SecChar *str, int len)
+{
+    if (len < 12) { /* Performance optimization for mobile number length 12 */
+        SecWriteStringToStreamOpt(stream, str, len);
+    } else {
+        size_t count = (size_t)(unsigned int)len * (sizeof(SecChar));
+        SECUREC_MEMCPY_WARP_OPT(stream->cur, str, count);
+        stream->cur += (size_t)((size_t)(unsigned int)len * (sizeof(SecChar)));
+        stream->count -= len * (int)(sizeof(SecChar));
+    }
+}

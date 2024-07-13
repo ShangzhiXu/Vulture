@@ -1,0 +1,38 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 osCmdReg(CmdType cmdType, CHAR *cmdKey, UINT32 paraNum, CmdCallBackFunc cmdProc)
+{
+    CmdItemNode *cmdItemNode = NULL;
+
+    (VOID)LOS_MuxPend(g_cmdInfo.muxLock, LOS_WAIT_FOREVER);
+    if (g_cmdInfo.initMagicFlag != SHELL_INIT_MAGIC_FLAG) {
+        (VOID)LOS_MuxPost(g_cmdInfo.muxLock);
+        PRINT_ERR("[%s] shell is not yet initialized!\n", __FUNCTION__);
+        return OS_ERRNO_SHELL_NOT_INIT;
+    }
+    (VOID)LOS_MuxPost(g_cmdInfo.muxLock);
+
+    if ((cmdProc == NULL) || (cmdKey == NULL) ||
+        (cmdType >= CMD_TYPE_BUTT) || (strlen(cmdKey) >= CMD_KEY_LEN) || !strlen(cmdKey)) {
+        return OS_ERRNO_SHELL_CMDREG_PARA_ERROR;
+    }
+
+    if ((paraNum > CMD_MAX_PARAS) && (paraNum != XARGS)) {
+        return OS_ERRNO_SHELL_CMDREG_PARA_ERROR;
+    }
+
+    if (OsCmdKeyCheck(cmdKey) != TRUE) {
+        return OS_ERRNO_SHELL_CMDREG_CMD_ERROR;
+    }
+
+    (VOID)LOS_MuxPend(g_cmdInfo.muxLock, LOS_WAIT_FOREVER);
+    LOS_DL_LIST_FOR_EACH_ENTRY(cmdItemNode, &g_cmdInfo.cmdList.list, CmdItemNode, list) {
+        if ((cmdType == cmdItemNode->cmd->cmdType) &&
+            ((strlen(cmdKey) == strlen(cmdItemNode->cmd->cmdKey)) &&
+            (strncmp((CHAR *)(cmdItemNode->cmd->cmdKey), cmdKey, strlen(cmdKey)) == 0))) {
+            (VOID)LOS_MuxPost(g_cmdInfo.muxLock);
+            return OS_ERRNO_SHELL_CMDREG_CMD_EXIST;
+        }
+    }
+    (VOID)LOS_MuxPost(g_cmdInfo.muxLock);
+
+    return OsCmdItemCreate(cmdType, cmdKey, paraNum, cmdProc);
+}

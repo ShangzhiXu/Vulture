@@ -1,0 +1,98 @@
+HAL_StatusTypeDef USB_EPStartXfer(USB_OTG_GlobalTypeDef *USBx , USB_OTG_EPTypeDef *ep, uint8_t dma)
+{
+  uint16_t pktcnt = 0;
+  
+  /* IN endpoint */
+  if (ep->is_in == 1)
+  {
+    /* Zero Length Packet? */
+    if (ep->xfer_len == 0)
+    {
+      USBx_INEP(ep->num)->DIEPTSIZ &= ~(USB_OTG_DIEPTSIZ_PKTCNT); 
+      USBx_INEP(ep->num)->DIEPTSIZ |= (USB_OTG_DIEPTSIZ_PKTCNT & (1 << 19)) ;
+      USBx_INEP(ep->num)->DIEPTSIZ &= ~(USB_OTG_DIEPTSIZ_XFRSIZ); 
+    }
+    else
+    {
+      /* Program the transfer size and packet count
+      * as follows: xfersize = N * maxpacket +
+      * short_packet pktcnt = N + (short_packet
+      * exist ? 1 : 0)
+      */
+      USBx_INEP(ep->num)->DIEPTSIZ &= ~(USB_OTG_DIEPTSIZ_XFRSIZ);
+      USBx_INEP(ep->num)->DIEPTSIZ &= ~(USB_OTG_DIEPTSIZ_PKTCNT); 
+      USBx_INEP(ep->num)->DIEPTSIZ |= (USB_OTG_DIEPTSIZ_PKTCNT & (((ep->xfer_len + ep->maxpacket -1)/ ep->maxpacket) << 19)) ;
+      USBx_INEP(ep->num)->DIEPTSIZ |= (USB_OTG_DIEPTSIZ_XFRSIZ & ep->xfer_len); 
+      
+      if (ep->type == EP_TYPE_ISOC)
+      {
+        USBx_INEP(ep->num)->DIEPTSIZ &= ~(USB_OTG_DIEPTSIZ_MULCNT); 
+        USBx_INEP(ep->num)->DIEPTSIZ |= (USB_OTG_DIEPTSIZ_MULCNT & (1 << 29)); 
+      }       
+    }
+      if (ep->type != EP_TYPE_ISOC)
+      {
+        /* Enable the Tx FIFO Empty Interrupt for this EP */
+        if (ep->xfer_len > 0)
+        {
+          USBx_DEVICE->DIEPEMPMSK |= 1 << ep->num;
+        }
+      }
+
+    if (ep->type == EP_TYPE_ISOC)
+    {
+      if ((USBx_DEVICE->DSTS & ( 1 << 8 )) == 0)
+      {
+        USBx_INEP(ep->num)->DIEPCTL |= USB_OTG_DIEPCTL_SODDFRM;
+      }
+      else
+      {
+        USBx_INEP(ep->num)->DIEPCTL |= USB_OTG_DIEPCTL_SD0PID_SEVNFRM;
+      }
+    } 
+    
+    /* EP enable, IN data in FIFO */
+    USBx_INEP(ep->num)->DIEPCTL |= (USB_OTG_DIEPCTL_CNAK | USB_OTG_DIEPCTL_EPENA);
+    
+    if (ep->type == EP_TYPE_ISOC)
+    {
+      USB_WritePacket(USBx, ep->xfer_buff, ep->num, ep->xfer_len, dma);   
+    }    
+  }
+  else /* OUT endpoint */
+  {
+    /* Program the transfer size and packet count as follows:
+    * pktcnt = N
+    * xfersize = N * maxpacket
+    */  
+    USBx_OUTEP(ep->num)->DOEPTSIZ &= ~(USB_OTG_DOEPTSIZ_XFRSIZ); 
+    USBx_OUTEP(ep->num)->DOEPTSIZ &= ~(USB_OTG_DOEPTSIZ_PKTCNT); 
+      
+    if (ep->xfer_len == 0)
+    {
+      USBx_OUTEP(ep->num)->DOEPTSIZ |= (USB_OTG_DOEPTSIZ_XFRSIZ & ep->maxpacket);
+      USBx_OUTEP(ep->num)->DOEPTSIZ |= (USB_OTG_DOEPTSIZ_PKTCNT & (1 << 19)) ;      
+    }
+    else
+    {
+      pktcnt = (ep->xfer_len + ep->maxpacket -1)/ ep->maxpacket; 
+      USBx_OUTEP(ep->num)->DOEPTSIZ |= (USB_OTG_DOEPTSIZ_PKTCNT & (pktcnt << 19)); ;
+      USBx_OUTEP(ep->num)->DOEPTSIZ |= (USB_OTG_DOEPTSIZ_XFRSIZ & (ep->maxpacket * pktcnt)); 
+    }
+
+    if (ep->type == EP_TYPE_ISOC)
+    {
+      if ((USBx_DEVICE->DSTS & ( 1 << 8 )) == 0)
+      {
+        USBx_OUTEP(ep->num)->DOEPCTL |= USB_OTG_DOEPCTL_SODDFRM;
+      }
+      else
+      {
+        USBx_OUTEP(ep->num)->DOEPCTL |= USB_OTG_DOEPCTL_SD0PID_SEVNFRM;
+      }
+    }
+    /* EP enable */
+    USBx_OUTEP(ep->num)->DOEPCTL |= (USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA);
+  }
+  return HAL_OK;
+}

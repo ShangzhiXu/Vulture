@@ -1,0 +1,19 @@
+__STATIC_INLINE void LL_USART_ConfigIrdaMode(USART_TypeDef *USARTx)
+{
+  /* In IRDA mode, the following bits must be kept cleared:
+  - LINEN (if LIN feature is supported), STOP and CLKEN bits in the USART_CR2 register,
+  - SCEN (if Smartcard feature is supported) and HDSEL bits in the USART_CR3 register.
+  */
+#if defined(USART_LIN_SUPPORT)
+  CLEAR_BIT(USARTx->CR2, (USART_CR2_LINEN | USART_CR2_CLKEN | USART_CR2_STOP));
+#else
+  CLEAR_BIT(USARTx->CR2, (USART_CR2_CLKEN | USART_CR2_STOP));
+#endif /* USART_LIN_SUPPORT */
+#if defined(USART_SMARTCARD_SUPPORT)
+  CLEAR_BIT(USARTx->CR3, (USART_CR3_SCEN | USART_CR3_HDSEL));
+#else
+  CLEAR_BIT(USARTx->CR3, (USART_CR3_HDSEL));
+#endif /* USART_SMARTCARD_SUPPORT */
+  /* set the UART/USART in IRDA mode */
+  SET_BIT(USARTx->CR3, USART_CR3_IREN);
+}

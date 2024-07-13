@@ -1,0 +1,18 @@
+close_handle(void)
+{
+  tftp_state.port = 0;
+  ip_addr_set_any(0, &tftp_state.addr);
+
+  if (tftp_state.last_data != NULL) {
+    pbuf_free(tftp_state.last_data);
+    tftp_state.last_data = NULL;
+  }
+
+  sys_untimeout(tftp_tmr, NULL);
+
+  if (tftp_state.handle) {
+    tftp_state.ctx->close(tftp_state.handle);
+    tftp_state.handle = NULL;
+    LWIP_DEBUGF(TFTP_DEBUG | LWIP_DBG_STATE, ("tftp: closing\n"));
+  }
+}

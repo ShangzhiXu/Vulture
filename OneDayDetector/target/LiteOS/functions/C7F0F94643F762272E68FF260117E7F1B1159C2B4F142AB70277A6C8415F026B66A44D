@@ -1,0 +1,45 @@
+HAL_StatusTypeDef  HAL_NAND_Init(NAND_HandleTypeDef *hnand, FMC_NAND_PCC_TimingTypeDef *ComSpace_Timing, FMC_NAND_PCC_TimingTypeDef *AttSpace_Timing)
+{
+  /* Check the NAND handle state */
+  if(hnand == NULL)
+  {
+     return HAL_ERROR;
+  }
+
+  if(hnand->State == HAL_NAND_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hnand->Lock = HAL_UNLOCKED;
+
+#if (USE_HAL_NAND_REGISTER_CALLBACKS == 1)
+    if(hnand->MspInitCallback == NULL)
+    {
+      hnand->MspInitCallback = HAL_NAND_MspInit;
+    }
+    hnand->ItCallback = HAL_NAND_ITCallback;
+
+    /* Init the low level hardware */
+    hnand->MspInitCallback(hnand);
+#else
+    /* Initialize the low level hardware (MSP) */
+    HAL_NAND_MspInit(hnand);
+#endif
+  }
+
+  /* Initialize NAND control Interface */
+  FMC_NAND_Init(hnand->Instance, &(hnand->Init));
+  
+  /* Initialize NAND common space timing Interface */  
+  FMC_NAND_CommonSpace_Timing_Init(hnand->Instance, ComSpace_Timing, hnand->Init.NandBank);
+  
+  /* Initialize NAND attribute space timing Interface */  
+  FMC_NAND_AttributeSpace_Timing_Init(hnand->Instance, AttSpace_Timing, hnand->Init.NandBank);
+  
+  /* Enable the NAND device */
+  __FMC_NAND_ENABLE(hnand->Instance, hnand->Init.NandBank);
+  
+  /* Update the NAND controller state */
+  hnand->State = HAL_NAND_STATE_READY;
+
+  return HAL_OK;
+}

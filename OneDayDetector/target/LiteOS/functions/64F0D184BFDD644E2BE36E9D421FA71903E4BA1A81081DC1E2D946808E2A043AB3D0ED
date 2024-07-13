@@ -1,0 +1,61 @@
+HAL_StatusTypeDef HAL_CRYPEx_AES(CRYP_HandleTypeDef *hcryp, uint8_t *pInputData, uint16_t Size, uint8_t *pOutputData, uint32_t Timeout)
+{
+
+  if (hcryp->State == HAL_CRYP_STATE_READY)
+  {
+    /* Check parameters setting */
+    if (hcryp->Init.OperatingMode == CRYP_ALGOMODE_KEYDERIVATION)
+    {
+      if (pOutputData == NULL) 
+      {
+        return  HAL_ERROR;
+      }
+    }
+    else
+    {
+      if ((pInputData == NULL) || (pOutputData == NULL) || (Size == 0))
+      {
+        return  HAL_ERROR;
+      }
+    }
+    
+    /* Process Locked */
+    __HAL_LOCK(hcryp);
+  
+    /* Change the CRYP state */
+    hcryp->State = HAL_CRYP_STATE_BUSY;
+  
+    /* Call CRYP_ReadKey() API if the operating mode is set to
+       key derivation, CRYP_ProcessData() otherwise  */
+    if (hcryp->Init.OperatingMode == CRYP_ALGOMODE_KEYDERIVATION)
+    {
+      if(CRYP_ReadKey(hcryp, pOutputData, Timeout) != HAL_OK)
+      {
+        return HAL_TIMEOUT;
+      }    
+    }
+    else
+    {
+      if(CRYP_ProcessData(hcryp, pInputData, Size, pOutputData, Timeout) != HAL_OK)
+      {
+        return HAL_TIMEOUT;
+      }
+    }
+  
+    /* If the state has not been set to SUSPENDED, set it to
+       READY, otherwise keep it as it is */
+    if (hcryp->State != HAL_CRYP_STATE_SUSPENDED)
+    {
+      hcryp->State = HAL_CRYP_STATE_READY;
+    }
+  
+    /* Process Unlocked */
+    __HAL_UNLOCK(hcryp);
+  
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

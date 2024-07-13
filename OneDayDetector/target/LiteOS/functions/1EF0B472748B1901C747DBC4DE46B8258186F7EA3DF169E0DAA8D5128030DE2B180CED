@@ -1,0 +1,25 @@
+void testFloatPrintingRandomSamples(void)
+{
+#if !defined(UNITY_TEST_ALL_FLOATS_PRINT_OK) || !defined(USING_OUTPUT_SPY)
+    TEST_IGNORE();
+#else
+    union { float f_value; uint32_t int_value; } u;
+
+    /* These values are not covered by the MINSTD generator */
+    u.int_value = 0x00000000; printFloatValue(u.f_value);
+    u.int_value = 0x80000000; printFloatValue(u.f_value);
+    u.int_value = 0x7fffffff; printFloatValue(u.f_value);
+    u.int_value = 0xffffffff; printFloatValue(u.f_value);
+
+    uint32_t a = 1;
+    for(int num_tested = 0; num_tested < 1000000; num_tested++)
+    {
+        /* MINSTD pseudo-random number generator */
+        a = (uint32_t)(((uint64_t)a * 48271u) % 2147483647u);
+
+        /* MINSTD does not set the highest bit; test both possibilities */
+        u.int_value = a;              printFloatValue(u.f_value);
+        u.int_value = a | 0x80000000; printFloatValue(u.f_value);
+    }
+#endif
+}

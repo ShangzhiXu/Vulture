@@ -1,0 +1,57 @@
+STATIC UINT32 OsHwiCreateShared(HwiHandleInfo *head, HWI_MODE_T hwiMode, HWI_PROC_FUNC hwiHandler,
+                                const HWI_IRQ_PARAM_S *irqParam)
+{
+    UINT32 intSave;
+    HwiHandleInfo *hwiFormNode = NULL;
+    HWI_IRQ_PARAM_S *hwiParam = NULL;
+    HWI_MODE_T modeResult = hwiMode & IRQF_SHARED;
+    HwiHandleInfo *hwiForm = NULL;
+
+    if (modeResult && ((irqParam == NULL) || (irqParam->pDevId == NULL))) {
+        return OS_ERRNO_HWI_SHARED_ERROR;
+    }
+
+    HWI_LOCK(intSave);
+
+    if ((head->next != NULL) && ((modeResult == 0) || (!(head->shareMode & IRQF_SHARED)))) {
+        HWI_UNLOCK(intSave);
+        return OS_ERRNO_HWI_SHARED_ERROR;
+    }
+
+    hwiForm = head;
+    while (hwiForm->next != NULL) {
+        hwiForm = hwiForm->next;
+        hwiParam = (HWI_IRQ_PARAM_S *)(hwiForm->registerInfo);
+        if (hwiParam->pDevId == irqParam->pDevId) {
+            HWI_UNLOCK(intSave);
+            return OS_ERRNO_HWI_ALREADY_CREATED;
+        }
+    }
+
+    hwiFormNode = (HwiHandleInfo *)LOS_MemAlloc(m_aucSysMem0, sizeof(HwiHandleInfo));
+    if (hwiFormNode == NULL) {
+        HWI_UNLOCK(intSave);
+        return OS_ERRNO_HWI_NO_MEMORY;
+    }
+    hwiForm->respCount = 0;
+
+    if (irqParam != NULL) {
+        hwiFormNode->registerInfo = OsHwiCpIrqParam(irqParam);
+        if (hwiFormNode->registerInfo == (HWI_ARG_T)NULL) {
+            HWI_UNLOCK(intSave);
+            (VOID) LOS_MemFree(m_aucSysMem0, hwiFormNode);
+            return OS_ERRNO_HWI_NO_MEMORY;
+        }
+    } else {
+        hwiFormNode->registerInfo = 0;
+    }
+
+    hwiFormNode->hook = hwiHandler;
+    hwiFormNode->next = (struct tagHwiHandleForm *)NULL;
+    hwiForm->next = hwiFormNode;
+
+    head->shareMode = modeResult;
+
+    HWI_UNLOCK(intSave);
+    return LOS_OK;
+}

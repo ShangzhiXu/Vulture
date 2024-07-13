@@ -1,0 +1,39 @@
+HAL_StatusTypeDef HAL_LPTIM_Counter_Start_IT(LPTIM_HandleTypeDef *hlptim, uint32_t Period)
+{
+  /* Check the parameters */
+  assert_param(IS_LPTIM_INSTANCE(hlptim->Instance));
+  assert_param(IS_LPTIM_PERIOD(Period));
+               
+  /* Set the LPTIM state */
+  hlptim->State= HAL_LPTIM_STATE_BUSY;
+  
+  /* If clock source is not ULPTIM clock and counter source is external, then it must not be prescaled */
+  if((hlptim->Init.Clock.Source != LPTIM_CLOCKSOURCE_ULPTIM) && (hlptim->Init.CounterSource == LPTIM_COUNTERSOURCE_EXTERNAL))
+  {
+    /* Check if clock is prescaled */
+    assert_param(IS_LPTIM_CLOCK_PRESCALERDIV1(hlptim->Init.Clock.Prescaler));
+    /* Set clock prescaler to 0 */
+    hlptim->Instance->CFGR &= ~LPTIM_CFGR_PRESC;
+  }
+  
+  /* Enable Autoreload write complete interrupt */
+  __HAL_LPTIM_ENABLE_IT(hlptim, LPTIM_IT_ARROK);
+  
+  /* Enable Autoreload match interrupt */
+  __HAL_LPTIM_ENABLE_IT(hlptim, LPTIM_IT_ARRM);
+  
+  /* Enable the Peripheral */
+  __HAL_LPTIM_ENABLE(hlptim);
+  
+  /* Load the period value in the autoreload register */
+  __HAL_LPTIM_AUTORELOAD_SET(hlptim, Period);
+  
+  /* Start timer in continuous mode */
+  __HAL_LPTIM_START_CONTINUOUS(hlptim);
+    
+  /* Change the TIM state*/
+  hlptim->State= HAL_LPTIM_STATE_READY;
+  
+  /* Return function status */
+  return HAL_OK;
+}

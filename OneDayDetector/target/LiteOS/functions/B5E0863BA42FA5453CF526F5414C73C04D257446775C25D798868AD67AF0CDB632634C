@@ -1,0 +1,24 @@
+LITE_OS_SEC_TEXT_INIT UINT32 OsCpupInit(VOID)
+{
+    UINT32 size;
+
+    g_cpupTaskMaxNum = g_taskMaxNum;
+    g_cpupMaxNum = g_cpupTaskMaxNum;
+#ifdef LOSCFG_CPUP_INCLUDE_IRQ
+    g_cpupMaxNum += OS_HWI_MAX_NUM;
+#endif
+
+    /* every task has only one record, and it won't operated at the same time */
+    size = g_cpupMaxNum * sizeof(OsCpupCB);
+    g_cpup = (OsCpupCB *)LOS_MemAlloc(m_aucSysMem0, size);
+    if (g_cpup == NULL) {
+        return LOS_ERRNO_CPUP_NO_MEMORY;
+    }
+
+    OsCpupGuardInit();
+
+    (VOID)memset_s(g_cpup, size, 0, size);
+    g_cpupInitFlg = 1;
+
+    return LOS_OK;
+}

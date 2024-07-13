@@ -1,0 +1,53 @@
+HAL_StatusTypeDef HAL_PCCARD_Read_ID(PCCARD_HandleTypeDef *hpccard, uint8_t CompactFlash_ID[], uint8_t *pStatus)
+{
+  uint32_t timeout = PCCARD_TIMEOUT_READ_ID, index = 0U;
+  uint8_t status = 0;
+  
+  /* Process Locked */
+  __HAL_LOCK(hpccard);  
+  
+  /* Check the PCCARD controller state */
+  if(hpccard->State == HAL_PCCARD_STATE_BUSY)
+  {
+     return HAL_BUSY;
+  }
+  
+  /* Update the PCCARD controller state */
+  hpccard->State = HAL_PCCARD_STATE_BUSY;
+  
+  /* Initialize the PCCARD status */
+  *pStatus = PCCARD_READY;  
+  
+  /* Send the Identify Command */
+  *(__IO uint16_t *)(PCCARD_IO_SPACE_PRIMARY_ADDR | ATA_STATUS_CMD)  = 0xECEC;
+    
+  /* Read PCCARD IDs and timeout treatment */
+  do 
+  {
+     /* Read the PCCARD status */
+     status = *(__IO uint8_t *)(PCCARD_IO_SPACE_PRIMARY_ADDR | ATA_STATUS_CMD_ALTERNATE);
+     
+     timeout--;
+  }while((status != PCCARD_STATUS_OK) && timeout); 
+  
+  if(timeout == 0U)
+  {
+    *pStatus = PCCARD_TIMEOUT_ERROR;
+  }
+  else
+  {
+     /* Read PCCARD ID bytes */
+    for(index = 0U; index < 16U; index++)
+    {
+      CompactFlash_ID[index] = *(__IO uint8_t *)(PCCARD_IO_SPACE_PRIMARY_ADDR | ATA_DATA);
+    }    
+  }
+  
+  /* Update the PCCARD controller state */
+  hpccard->State = HAL_PCCARD_STATE_READY;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hpccard);  
+  
+  return HAL_OK;
+}

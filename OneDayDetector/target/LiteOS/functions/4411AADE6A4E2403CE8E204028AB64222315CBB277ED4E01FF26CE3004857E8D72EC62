@@ -1,0 +1,52 @@
+static lv_res_t lv_label_signal(lv_obj_t * label, lv_signal_t sign, void * param)
+{
+    lv_res_t res;
+
+    if(sign == LV_SIGNAL_GET_STYLE) {
+        lv_get_style_info_t * info = param;
+        info->result = lv_label_get_style(label, info->part);
+        if(info->result != NULL) return LV_RES_OK;
+        else return ancestor_signal(label, sign, param);
+    }
+
+    /* Include the ancient signal function */
+    res = ancestor_signal(label, sign, param);
+    if(res != LV_RES_OK) return res;
+    if(sign == LV_SIGNAL_GET_TYPE) return lv_obj_handle_get_type_signal(param, LV_OBJX_NAME);
+
+    lv_label_ext_t * ext = lv_obj_get_ext_attr(label);
+    if(sign == LV_SIGNAL_CLEANUP) {
+        if(ext->static_txt == 0) {
+            lv_mem_free(ext->text);
+            ext->text = NULL;
+        }
+        lv_label_dot_tmp_free(label);
+    }
+    else if(sign == LV_SIGNAL_STYLE_CHG) {
+        /*Revert dots for proper refresh*/
+        lv_label_revert_dots(label);
+        lv_label_refr_text(label);
+    }
+    else if(sign == LV_SIGNAL_COORD_CHG) {
+        if(lv_area_get_width(&label->coords) != lv_area_get_width(param) ||
+           lv_area_get_height(&label->coords) != lv_area_get_height(param)) {
+            lv_label_revert_dots(label);
+            lv_label_refr_text(label);
+        }
+    }
+    else if(sign == LV_SIGNAL_BASE_DIR_CHG) {
+#if LV_USE_BIDI
+        if(ext->static_txt == 0) lv_label_set_text(label, NULL);
+#endif
+    }
+    else if(sign == LV_SIGNAL_GET_TYPE) {
+        lv_obj_type_t * buf = param;
+        uint8_t i;
+        for(i = 0; i < LV_MAX_ANCESTOR_NUM - 1; i++) { /*Find the last set data*/
+            if(buf->type[i] == NULL) break;
+        }
+        buf->type[i] = "lv_label";
+    }
+
+    return res;
+}

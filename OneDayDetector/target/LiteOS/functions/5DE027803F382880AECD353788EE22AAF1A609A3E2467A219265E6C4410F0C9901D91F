@@ -1,0 +1,34 @@
+HAL_StatusTypeDef HAL_DSI_ForceTXStopMode(DSI_HandleTypeDef *hdsi, uint32_t Lane, FunctionalState State)
+{
+  /* Process locked */
+  __HAL_LOCK(hdsi);
+
+  /* Check function parameters */
+  assert_param(IS_DSI_LANE_GROUP(Lane));
+  assert_param(IS_FUNCTIONAL_STATE(State));
+
+  if (Lane == DSI_CLOCK_LANE)
+  {
+    /* Force/Unforce the Clock Lane in TX Stop Mode */
+    hdsi->Instance->WPCR[0U] &= ~DSI_WPCR0_FTXSMCL;
+    hdsi->Instance->WPCR[0U] |= ((uint32_t)State << 12U);
+  }
+  else if (Lane == DSI_DATA_LANES)
+  {
+    /* Force/Unforce the Data Lanes in TX Stop Mode */
+    hdsi->Instance->WPCR[0U] &= ~DSI_WPCR0_FTXSMDL;
+    hdsi->Instance->WPCR[0U] |= ((uint32_t)State << 13U);
+  }
+  else
+  {
+    /* Process unlocked */
+    __HAL_UNLOCK(hdsi);
+
+    return HAL_ERROR;
+  }
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hdsi);
+
+  return HAL_OK;
+}

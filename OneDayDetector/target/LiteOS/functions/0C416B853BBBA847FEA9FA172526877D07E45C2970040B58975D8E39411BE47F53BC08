@@ -1,0 +1,135 @@
+HAL_StatusTypeDef HAL_SPI_Transmit(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+{
+
+  if(hspi->State == HAL_SPI_STATE_READY)
+  {
+    if((pData == NULL ) || (Size == 0)) 
+    {
+      return  HAL_ERROR;
+    }
+
+    /* Check the parameters */
+    assert_param(IS_SPI_DIRECTION_2LINES_OR_1LINE(hspi->Init.Direction));
+
+    /* Process Locked */
+    __HAL_LOCK(hspi);
+
+    /* Configure communication */
+    hspi->State = HAL_SPI_STATE_BUSY_TX;
+    hspi->ErrorCode   = HAL_SPI_ERROR_NONE;
+
+    hspi->pTxBuffPtr  = pData;
+    hspi->TxXferSize  = Size;
+    hspi->TxXferCount = Size;
+
+    /*Init field not used in handle to zero */
+    hspi->TxISR = 0;
+    hspi->RxISR = 0;
+    hspi->pRxBuffPtr  = NULL;
+    hspi->RxXferSize  = 0;
+    hspi->RxXferCount = 0;
+
+    /* Reset CRC Calculation */
+    if(hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+    {
+      SPI_RESET_CRC(hspi);
+    }
+
+    if(hspi->Init.Direction == SPI_DIRECTION_1LINE)
+    {
+      /* Configure communication direction : 1Line */
+      SPI_1LINE_TX(hspi);
+    }
+
+    /* Check if the SPI is already enabled */ 
+    if((hspi->Instance->CR1 &SPI_CR1_SPE) != SPI_CR1_SPE)
+    {
+      /* Enable SPI peripheral */
+      __HAL_SPI_ENABLE(hspi);
+    }
+
+    /* Transmit data in 8 Bit mode */
+    if(hspi->Init.DataSize == SPI_DATASIZE_8BIT)
+    {
+      if((hspi->Init.Mode == SPI_MODE_SLAVE)|| (hspi->TxXferCount == 0x01))
+      {
+        hspi->Instance->DR = (*hspi->pTxBuffPtr++);
+        hspi->TxXferCount--;
+      }
+
+      while(hspi->TxXferCount > 0)
+      {
+        /* Wait until TXE flag is set to send data */
+        if(SPI_WaitOnFlagUntilTimeout(hspi, SPI_FLAG_TXE, RESET, Timeout) != HAL_OK)
+        { 
+          return HAL_TIMEOUT;
+        }
+        hspi->Instance->DR = (*hspi->pTxBuffPtr++);
+        hspi->TxXferCount--;
+      }
+      /* Enable CRC Transmission */
+      if(hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE) 
+      {
+        SET_BIT(hspi->Instance->CR1, SPI_CR1_CRCNEXT);
+      }
+    }
+    /* Transmit data in 16 Bit mode */
+    else
+    {
+      if((hspi->Init.Mode == SPI_MODE_SLAVE) || (hspi->TxXferCount == 0x01))
+      {
+        hspi->Instance->DR = *((uint16_t*)hspi->pTxBuffPtr);
+        hspi->pTxBuffPtr+=2;
+        hspi->TxXferCount--;
+      }
+
+      while(hspi->TxXferCount > 0)
+      {
+        /* Wait until TXE flag is set to send data */
+        if(SPI_WaitOnFlagUntilTimeout(hspi, SPI_FLAG_TXE, RESET, Timeout) != HAL_OK)
+        { 
+          return HAL_TIMEOUT;
+        }
+        hspi->Instance->DR = *((uint16_t*)hspi->pTxBuffPtr);
+        hspi->pTxBuffPtr+=2;
+        hspi->TxXferCount--;
+      }
+      /* Enable CRC Transmission */
+      if(hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE) 
+      {
+        SET_BIT(hspi->Instance->CR1, SPI_CR1_CRCNEXT);
+      }
+    }
+
+    /* Wait until TXE flag is set to send data */
+    if(SPI_WaitOnFlagUntilTimeout(hspi, SPI_FLAG_TXE, RESET, Timeout) != HAL_OK)
+    {
+      SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_FLAG);
+      return HAL_TIMEOUT;
+    }
+
+    /* Wait until Busy flag is reset before disabling SPI */
+    if(SPI_WaitOnFlagUntilTimeout(hspi, SPI_FLAG_BSY, SET, Timeout) != HAL_OK)
+    { 
+      SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_FLAG);
+      return HAL_TIMEOUT;
+    }
+ 
+    /* Clear OVERUN flag in 2 Lines communication mode because received is not read */
+    if(hspi->Init.Direction == SPI_DIRECTION_2LINES)
+    {
+      __HAL_SPI_CLEAR_OVRFLAG(hspi);
+    }
+
+    hspi->State = HAL_SPI_STATE_READY; 
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hspi);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

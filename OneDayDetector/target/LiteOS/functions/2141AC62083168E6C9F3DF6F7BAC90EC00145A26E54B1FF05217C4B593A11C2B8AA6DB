@@ -1,0 +1,94 @@
+lwip_netconn_do_delconn(void *m)
+{
+  struct api_msg *msg = (struct api_msg *)m;
+
+  enum netconn_state state = msg->conn->state;
+  LWIP_ASSERT("netconn state error", /* this only happens for TCP netconns */
+              (state == NETCONN_NONE) || (NETCONNTYPE_GROUP(msg->conn->type) == NETCONN_TCP));
+#if LWIP_NETCONN_FULLDUPLEX
+  /* In full duplex mode, blocking write/connect is aborted with ERR_CLSD */
+  if (state != NETCONN_NONE) {
+    if ((state == NETCONN_WRITE) ||
+        ((state == NETCONN_CONNECT) && !IN_NONBLOCKING_CONNECT(msg->conn))) {
+      /* close requested, abort running write/connect */
+      sys_sem_t *op_completed_sem;
+      LWIP_ASSERT("msg->conn->current_msg != NULL", msg->conn->current_msg != NULL);
+      op_completed_sem = LWIP_API_MSG_SEM(msg->conn->current_msg);
+      msg->conn->current_msg->err = ERR_CLSD;
+      msg->conn->current_msg = NULL;
+      msg->conn->state = NETCONN_NONE;
+      sys_sem_signal(op_completed_sem);
+    }
+  }
+#else /* LWIP_NETCONN_FULLDUPLEX */
+  if (((state != NETCONN_NONE) &&
+       (state != NETCONN_LISTEN) &&
+       (state != NETCONN_CONNECT)) ||
+      ((state == NETCONN_CONNECT) && !IN_NONBLOCKING_CONNECT(msg->conn))) {
+    /* This means either a blocking write or blocking connect is running
+       (nonblocking write returns and sets state to NONE) */
+    msg->err = ERR_INPROGRESS;
+  } else
+#endif /* LWIP_NETCONN_FULLDUPLEX */
+  {
+    LWIP_ASSERT("blocking connect in progress",
+                (state != NETCONN_CONNECT) || IN_NONBLOCKING_CONNECT(msg->conn));
+    msg->err = ERR_OK;
+#if LWIP_NETCONN_FULLDUPLEX
+    /* Mark mboxes invalid */
+    netconn_mark_mbox_invalid(msg->conn);
+#else /* LWIP_NETCONN_FULLDUPLEX */
+    netconn_drain(msg->conn);
+#endif /* LWIP_NETCONN_FULLDUPLEX */
+
+    if (msg->conn->pcb.tcp != NULL) {
+
+      switch (NETCONNTYPE_GROUP(msg->conn->type)) {
+#if LWIP_RAW
+        case NETCONN_RAW:
+          raw_remove(msg->conn->pcb.raw);
+          break;
+#endif /* LWIP_RAW */
+#if LWIP_UDP
+        case NETCONN_UDP:
+          msg->conn->pcb.udp->recv_arg = NULL;
+          udp_remove(msg->conn->pcb.udp);
+          break;
+#endif /* LWIP_UDP */
+#if LWIP_TCP
+        case NETCONN_TCP:
+          LWIP_ASSERT("already writing or closing", msg->conn->current_msg == NULL);
+          msg->conn->state = NETCONN_CLOSE;
+          msg->msg.sd.shut = NETCONN_SHUT_RDWR;
+          msg->conn->current_msg = msg;
+#if LWIP_TCPIP_CORE_LOCKING
+          if (lwip_netconn_do_close_internal(msg->conn, 0) != ERR_OK) {
+            LWIP_ASSERT("state!", msg->conn->state == NETCONN_CLOSE);
+            UNLOCK_TCPIP_CORE();
+            sys_arch_sem_wait(LWIP_API_MSG_SEM(msg), 0);
+            LOCK_TCPIP_CORE();
+            LWIP_ASSERT("state!", msg->conn->state == NETCONN_NONE);
+          }
+#else /* LWIP_TCPIP_CORE_LOCKING */
+          lwip_netconn_do_close_internal(msg->conn);
+#endif /* LWIP_TCPIP_CORE_LOCKING */
+          /* API_EVENT is called inside lwip_netconn_do_close_internal, before releasing
+             the application thread, so we can return at this point! */
+          return;
+#endif /* LWIP_TCP */
+        default:
+          break;
+      }
+      msg->conn->pcb.tcp = NULL;
+    }
+    /* tcp netconns don't come here! */
+
+    /* @todo: this lets select make the socket readable and writable,
+       which is wrong! errfd instead? */
+    API_EVENT(msg->conn, NETCONN_EVT_RCVPLUS, 0);
+    API_EVENT(msg->conn, NETCONN_EVT_SENDPLUS, 0);
+  }
+  if (sys_sem_valid(LWIP_API_MSG_SEM(msg))) {
+    TCPIP_APIMSG_ACK(msg);
+  }
+}

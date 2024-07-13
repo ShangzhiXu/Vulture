@@ -1,0 +1,29 @@
+sntp_try_next_server(void *arg)
+{
+  u8_t old_server, i;
+  LWIP_UNUSED_ARG(arg);
+
+  old_server = sntp_current_server;
+  for (i = 0; i < SNTP_MAX_SERVERS - 1; i++) {
+    sntp_current_server++;
+    if (sntp_current_server >= SNTP_MAX_SERVERS) {
+      sntp_current_server = 0;
+    }
+    if (!ip_addr_isany(&sntp_servers[sntp_current_server].addr)
+#if SNTP_SERVER_DNS
+        || (sntp_servers[sntp_current_server].name != NULL)
+#endif
+       ) {
+      LWIP_DEBUGF(SNTP_DEBUG_STATE, ("sntp_try_next_server: Sending request to server %"U16_F"\n",
+                                     (u16_t)sntp_current_server));
+      /* new server: reset retry timeout */
+      SNTP_RESET_RETRY_TIMEOUT();
+      /* instantly send a request to the next server */
+      sntp_request(NULL);
+      return;
+    }
+  }
+  /* no other valid server found */
+  sntp_current_server = old_server;
+  sntp_retry(NULL);
+}

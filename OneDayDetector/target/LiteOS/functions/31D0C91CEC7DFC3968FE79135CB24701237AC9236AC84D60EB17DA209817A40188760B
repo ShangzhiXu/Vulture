@@ -1,0 +1,21 @@
+lwip_link_select_cb(struct lwip_select_cb *select_cb)
+{
+  LWIP_SOCKET_SELECT_DECL_PROTECT(lev);
+
+  /* Protect the select_cb_list */
+  LWIP_SOCKET_SELECT_PROTECT(lev);
+
+  /* Put this select_cb on top of list */
+  select_cb->next = select_cb_list;
+  if (select_cb_list != NULL) {
+    select_cb_list->prev = select_cb;
+  }
+  select_cb_list = select_cb;
+#if !LWIP_TCPIP_CORE_LOCKING
+  /* Increasing this counter tells select_check_waiters that the list has changed. */
+  select_cb_ctr++;
+#endif
+
+  /* Now we can safely unprotect */
+  LWIP_SOCKET_SELECT_UNPROTECT(lev);
+}

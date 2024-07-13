@@ -1,0 +1,29 @@
+tcp_ListenerTable_get_cell_value(const u32_t *column, const u32_t *row_oid, u8_t row_oid_len, union snmp_variant_value *value, u32_t *value_len)
+{
+  ip_addr_t local_ip;
+  u16_t local_port;
+  struct tcp_pcb_listen *pcb;
+  u8_t idx = 0;
+
+  LWIP_UNUSED_ARG(value_len);
+
+  /* tcpListenerLocalAddressType + tcpListenerLocalAddress + tcpListenerLocalPort */
+  idx += snmp_oid_to_ip_port(&row_oid[idx], row_oid_len - idx, &local_ip, &local_port);
+  if (idx == 0) {
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  /* find tcp_pcb with requested ip and port*/
+  pcb = tcp_listen_pcbs.listen_pcbs;
+  while (pcb != NULL) {
+    if (ip_addr_cmp(&local_ip, &pcb->local_ip) &&
+        (local_port == pcb->local_port)) {
+      /* fill in object properties */
+      return tcp_ListenerTable_get_cell_value_core(column, value);
+    }
+    pcb = pcb->next;
+  }
+
+  /* not found */
+  return SNMP_ERR_NOSUCHINSTANCE;
+}

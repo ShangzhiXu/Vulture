@@ -1,0 +1,15 @@
+VOID OsPrefetchAbortExcHandleEntry(ExcContext *excBufAddr)
+{
+    excBufAddr->PC -= 4;  /* lr in prefetch abort is pc + 4 */
+
+    if (gdbhw_hook(excBufAddr, OS_EXCEPT_PREFETCH_ABORT)) {
+        return;
+    }
+
+    if (g_excHook != NULL) {
+        g_excHook(OS_EXCEPT_PREFETCH_ABORT, excBufAddr);
+    }
+    while (1) {
+        ;
+    }
+}

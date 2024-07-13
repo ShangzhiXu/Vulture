@@ -1,0 +1,66 @@
+lwip_netconn_do_connect(void *m)
+{
+  struct api_msg *msg = (struct api_msg *)m;
+  err_t err;
+
+  if (msg->conn->pcb.tcp == NULL) {
+    /* This may happen when calling netconn_connect() a second time */
+    err = ERR_CLSD;
+  } else {
+    switch (NETCONNTYPE_GROUP(msg->conn->type)) {
+#if LWIP_RAW
+      case NETCONN_RAW:
+        err = raw_connect(msg->conn->pcb.raw, API_EXPR_REF(msg->msg.bc.ipaddr));
+        break;
+#endif /* LWIP_RAW */
+#if LWIP_UDP
+      case NETCONN_UDP:
+        err = udp_connect(msg->conn->pcb.udp, API_EXPR_REF(msg->msg.bc.ipaddr), msg->msg.bc.port);
+        break;
+#endif /* LWIP_UDP */
+#if LWIP_TCP
+      case NETCONN_TCP:
+        /* Prevent connect while doing any other action. */
+        if (msg->conn->state == NETCONN_CONNECT) {
+          err = ERR_ALREADY;
+        } else if (msg->conn->state != NETCONN_NONE) {
+          err = ERR_ISCONN;
+        } else {
+          setup_tcp(msg->conn);
+          err = tcp_connect(msg->conn->pcb.tcp, API_EXPR_REF(msg->msg.bc.ipaddr),
+                            msg->msg.bc.port, lwip_netconn_do_connected);
+          if (err == ERR_OK) {
+            u8_t non_blocking = netconn_is_nonblocking(msg->conn);
+            msg->conn->state = NETCONN_CONNECT;
+            SET_NONBLOCKING_CONNECT(msg->conn, non_blocking);
+            if (non_blocking) {
+              err = ERR_INPROGRESS;
+            } else {
+              msg->conn->current_msg = msg;
+              /* sys_sem_signal() is called from lwip_netconn_do_connected (or err_tcp()),
+                 when the connection is established! */
+#if LWIP_TCPIP_CORE_LOCKING
+              LWIP_ASSERT("state!", msg->conn->state == NETCONN_CONNECT);
+              UNLOCK_TCPIP_CORE();
+              sys_arch_sem_wait(LWIP_API_MSG_SEM(msg), 0);
+              LOCK_TCPIP_CORE();
+              LWIP_ASSERT("state!", msg->conn->state != NETCONN_CONNECT);
+#endif /* LWIP_TCPIP_CORE_LOCKING */
+              return;
+            }
+          }
+        }
+        break;
+#endif /* LWIP_TCP */
+      default:
+        LWIP_ERROR("Invalid netconn type", 0, do {
+          err = ERR_VAL;
+        } while (0));
+        break;
+    }
+  }
+  msg->err = err;
+  /* For all other protocols, netconn_connect() calls netconn_apimsg(),
+     so use TCPIP_APIMSG_ACK() here. */
+  TCPIP_APIMSG_ACK(msg);
+}

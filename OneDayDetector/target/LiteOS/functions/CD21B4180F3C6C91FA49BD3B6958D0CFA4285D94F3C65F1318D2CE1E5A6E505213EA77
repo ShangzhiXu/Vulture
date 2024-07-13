@@ -1,0 +1,54 @@
+HAL_StatusTypeDef HAL_DSI_ConfigCommand(DSI_HandleTypeDef *hdsi, DSI_LPCmdTypeDef *LPCmd)
+{
+  /* Process locked */
+  __HAL_LOCK(hdsi);
+
+  assert_param(IS_DSI_LP_GSW0P(LPCmd->LPGenShortWriteNoP));
+  assert_param(IS_DSI_LP_GSW1P(LPCmd->LPGenShortWriteOneP));
+  assert_param(IS_DSI_LP_GSW2P(LPCmd->LPGenShortWriteTwoP));
+  assert_param(IS_DSI_LP_GSR0P(LPCmd->LPGenShortReadNoP));
+  assert_param(IS_DSI_LP_GSR1P(LPCmd->LPGenShortReadOneP));
+  assert_param(IS_DSI_LP_GSR2P(LPCmd->LPGenShortReadTwoP));
+  assert_param(IS_DSI_LP_GLW(LPCmd->LPGenLongWrite));
+  assert_param(IS_DSI_LP_DSW0P(LPCmd->LPDcsShortWriteNoP));
+  assert_param(IS_DSI_LP_DSW1P(LPCmd->LPDcsShortWriteOneP));
+  assert_param(IS_DSI_LP_DSR0P(LPCmd->LPDcsShortReadNoP));
+  assert_param(IS_DSI_LP_DLW(LPCmd->LPDcsLongWrite));
+  assert_param(IS_DSI_LP_MRDP(LPCmd->LPMaxReadPacket));
+  assert_param(IS_DSI_ACK_REQUEST(LPCmd->AcknowledgeRequest));
+
+  /* Select High-speed or Low-power for command transmission */
+  hdsi->Instance->CMCR &= ~(DSI_CMCR_GSW0TX | \
+                            DSI_CMCR_GSW1TX | \
+                            DSI_CMCR_GSW2TX | \
+                            DSI_CMCR_GSR0TX | \
+                            DSI_CMCR_GSR1TX | \
+                            DSI_CMCR_GSR2TX | \
+                            DSI_CMCR_GLWTX  | \
+                            DSI_CMCR_DSW0TX | \
+                            DSI_CMCR_DSW1TX | \
+                            DSI_CMCR_DSR0TX | \
+                            DSI_CMCR_DLWTX  | \
+                            DSI_CMCR_MRDPS);
+  hdsi->Instance->CMCR |= (LPCmd->LPGenShortWriteNoP  | \
+                           LPCmd->LPGenShortWriteOneP | \
+                           LPCmd->LPGenShortWriteTwoP | \
+                           LPCmd->LPGenShortReadNoP   | \
+                           LPCmd->LPGenShortReadOneP  | \
+                           LPCmd->LPGenShortReadTwoP  | \
+                           LPCmd->LPGenLongWrite      | \
+                           LPCmd->LPDcsShortWriteNoP  | \
+                           LPCmd->LPDcsShortWriteOneP | \
+                           LPCmd->LPDcsShortReadNoP   | \
+                           LPCmd->LPDcsLongWrite      | \
+                           LPCmd->LPMaxReadPacket);
+
+  /* Configure the acknowledge request after each packet transmission */
+  hdsi->Instance->CMCR &= ~DSI_CMCR_ARE;
+  hdsi->Instance->CMCR |= LPCmd->AcknowledgeRequest;
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hdsi);
+
+  return HAL_OK;
+}

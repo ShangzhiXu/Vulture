@@ -1,0 +1,98 @@
+uint8_t BSP_TS_GetState(TS_StateTypeDef *TS_State)
+{
+  static uint32_t _x[TS_MAX_NB_TOUCH] = {0, 0};
+  static uint32_t _y[TS_MAX_NB_TOUCH] = {0, 0};
+  uint8_t ts_status = TS_OK;
+  uint16_t tmp;
+  uint16_t Raw_x[TS_MAX_NB_TOUCH];
+  uint16_t Raw_y[TS_MAX_NB_TOUCH];
+  uint16_t xDiff;
+  uint16_t yDiff;
+  uint32_t index;
+#if (TS_MULTI_TOUCH_SUPPORTED == 1)
+  uint32_t weight = 0;
+  uint32_t area = 0;
+  uint32_t event = 0;
+#endif /* TS_MULTI_TOUCH_SUPPORTED == 1 */
+
+  /* Check and update the number of touches active detected */
+  TS_State->touchDetected = ts_driver->DetectTouch(I2C_Address);
+  if(TS_State->touchDetected)
+  {
+    for(index=0; index < TS_State->touchDetected; index++)
+    {
+      /* Get each touch coordinates */
+      ts_driver->GetXY(I2C_Address, &(Raw_x[index]), &(Raw_y[index]));
+
+      if(ts_orientation & TS_SWAP_XY)
+      {
+        tmp = Raw_x[index];
+        Raw_x[index] = Raw_y[index]; 
+        Raw_y[index] = tmp;
+      }
+      
+      if(ts_orientation & TS_SWAP_X)
+      {
+        Raw_x[index] = FT_6206_MAX_WIDTH - 1 - Raw_x[index];
+      }
+
+      if(ts_orientation & TS_SWAP_Y)
+      {
+        Raw_y[index] = FT_6206_MAX_HEIGHT - 1 - Raw_y[index];
+      }
+            
+      xDiff = Raw_x[index] > _x[index]? (Raw_x[index] - _x[index]): (_x[index] - Raw_x[index]);
+      yDiff = Raw_y[index] > _y[index]? (Raw_y[index] - _y[index]): (_y[index] - Raw_y[index]);
+
+      if ((xDiff + yDiff) > 5)
+      {
+        _x[index] = Raw_x[index];
+        _y[index] = Raw_y[index];
+      }
+
+
+      TS_State->touchX[index] = _x[index];
+      TS_State->touchY[index] = _y[index];
+
+#if (TS_MULTI_TOUCH_SUPPORTED == 1)
+
+      /* Get touch info related to the current touch */
+      ft6x06_TS_GetTouchInfo(I2C_Address, index, &weight, &area, &event);
+
+      /* Update TS_State structure */
+      TS_State->touchWeight[index] = weight;
+      TS_State->touchArea[index]   = area;
+
+      /* Remap touch event */
+      switch(event)
+      {
+        case FT6206_TOUCH_EVT_FLAG_PRESS_DOWN  :
+          TS_State->touchEventId[index] = TOUCH_EVENT_PRESS_DOWN;
+          break;
+        case FT6206_TOUCH_EVT_FLAG_LIFT_UP :
+          TS_State->touchEventId[index] = TOUCH_EVENT_LIFT_UP;
+          break;
+        case FT6206_TOUCH_EVT_FLAG_CONTACT :
+          TS_State->touchEventId[index] = TOUCH_EVENT_CONTACT;
+          break;
+        case FT6206_TOUCH_EVT_FLAG_NO_EVENT :
+          TS_State->touchEventId[index] = TOUCH_EVENT_NO_EVT;
+          break;
+        default :
+          ts_status = TS_ERROR;
+          break;
+      } /* of switch(event) */
+
+#endif /* TS_MULTI_TOUCH_SUPPORTED == 1 */
+
+    } /* of for(index=0; index < TS_State->touchDetected; index++) */
+
+#if (TS_MULTI_TOUCH_SUPPORTED == 1)
+    /* Get gesture Id */
+    ts_status = BSP_TS_Get_GestureId(TS_State);
+#endif /* TS_MULTI_TOUCH_SUPPORTED == 1 */
+
+  } /* end of if(TS_State->touchDetected != 0) */
+
+  return (ts_status);
+}

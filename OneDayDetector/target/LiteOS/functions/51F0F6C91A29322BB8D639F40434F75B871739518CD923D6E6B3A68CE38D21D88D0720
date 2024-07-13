@@ -1,0 +1,45 @@
+static uint32_t SDMMC_GetCmdResp7(SDIO_TypeDef *SDIOx)
+{
+  uint32_t sta_reg;
+  /* 8 is the number of required instructions cycles for the below loop statement.
+  The SDIO_CMDTIMEOUT is expressed in ms */
+  register uint32_t count = SDIO_CMDTIMEOUT * (SystemCoreClock / 8U /1000U);
+  
+  do
+  {
+    if (count-- == 0U)
+    {
+      return SDMMC_ERROR_TIMEOUT;
+    }
+    sta_reg = SDIOx->STA;
+  }while(((sta_reg & (SDIO_FLAG_CCRCFAIL | SDIO_FLAG_CMDREND | SDIO_FLAG_CTIMEOUT)) == 0U) ||
+         ((sta_reg & SDIO_FLAG_CMDACT) != 0U ));
+    
+  if(__SDIO_GET_FLAG(SDIOx, SDIO_FLAG_CTIMEOUT))
+  {
+    /* Card is SD V2.0 compliant */
+    __SDIO_CLEAR_FLAG(SDIOx, SDIO_FLAG_CTIMEOUT);
+    
+    return SDMMC_ERROR_CMD_RSP_TIMEOUT;
+  }
+  else if(__SDIO_GET_FLAG(SDIOx, SDIO_FLAG_CCRCFAIL))
+  {
+    /* Card is SD V2.0 compliant */
+    __SDIO_CLEAR_FLAG(SDIOx, SDIO_FLAG_CCRCFAIL);
+    
+    return SDMMC_ERROR_CMD_CRC_FAIL;
+  }
+  else
+  {
+    /* Nothing to do */
+  }
+  
+  if(__SDIO_GET_FLAG(SDIOx, SDIO_FLAG_CMDREND))
+  {
+    /* Card is SD V2.0 compliant */
+    __SDIO_CLEAR_FLAG(SDIOx, SDIO_FLAG_CMDREND);
+  }
+  
+  return SDMMC_ERROR_NONE;
+  
+}

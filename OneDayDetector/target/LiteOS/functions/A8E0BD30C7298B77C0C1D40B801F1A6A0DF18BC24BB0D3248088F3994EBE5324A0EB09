@@ -1,0 +1,14 @@
+VOID WriteExcBufVa(const CHAR *format, va_list arglist)
+{
+    errno_t ret;
+
+    if (g_excInfoPool.len > g_excInfoPool.offset) {
+        ret = vsnprintf_s((g_excInfoPool.buf + g_excInfoPool.offset), (g_excInfoPool.len - g_excInfoPool.offset),
+                          (g_excInfoPool.len - g_excInfoPool.offset - 1), format, arglist);
+        if (ret == -1) {
+            PRINT_ERR("exc info buffer is not enough or vsnprintf_s is error.\n");
+            return;
+        }
+        g_excInfoPool.offset += ret;
+    }
+}

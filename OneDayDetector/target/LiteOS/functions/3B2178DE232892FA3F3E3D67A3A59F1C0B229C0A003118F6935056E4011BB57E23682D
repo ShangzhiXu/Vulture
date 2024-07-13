@@ -1,0 +1,94 @@
+HAL_StatusTypeDef HAL_I2SEx_TransmitReceive_IT(I2S_HandleTypeDef *hi2s, uint16_t *pTxData, uint16_t *pRxData,
+                                               uint16_t Size)
+{
+  uint32_t tmp1 = 0U;
+  HAL_StatusTypeDef errorcode = HAL_OK;
+
+  if (hi2s->State != HAL_I2S_STATE_READY)
+  {
+    errorcode = HAL_BUSY;
+    goto error;
+  }
+
+  if ((pTxData == NULL) || (pRxData == NULL) || (Size == 0U))
+  {
+    return  HAL_ERROR;
+  }
+
+  /* Process Locked */
+  __HAL_LOCK(hi2s);
+
+  hi2s->pTxBuffPtr = pTxData;
+  hi2s->pRxBuffPtr = pRxData;
+
+  tmp1 = hi2s->Instance->I2SCFGR & (SPI_I2SCFGR_DATLEN | SPI_I2SCFGR_CHLEN);
+  /* Check the Data format: When a 16-bit data frame or a 16-bit data frame extended
+  is selected during the I2S configuration phase, the Size parameter means the number
+  of 16-bit data length in the transaction and when a 24-bit data frame or a 32-bit data
+  frame is selected the Size parameter means the number of 16-bit data length. */
+  if ((tmp1 == I2S_DATAFORMAT_24B) || (tmp1 == I2S_DATAFORMAT_32B))
+  {
+    hi2s->TxXferSize  = (Size << 1U);
+    hi2s->TxXferCount = (Size << 1U);
+    hi2s->RxXferSize  = (Size << 1U);
+    hi2s->RxXferCount = (Size << 1U);
+  }
+  else
+  {
+    hi2s->TxXferSize  = Size;
+    hi2s->TxXferCount = Size;
+    hi2s->RxXferSize  = Size;
+    hi2s->RxXferCount = Size;
+  }
+
+  hi2s->ErrorCode = HAL_I2S_ERROR_NONE;
+  hi2s->State     = HAL_I2S_STATE_BUSY_TX_RX;
+
+  /* Set the function for IT treatment */
+  if ((hi2s->Init.Mode == I2S_MODE_MASTER_TX) || (hi2s->Init.Mode == I2S_MODE_SLAVE_TX))
+  {
+    /* Enable I2Sext RXNE and ERR interrupts */
+    __HAL_I2SEXT_ENABLE_IT(hi2s, (I2S_IT_RXNE | I2S_IT_ERR));
+
+    /* Enable I2Sx TXE and ERR interrupts */
+    __HAL_I2S_ENABLE_IT(hi2s, (I2S_IT_TXE | I2S_IT_ERR));
+
+    /* Transmit First data */
+    hi2s->Instance->DR = (*hi2s->pTxBuffPtr++);
+    hi2s->TxXferCount--;
+
+    if (hi2s->TxXferCount == 0U)
+    {
+      /* Disable TXE and ERR interrupt */
+      __HAL_I2S_DISABLE_IT(hi2s, (I2S_IT_TXE | I2S_IT_ERR));
+    }
+  }
+  else  /* The I2S_MODE_MASTER_RX or I2S_MODE_SLAVE_RX Mode is selected */
+  {
+    /* Enable I2Sext TXE and ERR interrupts */
+    __HAL_I2SEXT_ENABLE_IT(hi2s, (I2S_IT_TXE | I2S_IT_ERR));
+
+    /* Enable I2Sext RXNE and ERR interrupts */
+    __HAL_I2S_ENABLE_IT(hi2s, (I2S_IT_RXNE | I2S_IT_ERR));
+
+    /* Transmit First data */
+    I2SxEXT(hi2s->Instance)->DR = (*hi2s->pTxBuffPtr++);
+    hi2s->TxXferCount--;
+
+    if (hi2s->TxXferCount == 0U)
+    {
+      /* Disable I2Sext TXE and ERR interrupt */
+      __HAL_I2SEXT_DISABLE_IT(hi2s, (I2S_IT_TXE | I2S_IT_ERR));
+    }
+  }
+
+  /* Enable I2Sext peripheral */
+  __HAL_I2SEXT_ENABLE(hi2s);
+
+  /* Enable I2S peripheral */
+  __HAL_I2S_ENABLE(hi2s);
+
+error :
+  __HAL_UNLOCK(hi2s);
+  return errorcode;
+}

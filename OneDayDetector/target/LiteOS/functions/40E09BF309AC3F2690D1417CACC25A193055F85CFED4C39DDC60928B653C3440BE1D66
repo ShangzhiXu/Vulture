@@ -1,0 +1,28 @@
+uint32_t LL_RCC_GetRNGClockFreq(uint32_t RNGxSource)
+{
+  uint32_t rng_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_RNG_CLKSOURCE(RNGxSource));
+
+  /* RNGCLK clock frequency */
+  switch (LL_RCC_GetRNGClockSource(RNGxSource))
+  {
+    case LL_RCC_RNG_CLKSOURCE_PLL:           /* PLL clock used as RNG clock source */
+      if (LL_RCC_PLL_IsReady())
+      {
+        rng_frequency = RCC_PLL_GetFreqDomain_48M();
+      }
+      break;
+
+    case LL_RCC_RNG_CLKSOURCE_PLLSAI:       /* PLLSAI clock used as RNG clock source */
+    default:
+      if (LL_RCC_PLLSAI_IsReady())
+      {
+        rng_frequency = RCC_PLLSAI_GetFreqDomain_48M();
+      }
+      break;
+  }
+
+  return rng_frequency;
+}

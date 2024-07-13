@@ -1,0 +1,26 @@
+ip6_reass_remove_oldest_datagram(struct ip6_reassdata *ipr, int pbufs_needed)
+{
+  struct ip6_reassdata *r, *oldest;
+
+  /* Free datagrams until being allowed to enqueue 'pbufs_needed' pbufs,
+   * but don't free the current datagram! */
+  do {
+    r = oldest = reassdatagrams;
+    while (r != NULL) {
+      if (r != ipr) {
+        if (r->timer <= oldest->timer) {
+          /* older than the previous oldest */
+          oldest = r;
+        }
+      }
+      r = r->next;
+    }
+    if (oldest == ipr) {
+      /* nothing to free, ipr is the only element on the list */
+      return;
+    }
+    if (oldest != NULL) {
+      ip6_reass_free_complete_datagram(oldest);
+    }
+  } while (((ip6_reass_pbufcount + pbufs_needed) > IP_REASS_MAX_PBUFS) && (reassdatagrams != NULL));
+}

@@ -1,0 +1,20 @@
+VOID OsPriQueueAdd(PriQueue *priQueue, LosTaskCB* task, QueueOps flag)
+{
+    LOS_DL_LIST *priQueues = NULL;
+    UINT32      *bitmap = NULL;
+    UINT32      priority;
+
+    priQueues = &priQueue->queues[0];
+    bitmap    = &priQueue->bitmap;
+    priority  = task->priority;
+
+    if (LOS_ListEmpty(&priQueues[priority])) {
+        (*bitmap) |= (PRI0_BIT >> priority);
+    }
+
+    if (flag == QUEUE_HEAD) {
+        LOS_ListHeadInsert(&priQueues[priority], &task->pendList);
+    } else {
+        LOS_ListTailInsert(&priQueues[priority], &task->pendList);
+    }
+}

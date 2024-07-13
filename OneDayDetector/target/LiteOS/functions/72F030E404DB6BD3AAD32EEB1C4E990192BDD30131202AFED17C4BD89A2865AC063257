@@ -1,0 +1,22 @@
+int MQTTSerialize_connectLength(MQTTPacket_connectData *options)
+{
+    int len = 0;
+
+    FUNC_ENTRY;
+
+    if (options->MQTTVersion == 3)
+        len = 12; /* variable depending on MQTT or MQIsdp */
+    else if (options->MQTTVersion == 4)
+        len = 10;
+
+    len += MQTTstrlen(options->clientID) + 2;
+    if (options->willFlag)
+        len += MQTTstrlen(options->will.topicName) + 2 + MQTTstrlen(options->will.message) + 2;
+    if (options->username.cstring || options->username.lenstring.data)
+        len += MQTTstrlen(options->username) + 2;
+    if (options->password.cstring || options->password.lenstring.data)
+        len += MQTTstrlen(options->password) + 2;
+
+    FUNC_EXIT_RC(len);
+    return len;
+}

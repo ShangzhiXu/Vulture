@@ -1,0 +1,10 @@
+  float h;
+  int index;
+  float score;
+  float w;
+  float x;
+  float xmax;
+  float xmin;
+  float y;
+  float ymax;
+  float ymin;

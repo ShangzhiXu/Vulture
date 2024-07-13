@@ -1,0 +1,20 @@
+altcp_proxyconnect_lower_connected(void *arg, struct altcp_pcb *inner_conn, err_t err)
+{
+  struct altcp_pcb *conn = (struct altcp_pcb *)arg;
+  if (conn && conn->state) {
+    LWIP_ASSERT("pcb mismatch", conn->inner_conn == inner_conn);
+    LWIP_UNUSED_ARG(inner_conn); /* for LWIP_NOASSERT */
+    /* upper connected is called when handshake is done */
+    if (err != ERR_OK) {
+      if (conn->connected) {
+        if (conn->connected(conn->arg, conn, err) == ERR_ABRT) {
+          return ERR_ABRT;
+        }
+        return ERR_OK;
+      }
+    }
+    /* send proxy connect request here */
+    return altcp_proxyconnect_send_request(conn);
+  }
+  return ERR_VAL;
+}

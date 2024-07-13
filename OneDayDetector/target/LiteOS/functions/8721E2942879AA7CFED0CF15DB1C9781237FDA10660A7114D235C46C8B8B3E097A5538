@@ -1,0 +1,54 @@
+sockets_stresstest_listener(void *arg)
+{
+  int slisten;
+  int ret;
+  struct sockaddr_storage addr;
+  socklen_t addr_len;
+  struct test_settings *settings = (struct test_settings *)arg;
+  int num_clients, num_servers = 0;
+
+  slisten = lwip_socket(AF_INET, SOCK_STREAM, 0);
+  LWIP_ASSERT("slisten >= 0", slisten >= 0);
+
+  memcpy(&addr, &settings->addr, sizeof(struct sockaddr_storage));
+  ret = lwip_bind(slisten, (struct sockaddr *)&addr, sizeof(addr));
+  LWIP_ASSERT("ret == 0", ret == 0);
+
+  ret = lwip_listen(slisten, 0);
+  LWIP_ASSERT("ret == 0", ret == 0);
+
+  addr_len = sizeof(addr);
+  ret = lwip_getsockname(slisten, (struct sockaddr *)&addr, &addr_len);
+  LWIP_ASSERT("ret == 0", ret == 0);
+
+  num_clients = sockets_stresstest_start_clients(&addr);
+
+  while (num_servers < num_clients) {
+    struct sockaddr_storage aclient;
+    socklen_t aclient_len = sizeof(aclient);
+    int sclient = lwip_accept(slisten, (struct sockaddr *)&aclient, &aclient_len);
+#if 1
+    /* using server threads */
+    {
+      sys_thread_t t;
+      SYS_ARCH_INC(sockets_stresstest_numthreads, 1);
+      num_servers++;
+      t = sys_thread_new("sockets_stresstest_conn_server", sockets_stresstest_conn_server, (void*)sclient, 0, 0);
+      LWIP_ASSERT("thread != NULL", t != 0);
+    }
+#else
+    /* using server select */
+#endif
+  }
+  LWIP_DEBUGF(TEST_SOCKETS_STRESS | LWIP_DBG_STATE, ("sockets_stresstest_listener: all %d connections established\n", num_clients));
+
+  /* accepted all clients */
+  while (sockets_stresstest_numthreads > 0) {
+    sys_msleep(1);
+  }
+
+  ret = lwip_close(slisten);
+  LWIP_ASSERT("ret == 0", ret == 0);
+
+  LWIP_DEBUGF(TEST_SOCKETS_STRESS |LWIP_DBG_STATE, ("sockets_stresstest_listener: done\n"));
+}

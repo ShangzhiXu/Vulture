@@ -1,0 +1,31 @@
+nd6_get_next_hop_addr_or_queue(struct netif *netif, struct pbuf *q, const ip6_addr_t *ip6addr, const u8_t **hwaddrp)
+{
+  s8_t i;
+
+  /* Get next hop record. */
+  i = nd6_get_next_hop_entry(ip6addr, netif);
+  if (i < 0) {
+    /* failed to get a next hop neighbor record. */
+    return i;
+  }
+
+  /* Now that we have a destination record, send or queue the packet. */
+  if (neighbor_cache[i].state == ND6_STALE) {
+    /* Switch to delay state. */
+    neighbor_cache[i].state = ND6_DELAY;
+    neighbor_cache[i].counter.delay_time = LWIP_ND6_DELAY_FIRST_PROBE_TIME / ND6_TMR_INTERVAL;
+  }
+  /* @todo should we send or queue if PROBE? send for now, to let unicast NS pass. */
+  if ((neighbor_cache[i].state == ND6_REACHABLE) ||
+      (neighbor_cache[i].state == ND6_DELAY) ||
+      (neighbor_cache[i].state == ND6_PROBE)) {
+
+    /* Tell the caller to send out the packet now. */
+    *hwaddrp = neighbor_cache[i].lladdr;
+    return ERR_OK;
+  }
+
+  /* We should queue packet on this interface. */
+  *hwaddrp = NULL;
+  return nd6_queue_packet(i, q);
+}

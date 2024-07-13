@@ -1,0 +1,57 @@
+HAL_StatusTypeDef HAL_ETH_DMATxDescListInit(ETH_HandleTypeDef *heth, ETH_DMADescTypeDef *DMATxDescTab, uint8_t *TxBuff, uint32_t TxBuffCount)
+{
+  uint32_t i = 0U;
+  ETH_DMADescTypeDef *dmatxdesc;
+  
+  /* Process Locked */
+  __HAL_LOCK(heth);
+  
+  /* Set the ETH peripheral state to BUSY */
+  heth->State = HAL_ETH_STATE_BUSY;
+  
+  /* Set the DMATxDescToSet pointer with the first one of the DMATxDescTab list */
+  heth->TxDesc = DMATxDescTab;
+  
+  /* Fill each DMATxDesc descriptor with the right values */   
+  for(i=0U; i < TxBuffCount; i++)
+  {
+    /* Get the pointer on the ith member of the Tx Desc list */
+    dmatxdesc = DMATxDescTab + i;
+    
+    /* Set Second Address Chained bit */
+    dmatxdesc->Status = ETH_DMATXDESC_TCH;  
+    
+    /* Set Buffer1 address pointer */
+    dmatxdesc->Buffer1Addr = (uint32_t)(&TxBuff[i*ETH_TX_BUF_SIZE]);
+    
+    if ((heth->Init).ChecksumMode == ETH_CHECKSUM_BY_HARDWARE)
+    {
+      /* Set the DMA Tx descriptors checksum insertion */
+      dmatxdesc->Status |= ETH_DMATXDESC_CHECKSUMTCPUDPICMPFULL;
+    }
+    
+    /* Initialize the next descriptor with the Next Descriptor Polling Enable */
+    if(i < (TxBuffCount-1U))
+    {
+      /* Set next descriptor address register with next descriptor base address */
+      dmatxdesc->Buffer2NextDescAddr = (uint32_t)(DMATxDescTab+i+1U);
+    }
+    else
+    {
+      /* For last descriptor, set next descriptor address register equal to the first descriptor base address */ 
+      dmatxdesc->Buffer2NextDescAddr = (uint32_t) DMATxDescTab;  
+    }
+  }
+  
+  /* Set Transmit Descriptor List Address Register */
+  (heth->Instance)->DMATDLAR = (uint32_t) DMATxDescTab;
+  
+  /* Set ETH HAL State to Ready */
+  heth->State= HAL_ETH_STATE_READY;
+  
+  /* Process Unlocked */
+  __HAL_UNLOCK(heth);
+  
+  /* Return function status */
+  return HAL_OK;
+}

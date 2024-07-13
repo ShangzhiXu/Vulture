@@ -1,0 +1,38 @@
+static int check_for_leftover_values(
+        const ListNode * const map_head, const char * const error_message,
+        const size_t number_of_symbol_names) {
+    const ListNode *current;
+    int symbols_with_leftover_values = 0;
+    assert_true(map_head);
+    assert_true(number_of_symbol_names);
+
+    for (current = map_head->next; current != map_head;
+         current = current->next) {
+        const SymbolMapValue * const value =
+            (SymbolMapValue*)current->value;
+        const ListNode *child_list;
+        assert_true(value);
+        child_list = &value->symbol_values_list_head;
+
+        if (!list_empty(child_list)) {
+            if (number_of_symbol_names == 1) {
+                const ListNode *child_node;
+                print_error(error_message, value->symbol_name);
+                print_error("  Remaining item(s) declared at...\n");
+
+                for (child_node = child_list->next; child_node != child_list;
+                     child_node = child_node->next) {
+                    const SourceLocation * const location = child_node->value;
+                    print_error("    " SOURCE_LOCATION_FORMAT "\n",
+                                location->file, location->line);
+                }
+            } else {
+                print_error("%s.", value->symbol_name);
+                check_for_leftover_values(child_list, error_message,
+                                          number_of_symbol_names - 1);
+            }
+            symbols_with_leftover_values ++;
+        }
+    }
+    return symbols_with_leftover_values;
+}

@@ -1,0 +1,9 @@
+  int32_t block_size_;
+  uint8_t data_type_size_;
+  int32_t in_stride_dim0_;
+  int32_t in_stride_dim1_;
+  int32_t in_stride_dim2_;
+  OpParameter op_parameter_;
+  int32_t out_stride_dim0_;
+  int32_t out_stride_dim1_;
+  int32_t out_stride_dim2_;

@@ -1,0 +1,60 @@
+static void fsm_rconfnakrej(fsm *f, int code, int id, u_char *inp, int len) {
+    int ret;
+    int treat_as_reject;
+
+    if (id != f->reqid || f->seen_ack)	/* Expected id? */
+	return;				/* Nope, toss... */
+
+    if (code == CONFNAK) {
+	++f->rnakloops;
+	treat_as_reject = (f->rnakloops >= f->maxnakloops);
+	if (f->callbacks->nakci == NULL
+	    || !(ret = f->callbacks->nakci(f, inp, len, treat_as_reject))) {
+	    ppp_error("Received bad configure-nak: %P", inp, len);
+	    return;
+	}
+    } else {
+	f->rnakloops = 0;
+	if (f->callbacks->rejci == NULL
+	    || !(ret = f->callbacks->rejci(f, inp, len))) {
+	    ppp_error("Received bad configure-rej: %P", inp, len);
+	    return;
+	}
+    }
+
+    f->seen_ack = 1;
+
+    switch (f->state) {
+    case PPP_FSM_CLOSED:
+    case PPP_FSM_STOPPED:
+	fsm_sdata(f, TERMACK, id, NULL, 0);
+	break;
+
+    case PPP_FSM_REQSENT:
+    case PPP_FSM_ACKSENT:
+	/* They didn't agree to what we wanted - try another request */
+	UNTIMEOUT(fsm_timeout, f);	/* Cancel timeout */
+	if (ret < 0)
+	    f->state = PPP_FSM_STOPPED;		/* kludge for stopping CCP */
+	else
+	    fsm_sconfreq(f, 0);		/* Send Configure-Request */
+	break;
+
+    case PPP_FSM_ACKRCVD:
+	/* Got a Nak/reject when we had already had an Ack?? oh well... */
+	UNTIMEOUT(fsm_timeout, f);	/* Cancel timeout */
+	fsm_sconfreq(f, 0);
+	f->state = PPP_FSM_REQSENT;
+	break;
+
+    case PPP_FSM_OPENED:
+	/* Go down and restart negotiation */
+	if (f->callbacks->down)
+	    (*f->callbacks->down)(f);	/* Inform upper layers */
+	fsm_sconfreq(f, 0);		/* Send initial Configure-Request */
+	f->state = PPP_FSM_REQSENT;
+	break;
+    default:
+	break;
+    }
+}

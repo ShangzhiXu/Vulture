@@ -1,0 +1,58 @@
+static lv_res_t lv_obj_signal(lv_obj_t * obj, lv_signal_t sign, void * param)
+{
+    if(sign == LV_SIGNAL_GET_STYLE) {
+        lv_get_style_info_t * info = param;
+        if(info->part == LV_OBJ_PART_MAIN) info->result = &obj->style_list;
+        else info->result = NULL;
+        return LV_RES_OK;
+    }
+    else if(sign == LV_SIGNAL_GET_TYPE) return lv_obj_handle_get_type_signal(param, LV_OBJX_NAME);
+
+    lv_res_t res = LV_RES_OK;
+
+    if(sign == LV_SIGNAL_CHILD_CHG) {
+        /*Return 'invalid' if the child change signal is not enabled*/
+        if(lv_obj_is_protected(obj, LV_PROTECT_CHILD_CHG) != false) res = LV_RES_INV;
+    }
+    else if(sign == LV_SIGNAL_REFR_EXT_DRAW_PAD) {
+        lv_coord_t d = lv_obj_get_draw_rect_ext_pad_size(obj, LV_OBJ_PART_MAIN);
+        obj->ext_draw_pad = LV_MATH_MAX(obj->ext_draw_pad, d);
+    }
+#if LV_USE_OBJ_REALIGN
+    else if(sign == LV_SIGNAL_PARENT_SIZE_CHG) {
+        if(obj->realign.auto_realign) {
+            lv_obj_realign(obj);
+        }
+    }
+#endif
+    else if(sign == LV_SIGNAL_STYLE_CHG) {
+        lv_obj_refresh_ext_draw_pad(obj);
+    }
+    else if(sign == LV_SIGNAL_PRESSED) {
+        lv_obj_add_state(obj, LV_STATE_PRESSED);
+    }
+    else if(sign == LV_SIGNAL_RELEASED || sign == LV_SIGNAL_PRESS_LOST) {
+        lv_obj_clear_state(obj, LV_STATE_PRESSED);
+    }
+#if LV_USE_GROUP
+    else if(sign == LV_SIGNAL_FOCUS) {
+        if(lv_group_get_editing(lv_obj_get_group(obj))) {
+            uint8_t state = LV_STATE_FOCUSED;
+            state |= LV_STATE_EDITED;
+            lv_obj_add_state(obj, state);
+        }
+        else {
+            lv_obj_add_state(obj, LV_STATE_FOCUSED);
+            lv_obj_clear_state(obj, LV_STATE_EDITED);
+        }
+    }
+    else if(sign == LV_SIGNAL_DEFOCUS) {
+        lv_obj_clear_state(obj, LV_STATE_FOCUSED | LV_STATE_EDITED);
+    }
+#endif
+    else if(sign == LV_SIGNAL_CLEANUP) {
+        lv_obj_clean_style_list(obj, LV_OBJ_PART_MAIN);
+    }
+
+    return res;
+}

@@ -1,0 +1,28 @@
+STATIC BOOL CheckDstPeriodInner(const struct tm * const tm, INT64 seconds, INT64 dstStart, INT64 dstEnd)
+{
+    if (tm != NULL) {
+        if (tm->tm_isdst < 0) {
+            /* it must to be. */
+            if ((seconds >= dstStart) && (seconds < dstStart + g_dstForwardSeconds)) {
+                return FALSE;
+            }
+
+            /* determine the time period of the second pass, out of the DST period. */
+            if ((seconds > dstEnd) && (seconds <= dstEnd + g_dstForwardSeconds)) {
+                return TRUE;
+            }
+        } else if (tm->tm_isdst > 0) {
+            /* the logical judgment here is the opposite of common sense */
+            return TRUE;
+        } else {
+            /* tm->tm_isdst is zero */
+            return FALSE;
+        }
+    }
+
+    if ((seconds < dstStart) || (seconds >= dstEnd)) {
+        return FALSE; /* daylight saving time is not effect. */
+    }
+
+    return TRUE;
+}

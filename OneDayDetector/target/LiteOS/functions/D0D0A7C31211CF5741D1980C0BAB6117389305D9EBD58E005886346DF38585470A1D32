@@ -1,0 +1,17 @@
+int hal_fatfs_init(int need_erase)
+{
+    int8_t drive = -1;
+
+    if (need_erase) {
+        hal_spi_flash_config();
+        hal_spi_flash_erase(FF_PHYS_ADDR, FF_PHYS_SIZE);
+    }
+
+    (void)fatfs_init();
+
+    if (fatfs_mount("/fatfs/", &fat_drv, (uint8_t *)&drive) < 0) {
+        PRINT_ERR("failed to mount fatfs!\n");
+    }
+
+    return drive;
+}

@@ -1,0 +1,158 @@
+HAL_StatusTypeDef HAL_I2S_Init(I2S_HandleTypeDef *hi2s)
+{
+  uint32_t i2sdiv;
+  uint32_t i2sodd;
+  uint32_t packetlength;
+  uint32_t tmp;
+  uint32_t i2sclk;
+
+  /* Check the I2S handle allocation */
+  if (hi2s == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the I2S parameters */
+  assert_param(IS_I2S_ALL_INSTANCE(hi2s->Instance));
+  assert_param(IS_I2S_MODE(hi2s->Init.Mode));
+  assert_param(IS_I2S_STANDARD(hi2s->Init.Standard));
+  assert_param(IS_I2S_DATA_FORMAT(hi2s->Init.DataFormat));
+  assert_param(IS_I2S_MCLK_OUTPUT(hi2s->Init.MCLKOutput));
+  assert_param(IS_I2S_AUDIO_FREQ(hi2s->Init.AudioFreq));
+  assert_param(IS_I2S_CPOL(hi2s->Init.CPOL));
+
+  if (hi2s->State == HAL_I2S_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hi2s->Lock = HAL_UNLOCKED;
+
+#if (USE_HAL_I2S_REGISTER_CALLBACKS == 1U)
+    /* Init the I2S Callback settings */
+    hi2s->TxCpltCallback       = HAL_I2S_TxCpltCallback;          /* Legacy weak TxCpltCallback       */
+    hi2s->RxCpltCallback       = HAL_I2S_RxCpltCallback;          /* Legacy weak RxCpltCallback       */
+    hi2s->TxHalfCpltCallback   = HAL_I2S_TxHalfCpltCallback;      /* Legacy weak TxHalfCpltCallback   */
+    hi2s->RxHalfCpltCallback   = HAL_I2S_RxHalfCpltCallback;      /* Legacy weak RxHalfCpltCallback   */
+    hi2s->ErrorCallback        = HAL_I2S_ErrorCallback;           /* Legacy weak ErrorCallback        */
+
+    if (hi2s->MspInitCallback == NULL)
+    {
+      hi2s->MspInitCallback = HAL_I2S_MspInit; /* Legacy weak MspInit  */
+    }
+
+    /* Init the low level hardware : GPIO, CLOCK, NVIC... */
+    hi2s->MspInitCallback(hi2s);
+#else
+    /* Init the low level hardware : GPIO, CLOCK, CORTEX...etc */
+    HAL_I2S_MspInit(hi2s);
+#endif /* USE_HAL_I2S_REGISTER_CALLBACKS */
+  }
+
+  hi2s->State = HAL_I2S_STATE_BUSY;
+
+  /*----------------------- SPIx I2SCFGR & I2SPR Configuration ----------------*/
+  /* Clear I2SMOD, I2SE, I2SCFG, PCMSYNC, I2SSTD, CKPOL, DATLEN and CHLEN bits */
+  CLEAR_BIT(hi2s->Instance->I2SCFGR, (SPI_I2SCFGR_CHLEN | SPI_I2SCFGR_DATLEN | SPI_I2SCFGR_CKPOL | \
+                                      SPI_I2SCFGR_I2SSTD | SPI_I2SCFGR_PCMSYNC | SPI_I2SCFGR_I2SCFG | \
+                                      SPI_I2SCFGR_I2SE | SPI_I2SCFGR_I2SMOD));
+  hi2s->Instance->I2SPR = 0x0002U;
+
+  /*----------------------- I2SPR: I2SDIV and ODD Calculation -----------------*/
+  /* If the requested audio frequency is not the default, compute the prescaler */
+  if (hi2s->Init.AudioFreq != I2S_AUDIOFREQ_DEFAULT)
+  {
+    /* Check the frame length (For the Prescaler computing) ********************/
+    if (hi2s->Init.DataFormat == I2S_DATAFORMAT_16B)
+    {
+      /* Packet length is 16 bits */
+      packetlength = 16U;
+    }
+    else
+    {
+      /* Packet length is 32 bits */
+      packetlength = 32U;
+    }
+
+    /* I2S standard */
+    if (hi2s->Init.Standard <= I2S_STANDARD_LSB)
+    {
+      /* In I2S standard packet lenght is multiplied by 2 */
+      packetlength = packetlength * 2U;
+    }
+
+    /* Get the source clock value: based on System Clock value */
+    i2sclk = HAL_RCC_GetSysClockFreq();
+
+    /* Compute the Real divider depending on the MCLK output state, with a floating point */
+    if (hi2s->Init.MCLKOutput == I2S_MCLKOUTPUT_ENABLE)
+    {
+      /* MCLK output is enabled */
+      if (hi2s->Init.DataFormat != I2S_DATAFORMAT_16B)
+      {
+        tmp = (uint32_t)(((((i2sclk / (packetlength * 4U)) * 10U) / hi2s->Init.AudioFreq)) + 5U);
+      }
+      else
+      {
+        tmp = (uint32_t)(((((i2sclk / (packetlength * 8U)) * 10U) / hi2s->Init.AudioFreq)) + 5U);
+      }
+    }
+    else
+    {
+      /* MCLK output is disabled */
+      tmp = (uint32_t)(((((i2sclk / packetlength) * 10U) / hi2s->Init.AudioFreq)) + 5U);
+    }
+
+    /* Remove the flatting point */
+    tmp = tmp / 10U;
+
+    /* Check the parity of the divider */
+    i2sodd = (uint32_t)(tmp & (uint32_t)1U);
+
+    /* Compute the i2sdiv prescaler */
+    i2sdiv = (uint32_t)((tmp - i2sodd) / 2U);
+
+    /* Get the Mask for the Odd bit (SPI_I2SPR[8]) register */
+    i2sodd = (uint32_t)(i2sodd << 8U);
+  }
+  else
+  {
+    /* Set the default values */
+    i2sdiv = 2U;
+    i2sodd = 0U;
+  }
+
+  /* Test if the divider is 1 or 0 or greater than 0xFF */
+  if ((i2sdiv < 2U) || (i2sdiv > 0xFFU))
+  {
+    /* Set the error code and execute error callback*/
+    SET_BIT(hi2s->ErrorCode, HAL_I2S_ERROR_PRESCALER);
+    return  HAL_ERROR;
+  }
+
+  /*----------------------- SPIx I2SCFGR & I2SPR Configuration ----------------*/
+
+  /* Write to SPIx I2SPR register the computed value */
+  hi2s->Instance->I2SPR = (uint32_t)((uint32_t)i2sdiv | (uint32_t)(i2sodd | (uint32_t)hi2s->Init.MCLKOutput));
+
+  /* Clear I2SMOD, I2SE, I2SCFG, PCMSYNC, I2SSTD, CKPOL, DATLEN and CHLEN bits */
+  /* And configure the I2S with the I2S_InitStruct values                      */
+  MODIFY_REG(hi2s->Instance->I2SCFGR, (SPI_I2SCFGR_CHLEN | SPI_I2SCFGR_DATLEN | \
+                                       SPI_I2SCFGR_CKPOL | SPI_I2SCFGR_I2SSTD | \
+                                       SPI_I2SCFGR_PCMSYNC | SPI_I2SCFGR_I2SCFG | \
+                                       SPI_I2SCFGR_I2SE  | SPI_I2SCFGR_I2SMOD), \
+             (SPI_I2SCFGR_I2SMOD | hi2s->Init.Mode | \
+              hi2s->Init.Standard | hi2s->Init.DataFormat | \
+              hi2s->Init.CPOL));
+
+#if defined(SPI_I2SCFGR_ASTRTEN)
+  if ((hi2s->Init.Standard == I2S_STANDARD_PCM_SHORT) || ((hi2s->Init.Standard == I2S_STANDARD_PCM_LONG)))
+  {
+    /* Write to SPIx I2SCFGR */
+    SET_BIT(hi2s->Instance->I2SCFGR, SPI_I2SCFGR_ASTRTEN);
+  }
+#endif /* SPI_I2SCFGR_ASTRTEN */
+
+  hi2s->ErrorCode = HAL_I2S_ERROR_NONE;
+  hi2s->State     = HAL_I2S_STATE_READY;
+
+  return HAL_OK;
+}

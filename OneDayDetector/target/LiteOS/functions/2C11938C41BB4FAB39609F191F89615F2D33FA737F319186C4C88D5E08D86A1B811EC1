@@ -1,0 +1,59 @@
+void mbedtls_x509_crl_free( mbedtls_x509_crl *crl )
+{
+    mbedtls_x509_crl *crl_cur = crl;
+    mbedtls_x509_crl *crl_prv;
+    mbedtls_x509_name *name_cur;
+    mbedtls_x509_name *name_prv;
+    mbedtls_x509_crl_entry *entry_cur;
+    mbedtls_x509_crl_entry *entry_prv;
+
+    if( crl == NULL )
+        return;
+
+    do
+    {
+#if defined(MBEDTLS_X509_RSASSA_PSS_SUPPORT)
+        mbedtls_free( crl_cur->sig_opts );
+#endif
+
+        name_cur = crl_cur->issuer.next;
+        while( name_cur != NULL )
+        {
+            name_prv = name_cur;
+            name_cur = name_cur->next;
+            mbedtls_platform_zeroize( name_prv, sizeof( mbedtls_x509_name ) );
+            mbedtls_free( name_prv );
+        }
+
+        entry_cur = crl_cur->entry.next;
+        while( entry_cur != NULL )
+        {
+            entry_prv = entry_cur;
+            entry_cur = entry_cur->next;
+            mbedtls_platform_zeroize( entry_prv,
+                                      sizeof( mbedtls_x509_crl_entry ) );
+            mbedtls_free( entry_prv );
+        }
+
+        if( crl_cur->raw.p != NULL )
+        {
+            mbedtls_platform_zeroize( crl_cur->raw.p, crl_cur->raw.len );
+            mbedtls_free( crl_cur->raw.p );
+        }
+
+        crl_cur = crl_cur->next;
+    }
+    while( crl_cur != NULL );
+
+    crl_cur = crl;
+    do
+    {
+        crl_prv = crl_cur;
+        crl_cur = crl_cur->next;
+
+        mbedtls_platform_zeroize( crl_prv, sizeof( mbedtls_x509_crl ) );
+        if( crl_prv != crl )
+            mbedtls_free( crl_prv );
+    }
+    while( crl_cur != NULL );
+}

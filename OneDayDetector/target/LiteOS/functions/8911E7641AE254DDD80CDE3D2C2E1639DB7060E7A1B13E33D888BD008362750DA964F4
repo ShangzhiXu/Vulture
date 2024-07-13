@@ -1,0 +1,62 @@
+static void aesni_setkey_enc_256( unsigned char *rk,
+                                  const unsigned char *key )
+{
+    asm( "movdqu (%1), %%xmm0           \n\t"
+         "movdqu %%xmm0, (%0)           \n\t"
+         "add $16, %0                   \n\t"
+         "movdqu 16(%1), %%xmm1         \n\t"
+         "movdqu %%xmm1, (%0)           \n\t"
+         "jmp 2f                        \n\t" // skip auxiliary routine
+
+         /*
+          * Finish generating the next two round keys.
+          *
+          * On entry xmm0 is r3:r2:r1:r0, xmm1 is r7:r6:r5:r4 and
+          * xmm2 is X:stuff:stuff:stuff with X = rot( sub( r7 )) ^ RCON
+          *
+          * On exit, xmm0 is r11:r10:r9:r8 and xmm1 is r15:r14:r13:r12
+          * and those have been written to the output buffer.
+          */
+         "1:                                \n\t"
+         "pshufd $0xff, %%xmm2, %%xmm2      \n\t"
+         "pxor %%xmm0, %%xmm2               \n\t"
+         "pslldq $4, %%xmm0                 \n\t"
+         "pxor %%xmm0, %%xmm2               \n\t"
+         "pslldq $4, %%xmm0                 \n\t"
+         "pxor %%xmm0, %%xmm2               \n\t"
+         "pslldq $4, %%xmm0                 \n\t"
+         "pxor %%xmm2, %%xmm0               \n\t"
+         "add $16, %0                       \n\t"
+         "movdqu %%xmm0, (%0)               \n\t"
+
+         /* Set xmm2 to stuff:Y:stuff:stuff with Y = subword( r11 )
+          * and proceed to generate next round key from there */
+         AESKEYGENA xmm0_xmm2 ",0x00        \n\t"
+         "pshufd $0xaa, %%xmm2, %%xmm2      \n\t"
+         "pxor %%xmm1, %%xmm2               \n\t"
+         "pslldq $4, %%xmm1                 \n\t"
+         "pxor %%xmm1, %%xmm2               \n\t"
+         "pslldq $4, %%xmm1                 \n\t"
+         "pxor %%xmm1, %%xmm2               \n\t"
+         "pslldq $4, %%xmm1                 \n\t"
+         "pxor %%xmm2, %%xmm1               \n\t"
+         "add $16, %0                       \n\t"
+         "movdqu %%xmm1, (%0)               \n\t"
+         "ret                               \n\t"
+
+         /*
+          * Main "loop" - Generating one more key than necessary,
+          * see definition of mbedtls_aes_context.buf
+          */
+         "2:                                \n\t"
+         AESKEYGENA xmm1_xmm2 ",0x01        \n\tcall 1b \n\t"
+         AESKEYGENA xmm1_xmm2 ",0x02        \n\tcall 1b \n\t"
+         AESKEYGENA xmm1_xmm2 ",0x04        \n\tcall 1b \n\t"
+         AESKEYGENA xmm1_xmm2 ",0x08        \n\tcall 1b \n\t"
+         AESKEYGENA xmm1_xmm2 ",0x10        \n\tcall 1b \n\t"
+         AESKEYGENA xmm1_xmm2 ",0x20        \n\tcall 1b \n\t"
+         AESKEYGENA xmm1_xmm2 ",0x40        \n\tcall 1b \n\t"
+         :
+         : "r" (rk), "r" (key)
+         : "memory", "cc", "0" );
+}

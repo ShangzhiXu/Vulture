@@ -1,0 +1,25 @@
+snmp_asn1_dec_u64t(struct snmp_pbuf_stream *pbuf_stream, u16_t len, u64_t *value)
+{
+  u8_t data;
+
+  if ((len > 0) && (len <= 9)) {
+    PBUF_OP_EXEC(snmp_pbuf_stream_read(pbuf_stream, &data));
+
+    /* expecting sign bit to be zero, only unsigned please! */
+    if (((len == 9) && (data == 0x00)) || ((len < 9) && ((data & 0x80) == 0))) {
+      *value = data;
+      len--;
+
+      while (len > 0) {
+        PBUF_OP_EXEC(snmp_pbuf_stream_read(pbuf_stream, &data));
+        *value <<= 8;
+        *value |= data;
+        len--;
+      }
+
+      return ERR_OK;
+    }
+  }
+
+  return ERR_VAL;
+}

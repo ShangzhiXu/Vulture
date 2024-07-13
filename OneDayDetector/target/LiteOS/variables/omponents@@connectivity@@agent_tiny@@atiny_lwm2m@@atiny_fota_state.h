@@ -1,0 +1,11 @@
+    int (*execute_update)(struct atiny_fota_state_tag_s *thi);
+    int (*finish_download)(struct atiny_fota_state_tag_s *thi, int result);
+    atiny_fota_state_s interface;
+    atiny_fota_state_s interface;
+    atiny_fota_manager_s *manager;
+    lwm2m_observe_info_t observe_info;
+    int (*recv_notify_ack)(struct atiny_fota_state_tag_s *thi, data_send_status_e status);
+    bool report_flag;
+    int report_result;
+    int (*repot_result)(struct atiny_fota_state_tag_s *thi);
+    int (*start_download)(struct atiny_fota_state_tag_s *thi, const char *uri);

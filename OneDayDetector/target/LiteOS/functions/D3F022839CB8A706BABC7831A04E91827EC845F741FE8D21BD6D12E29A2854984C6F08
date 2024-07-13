@@ -1,0 +1,32 @@
+UINT32 LOS_MemMfree(VOID *pool, VOID *ptr, UINT32 moduleId)
+{
+    UINT32 intSave;
+    UINT32 ret;
+    UINT32 size;
+    LosMemDynNode *node = NULL;
+
+    if ((OsMemModCheck(moduleId) == LOS_NOK) || (ptr == NULL) || (pool == NULL)) {
+        return LOS_NOK;
+    }
+
+    node = (LosMemDynNode *)OsMemPtrToNode(ptr);
+    if (node == NULL) {
+        return LOS_NOK;
+    }
+
+    size = OS_MEM_NODE_GET_SIZE(node->selfNode.sizeAndFlag);
+
+    if (moduleId != OS_MEM_MODID_GET(node)) {
+        PRINT_ERR("node[%p] alloced in module %lu, but free in module %u\n node's taskId: 0x%x\n",
+                  ptr, OS_MEM_MODID_GET(node), moduleId, OS_MEM_TASKID_GET(node));
+        moduleId = OS_MEM_MODID_GET(node);
+    }
+
+    ret = LOS_MemFree(pool, ptr);
+    if (ret == LOS_OK) {
+        MEM_LOCK(intSave);
+        g_moduleMemUsedSize[moduleId] -= size;
+        MEM_UNLOCK(intSave);
+    }
+    return ret;
+}

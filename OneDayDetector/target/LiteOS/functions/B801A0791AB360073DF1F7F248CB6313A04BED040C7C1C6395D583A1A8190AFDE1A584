@@ -1,0 +1,69 @@
+HAL_StatusTypeDef HAL_RNG_RegisterCallback(RNG_HandleTypeDef *hrng, HAL_RNG_CallbackIDTypeDef CallbackID, pRNG_CallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    /* Update the error code */
+    hrng->ErrorCode = HAL_RNG_ERROR_INVALID_CALLBACK;
+    return HAL_ERROR;
+  }
+  /* Process locked */
+  __HAL_LOCK(hrng);
+
+  if (HAL_RNG_STATE_READY == hrng->State)
+  {
+    switch (CallbackID)
+    {
+    case HAL_RNG_ERROR_CB_ID :
+      hrng->ErrorCallback = pCallback;
+      break;
+
+    case HAL_RNG_MSPINIT_CB_ID :
+      hrng->MspInitCallback = pCallback;
+      break;
+
+    case HAL_RNG_MSPDEINIT_CB_ID :
+      hrng->MspDeInitCallback = pCallback;
+      break;
+
+    default :
+      /* Update the error code */
+      hrng->ErrorCode = HAL_RNG_ERROR_INVALID_CALLBACK;
+     /* Return error status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else if (HAL_RNG_STATE_RESET == hrng->State)
+  {
+    switch (CallbackID)
+    {
+    case HAL_RNG_MSPINIT_CB_ID :
+      hrng->MspInitCallback = pCallback;
+      break;
+
+    case HAL_RNG_MSPDEINIT_CB_ID :
+      hrng->MspDeInitCallback = pCallback;
+      break;
+
+    default :
+      /* Update the error code */
+      hrng->ErrorCode = HAL_RNG_ERROR_INVALID_CALLBACK;
+     /* Return error status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    hrng->ErrorCode = HAL_RNG_ERROR_INVALID_CALLBACK;
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hrng);
+  return status;
+}

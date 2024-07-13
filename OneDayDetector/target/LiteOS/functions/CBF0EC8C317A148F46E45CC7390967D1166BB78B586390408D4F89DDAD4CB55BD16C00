@@ -1,0 +1,38 @@
+void lv_group_remove_obj(lv_obj_t * obj)
+{
+    lv_group_t * g = obj->group_p;
+    if(g == NULL) return;
+    if(g->obj_focus == NULL) return; /*Just to be sure (Not possible if there is at least one object in the group)*/
+
+    /*Focus on the next object*/
+    if(*g->obj_focus == obj) {
+        if(g->frozen) g->frozen = 0;
+
+        /*If this is the only object in the group then focus to nothing.*/
+        if(_lv_ll_get_head(&g->obj_ll) == g->obj_focus && _lv_ll_get_tail(&g->obj_ll) == g->obj_focus) {
+            (*g->obj_focus)->signal_cb(*g->obj_focus, LV_SIGNAL_DEFOCUS, NULL);
+        }
+        /*If there more objects in the group then focus to the next/prev object*/
+        else {
+            lv_group_refocus(g);
+        }
+    }
+
+    /* If the focuses object is still the same then it was the only object in the group but it will
+     * be deleted. Set the `obj_focus` to NULL to get back to the initial state of the group with
+     * zero objects*/
+    if(*g->obj_focus == obj) {
+        g->obj_focus = NULL;
+    }
+
+    /*Search the object and remove it from its group */
+    lv_obj_t ** i;
+    _LV_LL_READ(g->obj_ll, i) {
+        if(*i == obj) {
+            _lv_ll_remove(&g->obj_ll, i);
+            lv_mem_free(i);
+            obj->group_p = NULL;
+            break;
+        }
+    }
+}

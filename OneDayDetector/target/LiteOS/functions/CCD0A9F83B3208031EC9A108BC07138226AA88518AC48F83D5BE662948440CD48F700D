@@ -1,0 +1,21 @@
+HAL_StatusTypeDef HAL_RTC_WaitForSynchro(RTC_HandleTypeDef* hrtc)
+{
+  uint32_t tickstart = 0;
+
+  /* Clear RSF flag */
+  hrtc->Instance->ISR &= (uint32_t)RTC_RSF_MASK;
+
+    /* Get tick */
+    tickstart = HAL_GetTick();
+
+  /* Wait the registers to be synchronised */
+  while((hrtc->Instance->ISR & RTC_ISR_RSF) == (uint32_t)RESET)
+  {
+    if((HAL_GetTick() - tickstart ) > RTC_TIMEOUT_VALUE)
+    {
+      return HAL_TIMEOUT;
+    }
+  }
+
+  return HAL_OK;
+}

@@ -1,0 +1,56 @@
+void* lwiperf_start_tcp_client(const ip_addr_t* remote_addr, u16_t remote_port,
+  enum lwiperf_client_type type, lwiperf_report_fn report_fn, void* report_arg)
+{
+  err_t ret;
+  lwiperf_settings_t settings;
+  lwiperf_state_tcp_t *state = NULL;
+
+  memset(&settings, 0, sizeof(settings));
+  switch (type) {
+  case LWIPERF_CLIENT:
+    /* Unidirectional tx only test */
+    settings.flags = 0;
+    break;
+  case LWIPERF_DUAL:
+    /* Do a bidirectional test simultaneously */
+    settings.flags = htonl(LWIPERF_FLAGS_ANSWER_TEST | LWIPERF_FLAGS_ANSWER_NOW);
+    break;
+  case LWIPERF_TRADEOFF:
+    /* Do a bidirectional test individually */
+    settings.flags = htonl(LWIPERF_FLAGS_ANSWER_TEST);
+    break;
+  default:
+    /* invalid argument */
+    return NULL;
+  }
+  settings.num_threads = htonl(1);
+  settings.remote_port = htonl(LWIPERF_TCP_PORT_DEFAULT);
+  /* TODO: implement passing duration/amount of bytes to transfer */
+  settings.amount = htonl((u32_t)-1000);
+
+  ret = lwiperf_tx_start_impl(remote_addr, remote_port, &settings, report_fn, report_arg, NULL, &state);
+  if (ret == ERR_OK) {
+    LWIP_ASSERT("state != NULL", state != NULL);
+    if (type != LWIPERF_CLIENT) {
+      /* start corresponding server now */
+      lwiperf_state_tcp_t *server = NULL;
+      ret = lwiperf_start_tcp_server_impl(&state->conn_pcb->local_ip, LWIPERF_TCP_PORT_DEFAULT,
+        report_fn, report_arg, (lwiperf_state_base_t *)state, &server);
+      if (ret != ERR_OK) {
+        /* starting server failed, abort client */
+        lwiperf_abort(state);
+        return NULL;
+      }
+      /* make this server accept one connection only */
+      server->specific_remote = 1;
+      server->remote_addr = state->conn_pcb->remote_ip;
+      if (type == LWIPERF_TRADEOFF) {
+        /* tradeoff means that the remote host connects only after the client is done,
+           so keep the listen pcb open until the client is done */
+        server->client_tradeoff_mode = 1;
+      }
+    }
+    return state;
+  }
+  return NULL;
+}

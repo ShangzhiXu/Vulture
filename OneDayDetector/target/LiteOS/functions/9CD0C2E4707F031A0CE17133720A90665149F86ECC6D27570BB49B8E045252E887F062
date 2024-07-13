@@ -1,0 +1,15 @@
+LITE_OS_SEC_TEXT_MINOR STATIC VOID ScbSwitchComplete(const SensorType *sensor, INT32 result)
+{
+    SensorItem *item = NULL;
+    struct LOS_DL_LIST *pl = NULL;
+
+    LOS_DL_LIST_FOR_EACH(pl, &sensor->slist) {
+        item = LOS_DL_LIST_ENTRY(pl, SensorItem, list);
+        if ((item->state == OPEN) || (item->state == CLOSE)) {
+            if ((item->resp != 0) && (item->respFunc != NULL)) {
+                item->respFunc(item->tag, item->id, item->state, result);
+            }
+            item->state -= 1; // OPEN->WORKING, CLOSE->IDLE
+        }
+    }
+}

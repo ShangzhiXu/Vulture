@@ -1,0 +1,150 @@
+static void *buffer_alloc_calloc( size_t n, size_t size )
+{
+    memory_header *new, *cur = heap.first_free;
+    unsigned char *p;
+    void *ret;
+    size_t original_len, len;
+#if defined(MBEDTLS_MEMORY_BACKTRACE)
+    void *trace_buffer[MAX_BT];
+    size_t trace_cnt;
+#endif
+
+    if( heap.buf == NULL || heap.first == NULL )
+        return( NULL );
+
+    original_len = len = n * size;
+
+    if( n == 0 || size == 0 || len / n != size )
+        return( NULL );
+    else if( len > (size_t)-MBEDTLS_MEMORY_ALIGN_MULTIPLE )
+        return( NULL );
+
+    if( len % MBEDTLS_MEMORY_ALIGN_MULTIPLE )
+    {
+        len -= len % MBEDTLS_MEMORY_ALIGN_MULTIPLE;
+        len += MBEDTLS_MEMORY_ALIGN_MULTIPLE;
+    }
+
+    // Find block that fits
+    //
+    while( cur != NULL )
+    {
+        if( cur->size >= len )
+            break;
+
+        cur = cur->next_free;
+    }
+
+    if( cur == NULL )
+        return( NULL );
+
+    if( cur->alloc != 0 )
+    {
+#if defined(MBEDTLS_MEMORY_DEBUG)
+        mbedtls_fprintf( stderr, "FATAL: block in free_list but allocated "
+                                  "data\n" );
+#endif
+        mbedtls_exit( 1 );
+    }
+
+#if defined(MBEDTLS_MEMORY_DEBUG)
+    heap.alloc_count++;
+#endif
+
+    // Found location, split block if > memory_header + 4 room left
+    //
+    if( cur->size - len < sizeof(memory_header) +
+                          MBEDTLS_MEMORY_ALIGN_MULTIPLE )
+    {
+        cur->alloc = 1;
+
+        // Remove from free_list
+        //
+        if( cur->prev_free != NULL )
+            cur->prev_free->next_free = cur->next_free;
+        else
+            heap.first_free = cur->next_free;
+
+        if( cur->next_free != NULL )
+            cur->next_free->prev_free = cur->prev_free;
+
+        cur->prev_free = NULL;
+        cur->next_free = NULL;
+
+#if defined(MBEDTLS_MEMORY_DEBUG)
+        heap.total_used += cur->size;
+        if( heap.total_used > heap.maximum_used )
+            heap.maximum_used = heap.total_used;
+#endif
+#if defined(MBEDTLS_MEMORY_BACKTRACE)
+        trace_cnt = backtrace( trace_buffer, MAX_BT );
+        cur->trace = backtrace_symbols( trace_buffer, trace_cnt );
+        cur->trace_count = trace_cnt;
+#endif
+
+        if( ( heap.verify & MBEDTLS_MEMORY_VERIFY_ALLOC ) && verify_chain() != 0 )
+            mbedtls_exit( 1 );
+
+        ret = (unsigned char *) cur + sizeof( memory_header );
+        memset( ret, 0, original_len );
+
+        return( ret );
+    }
+
+    p = ( (unsigned char *) cur ) + sizeof(memory_header) + len;
+    new = (memory_header *) p;
+
+    new->size = cur->size - len - sizeof(memory_header);
+    new->alloc = 0;
+    new->prev = cur;
+    new->next = cur->next;
+#if defined(MBEDTLS_MEMORY_BACKTRACE)
+    new->trace = NULL;
+    new->trace_count = 0;
+#endif
+    new->magic1 = MAGIC1;
+    new->magic2 = MAGIC2;
+
+    if( new->next != NULL )
+        new->next->prev = new;
+
+    // Replace cur with new in free_list
+    //
+    new->prev_free = cur->prev_free;
+    new->next_free = cur->next_free;
+    if( new->prev_free != NULL )
+        new->prev_free->next_free = new;
+    else
+        heap.first_free = new;
+
+    if( new->next_free != NULL )
+        new->next_free->prev_free = new;
+
+    cur->alloc = 1;
+    cur->size = len;
+    cur->next = new;
+    cur->prev_free = NULL;
+    cur->next_free = NULL;
+
+#if defined(MBEDTLS_MEMORY_DEBUG)
+    heap.header_count++;
+    if( heap.header_count > heap.maximum_header_count )
+        heap.maximum_header_count = heap.header_count;
+    heap.total_used += cur->size;
+    if( heap.total_used > heap.maximum_used )
+        heap.maximum_used = heap.total_used;
+#endif
+#if defined(MBEDTLS_MEMORY_BACKTRACE)
+    trace_cnt = backtrace( trace_buffer, MAX_BT );
+    cur->trace = backtrace_symbols( trace_buffer, trace_cnt );
+    cur->trace_count = trace_cnt;
+#endif
+
+    if( ( heap.verify & MBEDTLS_MEMORY_VERIFY_ALLOC ) && verify_chain() != 0 )
+        mbedtls_exit( 1 );
+
+    ret = (unsigned char *) cur + sizeof( memory_header );
+    memset( ret, 0, original_len );
+
+    return( ret );
+}

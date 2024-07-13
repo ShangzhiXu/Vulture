@@ -1,0 +1,120 @@
+static void scrlbar_refresh(lv_obj_t * page)
+{
+    lv_page_ext_t * ext      = lv_obj_get_ext_attr(page);
+    lv_obj_t * scrl          = ext->scrl;
+    lv_coord_t size_tmp;
+    lv_coord_t scrl_w = lv_obj_get_width(scrl);
+    lv_coord_t scrl_h = lv_obj_get_height(scrl);
+    lv_coord_t obj_w  = lv_obj_get_width(page);
+    lv_coord_t obj_h  = lv_obj_get_height(page);
+
+    lv_style_int_t sb_width = lv_obj_get_style_size(page, LV_PAGE_PART_SCROLLBAR);
+    lv_style_int_t sb_right = lv_obj_get_style_pad_right(page, LV_PAGE_PART_SCROLLBAR);
+    lv_style_int_t sb_bottom = lv_obj_get_style_pad_bottom(page, LV_PAGE_PART_SCROLLBAR);
+
+    lv_style_int_t bg_left = lv_obj_get_style_pad_left(page, LV_PAGE_PART_BG);
+    lv_style_int_t bg_right = lv_obj_get_style_pad_right(page, LV_PAGE_PART_BG);
+    lv_style_int_t bg_top = lv_obj_get_style_pad_top(page, LV_PAGE_PART_BG);
+    lv_style_int_t bg_bottom = lv_obj_get_style_pad_bottom(page, LV_PAGE_PART_BG);
+
+    /*Always let 'scrollbar width' padding above, under, left and right to the scrollbars
+     * else:
+     * - horizontal and vertical scrollbars can overlap on the corners
+     * - if the page has radius the scrollbar can be out of the radius  */
+    lv_coord_t sb_hor_pad = LV_MATH_MAX(sb_width, sb_right);
+    lv_coord_t sb_ver_pad = LV_MATH_MAX(sb_width, sb_bottom);
+
+    if(ext->scrlbar.mode == LV_SCROLLBAR_MODE_OFF) return;
+
+    if(ext->scrlbar.mode == LV_SCROLLBAR_MODE_ON) {
+        ext->scrlbar.hor_draw = 1;
+        ext->scrlbar.ver_draw = 1;
+    }
+
+    /*Invalidate the current (old) scrollbar areas*/
+    lv_area_t sb_area_tmp;
+    if(ext->scrlbar.hor_draw != 0) {
+        lv_area_copy(&sb_area_tmp, &ext->scrlbar.hor_area);
+        sb_area_tmp.x1 += page->coords.x1;
+        sb_area_tmp.y1 += page->coords.y1;
+        sb_area_tmp.x2 += page->coords.x1;
+        sb_area_tmp.y2 += page->coords.y1;
+        lv_obj_invalidate_area(page, &sb_area_tmp);
+    }
+    if(ext->scrlbar.ver_draw != 0) {
+        lv_area_copy(&sb_area_tmp, &ext->scrlbar.ver_area);
+        sb_area_tmp.x1 += page->coords.x1;
+        sb_area_tmp.y1 += page->coords.y1;
+        sb_area_tmp.x2 += page->coords.x1;
+        sb_area_tmp.y2 += page->coords.y1;
+        lv_obj_invalidate_area(page, &sb_area_tmp);
+    }
+
+    /*Full sized horizontal scrollbar*/
+    if(scrl_w <= obj_w - bg_left - bg_right) {
+        lv_area_set_width(&ext->scrlbar.hor_area, obj_w - 2 * sb_hor_pad);
+        _lv_area_set_pos(&ext->scrlbar.hor_area, sb_hor_pad,
+                         obj_h - sb_width - sb_bottom);
+        if(ext->scrlbar.mode == LV_SCROLLBAR_MODE_AUTO ||
+           ext->scrlbar.mode == LV_SCROLLBAR_MODE_DRAG) ext->scrlbar.hor_draw = 0;
+    }
+    /*Smaller horizontal scrollbar*/
+    else {
+        size_tmp =
+            (obj_w * (obj_w - (2 * sb_hor_pad))) / (scrl_w + bg_left + bg_right);
+        if(size_tmp < LV_PAGE_SB_MIN_SIZE) size_tmp = LV_PAGE_SB_MIN_SIZE;
+        lv_area_set_width(&ext->scrlbar.hor_area, size_tmp);
+
+        _lv_area_set_pos(&ext->scrlbar.hor_area,
+                         sb_hor_pad +
+                         (-(lv_obj_get_x(scrl) - bg_left) * (obj_w - size_tmp - 2 * sb_hor_pad)) /
+                         (scrl_w + bg_left + bg_right - obj_w),
+                         obj_h - sb_width - sb_bottom);
+
+        if(ext->scrlbar.mode == LV_SCROLLBAR_MODE_AUTO ||
+           ext->scrlbar.mode == LV_SCROLLBAR_MODE_DRAG) ext->scrlbar.hor_draw = 1;
+    }
+
+    /*Full sized vertical scroll bar*/
+    if(scrl_h <= obj_h - bg_top - bg_bottom) {
+        lv_area_set_height(&ext->scrlbar.ver_area, obj_h - 2 * sb_ver_pad);
+        _lv_area_set_pos(&ext->scrlbar.ver_area,
+                         obj_w - sb_width - sb_right, sb_ver_pad);
+        if(ext->scrlbar.mode == LV_SCROLLBAR_MODE_AUTO ||
+           ext->scrlbar.mode == LV_SCROLLBAR_MODE_DRAG) ext->scrlbar.ver_draw = 0;
+    }
+    /*Smaller vertical scroll bar*/
+    else {
+        size_tmp =
+            (obj_h * (obj_h - (2 * sb_ver_pad))) / (scrl_h + bg_top + bg_bottom);
+        if(size_tmp < LV_PAGE_SB_MIN_SIZE) size_tmp = LV_PAGE_SB_MIN_SIZE;
+        lv_area_set_height(&ext->scrlbar.ver_area, size_tmp);
+
+        _lv_area_set_pos(&ext->scrlbar.ver_area,
+                         obj_w - sb_width - sb_right,
+                         sb_ver_pad + (-(lv_obj_get_y(scrl) - bg_left) *
+                                       (obj_h - size_tmp - 2 * sb_ver_pad)) /
+                         (scrl_h + bg_top + bg_bottom - obj_h));
+
+        if(ext->scrlbar.mode == LV_SCROLLBAR_MODE_AUTO ||
+           ext->scrlbar.mode == LV_SCROLLBAR_MODE_DRAG) ext->scrlbar.ver_draw = 1;
+    }
+
+    /*Invalidate the new scrollbar areas*/
+    if(ext->scrlbar.hor_draw != 0) {
+        lv_area_copy(&sb_area_tmp, &ext->scrlbar.hor_area);
+        sb_area_tmp.x1 += page->coords.x1;
+        sb_area_tmp.y1 += page->coords.y1;
+        sb_area_tmp.x2 += page->coords.x1;
+        sb_area_tmp.y2 += page->coords.y1;
+        lv_obj_invalidate_area(page, &sb_area_tmp);
+    }
+    if(ext->scrlbar.ver_draw != 0) {
+        lv_area_copy(&sb_area_tmp, &ext->scrlbar.ver_area);
+        sb_area_tmp.x1 += page->coords.x1;
+        sb_area_tmp.y1 += page->coords.y1;
+        sb_area_tmp.x2 += page->coords.x1;
+        sb_area_tmp.y2 += page->coords.y1;
+        lv_obj_invalidate_area(page, &sb_area_tmp);
+    }
+}

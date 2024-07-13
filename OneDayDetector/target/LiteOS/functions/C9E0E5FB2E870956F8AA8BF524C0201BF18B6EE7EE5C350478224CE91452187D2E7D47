@@ -1,0 +1,39 @@
+static uint8_t prv_firmware_execute(uint16_t instanceId,
+                                    uint16_t resourceId,
+                                    uint8_t *buffer,
+                                    int length,
+                                    lwm2m_object_t *objectP)
+{
+
+    // this is a single instance object
+    if (instanceId != 0) {
+        return COAP_404_NOT_FOUND;
+    }
+
+    if (length != 0) {
+        return COAP_400_BAD_REQUEST;
+    }
+
+    // for execute callback, resId is always set.
+    switch (resourceId) {
+    case RES_M_UPDATE: {
+#ifdef CONFIG_FEATURE_FOTA
+        int ret = atiny_fota_manager_execute_update(atiny_fota_manager_get_instance());
+#else
+        int ret = ATINY_ERR;
+#endif
+        if (ATINY_OK == ret) {
+            return COAP_204_CHANGED;
+        } else {
+            // firmware update already running
+#ifdef CONFIG_FEATURE_FOTA
+            return COAP_400_BAD_REQUEST;
+#else
+            return COAP_405_METHOD_NOT_ALLOWED;
+#endif
+        }
+    }
+    default:
+        return COAP_405_METHOD_NOT_ALLOWED;
+    }
+}

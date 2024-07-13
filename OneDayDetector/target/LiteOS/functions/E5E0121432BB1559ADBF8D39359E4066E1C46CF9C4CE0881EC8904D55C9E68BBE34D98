@@ -1,0 +1,17 @@
+UINT32 OsHeapIntegrityCheck(struct LosHeapManager *heap)
+{
+    struct LosHeapNode *node = (struct LosHeapNode *)(heap + 1);
+    UINTPTR heapStart = (UINTPTR)heap;
+    UINTPTR heapEnd = (UINTPTR)node + heap->size;
+
+    while (node != NULL) {
+        if ((UINTPTR)node < heapStart || (UINTPTR)node > heapEnd) {
+            LOS_Panic("node %p has been corrupted.\n", node);
+            return LOS_NOK;
+        }
+
+        node = OsHeapPrvGetNext(heap, node);
+    }
+
+    return LOS_OK;
+}

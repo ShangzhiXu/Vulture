@@ -1,0 +1,104 @@
+static HAL_StatusTypeDef FLASH_OB_EnableWRP(uint32_t WriteProtectPage)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint16_t WRP0_Data = 0xFFFFU;
+#if defined(OB_WRP1_WRP1)
+  uint16_t WRP1_Data = 0xFFFFU;
+#endif /* OB_WRP1_WRP1 */
+#if defined(OB_WRP2_WRP2)
+  uint16_t WRP2_Data = 0xFFFFU;
+#endif /* OB_WRP2_WRP2 */
+#if defined(OB_WRP3_WRP3)
+  uint16_t WRP3_Data = 0xFFFFU;
+#endif /* OB_WRP3_WRP3 */
+  
+  /* Check the parameters */
+  assert_param(IS_OB_WRP(WriteProtectPage));
+    
+  /* Get current write protected pages and the new pages to be protected ******/
+  WriteProtectPage = (uint32_t)(~((~FLASH_OB_GetWRP()) | WriteProtectPage));
+  
+#if defined(OB_WRP_PAGES0TO15MASK)
+  WRP0_Data = (uint16_t)(WriteProtectPage & OB_WRP_PAGES0TO15MASK);
+#elif defined(OB_WRP_PAGES0TO31MASK)
+  WRP0_Data = (uint16_t)(WriteProtectPage & OB_WRP_PAGES0TO31MASK);
+#endif /* OB_WRP_PAGES0TO31MASK */
+  
+#if defined(OB_WRP_PAGES16TO31MASK)
+  WRP1_Data = (uint16_t)((WriteProtectPage & OB_WRP_PAGES16TO31MASK) >> 8U);
+#elif defined(OB_WRP_PAGES32TO63MASK)
+  WRP1_Data = (uint16_t)((WriteProtectPage & OB_WRP_PAGES32TO63MASK) >> 8U);
+#endif /* OB_WRP_PAGES32TO63MASK */
+ 
+#if defined(OB_WRP_PAGES32TO47MASK)
+  WRP2_Data = (uint16_t)((WriteProtectPage & OB_WRP_PAGES32TO47MASK) >> 16U);
+#endif /* OB_WRP_PAGES32TO47MASK */
+
+#if defined(OB_WRP_PAGES48TO63MASK)
+  WRP3_Data = (uint16_t)((WriteProtectPage & OB_WRP_PAGES48TO63MASK) >> 24U); 
+#elif defined(OB_WRP_PAGES48TO127MASK)
+  WRP3_Data = (uint16_t)((WriteProtectPage & OB_WRP_PAGES48TO127MASK) >> 24U); 
+#endif /* OB_WRP_PAGES48TO63MASK */
+  
+  /* Wait for last operation to be completed */
+  status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+
+  if(status == HAL_OK)
+  { 
+    /* Clean the error context */
+    pFlash.ErrorCode = HAL_FLASH_ERROR_NONE;
+
+    /* To be able to write again option byte, need to perform a option byte erase */
+    status = HAL_FLASHEx_OBErase();
+    if (status == HAL_OK)  
+    {
+      /* Enable write protection */
+      SET_BIT(FLASH->CR, FLASH_CR_OPTPG);
+
+#if defined(OB_WRP0_WRP0)
+      if(WRP0_Data != 0xFFU)
+      {
+        OB->WRP0 &= WRP0_Data;
+        
+        /* Wait for last operation to be completed */
+        status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+      }
+#endif /* OB_WRP0_WRP0 */
+
+#if defined(OB_WRP1_WRP1)
+      if((status == HAL_OK) && (WRP1_Data != 0xFFU))
+      {
+        OB->WRP1 &= WRP1_Data;
+        
+        /* Wait for last operation to be completed */
+        status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+      }
+#endif /* OB_WRP1_WRP1 */
+
+#if defined(OB_WRP2_WRP2)
+      if((status == HAL_OK) && (WRP2_Data != 0xFFU))
+      {
+        OB->WRP2 &= WRP2_Data;
+        
+        /* Wait for last operation to be completed */
+        status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+      }
+#endif /* OB_WRP2_WRP2 */
+
+#if defined(OB_WRP3_WRP3)
+      if((status == HAL_OK) && (WRP3_Data != 0xFFU))
+      {
+        OB->WRP3 &= WRP3_Data;
+        
+        /* Wait for last operation to be completed */
+        status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+      }
+#endif /* OB_WRP3_WRP3 */
+
+      /* if the program operation is completed, disable the OPTPG Bit */
+      CLEAR_BIT(FLASH->CR, FLASH_CR_OPTPG);
+    }
+  }
+  
+  return status;
+}

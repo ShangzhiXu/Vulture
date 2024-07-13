@@ -1,0 +1,26 @@
+HAL_StatusTypeDef HAL_RTC_WaitForSynchro(RTC_HandleTypeDef* hrtc)
+{
+  uint32_t tickstart = 0;
+  
+  /* Check input parameters */
+  if(hrtc == NULL)
+  {
+     return HAL_ERROR;
+  }
+  
+  /* Clear RSF flag */
+  CLEAR_BIT(hrtc->Instance->CRL, RTC_FLAG_RSF);
+  
+  tickstart = HAL_GetTick();
+  
+  /* Wait the registers to be synchronised */
+  while((hrtc->Instance->CRL & RTC_FLAG_RSF) == (uint32_t)RESET)
+  {
+    if((HAL_GetTick() - tickstart ) >  RTC_TIMEOUT_VALUE)
+    {       
+      return HAL_TIMEOUT;
+    } 
+  }
+  
+  return HAL_OK;
+}

@@ -1,0 +1,48 @@
+static int ecp_randomize_jac( const mbedtls_ecp_group *grp, mbedtls_ecp_point *pt,
+                int (*f_rng)(void *, unsigned char *, size_t), void *p_rng )
+{
+    int ret;
+    mbedtls_mpi l, ll;
+    size_t p_size;
+    int count = 0;
+
+#if defined(MBEDTLS_ECP_RANDOMIZE_JAC_ALT)
+    if( mbedtls_internal_ecp_grp_capable( grp ) )
+        return( mbedtls_internal_ecp_randomize_jac( grp, pt, f_rng, p_rng ) );
+#endif /* MBEDTLS_ECP_RANDOMIZE_JAC_ALT */
+
+    p_size = ( grp->pbits + 7 ) / 8;
+    mbedtls_mpi_init( &l ); mbedtls_mpi_init( &ll );
+
+    /* Generate l such that 1 < l < p */
+    do
+    {
+        MBEDTLS_MPI_CHK( mbedtls_mpi_fill_random( &l, p_size, f_rng, p_rng ) );
+
+        while( mbedtls_mpi_cmp_mpi( &l, &grp->P ) >= 0 )
+            MBEDTLS_MPI_CHK( mbedtls_mpi_shift_r( &l, 1 ) );
+
+        if( count++ > 10 )
+        {
+            ret = MBEDTLS_ERR_ECP_RANDOM_FAILED;
+            goto cleanup;
+        }
+    }
+    while( mbedtls_mpi_cmp_int( &l, 1 ) <= 0 );
+
+    /* Z = l * Z */
+    MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( &pt->Z,   &pt->Z,     &l  ) ); MOD_MUL( pt->Z );
+
+    /* X = l^2 * X */
+    MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( &ll,      &l,         &l  ) ); MOD_MUL( ll );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( &pt->X,   &pt->X,     &ll ) ); MOD_MUL( pt->X );
+
+    /* Y = l^3 * Y */
+    MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( &ll,      &ll,        &l  ) ); MOD_MUL( ll );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( &pt->Y,   &pt->Y,     &ll ) ); MOD_MUL( pt->Y );
+
+cleanup:
+    mbedtls_mpi_free( &l ); mbedtls_mpi_free( &ll );
+
+    return( ret );
+}

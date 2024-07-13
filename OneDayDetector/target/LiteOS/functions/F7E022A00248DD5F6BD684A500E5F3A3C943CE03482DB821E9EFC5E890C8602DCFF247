@@ -1,0 +1,19 @@
+int lwm2m_add_object(lwm2m_context_t *contextP,
+                     lwm2m_object_t *objectP)
+{
+    lwm2m_object_t *targetP;
+
+    LOG_ARG("ID: %d", objectP->objID);
+    targetP = (lwm2m_object_t *)LWM2M_LIST_FIND(contextP->objectList, objectP->objID);
+    if (targetP != NULL) return COAP_406_NOT_ACCEPTABLE;
+    objectP->next = NULL;
+
+    contextP->objectList = (lwm2m_object_t *)LWM2M_LIST_ADD(contextP->objectList, objectP);
+
+    if (contextP->state == STATE_READY)
+    {
+        return lwm2m_update_registration(contextP, 0, true);
+    }
+
+    return COAP_NO_ERROR;
+}

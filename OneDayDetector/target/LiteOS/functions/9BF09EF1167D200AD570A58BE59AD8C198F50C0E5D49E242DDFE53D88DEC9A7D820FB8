@@ -1,0 +1,27 @@
+int32_t nb_close(int32_t id)
+{
+    int ret;
+
+    if ((id >= MAX_SOCK_NUM) || (!sockinfo[id].used_flag)) {
+        AT_LOG("link id %ld invalid", id);
+        return AT_FAILED;
+    }
+
+    nb_close_sock(sockinfo[id].socket);
+
+    do {
+        QUEUE_BUFF qbuf = {0};
+        UINT32 qlen = sizeof(QUEUE_BUFF);
+        ret = LOS_QueueReadCopy(at.linkid[id].qid, &qbuf, &qlen, 0);
+        if ((ret == LOS_OK) && (qbuf.addr != NULL)) {
+            at_free(qbuf.addr);
+        }
+    } while (ret == LOS_OK);
+    ret = LOS_QueueDelete(at.linkid[id].qid);
+    if (ret != LOS_OK) {
+        AT_LOG("LOS_QueueDelete failed, ret is %d!,qid %d", ret, at.linkid[id].qid);
+    }
+    (void)memset(&sockinfo[id], 0, sizeof(sockinfo[id]));
+
+    return AT_OK;
+}

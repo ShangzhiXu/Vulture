@@ -1,0 +1,76 @@
+HAL_StatusTypeDef HAL_SAI_RegisterCallback(SAI_HandleTypeDef        *hsai,
+                                           HAL_SAI_CallbackIDTypeDef CallbackID,
+                                           pSAI_CallbackTypeDef      pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    /* update the error code */
+    hsai->ErrorCode |= HAL_SAI_ERROR_INVALID_CALLBACK;
+    /* update return status */
+    status = HAL_ERROR;
+  }
+  else
+  {
+    if (HAL_SAI_STATE_READY == hsai->State)
+    {
+      switch (CallbackID)
+      {
+        case HAL_SAI_RX_COMPLETE_CB_ID :
+          hsai->RxCpltCallback = pCallback;
+          break;
+        case HAL_SAI_RX_HALFCOMPLETE_CB_ID :
+          hsai->RxHalfCpltCallback = pCallback;
+          break;
+        case HAL_SAI_TX_COMPLETE_CB_ID :
+          hsai->TxCpltCallback = pCallback;
+          break;
+        case HAL_SAI_TX_HALFCOMPLETE_CB_ID :
+          hsai->TxHalfCpltCallback = pCallback;
+          break;
+        case HAL_SAI_ERROR_CB_ID :
+          hsai->ErrorCallback = pCallback;
+          break;
+        case HAL_SAI_MSPINIT_CB_ID :
+          hsai->MspInitCallback = pCallback;
+          break;
+        case HAL_SAI_MSPDEINIT_CB_ID :
+          hsai->MspDeInitCallback = pCallback;
+          break;
+        default :
+          /* update the error code */
+          hsai->ErrorCode |= HAL_SAI_ERROR_INVALID_CALLBACK;
+          /* update return status */
+          status = HAL_ERROR;
+          break;
+      }
+    }
+    else if (HAL_SAI_STATE_RESET == hsai->State)
+    {
+      switch (CallbackID)
+      {
+        case HAL_SAI_MSPINIT_CB_ID :
+          hsai->MspInitCallback = pCallback;
+          break;
+        case HAL_SAI_MSPDEINIT_CB_ID :
+          hsai->MspDeInitCallback = pCallback;
+          break;
+        default :
+          /* update the error code */
+          hsai->ErrorCode |= HAL_SAI_ERROR_INVALID_CALLBACK;
+          /* update return status */
+          status = HAL_ERROR;
+          break;
+      }
+    }
+    else
+    {
+      /* update the error code */
+      hsai->ErrorCode |= HAL_SAI_ERROR_INVALID_CALLBACK;
+      /* update return status */
+      status = HAL_ERROR;
+    }
+  }
+  return status;
+}

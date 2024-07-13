@@ -1,0 +1,73 @@
+HAL_StatusTypeDef HAL_RCCEx_EnablePLLSAI2(RCC_PLLSAI2InitTypeDef  *PLLSAI2Init)
+{
+  uint32_t tickstart = 0U;
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* check for PLLSAI2 Parameters used to output PLLSAI2CLK */
+  assert_param(IS_RCC_PLLSAI2SOURCE(PLLSAI2Init->PLLSAI2Source));
+  assert_param(IS_RCC_PLLSAI2M_VALUE(PLLSAI2Init->PLLSAI2M));
+  assert_param(IS_RCC_PLLSAI2N_VALUE(PLLSAI2Init->PLLSAI2N));
+  assert_param(IS_RCC_PLLSAI2P_VALUE(PLLSAI2Init->PLLSAI2P));
+#if defined(RCC_PLLSAI2Q_DIV_SUPPORT)
+  assert_param(IS_RCC_PLLSAI2Q_VALUE(PLLSAI2Init->PLLSAI2Q));
+#endif /* RCC_PLLSAI2Q_DIV_SUPPORT */
+  assert_param(IS_RCC_PLLSAI2R_VALUE(PLLSAI2Init->PLLSAI2R));
+  assert_param(IS_RCC_PLLSAI2CLOCKOUT_VALUE(PLLSAI2Init->PLLSAI2ClockOut));
+
+  /* Disable the PLLSAI2 */
+  __HAL_RCC_PLLSAI2_DISABLE();
+
+  /* Get Start Tick*/
+  tickstart = HAL_GetTick();
+
+  /* Wait till PLLSAI2 is ready to be updated */
+  while(READ_BIT(RCC->CR, RCC_CR_PLLSAI2RDY) != RESET)
+  {
+    if((HAL_GetTick() - tickstart) > PLLSAI2_TIMEOUT_VALUE)
+    {
+      status = HAL_TIMEOUT;
+      break;
+    }
+  }
+
+  if(status == HAL_OK)
+  {
+#if defined(RCC_PLLSAI2M_DIV_1_16_SUPPORT) && defined(RCC_PLLSAI2Q_DIV_SUPPORT)
+    /* Configure the PLLSAI2 Multiplication factor N */
+    /* Configure the PLLSAI2 Division factors M, P, Q and R */
+    __HAL_RCC_PLLSAI2_CONFIG(PLLSAI2Init->PLLSAI2M, PLLSAI2Init->PLLSAI2N, PLLSAI2Init->PLLSAI2P, PLLSAI2Init->PLLSAI2Q, PLLSAI2Init->PLLSAI2R);
+#elif defined(RCC_PLLSAI2M_DIV_1_16_SUPPORT)
+    /* Configure the PLLSAI2 Multiplication factor N */
+    /* Configure the PLLSAI2 Division factors M, P and R */
+    __HAL_RCC_PLLSAI2_CONFIG(PLLSAI2Init->PLLSAI2M, PLLSAI2Init->PLLSAI2N, PLLSAI2Init->PLLSAI2P, PLLSAI2Init->PLLSAI2R);
+#elif defined(RCC_PLLSAI2Q_DIV_SUPPORT)
+    /* Configure the PLLSAI2 Multiplication factor N */
+    /* Configure the PLLSAI2 Division factors P, Q and R */
+    __HAL_RCC_PLLSAI2_CONFIG(PLLSAI2Init->PLLSAI2N, PLLSAI2Init->PLLSAI2P, PLLSAI2Init->PLLSAI2Q, PLLSAI2Init->PLLSAI2R);
+#else
+    /* Configure the PLLSAI2 Multiplication factor N */
+    /* Configure the PLLSAI2 Division factors P and R */
+    __HAL_RCC_PLLSAI2_CONFIG(PLLSAI2Init->PLLSAI2N, PLLSAI2Init->PLLSAI2P, PLLSAI2Init->PLLSAI2R);
+#endif /* RCC_PLLSAI2M_DIV_1_16_SUPPORT && RCC_PLLSAI2Q_DIV_SUPPORT */
+    /* Configure the PLLSAI2 Clock output(s) */
+    __HAL_RCC_PLLSAI2CLKOUT_ENABLE(PLLSAI2Init->PLLSAI2ClockOut);
+
+    /* Enable the PLLSAI2 again by setting PLLSAI2ON to 1*/
+    __HAL_RCC_PLLSAI2_ENABLE();
+
+    /* Get Start Tick*/
+    tickstart = HAL_GetTick();
+
+    /* Wait till PLLSAI2 is ready */
+    while(READ_BIT(RCC->CR, RCC_CR_PLLSAI2RDY) == RESET)
+    {
+      if((HAL_GetTick() - tickstart) > PLLSAI2_TIMEOUT_VALUE)
+      {
+        status = HAL_TIMEOUT;
+        break;
+      }
+    }
+  }
+
+  return status;
+}

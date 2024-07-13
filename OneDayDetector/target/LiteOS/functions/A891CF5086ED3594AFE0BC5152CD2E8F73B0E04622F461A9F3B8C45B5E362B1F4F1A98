@@ -1,0 +1,200 @@
+int file_write_http_header(FILE *data_file, const char *filename, int file_size, u16_t *http_hdr_len,
+                           u16_t *http_hdr_chksum, u8_t provide_content_len, int is_compressed)
+{
+  int i = 0;
+  int response_type = HTTP_HDR_OK;
+  const char *file_type;
+  const char *cur_string;
+  size_t cur_len;
+  int written = 0;
+  size_t hdr_len = 0;
+  u16_t acc;
+  const char *file_ext;
+  size_t j;
+  u8_t provide_last_modified = includeLastModified;
+
+  memset(hdr_buf, 0, sizeof(hdr_buf));
+
+  if (useHttp11) {
+    response_type = HTTP_HDR_OK_11;
+  }
+
+  fprintf(data_file, NEWLINE "/* HTTP header */");
+  if (strstr(filename, "404") == filename) {
+    response_type = HTTP_HDR_NOT_FOUND;
+    if (useHttp11) {
+      response_type = HTTP_HDR_NOT_FOUND_11;
+    }
+  } else if (strstr(filename, "400") == filename) {
+    response_type = HTTP_HDR_BAD_REQUEST;
+    if (useHttp11) {
+      response_type = HTTP_HDR_BAD_REQUEST_11;
+    }
+  } else if (strstr(filename, "501") == filename) {
+    response_type = HTTP_HDR_NOT_IMPL;
+    if (useHttp11) {
+      response_type = HTTP_HDR_NOT_IMPL_11;
+    }
+  }
+  cur_string = g_psHTTPHeaderStrings[response_type];
+  cur_len = strlen(cur_string);
+  fprintf(data_file, NEWLINE "/* \"%s\" (%"SZT_F" bytes) */" NEWLINE, cur_string, cur_len);
+  written += file_put_ascii(data_file, cur_string, cur_len, &i);
+  i = 0;
+  if (precalcChksum) {
+    memcpy(&hdr_buf[hdr_len], cur_string, cur_len);
+    hdr_len += cur_len;
+  }
+
+  cur_string = serverID;
+  cur_len = strlen(cur_string);
+  fprintf(data_file, NEWLINE "/* \"%s\" (%"SZT_F" bytes) */" NEWLINE, cur_string, cur_len);
+  written += file_put_ascii(data_file, cur_string, cur_len, &i);
+  i = 0;
+  if (precalcChksum) {
+    memcpy(&hdr_buf[hdr_len], cur_string, cur_len);
+    hdr_len += cur_len;
+  }
+
+  file_ext = filename;
+  if (file_ext != NULL) {
+    while (strstr(file_ext, ".") != NULL) {
+      file_ext = strstr(file_ext, ".");
+      file_ext++;
+    }
+  }
+  if ((file_ext == NULL) || (*file_ext == 0)) {
+    printf("failed to get extension for file \"%s\", using default.\n", filename);
+    file_type = HTTP_HDR_DEFAULT_TYPE;
+  } else {
+    file_type = NULL;
+    for (j = 0; j < NUM_HTTP_HEADERS; j++) {
+      if (!strcmp(file_ext, g_psHTTPHeaders[j].extension)) {
+        file_type = g_psHTTPHeaders[j].content_type;
+        break;
+      }
+    }
+    if (file_type == NULL) {
+      printf("failed to get file type for extension \"%s\", using default.\n", file_ext);
+      file_type = HTTP_HDR_DEFAULT_TYPE;
+    }
+  }
+
+  /* Content-Length is used for persistent connections in HTTP/1.1 but also for
+     download progress in older versions
+     @todo: just use a big-enough buffer and let the HTTPD send spaces? */
+  if (provide_content_len) {
+    char intbuf[MAX_PATH_LEN];
+    int content_len = file_size;
+    memset(intbuf, 0, sizeof(intbuf));
+    cur_string = g_psHTTPHeaderStrings[HTTP_HDR_CONTENT_LENGTH];
+    cur_len = strlen(cur_string);
+    fprintf(data_file, NEWLINE "/* \"%s%d\r\n\" (%"SZT_F"+ bytes) */" NEWLINE, cur_string, content_len, cur_len + 2);
+    written += file_put_ascii(data_file, cur_string, cur_len, &i);
+    if (precalcChksum) {
+      memcpy(&hdr_buf[hdr_len], cur_string, cur_len);
+      hdr_len += cur_len;
+    }
+
+    lwip_itoa(intbuf, sizeof(intbuf), content_len);
+    strcat(intbuf, "\r\n");
+    cur_len = strlen(intbuf);
+    written += file_put_ascii(data_file, intbuf, cur_len, &i);
+    i = 0;
+    if (precalcChksum) {
+      memcpy(&hdr_buf[hdr_len], intbuf, cur_len);
+      hdr_len += cur_len;
+    }
+  }
+  if (provide_last_modified) {
+    char modbuf[256];
+    struct stat stat_data;
+    struct tm *t;
+    memset(modbuf, 0, sizeof(modbuf));
+    memset(&stat_data, 0, sizeof(stat_data));
+    cur_string = modbuf;
+    strcpy(modbuf, "Last-Modified: ");
+    if (stat(filename, &stat_data) != 0) {
+      printf("stat(%s) failed with error %d\n", filename, errno);
+      exit(-1);
+    }
+    t = gmtime(&stat_data.st_mtime);
+    if (t == NULL) {
+      printf("gmtime() failed with error %d\n", errno);
+      exit(-1);
+    }
+    strftime(&modbuf[15], sizeof(modbuf) - 15, "%a, %d %b %Y %H:%M:%S GMT", t);
+    cur_len = strlen(cur_string);
+    fprintf(data_file, NEWLINE "/* \"%s\"\r\n\" (%"SZT_F"+ bytes) */" NEWLINE, cur_string, cur_len + 2);
+    written += file_put_ascii(data_file, cur_string, cur_len, &i);
+    if (precalcChksum) {
+      memcpy(&hdr_buf[hdr_len], cur_string, cur_len);
+      hdr_len += cur_len;
+    }
+
+    modbuf[0] = 0;
+    strcat(modbuf, "\r\n");
+    cur_len = strlen(modbuf);
+    written += file_put_ascii(data_file, modbuf, cur_len, &i);
+    i = 0;
+    if (precalcChksum) {
+      memcpy(&hdr_buf[hdr_len], modbuf, cur_len);
+      hdr_len += cur_len;
+    }
+  }
+
+  /* HTTP/1.1 implements persistent connections */
+  if (useHttp11) {
+    if (provide_content_len) {
+      cur_string = g_psHTTPHeaderStrings[HTTP_HDR_CONN_KEEPALIVE];
+    } else {
+      /* no Content-Length available, so a persistent connection is no possible
+         because the client does not know the data length */
+      cur_string = g_psHTTPHeaderStrings[HTTP_HDR_CONN_CLOSE];
+    }
+    cur_len = strlen(cur_string);
+    fprintf(data_file, NEWLINE "/* \"%s\" (%"SZT_F" bytes) */" NEWLINE, cur_string, cur_len);
+    written += file_put_ascii(data_file, cur_string, cur_len, &i);
+    i = 0;
+    if (precalcChksum) {
+      memcpy(&hdr_buf[hdr_len], cur_string, cur_len);
+      hdr_len += cur_len;
+    }
+  }
+
+#if MAKEFS_SUPPORT_DEFLATE
+  if (is_compressed) {
+    /* tell the client about the deflate encoding */
+    LWIP_ASSERT("error", deflateNonSsiFiles);
+    cur_string = "Content-Encoding: deflate\r\n";
+    cur_len = strlen(cur_string);
+    fprintf(data_file, NEWLINE "/* \"%s\" (%d bytes) */" NEWLINE, cur_string, cur_len);
+    written += file_put_ascii(data_file, cur_string, cur_len, &i);
+    i = 0;
+  }
+#else
+  LWIP_UNUSED_ARG(is_compressed);
+#endif
+
+  /* write content-type, ATTENTION: this includes the double-CRLF! */
+  cur_string = file_type;
+  cur_len = strlen(cur_string);
+  fprintf(data_file, NEWLINE "/* \"%s\" (%"SZT_F" bytes) */" NEWLINE, cur_string, cur_len);
+  written += file_put_ascii(data_file, cur_string, cur_len, &i);
+  i = 0;
+
+  /* ATTENTION: headers are done now (double-CRLF has been written!) */
+
+  if (precalcChksum) {
+    LWIP_ASSERT("hdr_len + cur_len <= sizeof(hdr_buf)", hdr_len + cur_len <= sizeof(hdr_buf));
+    memcpy(&hdr_buf[hdr_len], cur_string, cur_len);
+    hdr_len += cur_len;
+
+    LWIP_ASSERT("strlen(hdr_buf) == hdr_len", strlen(hdr_buf) == hdr_len);
+    acc = ~inet_chksum(hdr_buf, (u16_t)hdr_len);
+    *http_hdr_len = (u16_t)hdr_len;
+    *http_hdr_chksum = acc;
+  }
+
+  return written;
+}

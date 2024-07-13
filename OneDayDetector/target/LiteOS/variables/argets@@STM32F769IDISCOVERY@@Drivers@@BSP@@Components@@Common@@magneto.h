@@ -1,0 +1,18 @@
+  void      (*ClearIT)(void);
+  void      (*ConfigIT)(void);
+  void      (*DeInit)(void); 
+  void      (*DisableIT)(uint8_t);
+  void      (*EnableIT)(uint8_t);
+  void      (*FilterCmd)(uint8_t);
+  void      (*FilterConfig)(uint8_t);
+  void      (*GetXYZ)(int16_t *);
+  uint8_t   (*ITStatus)(uint16_t);
+  void      (*Init)(MAGNETO_InitTypeDef);
+  void      (*LowPower)(void);
+  uint8_t   (*ReadID)(void);
+  uint8_t Register1;
+  uint8_t Register2;
+  uint8_t Register3;
+  uint8_t Register4;
+  uint8_t Register5;
+  void      (*Reset)(void);

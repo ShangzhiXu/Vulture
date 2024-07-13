@@ -1,0 +1,25 @@
+sockets_stresstest_conn_client_r(void *arg)
+{
+  struct sockets_stresstest_fullduplex *fd = (struct sockets_stresstest_fullduplex *)arg;
+  int s = fd->s;
+  size_t rxoff = 0;
+  char rxbuf[TEST_TXRX_BUFSIZE];
+
+  while (1) {
+    int closed;
+    if (fd->closed) {
+      break;
+    }
+    rxoff = recv_and_check_data_return_offset(s, rxbuf, sizeof(rxbuf), rxoff, &closed, "cli");
+    if (fd->closed) {
+      break;
+    }
+    if (closed) {
+      lwip_close(s);
+      break;
+    }
+  }
+
+  SYS_ARCH_DEC(sockets_stresstest_numthreads, 1);
+  LWIP_ASSERT("", sockets_stresstest_numthreads >= 0);
+}

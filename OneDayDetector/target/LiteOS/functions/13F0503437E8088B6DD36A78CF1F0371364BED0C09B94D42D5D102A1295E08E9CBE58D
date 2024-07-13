@@ -1,0 +1,47 @@
+HAL_StatusTypeDef HAL_RNG_GenerateRandomNumber(RNG_HandleTypeDef *hrng, uint32_t *random32bit)
+{
+  uint32_t tickstart;
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process Locked */
+  __HAL_LOCK(hrng);
+
+  /* Check RNG peripheral state */
+  if (hrng->State == HAL_RNG_STATE_READY)
+  {
+    /* Change RNG peripheral state */
+    hrng->State = HAL_RNG_STATE_BUSY;
+
+    /* Get tick */
+    tickstart = HAL_GetTick();
+
+    /* Check if data register contains valid random data */
+    while (__HAL_RNG_GET_FLAG(hrng, RNG_FLAG_DRDY) == RESET)
+    {
+      if ((HAL_GetTick() - tickstart) > RNG_TIMEOUT_VALUE)
+      {
+        hrng->State = HAL_RNG_STATE_READY;
+        hrng->ErrorCode = HAL_RNG_ERROR_TIMEOUT;
+        /* Process Unlocked */
+        __HAL_UNLOCK(hrng);
+        return HAL_ERROR;
+      }
+    }
+
+    /* Get a 32bit Random number */
+    hrng->RandomNumber = hrng->Instance->DR;
+    *random32bit = hrng->RandomNumber;
+
+    hrng->State = HAL_RNG_STATE_READY;
+  }
+  else
+  {
+    hrng->ErrorCode = HAL_RNG_ERROR_BUSY;
+    status = HAL_ERROR;
+  }
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(hrng);
+
+  return status;
+}

@@ -1,0 +1,33 @@
+VOID* OsHeapAllocAlign(VOID *pool, UINT32 size, UINT32 boundary)
+{
+    UINT32 useSize;
+    UINT32 gapSize;
+    VOID *ptr = NULL;
+    VOID *alignedPtr = NULL;
+
+    if ((pool == NULL) || (size == 0) || (boundary < sizeof(VOID *)) || !IS_ALIGNED(boundary, boundary)) {
+        return NULL;
+    }
+
+    /* worst case is that the node happen to be 4 bytes ahead of the boundary */
+    useSize = (size + boundary) - sizeof(VOID*);
+    if (useSize < size) {
+        return NULL;
+    }
+
+    ptr = OsHeapAlloc(pool, useSize);
+    if (ptr != NULL) {
+        alignedPtr = (VOID *)(UINTPTR)OS_MEM_ALIGN(ptr, boundary);
+        if (alignedPtr == ptr) {
+            goto OUT;
+        }
+
+        gapSize = (UINTPTR)alignedPtr - (UINTPTR)ptr;
+        OS_MEM_SET_ALIGN_FLAG(gapSize);
+        *((UINT32 *)((UINTPTR)alignedPtr - sizeof(UINTPTR))) = gapSize;
+
+        ptr = alignedPtr;
+    }
+OUT:
+    return ptr;
+}

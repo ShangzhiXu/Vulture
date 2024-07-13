@@ -1,0 +1,32 @@
+static void SD_Write_IT(SD_HandleTypeDef *hsd)
+{
+  uint32_t count, data, dataremaining;
+  uint8_t* tmp;
+
+  tmp = hsd->pTxBuffPtr;
+  dataremaining = hsd->TxXferSize;
+
+  if (dataremaining > 0U)
+  {
+    /* Write data to SDIO Tx FIFO */
+    for(count = 0U; count < 8U; count++)
+    {
+      data = (uint32_t)(*tmp);
+      tmp++;
+      dataremaining--;
+      data |= ((uint32_t)(*tmp) << 8U);
+      tmp++;
+      dataremaining--;
+      data |= ((uint32_t)(*tmp) << 16U);
+      tmp++;
+      dataremaining--;
+      data |= ((uint32_t)(*tmp) << 24U);
+      tmp++;
+      dataremaining--;
+      (void)SDIO_WriteFIFO(hsd->Instance, &data);
+    }
+
+    hsd->pTxBuffPtr = tmp;
+    hsd->TxXferSize = dataremaining;
+  }
+}

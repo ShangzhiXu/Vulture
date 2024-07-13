@@ -1,0 +1,21 @@
+snmp_asn1_enc_u64t(struct snmp_pbuf_stream *pbuf_stream, u16_t octets_needed, u64_t value)
+{
+  if (octets_needed > 9) {
+    return ERR_ARG;
+  }
+  if (octets_needed == 9) {
+    /* not enough bits in 'value' add leading 0x00 */
+    PBUF_OP_EXEC(snmp_pbuf_stream_write(pbuf_stream, 0x00));
+    octets_needed--;
+  }
+
+  while (octets_needed > 1) {
+    octets_needed--;
+    PBUF_OP_EXEC(snmp_pbuf_stream_write(pbuf_stream, (u8_t)(value >> (octets_needed << 3))));
+  }
+
+  /* always write at least one octet (also in case of value == 0) */
+  PBUF_OP_EXEC(snmp_pbuf_stream_write(pbuf_stream, (u8_t)(value)));
+
+  return ERR_OK;
+}

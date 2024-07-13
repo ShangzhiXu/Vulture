@@ -1,0 +1,22 @@
+STATIC UINT32 OsRingbufReadLinear(Ringbuf *ringbuf, CHAR *buf, UINT32 size)
+{
+    UINT32 cpSize, remain;
+    errno_t err;
+
+    remain = ringbuf->endIdx - ringbuf->startIdx;
+    cpSize = (remain < size) ? remain : size;
+
+    if (cpSize == 0) {
+        return 0;
+    }
+
+    err = memcpy_s(buf, size, ringbuf->fifo + ringbuf->startIdx, cpSize);
+    if (err != EOK) {
+        return 0;
+    }
+
+    ringbuf->remain += cpSize;
+    ringbuf->startIdx += cpSize;
+
+    return cpSize;
+}

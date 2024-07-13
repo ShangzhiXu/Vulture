@@ -1,0 +1,64 @@
+netif_poll(struct netif *netif)
+{
+  /* If we have a loopif, SNMP counters are adjusted for it,
+   * if not they are adjusted for 'netif'. */
+#if MIB2_STATS
+#if LWIP_HAVE_LOOPIF
+  struct netif *stats_if = &loop_netif;
+#else /* LWIP_HAVE_LOOPIF */
+  struct netif *stats_if = netif;
+#endif /* LWIP_HAVE_LOOPIF */
+#endif /* MIB2_STATS */
+  SYS_ARCH_DECL_PROTECT(lev);
+
+  LWIP_ASSERT("netif_poll: invalid netif", netif != NULL);
+
+  /* Get a packet from the list. With SYS_LIGHTWEIGHT_PROT=1, this is protected */
+  SYS_ARCH_PROTECT(lev);
+  while (netif->loop_first != NULL) {
+    struct pbuf *in, *in_end;
+#if LWIP_LOOPBACK_MAX_PBUFS
+    u8_t clen = 1;
+#endif /* LWIP_LOOPBACK_MAX_PBUFS */
+
+    in = in_end = netif->loop_first;
+    while (in_end->len != in_end->tot_len) {
+      LWIP_ASSERT("bogus pbuf: len != tot_len but next == NULL!", in_end->next != NULL);
+      in_end = in_end->next;
+#if LWIP_LOOPBACK_MAX_PBUFS
+      clen++;
+#endif /* LWIP_LOOPBACK_MAX_PBUFS */
+    }
+#if LWIP_LOOPBACK_MAX_PBUFS
+    /* adjust the number of pbufs on queue */
+    LWIP_ASSERT("netif->loop_cnt_current underflow",
+                ((netif->loop_cnt_current - clen) < netif->loop_cnt_current));
+    netif->loop_cnt_current = (u16_t)(netif->loop_cnt_current - clen);
+#endif /* LWIP_LOOPBACK_MAX_PBUFS */
+
+    /* 'in_end' now points to the last pbuf from 'in' */
+    if (in_end == netif->loop_last) {
+      /* this was the last pbuf in the list */
+      netif->loop_first = netif->loop_last = NULL;
+    } else {
+      /* pop the pbuf off the list */
+      netif->loop_first = in_end->next;
+      LWIP_ASSERT("should not be null since first != last!", netif->loop_first != NULL);
+    }
+    /* De-queue the pbuf from its successors on the 'loop_' list. */
+    in_end->next = NULL;
+    SYS_ARCH_UNPROTECT(lev);
+
+    in->if_idx = netif_get_index(netif);
+
+    LINK_STATS_INC(link.recv);
+    MIB2_STATS_NETIF_ADD(stats_if, ifinoctets, in->tot_len);
+    MIB2_STATS_NETIF_INC(stats_if, ifinucastpkts);
+    /* loopback packets are always IP packets! */
+    if (ip_input(in, netif) != ERR_OK) {
+      pbuf_free(in);
+    }
+    SYS_ARCH_PROTECT(lev);
+  }
+  SYS_ARCH_UNPROTECT(lev);
+}

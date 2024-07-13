@@ -1,0 +1,36 @@
+static int kifs_readdir(struct dir *dir, struct dirent *dent)
+{
+    struct kifs_node *node = (struct kifs_node *)dir->d_data;
+    struct kifs_node *child;
+    off_t i;
+
+    if (node == NULL) {
+        return -1;
+    }
+
+    for (i = 0, child = node->child;
+            i < dir->d_offset && child != NULL;
+            i++, child = child->sibling) {
+        /* nop */
+    }
+
+    if (child == NULL) {
+        VFS_ERRNO_SET(ENOENT);
+        return -1;
+    }
+
+    strncpy(dent->name, child->name, LOS_MAX_FILE_NAME_LEN - 1);
+    dent->name [LOS_MAX_FILE_NAME_LEN - 1] = '\0';
+    dent->size = 0;
+
+    if ((child->attr & KIFS_ATTR_D) != 0) {
+        dent->type = VFS_TYPE_DIR;
+    } else {
+        dent->type = VFS_TYPE_FILE;
+        dent->size = child->size;
+    }
+
+    dir->d_offset++;
+
+    return 0;
+}

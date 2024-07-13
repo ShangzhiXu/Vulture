@@ -1,0 +1,20 @@
+VOID *LOS_MemMalloc(VOID *pool, UINT32 size, UINT32 moduleId)
+{
+    UINT32 intSave;
+    VOID *ptr = NULL;
+    VOID *node = NULL;
+    if (OsMemModCheck(moduleId) == LOS_NOK) {
+        return NULL;
+    }
+    ptr = LOS_MemAlloc(pool, size);
+    if (ptr != NULL) {
+        MEM_LOCK(intSave);
+        g_moduleMemUsedSize[moduleId] += OsMemNodeSizeGet(ptr);
+        node = OsMemPtrToNode(ptr);
+        if (node != NULL) {
+            OS_MEM_MODID_SET(node, moduleId);
+        }
+        MEM_UNLOCK(intSave);
+    }
+    return ptr;
+}

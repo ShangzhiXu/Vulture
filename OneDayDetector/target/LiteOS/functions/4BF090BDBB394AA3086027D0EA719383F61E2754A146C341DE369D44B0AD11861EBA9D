@@ -1,0 +1,22 @@
+LITE_OS_SEC_TEXT UINT32 OsSleepTicksGet(VOID)
+{
+    UINT32 tskSortLinkTicks, sleepTicks;
+
+    UINT32 intSave = LOS_IntLock();
+    LOS_SpinLock(&g_taskSpin);
+    tskSortLinkTicks = OsSortLinkGetNextExpireTime(&OsPercpuGet()->taskSortLink);
+    LOS_SpinUnlock(&g_taskSpin);
+
+#ifdef LOSCFG_BASE_CORE_SWTMR
+    UINT32 swtmrSortLinkTicks;
+    LOS_SpinLock(&g_swtmrSpin);
+    swtmrSortLinkTicks = OsSortLinkGetNextExpireTime(&OsPercpuGet()->swtmrSortLink);
+    LOS_SpinUnlock(&g_swtmrSpin);
+    sleepTicks = (tskSortLinkTicks < swtmrSortLinkTicks) ? tskSortLinkTicks : swtmrSortLinkTicks;
+#else
+    sleepTicks = tskSortLinkTicks;
+#endif
+
+    LOS_IntRestore(intSave);
+    return sleepTicks;
+}

@@ -1,0 +1,36 @@
+static int mqtt_subscribe_topic(mqtt_client_s *handle)
+{
+    char *topic;
+    void (*topi_callback)(MessageData *md);
+    int rc;
+
+    if (handle->sub_topic != NULL) {
+        (void)MQTTSetMessageHandler(&handle->client, handle->sub_topic, NULL);
+        atiny_free(handle->sub_topic);
+        handle->sub_topic = NULL;
+    }
+
+    if (mqtt_is_connectting_with_deviceid(handle)) {
+        topic = mqtt_get_device_topic(handle, CMD_TOPIC_FMT, sizeof(CMD_TOPIC_FMT) - VARIABLE_SIZE);
+        topi_callback = mqtt_recv_cmd_topic;
+        ATINY_LOG(LOG_INFO, "try subcribe static topic");
+    } else {
+        topic = mqtt_get_secret_topic(handle, SECRET_NOTIFY_TOPIC_FMT, sizeof(SECRET_NOTIFY_TOPIC_FMT) - VARIABLE_SIZE);;
+        topi_callback = mqtt_recv_secret_topic;
+        ATINY_LOG(LOG_INFO, "try subcribe dynamic topic");
+    }
+
+    if (topic == NULL) {
+        return ATINY_ERR;
+    }
+
+
+    rc = MQTTSubscribe(&handle->client, topic, QOS1, topi_callback);
+    if (rc != MQTT_SUCCESS) {
+        ATINY_LOG(LOG_FATAL, "MQTTSubscribe fail,rc=%d, topic=%s", rc, topic);
+        atiny_free(topic);
+    } else {
+        handle->sub_topic = topic;
+    }
+    return rc;
+}

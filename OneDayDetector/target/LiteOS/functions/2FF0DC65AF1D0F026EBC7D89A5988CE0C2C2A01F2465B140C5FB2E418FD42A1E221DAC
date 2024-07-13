@@ -1,0 +1,20 @@
+int32_t sim900a_close(int32_t id)
+{
+    char cmd[64] = {0};
+    if (at.mux_mode == AT_MUXMODE_SINGLE) {
+        snprintf(cmd, 64, "%s", AT_CMD_CLOSE);
+    } else {
+        uint32_t qlen = sizeof(QUEUE_BUFF);
+        QUEUE_BUFF qbuf = {0, NULL};
+        while (LOS_QueueReadCopy(at.linkid[id].qid, (void *)&qbuf, (UINT32 *)&qlen, 10) == LOS_OK) {
+            if (qbuf.len) {
+                at_free(qbuf.addr);
+                memset(&qbuf, 0, sizeof(QUEUE_BUFF)); // don't use qlen
+            }
+        }
+        (void)LOS_QueueDelete(at.linkid[id].qid);
+        at.linkid[id].usable = 0;
+        snprintf(cmd, 64, "%s=%ld", AT_CMD_CLOSE, id);
+    }
+    return at.cmd((int8_t *)cmd, strlen(cmd), "OK", NULL, NULL);
+}

@@ -1,0 +1,23 @@
+dhcp6_inc_pcb_refcount(void)
+{
+  if (dhcp6_pcb_refcount == 0) {
+    LWIP_ASSERT("dhcp6_inc_pcb_refcount(): memory leak", dhcp6_pcb == NULL);
+
+    /* allocate UDP PCB */
+    dhcp6_pcb = udp_new_ip6();
+
+    if (dhcp6_pcb == NULL) {
+      return ERR_MEM;
+    }
+
+    ip_set_option(dhcp6_pcb, SOF_BROADCAST);
+
+    /* set up local and remote port for the pcb -> listen on all interfaces on all src/dest IPs */
+    udp_bind(dhcp6_pcb, IP6_ADDR_ANY, DHCP6_CLIENT_PORT);
+    udp_recv(dhcp6_pcb, dhcp6_recv, NULL);
+  }
+
+  dhcp6_pcb_refcount++;
+
+  return ERR_OK;
+}

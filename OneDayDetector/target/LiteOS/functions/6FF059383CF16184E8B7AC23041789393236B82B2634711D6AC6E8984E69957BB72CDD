@@ -1,0 +1,25 @@
+START_TEST(test_pbuf_get_put_at_edge)
+{
+  u8_t *out;
+  u8_t testdata = 0x01;
+  u8_t getdata;
+  struct pbuf *p = pbuf_alloc(PBUF_RAW, 1024, PBUF_POOL);
+  struct pbuf *q = p->next;
+  LWIP_UNUSED_ARG(_i);
+  /* alloc big enough to get a chain of pbufs */
+  fail_if(p->tot_len == p->len);
+  memset(p->payload, 0, p->len);
+  memset(q->payload, 0, q->len);
+
+  /* put byte at the beginning of second pbuf */
+  pbuf_put_at(p, p->len, testdata);
+
+  out = (u8_t*)q->payload;
+  fail_unless(*out == testdata,
+    "Bad data at pos %d, was %02X, expected %02X", p->len, *out, testdata);
+
+  getdata = pbuf_get_at(p, p->len);
+  fail_unless(*out == getdata,
+    "pbuf_get_at() returned bad data at pos %d, was %02X, expected %02X", p->len, getdata, *out);
+  pbuf_free(p);
+}

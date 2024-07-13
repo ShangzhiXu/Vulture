@@ -1,0 +1,24 @@
+static void UART_DMARxOnlyAbortCallback(DMA_HandleTypeDef *hdma)
+{
+  UART_HandleTypeDef *huart = (UART_HandleTypeDef *)((DMA_HandleTypeDef *)hdma)->Parent;
+
+  huart->RxXferCount = 0U;
+
+  /* Clear the Error flags in the ICR register */
+  __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_OREF | UART_CLEAR_NEF | UART_CLEAR_PEF | UART_CLEAR_FEF);
+
+  /* Discard the received data */
+  __HAL_UART_SEND_REQ(huart, UART_RXDATA_FLUSH_REQUEST);
+
+  /* Restore huart->RxState to Ready */
+  huart->RxState = HAL_UART_STATE_READY;
+
+  /* Call user Abort complete callback */
+#if (USE_HAL_UART_REGISTER_CALLBACKS == 1)
+  /* Call registered Abort Receive Complete Callback */
+  huart->AbortReceiveCpltCallback(huart);
+#else
+  /* Call legacy weak Abort Receive Complete Callback */
+  HAL_UART_AbortReceiveCpltCallback(huart);
+#endif /* USE_HAL_UART_REGISTER_CALLBACKS */
+}

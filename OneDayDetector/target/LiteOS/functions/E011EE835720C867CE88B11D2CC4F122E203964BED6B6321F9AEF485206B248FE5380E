@@ -1,0 +1,54 @@
+lwm2m_object_t *get_binary_app_data_object(atiny_param_t *atiny_params)
+{
+    lwm2m_object_t *appObj;
+
+    appObj = (lwm2m_object_t *)lwm2m_malloc(sizeof(lwm2m_object_t));
+    if (appObj != NULL) {
+        int i;
+        plat_instance_t *targetP = NULL;
+        lwm2m_uri_t uri;
+        int ret = ATINY_OK;
+
+        memset(appObj, 0, sizeof(lwm2m_object_t));
+
+        appObj->objID = BINARY_APP_DATA_OBJECT_ID;
+        for (i = 0; i < BINARY_APP_DATA_OBJECT_INSTANCE_NUM; i++) {
+            targetP = (plat_instance_t *)lwm2m_malloc(sizeof(plat_instance_t));
+            if (targetP == NULL) {
+                break;
+            }
+            memset(targetP, 0, sizeof(plat_instance_t));
+            get_resource_uri(BINARY_APP_DATA_OBJECT_ID, i, BINARY_APP_DATA_RES_ID, &uri);
+            ret = atiny_add_rpt_uri(&uri, &targetP->header);
+            if (ret != ATINY_OK) {
+                ATINY_LOG(LOG_ERR, "atiny_add_rpt_uri fail %d", ret);
+                lwm2m_free(targetP);
+                break;
+            }
+            (void)atiny_set_max_rpt_cnt(&uri, MAX(MIN_SAVE_CNT, atiny_params->server_params.storing_cnt));
+            targetP->shortID = i;
+            appObj->instanceList = LWM2M_LIST_ADD(appObj->instanceList, targetP);
+        }
+
+        if (i < BINARY_APP_DATA_OBJECT_INSTANCE_NUM) {
+            free_binary_app_data_object(appObj);
+            return NULL;
+        }
+
+        /*
+         * From a single instance object, two more functions are available.
+         * - The first one (createFunc) create a new instance and filled it with the provided informations. If an ID is
+         *   provided a check is done for verifying his disponibility, or a new one is generated.
+         * - The other one (deleteFunc) delete an instance by removing it from the instance list (and freeing the memory
+         *   allocated to it)
+         */
+        appObj->readFunc = prv_read;
+        appObj->discoverFunc = prv_discover;
+        appObj->writeFunc = prv_write;
+        appObj->executeFunc = prv_exec;
+        appObj->createFunc = prv_create;
+        appObj->deleteFunc = prv_delete;
+    }
+
+    return appObj;
+}

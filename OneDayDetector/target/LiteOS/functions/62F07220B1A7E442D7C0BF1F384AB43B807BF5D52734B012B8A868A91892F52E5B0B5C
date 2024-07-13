@@ -1,0 +1,32 @@
+START_TEST(compress_no_match)
+{
+  static const u8_t data[] = {
+      0x00, 0x00,
+      0x04, 'l', 'w', 'i', 'p', 0x05, 'w', 'i', 'k', 'i', 'a', 0x03, 'c', 'o', 'm', 0x00
+  };
+  struct pbuf *p;
+  struct mdns_domain domain;
+  u16_t offset;
+  u16_t length;
+  err_t res;
+  LWIP_UNUSED_ARG(_i);
+
+  p = pbuf_alloc(PBUF_RAW, sizeof(data), PBUF_ROM);
+  fail_if(p == NULL);
+  p->payload = (void *)(size_t)data;
+
+  memset(&domain, 0, sizeof(domain));
+  res = mdns_domain_add_label(&domain, "foobar", 6);
+  fail_unless(res == ERR_OK);
+  res = mdns_domain_add_label(&domain, "local", 5);
+  fail_unless(res == ERR_OK);
+  res = mdns_domain_add_label(&domain, NULL, 0);
+  fail_unless(res == ERR_OK);
+
+  offset = 2;
+  length = mdns_compress_domain(p, &offset, &domain);
+  /* Write all bytes, no jump */
+  fail_unless(length == domain.length);
+
+  pbuf_free(p);
+}

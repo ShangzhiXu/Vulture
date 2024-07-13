@@ -1,0 +1,72 @@
+START_TEST(test_tcp_rto_rexmit_wraparound)
+{
+  struct netif netif;
+  struct test_tcp_txcounters txcounters;
+  struct test_tcp_counters counters;
+  struct tcp_pcb* pcb;
+  struct tcp_pcb dummy_pcb_for_iss; /* we need this for tcp_next_iss() only */
+  err_t err;
+  size_t i;
+  u16_t sent_total = 0;
+  LWIP_UNUSED_ARG(_i);
+
+  for (i = 0; i < sizeof(tx_data); i++) {
+    tx_data[i] = (u8_t)i;
+  }
+
+  /* initialize local vars */
+  test_tcp_init_netif(&netif, &txcounters, &test_local_ip, &test_netmask);
+  memset(&counters, 0, sizeof(counters));
+
+  /* create and initialize the pcb */
+  tcp_ticks = 0;
+  tcp_ticks = 0 - tcp_next_iss(&dummy_pcb_for_iss);
+  tcp_ticks = SEQNO1 - tcp_next_iss(&dummy_pcb_for_iss);
+  pcb = test_tcp_new_counters_pcb(&counters);
+  EXPECT_RET(pcb != NULL);
+  tcp_set_state(pcb, ESTABLISHED, &test_local_ip, &test_remote_ip, TEST_LOCAL_PORT, TEST_REMOTE_PORT);
+  pcb->mss = TCP_MSS;
+  /* disable initial congestion window (we don't send a SYN here...) */
+  pcb->cwnd = 2*TCP_MSS;
+
+  /* send 6 mss-sized segments */
+  for (i = 0; i < 6; i++) {
+    err = tcp_write(pcb, &tx_data[sent_total], TCP_MSS, TCP_WRITE_FLAG_COPY);
+    EXPECT_RET(err == ERR_OK);
+    sent_total += TCP_MSS;
+  }
+  check_seqnos(pcb->unsent, 6, seqnos);
+  EXPECT(pcb->unacked == NULL);
+  err = tcp_output(pcb);
+  EXPECT(txcounters.num_tx_calls == 2);
+  EXPECT(txcounters.num_tx_bytes == 2 * (TCP_MSS + 40U));
+  memset(&txcounters, 0, sizeof(txcounters));
+
+  check_seqnos(pcb->unacked, 2, seqnos);
+  check_seqnos(pcb->unsent, 4, &seqnos[2]);
+
+  /* call the tcp timer some times */
+  for (i = 0; i < 10; i++) {
+    test_tcp_tmr();
+    EXPECT(txcounters.num_tx_calls == 0);
+  }
+  /* 11th call to tcp_tmr: RTO rexmit fires */
+  test_tcp_tmr();
+  EXPECT(txcounters.num_tx_calls == 1);
+  check_seqnos(pcb->unacked, 1, seqnos);
+  check_seqnos(pcb->unsent, 5, &seqnos[1]);
+
+  /* fake greater cwnd */
+  pcb->cwnd = pcb->snd_wnd;
+  /* send more data */
+  err = tcp_output(pcb);
+  EXPECT(err == ERR_OK);
+  /* check queues are sorted */
+  EXPECT(pcb->unsent == NULL);
+  check_seqnos(pcb->unacked, 6, seqnos);
+
+  /* make sure the pcb is freed */
+  EXPECT_RET(MEMP_STATS_GET(used, MEMP_TCP_PCB) == 1);
+  tcp_abort(pcb);
+  EXPECT_RET(MEMP_STATS_GET(used, MEMP_TCP_PCB) == 0);
+}

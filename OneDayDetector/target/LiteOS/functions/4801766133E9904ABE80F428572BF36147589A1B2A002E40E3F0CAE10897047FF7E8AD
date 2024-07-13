@@ -1,0 +1,63 @@
+HAL_StatusTypeDef HAL_SPDIFRX_ReceiveControlFlow(SPDIFRX_HandleTypeDef *hspdif, uint32_t *pData, uint16_t Size, uint32_t Timeout)
+{
+  uint32_t tickstart;
+  uint16_t sizeCounter = Size;
+  uint32_t *pTmpBuf = pData;
+
+  if((pData == NULL ) || (Size == 0U))
+  {
+    return  HAL_ERROR;
+  }
+
+  if(hspdif->State == HAL_SPDIFRX_STATE_READY)
+  {
+    /* Process Locked */
+    __HAL_LOCK(hspdif);
+
+    hspdif->State = HAL_SPDIFRX_STATE_BUSY;
+
+    /* Start synchronization */
+    __HAL_SPDIFRX_SYNC(hspdif);
+
+    /* Get tick */
+    tickstart = HAL_GetTick();
+
+    /* Wait until SYNCD flag is set */
+    if(SPDIFRX_WaitOnFlagUntilTimeout(hspdif, SPDIFRX_FLAG_SYNCD, RESET, Timeout, tickstart) != HAL_OK)
+    {
+      return HAL_TIMEOUT;
+    }
+
+    /* Start reception */
+    __HAL_SPDIFRX_RCV(hspdif);
+
+    /* Receive control flow */
+    while(sizeCounter > 0U)
+    {
+      /* Get tick */
+      tickstart = HAL_GetTick();
+
+      /* Wait until CSRNE flag is set */
+      if(SPDIFRX_WaitOnFlagUntilTimeout(hspdif, SPDIFRX_FLAG_CSRNE, RESET, Timeout, tickstart) != HAL_OK)
+      {
+        return HAL_TIMEOUT;
+      }
+
+      (*pTmpBuf) = hspdif->Instance->CSR;
+      pTmpBuf++;
+      sizeCounter--;
+    }
+
+    /* SPDIFRX ready */
+    hspdif->State = HAL_SPDIFRX_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hspdif);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

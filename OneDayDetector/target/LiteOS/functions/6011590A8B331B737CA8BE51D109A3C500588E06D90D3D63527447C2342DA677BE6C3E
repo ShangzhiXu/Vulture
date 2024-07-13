@@ -1,0 +1,68 @@
+HAL_StatusTypeDef HAL_LIN_Init(UART_HandleTypeDef *huart, uint32_t BreakDetectLength)
+{
+  /* Check the UART handle allocation */
+  if (huart == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the LIN UART instance */
+  assert_param(IS_UART_LIN_INSTANCE(huart->Instance));
+
+  /* Check the Break detection length parameter */
+  assert_param(IS_UART_LIN_BREAK_DETECT_LENGTH(BreakDetectLength));
+  assert_param(IS_UART_LIN_WORD_LENGTH(huart->Init.WordLength));
+  assert_param(IS_UART_LIN_OVERSAMPLING(huart->Init.OverSampling));
+
+  if (huart->gState == HAL_UART_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    huart->Lock = HAL_UNLOCKED;
+
+#if (USE_HAL_UART_REGISTER_CALLBACKS == 1)
+    UART_InitCallbacksToDefault(huart);
+
+    if (huart->MspInitCallback == NULL)
+    {
+      huart->MspInitCallback = HAL_UART_MspInit;
+    }
+
+    /* Init the low level hardware */
+    huart->MspInitCallback(huart);
+#else
+    /* Init the low level hardware : GPIO, CLOCK */
+    HAL_UART_MspInit(huart);
+#endif /* (USE_HAL_UART_REGISTER_CALLBACKS) */
+  }
+
+  huart->gState = HAL_UART_STATE_BUSY;
+
+  /* Disable the peripheral */
+  __HAL_UART_DISABLE(huart);
+
+  /* Set the UART Communication parameters */
+  UART_SetConfig(huart);
+
+  /* In LIN mode, the following bits must be kept cleared:
+     - CLKEN bits in the USART_CR2 register,
+     - SCEN, HDSEL and IREN bits in the USART_CR3 register.*/
+  CLEAR_BIT(huart->Instance->CR2, (USART_CR2_CLKEN));
+  CLEAR_BIT(huart->Instance->CR3, (USART_CR3_HDSEL | USART_CR3_IREN | USART_CR3_SCEN));
+
+  /* Enable the LIN mode by setting the LINEN bit in the CR2 register */
+  SET_BIT(huart->Instance->CR2, USART_CR2_LINEN);
+
+  /* Set the USART LIN Break detection length. */
+  CLEAR_BIT(huart->Instance->CR2, USART_CR2_LBDL);
+  SET_BIT(huart->Instance->CR2, BreakDetectLength);
+
+  /* Enable the peripheral */
+  __HAL_UART_ENABLE(huart);
+
+  /* Initialize the UART state*/
+  huart->ErrorCode = HAL_UART_ERROR_NONE;
+  huart->gState = HAL_UART_STATE_READY;
+  huart->RxState = HAL_UART_STATE_READY;
+
+  return HAL_OK;
+}

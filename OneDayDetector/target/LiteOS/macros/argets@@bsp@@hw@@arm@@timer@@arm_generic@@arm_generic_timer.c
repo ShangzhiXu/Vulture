@@ -1,0 +1,11 @@
+#define READ_TIMER_REG32(reg)       AARCH64_SYSREG_READ(reg)
+#define READ_TIMER_REG32(reg)       ARM_SYSREG_READ(reg)
+#define READ_TIMER_REG64(reg)       AARCH64_SYSREG_READ(reg)
+#define READ_TIMER_REG64(reg)       ARM_SYSREG64_READ(reg)
+#define STRING_COMB(x, y, z)        x ## y ## z
+#define TIMER_REG(reg)              STRING_COMB(TIMER_REG_, CNTPS, reg)
+#define TIMER_REG(reg)              STRING_COMB(TIMER_REG_, CNTP, reg)
+#define WRITE_TIMER_REG32(reg, val) AARCH64_SYSREG_WRITE(reg, (UINT64)(val))
+#define WRITE_TIMER_REG32(reg, val) ARM_SYSREG_WRITE(reg, val)
+#define WRITE_TIMER_REG64(reg, val) AARCH64_SYSREG_WRITE(reg, val)
+#define WRITE_TIMER_REG64(reg, val) ARM_SYSREG64_WRITE(reg, val)

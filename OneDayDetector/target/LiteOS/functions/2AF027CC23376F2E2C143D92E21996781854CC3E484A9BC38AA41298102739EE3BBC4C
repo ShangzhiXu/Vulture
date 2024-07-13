@@ -1,0 +1,40 @@
+static HAL_StatusTypeDef I2C_MasterReceive_RXNE(I2C_HandleTypeDef *hi2c)
+{
+  uint32_t tmp = 0;
+
+  tmp = hi2c->XferCount;
+  if(tmp > 3)
+  {
+    /* Read data from DR */
+    (*hi2c->pBuffPtr++) = hi2c->Instance->DR;
+    hi2c->XferCount--;
+  }
+  else if((tmp == 2) || (tmp == 3))
+  {
+    /* Disable BUF interrupt */
+    __HAL_I2C_DISABLE_IT(hi2c, I2C_IT_BUF);
+  }
+  else
+  {
+    /* Disable EVT, BUF and ERR interrupt */
+    __HAL_I2C_DISABLE_IT(hi2c, I2C_IT_EVT | I2C_IT_BUF | I2C_IT_ERR);
+
+    /* Read data from DR */
+    (*hi2c->pBuffPtr++) = hi2c->Instance->DR;
+    hi2c->XferCount--;
+
+    if(hi2c->Mode == HAL_I2C_MODE_MEM)
+    {
+      hi2c->State = HAL_I2C_STATE_READY;
+
+      HAL_I2C_MemRxCpltCallback(hi2c);
+    }
+    else
+    {
+      hi2c->State = HAL_I2C_STATE_READY;
+
+      HAL_I2C_MasterRxCpltCallback(hi2c);
+    }
+  }
+  return HAL_OK;
+}

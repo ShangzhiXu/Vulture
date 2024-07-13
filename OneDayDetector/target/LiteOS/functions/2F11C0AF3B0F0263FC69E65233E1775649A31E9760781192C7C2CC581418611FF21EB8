@@ -1,0 +1,59 @@
+int mbedtls_ecdsa_read_signature_restartable( mbedtls_ecdsa_context *ctx,
+                          const unsigned char *hash, size_t hlen,
+                          const unsigned char *sig, size_t slen,
+                          mbedtls_ecdsa_restart_ctx *rs_ctx )
+{
+    int ret;
+    unsigned char *p = (unsigned char *) sig;
+    const unsigned char *end = sig + slen;
+    size_t len;
+    mbedtls_mpi r, s;
+    ECDSA_VALIDATE_RET( ctx  != NULL );
+    ECDSA_VALIDATE_RET( hash != NULL );
+    ECDSA_VALIDATE_RET( sig  != NULL );
+
+    mbedtls_mpi_init( &r );
+    mbedtls_mpi_init( &s );
+
+    if( ( ret = mbedtls_asn1_get_tag( &p, end, &len,
+                    MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ) ) != 0 )
+    {
+        ret += MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+        goto cleanup;
+    }
+
+    if( p + len != end )
+    {
+        ret = MBEDTLS_ERR_ECP_BAD_INPUT_DATA +
+              MBEDTLS_ERR_ASN1_LENGTH_MISMATCH;
+        goto cleanup;
+    }
+
+    if( ( ret = mbedtls_asn1_get_mpi( &p, end, &r ) ) != 0 ||
+        ( ret = mbedtls_asn1_get_mpi( &p, end, &s ) ) != 0 )
+    {
+        ret += MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+        goto cleanup;
+    }
+#if defined(MBEDTLS_ECDSA_VERIFY_ALT)
+    if( ( ret = mbedtls_ecdsa_verify( &ctx->grp, hash, hlen,
+                                      &ctx->Q, &r, &s ) ) != 0 )
+        goto cleanup;
+#else
+    if( ( ret = ecdsa_verify_restartable( &ctx->grp, hash, hlen,
+                              &ctx->Q, &r, &s, rs_ctx ) ) != 0 )
+        goto cleanup;
+#endif /* MBEDTLS_ECDSA_VERIFY_ALT */
+
+    /* At this point we know that the buffer starts with a valid signature.
+     * Return 0 if the buffer just contains the signature, and a specific
+     * error code if the valid signature is followed by more data. */
+    if( p != end )
+        ret = MBEDTLS_ERR_ECP_SIG_LEN_MISMATCH;
+
+cleanup:
+    mbedtls_mpi_free( &r );
+    mbedtls_mpi_free( &s );
+
+    return( ret );
+}

@@ -1,0 +1,47 @@
+HAL_StatusTypeDef HAL_FMPI2C_Master_Abort_IT(FMPI2C_HandleTypeDef *hfmpi2c, uint16_t DevAddress)
+{
+  if (hfmpi2c->Mode == HAL_FMPI2C_MODE_MASTER)
+  {
+    /* Process Locked */
+    __HAL_LOCK(hfmpi2c);
+
+    /* Disable Interrupts and Store Previous state */
+    if (hfmpi2c->State == HAL_FMPI2C_STATE_BUSY_TX)
+    {
+      FMPI2C_Disable_IRQ(hfmpi2c, FMPI2C_XFER_TX_IT);
+      hfmpi2c->PreviousState = FMPI2C_STATE_MASTER_BUSY_TX;
+    }
+    else if (hfmpi2c->State == HAL_FMPI2C_STATE_BUSY_RX)
+    {
+      FMPI2C_Disable_IRQ(hfmpi2c, FMPI2C_XFER_RX_IT);
+      hfmpi2c->PreviousState = FMPI2C_STATE_MASTER_BUSY_RX;
+    }
+    else
+    {
+      /* Do nothing */
+    }
+
+    /* Set State at HAL_FMPI2C_STATE_ABORT */
+    hfmpi2c->State = HAL_FMPI2C_STATE_ABORT;
+
+    /* Set NBYTES to 1 to generate a dummy read on FMPI2C peripheral */
+    /* Set AUTOEND mode, this will generate a NACK then STOP condition to abort the current transfer */
+    FMPI2C_TransferConfig(hfmpi2c, DevAddress, 1, FMPI2C_AUTOEND_MODE, FMPI2C_GENERATE_STOP);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hfmpi2c);
+
+    /* Note : The FMPI2C interrupts must be enabled after unlocking current process
+              to avoid the risk of FMPI2C interrupt handle execution before current
+              process unlock */
+    FMPI2C_Enable_IRQ(hfmpi2c, FMPI2C_XFER_CPLT_IT);
+
+    return HAL_OK;
+  }
+  else
+  {
+    /* Wrong usage of abort function */
+    /* This function should be used only in case of abort monitored by master device */
+    return HAL_ERROR;
+  }
+}

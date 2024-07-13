@@ -1,0 +1,29 @@
+int mbedtls_asn1_get_bitstring( unsigned char **p, const unsigned char *end,
+                        mbedtls_asn1_bitstring *bs)
+{
+    int ret;
+
+    /* Certificate type is a single byte bitstring */
+    if( ( ret = mbedtls_asn1_get_tag( p, end, &bs->len, MBEDTLS_ASN1_BIT_STRING ) ) != 0 )
+        return( ret );
+
+    /* Check length, subtract one for actual bit string length */
+    if( bs->len < 1 )
+        return( MBEDTLS_ERR_ASN1_OUT_OF_DATA );
+    bs->len -= 1;
+
+    /* Get number of unused bits, ensure unused bits <= 7 */
+    bs->unused_bits = **p;
+    if( bs->unused_bits > 7 )
+        return( MBEDTLS_ERR_ASN1_INVALID_LENGTH );
+    (*p)++;
+
+    /* Get actual bitstring */
+    bs->p = *p;
+    *p += bs->len;
+
+    if( *p != end )
+        return( MBEDTLS_ERR_ASN1_LENGTH_MISMATCH );
+
+    return( 0 );
+}

@@ -1,0 +1,32 @@
+ErrorStatus LL_RTC_EnterInitMode(RTC_TypeDef *RTCx)
+{
+  __IO uint32_t timeout = RTC_INITMODE_TIMEOUT;
+  ErrorStatus status = SUCCESS;
+  uint32_t tmp = 0U;
+
+  /* Check the parameter */
+  assert_param(IS_RTC_ALL_INSTANCE(RTCx));
+
+  /* Check if the Initialization mode is set */
+  if (LL_RTC_IsActiveFlag_INIT(RTCx) == 0U)
+  {
+    /* Set the Initialization mode */
+    LL_RTC_EnableInitMode(RTCx);
+
+    /* Wait till RTC is in INIT state and if Time out is reached exit */
+    tmp = LL_RTC_IsActiveFlag_INIT(RTCx);
+    while ((timeout != 0U) && (tmp != 1U))
+    {
+      if (LL_SYSTICK_IsActiveCounterFlag() == 1U)
+      {
+        timeout --;
+      }
+      tmp = LL_RTC_IsActiveFlag_INIT(RTCx);
+      if (timeout == 0U)
+      {
+        status = ERROR;
+      }
+    }
+  }
+  return status;
+}

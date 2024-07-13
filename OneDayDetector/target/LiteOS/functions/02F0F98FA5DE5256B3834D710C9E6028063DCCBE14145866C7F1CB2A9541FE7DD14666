@@ -1,0 +1,44 @@
+system_set_test(const struct snmp_scalar_array_node_def *node, u16_t len, void *value)
+{
+  snmp_err_t ret = SNMP_ERR_WRONGVALUE;
+  const u16_t *var_bufsize  = NULL;
+  const u16_t *var_wr_len;
+
+  LWIP_UNUSED_ARG(value);
+
+  switch (node->oid) {
+    case 4: /* sysContact */
+      var_bufsize  = &syscontact_bufsize;
+      var_wr_len   = syscontact_wr_len;
+      break;
+    case 5: /* sysName */
+      var_bufsize  = &sysname_bufsize;
+      var_wr_len   = sysname_wr_len;
+      break;
+    case 6: /* sysLocation */
+      var_bufsize  = &syslocation_bufsize;
+      var_wr_len   = syslocation_wr_len;
+      break;
+    default:
+      LWIP_DEBUGF(SNMP_MIB_DEBUG, ("system_set_test(): unknown id: %"S32_F"\n", node->oid));
+      return ret;
+  }
+
+  /* check if value is writable at all */
+  if (*var_bufsize > 0) {
+    if (var_wr_len == NULL) {
+      /* we have to take the terminating 0 into account */
+      if (len < *var_bufsize) {
+        ret = SNMP_ERR_NOERROR;
+      }
+    } else {
+      if (len <= *var_bufsize) {
+        ret = SNMP_ERR_NOERROR;
+      }
+    }
+  } else {
+    ret = SNMP_ERR_NOTWRITABLE;
+  }
+
+  return ret;
+}

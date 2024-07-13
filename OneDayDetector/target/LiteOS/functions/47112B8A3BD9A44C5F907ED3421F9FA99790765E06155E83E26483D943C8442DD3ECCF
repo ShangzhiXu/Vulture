@@ -1,0 +1,62 @@
+HAL_StatusTypeDef HAL_SMARTCARD_Transmit(SMARTCARD_HandleTypeDef *hsc, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+{
+  uint32_t tmp_state = 0;
+  
+  tmp_state = hsc->State;
+  if((tmp_state == HAL_SMARTCARD_STATE_READY) || (tmp_state == HAL_SMARTCARD_STATE_BUSY_RX))
+  {
+    if((pData == NULL) || (Size == 0)) 
+    {
+      return  HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hsc);
+
+    hsc->ErrorCode = HAL_SMARTCARD_ERROR_NONE;
+    /* Check if a non-blocking receive process is ongoing or not */
+    if(hsc->State == HAL_SMARTCARD_STATE_BUSY_RX) 
+    {
+      hsc->State = HAL_SMARTCARD_STATE_BUSY_TX_RX;
+    }
+    else
+    {
+      hsc->State = HAL_SMARTCARD_STATE_BUSY_TX;
+    }
+    
+    hsc->TxXferSize = Size;
+    hsc->TxXferCount = Size;
+    while(hsc->TxXferCount > 0)
+    {
+      if(SMARTCARD_WaitOnFlagUntilTimeout(hsc, SMARTCARD_FLAG_TXE, RESET, Timeout) != HAL_OK)
+      {
+        return HAL_TIMEOUT;
+      }
+      WRITE_REG(hsc->Instance->DR, (*pData++ & (uint8_t)0xFF));
+      hsc->TxXferCount--;
+    }
+
+    if(SMARTCARD_WaitOnFlagUntilTimeout(hsc, SMARTCARD_FLAG_TC, RESET, Timeout) != HAL_OK)
+    {
+      return HAL_TIMEOUT;
+    }
+
+    /* Check if a non-blocking receive process is ongoing or not */
+    if(hsc->State == HAL_SMARTCARD_STATE_BUSY_TX_RX) 
+    {
+      hsc->State = HAL_SMARTCARD_STATE_BUSY_RX;
+    }
+    else
+    {
+      hsc->State = HAL_SMARTCARD_STATE_READY;
+    }
+    /* Process Unlocked */
+    __HAL_UNLOCK(hsc);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

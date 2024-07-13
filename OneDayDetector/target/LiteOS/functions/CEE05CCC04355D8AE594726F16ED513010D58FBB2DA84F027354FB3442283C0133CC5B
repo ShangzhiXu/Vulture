@@ -1,0 +1,44 @@
+void HAL_PWR_EnterSLEEPMode(uint32_t Regulator, uint8_t SLEEPEntry)
+{
+  /* Check the parameters */
+  assert_param(IS_PWR_REGULATOR(Regulator));
+  assert_param(IS_PWR_SLEEP_ENTRY(SLEEPEntry));
+
+  /* Set Regulator parameter */
+  if (Regulator == PWR_MAINREGULATOR_ON)
+  {
+    /* If in low-power run mode at this point, exit it */
+    if (HAL_IS_BIT_SET(PWR->SR2, PWR_SR2_REGLPF))
+    {
+      HAL_PWREx_DisableLowPowerRunMode();  
+    } 
+    /* Regulator now in main mode. */
+  }
+  else
+  {
+    /* If in run mode, first move to low-power run mode.
+       The system clock frequency must be below 2 MHz at this point. */
+    if (HAL_IS_BIT_SET(PWR->SR2, PWR_SR2_REGLPF) == RESET)
+    {
+      HAL_PWREx_EnableLowPowerRunMode();  
+    } 
+  } 
+    
+  /* Clear SLEEPDEEP bit of Cortex System Control Register */
+  CLEAR_BIT(SCB->SCR, ((uint32_t)SCB_SCR_SLEEPDEEP_Msk));
+  
+  /* Select SLEEP mode entry -------------------------------------------------*/
+  if(SLEEPEntry == PWR_SLEEPENTRY_WFI)
+  {
+    /* Request Wait For Interrupt */
+    __WFI();
+  }
+  else
+  {
+    /* Request Wait For Event */
+    __SEV();
+    __WFE();
+    __WFE();
+  }
+
+}

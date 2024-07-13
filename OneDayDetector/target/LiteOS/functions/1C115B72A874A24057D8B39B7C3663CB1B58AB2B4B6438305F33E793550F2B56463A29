@@ -1,0 +1,48 @@
+int clock_gettime(clockid_t clockId, struct timespec *tp)
+{
+    UINT32 intSave;
+    UINT64 nowNsec;
+    struct timespec64 tmp = {0};
+    struct timespec64 hwTime = {0};
+
+    if ((clockId > MAX_CLOCKS) || (clockId < CLOCK_REALTIME)) {
+        goto ERROUT;
+    }
+
+    if (tp == NULL) {
+        goto ERROUT;
+    }
+
+    nowNsec = LOS_CurrNanosec();
+    hwTime.tv_sec = (INT64)(nowNsec / OS_SYS_NS_PER_SECOND);
+    hwTime.tv_nsec = (INT64)(nowNsec - hwTime.tv_sec * OS_SYS_NS_PER_SECOND);
+
+    switch (clockId) {
+        case CLOCK_MONOTONIC_RAW:
+            tp->tv_sec = (time_t)hwTime.tv_sec;
+            tp->tv_nsec = (long)hwTime.tv_nsec;
+            break;
+        case CLOCK_MONOTONIC:
+            LOS_SpinLockSave(&g_timeSpin, &intSave);
+            tmp = OsTimeSpecAdd(hwTime, g_accDeltaFromAdj);
+            LOS_SpinUnlockRestore(&g_timeSpin, intSave);
+            tp->tv_sec = (time_t)tmp.tv_sec;
+            tp->tv_nsec = (long)tmp.tv_nsec;
+            break;
+        case CLOCK_REALTIME:
+            LOS_SpinLockSave(&g_timeSpin, &intSave);
+            tmp = OsTimeSpecAdd(hwTime, g_accDeltaFromAdj);
+            tmp = OsTimeSpecAdd(tmp, g_accDeltaFromSet);
+            LOS_SpinUnlockRestore(&g_timeSpin, intSave);
+            tp->tv_sec = (time_t)tmp.tv_sec;
+            tp->tv_nsec = (long)tmp.tv_nsec;
+            break;
+        default:
+            goto ERROUT;
+    }
+
+    return 0;
+
+ERROUT:
+    TIME_RETURN(EINVAL);
+}

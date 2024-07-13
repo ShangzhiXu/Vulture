@@ -1,0 +1,44 @@
+static void I2C_Slave_ADDR(I2C_HandleTypeDef *hi2c, uint32_t IT2Flags)
+{
+  uint8_t TransferDirection = I2C_DIRECTION_RECEIVE;
+  uint16_t SlaveAddrCode;
+
+  if (((uint32_t)hi2c->State & (uint32_t)HAL_I2C_STATE_LISTEN) == (uint32_t)HAL_I2C_STATE_LISTEN)
+  {
+    /* Disable BUF interrupt, BUF enabling is manage through slave specific interface */
+    __HAL_I2C_DISABLE_IT(hi2c, (I2C_IT_BUF));
+
+    /* Transfer Direction requested by Master */
+    if (I2C_CHECK_FLAG(IT2Flags, I2C_FLAG_TRA) == RESET)
+    {
+      TransferDirection = I2C_DIRECTION_TRANSMIT;
+    }
+
+    if (I2C_CHECK_FLAG(IT2Flags, I2C_FLAG_DUALF) == RESET)
+    {
+      SlaveAddrCode = (uint16_t)hi2c->Init.OwnAddress1;
+    }
+    else
+    {
+      SlaveAddrCode = (uint16_t)hi2c->Init.OwnAddress2;
+    }
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2c);
+
+    /* Call Slave Addr callback */
+#if (USE_HAL_I2C_REGISTER_CALLBACKS == 1)
+    hi2c->AddrCallback(hi2c, TransferDirection, SlaveAddrCode);
+#else
+    HAL_I2C_AddrCallback(hi2c, TransferDirection, SlaveAddrCode);
+#endif /* USE_HAL_I2C_REGISTER_CALLBACKS */
+  }
+  else
+  {
+    /* Clear ADDR flag */
+    __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_ADDR);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2c);
+  }
+}

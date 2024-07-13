@@ -1,0 +1,15 @@
+VOID OsDataAbortExcHandleEntry(ExcContext *excBufAddr)
+{
+    excBufAddr->PC -= 8;  /* lr in data abort is pc + 8 */
+
+    if (gdbhw_hook(excBufAddr, OS_EXCEPT_DATA_ABORT)) {
+        return;
+    }
+
+    if (g_excHook != NULL) {
+        g_excHook(OS_EXCEPT_DATA_ABORT, excBufAddr);
+    }
+    while (1) {
+        ;
+    }
+}

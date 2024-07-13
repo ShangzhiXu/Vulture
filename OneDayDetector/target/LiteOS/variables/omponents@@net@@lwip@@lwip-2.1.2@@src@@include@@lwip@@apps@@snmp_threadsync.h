@@ -1,0 +1,18 @@
+  } arg1;
+  } arg2;
+  struct threadsync_data          data;
+    snmp_err_t err;
+  struct snmp_threadsync_instance *instance;
+    u16_t len;
+  struct snmp_leaf_node           node;
+  struct snmp_node_instance proxy_instance;
+  } retval;
+    const u32_t *root_oid;
+    u8_t root_oid_len;
+    s16_t s16;
+  sys_sem_t                       sem;
+  sys_mutex_t                     sem_usage_mutex;
+  snmp_threadsync_synchronizer_fn sync_fn;
+  const struct snmp_leaf_node     *target;
+  const struct snmp_threadsync_node *threadsync_node;
+    void *value;

@@ -1,0 +1,24 @@
+static int lwm2m_poll(handle_data_t *phandle, uint32_t *timeout)
+{
+    client_data_t *dataP;
+    int numBytes;
+    connection_t *connP;
+    lwm2m_context_t *contextP = phandle->lwm2m_context;
+    uint8_t *recv_buffer = phandle->recv_buffer;
+
+    dataP = (client_data_t *)(contextP->userData);
+    connP = dataP->connList;
+
+    while (connP != NULL) {
+        numBytes = lwm2m_buffer_recv(connP, recv_buffer, MAX_PACKET_SIZE, *timeout);
+        if (numBytes <= 0) {
+            ATINY_LOG(LOG_INFO, "no packet arrived!");
+        } else {
+            output_buffer(stderr, recv_buffer, numBytes, 0);
+            lwm2m_handle_packet(contextP, recv_buffer, numBytes, connP);
+        }
+        connP = connP->next;
+    }
+
+    return ATINY_OK;
+}

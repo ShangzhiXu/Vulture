@@ -1,0 +1,23 @@
+recv_and_check_data_return_offset(int s, char *rxbuf, size_t rxbufsize, size_t rxoff, int *closed, const char *dbg)
+{
+  ssize_t ret;
+
+  ret = lwip_read(s, &rxbuf[rxoff], rxbufsize - rxoff);
+  if (ret == 0) {
+    *closed = 1;
+    return rxoff;
+  }
+  *closed = 0;
+  LWIP_DEBUGF(TEST_SOCKETS_STRESS | LWIP_DBG_TRACE, ("%s %d rx %d\n", dbg, s, (int)ret));
+  if (ret == -1) {
+    /* TODO: for this to work, 'errno' has to support multithreading... */
+    int err = errno;
+    if (err == ENOTCONN) {
+      *closed = 1;
+      return 0;
+    }
+    LWIP_ASSERT("err == 0", err == 0);
+  }
+  LWIP_ASSERT("ret > 0", ret > 0);
+  return check_test_data(rxbuf, rxoff + ret);
+}

@@ -1,0 +1,46 @@
+static uint32_t ft6x06_TS_Calibration(uint16_t DeviceAddr)
+{
+  uint32_t nbAttempt = 0;
+  volatile uint8_t ucReadData;
+  volatile uint8_t regValue;
+  uint32_t status = FT6206_STATUS_OK;
+  uint8_t bEndCalibration = 0;
+
+  /* >> Calibration sequence start */
+
+  /* Switch FT6206 back to factory mode to calibrate */
+  regValue = (FT6206_DEV_MODE_FACTORY & FT6206_DEV_MODE_MASK) << FT6206_DEV_MODE_SHIFT;
+  TS_IO_Write(DeviceAddr, FT6206_DEV_MODE_REG, regValue); /* 0x40 */
+
+  /* Read back the same register FT6206_DEV_MODE_REG */
+  ucReadData = TS_IO_Read(DeviceAddr, FT6206_DEV_MODE_REG);
+  TS_IO_Delay(300); /* Wait 300 ms */
+
+  if(((ucReadData & (FT6206_DEV_MODE_MASK << FT6206_DEV_MODE_SHIFT)) >> FT6206_DEV_MODE_SHIFT) != FT6206_DEV_MODE_FACTORY )
+  {
+    /* Return error to caller */
+    return(FT6206_STATUS_NOT_OK);
+  }
+
+  /* Start calibration command */
+  TS_IO_Write(DeviceAddr, FT6206_TD_STAT_REG, 0x04);
+  TS_IO_Delay(300); /* Wait 300 ms */
+
+  /* 100 attempts to wait switch from factory mode (calibration) to working mode */
+  for (nbAttempt=0; ((nbAttempt < 100) && (!bEndCalibration)) ; nbAttempt++)
+  {
+    ucReadData = TS_IO_Read(DeviceAddr, FT6206_DEV_MODE_REG);
+    ucReadData = (ucReadData & (FT6206_DEV_MODE_MASK << FT6206_DEV_MODE_SHIFT)) >> FT6206_DEV_MODE_SHIFT;
+    if(ucReadData == FT6206_DEV_MODE_WORKING)
+    {
+      /* Auto Switch to FT6206_DEV_MODE_WORKING : means calibration have ended */
+      bEndCalibration = 1; /* exit for loop */
+    }
+    
+    TS_IO_Delay(200); /* Wait 200 ms */
+  }
+
+  /* Calibration sequence end << */
+
+  return(status);
+}

@@ -1,0 +1,60 @@
+HAL_StatusTypeDef HAL_IRDA_Receive_DMA(IRDA_HandleTypeDef *hirda, uint8_t *pData, uint16_t Size)
+{
+  uint32_t *tmp;
+
+  /* Check that a Rx process is not already ongoing */
+  if (hirda->RxState == HAL_IRDA_STATE_READY)
+  {
+    if ((pData == NULL) || (Size == 0U))
+    {
+      return HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hirda);
+
+    hirda->pRxBuffPtr = pData;
+    hirda->RxXferSize = Size;
+
+    hirda->ErrorCode = HAL_IRDA_ERROR_NONE;
+    hirda->RxState = HAL_IRDA_STATE_BUSY_RX;
+
+    /* Set the IRDA DMA transfer complete callback */
+    hirda->hdmarx->XferCpltCallback = IRDA_DMAReceiveCplt;
+
+    /* Set the IRDA DMA half transfer complete callback */
+    hirda->hdmarx->XferHalfCpltCallback = IRDA_DMAReceiveHalfCplt;
+
+    /* Set the DMA error callback */
+    hirda->hdmarx->XferErrorCallback = IRDA_DMAError;
+
+    /* Set the DMA abort callback */
+    hirda->hdmarx->XferAbortCallback = NULL;
+
+    /* Enable the DMA stream */
+    tmp = (uint32_t *)&pData;
+    HAL_DMA_Start_IT(hirda->hdmarx, (uint32_t)&hirda->Instance->DR, *(uint32_t *)tmp, Size);
+
+    /* Clear the Overrun flag just before enabling the DMA Rx request: can be mandatory for the second transfer */
+    __HAL_IRDA_CLEAR_OREFLAG(hirda);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hirda);
+
+    /* Enable the IRDA Parity Error Interrupt */
+    SET_BIT(hirda->Instance->CR1, USART_CR1_PEIE);
+
+    /* Enable the IRDA Error Interrupt: (Frame error, Noise error, Overrun error) */
+    SET_BIT(hirda->Instance->CR3, USART_CR3_EIE);
+
+    /* Enable the DMA transfer for the receiver request by setting the DMAR bit
+    in the USART CR3 register */
+    SET_BIT(hirda->Instance->CR3, USART_CR3_DMAR);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

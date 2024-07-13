@@ -1,0 +1,23 @@
+static int demo_rcv_msg(const uint8_t *msg, int32_t len)
+{
+    cJSON *parse_msg = NULL;
+    int ret = ATINY_ERR;
+    if ((msg == NULL) || (len <= 0)) {
+        ATINY_LOG(LOG_ERR, "invalid param len %ld", len);
+        return ATINY_ERR;
+    }
+
+    ATINY_LOG(LOG_INFO, "recv msg %s", msg);
+    parse_msg = cJSON_Parse((const char *)msg);
+    if (parse_msg != NULL) {
+        ret = handle_rcv_msg(parse_msg);
+    } else {
+        ATINY_LOG(LOG_ERR, "cJSON_Parse fail");
+    }
+
+    if (parse_msg != NULL) {
+        cJSON_Delete(parse_msg);
+    }
+
+    return ret;
+}

@@ -1,0 +1,25 @@
+OsSlabAllocator *OsSlabAllocatorNew(VOID *pool, UINT32 itemSz, UINT32 itemAlign, UINT32 numItems)
+{
+    OsSlabAllocator *allocator = NULL;
+    UINT32 bitSetSz;
+    UINT32 dataSz;
+    UINT32 itemSize;
+
+    /* calculate size */
+    bitSetSz = ATOMIC_BITSET_SZ(numItems);
+
+    bitSetSz = (bitSetSz + itemAlign - 1) & (~(itemAlign - 1));
+    itemSize = (itemSz + itemAlign - 1) & (~(itemAlign - 1));
+    dataSz = itemSize * numItems;
+
+    allocator = (OsSlabAllocator*)OsMemAlloc(pool, sizeof(OsSlabAllocator) + bitSetSz + dataSz);
+    if (allocator != NULL) {
+        allocator->itemSz = itemSize;
+
+        allocator->bitset = (struct AtomicBitset *)(VOID *)((UINT8*)allocator + sizeof(OsSlabAllocator));
+        allocator->dataChunks = ((UINT8*)allocator->bitset) + bitSetSz;
+        OsAtomicBitsetInit(allocator->bitset, numItems);
+    }
+
+    return allocator;
+}

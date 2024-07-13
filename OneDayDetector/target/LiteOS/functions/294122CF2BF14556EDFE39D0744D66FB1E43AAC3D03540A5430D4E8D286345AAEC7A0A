@@ -1,0 +1,79 @@
+snmp_process_set_request(struct snmp_request *request)
+{
+  snmp_vb_enumerator_err_t err;
+  struct snmp_varbind vb;
+  vb.value = request->value_buffer;
+
+  LWIP_DEBUGF(SNMP_DEBUG, ("SNMP set request\n"));
+
+  /* perform set test on all objects */
+  while (request->error_status == SNMP_ERR_NOERROR) {
+    err = snmp_vb_enumerator_get_next(&request->inbound_varbind_enumerator, &vb);
+    if (err == SNMP_VB_ENUMERATOR_ERR_OK) {
+      struct snmp_node_instance node_instance;
+      memset(&node_instance, 0, sizeof(node_instance));
+
+      request->error_status = snmp_get_node_instance_from_oid(vb.oid.id, vb.oid.len, &node_instance);
+      if (request->error_status == SNMP_ERR_NOERROR) {
+        if (node_instance.asn1_type != vb.type) {
+          request->error_status = SNMP_ERR_WRONGTYPE;
+        } else if (((node_instance.access & SNMP_NODE_INSTANCE_ACCESS_WRITE) != SNMP_NODE_INSTANCE_ACCESS_WRITE) || (node_instance.set_value == NULL)) {
+          request->error_status = SNMP_ERR_NOTWRITABLE;
+        } else {
+          if (node_instance.set_test != NULL) {
+            request->error_status = node_instance.set_test(&node_instance, vb.value_len, vb.value);
+          }
+        }
+
+        if (node_instance.release_instance != NULL) {
+          node_instance.release_instance(&node_instance);
+        }
+      }
+    } else if (err == SNMP_VB_ENUMERATOR_ERR_EOVB) {
+      /* no more varbinds in request */
+      break;
+    } else if (err == SNMP_VB_ENUMERATOR_ERR_INVALIDLENGTH) {
+      request->error_status = SNMP_ERR_WRONGLENGTH;
+    } else if (err == SNMP_VB_ENUMERATOR_ERR_ASN1ERROR) {
+      /* malformed ASN.1, don't answer */
+      return ERR_ARG;
+    } else {
+      request->error_status = SNMP_ERR_GENERROR;
+    }
+  }
+
+  /* perform real set operation on all objects */
+  if (request->error_status == SNMP_ERR_NOERROR) {
+    snmp_vb_enumerator_init(&request->inbound_varbind_enumerator, request->inbound_pbuf, request->inbound_varbind_offset, request->inbound_varbind_len);
+    while (request->error_status == SNMP_ERR_NOERROR) {
+      err = snmp_vb_enumerator_get_next(&request->inbound_varbind_enumerator, &vb);
+      if (err == SNMP_VB_ENUMERATOR_ERR_OK) {
+        struct snmp_node_instance node_instance;
+        memset(&node_instance, 0, sizeof(node_instance));
+        request->error_status = snmp_get_node_instance_from_oid(vb.oid.id, vb.oid.len, &node_instance);
+        if (request->error_status == SNMP_ERR_NOERROR) {
+          if (node_instance.set_value(&node_instance, vb.value_len, vb.value) != SNMP_ERR_NOERROR) {
+            if (request->inbound_varbind_enumerator.varbind_count == 1) {
+              request->error_status = SNMP_ERR_COMMITFAILED;
+            } else {
+              /* we cannot undo the set operations done so far */
+              request->error_status = SNMP_ERR_UNDOFAILED;
+            }
+          }
+
+          if (node_instance.release_instance != NULL) {
+            node_instance.release_instance(&node_instance);
+          }
+        }
+      } else if (err == SNMP_VB_ENUMERATOR_ERR_EOVB) {
+        /* no more varbinds in request */
+        break;
+      } else {
+        /* first time enumerating varbinds work but second time not, although nothing should have changed in between ??? */
+        request->error_status = SNMP_ERR_GENERROR;
+      }
+    }
+  }
+
+  return ERR_OK;
+}

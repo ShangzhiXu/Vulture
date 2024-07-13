@@ -1,0 +1,20 @@
+static HAL_StatusTypeDef RTC_EnterInitMode(RTC_HandleTypeDef* hrtc)
+{
+  uint32_t tickstart = 0;
+  
+  tickstart = HAL_GetTick();
+  /* Wait till RTC is in INIT state and if Time out is reached exit */
+  while((hrtc->Instance->CRL & RTC_CRL_RTOFF) == (uint32_t)RESET)
+  {
+    if((HAL_GetTick() - tickstart) >  RTC_TIMEOUT_VALUE)
+    {       
+      return HAL_TIMEOUT;
+    } 
+  }
+
+  /* Disable the write protection for RTC registers */
+  __HAL_RTC_WRITEPROTECTION_DISABLE(hrtc);
+  
+  
+  return HAL_OK;  
+}

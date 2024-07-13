@@ -1,0 +1,40 @@
+HAL_StatusTypeDef HAL_TIM_Encoder_Stop_IT(TIM_HandleTypeDef *htim, uint32_t Channel)
+{
+  /* Check the parameters */
+  assert_param(IS_TIM_CC2_INSTANCE(htim->Instance));
+
+  /* Disable the Input Capture channels 1 and 2
+    (in the EncoderInterface the two possible channels that can be used are TIM_CHANNEL_1 and TIM_CHANNEL_2) */
+  if (Channel == TIM_CHANNEL_1)
+  {
+    TIM_CCxChannelCmd(htim->Instance, TIM_CHANNEL_1, TIM_CCx_DISABLE);
+
+    /* Disable the capture compare Interrupts 1 */
+    __HAL_TIM_DISABLE_IT(htim, TIM_IT_CC1);
+  }
+  else if (Channel == TIM_CHANNEL_2)
+  {
+    TIM_CCxChannelCmd(htim->Instance, TIM_CHANNEL_2, TIM_CCx_DISABLE);
+
+    /* Disable the capture compare Interrupts 2 */
+    __HAL_TIM_DISABLE_IT(htim, TIM_IT_CC2);
+  }
+  else
+  {
+    TIM_CCxChannelCmd(htim->Instance, TIM_CHANNEL_1, TIM_CCx_DISABLE);
+    TIM_CCxChannelCmd(htim->Instance, TIM_CHANNEL_2, TIM_CCx_DISABLE);
+
+    /* Disable the capture compare Interrupts 1 and 2 */
+    __HAL_TIM_DISABLE_IT(htim, TIM_IT_CC1);
+    __HAL_TIM_DISABLE_IT(htim, TIM_IT_CC2);
+  }
+
+  /* Disable the Peripheral */
+  __HAL_TIM_DISABLE(htim);
+
+  /* Change the htim state */
+  htim->State = HAL_TIM_STATE_READY;
+
+  /* Return function status */
+  return HAL_OK;
+}

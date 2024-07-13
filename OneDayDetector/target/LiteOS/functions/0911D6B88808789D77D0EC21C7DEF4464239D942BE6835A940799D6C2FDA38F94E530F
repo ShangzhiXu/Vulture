@@ -1,0 +1,40 @@
+get_http_content_length(struct http_state *hs)
+{
+  u8_t add_content_len = 0;
+
+  LWIP_ASSERT("already been here?", hs->hdrs[HDR_STRINGS_IDX_CONTENT_LEN_KEEPALIVE] == NULL);
+
+  add_content_len = 0;
+#if LWIP_HTTPD_SSI
+  if (hs->ssi == NULL) /* @todo: get maximum file length from SSI */
+#endif /* LWIP_HTTPD_SSI */
+  {
+    if ((hs->handle != NULL) && (hs->handle->flags & FS_FILE_FLAGS_HEADER_PERSISTENT)) {
+      add_content_len = 1;
+    }
+  }
+  if (add_content_len) {
+    size_t len;
+    lwip_itoa(hs->hdr_content_len, (size_t)LWIP_HTTPD_MAX_CONTENT_LEN_SIZE,
+              hs->handle->len);
+    len = strlen(hs->hdr_content_len);
+    if (len <= LWIP_HTTPD_MAX_CONTENT_LEN_SIZE - LWIP_HTTPD_MAX_CONTENT_LEN_OFFSET) {
+      SMEMCPY(&hs->hdr_content_len[len], CRLF, 3);
+      hs->hdrs[HDR_STRINGS_IDX_CONTENT_LEN_NR] = hs->hdr_content_len;
+    } else {
+      add_content_len = 0;
+    }
+  }
+#if LWIP_HTTPD_SUPPORT_11_KEEPALIVE
+  if (add_content_len) {
+    hs->hdrs[HDR_STRINGS_IDX_CONTENT_LEN_KEEPALIVE] = g_psHTTPHeaderStrings[HTTP_HDR_KEEPALIVE_LEN];
+  } else {
+    hs->hdrs[HDR_STRINGS_IDX_CONTENT_LEN_KEEPALIVE] = g_psHTTPHeaderStrings[HTTP_HDR_CONN_CLOSE];
+    hs->keepalive = 0;
+  }
+#else /* LWIP_HTTPD_SUPPORT_11_KEEPALIVE */
+  if (add_content_len) {
+    hs->hdrs[HDR_STRINGS_IDX_CONTENT_LEN_KEEPALIVE] = g_psHTTPHeaderStrings[HTTP_HDR_CONTENT_LENGTH];
+  }
+#endif /* LWIP_HTTPD_SUPPORT_11_KEEPALIVE */
+}

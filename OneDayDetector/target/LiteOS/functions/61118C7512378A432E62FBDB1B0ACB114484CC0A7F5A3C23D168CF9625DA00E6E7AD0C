@@ -1,0 +1,60 @@
+HAL_StatusTypeDef HAL_SD_Init(SD_HandleTypeDef *hsd)
+{
+  /* Check the SD handle allocation */
+  if(hsd == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_SDIO_ALL_INSTANCE(hsd->Instance));
+  assert_param(IS_SDIO_CLOCK_EDGE(hsd->Init.ClockEdge));
+  assert_param(IS_SDIO_CLOCK_BYPASS(hsd->Init.ClockBypass));
+  assert_param(IS_SDIO_CLOCK_POWER_SAVE(hsd->Init.ClockPowerSave));
+  assert_param(IS_SDIO_BUS_WIDE(hsd->Init.BusWide));
+  assert_param(IS_SDIO_HARDWARE_FLOW_CONTROL(hsd->Init.HardwareFlowControl));
+  assert_param(IS_SDIO_CLKDIV(hsd->Init.ClockDiv));
+
+  if(hsd->State == HAL_SD_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hsd->Lock = HAL_UNLOCKED;
+#if defined (USE_HAL_SD_REGISTER_CALLBACKS) && (USE_HAL_SD_REGISTER_CALLBACKS == 1U)
+    /* Reset Callback pointers in HAL_SD_STATE_RESET only */
+    hsd->TxCpltCallback    = HAL_SD_TxCpltCallback;
+    hsd->RxCpltCallback    = HAL_SD_RxCpltCallback;
+    hsd->ErrorCallback     = HAL_SD_ErrorCallback;
+    hsd->AbortCpltCallback = HAL_SD_AbortCallback;
+
+    if(hsd->MspInitCallback == NULL)
+    {
+      hsd->MspInitCallback = HAL_SD_MspInit;
+    }
+
+    /* Init the low level hardware */
+    hsd->MspInitCallback(hsd);
+#else
+    /* Init the low level hardware : GPIO, CLOCK, CORTEX...etc */
+    HAL_SD_MspInit(hsd);
+#endif /* USE_HAL_SD_REGISTER_CALLBACKS */
+  }
+
+  hsd->State = HAL_SD_STATE_BUSY;
+
+  /* Initialize the Card parameters */
+  if (HAL_SD_InitCard(hsd) != HAL_OK)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Initialize the error code */
+  hsd->ErrorCode = HAL_SD_ERROR_NONE;
+
+  /* Initialize the SD operation */
+  hsd->Context = SD_CONTEXT_NONE;
+
+  /* Initialize the SD state */
+  hsd->State = HAL_SD_STATE_READY;
+
+  return HAL_OK;
+}

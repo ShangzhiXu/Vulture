@@ -1,0 +1,30 @@
+sockets_stresstest_init_client(const char *remote_ip, u16_t remote_port)
+{
+#if LWIP_IPV4
+  ip4_addr_t ip4;
+#endif
+#if LWIP_IPV6
+  ip6_addr_t ip6;
+#endif
+  struct sockaddr_storage *addr = (struct sockaddr_storage *)mem_malloc(sizeof(struct sockaddr_storage));
+
+  LWIP_ASSERT("OOM", addr != NULL);
+  memset(addr, 0, sizeof(struct test_settings));
+#if LWIP_IPV4
+  if (ip4addr_aton(remote_ip, &ip4)) {
+    addr->ss_family = AF_INET;
+    ((struct sockaddr_in *)addr)->sin_addr.s_addr = ip4_addr_get_u32(&ip4);
+  }
+#endif
+#if LWIP_IPV4 && LWIP_IPV6
+  else
+#endif
+#if LWIP_IPV6
+  if (ip6addr_aton(remote_ip, &ip6)) {
+    addr->ss_family = AF_INET6;
+    /* todo: copy ipv6 address */
+  }
+#endif
+  ((struct sockaddr_in *)addr)->sin_port = remote_port;
+  sockets_stresstest_start_clients(addr);
+}

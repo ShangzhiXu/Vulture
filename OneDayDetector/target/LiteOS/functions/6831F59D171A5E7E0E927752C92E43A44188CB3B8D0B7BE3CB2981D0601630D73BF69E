@@ -1,0 +1,112 @@
+static void I2C_ITError(I2C_HandleTypeDef *hi2c, uint32_t ErrorCode)
+{
+  HAL_I2C_StateTypeDef tmpstate = hi2c->State;
+
+  /* Reset handle parameters */
+  hi2c->Mode          = HAL_I2C_MODE_NONE;
+  hi2c->XferOptions   = I2C_NO_OPTION_FRAME;
+  hi2c->XferCount     = 0U;
+
+  /* Set new error code */
+  hi2c->ErrorCode |= ErrorCode;
+
+  /* Disable Interrupts */
+  if ((tmpstate == HAL_I2C_STATE_LISTEN)         ||
+      (tmpstate == HAL_I2C_STATE_BUSY_TX_LISTEN) ||
+      (tmpstate == HAL_I2C_STATE_BUSY_RX_LISTEN))
+  {
+    /* Disable all interrupts, except interrupts related to LISTEN state */
+    I2C_Disable_IRQ(hi2c, I2C_XFER_RX_IT | I2C_XFER_TX_IT);
+
+    /* keep HAL_I2C_STATE_LISTEN if set */
+    hi2c->State         = HAL_I2C_STATE_LISTEN;
+    hi2c->PreviousState = I2C_STATE_NONE;
+    hi2c->XferISR       = I2C_Slave_ISR_IT;
+  }
+  else
+  {
+    /* Disable all interrupts */
+    I2C_Disable_IRQ(hi2c, I2C_XFER_LISTEN_IT | I2C_XFER_RX_IT | I2C_XFER_TX_IT);
+
+    /* If state is an abort treatment on goind, don't change state */
+    /* This change will be do later */
+    if (hi2c->State != HAL_I2C_STATE_ABORT)
+    {
+      /* Set HAL_I2C_STATE_READY */
+      hi2c->State         = HAL_I2C_STATE_READY;
+    }
+    hi2c->PreviousState = I2C_STATE_NONE;
+    hi2c->XferISR       = NULL;
+  }
+
+  /* Abort DMA TX transfer if any */
+  if ((hi2c->Instance->CR1 & I2C_CR1_TXDMAEN) == I2C_CR1_TXDMAEN)
+  {
+    hi2c->Instance->CR1 &= ~I2C_CR1_TXDMAEN;
+
+    if (hi2c->hdmatx != NULL)
+    {
+      /* Set the I2C DMA Abort callback :
+       will lead to call HAL_I2C_ErrorCallback() at end of DMA abort procedure */
+      hi2c->hdmatx->XferAbortCallback = I2C_DMAAbort;
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hi2c);
+
+      /* Abort DMA TX */
+      if (HAL_DMA_Abort_IT(hi2c->hdmatx) != HAL_OK)
+      {
+        /* Call Directly XferAbortCallback function in case of error */
+        hi2c->hdmatx->XferAbortCallback(hi2c->hdmatx);
+      }
+    }
+  }
+  /* Abort DMA RX transfer if any */
+  else if ((hi2c->Instance->CR1 & I2C_CR1_RXDMAEN) == I2C_CR1_RXDMAEN)
+  {
+    hi2c->Instance->CR1 &= ~I2C_CR1_RXDMAEN;
+
+    if (hi2c->hdmarx != NULL)
+    {
+      /* Set the I2C DMA Abort callback :
+        will lead to call HAL_I2C_ErrorCallback() at end of DMA abort procedure */
+      hi2c->hdmarx->XferAbortCallback = I2C_DMAAbort;
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hi2c);
+
+      /* Abort DMA RX */
+      if (HAL_DMA_Abort_IT(hi2c->hdmarx) != HAL_OK)
+      {
+        /* Call Directly hi2c->hdmarx->XferAbortCallback function in case of error */
+        hi2c->hdmarx->XferAbortCallback(hi2c->hdmarx);
+      }
+    }
+  }
+  else if (hi2c->State == HAL_I2C_STATE_ABORT)
+  {
+    hi2c->State = HAL_I2C_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2c);
+
+    /* Call the corresponding callback to inform upper layer of End of Transfer */
+#if (USE_HAL_I2C_REGISTER_CALLBACKS == 1)
+    hi2c->AbortCpltCallback(hi2c);
+#else
+    HAL_I2C_AbortCpltCallback(hi2c);
+#endif /* USE_HAL_I2C_REGISTER_CALLBACKS */
+  }
+  else
+  {
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2c);
+
+    /* Call the corresponding callback to inform upper layer of End of Transfer */
+#if (USE_HAL_I2C_REGISTER_CALLBACKS == 1)
+    hi2c->ErrorCallback(hi2c);
+#else
+    HAL_I2C_ErrorCallback(hi2c);
+#endif /* USE_HAL_I2C_REGISTER_CALLBACKS */
+  }
+}

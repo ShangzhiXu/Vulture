@@ -1,0 +1,27 @@
+static s32_t spiffs_obj_lu_find_id_and_span_v(
+    spiffs *fs,
+    spiffs_obj_id obj_id,
+    spiffs_block_ix bix,
+    int ix_entry,
+    const void *user_const_p,
+    void *user_var_p)
+{
+    s32_t res;
+    spiffs_page_header ph;
+    spiffs_page_ix pix = SPIFFS_OBJ_LOOKUP_ENTRY_TO_PIX(fs, bix, ix_entry);
+    res = _spiffs_rd(fs, 0, SPIFFS_OP_T_OBJ_LU2 | SPIFFS_OP_C_READ,
+                     SPIFFS_PAGE_TO_PADDR(fs, pix), sizeof(spiffs_page_header), (u8_t *)&ph);
+    SPIFFS_CHECK_RES(res);
+    if (ph.obj_id == obj_id &&
+            ph.span_ix == *((spiffs_span_ix *)user_var_p) &&
+            (ph.flags & (SPIFFS_PH_FLAG_FINAL | SPIFFS_PH_FLAG_DELET | SPIFFS_PH_FLAG_USED)) == SPIFFS_PH_FLAG_DELET &&
+            !((obj_id & SPIFFS_OBJ_ID_IX_FLAG) && (ph.flags & SPIFFS_PH_FLAG_IXDELE) == 0 && ph.span_ix == 0) &&
+            (user_const_p == 0 || *((const spiffs_page_ix *)user_const_p) != pix))
+    {
+        return SPIFFS_OK;
+    }
+    else
+    {
+        return SPIFFS_VIS_COUNTINUE;
+    }
+}

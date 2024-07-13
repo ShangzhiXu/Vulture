@@ -1,0 +1,81 @@
+HAL_StatusTypeDef HAL_QSPI_Command(QSPI_HandleTypeDef *hqspi, QSPI_CommandTypeDef *cmd, uint32_t Timeout)
+{
+  HAL_StatusTypeDef status;
+  uint32_t tickstart = HAL_GetTick();
+
+  /* Check the parameters */
+  assert_param(IS_QSPI_INSTRUCTION_MODE(cmd->InstructionMode));
+  if (cmd->InstructionMode != QSPI_INSTRUCTION_NONE)
+  {
+    assert_param(IS_QSPI_INSTRUCTION(cmd->Instruction));
+  }
+
+  assert_param(IS_QSPI_ADDRESS_MODE(cmd->AddressMode));
+  if (cmd->AddressMode != QSPI_ADDRESS_NONE)
+  {
+    assert_param(IS_QSPI_ADDRESS_SIZE(cmd->AddressSize));
+  }
+
+  assert_param(IS_QSPI_ALTERNATE_BYTES_MODE(cmd->AlternateByteMode));
+  if (cmd->AlternateByteMode != QSPI_ALTERNATE_BYTES_NONE)
+  {
+    assert_param(IS_QSPI_ALTERNATE_BYTES_SIZE(cmd->AlternateBytesSize));
+  }
+
+  assert_param(IS_QSPI_DUMMY_CYCLES(cmd->DummyCycles));
+  assert_param(IS_QSPI_DATA_MODE(cmd->DataMode));
+
+  assert_param(IS_QSPI_DDR_MODE(cmd->DdrMode));
+  assert_param(IS_QSPI_DDR_HHC(cmd->DdrHoldHalfCycle));
+  assert_param(IS_QSPI_SIOO_MODE(cmd->SIOOMode));
+
+  /* Process locked */
+  __HAL_LOCK(hqspi);
+
+  if(hqspi->State == HAL_QSPI_STATE_READY)
+  {
+    hqspi->ErrorCode = HAL_QSPI_ERROR_NONE;
+
+    /* Update QSPI state */
+    hqspi->State = HAL_QSPI_STATE_BUSY;
+
+    /* Wait till BUSY flag reset */
+    status = QSPI_WaitFlagStateUntilTimeout(hqspi, QSPI_FLAG_BUSY, RESET, tickstart, Timeout);
+
+    if (status == HAL_OK)
+    {
+      /* Call the configuration function */
+      QSPI_Config(hqspi, cmd, QSPI_FUNCTIONAL_MODE_INDIRECT_WRITE);
+
+      if (cmd->DataMode == QSPI_DATA_NONE)
+      {
+        /* When there is no data phase, the transfer start as soon as the configuration is done
+        so wait until TC flag is set to go back in idle state */
+        status = QSPI_WaitFlagStateUntilTimeout(hqspi, QSPI_FLAG_TC, SET, tickstart, Timeout);
+
+        if (status == HAL_OK)
+        {
+          __HAL_QSPI_CLEAR_FLAG(hqspi, QSPI_FLAG_TC);
+
+          /* Update QSPI state */
+          hqspi->State = HAL_QSPI_STATE_READY;
+        }
+      }
+      else
+      {
+        /* Update QSPI state */
+        hqspi->State = HAL_QSPI_STATE_READY;
+      }
+    }
+  }
+  else
+  {
+    status = HAL_BUSY;
+  }
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hqspi);
+
+  /* Return function status */
+  return status;
+}

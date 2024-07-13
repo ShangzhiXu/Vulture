@@ -1,0 +1,40 @@
+int mbedtls_entropy_source_self_test( int verbose )
+{
+    int ret = 0;
+    unsigned char buf0[2 * sizeof( unsigned long long int )];
+    unsigned char buf1[2 * sizeof( unsigned long long int )];
+
+    if( verbose != 0 )
+        mbedtls_printf( "  ENTROPY_BIAS test: " );
+
+    memset( buf0, 0x00, sizeof( buf0 ) );
+    memset( buf1, 0x00, sizeof( buf1 ) );
+
+    if( ( ret = mbedtls_entropy_source_self_test_gather( buf0, sizeof( buf0 ) ) ) != 0 )
+        goto cleanup;
+    if( ( ret = mbedtls_entropy_source_self_test_gather( buf1, sizeof( buf1 ) ) ) != 0 )
+        goto cleanup;
+
+    /* Make sure that the returned values are not all 0 or 1 */
+    if( ( ret = mbedtls_entropy_source_self_test_check_bits( buf0, sizeof( buf0 ) ) ) != 0 )
+        goto cleanup;
+    if( ( ret = mbedtls_entropy_source_self_test_check_bits( buf1, sizeof( buf1 ) ) ) != 0 )
+        goto cleanup;
+
+    /* Make sure that the entropy source is not returning values in a
+     * pattern */
+    ret = memcmp( buf0, buf1, sizeof( buf0 ) ) == 0;
+
+cleanup:
+    if( verbose != 0 )
+    {
+        if( ret != 0 )
+            mbedtls_printf( "failed\n" );
+        else
+            mbedtls_printf( "passed\n" );
+
+        mbedtls_printf( "\n" );
+    }
+
+    return( ret != 0 );
+}

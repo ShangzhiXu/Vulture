@@ -1,0 +1,29 @@
+netif_init(void)
+{
+#if LWIP_HAVE_LOOPIF
+#if LWIP_IPV4
+#define LOOPIF_ADDRINIT &loop_ipaddr, &loop_netmask, &loop_gw,
+  ip4_addr_t loop_ipaddr, loop_netmask, loop_gw;
+  IP4_ADDR(&loop_gw, 127, 0, 0, 1);
+  IP4_ADDR(&loop_ipaddr, 127, 0, 0, 1);
+  IP4_ADDR(&loop_netmask, 255, 0, 0, 0);
+#else /* LWIP_IPV4 */
+#define LOOPIF_ADDRINIT
+#endif /* LWIP_IPV4 */
+
+#if NO_SYS
+  netif_add(&loop_netif, LOOPIF_ADDRINIT NULL, netif_loopif_init, ip_input);
+#else  /* NO_SYS */
+  netif_add(&loop_netif, LOOPIF_ADDRINIT NULL, netif_loopif_init, tcpip_input);
+#endif /* NO_SYS */
+
+#if LWIP_IPV6
+  IP_ADDR6_HOST(loop_netif.ip6_addr, 0, 0, 0, 0x00000001UL);
+  loop_netif.ip6_addr_state[0] = IP6_ADDR_VALID;
+#endif /* LWIP_IPV6 */
+
+  netif_set_link_up(&loop_netif);
+  netif_set_up(&loop_netif);
+
+#endif /* LWIP_HAVE_LOOPIF */
+}

@@ -1,0 +1,59 @@
+HAL_StatusTypeDef HAL_CAN_Receive_IT(CAN_HandleTypeDef* hcan, uint8_t FIFONumber)
+{
+  /* Check the parameters */
+  assert_param(IS_CAN_FIFO(FIFONumber));
+  
+  if((hcan->State == HAL_CAN_STATE_READY) || (hcan->State == HAL_CAN_STATE_BUSY_TX))
+  {
+    /* Process locked */
+    __HAL_LOCK(hcan);
+  
+    if(hcan->State == HAL_CAN_STATE_BUSY_TX) 
+    {
+      /* Change CAN state */
+      hcan->State = HAL_CAN_STATE_BUSY_TX_RX;
+    }
+    else
+    {
+      /* Change CAN state */
+      hcan->State = HAL_CAN_STATE_BUSY_RX;
+    }
+    
+    /* Set CAN error code to none */
+    hcan->ErrorCode = HAL_CAN_ERROR_NONE;
+    
+    /* Enable interrupts: */
+    /*  - Enable Error warning Interrupt */
+    /*  - Enable Error passive Interrupt */
+    /*  - Enable Bus-off Interrupt */
+    /*  - Enable Last error code Interrupt */
+    /*  - Enable Error Interrupt */
+    __HAL_CAN_ENABLE_IT(hcan, CAN_IT_EWG |
+                              CAN_IT_EPV |
+                              CAN_IT_BOF |
+                              CAN_IT_LEC |
+                              CAN_IT_ERR );
+
+    /* Process unlocked */
+    __HAL_UNLOCK(hcan);
+
+    if(FIFONumber == CAN_FIFO0)
+    {
+      /* Enable FIFO 0 overrun and message pending Interrupt */
+      __HAL_CAN_ENABLE_IT(hcan, CAN_IT_FOV0 | CAN_IT_FMP0);
+    }
+    else
+    {
+      /* Enable FIFO 1 overrun and message pending Interrupt */
+      __HAL_CAN_ENABLE_IT(hcan, CAN_IT_FOV1 | CAN_IT_FMP1);
+    }
+    
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+  
+  /* Return function status */
+  return HAL_OK;
+}

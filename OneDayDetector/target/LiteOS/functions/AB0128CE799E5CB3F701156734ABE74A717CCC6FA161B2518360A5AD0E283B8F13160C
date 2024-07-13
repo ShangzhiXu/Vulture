@@ -1,0 +1,37 @@
+STATIC VOID OsWriteTailToEnd(const CHAR *dst, UINT32 logLen)
+{
+    UINT32 writeLen;
+    UINT32 bufSize = g_logBufSize;
+    UINT32 tail = g_dmesgInfo->logTail;
+    CHAR *buf = g_dmesgInfo->logBuf;
+    errno_t ret;
+
+    if ((logLen == 0) || (dst == NULL)) {
+        return;
+    }
+    if (logLen >= (bufSize - tail)) { /* need cycle to start ,then became B */
+        writeLen = bufSize - tail;
+        ret = memcpy_s(buf + tail, writeLen, dst, writeLen);
+        if (ret != EOK) {
+            PRINT_ERR("%s,%d memcpy_s failed, err:%d!\n", __FUNCTION__, __LINE__, ret);
+            return;
+        }
+
+        g_dmesgInfo->logSize += writeLen;
+        g_dmesgInfo->logTail = 0;
+        if (g_dmesgInfo->logSize == g_logBufSize) { /* Tail = Head is 0 */
+            OsBufFullWrite(dst + writeLen, logLen - writeLen);
+        } else {
+            OsWriteTailToHead(dst + writeLen, logLen - writeLen);
+        }
+    } else { /* just do serial copy */
+        ret = memcpy_s(buf + tail, bufSize - tail, dst, logLen);
+        if (ret != EOK) {
+            PRINT_ERR("%s,%d memcpy_s failed, err:%d!\n", __FUNCTION__, __LINE__, ret);
+            return;
+        }
+
+        g_dmesgInfo->logTail += logLen;
+        g_dmesgInfo->logSize += logLen;
+    }
+}

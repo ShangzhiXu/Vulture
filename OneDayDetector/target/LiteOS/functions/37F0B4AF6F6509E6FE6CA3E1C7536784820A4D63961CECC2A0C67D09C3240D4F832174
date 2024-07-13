@@ -1,0 +1,26 @@
+int mbedtls_cipher_setup( mbedtls_cipher_context_t *ctx, const mbedtls_cipher_info_t *cipher_info )
+{
+    CIPHER_VALIDATE_RET( ctx != NULL );
+    if( cipher_info == NULL )
+        return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+
+    memset( ctx, 0, sizeof( mbedtls_cipher_context_t ) );
+
+    if( NULL == ( ctx->cipher_ctx = cipher_info->base->ctx_alloc_func() ) )
+        return( MBEDTLS_ERR_CIPHER_ALLOC_FAILED );
+
+    ctx->cipher_info = cipher_info;
+
+#if defined(MBEDTLS_CIPHER_MODE_WITH_PADDING)
+    /*
+     * Ignore possible errors caused by a cipher mode that doesn't use padding
+     */
+#if defined(MBEDTLS_CIPHER_PADDING_PKCS7)
+    (void) mbedtls_cipher_set_padding_mode( ctx, MBEDTLS_PADDING_PKCS7 );
+#else
+    (void) mbedtls_cipher_set_padding_mode( ctx, MBEDTLS_PADDING_NONE );
+#endif
+#endif /* MBEDTLS_CIPHER_MODE_WITH_PADDING */
+
+    return( 0 );
+}

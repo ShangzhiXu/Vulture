@@ -1,0 +1,56 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 OsShellCmdTskInfoGet(UINT32 taskId)
+{
+    BOOL backupFlag = TRUE;
+    BOOL lockFlag = FALSE;
+    UINT32 size, intSave;
+    LosTaskCB *tcbArray = NULL;
+    INT32 ret;
+
+    if (taskId == OS_ALL_TASK_MASK) {
+        size = g_taskMaxNum * sizeof(LosTaskCB);
+        tcbArray = (LosTaskCB *)LOS_MemAlloc(m_aucSysMem1, size);
+        if (tcbArray == NULL) {
+            PRINTK("Memory is not enough to save task info!\n");
+            tcbArray = g_taskCBArray;
+            backupFlag = FALSE;
+        }
+#ifdef LOSCFG_KERNEL_CPUP
+        (VOID)memset_s((VOID *)g_taskCpupAll, sizeof(g_taskCpupAll), 0, sizeof(g_taskCpupAll));
+        (VOID)memset_s((VOID *)g_taskCpup10s, sizeof(g_taskCpup10s), 0, sizeof(g_taskCpup10s));
+        (VOID)memset_s((VOID *)g_taskCpup1s, sizeof(g_taskCpup1s), 0, sizeof(g_taskCpup1s));
+#endif
+        (VOID)memset_s((VOID *)g_taskWaterLine, sizeof(g_taskWaterLine), 0, sizeof(g_taskWaterLine));
+
+        if (LOS_SpinHeld(&g_taskSpin) == FALSE) {
+            SCHEDULER_LOCK(intSave);
+            lockFlag = TRUE;
+        }
+        if (backupFlag == TRUE) {
+            ret = memcpy_s(tcbArray, size, g_taskCBArray, size);
+            if (ret != EOK) {
+                return LOS_NOK;
+            }
+        }
+#ifdef LOSCFG_KERNEL_CPUP
+        (VOID)LOS_AllCpuUsage(LOSCFG_BASE_CORE_TSK_LIMIT, g_taskCpupAll, CPUP_ALL_TIME, 1);
+        (VOID)LOS_AllCpuUsage(LOSCFG_BASE_CORE_TSK_LIMIT, g_taskCpup10s, CPUP_LAST_TEN_SECONDS, 1);
+        (VOID)LOS_AllCpuUsage(LOSCFG_BASE_CORE_TSK_LIMIT, g_taskCpup1s, CPUP_LAST_ONE_SECONDS, 1);
+#endif
+        OsShellCmdTaskWaterLineGet(tcbArray);
+
+        if (lockFlag == TRUE) {
+            SCHEDULER_UNLOCK(intSave);
+        }
+
+        OsShellCmdTskInfoTitle();
+        OsShellCmdTskInfoData(tcbArray);
+
+        if (backupFlag == TRUE) {
+            (VOID)LOS_MemFree(m_aucSysMem1, tcbArray);
+        }
+    } else {
+        OsTaskBackTrace(taskId);
+    }
+
+    return LOS_OK;
+}

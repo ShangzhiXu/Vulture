@@ -1,0 +1,69 @@
+dhcp6_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port)
+{
+  struct netif *netif = ip_current_input_netif();
+  struct dhcp6 *dhcp6 = netif_dhcp6_data(netif);
+  struct dhcp6_msg *reply_msg = (struct dhcp6_msg *)p->payload;
+  u8_t msg_type;
+  u32_t xid;
+
+  LWIP_UNUSED_ARG(arg);
+
+  /* Caught DHCPv6 message from netif that does not have DHCPv6 enabled? -> not interested */
+  if ((dhcp6 == NULL) || (dhcp6->pcb_allocated == 0)) {
+    goto free_pbuf_and_return;
+  }
+
+  LWIP_ERROR("invalid server address type", IP_IS_V6(addr), goto free_pbuf_and_return;);
+
+  LWIP_DEBUGF(DHCP6_DEBUG | LWIP_DBG_TRACE, ("dhcp6_recv(pbuf = %p) from DHCPv6 server %s port %"U16_F"\n", (void *)p,
+    ipaddr_ntoa(addr), port));
+  LWIP_DEBUGF(DHCP6_DEBUG | LWIP_DBG_TRACE, ("pbuf->len = %"U16_F"\n", p->len));
+  LWIP_DEBUGF(DHCP6_DEBUG | LWIP_DBG_TRACE, ("pbuf->tot_len = %"U16_F"\n", p->tot_len));
+  /* prevent warnings about unused arguments */
+  LWIP_UNUSED_ARG(pcb);
+  LWIP_UNUSED_ARG(addr);
+  LWIP_UNUSED_ARG(port);
+
+  if (p->len < sizeof(struct dhcp6_msg)) {
+    LWIP_DEBUGF(DHCP6_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_LEVEL_WARNING, ("DHCPv6 reply message or pbuf too short\n"));
+    goto free_pbuf_and_return;
+  }
+
+  /* match transaction ID against what we expected */
+  xid = reply_msg->transaction_id[0] << 16;
+  xid |= reply_msg->transaction_id[1] << 8;
+  xid |= reply_msg->transaction_id[2];
+  if (xid != dhcp6->xid) {
+    LWIP_DEBUGF(DHCP6_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_LEVEL_WARNING,
+                ("transaction id mismatch reply_msg->xid(%"X32_F")!= dhcp6->xid(%"X32_F")\n", xid, dhcp6->xid));
+    goto free_pbuf_and_return;
+  }
+  /* option fields could be unfold? */
+  if (dhcp6_parse_reply(p, dhcp6) != ERR_OK) {
+    LWIP_DEBUGF(DHCP6_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_LEVEL_SERIOUS,
+                ("problem unfolding DHCPv6 message - too short on memory?\n"));
+    goto free_pbuf_and_return;
+  }
+
+  /* read DHCP message type */
+  msg_type = reply_msg->msgtype;
+  /* message type is DHCP6 REPLY? */
+  if (msg_type == DHCP6_REPLY) {
+    LWIP_DEBUGF(DHCP6_DEBUG | LWIP_DBG_TRACE, ("DHCP6_REPLY received\n"));
+#if LWIP_IPV6_DHCP6_STATELESS
+    /* in info-requesting state? */
+    if (dhcp6->state == DHCP6_STATE_REQUESTING_CONFIG) {
+      dhcp6_set_state(dhcp6, DHCP6_STATE_STATELESS_IDLE, "dhcp6_recv");
+      dhcp6_handle_config_reply(netif, p);
+    } else
+#endif /* LWIP_IPV6_DHCP6_STATELESS */
+    {
+      /* @todo: handle reply in other states? */
+    }
+  } else {
+    /* @todo: handle other message types */
+  }
+
+free_pbuf_and_return:
+  pbuf_free(p);
+}

@@ -1,0 +1,23 @@
+static uint8_t prv_acc_self_auth_check(acc_ctrl_oi_t *accCtrlOiP, lwm2m_uri_t *uri,
+                                       OBJ_ACC_OPERATE op, uint16_t serverId)
+{
+    acc_ctrl_oi_t *targetP = NULL;
+
+    if (LWM2M_URI_IS_SET_INSTANCE(uri)) {
+        targetP = (acc_ctrl_oi_t *)LWM2M_LIST_FIND(accCtrlOiP, uri->instanceId);
+        if ((targetP != NULL) && (targetP->accCtrlOwner == serverId)) {
+            return COAP_NO_ERROR;
+        } else {
+            return COAP_401_UNAUTHORIZED;
+        }
+    } else {
+        targetP = accCtrlOiP;
+        while (targetP) {
+            if (targetP->accCtrlOwner != serverId) {
+                return COAP_401_UNAUTHORIZED;
+            }
+            targetP = targetP->next;
+        }
+        return COAP_NO_ERROR;
+    }
+}

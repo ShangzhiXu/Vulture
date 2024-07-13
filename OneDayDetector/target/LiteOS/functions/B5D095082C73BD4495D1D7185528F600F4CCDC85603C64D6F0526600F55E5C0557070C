@@ -1,0 +1,16 @@
+err_t ppp_free(ppp_pcb *pcb) {
+  err_t err;
+  LWIP_ASSERT_CORE_LOCKED();
+  if (pcb->phase != PPP_PHASE_DEAD) {
+    return ERR_CONN;
+  }
+
+  PPPDEBUG(LOG_DEBUG, ("ppp_free[%d]\n", pcb->netif->num));
+
+  netif_remove(pcb->netif);
+
+  err = pcb->link_cb->free(pcb, pcb->link_ctx_cb);
+
+  LWIP_MEMPOOL_FREE(PPP_PCB, pcb);
+  return err;
+}

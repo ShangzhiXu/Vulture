@@ -1,0 +1,86 @@
+HAL_StatusTypeDef HAL_DSI_ExitULPM(DSI_HandleTypeDef *hdsi)
+{
+  uint32_t tickstart;
+
+  /* Process locked */
+  __HAL_LOCK(hdsi);
+
+  /* Turn on the DSI PLL */
+  __HAL_DSI_PLL_ENABLE(hdsi);
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  /* Wait for the lock of the PLL */
+  while(__HAL_DSI_GET_FLAG(hdsi, DSI_FLAG_PLLLS) == RESET)
+  {
+    /* Check for the Timeout */
+    if((HAL_GetTick() - tickstart ) > DSI_TIMEOUT_VALUE)
+    {
+      /* Process Unlocked */
+      __HAL_UNLOCK(hdsi);
+
+      return HAL_TIMEOUT;
+    }
+  }
+
+  /* Exit ULPS on Clock and Data Lanes */
+  hdsi->Instance->PUCR |= (DSI_PUCR_UECL | DSI_PUCR_UEDL);
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  /* Wait until all active lanes exit ULPM */
+  if((hdsi->Instance->PCONFR & DSI_PCONFR_NL) == DSI_ONE_DATA_LANE)
+  {
+    while((hdsi->Instance->PSR & (DSI_PSR_UAN0 | DSI_PSR_UANC)) != (DSI_PSR_UAN0 | DSI_PSR_UANC))
+    {
+      /* Check for the Timeout */
+      if((HAL_GetTick() - tickstart ) > DSI_TIMEOUT_VALUE)
+      {
+        /* Process Unlocked */
+        __HAL_UNLOCK(hdsi);
+
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+  else if ((hdsi->Instance->PCONFR & DSI_PCONFR_NL) == DSI_TWO_DATA_LANES)
+  {
+    while((hdsi->Instance->PSR & (DSI_PSR_UAN0 | DSI_PSR_UAN1 | DSI_PSR_UANC)) != (DSI_PSR_UAN0 | DSI_PSR_UAN1 | DSI_PSR_UANC))
+    {
+      /* Check for the Timeout */
+      if((HAL_GetTick() - tickstart ) > DSI_TIMEOUT_VALUE)
+      {
+        /* Process Unlocked */
+        __HAL_UNLOCK(hdsi);
+
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+  else
+  {
+    /* Process unlocked */
+    __HAL_UNLOCK(hdsi);
+
+    return HAL_ERROR;
+  }
+
+  /* wait for 1 ms */
+  HAL_Delay(1U);
+
+  /* De-assert the ULPM requests and the ULPM exit bits */
+  hdsi->Instance->PUCR = 0U;
+
+  /* Switch the lanbyteclock source in the RCC from system PLL to D-PHY */
+  __HAL_RCC_DSI_CONFIG(RCC_DSICLKSOURCE_DSIPHY);
+
+  /* Restore clock lane configuration to HS */
+  hdsi->Instance->CLCR |= DSI_CLCR_DPCC;
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hdsi);
+
+  return HAL_OK;
+}

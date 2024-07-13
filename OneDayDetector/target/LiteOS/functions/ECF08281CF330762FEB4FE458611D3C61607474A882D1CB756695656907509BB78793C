@@ -1,0 +1,39 @@
+HAL_StatusTypeDef HAL_UART_AbortTransmit(UART_HandleTypeDef *huart)
+{
+  /* Disable TXEIE and TCIE interrupts */
+  CLEAR_BIT(huart->Instance->CR1, (USART_CR1_TXEIE | USART_CR1_TCIE));
+
+  /* Disable the UART DMA Tx request if enabled */
+  if (HAL_IS_BIT_SET(huart->Instance->CR3, USART_CR3_DMAT))
+  {
+    CLEAR_BIT(huart->Instance->CR3, USART_CR3_DMAT);
+
+    /* Abort the UART DMA Tx channel : use blocking DMA Abort API (no callback) */
+    if (huart->hdmatx != NULL)
+    {
+      /* Set the UART DMA Abort callback to Null.
+         No call back execution at end of DMA abort procedure */
+      huart->hdmatx->XferAbortCallback = NULL;
+
+      if (HAL_DMA_Abort(huart->hdmatx) != HAL_OK)
+      {
+        if (HAL_DMA_GetError(huart->hdmatx) == HAL_DMA_ERROR_TIMEOUT)
+        {
+          /* Set error code to DMA */
+          huart->ErrorCode = HAL_UART_ERROR_DMA;
+
+          return HAL_TIMEOUT;
+        }
+      }
+    }
+  }
+
+  /* Reset Tx transfer counter */
+  huart->TxXferCount = 0U;
+
+
+  /* Restore huart->gState to Ready */
+  huart->gState = HAL_UART_STATE_READY;
+
+  return HAL_OK;
+}

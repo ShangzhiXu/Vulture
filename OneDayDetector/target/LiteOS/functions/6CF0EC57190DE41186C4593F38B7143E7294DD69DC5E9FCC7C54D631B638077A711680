@@ -1,0 +1,27 @@
+static int los_write(Network *n, unsigned char *buffer, int len, int timeout_ms)
+{
+    int ret = -1;
+    mqtt_security_info_s *info = NULL;
+
+    if ((n == NULL) || (buffer == NULL)) {
+        ATINY_LOG(LOG_FATAL, "invalid params.");
+        return -1;
+    }
+
+    info = n->get_security_info();
+
+    switch (info->security_type) {
+        case MQTT_SECURITY_TYPE_NONE :
+            ret = atiny_net_send_timeout(n->ctx, buffer, len, timeout_ms);
+            break;
+        case MQTT_SECURITY_TYPE_PSK:
+        case MQTT_SECURITY_TYPE_CA:
+            ret = dtls_write(n->ctx, buffer, len);
+            break;
+        default :
+            ATINY_LOG(LOG_WARNING, "unknow proto : %d", info->security_type);
+            break;
+    }
+
+    return ret;
+}

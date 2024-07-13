@@ -1,0 +1,19 @@
+mdns_resp_restart(struct netif *netif)
+{
+  struct mdns_host* mdns;
+  LWIP_ASSERT_CORE_LOCKED();
+  LWIP_ERROR("mdns_resp_restart: netif != NULL", (netif != NULL), return);
+
+  mdns = NETIF_TO_HOST(netif);
+  if (mdns == NULL) {
+    return;
+  }
+
+  if (mdns->probing_state == MDNS_PROBING_ONGOING) {
+    sys_untimeout(mdns_probe, netif);
+  }
+  /* @todo if we've failed 15 times within a 10 second period we MUST wait 5 seconds (or wait 5 seconds every time except first)*/
+  mdns->probes_sent = 0;
+  mdns->probing_state = MDNS_PROBING_ONGOING;
+  sys_timeout(MDNS_INITIAL_PROBE_DELAY_MS, mdns_probe, netif);
+}

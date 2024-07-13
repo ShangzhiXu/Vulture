@@ -1,0 +1,31 @@
+int mbedtls_cipher_write_tag( mbedtls_cipher_context_t *ctx,
+                      unsigned char *tag, size_t tag_len )
+{
+    CIPHER_VALIDATE_RET( ctx != NULL );
+    CIPHER_VALIDATE_RET( tag_len == 0 || tag != NULL );
+    if( ctx->cipher_info == NULL )
+        return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+
+    if( MBEDTLS_ENCRYPT != ctx->operation )
+        return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+
+#if defined(MBEDTLS_GCM_C)
+    if( MBEDTLS_MODE_GCM == ctx->cipher_info->mode )
+        return( mbedtls_gcm_finish( (mbedtls_gcm_context *) ctx->cipher_ctx,
+                                    tag, tag_len ) );
+#endif
+
+#if defined(MBEDTLS_CHACHAPOLY_C)
+    if ( MBEDTLS_CIPHER_CHACHA20_POLY1305 == ctx->cipher_info->type )
+    {
+        /* Don't allow truncated MAC for Poly1305 */
+        if ( tag_len != 16U )
+            return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+
+        return( mbedtls_chachapoly_finish( (mbedtls_chachapoly_context*) ctx->cipher_ctx,
+                                           tag ) );
+    }
+#endif
+
+    return( 0 );
+}

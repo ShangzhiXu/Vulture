@@ -1,0 +1,40 @@
+void lv_mem_defrag(void)
+{
+#if LV_MEM_CUSTOM == 0
+    lv_mem_ent_t * e_free;
+    lv_mem_ent_t * e_next;
+    e_free = ent_get_next(NULL);
+
+    while(1) {
+        /*Search the next free entry*/
+        while(e_free != NULL) {
+            if(e_free->header.s.used != 0) {
+                e_free = ent_get_next(e_free);
+            }
+            else {
+                break;
+            }
+        }
+
+        if(e_free == NULL) return;
+
+        /*Joint the following free entries to the free*/
+        e_next = ent_get_next(e_free);
+        while(e_next != NULL) {
+            if(e_next->header.s.used == 0) {
+                e_free->header.s.d_size += e_next->header.s.d_size + sizeof(e_next->header);
+            }
+            else {
+                break;
+            }
+
+            e_next = ent_get_next(e_next);
+        }
+
+        if(e_next == NULL) return;
+
+        /*Continue from the lastly checked entry*/
+        e_free = e_next;
+    }
+#endif
+}

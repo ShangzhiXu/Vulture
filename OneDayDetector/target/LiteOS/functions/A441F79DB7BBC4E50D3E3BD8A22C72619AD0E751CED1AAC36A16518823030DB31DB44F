@@ -1,0 +1,95 @@
+HAL_StatusTypeDef HAL_CAN_Receive(CAN_HandleTypeDef* hcan, uint8_t FIFONumber, uint32_t Timeout)
+{
+  uint32_t tickstart = 0;
+   
+  /* Check the parameters */
+  assert_param(IS_CAN_FIFO(FIFONumber));
+  
+  /* Process locked */
+  __HAL_LOCK(hcan);
+  
+  if(hcan->State == HAL_CAN_STATE_BUSY_TX) 
+  {
+    /* Change CAN state */
+    hcan->State = HAL_CAN_STATE_BUSY_TX_RX;
+  }
+  else
+  {
+    /* Change CAN state */
+    hcan->State = HAL_CAN_STATE_BUSY_RX;
+  }
+    
+  /* Get tick */
+  tickstart = HAL_GetTick();
+  
+  /* Check pending message */
+  while(__HAL_CAN_MSG_PENDING(hcan, FIFONumber) == 0)
+  {
+    /* Check for the Timeout */
+    if(Timeout != HAL_MAX_DELAY)
+    {
+      if((Timeout == 0) || ((HAL_GetTick()-tickstart) > Timeout))
+      {
+        hcan->State = HAL_CAN_STATE_TIMEOUT;
+        /* Process unlocked */
+        __HAL_UNLOCK(hcan);
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+  
+  /* Get the Id */
+  hcan->pRxMsg->IDE = (uint8_t)0x04 & hcan->Instance->sFIFOMailBox[FIFONumber].RIR;
+  if (hcan->pRxMsg->IDE == CAN_ID_STD)
+  {
+    hcan->pRxMsg->StdId = (uint32_t)0x000007FF & (hcan->Instance->sFIFOMailBox[FIFONumber].RIR >> 21);
+  }
+  else
+  {
+    hcan->pRxMsg->ExtId = (uint32_t)0x1FFFFFFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RIR >> 3);
+  }
+  
+  hcan->pRxMsg->RTR = (uint8_t)0x02 & hcan->Instance->sFIFOMailBox[FIFONumber].RIR;
+  /* Get the DLC */
+  hcan->pRxMsg->DLC = (uint8_t)0x0F & hcan->Instance->sFIFOMailBox[FIFONumber].RDTR;
+  /* Get the FMI */
+  hcan->pRxMsg->FMI = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDTR >> 8);
+  /* Get the data field */
+  hcan->pRxMsg->Data[0] = (uint8_t)0xFF & hcan->Instance->sFIFOMailBox[FIFONumber].RDLR;
+  hcan->pRxMsg->Data[1] = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDLR >> 8);
+  hcan->pRxMsg->Data[2] = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDLR >> 16);
+  hcan->pRxMsg->Data[3] = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDLR >> 24);
+  hcan->pRxMsg->Data[4] = (uint8_t)0xFF & hcan->Instance->sFIFOMailBox[FIFONumber].RDHR;
+  hcan->pRxMsg->Data[5] = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDHR >> 8);
+  hcan->pRxMsg->Data[6] = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDHR >> 16);
+  hcan->pRxMsg->Data[7] = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDHR >> 24);
+  
+  /* Release the FIFO */
+  if(FIFONumber == CAN_FIFO0)
+  {
+    /* Release FIFO0 */
+    __HAL_CAN_FIFO_RELEASE(hcan, CAN_FIFO0);
+  }
+  else /* FIFONumber == CAN_FIFO1 */
+  {
+    /* Release FIFO1 */
+    __HAL_CAN_FIFO_RELEASE(hcan, CAN_FIFO1);
+  }
+  
+  if(hcan->State == HAL_CAN_STATE_BUSY_TX_RX) 
+  {
+    /* Change CAN state */
+    hcan->State = HAL_CAN_STATE_BUSY_TX;
+  }
+  else
+  {
+    /* Change CAN state */
+    hcan->State = HAL_CAN_STATE_READY;
+  }
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hcan);
+
+  /* Return function status */
+  return HAL_OK;
+}

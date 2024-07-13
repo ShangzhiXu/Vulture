@@ -1,0 +1,35 @@
+void lv_textarea_set_placeholder_text(lv_obj_t * ta, const char * txt)
+{
+    LV_ASSERT_OBJ(ta, LV_OBJX_NAME);
+    LV_ASSERT_NULL(txt);
+
+    lv_textarea_ext_t * ext = lv_obj_get_ext_attr(ta);
+
+    size_t txt_len = strlen(txt);
+
+    if(txt_len == 0) {
+        if(ext->placeholder_txt) {
+            lv_mem_free(ext->placeholder_txt);
+            ext->placeholder_txt = NULL;
+        }
+    }
+    else {
+
+        /*Allocate memory for the placeholder_txt text*/
+        if(ext->placeholder_txt == NULL) {
+            ext->placeholder_txt = lv_mem_alloc(txt_len + 1);
+        }
+        else {
+            ext->placeholder_txt = lv_mem_realloc(ext->placeholder_txt, txt_len + 1);
+
+        }
+        LV_ASSERT_MEM(ext->placeholder_txt);
+        if(ext->placeholder_txt == NULL) {
+            LV_LOG_ERROR("lv_textarea_set_placeholder_text: couldn't allocate memory for placeholder");
+            return;
+        }
+        strcpy(ext->placeholder_txt, txt);
+    }
+
+    lv_obj_invalidate(ta);
+}

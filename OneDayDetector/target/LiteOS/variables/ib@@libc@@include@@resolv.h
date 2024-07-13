@@ -1,0 +1,10 @@
+		} _ext;
+			unsigned int		_initstamp[2];
+		struct in_addr addr;
+		uint32_t mask;
+			uint16_t		nscount;
+			uint16_t		nscount6;
+			uint16_t		nsinit;
+			uint16_t		nsmap[MAXNS];
+			int			nssocks[MAXNS];
+		char pad[52];

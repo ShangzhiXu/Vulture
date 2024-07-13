@@ -1,0 +1,132 @@
+auth_check_options()
+{
+    lcp_options *wo = &lcp_wantoptions[0];
+    int can_auth;
+    int lacks_ip;
+
+    /* Default our_name to hostname, and user to our_name */
+    if (our_name[0] == 0 || usehostname)
+	strlcpy(our_name, hostname, sizeof(our_name));
+    /* If a blank username was explicitly given as an option, trust
+       the user and don't use our_name */
+    if (ppp_settings.user[0] == 0 && !explicit_user)
+	strlcpy(ppp_settings.user, our_name, sizeof(ppp_settings.user));
+
+    /*
+     * If we have a default route, require the peer to authenticate
+     * unless the noauth option was given or the real user is root.
+     */
+    if (!auth_required && !allow_any_ip && have_route_to(0) && !privileged) {
+	auth_required = 1;
+	default_auth = 1;
+    }
+
+#if CHAP_SUPPORT
+    /* If we selected any CHAP flavors, we should probably negotiate it. :-) */
+    if (wo->chap_mdtype)
+	wo->neg_chap = 1;
+#endif /* CHAP_SUPPORT */
+
+    /* If authentication is required, ask peer for CHAP, PAP, or EAP. */
+    if (auth_required) {
+	allow_any_ip = 0;
+	if (1
+#if CHAP_SUPPORT
+	    && !wo->neg_chap
+#endif /* CHAP_SUPPORT */
+#if PAP_SUPPORT
+	    && !wo->neg_upap
+#endif /* PAP_SUPPORT */
+#if EAP_SUPPORT
+	    && !wo->neg_eap
+#endif /* EAP_SUPPORT */
+	    ) {
+#if CHAP_SUPPORT
+	    wo->neg_chap = CHAP_MDTYPE_SUPPORTED != MDTYPE_NONE;
+	    wo->chap_mdtype = CHAP_MDTYPE_SUPPORTED;
+#endif /* CHAP_SUPPORT */
+#if PAP_SUPPORT
+	    wo->neg_upap = 1;
+#endif /* PAP_SUPPORT */
+#if EAP_SUPPORT
+	    wo->neg_eap = 1;
+#endif /* EAP_SUPPORT */
+	}
+    } else {
+#if CHAP_SUPPORT
+	wo->neg_chap = 0;
+	wo->chap_mdtype = MDTYPE_NONE;
+#endif /* CHAP_SUPPORT */
+#if PAP_SUPPORT
+	wo->neg_upap = 0;
+#endif /* PAP_SUPPORT */
+#if EAP_SUPPORT
+	wo->neg_eap = 0;
+#endif /* EAP_SUPPORT */
+    }
+
+    /*
+     * Check whether we have appropriate secrets to use
+     * to authenticate the peer.  Note that EAP can authenticate by way
+     * of a CHAP-like exchanges as well as SRP.
+     */
+    lacks_ip = 0;
+#if PAP_SUPPORT
+    can_auth = wo->neg_upap && (uselogin || have_pap_secret(&lacks_ip));
+#else
+    can_auth = 0;
+#endif /* PAP_SUPPORT */
+    if (!can_auth && (0
+#if CHAP_SUPPORT
+	|| wo->neg_chap
+#endif /* CHAP_SUPPORT */
+#if EAP_SUPPORT
+	|| wo->neg_eap
+#endif /* EAP_SUPPORT */
+	)) {
+#if CHAP_SUPPORT
+	can_auth = have_chap_secret((explicit_remote? remote_name: NULL),
+				    our_name, 1, &lacks_ip);
+#else
+	can_auth = 0;
+#endif
+    }
+    if (!can_auth
+#if EAP_SUPPORT
+	&& wo->neg_eap
+#endif /* EAP_SUPPORT */
+	) {
+	can_auth = have_srp_secret((explicit_remote? remote_name: NULL),
+				    our_name, 1, &lacks_ip);
+    }
+
+    if (auth_required && !can_auth && noauth_addrs == NULL) {
+	if (default_auth) {
+	    option_error(
+"By default the remote system is required to authenticate itself");
+	    option_error(
+"(because this system has a default route to the internet)");
+	} else if (explicit_remote)
+	    option_error(
+"The remote system (%s) is required to authenticate itself",
+			 remote_name);
+	else
+	    option_error(
+"The remote system is required to authenticate itself");
+	option_error(
+"but I couldn't find any suitable secret (password) for it to use to do so.");
+	if (lacks_ip)
+	    option_error(
+"(None of the available passwords would let it use an IP address.)");
+
+	exit(1);
+    }
+
+    /*
+     * Early check for remote number authorization.
+     */
+    if (!auth_number()) {
+	ppp_warn("calling number %q is not authorized", remote_number);
+	exit(EXIT_CNID_AUTH_FAILED);
+    }
+}

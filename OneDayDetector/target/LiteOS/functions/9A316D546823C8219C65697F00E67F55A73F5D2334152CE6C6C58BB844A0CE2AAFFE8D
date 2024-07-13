@@ -1,0 +1,67 @@
+char *MQTTFormat_toClientString(char *strbuf, int strbuflen, unsigned char *buf, int buflen)
+{
+    int index = 0;
+    int rem_length = 0;
+    MQTTHeader header = {0};
+    int strindex = 0;
+
+    header.byte = buf[index++];
+    index += MQTTPacket_decodeBuf(&buf[index], &rem_length);
+
+    switch (header.bits.type)
+    {
+
+    case CONNACK:
+    {
+        unsigned char sessionPresent, connack_rc;
+        if (MQTTDeserialize_connack(&sessionPresent, &connack_rc, buf, buflen) == 1)
+            strindex = MQTTStringFormat_connack(strbuf, strbuflen, connack_rc, sessionPresent);
+    }
+    break;
+    case PUBLISH:
+    {
+        unsigned char dup, retained, *payload;
+        unsigned short packetid;
+        int qos, payloadlen;
+        MQTTString topicName = MQTTString_initializer;
+        if (MQTTDeserialize_publish(&dup, &qos, &retained, &packetid, &topicName,
+                                    &payload, &payloadlen, buf, buflen) == 1)
+            strindex = MQTTStringFormat_publish(strbuf, strbuflen, dup, qos, retained, packetid,
+                                                topicName, payload, payloadlen);
+    }
+    break;
+    case PUBACK:
+    case PUBREC:
+    case PUBREL:
+    case PUBCOMP:
+    {
+        unsigned char packettype, dup;
+        unsigned short packetid;
+        if (MQTTDeserialize_ack(&packettype, &dup, &packetid, buf, buflen) == 1)
+            strindex = MQTTStringFormat_ack(strbuf, strbuflen, packettype, dup, packetid);
+    }
+    break;
+    case SUBACK:
+    {
+        unsigned short packetid;
+        int maxcount = 1, count = 0;
+        int grantedQoSs[1];
+        if (MQTTDeserialize_suback(&packetid, maxcount, &count, grantedQoSs, buf, buflen) == 1)
+            strindex = MQTTStringFormat_suback(strbuf, strbuflen, packetid, count, grantedQoSs);
+    }
+    break;
+    case UNSUBACK:
+    {
+        unsigned short packetid;
+        if (MQTTDeserialize_unsuback(&packetid, buf, buflen) == 1)
+            strindex = MQTTStringFormat_ack(strbuf, strbuflen, UNSUBACK, 0, packetid);
+    }
+    break;
+    case PINGREQ:
+    case PINGRESP:
+    case DISCONNECT:
+        strindex = snprintf(strbuf, strbuflen, "%s", MQTTPacket_names[header.bits.type]);
+        break;
+    }
+    return strbuf;
+}

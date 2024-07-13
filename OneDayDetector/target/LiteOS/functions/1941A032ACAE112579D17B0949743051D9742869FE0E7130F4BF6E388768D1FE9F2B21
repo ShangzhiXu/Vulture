@@ -1,0 +1,109 @@
+int32_t at_struct_init(at_task *at)
+{
+    int ret = -1;
+    if (at == NULL) {
+        AT_LOG("invaild param!");
+        return ret;
+    }
+
+    ret = LOS_QueueCreate("recvQueue", 32, (UINT32 *)&at->rid, 0, sizeof(recv_buff));
+    if (ret != LOS_OK) {
+        AT_LOG("init recvQueue failed!");
+        return AT_FAILED;
+    }
+    at->rid_flag = true;
+
+    ret = LOS_SemCreate(0, (UINT32 *)&at->recv_sem);
+    if (ret != LOS_OK) {
+        AT_LOG("init at_recv_sem failed!");
+        goto at_recv_sem_failed;
+    }
+
+    ret = LOS_MuxCreate((UINT32 *)&at->cmd_mux);
+    if (ret != LOS_OK) {
+        AT_LOG("init cmd_mux failed!");
+        goto at_cmd_mux_failed;
+    }
+
+    ret = LOS_MuxCreate((UINT32 *)&at->trx_mux);
+    if (ret != LOS_OK) {
+        AT_LOG("init cmd_mux failed!");
+        goto at_cmd_mux_failed;
+    }
+    at->trx_mux_flag = true;
+
+    ret = LOS_SemCreate(0, (UINT32 *)&at->resp_sem);
+    if (ret != LOS_OK) {
+        AT_LOG("init resp_sem failed!");
+        goto at_resp_sem_failed;
+    }
+#ifndef USE_USARTRX_DMA
+    at->recv_buf = at_malloc(at_user_conf.user_buf_len);
+    if (at->recv_buf == NULL) {
+        AT_LOG("malloc recv_buf failed!");
+        goto malloc_recv_buf;
+    }
+#else
+    at->recv_buf = at_malloc(at_user_conf.recv_buf_len);
+    if (at->recv_buf == NULL) {
+        AT_LOG("malloc recv_buf failed!");
+        goto malloc_recv_buf;
+    }
+#endif
+
+    at->cmdresp = at_malloc(at_user_conf.user_buf_len);
+    if (at->cmdresp == NULL) {
+        AT_LOG("malloc cmdresp failed!");
+        goto malloc_resp_buf;
+    }
+
+    at->userdata = at_malloc(at_user_conf.user_buf_len);
+    if (at->userdata == NULL) {
+        AT_LOG("malloc userdata failed!");
+        goto malloc_userdata_buf;
+    }
+    at->saveddata = at_malloc(at_user_conf.user_buf_len);
+    if (at->saveddata == NULL) {
+        AT_LOG("malloc saveddata failed!");
+        goto malloc_saveddata_buf;
+    }
+
+    at->linkid = (at_link *)at_malloc(at_user_conf.linkid_num * sizeof(at_link));
+    if (at->linkid == NULL) {
+        AT_LOG("malloc for at linkid array failed!");
+        goto malloc_linkid_failed;
+    }
+    memset(at->linkid, 0, at_user_conf.linkid_num * sizeof(at_link));
+
+    at->head = NULL;
+    at->mux_mode = at_user_conf.mux_mode;
+    at->timeout = at_user_conf.timeout;
+    return AT_OK;
+
+malloc_linkid_failed:
+    at_free(at->saveddata);
+malloc_saveddata_buf:
+    at_free(at->userdata);
+malloc_userdata_buf:
+    at_free(at->cmdresp);
+malloc_resp_buf:
+    at_free(at->recv_buf);
+malloc_recv_buf:
+    (void)LOS_SemDelete(at->resp_sem);
+at_resp_sem_failed:
+    (void)LOS_MuxDelete(at->cmd_mux);
+at_cmd_mux_failed:
+    (void)LOS_SemDelete(at->recv_sem);
+at_recv_sem_failed:
+
+    if (at->trx_mux_flag) {
+        (void)LOS_MuxDelete(at->trx_mux);
+        at->trx_mux_flag = false;
+    }
+
+    if (at->rid_flag) {
+        (VOID)LOS_QueueDelete(at->rid);
+        at->rid_flag = false;
+    }
+    return AT_FAILED;
+}

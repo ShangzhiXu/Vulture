@@ -1,0 +1,24 @@
+HAL_StatusTypeDef HAL_DFSDM_FilterInjectedStart_IT(DFSDM_Filter_HandleTypeDef *hdfsdm_filter)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Check parameters */
+  assert_param(IS_DFSDM_FILTER_ALL_INSTANCE(hdfsdm_filter->Instance));
+
+  /* Check DFSDM filter state */
+  if((hdfsdm_filter->State == HAL_DFSDM_FILTER_STATE_READY) || \
+     (hdfsdm_filter->State == HAL_DFSDM_FILTER_STATE_REG))
+  {
+    /* Enable interrupts for injected conversions */
+    hdfsdm_filter->Instance->FLTCR2 |= (DFSDM_FLTCR2_JEOCIE | DFSDM_FLTCR2_JOVRIE);
+    
+    /* Start injected conversion */
+    DFSDM_InjConvStart(hdfsdm_filter);
+  }
+  else
+  {
+    status = HAL_ERROR;
+  }
+  /* Return function status */
+  return status;
+}

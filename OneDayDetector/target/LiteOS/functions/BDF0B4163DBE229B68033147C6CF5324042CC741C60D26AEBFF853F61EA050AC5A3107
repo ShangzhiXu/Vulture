@@ -1,0 +1,29 @@
+static HAL_StatusTypeDef SMBUS_Slave_ADDR(SMBUS_HandleTypeDef *hsmbus)
+{
+  uint8_t TransferDirection = SMBUS_DIRECTION_RECEIVE ;
+  uint16_t SlaveAddrCode = 0U;
+
+  /* Transfer Direction requested by Master */
+  if (__HAL_SMBUS_GET_FLAG(hsmbus, SMBUS_FLAG_TRA) == RESET)
+  {
+    TransferDirection = SMBUS_DIRECTION_TRANSMIT;
+  }
+
+  if (__HAL_SMBUS_GET_FLAG(hsmbus, SMBUS_FLAG_DUALF) == RESET)
+  {
+    SlaveAddrCode = hsmbus->Init.OwnAddress1;
+  }
+  else
+  {
+    SlaveAddrCode = hsmbus->Init.OwnAddress2;
+  }
+
+  /* Call Slave Addr callback */
+#if (USE_HAL_SMBUS_REGISTER_CALLBACKS == 1)
+  hsmbus->AddrCallback(hsmbus, TransferDirection, SlaveAddrCode);
+#else
+  HAL_SMBUS_AddrCallback(hsmbus, TransferDirection, SlaveAddrCode);
+#endif /* USE_HAL_SMBUS_REGISTER_CALLBACKS */
+
+  return HAL_OK;
+}

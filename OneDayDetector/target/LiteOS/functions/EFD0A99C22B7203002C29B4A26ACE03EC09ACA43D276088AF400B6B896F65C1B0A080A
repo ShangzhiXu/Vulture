@@ -1,0 +1,23 @@
+netconn_delete(struct netconn *conn)
+{
+  err_t err;
+
+  /* No ASSERT here because possible to get a (conn == NULL) if we got an accept error */
+  if (conn == NULL) {
+    return ERR_OK;
+  }
+
+#if LWIP_NETCONN_FULLDUPLEX
+  if (conn->flags & NETCONN_FLAG_MBOXINVALID) {
+    /* Already called netconn_prepare_delete() before */
+    err = ERR_OK;
+  } else
+#endif /* LWIP_NETCONN_FULLDUPLEX */
+  {
+    err = netconn_prepare_delete(conn);
+  }
+  if (err == ERR_OK) {
+    netconn_free(conn);
+  }
+  return err;
+}

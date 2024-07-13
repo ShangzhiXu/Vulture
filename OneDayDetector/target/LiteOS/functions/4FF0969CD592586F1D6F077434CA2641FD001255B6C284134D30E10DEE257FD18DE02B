@@ -1,0 +1,26 @@
+HAL_StatusTypeDef HAL_RTC_GetDate(RTC_HandleTypeDef *hrtc, RTC_DateTypeDef *sDate, uint32_t Format)
+{
+  uint32_t datetmpreg = 0U;
+
+  /* Check the parameters */
+  assert_param(IS_RTC_FORMAT(Format));
+
+  /* Get the DR register */
+  datetmpreg = (uint32_t)(hrtc->Instance->DR & RTC_DR_RESERVED_MASK);
+
+  /* Fill the structure fields with the read parameters */
+  sDate->Year = (uint8_t)((datetmpreg & (RTC_DR_YT | RTC_DR_YU)) >> 16U);
+  sDate->Month = (uint8_t)((datetmpreg & (RTC_DR_MT | RTC_DR_MU)) >> 8U);
+  sDate->Date = (uint8_t)(datetmpreg & (RTC_DR_DT | RTC_DR_DU));
+  sDate->WeekDay = (uint8_t)((datetmpreg & (RTC_DR_WDU)) >> 13U);
+
+  /* Check the input parameters format */
+  if (Format == RTC_FORMAT_BIN)
+  {
+    /* Convert the date structure parameters to Binary format */
+    sDate->Year = (uint8_t)RTC_Bcd2ToByte(sDate->Year);
+    sDate->Month = (uint8_t)RTC_Bcd2ToByte(sDate->Month);
+    sDate->Date = (uint8_t)RTC_Bcd2ToByte(sDate->Date);
+  }
+  return HAL_OK;
+}

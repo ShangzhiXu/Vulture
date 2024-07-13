@@ -1,0 +1,70 @@
+LV_ATTRIBUTE_FAST_MEM static void shadow_blur_corner(lv_coord_t size, lv_coord_t sw, uint16_t * sh_ups_buf)
+{
+    int32_t s_left = sw >> 1;
+    int32_t s_right = (sw >> 1);
+    if((sw & 1) == 0) s_left--;
+
+    /*Horizontal blur*/
+    uint16_t * sh_ups_blur_buf = _lv_mem_buf_get(size * sizeof(uint16_t));
+
+    int32_t x;
+    int32_t y;
+
+    uint16_t * sh_ups_tmp_buf = sh_ups_buf;
+
+    for(y = 0; y < size; y++) {
+        int32_t v = sh_ups_tmp_buf[size - 1] * sw;
+        for(x = size - 1; x >= 0; x--) {
+            sh_ups_blur_buf[x] = v;
+
+            /*Forget the right pixel*/
+            uint32_t right_val = 0;
+            if(x + s_right < size) right_val = sh_ups_tmp_buf[x + s_right];
+            v -= right_val;
+
+            /*Add the left pixel*/
+            uint32_t left_val;
+            if(x - s_left - 1 < 0) left_val = sh_ups_tmp_buf[0];
+            else left_val = sh_ups_tmp_buf[x - s_left - 1];
+            v += left_val;
+        }
+        _lv_memcpy(sh_ups_tmp_buf, sh_ups_blur_buf, size * sizeof(uint16_t));
+        sh_ups_tmp_buf += size;
+    }
+
+    /*Vertical blur*/
+    uint32_t i;
+    sh_ups_buf[0] = sh_ups_buf[0] / sw;
+    for(i = 1; i < (uint32_t)size * size; i++) {
+        if(sh_ups_buf[i] == sh_ups_buf[i - 1]) sh_ups_buf[i] = sh_ups_buf[i - 1];
+        else  sh_ups_buf[i] = sh_ups_buf[i] / sw;
+    }
+
+    for(x = 0; x < size; x++) {
+        sh_ups_tmp_buf = &sh_ups_buf[x];
+        int32_t v = sh_ups_tmp_buf[0] * sw;
+        for(y = 0; y < size ; y++, sh_ups_tmp_buf += size) {
+            sh_ups_blur_buf[y] = v < 0 ? 0 : (v >> SHADOW_UPSACALE_SHIFT);
+
+            /*Forget the top pixel*/
+            uint32_t top_val;
+            if(y - s_right <= 0) top_val = sh_ups_tmp_buf[0];
+            else top_val = sh_ups_buf[(y - s_right) * size + x];
+            v -= top_val;
+
+            /*Add the bottom pixel*/
+            uint32_t bottom_val;
+            if(y + s_left + 1 < size) bottom_val = sh_ups_buf[(y + s_left + 1) * size + x];
+            else bottom_val = sh_ups_buf[(size - 1) * size + x];
+            v += bottom_val;
+        }
+
+        /*Write back the result into `sh_ups_buf`*/
+        sh_ups_tmp_buf = &sh_ups_buf[x];
+        for(y = 0; y < size; y++, sh_ups_tmp_buf += size) {
+            (*sh_ups_tmp_buf) = sh_ups_blur_buf[y];
+        }
+    }
+
+    _lv_mem_buf_release(sh_ups_blur_buf);
+}

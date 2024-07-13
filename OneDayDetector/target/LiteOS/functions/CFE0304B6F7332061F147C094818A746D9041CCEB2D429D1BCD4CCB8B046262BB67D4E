@@ -1,0 +1,31 @@
+HAL_StatusTypeDef HAL_SRAM_Init(SRAM_HandleTypeDef *hsram, FSMC_NORSRAM_TimingTypeDef *Timing, FSMC_NORSRAM_TimingTypeDef *ExtTiming)
+{ 
+  /* Check the SRAM handle parameter */
+  if(hsram == NULL)
+  {
+     return HAL_ERROR;
+  }
+  
+  if(hsram->State == HAL_SRAM_STATE_RESET)
+  {  
+    /* Allocate lock resource and initialize it */
+    hsram->Lock = HAL_UNLOCKED;
+    
+    /* Initialize the low level hardware (MSP) */
+    HAL_SRAM_MspInit(hsram);
+  }
+  
+  /* Initialize SRAM control Interface */
+  FSMC_NORSRAM_Init(hsram->Instance, &(hsram->Init));
+
+  /* Initialize SRAM timing Interface */
+  FSMC_NORSRAM_Timing_Init(hsram->Instance, Timing, hsram->Init.NSBank); 
+
+  /* Initialize SRAM extended mode timing Interface */
+  FSMC_NORSRAM_Extended_Timing_Init(hsram->Extended, ExtTiming, hsram->Init.NSBank,  hsram->Init.ExtendedMode);  
+  
+  /* Enable the NORSRAM device */
+  __FSMC_NORSRAM_ENABLE(hsram->Instance, hsram->Init.NSBank); 
+  
+  return HAL_OK;
+}

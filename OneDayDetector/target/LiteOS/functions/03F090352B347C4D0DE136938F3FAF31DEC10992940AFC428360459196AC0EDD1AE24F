@@ -1,0 +1,48 @@
+HAL_StatusTypeDef HAL_ADCEx_RegularStop(ADC_HandleTypeDef* hadc)
+{
+  HAL_StatusTypeDef tmp_hal_status = HAL_OK;
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+  
+  /* Process locked */
+  __HAL_LOCK(hadc);
+  
+  /* 1. Stop potential regular conversion on going */
+  tmp_hal_status = ADC_ConversionStop(hadc, ADC_REGULAR_GROUP);
+  
+  /* Disable ADC peripheral if regular conversions are effectively stopped 
+     and if no injected conversions are on-going */
+  if (tmp_hal_status == HAL_OK)
+  {
+    /* Clear HAL_ADC_STATE_REG_BUSY bit */ 
+    CLEAR_BIT(hadc->State, HAL_ADC_STATE_REG_BUSY); 
+     
+    if (ADC_IS_CONVERSION_ONGOING_INJECTED(hadc) == RESET)
+    {
+      /* 2. Disable the ADC peripheral */
+      tmp_hal_status = ADC_Disable(hadc);
+      
+      /* Check if ADC is effectively disabled */
+      if (tmp_hal_status == HAL_OK)
+      {
+        /* Set ADC state */
+        ADC_STATE_CLR_SET(hadc->State,
+                          HAL_ADC_STATE_INJ_BUSY,
+                          HAL_ADC_STATE_READY);
+      }
+    }
+    /* Conversion on injected group is stopped, but ADC not disabled since    */
+    /* conversion on regular group is still running.                          */
+    else
+    {
+      SET_BIT(hadc->State, HAL_ADC_STATE_INJ_BUSY);
+    }
+  }
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+  
+  /* Return function status */
+  return tmp_hal_status;
+}

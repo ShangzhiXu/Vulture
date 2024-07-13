@@ -1,0 +1,30 @@
+VOID OsExcDumpContext(const ExcContext *excBufAddr)
+{
+    UINT32 i;
+    LosTaskCB *runTask = OsCurrTaskGet();
+
+    PrintExcInfo("taskName = %s\nTaskId = %u\nTask StackSize = %u\n"
+                 "system mem addr = %p\nPC = 0x%llx\nLR = 0x%llx\n",
+                 runTask->taskName, runTask->taskId, runTask->stackSize,
+                 m_aucSysMem0, excBufAddr->regELR, excBufAddr->LR);
+
+    for (i = 0; i < DUMPREGS; i++) {
+        PrintExcInfo("X%-02d = 0x%llx\n", i, excBufAddr->X[i]);
+    }
+
+    PrintExcInfo("LR = 0x%llx\nELR = 0x%llx\nSPSR = 0x%llx\n",
+                 excBufAddr->LR, excBufAddr->regELR, excBufAddr->SPSR);
+
+    BackTraceSub(excBufAddr->X[FP_NUM]);
+#ifdef LOSCFG_SHELL
+    (VOID)OsShellCmdTskInfoGet(OS_ALL_TASK_MASK);
+#endif
+    OsExcStackInfo();
+    OsDumpContextMem(excBufAddr);
+#ifdef LOSCFG_KERNEL_MEM_BESTFIT
+    OsMemIntegrityMultiCheck();
+#endif
+#ifdef LOSCFG_KERNEL_TRACE
+    OsTraceRecordDump(FALSE);
+#endif
+}

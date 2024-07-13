@@ -1,0 +1,20 @@
+static int ecdh_get_params_internal( mbedtls_ecdh_context_mbed *ctx,
+                                     const mbedtls_ecp_keypair *key,
+                                     mbedtls_ecdh_side side )
+{
+    int ret;
+
+    /* If it's not our key, just import the public part as Qp */
+    if( side == MBEDTLS_ECDH_THEIRS )
+        return( mbedtls_ecp_copy( &ctx->Qp, &key->Q ) );
+
+    /* Our key: import public (as Q) and private parts */
+    if( side != MBEDTLS_ECDH_OURS )
+        return( MBEDTLS_ERR_ECP_BAD_INPUT_DATA );
+
+    if( ( ret = mbedtls_ecp_copy( &ctx->Q, &key->Q ) ) != 0 ||
+        ( ret = mbedtls_mpi_copy( &ctx->d, &key->d ) ) != 0 )
+        return( ret );
+
+    return( 0 );
+}

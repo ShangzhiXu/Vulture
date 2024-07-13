@@ -1,0 +1,39 @@
+HAL_StatusTypeDef HAL_ADC_Stop_IT(ADC_HandleTypeDef* hadc)
+{
+  HAL_StatusTypeDef tmp_hal_status = HAL_OK;
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+  
+  /* Process locked */
+  __HAL_LOCK(hadc);
+  
+  /* 1. Stop potential conversion on going, on regular group */
+  tmp_hal_status = ADC_ConversionStop(hadc);
+   
+  /* Disable ADC peripheral if conversions are effectively stopped */
+  if (tmp_hal_status == HAL_OK)
+  {
+    /* Disable ADC end of conversion interrupt for regular group */
+    /* Disable ADC overrun interrupt */
+    __HAL_ADC_DISABLE_IT(hadc, (ADC_IT_EOC | ADC_IT_EOS | ADC_IT_OVR));
+    
+    /* 2. Disable the ADC peripheral */
+    tmp_hal_status = ADC_Disable(hadc);
+    
+    /* Check if ADC is effectively disabled */
+    if (tmp_hal_status == HAL_OK)
+    {
+      /* Set ADC state */
+      ADC_STATE_CLR_SET(hadc->State,
+                        HAL_ADC_STATE_REG_BUSY,
+                        HAL_ADC_STATE_READY);
+    }
+  }
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+  
+  /* Return function status */
+  return tmp_hal_status;
+}

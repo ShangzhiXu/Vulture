@@ -1,0 +1,44 @@
+lowpan6_write_iee802154_header(struct ieee_802154_hdr *hdr, const struct lowpan6_link_addr *src,
+                               const struct lowpan6_link_addr *dst)
+{
+  u8_t ieee_header_len;
+  u8_t *buffer;
+  u8_t i;
+  u16_t fc;
+
+  fc = IEEE_802154_FC_FT_DATA; /* send data packet (2003 frame version) */
+  fc |= IEEE_802154_FC_PANID_COMPR; /* set PAN ID compression, for now src and dst PANs are equal */
+  if (dst != &ieee_802154_broadcast) {
+    fc |= IEEE_802154_FC_ACK_REQ; /* data packet, no broadcast: ack required. */
+  }
+  if (dst->addr_len == 2) {
+    fc |= IEEE_802154_FC_DST_ADDR_MODE_SHORT;
+  } else {
+    LWIP_ASSERT("invalid dst address length", dst->addr_len == 8);
+    fc |= IEEE_802154_FC_DST_ADDR_MODE_EXT;
+  }
+  if (src->addr_len == 2) {
+    fc |= IEEE_802154_FC_SRC_ADDR_MODE_SHORT;
+  } else {
+    LWIP_ASSERT("invalid src address length", src->addr_len == 8);
+    fc |= IEEE_802154_FC_SRC_ADDR_MODE_EXT;
+  }
+  hdr->frame_control = fc;
+  hdr->sequence_number = lowpan6_data.tx_frame_seq_num++;
+  hdr->destination_pan_id = lowpan6_data.ieee_802154_pan_id; /* pan id */
+
+  buffer = (u8_t *)hdr;
+  ieee_header_len = 5;
+  i = dst->addr_len;
+  /* reverse memcpy of dst addr */
+  while (i-- > 0) {
+    buffer[ieee_header_len++] = dst->addr[i];
+  }
+  /* Source PAN ID skipped due to PAN ID Compression */
+  i = src->addr_len;
+  /* reverse memcpy of src addr */
+  while (i-- > 0) {
+    buffer[ieee_header_len++] = src->addr[i];
+  }
+  return ieee_header_len;
+}

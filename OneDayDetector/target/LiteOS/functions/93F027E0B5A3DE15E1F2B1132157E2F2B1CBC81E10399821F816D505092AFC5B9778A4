@@ -1,0 +1,38 @@
+tcp_shutdown(struct tcp_pcb *pcb, int shut_rx, int shut_tx)
+{
+  LWIP_ASSERT_CORE_LOCKED();
+
+  LWIP_ERROR("tcp_shutdown: invalid pcb", pcb != NULL, return ERR_ARG);
+
+  if (pcb->state == LISTEN) {
+    return ERR_CONN;
+  }
+  if (shut_rx) {
+    /* shut down the receive side: set a flag not to receive any more data... */
+    tcp_set_flags(pcb, TF_RXCLOSED);
+    if (shut_tx) {
+      /* shutting down the tx AND rx side is the same as closing for the raw API */
+      return tcp_close_shutdown(pcb, 1);
+    }
+    /* ... and free buffered data */
+    if (pcb->refused_data != NULL) {
+      pbuf_free(pcb->refused_data);
+      pcb->refused_data = NULL;
+    }
+  }
+  if (shut_tx) {
+    /* This can't happen twice since if it succeeds, the pcb's state is changed.
+       Only close in these states as the others directly deallocate the PCB */
+    switch (pcb->state) {
+      case SYN_RCVD:
+      case ESTABLISHED:
+      case CLOSE_WAIT:
+        return tcp_close_shutdown(pcb, (u8_t)shut_rx);
+      default:
+        /* Not (yet?) connected, cannot shutdown the TX side as that would bring us
+          into CLOSED state, where the PCB is deallocated. */
+        return ERR_CONN;
+    }
+  }
+  return ERR_OK;
+}

@@ -1,0 +1,56 @@
+void BSP_LCD_DisplayStringAt(uint16_t Xpos, uint16_t Ypos, uint8_t *Text, Text_AlignModeTypdef Mode)
+{
+  uint16_t refcolumn = 1, i = 0;
+  uint32_t size = 0, xsize = 0;
+  uint8_t  *ptr = Text;
+
+  /* Get the text size */
+  while (*ptr++) size ++ ;
+
+  /* Characters number per line */
+  xsize = (BSP_LCD_GetXSize()/DrawProp[ActiveLayer].pFont->Width);
+
+  switch (Mode)
+  {
+  case CENTER_MODE:
+    {
+      refcolumn = Xpos + ((xsize - size)* DrawProp[ActiveLayer].pFont->Width) / 2;
+      break;
+    }
+  case LEFT_MODE:
+    {
+      refcolumn = Xpos;
+      break;
+    }
+  case RIGHT_MODE:
+    {
+      refcolumn = - Xpos + ((xsize - size)*DrawProp[ActiveLayer].pFont->Width);
+      break;
+    }
+  default:
+    {
+      refcolumn = Xpos;
+      break;
+    }
+  }
+
+  /* Check that the Start column is located in the screen */
+  if ((refcolumn < 1) || (refcolumn >= 0x8000))
+  {
+    refcolumn = 1;
+  }
+
+  /* Send the string character by character on LCD */
+  while ((*Text != 0) & (((BSP_LCD_GetXSize() - (i*DrawProp[ActiveLayer].pFont->Width)) & 0xFFFF) >= DrawProp[ActiveLayer].pFont->Width))
+  {
+    /* Display one character on LCD */
+    BSP_LCD_DisplayChar(refcolumn, Ypos, *Text);
+    /* Decrement the column position by 16 */
+    refcolumn += DrawProp[ActiveLayer].pFont->Width;
+
+    /* Point on the next character */
+    Text++;
+    i++;
+  }
+
+}

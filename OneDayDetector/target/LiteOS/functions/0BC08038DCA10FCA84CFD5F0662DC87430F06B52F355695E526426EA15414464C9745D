@@ -1,0 +1,17 @@
+static void ccp_open(ppp_pcb *pcb) {
+    fsm *f = &pcb->ccp_fsm;
+    ccp_options *go = &pcb->ccp_gotoptions;
+
+    if (f->state != PPP_FSM_OPENED)
+	ccp_set(pcb, 1, 0, 0, 0);
+
+    /*
+     * Find out which compressors the kernel supports before
+     * deciding whether to open in silent mode.
+     */
+    ccp_resetci(f);
+    if (!ccp_anycompress(go))
+	f->flags |= OPT_SILENT;
+
+    fsm_open(f);
+}

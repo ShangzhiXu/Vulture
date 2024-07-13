@@ -1,0 +1,66 @@
+int mbedtls_sha1_self_test( int verbose )
+{
+    int i, j, buflen, ret = 0;
+    unsigned char buf[1024];
+    unsigned char sha1sum[20];
+    mbedtls_sha1_context ctx;
+
+    mbedtls_sha1_init( &ctx );
+
+    /*
+     * SHA-1
+     */
+    for( i = 0; i < 3; i++ )
+    {
+        if( verbose != 0 )
+            mbedtls_printf( "  SHA-1 test #%d: ", i + 1 );
+
+        if( ( ret = mbedtls_sha1_starts_ret( &ctx ) ) != 0 )
+            goto fail;
+
+        if( i == 2 )
+        {
+            memset( buf, 'a', buflen = 1000 );
+
+            for( j = 0; j < 1000; j++ )
+            {
+                ret = mbedtls_sha1_update_ret( &ctx, buf, buflen );
+                if( ret != 0 )
+                    goto fail;
+            }
+        }
+        else
+        {
+            ret = mbedtls_sha1_update_ret( &ctx, sha1_test_buf[i],
+                                           sha1_test_buflen[i] );
+            if( ret != 0 )
+                goto fail;
+        }
+
+        if( ( ret = mbedtls_sha1_finish_ret( &ctx, sha1sum ) ) != 0 )
+            goto fail;
+
+        if( memcmp( sha1sum, sha1_test_sum[i], 20 ) != 0 )
+        {
+            ret = 1;
+            goto fail;
+        }
+
+        if( verbose != 0 )
+            mbedtls_printf( "passed\n" );
+    }
+
+    if( verbose != 0 )
+        mbedtls_printf( "\n" );
+
+    goto exit;
+
+fail:
+    if( verbose != 0 )
+        mbedtls_printf( "failed\n" );
+
+exit:
+    mbedtls_sha1_free( &ctx );
+
+    return( ret );
+}

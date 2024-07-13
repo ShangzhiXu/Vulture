@@ -1,0 +1,33 @@
+HAL_StatusTypeDef HAL_DAC_Start(DAC_HandleTypeDef* hdac, uint32_t Channel)
+{
+  /* Check the parameters */
+  assert_param(IS_DAC_CHANNEL(Channel));
+  
+  /* Process locked */
+  __HAL_LOCK(hdac);
+  
+  /* Change DAC state */
+  hdac->State = HAL_DAC_STATE_BUSY;
+  
+  /* Enable the Peripharal */
+  __HAL_DAC_ENABLE(hdac, Channel);
+  
+  if(Channel == DAC_CHANNEL_1)
+  {
+    /* Check if software trigger enabled */
+    if((hdac->Instance->CR & (DAC_CR_TEN1 | DAC_CR_TSEL1)) == (DAC_CR_TEN1 | DAC_CR_TSEL1))
+    {
+      /* Enable the selected DAC software conversion */
+      SET_BIT(hdac->Instance->SWTRIGR, DAC_SWTRIGR_SWTRIG1);
+    }
+  }
+ 
+  /* Change DAC state */
+  hdac->State = HAL_DAC_STATE_READY;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hdac);
+    
+  /* Return function status */
+  return HAL_OK;
+}

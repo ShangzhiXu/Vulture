@@ -1,0 +1,114 @@
+HAL_StatusTypeDef HAL_ADCEx_InjectedStart(ADC_HandleTypeDef* hadc)
+{
+  HAL_StatusTypeDef tmp_hal_status = HAL_OK;  
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+  
+  if (ADC_IS_CONVERSION_ONGOING_INJECTED(hadc))
+  {
+    return HAL_BUSY;
+  }
+  else
+  {
+  
+    /* In case of software trigger detection enabled, JQDIS must be set 
+      (which can be done only if ADSTART and JADSTART are both cleared).
+       If JQDIS is not set at that point, returns an error
+       - since software trigger detection is disabled. User needs to
+       resort to HAL_ADCEx_DisableInjectedQueue() API to set JQDIS.  
+       - or (if JQDIS is intentionally reset) since JEXTEN = 0 which means 
+         the queue is empty */
+    if ((READ_BIT(hadc->Instance->JSQR, ADC_JSQR_JEXTEN) == RESET)   
+    && (READ_BIT(hadc->Instance->CFGR, ADC_CFGR_JQDIS) == RESET))  
+    {
+      SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_CONFIG); 
+      return HAL_ERROR;
+    }
+
+    
+    /* Process locked */
+    __HAL_LOCK(hadc);
+      
+    /* Enable the ADC peripheral */
+    tmp_hal_status = ADC_Enable(hadc);
+    
+    /* Start conversion if ADC is effectively enabled */
+    if (tmp_hal_status == HAL_OK)
+    {
+      /* Check if a regular conversion is ongoing */
+      if (HAL_IS_BIT_SET(hadc->State, HAL_ADC_STATE_REG_BUSY))
+      {
+        /* Reset ADC error code field related to injected conversions only */
+        CLEAR_BIT(hadc->ErrorCode, HAL_ADC_ERROR_JQOVF);             
+      }
+      else
+      {
+        /* Set ADC error code to none */
+        ADC_CLEAR_ERRORCODE(hadc);
+      }
+      
+      /* Set ADC state                                                        */
+      /* - Clear state bitfield related to injected group conversion results  */
+      /* - Set state bitfield related to injected operation                   */
+      ADC_STATE_CLR_SET(hadc->State,
+                        HAL_ADC_STATE_READY | HAL_ADC_STATE_INJ_EOC,
+                        HAL_ADC_STATE_INJ_BUSY);
+      
+      /* Reset HAL_ADC_STATE_MULTIMODE_SLAVE bit
+        - by default if ADC is Master or Independent or if multimode feature is not available
+        - if multimode setting is set to independent mode (no dual regular or injected conversions are configured) */
+      if (ADC_NONMULTIMODE_OR_MULTIMODEMASTER(hadc))
+      {
+        CLEAR_BIT(hadc->State, HAL_ADC_STATE_MULTIMODE_SLAVE);
+      }
+      
+      /* Clear ADC group injected group conversion flag */
+      /* (To ensure of no unknown state from potential previous ADC operations) */
+      __HAL_ADC_CLEAR_FLAG(hadc, (ADC_FLAG_JEOC | ADC_FLAG_JEOS));
+      
+      /* Process unlocked */
+      /* Unlock before starting ADC conversions: in case of potential         */
+      /* interruption, to let the process to ADC IRQ Handler.                 */
+      __HAL_UNLOCK(hadc);
+      
+      /* Enable conversion of injected group, if automatic injected conversion  */
+      /* is disabled.                                                           */
+      /* If software start has been selected, conversion starts immediately.    */
+      /* If external trigger has been selected, conversion will start at next   */
+      /* trigger event.                                                         */
+      /* Case of multimode enabled (when multimode feature is available):       */
+      /* if ADC is slave,                                                       */
+      /*    - ADC is enabled only (conversion is not started).                  */
+      /*    - if multimode only concerns regular conversion, ADC is enabled     */
+      /*     and conversion is started.                                         */
+      /* If ADC is master or independent,                                       */
+      /*    - ADC is enabled and conversion is started.                         */
+      
+      /* Are injected conversions that of a dual Slave ? */
+      if (ADC_INDEPENDENT_OR_NONMULTIMODEINJECTED_SLAVE(hadc))
+      {
+        /* hadc is not the handle of a Slave ADC with dual injected conversions enabled:
+           set ADSTART only if JAUTO is cleared */
+        if (HAL_IS_BIT_CLR(hadc->Instance->CFGR, ADC_CFGR_JAUTO))
+        {
+          SET_BIT(hadc->Instance->CR, ADC_CR_JADSTART) ;
+        }
+      }
+      else
+      {
+        /* hadc is the handle of a Slave ADC with dual injected conversions enabled:
+           ADSTART is not set */
+          SET_BIT(hadc->State, HAL_ADC_STATE_MULTIMODE_SLAVE);
+      }
+    } 
+    else
+    {
+      /* Process unlocked */
+      __HAL_UNLOCK(hadc);    
+    }
+  
+    /* Return function status */
+    return tmp_hal_status;
+  }
+}

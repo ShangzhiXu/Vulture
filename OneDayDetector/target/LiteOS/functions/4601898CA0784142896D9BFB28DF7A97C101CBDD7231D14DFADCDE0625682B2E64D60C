@@ -1,0 +1,37 @@
+s32_t spiffs_object_open_by_page(
+    spiffs *fs,
+    spiffs_page_ix pix,
+    spiffs_fd *fd,
+    spiffs_flags flags,
+    spiffs_mode mode)
+{
+    (void)mode;
+    s32_t res = SPIFFS_OK;
+    spiffs_page_object_ix_header oix_hdr;
+    spiffs_obj_id obj_id;
+
+    res = _spiffs_rd(fs, SPIFFS_OP_T_OBJ_IX | SPIFFS_OP_C_READ,
+                     fd->file_nbr, SPIFFS_PAGE_TO_PADDR(fs, pix), sizeof(spiffs_page_object_ix_header), (u8_t *)&oix_hdr);
+    SPIFFS_CHECK_RES(res);
+
+    spiffs_block_ix bix = SPIFFS_BLOCK_FOR_PAGE(fs, pix);
+    int entry = SPIFFS_OBJ_LOOKUP_ENTRY_FOR_PAGE(fs, pix);
+
+    res = _spiffs_rd(fs, SPIFFS_OP_T_OBJ_LU | SPIFFS_OP_C_READ,
+                     0,  SPIFFS_BLOCK_TO_PADDR(fs, bix) + entry * sizeof(spiffs_obj_id), sizeof(spiffs_obj_id), (u8_t *)&obj_id);
+
+    fd->fs = fs;
+    fd->objix_hdr_pix = pix;
+    fd->size = oix_hdr.size;
+    fd->offset = 0;
+    fd->cursor_objix_pix = pix;
+    fd->cursor_objix_spix = 0;
+    fd->obj_id = obj_id;
+    fd->flags = flags;
+
+    SPIFFS_VALIDATE_OBJIX(oix_hdr.p_hdr, fd->obj_id, 0);
+
+    SPIFFS_DBG("open: fd "_SPIPRIfd" is obj id "_SPIPRIid"\n", SPIFFS_FH_OFFS(fs, fd->file_nbr), fd->obj_id);
+
+    return res;
+}

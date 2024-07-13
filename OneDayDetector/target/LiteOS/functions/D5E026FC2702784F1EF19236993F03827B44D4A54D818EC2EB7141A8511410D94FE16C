@@ -1,0 +1,28 @@
+HAL_StatusTypeDef HAL_RTCEx_PollForWakeUpTimerEvent(RTC_HandleTypeDef *hrtc, uint32_t Timeout)
+{
+  uint32_t tickstart = 0U;
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  while(__HAL_RTC_WAKEUPTIMER_GET_FLAG(hrtc, RTC_FLAG_WUTF) == RESET)
+  {
+    if(Timeout != HAL_MAX_DELAY)
+    {
+      if((Timeout == 0U)||((HAL_GetTick() - tickstart ) > Timeout))
+      {
+        hrtc->State = HAL_RTC_STATE_TIMEOUT;
+
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+
+  /* Clear the WAKEUPTIMER Flag */
+  __HAL_RTC_WAKEUPTIMER_CLEAR_FLAG(hrtc, RTC_FLAG_WUTF);
+
+  /* Change RTC state */
+  hrtc->State = HAL_RTC_STATE_READY;
+
+  return HAL_OK;
+}

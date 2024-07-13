@@ -1,0 +1,63 @@
+int mbedtls_poly1305_update( mbedtls_poly1305_context *ctx,
+                             const unsigned char *input,
+                             size_t ilen )
+{
+    size_t offset    = 0U;
+    size_t remaining = ilen;
+    size_t queue_free_len;
+    size_t nblocks;
+    POLY1305_VALIDATE_RET( ctx != NULL );
+    POLY1305_VALIDATE_RET( ilen == 0 || input != NULL );
+
+    if( ( remaining > 0U ) && ( ctx->queue_len > 0U ) )
+    {
+        queue_free_len = ( POLY1305_BLOCK_SIZE_BYTES - ctx->queue_len );
+
+        if( ilen < queue_free_len )
+        {
+            /* Not enough data to complete the block.
+             * Store this data with the other leftovers.
+             */
+            memcpy( &ctx->queue[ctx->queue_len],
+                    input,
+                    ilen );
+
+            ctx->queue_len += ilen;
+
+            remaining = 0U;
+        }
+        else
+        {
+            /* Enough data to produce a complete block */
+            memcpy( &ctx->queue[ctx->queue_len],
+                    input,
+                    queue_free_len );
+
+            ctx->queue_len = 0U;
+
+            poly1305_process( ctx, 1U, ctx->queue, 1U ); /* add padding bit */
+
+            offset    += queue_free_len;
+            remaining -= queue_free_len;
+        }
+    }
+
+    if( remaining >= POLY1305_BLOCK_SIZE_BYTES )
+    {
+        nblocks = remaining / POLY1305_BLOCK_SIZE_BYTES;
+
+        poly1305_process( ctx, nblocks, &input[offset], 1U );
+
+        offset += nblocks * POLY1305_BLOCK_SIZE_BYTES;
+        remaining %= POLY1305_BLOCK_SIZE_BYTES;
+    }
+
+    if( remaining > 0U )
+    {
+        /* Store partial block */
+        ctx->queue_len = remaining;
+        memcpy( ctx->queue, &input[offset], remaining );
+    }
+
+    return( 0 );
+}

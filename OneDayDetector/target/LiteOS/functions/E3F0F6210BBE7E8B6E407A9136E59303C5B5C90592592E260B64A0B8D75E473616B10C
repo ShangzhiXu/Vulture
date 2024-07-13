@@ -1,0 +1,47 @@
+HAL_StatusTypeDef HAL_TSC_Start_IT(TSC_HandleTypeDef *htsc)
+{
+  /* Check the parameters */
+  assert_param(IS_TSC_ALL_INSTANCE(htsc->Instance));
+  assert_param(IS_TSC_MCE_IT(htsc->Init.MaxCountInterrupt));
+
+  /* Process locked */
+  __HAL_LOCK(htsc);
+
+  /* Change TSC state */
+  htsc->State = HAL_TSC_STATE_BUSY;
+
+  /* Enable end of acquisition interrupt */
+  __HAL_TSC_ENABLE_IT(htsc, TSC_IT_EOA);
+
+  /* Enable max count error interrupt (optional) */
+  if (htsc->Init.MaxCountInterrupt == ENABLE)
+  {
+    __HAL_TSC_ENABLE_IT(htsc, TSC_IT_MCE);
+  }
+  else
+  {
+    __HAL_TSC_DISABLE_IT(htsc, TSC_IT_MCE);
+  }
+
+  /* Clear flags */
+  __HAL_TSC_CLEAR_FLAG(htsc, (TSC_FLAG_EOA | TSC_FLAG_MCE));
+
+  /* Set touch sensing IOs not acquired to the specified IODefaultMode */
+  if (htsc->Init.IODefaultMode == TSC_IODEF_OUT_PP_LOW)
+  {
+    __HAL_TSC_SET_IODEF_OUTPPLOW(htsc);
+  }
+  else
+  {
+    __HAL_TSC_SET_IODEF_INFLOAT(htsc);
+  }
+
+  /* Launch the acquisition */
+  __HAL_TSC_START_ACQ(htsc);
+
+  /* Process unlocked */
+  __HAL_UNLOCK(htsc);
+
+  /* Return function status */
+  return HAL_OK;
+}

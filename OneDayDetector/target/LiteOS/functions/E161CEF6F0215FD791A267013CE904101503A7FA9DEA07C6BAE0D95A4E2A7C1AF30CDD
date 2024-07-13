@@ -1,0 +1,147 @@
+static void draw_series_line(lv_obj_t * chart, const lv_area_t * series_area, const lv_area_t * clip_area)
+{
+    lv_area_t com_area;
+    if(_lv_area_intersect(&com_area, series_area, clip_area) == false) return;
+
+    lv_chart_ext_t * ext = lv_obj_get_ext_attr(chart);
+
+    uint16_t i;
+    lv_point_t p1;
+    lv_point_t p2;
+    lv_coord_t w     = lv_area_get_width(series_area);
+    lv_coord_t h     = lv_area_get_height(series_area);
+    lv_coord_t x_ofs = series_area->x1;
+    lv_coord_t y_ofs = series_area->y1;
+    lv_chart_series_t * ser;
+
+    lv_area_t series_mask;
+    bool mask_ret = _lv_area_intersect(&series_mask, series_area, clip_area);
+    if(mask_ret == false) return;
+
+    lv_draw_line_dsc_t line_dsc;
+    lv_draw_line_dsc_init(&line_dsc);
+    lv_obj_init_draw_line_dsc(chart, LV_CHART_PART_SERIES, &line_dsc);
+
+    lv_draw_mask_fade_param_t mask_fade_p;
+    int16_t mask_fade_id = LV_MASK_ID_INV;
+    lv_draw_rect_dsc_t area_dsc;
+    bool has_area = lv_obj_get_style_bg_opa(chart, LV_CHART_PART_SERIES) > LV_OPA_MIN ? true : false;
+    bool has_fade = false;
+    if(has_area) {
+        lv_draw_rect_dsc_init(&area_dsc);
+        lv_obj_init_draw_rect_dsc(chart, LV_CHART_PART_SERIES, &area_dsc);
+        area_dsc.border_width = 0;
+
+        has_fade = area_dsc.bg_grad_dir == LV_GRAD_DIR_VER ? true : false;
+        if(has_fade) {
+            lv_draw_mask_fade_init(&mask_fade_p, series_area, area_dsc.bg_main_color_stop, series_area->y1,
+                                   area_dsc.bg_grad_color_stop, series_area->y2);
+        }
+    }
+
+    lv_draw_rect_dsc_t point_dsc;
+    lv_draw_rect_dsc_init(&point_dsc);
+    point_dsc.bg_opa = line_dsc.opa;
+    point_dsc.radius = LV_RADIUS_CIRCLE;
+
+
+    lv_coord_t point_radius = lv_obj_get_style_size(chart, LV_CHART_PART_SERIES);
+
+    /*Do not bother with line ending is the point will over it*/
+    if(point_radius > line_dsc.width / 2) line_dsc.raw_end = 1;
+
+    /*Go through all data lines*/
+    _LV_LL_READ_BACK(ext->series_ll, ser) {
+        line_dsc.color = ser->color;
+        point_dsc.bg_color = ser->color;
+        area_dsc.bg_color = ser->color;
+        area_dsc.bg_grad_color = ser->color;
+
+        lv_coord_t start_point = ext->update_mode == LV_CHART_UPDATE_MODE_SHIFT ? ser->start_point : 0;
+
+        p1.x = 0 + x_ofs;
+        p2.x = 0 + x_ofs;
+
+        lv_coord_t p_act = start_point;
+        lv_coord_t p_prev = start_point;
+        int32_t y_tmp = (int32_t)((int32_t)ser->points[p_prev] - ext->ymin) * h;
+        y_tmp  = y_tmp / (ext->ymax - ext->ymin);
+        p2.y   = h - y_tmp + y_ofs;
+
+        for(i = 0; i < ext->point_cnt; i++) {
+            p1.x = p2.x;
+            p1.y = p2.y;
+
+            p2.x = ((w * i) / (ext->point_cnt - 1)) + x_ofs;
+
+            p_act = (start_point + i) % ext->point_cnt;
+
+            y_tmp = (int32_t)((int32_t)ser->points[p_act] - ext->ymin) * h;
+            y_tmp = y_tmp / (ext->ymax - ext->ymin);
+            p2.y  = h - y_tmp + y_ofs;
+
+            /*Don't draw the first point. A second point is also required to draw the line*/
+            if(i != 0 && ser->points[p_prev] != LV_CHART_POINT_DEF && ser->points[p_act] != LV_CHART_POINT_DEF) {
+                lv_draw_line(&p1, &p2, &series_mask, &line_dsc);
+
+                lv_coord_t y_top = LV_MATH_MIN(p1.y, p2.y);
+                if(has_area && y_top <= clip_area->y2) {
+                    int16_t mask_line_id;
+                    lv_draw_mask_line_param_t mask_line_p;
+                    lv_draw_mask_line_points_init(&mask_line_p, p1.x, p1.y, p2.x, p2.y, LV_DRAW_MASK_LINE_SIDE_BOTTOM);
+                    mask_line_id = lv_draw_mask_add(&mask_line_p, NULL);
+
+                    lv_area_t a;
+                    a.x1 = p1.x;
+                    a.x2 = p2.x - 1;
+                    a.y1 = y_top;
+                    a.y2 = series_area->y2;
+
+                    if(has_fade) mask_fade_id = lv_draw_mask_add(&mask_fade_p, NULL);
+
+                    lv_draw_rect(&a, &series_mask, &area_dsc);
+
+                    lv_draw_mask_remove_id(mask_line_id);
+                    lv_draw_mask_remove_id(mask_fade_id);
+                }
+            }
+
+            if(point_radius) {
+                lv_area_t point_area;
+
+                point_area.x1 = p1.x;
+                point_area.x2 = point_area.x1 + point_radius;
+                point_area.x1 -= point_radius;
+
+                point_area.y1 = p1.y;
+                point_area.y2 = point_area.y1 + point_radius;
+                point_area.y1 -= point_radius;
+
+                if(ser->points[p_act] != LV_CHART_POINT_DEF) {
+                    /*Don't limit to `series_mask` to get full circles on the ends*/
+                    lv_draw_rect(&point_area, clip_area, &point_dsc);
+                }
+            }
+
+            p_prev = p_act;
+        }
+
+        /*Draw the last point*/
+        if(point_radius) {
+            lv_area_t point_area;
+
+            point_area.x1 = p2.x;
+            point_area.x2 = point_area.x1 + point_radius;
+            point_area.x1 -= point_radius;
+
+            point_area.y1 = p2.y;
+            point_area.y2 = point_area.y1 + point_radius;
+            point_area.y1 -= point_radius;
+
+            if(ser->points[p_act] != LV_CHART_POINT_DEF) {
+                /*Don't limit to `series_mask` to get full circles on the ends*/
+                lv_draw_rect(&point_area, clip_area, &point_dsc);
+            }
+        }
+    }
+}

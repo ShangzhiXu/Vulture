@@ -1,0 +1,36 @@
+HAL_StatusTypeDef HAL_LTDC_ConfigLayer_NoReload(LTDC_HandleTypeDef *hltdc, LTDC_LayerCfgTypeDef *pLayerCfg, uint32_t LayerIdx)
+{
+  /* Check the parameters */
+  assert_param(IS_LTDC_LAYER(LayerIdx));
+  assert_param(IS_LTDC_HCONFIGST(pLayerCfg->WindowX0));
+  assert_param(IS_LTDC_HCONFIGSP(pLayerCfg->WindowX1));
+  assert_param(IS_LTDC_VCONFIGST(pLayerCfg->WindowY0));
+  assert_param(IS_LTDC_VCONFIGSP(pLayerCfg->WindowY1));
+  assert_param(IS_LTDC_PIXEL_FORMAT(pLayerCfg->PixelFormat));
+  assert_param(IS_LTDC_ALPHA(pLayerCfg->Alpha));
+  assert_param(IS_LTDC_ALPHA(pLayerCfg->Alpha0));
+  assert_param(IS_LTDC_BLENDING_FACTOR1(pLayerCfg->BlendingFactor1));
+  assert_param(IS_LTDC_BLENDING_FACTOR2(pLayerCfg->BlendingFactor2));
+  assert_param(IS_LTDC_CFBLL(pLayerCfg->ImageWidth));
+  assert_param(IS_LTDC_CFBLNBR(pLayerCfg->ImageHeight));
+
+  /* Process locked */
+  __HAL_LOCK(hltdc);
+
+  /* Change LTDC peripheral state */
+  hltdc->State = HAL_LTDC_STATE_BUSY;
+
+  /* Copy new layer configuration into handle structure */
+  hltdc->LayerCfg[LayerIdx] = *pLayerCfg;
+
+  /* Configure the LTDC Layer */
+  LTDC_SetConfig(hltdc, pLayerCfg, LayerIdx);
+
+  /* Initialize the LTDC state*/
+  hltdc->State  = HAL_LTDC_STATE_READY;
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hltdc);
+
+  return HAL_OK;
+}

@@ -1,0 +1,25 @@
+static void SMARTCARD_TxISR_FIFOEN(SMARTCARD_HandleTypeDef *hsmartcard)
+{
+  uint8_t   nb_tx_data;
+
+  /* Check that a Tx process is ongoing */
+  if (hsmartcard->gState == HAL_SMARTCARD_STATE_BUSY_TX)
+  {
+    for(nb_tx_data = hsmartcard->NbTxDataToProcess ; nb_tx_data > 0 ; nb_tx_data--)
+    {    
+      if(hsmartcard->TxXferCount == 0)
+      {
+        /* Disable the SMARTCARD Transmit Data Register Empty Interrupt */
+        CLEAR_BIT(hsmartcard->Instance->CR1, USART_CR1_TXEIE_TXFNFIE);
+        
+        /* Enable the SMARTCARD Transmit Complete Interrupt */
+        __HAL_SMARTCARD_ENABLE_IT(hsmartcard, hsmartcard->AdvancedInit.TxCompletionIndication);
+      }
+      else if (READ_BIT(hsmartcard->Instance->ISR, USART_ISR_TXE_TXFNF) != RESET)
+      {
+        hsmartcard->Instance->TDR = (*hsmartcard->pTxBuffPtr++ & (uint8_t)0xFF);
+        hsmartcard->TxXferCount--;
+      }
+    }
+  }
+}

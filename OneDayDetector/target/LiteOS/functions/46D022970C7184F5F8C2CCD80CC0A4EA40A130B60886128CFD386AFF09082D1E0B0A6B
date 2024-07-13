@@ -1,0 +1,19 @@
+VOID OsHeapStatAddUsed(struct LosHeapManager *heapMan, struct LosHeapNode *node)
+{
+    UINT32 taskId;
+    UINT32 blockSize = sizeof(struct LosHeapNode) + node->size;
+
+    if ((OsCurrTaskGet() != NULL) && OS_INT_INACTIVE) {
+        /*
+         * after OsTaskInit, OsCurrTaskGet() is not null, but id is the same
+         * as (LOSCFG_BASE_CORE_TSK_LIMIT + 1), so it will be recorded into
+         * the last one of the array.
+         */
+        taskId = LOS_CurTaskIDGet();
+    } else {
+        taskId = TASK_NUM - 1;
+    }
+
+    node->taskId = taskId;
+    OS_MEM_ADD_USED(&heapMan->stat, blockSize, taskId);
+}

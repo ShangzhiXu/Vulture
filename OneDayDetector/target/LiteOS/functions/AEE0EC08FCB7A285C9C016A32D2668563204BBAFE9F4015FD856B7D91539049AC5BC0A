@@ -1,0 +1,18 @@
+bridgeif_send_to_ports(bridgeif_private_t *br, struct pbuf *p, bridgeif_portmask_t dstports)
+{
+  err_t err, ret_err = ERR_OK;
+  u8_t i;
+  bridgeif_portmask_t mask = 1;
+  BRIDGEIF_DECL_PROTECT(lev);
+  BRIDGEIF_READ_PROTECT(lev);
+  for (i = 0; i < BRIDGEIF_MAX_PORTS; i++, mask = (bridgeif_portmask_t)(mask << 1)) {
+    if (dstports & mask) {
+      err = bridgeif_send_to_port(br, p, i);
+      if (err != ERR_OK) {
+        ret_err = err;
+      }
+    }
+  }
+  BRIDGEIF_READ_UNPROTECT(lev);
+  return ret_err;
+}

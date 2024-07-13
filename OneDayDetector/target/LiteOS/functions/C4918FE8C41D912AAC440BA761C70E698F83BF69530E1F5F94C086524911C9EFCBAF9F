@@ -1,0 +1,223 @@
+SECUREC_INLINE int SecOutputSW(SecPrintfStream *stream, const wchar_t *cFormat, va_list argList)
+#else
+/*
+ * Formatting output core functions for char version.Called by a function such as vsnprintf_s
+ */
+SECUREC_INLINE int SecOutputS(SecPrintfStream *stream, const char *cFormat, va_list argList)
+#endif
+{
+    const SecChar *format = cFormat;
+    int charsOut;               /* Characters written */
+    int noOutput = 0; /* Must be initialized or compiler alerts */
+    SecFmtState state;
+    SecFormatAttr formatAttr;
+
+    formatAttr.flags = 0;
+    formatAttr.textIsWide = 0;    /* Flag for buffer contains wide chars */
+    formatAttr.fldWidth = 0;
+    formatAttr.precision = 0;
+    formatAttr.dynWidth = 0;
+    formatAttr.dynPrecision = 0;
+    formatAttr.digits = g_itoaUpperDigits;
+    formatAttr.radix = SECUREC_RADIX_DECIMAL;
+    formatAttr.padding = 0;
+    formatAttr.textLen = 0;
+    formatAttr.text.str = NULL;
+    formatAttr.prefixLen = 0;
+    formatAttr.prefix[0] = SECUREC_CHAR('\0');
+    formatAttr.prefix[1] = SECUREC_CHAR('\0');
+    charsOut = 0;
+    state = STAT_NORMAL;        /* Starting state */
+
+    /* Loop each format character */
+    while (*format != SECUREC_CHAR('\0') && charsOut >= 0) {
+        SecFmtState lastState = state;
+        SecChar ch = *format; /* Currently read character */
+        ++format;
+        state = SecDecodeState(ch, lastState);
+        switch (state) {
+            case STAT_NORMAL:
+                SecOutputOneChar(ch, stream, &charsOut);
+                continue;
+            case STAT_PERCENT:
+                /* Set default values */
+                noOutput = 0;
+                formatAttr.prefixLen = 0;
+                formatAttr.textLen = 0;
+                formatAttr.flags = 0;
+                formatAttr.fldWidth = 0;
+                formatAttr.precision = -1;
+                formatAttr.textIsWide = 0;
+                formatAttr.dynWidth = 0;
+                formatAttr.dynPrecision = 0;
+                break;
+            case STAT_FLAG:
+                /* Set flag based on which flag character */
+                SecDecodeFlags(ch, &formatAttr);
+                break;
+            case STAT_WIDTH:
+                /* Update width value */
+                if (ch == SECUREC_CHAR('*')) {
+                    /* get width from arg list */
+                    formatAttr.fldWidth = (int)va_arg(argList, int);
+                    formatAttr.dynWidth = 1;
+                }
+                if (SecDecodeWidth(ch, &formatAttr, lastState) != 0) {
+                    return -1;
+                }
+                break;
+            case STAT_DOT:
+                formatAttr.precision = 0;
+                break;
+            case STAT_PRECIS:
+                /* Update precison value */
+                if (ch == SECUREC_CHAR('*')) {
+                    /* Get precision from arg list */
+                    formatAttr.precision = (int)va_arg(argList, int);
+                    formatAttr.dynPrecision = 1;
+                }
+                if (SecDecodePrecision(ch, &formatAttr) != 0) {
+                    return -1;
+                }
+                break;
+            case STAT_SIZE:
+                /* Read a size specifier, set the formatAttr.flags based on it, and skip format to next charater */
+                if (SecDecodeSize(ch, &formatAttr, &format) != 0) {
+                    /* Compatibility  code for "%I" just print I */
+                    SecOutputOneChar(ch, stream, &charsOut);
+                    state = STAT_NORMAL;
+                    continue;
+                }
+                break;
+            case STAT_TYPE:
+                switch (ch) {
+                    case SECUREC_CHAR('C'): /* Wide char */
+                        SecUpdateWcharFlags(&formatAttr);
+                        /* fall-through */ /* FALLTHRU */
+                    case SECUREC_CHAR('c'): {
+                        unsigned int cValue = (unsigned int)va_arg(argList, int);
+                        SecDecodeTypeC(&formatAttr, cValue);
+                        break;
+                    }
+                    case SECUREC_CHAR('S'):    /* Wide char string */
+                        SecUpdateWstringFlags(&formatAttr);
+                        /* fall-through */ /* FALLTHRU */
+                    case SECUREC_CHAR('s'): {
+                        char *argPtr = (char *)va_arg(argList, char *);
+                        SecDecodeTypeS(&formatAttr, argPtr);
+                        break;
+                    }
+                    case SECUREC_CHAR('G'): /* fall-through */ /* FALLTHRU */
+                    case SECUREC_CHAR('g'): /* fall-through */ /* FALLTHRU */
+                        /* Default precision is 1 for g or G */
+                        if (formatAttr.precision == 0) {
+                            formatAttr.precision = 1;
+                        }
+                        /* fall-through */ /* FALLTHRU */
+                    case SECUREC_CHAR('E'): /* fall-through */ /* FALLTHRU */
+                    case SECUREC_CHAR('F'): /* fall-through */ /* FALLTHRU */
+                    case SECUREC_CHAR('e'): /* fall-through */ /* FALLTHRU */
+                    case SECUREC_CHAR('f'): {
+#if SECUREC_ENABLE_SPRINTF_FLOAT
+                        /* Add following code to call system sprintf API for float number */
+                        SecFloatAdapt floatAdapt;
+                        noOutput = 1; /* It's no more data needs to be written */
+
+                        /* Now format is pointer to the next character of 'f' */
+                        if (SecInitFloatBuffer(&floatAdapt, format, &formatAttr) != 0) {
+                            break;
+                        }
+
+                        if ((formatAttr.flags & SECUREC_FLAG_LONG_DOUBLE) != 0) {
+#if defined(SECUREC_COMPATIBLE_LINUX_FORMAT) && SECUREC_ENABLE_SPRINTF_LONG_DOUBLE
+                            long double tmp = (long double)va_arg(argList, long double);
+                            SecFormatLongDouble(&formatAttr, &floatAdapt, tmp);
+#else
+                            double tmp = (double)va_arg(argList, double);
+                            SecFormatDouble(&formatAttr, &floatAdapt, tmp);
+#endif
+                        } else {
+                            double tmp = (double)va_arg(argList, double);
+                            SecFormatDouble(&formatAttr, &floatAdapt, tmp);
+                        }
+
+                        /* Only need write formated float string */
+                        SecWriteFloatText(stream, &formatAttr, &charsOut);
+                        SecFreeFloatBuffer(&floatAdapt);
+                        break;
+#else
+                        return -1;
+#endif
+                    }
+                    case SECUREC_CHAR('X'): /* fall-through */ /* FALLTHRU */
+                    case SECUREC_CHAR('p'): /* fall-through */ /* FALLTHRU */
+                    case SECUREC_CHAR('x'): /* fall-through */ /* FALLTHRU */
+                        SecUpdateXpxFlags(&formatAttr, ch);
+                        /* fall-through */ /* FALLTHRU */
+                    case SECUREC_CHAR('i'): /* fall-through */ /* FALLTHRU */
+                    case SECUREC_CHAR('d'): /* fall-through */ /* FALLTHRU */
+                    case SECUREC_CHAR('u'): /* fall-through */ /* FALLTHRU */
+                    case SECUREC_CHAR('o'): {
+                        SecInt64 num64;
+                        SecUpdateOudiFlags(&formatAttr, ch);
+                        /* Read argument into variable num64. Be careful, depend on the order of judgment */
+                        if ((formatAttr.flags & SECUREC_FLAG_I64) != 0 ||
+                            (formatAttr.flags & SECUREC_FLAG_LONGLONG) != 0) {
+                            num64 = (SecInt64)va_arg(argList, SecInt64); /* Maximum Bit Width sign bit unchanged */
+                        } else if ((formatAttr.flags & SECUREC_FLAG_LONG) != 0) {
+                            num64 = SECUREC_GET_LONG_FROM_ARG(formatAttr);
+                        } else if ((formatAttr.flags & SECUREC_FLAG_CHAR) != 0) {
+                            num64 = SECUREC_GET_CHAR_FROM_ARG(formatAttr);
+                        } else if ((formatAttr.flags & SECUREC_FLAG_SHORT) != 0) {
+                            num64 = SECUREC_GET_SHORT_FROM_ARG(formatAttr);
+#ifdef SECUREC_COMPATIBLE_LINUX_FORMAT
+                        } else if ((formatAttr.flags & SECUREC_FLAG_PTRDIFF) != 0) {
+                            num64 = (ptrdiff_t)va_arg(argList, ptrdiff_t);  /* Sign extend */
+                        } else if ((formatAttr.flags & SECUREC_FLAG_SIZE) != 0) {
+                            num64 = SECUREC_GET_SIZE_FROM_ARG(formatAttr);
+                        } else if ((formatAttr.flags & SECUREC_FLAG_INTMAX) != 0) {
+                            num64 = (SecInt64)va_arg(argList, SecInt64);
+#endif
+                        } else {
+                            num64 = SECUREC_GET_INT_FROM_ARG(formatAttr);
+                        }
+
+                        /* The order of the following calls must be correct */
+                        SecNumberToBuffer(&formatAttr, num64);
+                        SecNumberSatisfyPrecision(&formatAttr);
+                        SecNumberForceOctal(&formatAttr);
+                        SecUpdateSignedNumberPrefix(&formatAttr);
+                        if (num64 == 0) {
+                            SecNumberCompatZero(&formatAttr);
+                        }
+                        break;
+                    }
+                    default:
+                        /* Do nothing */
+                        break;
+                }
+
+                if (noOutput == 0) {
+                    /* Calculate amount of padding */
+                    formatAttr.padding = (formatAttr.fldWidth - formatAttr.textLen) - formatAttr.prefixLen;
+
+                    /* Put out the padding, prefix, and text, in the correct order */
+                    SecWriteLeftPadding(stream, &formatAttr, &charsOut);
+                    SecWritePrefix(stream, &formatAttr, &charsOut);
+                    SecWriteLeadingZero(stream, &formatAttr, &charsOut);
+                    SecWriteText(stream, &formatAttr, &charsOut);
+                    SecWriteRightPadding(stream, &formatAttr, &charsOut);
+                }
+                break;
+            case STAT_INVALID: /* fall-through */ /* FALLTHRU */
+            default:
+                return -1;  /* Input format is wrong(STAT_INVALID), directly return */
+        }
+    }
+
+    if (state != STAT_NORMAL && state != STAT_TYPE) {
+        return -1;
+    }
+
+    return charsOut;            /* The number of characters written */
+}

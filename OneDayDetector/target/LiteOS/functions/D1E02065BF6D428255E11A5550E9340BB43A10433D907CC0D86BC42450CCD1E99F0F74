@@ -1,0 +1,29 @@
+int MQTTPacket_decode(int (*getcharfn)(unsigned char *, int), int *value)
+{
+    unsigned char c;
+    int multiplier = 1;
+    int len = 0;
+#define MAX_NO_OF_REMAINING_LENGTH_BYTES 4
+
+    FUNC_ENTRY;
+    *value = 0;
+    do
+    {
+        int rc = MQTTPACKET_READ_ERROR;
+
+        if (++len > MAX_NO_OF_REMAINING_LENGTH_BYTES)
+        {
+            rc = MQTTPACKET_READ_ERROR;	/* bad data */
+            goto exit;
+        }
+        rc = (*getcharfn)(&c, 1);
+        if (rc != 1)
+            goto exit;
+        *value += (c & 127) * multiplier;
+        multiplier *= 128;
+    }
+    while ((c & 128) != 0);
+exit:
+    FUNC_EXIT_RC(len);
+    return len;
+}

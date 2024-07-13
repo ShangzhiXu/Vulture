@@ -1,0 +1,22 @@
+static ssize_t ramfs_read(struct file *file, char *buff, size_t bytes)
+{
+    struct ramfs_element *ramfs_file = (struct ramfs_element *)file->f_data;
+
+    if (file->f_offset < 0) {
+        file->f_offset = 0;
+    }
+
+    if (ramfs_file->f.size <= (size_t)file->f_offset) { /* nothing to read */
+        return 0;
+    }
+
+    if (ramfs_file->f.size - file->f_offset < bytes) {
+        bytes = ramfs_file->f.size - file->f_offset;
+    }
+
+    memcpy(buff, ramfs_file->f.content + file->f_offset, bytes);
+
+    file->f_offset += bytes;
+
+    return bytes;
+}

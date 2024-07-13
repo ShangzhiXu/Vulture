@@ -1,0 +1,71 @@
+HAL_StatusTypeDef HAL_USART_Transmit(USART_HandleTypeDef *husart, uint8_t *pTxData, uint16_t Size, uint32_t Timeout)
+{
+  uint16_t* tmp;
+  uint32_t tickstart = 0;
+
+  if(husart->State == HAL_USART_STATE_READY)
+  {
+    if((pTxData == NULL) || (Size == 0))
+    {
+      return  HAL_ERROR;
+    }
+      
+    /* Process Locked */
+    __HAL_LOCK(husart);
+    
+    husart->ErrorCode = HAL_USART_ERROR_NONE;
+    husart->State = HAL_USART_STATE_BUSY_TX;
+    
+    /* Init tickstart for timeout managment*/
+    tickstart = HAL_GetTick();
+    
+    husart->TxXferSize = Size;
+    husart->TxXferCount = Size;
+    
+    /* Check the remaining data to be sent */
+    while(husart->TxXferCount > 0)
+    {
+      if(USART_WaitOnFlagUntilTimeout(husart, USART_FLAG_TXE, RESET, tickstart, Timeout) != HAL_OK)
+      {
+        return HAL_TIMEOUT;
+      }
+      if((husart->Init.WordLength == USART_WORDLENGTH_9B) && (husart->Init.Parity == USART_PARITY_NONE))
+      {
+        tmp = (uint16_t*) pTxData;
+        husart->Instance->TDR = (*tmp & (uint16_t)0x01FF);
+        pTxData += 2;
+      }
+      else
+      {
+        husart->Instance->TDR = (*pTxData++ & (uint8_t)0xFF);
+      }
+      
+      husart->TxXferCount--;
+    }
+    
+    if(USART_WaitOnFlagUntilTimeout(husart, USART_FLAG_TC, RESET, tickstart, Timeout) != HAL_OK)
+    {
+      return HAL_TIMEOUT;
+    }
+    
+    /* Clear Transmission Complete Flag */
+    __HAL_USART_CLEAR_FLAG(husart, USART_CLEAR_TCF);
+    
+    /* Clear overrun flag and discard the received data */
+    __HAL_USART_CLEAR_OREFLAG(husart);
+    __HAL_USART_SEND_REQ(husart, USART_RXDATA_FLUSH_REQUEST);
+    __HAL_USART_SEND_REQ(husart, USART_TXDATA_FLUSH_REQUEST);
+    
+    /* At end of Tx process, restore husart->State to Ready */
+    husart->State = HAL_USART_STATE_READY;
+    
+    /* Process Unlocked */
+    __HAL_UNLOCK(husart);
+    
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

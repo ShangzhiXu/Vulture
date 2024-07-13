@@ -1,0 +1,37 @@
+static void SPI_AbortRx_ISR(SPI_HandleTypeDef *hspi)
+{
+  __IO uint32_t count;
+
+  /* Disable SPI Peripheral */
+  __HAL_SPI_DISABLE(hspi);
+
+  count = SPI_DEFAULT_TIMEOUT * (SystemCoreClock / 24U / 1000U);
+
+  /* Disable TXEIE, RXNEIE and ERRIE(mode fault event, overrun error, TI frame error) interrupts */
+  CLEAR_BIT(hspi->Instance->CR2, (SPI_CR2_TXEIE | SPI_CR2_RXNEIE | SPI_CR2_ERRIE));
+
+  /* Check RXNEIE is disabled */
+  do
+  {
+    if (count-- == 0U)
+    {
+      SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_ABORT);
+      break;
+    }
+  }
+  while (HAL_IS_BIT_SET(hspi->Instance->CR2, SPI_CR2_RXNEIE));
+
+  /* Control the BSY flag */
+  if (SPI_WaitFlagStateUntilTimeout(hspi, SPI_FLAG_BSY, RESET, SPI_DEFAULT_TIMEOUT, HAL_GetTick()) != HAL_OK)
+  {
+    hspi->ErrorCode = HAL_SPI_ERROR_ABORT;
+  }
+
+  /* Empty the FRLVL fifo */
+  if (SPI_WaitFifoStateUntilTimeout(hspi, SPI_FLAG_FRLVL, SPI_FRLVL_EMPTY, SPI_DEFAULT_TIMEOUT, HAL_GetTick()) != HAL_OK)
+  {
+    hspi->ErrorCode = HAL_SPI_ERROR_ABORT;
+  }
+
+  hspi->State = HAL_SPI_STATE_ABORT;
+}

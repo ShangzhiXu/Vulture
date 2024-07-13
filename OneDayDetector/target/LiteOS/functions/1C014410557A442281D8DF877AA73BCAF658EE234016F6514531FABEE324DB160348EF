@@ -1,0 +1,37 @@
+static void at_handle_resp(int8_t *resp_buf, uint32_t resp_len)
+{
+    at_listener *listener = NULL;
+
+    listener = at.head;
+    if (listener == NULL) {
+        return;
+    }
+
+    if (at_handle_callback_cmd_resp(listener, resp_buf, resp_len) == AT_OK) {
+        return;
+    }
+
+    if (listener->cmd_info.suffix == NULL) {
+        (void)LOS_SemPost(at.resp_sem);
+        listener = NULL;
+        return;
+    }
+
+    for (uint32_t i = 0;  i < listener->cmd_info.suffix_num; i++) {
+        char *suffix;
+
+        if (listener->cmd_info.suffix[i] == NULL) {
+            continue;
+        }
+
+        suffix = strstr((char *)resp_buf, (const char *)listener->cmd_info.suffix[i]);
+        if (suffix != NULL) {
+            if ((listener->cmd_info.resp_buf != NULL) && (listener->cmd_info.resp_len != NULL) && (resp_len > 0)) {
+                store_resp_buf((int8_t *)listener->cmd_info.resp_buf, resp_buf, resp_len, listener->cmd_info.resp_len);
+            }
+            listener->cmd_info.match_idx = i;
+            (void)LOS_SemPost(at.resp_sem);
+            break;
+        }
+    }
+}

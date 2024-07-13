@@ -1,0 +1,420 @@
+int mbedtls_aes_self_test( int verbose )
+{
+    int ret = 0, i, j, u, mode;
+    unsigned int keybits;
+    unsigned char key[32];
+    unsigned char buf[64];
+    const unsigned char *aes_tests;
+#if defined(MBEDTLS_CIPHER_MODE_CBC) || defined(MBEDTLS_CIPHER_MODE_CFB)
+    unsigned char iv[16];
+#endif
+#if defined(MBEDTLS_CIPHER_MODE_CBC)
+    unsigned char prv[16];
+#endif
+#if defined(MBEDTLS_CIPHER_MODE_CTR) || defined(MBEDTLS_CIPHER_MODE_CFB) || \
+    defined(MBEDTLS_CIPHER_MODE_OFB)
+    size_t offset;
+#endif
+#if defined(MBEDTLS_CIPHER_MODE_CTR) || defined(MBEDTLS_CIPHER_MODE_XTS)
+    int len;
+#endif
+#if defined(MBEDTLS_CIPHER_MODE_CTR)
+    unsigned char nonce_counter[16];
+    unsigned char stream_block[16];
+#endif
+    mbedtls_aes_context ctx;
+
+    memset( key, 0, 32 );
+    mbedtls_aes_init( &ctx );
+
+    /*
+     * ECB mode
+     */
+    for( i = 0; i < 6; i++ )
+    {
+        u = i >> 1;
+        keybits = 128 + u * 64;
+        mode = i & 1;
+
+        if( verbose != 0 )
+            mbedtls_printf( "  AES-ECB-%3d (%s): ", keybits,
+                            ( mode == MBEDTLS_AES_DECRYPT ) ? "dec" : "enc" );
+
+        memset( buf, 0, 16 );
+
+        if( mode == MBEDTLS_AES_DECRYPT )
+        {
+            ret = mbedtls_aes_setkey_dec( &ctx, key, keybits );
+            aes_tests = aes_test_ecb_dec[u];
+        }
+        else
+        {
+            ret = mbedtls_aes_setkey_enc( &ctx, key, keybits );
+            aes_tests = aes_test_ecb_enc[u];
+        }
+
+        /*
+         * AES-192 is an optional feature that may be unavailable when
+         * there is an alternative underlying implementation i.e. when
+         * MBEDTLS_AES_ALT is defined.
+         */
+        if( ret == MBEDTLS_ERR_PLATFORM_FEATURE_UNSUPPORTED && keybits == 192 )
+        {
+            mbedtls_printf( "skipped\n" );
+            continue;
+        }
+        else if( ret != 0 )
+        {
+            goto exit;
+        }
+
+        for( j = 0; j < 10000; j++ )
+        {
+            ret = mbedtls_aes_crypt_ecb( &ctx, mode, buf, buf );
+            if( ret != 0 )
+                goto exit;
+        }
+
+        if( memcmp( buf, aes_tests, 16 ) != 0 )
+        {
+            ret = 1;
+            goto exit;
+        }
+
+        if( verbose != 0 )
+            mbedtls_printf( "passed\n" );
+    }
+
+    if( verbose != 0 )
+        mbedtls_printf( "\n" );
+
+#if defined(MBEDTLS_CIPHER_MODE_CBC)
+    /*
+     * CBC mode
+     */
+    for( i = 0; i < 6; i++ )
+    {
+        u = i >> 1;
+        keybits = 128 + u * 64;
+        mode = i & 1;
+
+        if( verbose != 0 )
+            mbedtls_printf( "  AES-CBC-%3d (%s): ", keybits,
+                            ( mode == MBEDTLS_AES_DECRYPT ) ? "dec" : "enc" );
+
+        memset( iv , 0, 16 );
+        memset( prv, 0, 16 );
+        memset( buf, 0, 16 );
+
+        if( mode == MBEDTLS_AES_DECRYPT )
+        {
+            ret = mbedtls_aes_setkey_dec( &ctx, key, keybits );
+            aes_tests = aes_test_cbc_dec[u];
+        }
+        else
+        {
+            ret = mbedtls_aes_setkey_enc( &ctx, key, keybits );
+            aes_tests = aes_test_cbc_enc[u];
+        }
+
+        /*
+         * AES-192 is an optional feature that may be unavailable when
+         * there is an alternative underlying implementation i.e. when
+         * MBEDTLS_AES_ALT is defined.
+         */
+        if( ret == MBEDTLS_ERR_PLATFORM_FEATURE_UNSUPPORTED && keybits == 192 )
+        {
+            mbedtls_printf( "skipped\n" );
+            continue;
+        }
+        else if( ret != 0 )
+        {
+            goto exit;
+        }
+
+        for( j = 0; j < 10000; j++ )
+        {
+            if( mode == MBEDTLS_AES_ENCRYPT )
+            {
+                unsigned char tmp[16];
+
+                memcpy( tmp, prv, 16 );
+                memcpy( prv, buf, 16 );
+                memcpy( buf, tmp, 16 );
+            }
+
+            ret = mbedtls_aes_crypt_cbc( &ctx, mode, 16, iv, buf, buf );
+            if( ret != 0 )
+                goto exit;
+
+        }
+
+        if( memcmp( buf, aes_tests, 16 ) != 0 )
+        {
+            ret = 1;
+            goto exit;
+        }
+
+        if( verbose != 0 )
+            mbedtls_printf( "passed\n" );
+    }
+
+    if( verbose != 0 )
+        mbedtls_printf( "\n" );
+#endif /* MBEDTLS_CIPHER_MODE_CBC */
+
+#if defined(MBEDTLS_CIPHER_MODE_CFB)
+    /*
+     * CFB128 mode
+     */
+    for( i = 0; i < 6; i++ )
+    {
+        u = i >> 1;
+        keybits = 128 + u * 64;
+        mode = i & 1;
+
+        if( verbose != 0 )
+            mbedtls_printf( "  AES-CFB128-%3d (%s): ", keybits,
+                            ( mode == MBEDTLS_AES_DECRYPT ) ? "dec" : "enc" );
+
+        memcpy( iv,  aes_test_cfb128_iv, 16 );
+        memcpy( key, aes_test_cfb128_key[u], keybits / 8 );
+
+        offset = 0;
+        ret = mbedtls_aes_setkey_enc( &ctx, key, keybits );
+        /*
+         * AES-192 is an optional feature that may be unavailable when
+         * there is an alternative underlying implementation i.e. when
+         * MBEDTLS_AES_ALT is defined.
+         */
+        if( ret == MBEDTLS_ERR_PLATFORM_FEATURE_UNSUPPORTED && keybits == 192 )
+        {
+            mbedtls_printf( "skipped\n" );
+            continue;
+        }
+        else if( ret != 0 )
+        {
+            goto exit;
+        }
+
+        if( mode == MBEDTLS_AES_DECRYPT )
+        {
+            memcpy( buf, aes_test_cfb128_ct[u], 64 );
+            aes_tests = aes_test_cfb128_pt;
+        }
+        else
+        {
+            memcpy( buf, aes_test_cfb128_pt, 64 );
+            aes_tests = aes_test_cfb128_ct[u];
+        }
+
+        ret = mbedtls_aes_crypt_cfb128( &ctx, mode, 64, &offset, iv, buf, buf );
+        if( ret != 0 )
+            goto exit;
+
+        if( memcmp( buf, aes_tests, 64 ) != 0 )
+        {
+            ret = 1;
+            goto exit;
+        }
+
+        if( verbose != 0 )
+            mbedtls_printf( "passed\n" );
+    }
+
+    if( verbose != 0 )
+        mbedtls_printf( "\n" );
+#endif /* MBEDTLS_CIPHER_MODE_CFB */
+
+#if defined(MBEDTLS_CIPHER_MODE_OFB)
+    /*
+     * OFB mode
+     */
+    for( i = 0; i < 6; i++ )
+    {
+        u = i >> 1;
+        keybits = 128 + u * 64;
+        mode = i & 1;
+
+        if( verbose != 0 )
+            mbedtls_printf( "  AES-OFB-%3d (%s): ", keybits,
+                            ( mode == MBEDTLS_AES_DECRYPT ) ? "dec" : "enc" );
+
+        memcpy( iv,  aes_test_ofb_iv, 16 );
+        memcpy( key, aes_test_ofb_key[u], keybits / 8 );
+
+        offset = 0;
+        ret = mbedtls_aes_setkey_enc( &ctx, key, keybits );
+        /*
+         * AES-192 is an optional feature that may be unavailable when
+         * there is an alternative underlying implementation i.e. when
+         * MBEDTLS_AES_ALT is defined.
+         */
+        if( ret == MBEDTLS_ERR_PLATFORM_FEATURE_UNSUPPORTED && keybits == 192 )
+        {
+            mbedtls_printf( "skipped\n" );
+            continue;
+        }
+        else if( ret != 0 )
+        {
+            goto exit;
+        }
+
+        if( mode == MBEDTLS_AES_DECRYPT )
+        {
+            memcpy( buf, aes_test_ofb_ct[u], 64 );
+            aes_tests = aes_test_ofb_pt;
+        }
+        else
+        {
+            memcpy( buf, aes_test_ofb_pt, 64 );
+            aes_tests = aes_test_ofb_ct[u];
+        }
+
+        ret = mbedtls_aes_crypt_ofb( &ctx, 64, &offset, iv, buf, buf );
+        if( ret != 0 )
+            goto exit;
+
+        if( memcmp( buf, aes_tests, 64 ) != 0 )
+        {
+            ret = 1;
+            goto exit;
+        }
+
+        if( verbose != 0 )
+            mbedtls_printf( "passed\n" );
+    }
+
+    if( verbose != 0 )
+        mbedtls_printf( "\n" );
+#endif /* MBEDTLS_CIPHER_MODE_OFB */
+
+#if defined(MBEDTLS_CIPHER_MODE_CTR)
+    /*
+     * CTR mode
+     */
+    for( i = 0; i < 6; i++ )
+    {
+        u = i >> 1;
+        mode = i & 1;
+
+        if( verbose != 0 )
+            mbedtls_printf( "  AES-CTR-128 (%s): ",
+                            ( mode == MBEDTLS_AES_DECRYPT ) ? "dec" : "enc" );
+
+        memcpy( nonce_counter, aes_test_ctr_nonce_counter[u], 16 );
+        memcpy( key, aes_test_ctr_key[u], 16 );
+
+        offset = 0;
+        if( ( ret = mbedtls_aes_setkey_enc( &ctx, key, 128 ) ) != 0 )
+            goto exit;
+
+        len = aes_test_ctr_len[u];
+
+        if( mode == MBEDTLS_AES_DECRYPT )
+        {
+            memcpy( buf, aes_test_ctr_ct[u], len );
+            aes_tests = aes_test_ctr_pt[u];
+        }
+        else
+        {
+            memcpy( buf, aes_test_ctr_pt[u], len );
+            aes_tests = aes_test_ctr_ct[u];
+        }
+
+        ret = mbedtls_aes_crypt_ctr( &ctx, len, &offset, nonce_counter,
+                                     stream_block, buf, buf );
+        if( ret != 0 )
+            goto exit;
+
+        if( memcmp( buf, aes_tests, len ) != 0 )
+        {
+            ret = 1;
+            goto exit;
+        }
+
+        if( verbose != 0 )
+            mbedtls_printf( "passed\n" );
+    }
+
+    if( verbose != 0 )
+        mbedtls_printf( "\n" );
+#endif /* MBEDTLS_CIPHER_MODE_CTR */
+
+#if defined(MBEDTLS_CIPHER_MODE_XTS)
+    {
+    static const int num_tests =
+        sizeof(aes_test_xts_key) / sizeof(*aes_test_xts_key);
+    mbedtls_aes_xts_context ctx_xts;
+
+    /*
+     * XTS mode
+     */
+    mbedtls_aes_xts_init( &ctx_xts );
+
+    for( i = 0; i < num_tests << 1; i++ )
+    {
+        const unsigned char *data_unit;
+        u = i >> 1;
+        mode = i & 1;
+
+        if( verbose != 0 )
+            mbedtls_printf( "  AES-XTS-128 (%s): ",
+                            ( mode == MBEDTLS_AES_DECRYPT ) ? "dec" : "enc" );
+
+        memset( key, 0, sizeof( key ) );
+        memcpy( key, aes_test_xts_key[u], 32 );
+        data_unit = aes_test_xts_data_unit[u];
+
+        len = sizeof( *aes_test_xts_ct32 );
+
+        if( mode == MBEDTLS_AES_DECRYPT )
+        {
+            ret = mbedtls_aes_xts_setkey_dec( &ctx_xts, key, 256 );
+            if( ret != 0)
+                goto exit;
+            memcpy( buf, aes_test_xts_ct32[u], len );
+            aes_tests = aes_test_xts_pt32[u];
+        }
+        else
+        {
+            ret = mbedtls_aes_xts_setkey_enc( &ctx_xts, key, 256 );
+            if( ret != 0)
+                goto exit;
+            memcpy( buf, aes_test_xts_pt32[u], len );
+            aes_tests = aes_test_xts_ct32[u];
+        }
+
+
+        ret = mbedtls_aes_crypt_xts( &ctx_xts, mode, len, data_unit,
+                                     buf, buf );
+        if( ret != 0 )
+            goto exit;
+
+        if( memcmp( buf, aes_tests, len ) != 0 )
+        {
+            ret = 1;
+            goto exit;
+        }
+
+        if( verbose != 0 )
+            mbedtls_printf( "passed\n" );
+    }
+
+    if( verbose != 0 )
+        mbedtls_printf( "\n" );
+
+    mbedtls_aes_xts_free( &ctx_xts );
+    }
+#endif /* MBEDTLS_CIPHER_MODE_XTS */
+
+    ret = 0;
+
+exit:
+    if( ret != 0 && verbose != 0 )
+        mbedtls_printf( "failed\n" );
+
+    mbedtls_aes_free( &ctx );
+
+    return( ret );
+}

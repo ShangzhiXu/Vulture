@@ -1,0 +1,77 @@
+static void obj_del_core(lv_obj_t * obj)
+{
+    /*Let the user free the resources used in `LV_EVENT_DELETE`*/
+    lv_event_send(obj, LV_EVENT_DELETE, NULL);
+
+    /*Delete from the group*/
+#if LV_USE_GROUP
+    lv_group_t * group = lv_obj_get_group(obj);
+    if(group) lv_group_remove_obj(obj);
+#endif
+
+    /*Remove the animations from this object*/
+#if LV_USE_ANIMATION
+    lv_anim_del(obj, NULL);
+    trans_del(obj, 0xFF, 0xFF, NULL);
+#endif
+
+    /*Delete the user data*/
+#if LV_USE_USER_DATA
+#if LV_USE_USER_DATA_FREE
+    LV_USER_DATA_FREE(obj);
+#endif
+#endif
+
+    /*Recursively delete the children*/
+    lv_obj_t * i;
+    lv_obj_t * i_next;
+    i = _lv_ll_get_head(&(obj->child_ll));
+    while(i != NULL) {
+        /*Get the next object before delete this*/
+        i_next = _lv_ll_get_next(&(obj->child_ll), i);
+
+        /*Call the recursive del to the child too*/
+        obj_del_core(i);
+
+        /*Set i to the next node*/
+        i = i_next;
+    }
+
+    lv_event_mark_deleted(obj);
+
+    /* Reset all input devices if the object to delete is used*/
+    lv_indev_t * indev = lv_indev_get_next(NULL);
+    while(indev) {
+        if(indev->proc.types.pointer.act_obj == obj || indev->proc.types.pointer.last_obj == obj) {
+            lv_indev_reset(indev, obj);
+        }
+        if(indev->proc.types.pointer.last_pressed == obj) {
+            indev->proc.types.pointer.last_pressed = NULL;
+        }
+
+#if LV_USE_GROUP
+        if(indev->group == group && obj == lv_indev_get_obj_act()) {
+            lv_indev_reset(indev, obj);
+        }
+#endif
+        indev = lv_indev_get_next(indev);
+    }
+
+    /* All children deleted.
+     * Now clean up the object specific data*/
+    obj->signal_cb(obj, LV_SIGNAL_CLEANUP, NULL);
+
+    /*Remove the object from parent's children list*/
+    lv_obj_t * par = lv_obj_get_parent(obj);
+    if(par == NULL) { /*It is a screen*/
+        lv_disp_t * d = lv_obj_get_disp(obj);
+        _lv_ll_remove(&d->scr_ll, obj);
+    }
+    else {
+        _lv_ll_remove(&(par->child_ll), obj);
+    }
+
+    /*Delete the base objects*/
+    if(obj->ext_attr != NULL) lv_mem_free(obj->ext_attr);
+    lv_mem_free(obj); /*Free the object itself*/
+}

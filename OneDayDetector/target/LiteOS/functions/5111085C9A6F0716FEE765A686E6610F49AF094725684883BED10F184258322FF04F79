@@ -1,0 +1,78 @@
+int mbedtls_rsa_rsassa_pkcs1_v15_verify( mbedtls_rsa_context *ctx,
+                                 int (*f_rng)(void *, unsigned char *, size_t),
+                                 void *p_rng,
+                                 int mode,
+                                 mbedtls_md_type_t md_alg,
+                                 unsigned int hashlen,
+                                 const unsigned char *hash,
+                                 const unsigned char *sig )
+{
+    int ret = 0;
+    size_t sig_len;
+    unsigned char *encoded = NULL, *encoded_expected = NULL;
+
+    RSA_VALIDATE_RET( ctx != NULL );
+    RSA_VALIDATE_RET( mode == MBEDTLS_RSA_PRIVATE ||
+                      mode == MBEDTLS_RSA_PUBLIC );
+    RSA_VALIDATE_RET( sig != NULL );
+    RSA_VALIDATE_RET( ( md_alg  == MBEDTLS_MD_NONE &&
+                        hashlen == 0 ) ||
+                      hash != NULL );
+
+    sig_len = ctx->len;
+
+    if( mode == MBEDTLS_RSA_PRIVATE && ctx->padding != MBEDTLS_RSA_PKCS_V15 )
+        return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+
+    /*
+     * Prepare expected PKCS1 v1.5 encoding of hash.
+     */
+
+    if( ( encoded          = mbedtls_calloc( 1, sig_len ) ) == NULL ||
+        ( encoded_expected = mbedtls_calloc( 1, sig_len ) ) == NULL )
+    {
+        ret = MBEDTLS_ERR_MPI_ALLOC_FAILED;
+        goto cleanup;
+    }
+
+    if( ( ret = rsa_rsassa_pkcs1_v15_encode( md_alg, hashlen, hash, sig_len,
+                                             encoded_expected ) ) != 0 )
+        goto cleanup;
+
+    /*
+     * Apply RSA primitive to get what should be PKCS1 encoded hash.
+     */
+
+    ret = ( mode == MBEDTLS_RSA_PUBLIC )
+          ? mbedtls_rsa_public(  ctx, sig, encoded )
+          : mbedtls_rsa_private( ctx, f_rng, p_rng, sig, encoded );
+    if( ret != 0 )
+        goto cleanup;
+
+    /*
+     * Compare
+     */
+
+    if( ( ret = mbedtls_safer_memcmp( encoded, encoded_expected,
+                                      sig_len ) ) != 0 )
+    {
+        ret = MBEDTLS_ERR_RSA_VERIFY_FAILED;
+        goto cleanup;
+    }
+
+cleanup:
+
+    if( encoded != NULL )
+    {
+        mbedtls_platform_zeroize( encoded, sig_len );
+        mbedtls_free( encoded );
+    }
+
+    if( encoded_expected != NULL )
+    {
+        mbedtls_platform_zeroize( encoded_expected, sig_len );
+        mbedtls_free( encoded_expected );
+    }
+
+    return( ret );
+}

@@ -1,0 +1,15 @@
+VOID OsLockdepClearSpinlocks(VOID)
+{
+    LosTaskCB *task = OsCurrTaskGet();
+    LockDep *lockDep = &task->lockDep;
+    SPIN_LOCK_S *lock = NULL;
+
+    /*
+     * Unlock spinlocks that running task has held.
+     * lockDepth will decrease after each spinlock is unlockded.
+     */
+    while (lockDep->lockDepth) {
+        lock = lockDep->heldLocks[lockDep->lockDepth - 1].lockPtr;
+        LOS_SpinUnlock(lock);
+    }
+}

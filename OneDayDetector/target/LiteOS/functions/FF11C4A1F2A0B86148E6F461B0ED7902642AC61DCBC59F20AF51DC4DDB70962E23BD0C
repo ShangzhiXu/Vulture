@@ -1,0 +1,45 @@
+LV_ATTRIBUTE_FAST_MEM static lv_draw_mask_res_t lv_draw_mask_fade(lv_opa_t * mask_buf, lv_coord_t abs_x,
+                                                                  lv_coord_t abs_y, lv_coord_t len,
+                                                                  lv_draw_mask_fade_param_t * p)
+{
+    if(abs_y < p->cfg.coords.y1) return LV_DRAW_MASK_RES_FULL_COVER;
+    if(abs_y > p->cfg.coords.y2) return LV_DRAW_MASK_RES_FULL_COVER;
+    if(abs_x + len < p->cfg.coords.x1) return LV_DRAW_MASK_RES_FULL_COVER;
+    if(abs_x > p->cfg.coords.x2) return LV_DRAW_MASK_RES_FULL_COVER;
+
+    if(abs_x + len > p->cfg.coords.x2) len -= abs_x + len - p->cfg.coords.x2 - 1;
+
+    if(abs_x < p->cfg.coords.x1) {
+        int32_t x_ofs = 0;
+        x_ofs = p->cfg.coords.x1 - abs_x;
+        len -= x_ofs;
+        mask_buf += x_ofs;
+    }
+
+    int32_t i;
+
+    if(abs_y <= p->cfg.y_top) {
+        for(i = 0; i < len; i++) {
+            mask_buf[i] = mask_mix(mask_buf[i], p->cfg.opa_top);
+        }
+        return LV_DRAW_MASK_RES_CHANGED;
+    }
+    else if(abs_y >= p->cfg.y_bottom) {
+        for(i = 0; i < len; i++) {
+            mask_buf[i] = mask_mix(mask_buf[i], p->cfg.opa_bottom);
+        }
+        return LV_DRAW_MASK_RES_CHANGED;
+    }
+    else {
+        /*Calculate the opa proportionally*/
+        int16_t opa_diff = p->cfg.opa_bottom - p->cfg.opa_top;
+        int32_t y_diff = p->cfg.y_bottom - p->cfg.y_top + 1;
+        lv_opa_t opa_act = (int32_t)((int32_t)(abs_y - p->cfg.y_top) * opa_diff) / y_diff;
+        opa_act += p->cfg.opa_top;
+
+        for(i = 0; i < len; i++) {
+            mask_buf[i] = mask_mix(mask_buf[i], opa_act);
+        }
+        return LV_DRAW_MASK_RES_CHANGED;
+    }
+}

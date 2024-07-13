@@ -1,0 +1,34 @@
+static HAL_StatusTypeDef SMBUS_Slave_AF(SMBUS_HandleTypeDef *hsmbus)
+{
+  /* Declaration of temporary variables to prevent undefined behavior of volatile usage */
+  uint32_t CurrentState       = hsmbus->State;
+  uint32_t CurrentXferOptions = hsmbus->XferOptions;
+
+  if (((CurrentXferOptions ==  SMBUS_FIRST_AND_LAST_FRAME_NO_PEC) || (CurrentXferOptions ==  SMBUS_FIRST_AND_LAST_FRAME_WITH_PEC) || \
+       (CurrentXferOptions == SMBUS_LAST_FRAME_NO_PEC) || (CurrentXferOptions ==  SMBUS_LAST_FRAME_WITH_PEC)) && \
+      (CurrentState == HAL_SMBUS_STATE_LISTEN))
+  {
+    hsmbus->XferOptions = SMBUS_NO_OPTION_FRAME;
+
+    /* Disable EVT, BUF and ERR interrupt */
+    __HAL_SMBUS_DISABLE_IT(hsmbus, SMBUS_IT_EVT | SMBUS_IT_BUF | SMBUS_IT_ERR);
+
+    /* Clear AF flag */
+    __HAL_SMBUS_CLEAR_FLAG(hsmbus, SMBUS_FLAG_AF);
+
+    /* Disable Acknowledge */
+    CLEAR_BIT(hsmbus->Instance->CR1, I2C_CR1_ACK);
+
+    hsmbus->PreviousState = HAL_SMBUS_STATE_READY;
+    hsmbus->State = HAL_SMBUS_STATE_READY;
+    hsmbus->Mode = HAL_SMBUS_MODE_NONE;
+
+    /* Call the Listen Complete callback, to inform upper layer of the end of Listen usecase */
+#if (USE_HAL_SMBUS_REGISTER_CALLBACKS == 1)
+    hsmbus->ListenCpltCallback(hsmbus);
+#else
+    HAL_SMBUS_ListenCpltCallback(hsmbus);
+#endif /* USE_HAL_SMBUS_REGISTER_CALLBACKS */
+  }
+  return HAL_OK;
+}

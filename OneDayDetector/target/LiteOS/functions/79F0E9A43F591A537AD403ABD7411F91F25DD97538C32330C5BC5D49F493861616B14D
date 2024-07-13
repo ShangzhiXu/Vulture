@@ -1,0 +1,17 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 OsSortLinkGetTargetExpireTime(const SortLinkAttribute *sortLinkHeader,
+                                                            const SortLinkList *targetSortList)
+{
+    SortLinkList *listSorted = NULL;
+    LOS_DL_LIST *listObject = NULL;
+    UINT32 sortIndex = SORT_INDEX(targetSortList->idxRollNum);
+    UINT32 rollNum = ROLLNUM(targetSortList->idxRollNum);
+
+    listObject = sortLinkHeader->sortLink + sortIndex;
+
+    listSorted = LOS_DL_LIST_ENTRY(listObject->pstNext, SortLinkList, sortLinkNode);
+    while (listSorted != targetSortList) {
+        rollNum += ROLLNUM(listSorted->idxRollNum);
+        listSorted = LOS_DL_LIST_ENTRY((listSorted->sortLinkNode).pstNext, SortLinkList, sortLinkNode);
+    }
+    return OsCalcExpierTime(rollNum, sortIndex, sortLinkHeader->cursor);
+}

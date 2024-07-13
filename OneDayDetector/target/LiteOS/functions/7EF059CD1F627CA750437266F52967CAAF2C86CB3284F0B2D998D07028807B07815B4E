@@ -1,0 +1,21 @@
+HAL_StatusTypeDef FSMC_PCCARD_Init(FSMC_PCCARD_TypeDef *Device, FSMC_PCCARD_InitTypeDef *Init)
+{
+  /* Check the parameters */
+  assert_param(IS_FSMC_PCCARD_DEVICE(Device));
+  assert_param(IS_FSMC_WAIT_FEATURE(Init->Waitfeature));
+  assert_param(IS_FSMC_TCLR_TIME(Init->TCLRSetupTime));
+  assert_param(IS_FSMC_TAR_TIME(Init->TARSetupTime));
+
+  /* Set FSMC_PCCARD device control parameters */
+  MODIFY_REG(Device->PCR4,                                  \
+             (FSMC_PCRx_PTYP | FSMC_PCRx_PWAITEN |  FSMC_PCRx_PWID  |
+              FSMC_PCRx_TCLR | FSMC_PCRx_TAR), \
+             (FSMC_PCR_MEMORY_TYPE_PCCARD                          | \
+              Init->Waitfeature                                     | \
+              FSMC_NAND_PCC_MEM_BUS_WIDTH_16                        | \
+              (Init->TCLRSetupTime << POSITION_VAL(FSMC_PCRx_TCLR)) | \
+              (Init->TARSetupTime << POSITION_VAL(FSMC_PCRx_TAR))));
+
+  return HAL_OK;
+
+}

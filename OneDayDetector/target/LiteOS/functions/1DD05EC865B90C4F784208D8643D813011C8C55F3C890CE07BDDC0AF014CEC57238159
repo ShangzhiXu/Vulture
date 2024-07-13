@@ -1,0 +1,13 @@
+static void eap_rechallenge(void *arg) {
+	ppp_pcb *pcb = (ppp_pcb*)arg;
+
+	if (pcb->eap.es_server.ea_state != eapOpen &&
+	    pcb->eap.es_server.ea_state != eapSRP4)
+		return;
+
+	pcb->eap.es_server.ea_requests = 0;
+	pcb->eap.es_server.ea_state = eapIdentify;
+	eap_figure_next_state(pcb, 0);
+	pcb->eap.es_server.ea_id++;
+	eap_send_request(pcb);
+}

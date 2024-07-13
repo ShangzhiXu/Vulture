@@ -1,0 +1,37 @@
+int mbedtls_x509write_crt_set_key_usage( mbedtls_x509write_cert *ctx,
+                                         unsigned int key_usage )
+{
+    unsigned char buf[4], ku;
+    unsigned char *c;
+    int ret;
+    size_t unused_bits;
+    const unsigned int allowed_bits = MBEDTLS_X509_KU_DIGITAL_SIGNATURE |
+        MBEDTLS_X509_KU_NON_REPUDIATION   |
+        MBEDTLS_X509_KU_KEY_ENCIPHERMENT  |
+        MBEDTLS_X509_KU_DATA_ENCIPHERMENT |
+        MBEDTLS_X509_KU_KEY_AGREEMENT     |
+        MBEDTLS_X509_KU_KEY_CERT_SIGN     |
+        MBEDTLS_X509_KU_CRL_SIGN;
+
+    /* Check that nothing other than the allowed flags is set */
+    if( ( key_usage & ~allowed_bits ) != 0 )
+        return( MBEDTLS_ERR_X509_FEATURE_UNAVAILABLE );
+
+    c = buf + 4;
+    ku = (unsigned char)key_usage;
+    unused_bits = crt_get_unused_bits_for_named_bitstring( ku, 1 );
+    ret = mbedtls_asn1_write_bitstring( &c, buf, &ku, 8 - unused_bits );
+
+    if( ret < 0 )
+        return( ret );
+    else if( ret < 3 || ret > 4 )
+        return( MBEDTLS_ERR_X509_INVALID_FORMAT );
+
+    ret = mbedtls_x509write_crt_set_extension( ctx, MBEDTLS_OID_KEY_USAGE,
+                                   MBEDTLS_OID_SIZE( MBEDTLS_OID_KEY_USAGE ),
+                                   1, c, (size_t)ret );
+    if( ret != 0 )
+        return( ret );
+
+    return( 0 );
+}

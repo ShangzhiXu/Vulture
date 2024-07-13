@@ -1,0 +1,32 @@
+LITE_OS_SEC_TEXT_INIT int main(void)
+{
+    UINT32 ret = LOS_OK;
+
+    board_config();
+
+    /* early init uart output */
+    uart_early_init();
+
+    /* system and chip info */
+    osSystemInfo();
+
+    PRINTK("\nmain core booting up...\n");
+
+    ret = OsMain();
+    if (ret != LOS_OK) {
+        return LOS_NOK;
+    }
+
+#if (LOSCFG_KERNEL_SMP == YES)
+    PRINTK("releasing %u secondary cores\n", LOSCFG_KERNEL_SMP_CORE_NUM - 1);
+    release_secondary_cores();
+#endif
+
+    CPU_MAP_SET(0, OsHwIDGet());
+
+    OsStart();
+
+    while (1) {
+        __asm volatile("wfi");
+    }
+}

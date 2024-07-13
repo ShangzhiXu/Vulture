@@ -1,0 +1,51 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 LOS_TaskPriSet(UINT32 taskId, UINT16 taskPrio)
+{
+    BOOL isReady = FALSE;
+    UINT32 intSave;
+    LosTaskCB *taskCB = NULL;
+    UINT16 tempStatus;
+
+    if (taskPrio > OS_TASK_PRIORITY_LOWEST) {
+        return LOS_ERRNO_TSK_PRIOR_ERROR;
+    }
+
+    if (OS_TASK_ID_CHECK_INVALID(taskId)) {
+        return LOS_ERRNO_TSK_ID_INVALID;
+    }
+
+    taskCB = OS_TCB_FROM_TID(taskId);
+    if (taskCB->taskFlags & OS_TASK_FLAG_SYSTEM) {
+        return LOS_ERRNO_TSK_OPERATE_SYSTEM_TASK;
+    }
+
+    SCHEDULER_LOCK(intSave);
+
+    tempStatus = taskCB->taskStatus;
+    if (tempStatus & OS_TASK_STATUS_UNUSED) {
+        SCHEDULER_UNLOCK(intSave);
+        return LOS_ERRNO_TSK_NOT_CREATED;
+    }
+    /* delete the task and insert with right priority into ready queue */
+    isReady = tempStatus & OS_TASK_STATUS_READY;
+    if (isReady) {
+        OsPriQueueDequeue(&taskCB->pendList);
+        taskCB->priority = taskPrio;
+        OsPriQueueEnqueue(&taskCB->pendList, taskCB->priority);
+    } else {
+        taskCB->priority = taskPrio;
+        if (tempStatus & OS_TASK_STATUS_RUNNING) {
+            isReady = TRUE;
+        }
+    }
+
+    SCHEDULER_UNLOCK(intSave);
+
+    LOS_TRACE(TASK_PRIOSET, taskCB->taskId, taskCB->taskStatus, taskCB->priority, taskPrio);
+
+    /* delete the task and insert with right priority into ready queue */
+    if (isReady) {
+        LOS_MpSchedule(OS_MP_CPU_ALL);
+        LOS_Schedule();
+    }
+    return LOS_OK;
+}

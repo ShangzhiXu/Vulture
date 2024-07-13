@@ -1,0 +1,117 @@
+int process_file(FILE *data_file, FILE *struct_file, const char *filename)
+{
+  char varname[MAX_PATH_LEN];
+  int i = 0;
+  char qualifiedName[MAX_PATH_LEN];
+  int file_size;
+  u16_t http_hdr_chksum = 0;
+  u16_t http_hdr_len = 0;
+  int chksum_count = 0;
+  u8_t flags = 0;
+  u8_t has_content_len;
+  u8_t *file_data;
+  int is_ssi;
+  int can_be_compressed;
+  int is_compressed = 0;
+  int flags_printed;
+
+  /* create qualified name (@todo: prepend slash or not?) */
+  sprintf(qualifiedName, "%s/%s", curSubdir, filename);
+  /* create C variable name */
+  strcpy(varname, qualifiedName);
+  /* convert slashes & dots to underscores */
+  fix_filename_for_c(varname, MAX_PATH_LEN);
+  register_filename(varname);
+#if ALIGN_PAYLOAD
+  /* to force even alignment of array, type 1 */
+  fprintf(data_file, "#if FSDATA_FILE_ALIGNMENT==1" NEWLINE);
+  fprintf(data_file, "static const " PAYLOAD_ALIGN_TYPE " dummy_align_%s = %d;" NEWLINE, varname, payload_alingment_dummy_counter++);
+  fprintf(data_file, "#endif" NEWLINE);
+#endif /* ALIGN_PAYLOAD */
+  fprintf(data_file, "static const unsigned char FSDATA_ALIGN_PRE data_%s[] FSDATA_ALIGN_POST = {" NEWLINE, varname);
+  /* encode source file name (used by file system, not returned to browser) */
+  fprintf(data_file, "/* %s (%"SZT_F" chars) */" NEWLINE, qualifiedName, strlen(qualifiedName) + 1);
+  file_put_ascii(data_file, qualifiedName, strlen(qualifiedName) + 1, &i);
+#if ALIGN_PAYLOAD
+  /* pad to even number of bytes to assure payload is on aligned boundary */
+  while (i % PAYLOAD_ALIGNMENT != 0) {
+    fprintf(data_file, "0x%02x,", 0);
+    i++;
+  }
+#endif /* ALIGN_PAYLOAD */
+  fprintf(data_file, NEWLINE);
+
+  is_ssi = is_ssi_file(filename);
+  if (is_ssi) {
+    flags |= FS_FILE_FLAGS_SSI;
+  }
+  has_content_len = !is_ssi;
+  can_be_compressed = includeHttpHeader && !is_ssi && file_can_be_compressed(filename);
+  file_data = get_file_data(filename, &file_size, can_be_compressed, &is_compressed);
+  if (includeHttpHeader) {
+    file_write_http_header(data_file, filename, file_size, &http_hdr_len, &http_hdr_chksum, has_content_len, is_compressed);
+    flags |= FS_FILE_FLAGS_HEADER_INCLUDED;
+    if (has_content_len) {
+      flags |= FS_FILE_FLAGS_HEADER_PERSISTENT;
+      if (useHttp11) {
+        flags |= FS_FILE_FLAGS_HEADER_HTTPVER_1_1;
+      }
+    }
+  }
+  if (precalcChksum) {
+    chksum_count = write_checksums(struct_file, varname, http_hdr_len, http_hdr_chksum, file_data, file_size);
+  }
+
+  /* build declaration of struct fsdata_file in temp file */
+  fprintf(struct_file, "const struct fsdata_file file_%s[] = { {" NEWLINE, varname);
+  fprintf(struct_file, "file_%s," NEWLINE, lastFileVar);
+  fprintf(struct_file, "data_%s," NEWLINE, varname);
+  fprintf(struct_file, "data_%s + %d," NEWLINE, varname, i);
+  fprintf(struct_file, "sizeof(data_%s) - %d," NEWLINE, varname, i);
+
+  flags_printed = 0;
+  if (flags & FS_FILE_FLAGS_HEADER_INCLUDED) {
+    fputs("FS_FILE_FLAGS_HEADER_INCLUDED", struct_file);
+    flags_printed = 1;
+  }
+  if (flags & FS_FILE_FLAGS_HEADER_PERSISTENT) {
+    if (flags_printed) {
+      fputs(" | ", struct_file);
+    }
+    fputs("FS_FILE_FLAGS_HEADER_PERSISTENT", struct_file);
+    flags_printed = 1;
+  }
+  if (flags & FS_FILE_FLAGS_HEADER_HTTPVER_1_1) {
+    if (flags_printed) {
+      fputs(" | ", struct_file);
+    }
+    fputs("FS_FILE_FLAGS_HEADER_HTTPVER_1_1", struct_file);
+    flags_printed = 1;
+  }
+  if (flags & FS_FILE_FLAGS_SSI) {
+    if (flags_printed) {
+      fputs(" | ", struct_file);
+    }
+    fputs("FS_FILE_FLAGS_SSI", struct_file);
+    flags_printed = 1;
+  }
+  if (!flags_printed) {
+    fputs("0", struct_file);
+  }
+  fputs("," NEWLINE, struct_file);
+  if (precalcChksum) {
+    fprintf(struct_file, "#if HTTPD_PRECALCULATED_CHECKSUM" NEWLINE);
+    fprintf(struct_file, "%d, chksums_%s," NEWLINE, chksum_count, varname);
+    fprintf(struct_file, "#endif /* HTTPD_PRECALCULATED_CHECKSUM */" NEWLINE);
+  }
+  fprintf(struct_file, "}};" NEWLINE NEWLINE);
+  strcpy(lastFileVar, varname);
+
+  /* write actual file contents */
+  i = 0;
+  fprintf(data_file, NEWLINE "/* raw file data (%d bytes) */" NEWLINE, file_size);
+  process_file_data(data_file, file_data, file_size);
+  fprintf(data_file, "};" NEWLINE NEWLINE);
+  free(file_data);
+  return 0;
+}

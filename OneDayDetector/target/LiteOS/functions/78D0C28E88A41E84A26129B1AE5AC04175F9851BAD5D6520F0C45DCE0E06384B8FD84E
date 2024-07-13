@@ -1,0 +1,16 @@
+static void upap_timeout(void *arg) {
+    ppp_pcb *pcb = (ppp_pcb*)arg;
+
+    if (pcb->upap.us_clientstate != UPAPCS_AUTHREQ)
+	return;
+
+    if (pcb->upap.us_transmits >= pcb->settings.pap_max_transmits) {
+	/* give up in disgust */
+	ppp_error("No response to PAP authenticate-requests");
+	pcb->upap.us_clientstate = UPAPCS_BADAUTH;
+	auth_withpeer_fail(pcb, PPP_PAP);
+	return;
+    }
+
+    upap_sauthreq(pcb);		/* Send Authenticate-Request */
+}

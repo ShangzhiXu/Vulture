@@ -1,0 +1,46 @@
+HAL_StatusTypeDef HAL_EXTI_SetConfigLine(EXTI_HandleTypeDef *hexti, EXTI_ConfigTypeDef *pExtiConfig)
+{
+  uint32_t regval;
+
+  /* Check null pointer */
+  if ((hexti == NULL) || (pExtiConfig == NULL))
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check parameters */
+  assert_param(IS_EXTI_LINE(pExtiConfig->Line));
+  assert_param(IS_EXTI_MODE(pExtiConfig->Mode));
+  assert_param(IS_EXTI_TRIGGER(pExtiConfig->Trigger));  
+  
+  /* Assign line number to handle */
+  hexti->Line = pExtiConfig->Line;
+  
+  /* Clear EXTI line configuration */
+  EXTI->IMR &= ~pExtiConfig->Line;
+  EXTI->EMR &= ~pExtiConfig->Line;
+  
+  /* Select the Mode for the selected external interrupts */
+  regval = (uint32_t)EXTI_BASE;
+  regval += pExtiConfig->Mode;
+  *(__IO uint32_t *) regval |= pExtiConfig->Line;
+  
+  /* Clear Rising Falling edge configuration */
+  EXTI->RTSR &= ~pExtiConfig->Line;
+  EXTI->FTSR &= ~pExtiConfig->Line;
+  
+  /* Select the trigger for the selected external interrupts */
+  if (pExtiConfig->Trigger == EXTI_TRIGGER_RISING_FALLING)
+  {
+    /* Rising Falling edge */
+    EXTI->RTSR |= pExtiConfig->Line;
+    EXTI->FTSR |= pExtiConfig->Line;
+  }
+  else
+  {
+    regval = (uint32_t)EXTI_BASE;
+    regval += pExtiConfig->Trigger;
+    *(__IO uint32_t *) regval |= pExtiConfig->Line;
+  }
+  return HAL_OK;
+}

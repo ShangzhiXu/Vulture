@@ -1,0 +1,28 @@
+static void UART_DMATransmitCplt(DMA_HandleTypeDef *hdma)
+{
+  UART_HandleTypeDef *huart = (UART_HandleTypeDef *)(hdma->Parent);
+
+  /* DMA Normal mode */
+  if (hdma->Init.Mode != DMA_CIRCULAR)
+  {
+    huart->TxXferCount = 0U;
+
+    /* Disable the DMA transfer for transmit request by resetting the DMAT bit
+       in the UART CR3 register */
+    CLEAR_BIT(huart->Instance->CR3, USART_CR3_DMAT);
+
+    /* Enable the UART Transmit Complete Interrupt */
+    SET_BIT(huart->Instance->CR1, USART_CR1_TCIE);
+  }
+  /* DMA Circular mode */
+  else
+  {
+#if (USE_HAL_UART_REGISTER_CALLBACKS == 1)
+    /*Call registered Tx complete callback*/
+    huart->TxCpltCallback(huart);
+#else
+    /*Call legacy weak Tx complete callback*/
+    HAL_UART_TxCpltCallback(huart);
+#endif /* USE_HAL_UART_REGISTER_CALLBACKS */
+  }
+}

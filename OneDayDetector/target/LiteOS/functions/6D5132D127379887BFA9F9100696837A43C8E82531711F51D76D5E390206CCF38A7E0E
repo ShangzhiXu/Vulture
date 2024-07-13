@@ -1,0 +1,220 @@
+HAL_StatusTypeDef HAL_SPI_Receive(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+{
+#if (USE_SPI_CRC != 0U)
+  __IO uint16_t tmpreg = 0U;
+#endif /* USE_SPI_CRC */
+  uint32_t tickstart = 0U;
+  HAL_StatusTypeDef errorcode = HAL_OK;
+
+  if ((hspi->Init.Mode == SPI_MODE_MASTER) && (hspi->Init.Direction == SPI_DIRECTION_2LINES))
+  {
+    hspi->State = HAL_SPI_STATE_BUSY_RX;
+    /* Call transmit-receive function to send Dummy data on Tx line and generate clock on CLK line */
+    return HAL_SPI_TransmitReceive(hspi, pData, pData, Size, Timeout);
+  }
+
+  /* Process Locked */
+  __HAL_LOCK(hspi);
+
+  /* Init tickstart for timeout management*/
+  tickstart = HAL_GetTick();
+
+  if (hspi->State != HAL_SPI_STATE_READY)
+  {
+    errorcode = HAL_BUSY;
+    goto error;
+  }
+
+  if ((pData == NULL) || (Size == 0U))
+  {
+    errorcode = HAL_ERROR;
+    goto error;
+  }
+
+  /* Set the transaction information */
+  hspi->State       = HAL_SPI_STATE_BUSY_RX;
+  hspi->ErrorCode   = HAL_SPI_ERROR_NONE;
+  hspi->pRxBuffPtr  = (uint8_t *)pData;
+  hspi->RxXferSize  = Size;
+  hspi->RxXferCount = Size;
+
+  /*Init field not used in handle to zero */
+  hspi->pTxBuffPtr  = (uint8_t *)NULL;
+  hspi->TxXferSize  = 0U;
+  hspi->TxXferCount = 0U;
+  hspi->RxISR       = NULL;
+  hspi->TxISR       = NULL;
+
+#if (USE_SPI_CRC != 0U)
+  /* Reset CRC Calculation */
+  if (hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+  {
+    SPI_RESET_CRC(hspi);
+    /* this is done to handle the CRCNEXT before the latest data */
+    hspi->RxXferCount--;
+  }
+#endif /* USE_SPI_CRC */
+
+  /* Set the Rx Fifo threshold */
+  if (hspi->Init.DataSize > SPI_DATASIZE_8BIT)
+  {
+    /* Set RX Fifo threshold according the reception data length: 16bit */
+    CLEAR_BIT(hspi->Instance->CR2, SPI_RXFIFO_THRESHOLD);
+  }
+  else
+  {
+    /* Set RX Fifo threshold according the reception data length: 8bit */
+    SET_BIT(hspi->Instance->CR2, SPI_RXFIFO_THRESHOLD);
+  }
+
+  /* Configure communication direction: 1Line */
+  if (hspi->Init.Direction == SPI_DIRECTION_1LINE)
+  {
+    SPI_1LINE_RX(hspi);
+  }
+
+  /* Check if the SPI is already enabled */
+  if ((hspi->Instance->CR1 & SPI_CR1_SPE) != SPI_CR1_SPE)
+  {
+    /* Enable SPI peripheral */
+    __HAL_SPI_ENABLE(hspi);
+  }
+
+  /* Receive data in 8 Bit mode */
+  if (hspi->Init.DataSize <= SPI_DATASIZE_8BIT)
+  {
+    /* Transfer loop */
+    while (hspi->RxXferCount > 0U)
+    {
+      /* Check the RXNE flag */
+      if (__HAL_SPI_GET_FLAG(hspi, SPI_FLAG_RXNE))
+      {
+        /* read the received data */
+        (* (uint8_t *)pData) = *(__IO uint8_t *)&hspi->Instance->DR;
+        pData += sizeof(uint8_t);
+        hspi->RxXferCount--;
+      }
+      else
+      {
+        /* Timeout management */
+        if ((Timeout == 0U) || ((Timeout != HAL_MAX_DELAY) && ((HAL_GetTick() - tickstart) >=  Timeout)))
+        {
+          errorcode = HAL_TIMEOUT;
+          goto error;
+        }
+      }
+    }
+  }
+  else
+  {
+    /* Transfer loop */
+    while (hspi->RxXferCount > 0U)
+    {
+      /* Check the RXNE flag */
+      if (__HAL_SPI_GET_FLAG(hspi, SPI_FLAG_RXNE))
+      {
+        *((uint16_t *)pData) = hspi->Instance->DR;
+        pData += sizeof(uint16_t);
+        hspi->RxXferCount--;
+      }
+      else
+      {
+        /* Timeout management */
+        if ((Timeout == 0U) || ((Timeout != HAL_MAX_DELAY) && ((HAL_GetTick() - tickstart) >=  Timeout)))
+        {
+          errorcode = HAL_TIMEOUT;
+          goto error;
+        }
+      }
+    }
+  }
+
+#if (USE_SPI_CRC != 0U)
+  /* Handle the CRC Transmission */
+  if (hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+  {
+    /* freeze the CRC before the latest data */
+    SET_BIT(hspi->Instance->CR1, SPI_CR1_CRCNEXT);
+
+    /* Read the latest data */
+    if (SPI_WaitFlagStateUntilTimeout(hspi, SPI_FLAG_RXNE, SET, Timeout, tickstart) != HAL_OK)
+    {
+      /* the latest data has not been received */
+      errorcode = HAL_TIMEOUT;
+      goto error;
+    }
+
+    /* Receive last data in 16 Bit mode */
+    if (hspi->Init.DataSize > SPI_DATASIZE_8BIT)
+    {
+      *((uint16_t *)pData) = hspi->Instance->DR;
+    }
+    /* Receive last data in 8 Bit mode */
+    else
+    {
+      (*(uint8_t *)pData) = *(__IO uint8_t *)&hspi->Instance->DR;
+    }
+
+    /* Wait the CRC data */
+    if (SPI_WaitFlagStateUntilTimeout(hspi, SPI_FLAG_RXNE, SET, Timeout, tickstart) != HAL_OK)
+    {
+      SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_CRC);
+      errorcode = HAL_TIMEOUT;
+      goto error;
+    }
+
+    /* Read CRC to Flush DR and RXNE flag */
+    if (hspi->Init.DataSize == SPI_DATASIZE_16BIT)
+    {
+      tmpreg = hspi->Instance->DR;
+      /* To avoid GCC warning */
+      UNUSED(tmpreg);
+    }
+    else
+    {
+      tmpreg = *(__IO uint8_t *)&hspi->Instance->DR;
+      /* To avoid GCC warning */
+      UNUSED(tmpreg);
+
+      if ((hspi->Init.DataSize == SPI_DATASIZE_8BIT) && (hspi->Init.CRCLength == SPI_CRC_LENGTH_16BIT))
+      {
+        if (SPI_WaitFlagStateUntilTimeout(hspi, SPI_FLAG_RXNE, SPI_FLAG_RXNE, Timeout, tickstart) != HAL_OK)
+        {
+          /* Error on the CRC reception */
+          SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_CRC);
+          errorcode = HAL_TIMEOUT;
+          goto error;
+        }
+        tmpreg = *(__IO uint8_t *)&hspi->Instance->DR;
+        /* To avoid GCC warning */
+        UNUSED(tmpreg);
+      }
+    }
+  }
+#endif /* USE_SPI_CRC */
+
+  /* Check the end of the transaction */
+  if (SPI_EndRxTransaction(hspi, Timeout, tickstart) != HAL_OK)
+  {
+    hspi->ErrorCode = HAL_SPI_ERROR_FLAG;
+  }
+
+#if (USE_SPI_CRC != 0U)
+  /* Check if CRC error occurred */
+  if (__HAL_SPI_GET_FLAG(hspi, SPI_FLAG_CRCERR))
+  {
+    SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_CRC);
+    __HAL_SPI_CLEAR_CRCERRFLAG(hspi);
+  }
+#endif /* USE_SPI_CRC */
+
+  if (hspi->ErrorCode != HAL_SPI_ERROR_NONE)
+  {
+    errorcode = HAL_ERROR;
+  }
+
+error :
+  hspi->State = HAL_SPI_STATE_READY;
+  __HAL_UNLOCK(hspi);
+  return errorcode;
+}

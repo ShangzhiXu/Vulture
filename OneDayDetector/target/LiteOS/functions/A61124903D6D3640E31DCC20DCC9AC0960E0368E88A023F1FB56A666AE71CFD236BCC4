@@ -1,0 +1,33 @@
+static void draw_value(const lv_area_t * coords, const lv_area_t * clip, lv_draw_rect_dsc_t * dsc)
+{
+    if(dsc->value_str == NULL) return;
+    if(dsc->value_opa <= LV_OPA_MIN) return;
+
+    lv_point_t s;
+    _lv_txt_get_size(&s, dsc->value_str, dsc->value_font, dsc->value_letter_space, dsc->value_line_space, LV_COORD_MAX,
+                     LV_TXT_FLAG_NONE);
+
+    lv_area_t value_area;
+    value_area.x1 = 0;
+    value_area.y1 = 0;
+    value_area.x2 = s.x - 1;
+    value_area.y2 = s.y - 1;
+
+    lv_point_t p_align;
+    _lv_area_align(coords, &value_area, dsc->value_align, &p_align);
+
+    value_area.x1 += p_align.x + dsc->value_ofs_x;
+    value_area.y1 += p_align.y + dsc->value_ofs_y;
+    value_area.x2 += p_align.x + dsc->value_ofs_x;
+    value_area.y2 += p_align.y + dsc->value_ofs_y;
+
+    lv_draw_label_dsc_t label_dsc;
+    lv_draw_label_dsc_init(&label_dsc);
+    label_dsc.font = dsc->value_font;
+    label_dsc.letter_space = dsc->value_letter_space;
+    label_dsc.line_space = dsc->value_line_space;
+    label_dsc.color = dsc->value_color;
+    label_dsc.opa = dsc->value_opa;
+
+    lv_draw_label(&value_area, clip, &label_dsc, dsc->value_str, NULL);
+}

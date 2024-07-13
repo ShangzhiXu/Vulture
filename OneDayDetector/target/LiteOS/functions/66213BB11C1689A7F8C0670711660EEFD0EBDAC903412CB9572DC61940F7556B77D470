@@ -1,0 +1,54 @@
+nd6_new_router(const ip6_addr_t *router_addr, struct netif *netif)
+{
+  s8_t router_index;
+  s8_t free_router_index;
+  s8_t neighbor_index;
+
+  IP6_ADDR_ZONECHECK_NETIF(router_addr, netif);
+
+  /* Do we have a neighbor entry for this router? */
+  neighbor_index = nd6_find_neighbor_cache_entry(router_addr);
+  if (neighbor_index < 0) {
+    /* Create a neighbor entry for this router. */
+    neighbor_index = nd6_new_neighbor_cache_entry();
+    if (neighbor_index < 0) {
+      /* Could not create neighbor entry for this router. */
+      return -1;
+    }
+    ip6_addr_set(&(neighbor_cache[neighbor_index].next_hop_address), router_addr);
+    neighbor_cache[neighbor_index].netif = netif;
+    neighbor_cache[neighbor_index].q = NULL;
+    neighbor_cache[neighbor_index].state = ND6_INCOMPLETE;
+    neighbor_cache[neighbor_index].counter.probes_sent = 1;
+    nd6_send_neighbor_cache_probe(&neighbor_cache[neighbor_index], ND6_SEND_FLAG_MULTICAST_DEST);
+  }
+
+  /* Mark neighbor as router. */
+  neighbor_cache[neighbor_index].isrouter = 1;
+
+  /* Look for empty entry. */
+  free_router_index = LWIP_ND6_NUM_ROUTERS;
+  for (router_index = LWIP_ND6_NUM_ROUTERS - 1; router_index >= 0; router_index--) {
+    /* check if router already exists (this is a special case for 2 netifs on the same subnet
+       - e.g. wifi and cable) */
+    if(default_router_list[router_index].neighbor_entry == &(neighbor_cache[neighbor_index])){ 
+      return router_index; 
+    } 
+    if (default_router_list[router_index].neighbor_entry == NULL) {
+      /* remember lowest free index to create a new entry */
+      free_router_index = router_index;
+    }
+  }
+  if (free_router_index < LWIP_ND6_NUM_ROUTERS) {
+    default_router_list[free_router_index].neighbor_entry = &(neighbor_cache[neighbor_index]);
+    return free_router_index;
+  }
+
+  /* Could not create a router entry. */
+
+  /* Mark neighbor entry as not-router. Entry might be useful as neighbor still. */
+  neighbor_cache[neighbor_index].isrouter = 0;
+
+  /* router not found. */
+  return -1;
+}

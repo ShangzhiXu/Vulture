@@ -1,0 +1,57 @@
+lv_obj_t * lv_arc_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+
+    LV_LOG_TRACE("arc create started");
+
+    /*Create the ancestor of arc*/
+    lv_obj_t * arc = lv_obj_create(par, copy);
+    LV_ASSERT_MEM(arc);
+    if(arc == NULL) return NULL;
+
+    /*Allocate the arc type specific extended data*/
+    lv_arc_ext_t * ext = lv_obj_allocate_ext_attr(arc, sizeof(lv_arc_ext_t));
+    LV_ASSERT_MEM(ext);
+    if(ext == NULL) {
+        lv_obj_del(arc);
+        return NULL;
+    }
+
+    if(ancestor_signal == NULL) ancestor_signal = lv_obj_get_signal_cb(arc);
+    if(ancestor_design == NULL) ancestor_design = lv_obj_get_design_cb(arc);
+
+    /*Initialize the allocated 'ext' */
+    ext->rotation_angle = 0;
+    ext->bg_angle_start = 135;
+    ext->bg_angle_end   = 45;
+    ext->arc_angle_start = 135;
+    ext->arc_angle_end   = 270;
+    lv_style_list_init(&ext->style_arc);
+
+    lv_obj_set_size(arc, LV_DPI, LV_DPI);
+
+    /*The signal and design functions are not copied so set them here*/
+    lv_obj_set_signal_cb(arc, lv_arc_signal);
+    lv_obj_set_design_cb(arc, lv_arc_design);
+
+    /*Init the new arc arc*/
+    if(copy == NULL) {
+        lv_theme_apply(arc, LV_THEME_ARC);
+    }
+    /*Copy an existing arc*/
+    else {
+        lv_arc_ext_t * copy_ext = lv_obj_get_ext_attr(copy);
+        ext->arc_angle_start = copy_ext->arc_angle_start;
+        ext->arc_angle_end   = copy_ext->arc_angle_end;
+        ext->bg_angle_start  = copy_ext->bg_angle_start;
+        ext->bg_angle_end    = copy_ext->bg_angle_end;
+
+        lv_style_list_copy(&ext->style_arc, &copy_ext->style_arc);
+
+        /*Refresh the style with new signal function*/
+        lv_obj_refresh_style(arc, LV_STYLE_PROP_ALL);
+    }
+
+    LV_LOG_INFO("arc created");
+
+    return arc;
+}

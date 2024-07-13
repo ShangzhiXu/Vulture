@@ -1,0 +1,207 @@
+void ppp_input(ppp_pcb *pcb, struct pbuf *pb) {
+  u16_t protocol;
+#if PPP_DEBUG && PPP_PROTOCOLNAME
+    const char *pname;
+#endif /* PPP_DEBUG && PPP_PROTOCOLNAME */
+
+  magic_randomize();
+
+  if (pb->len < 2) {
+    PPPDEBUG(LOG_ERR, ("ppp_input[%d]: packet too short\n", pcb->netif->num));
+    goto drop;
+  }
+  protocol = (((u8_t *)pb->payload)[0] << 8) | ((u8_t*)pb->payload)[1];
+
+#if PRINTPKT_SUPPORT
+  ppp_dump_packet(pcb, "rcvd", (unsigned char *)pb->payload, pb->len);
+#endif /* PRINTPKT_SUPPORT */
+
+  pbuf_remove_header(pb, sizeof(protocol));
+
+  LINK_STATS_INC(link.recv);
+  MIB2_STATS_NETIF_INC(pcb->netif, ifinucastpkts);
+  MIB2_STATS_NETIF_ADD(pcb->netif, ifinoctets, pb->tot_len);
+
+  /*
+   * Toss all non-LCP packets unless LCP is OPEN.
+   */
+  if (protocol != PPP_LCP && pcb->lcp_fsm.state != PPP_FSM_OPENED) {
+    ppp_dbglog("Discarded non-LCP packet when LCP not open");
+    goto drop;
+  }
+
+  /*
+   * Until we get past the authentication phase, toss all packets
+   * except LCP, LQR and authentication packets.
+   */
+  if (pcb->phase <= PPP_PHASE_AUTHENTICATE
+   && !(protocol == PPP_LCP
+#if LQR_SUPPORT
+   || protocol == PPP_LQR
+#endif /* LQR_SUPPORT */
+#if PAP_SUPPORT
+   || protocol == PPP_PAP
+#endif /* PAP_SUPPORT */
+#if CHAP_SUPPORT
+   || protocol == PPP_CHAP
+#endif /* CHAP_SUPPORT */
+#if EAP_SUPPORT
+   || protocol == PPP_EAP
+#endif /* EAP_SUPPORT */
+   )) {
+    ppp_dbglog("discarding proto 0x%x in phase %d", protocol, pcb->phase);
+    goto drop;
+  }
+
+#if CCP_SUPPORT
+#if MPPE_SUPPORT
+  /*
+   * MPPE is required and unencrypted data has arrived (this
+   * should never happen!). We should probably drop the link if
+   * the protocol is in the range of what should be encrypted.
+   * At the least, we drop this packet.
+   */
+  if (pcb->settings.require_mppe && protocol != PPP_COMP && protocol < 0x8000) {
+    PPPDEBUG(LOG_ERR, ("ppp_input[%d]: MPPE required, received unencrypted data!\n", pcb->netif->num));
+    goto drop;
+  }
+#endif /* MPPE_SUPPORT */
+
+  if (protocol == PPP_COMP) {
+    u8_t *pl;
+
+    switch (pcb->ccp_receive_method) {
+#if MPPE_SUPPORT
+    case CI_MPPE:
+      if (mppe_decompress(pcb, &pcb->mppe_decomp, &pb) != ERR_OK) {
+        goto drop;
+      }
+      break;
+#endif /* MPPE_SUPPORT */
+    default:
+      PPPDEBUG(LOG_ERR, ("ppp_input[%d]: bad CCP receive method\n", pcb->netif->num));
+      goto drop; /* Cannot really happen, we only negotiate what we are able to do */
+    }
+
+    /* Assume no PFC */
+    if (pb->len < 2) {
+      goto drop;
+    }
+
+    /* Extract and hide protocol (do PFC decompression if necessary) */
+    pl = (u8_t*)pb->payload;
+    if (pl[0] & 0x01) {
+      protocol = pl[0];
+      pbuf_remove_header(pb, 1);
+    } else {
+      protocol = (pl[0] << 8) | pl[1];
+      pbuf_remove_header(pb, 2);
+    }
+  }
+#endif /* CCP_SUPPORT */
+
+  switch(protocol) {
+
+#if PPP_IPV4_SUPPORT
+    case PPP_IP:            /* Internet Protocol */
+      PPPDEBUG(LOG_INFO, ("ppp_input[%d]: ip in pbuf len=%d\n", pcb->netif->num, pb->tot_len));
+      ip4_input(pb, pcb->netif);
+      return;
+#endif /* PPP_IPV4_SUPPORT */
+
+#if PPP_IPV6_SUPPORT
+    case PPP_IPV6:          /* Internet Protocol Version 6 */
+      PPPDEBUG(LOG_INFO, ("ppp_input[%d]: ip6 in pbuf len=%d\n", pcb->netif->num, pb->tot_len));
+      ip6_input(pb, pcb->netif);
+      return;
+#endif /* PPP_IPV6_SUPPORT */
+
+#if VJ_SUPPORT
+    case PPP_VJC_COMP:      /* VJ compressed TCP */
+      /*
+       * Clip off the VJ header and prepend the rebuilt TCP/IP header and
+       * pass the result to IP.
+       */
+      PPPDEBUG(LOG_INFO, ("ppp_input[%d]: vj_comp in pbuf len=%d\n", pcb->netif->num, pb->tot_len));
+      if (pcb->vj_enabled && vj_uncompress_tcp(&pb, &pcb->vj_comp) >= 0) {
+        ip4_input(pb, pcb->netif);
+        return;
+      }
+      /* Something's wrong so drop it. */
+      PPPDEBUG(LOG_WARNING, ("ppp_input[%d]: Dropping VJ compressed\n", pcb->netif->num));
+      break;
+
+    case PPP_VJC_UNCOMP:    /* VJ uncompressed TCP */
+      /*
+       * Process the TCP/IP header for VJ header compression and then pass
+       * the packet to IP.
+       */
+      PPPDEBUG(LOG_INFO, ("ppp_input[%d]: vj_un in pbuf len=%d\n", pcb->netif->num, pb->tot_len));
+      if (pcb->vj_enabled && vj_uncompress_uncomp(pb, &pcb->vj_comp) >= 0) {
+        ip4_input(pb, pcb->netif);
+        return;
+      }
+      /* Something's wrong so drop it. */
+      PPPDEBUG(LOG_WARNING, ("ppp_input[%d]: Dropping VJ uncompressed\n", pcb->netif->num));
+      break;
+#endif /* VJ_SUPPORT */
+
+    default: {
+      int i;
+      const struct protent *protp;
+
+      /*
+       * Upcall the proper protocol input routine.
+       */
+      for (i = 0; (protp = protocols[i]) != NULL; ++i) {
+        if (protp->protocol == protocol) {
+          pb = pbuf_coalesce(pb, PBUF_RAW);
+          (*protp->input)(pcb, (u8_t*)pb->payload, pb->len);
+          goto out;
+        }
+#if 0   /* UNUSED
+         *
+         * This is actually a (hacked?) way for the Linux kernel to pass a data
+         * packet to pppd. pppd in normal condition only do signaling
+         * (LCP, PAP, CHAP, IPCP, ...) and does not handle any data packet at all.
+         *
+         * We don't even need this interface, which is only there because of PPP
+         * interface limitation between Linux kernel and pppd. For MPPE, which uses
+         * CCP to negotiate although it is not really a (de)compressor, we added
+         * ccp_resetrequest() in CCP and MPPE input data flow is calling either
+         * ccp_resetrequest() or lcp_close() if the issue is, respectively, non-fatal
+         * or fatal, this is what ccp_datainput() really do.
+         */
+        if (protocol == (protp->protocol & ~0x8000)
+          && protp->datainput != NULL) {
+          (*protp->datainput)(pcb, pb->payload, pb->len);
+          goto out;
+        }
+#endif /* UNUSED */
+      }
+
+#if PPP_DEBUG
+#if PPP_PROTOCOLNAME
+      pname = protocol_name(protocol);
+      if (pname != NULL) {
+        ppp_warn("Unsupported protocol '%s' (0x%x) received", pname, protocol);
+      } else
+#endif /* PPP_PROTOCOLNAME */
+        ppp_warn("Unsupported protocol 0x%x received", protocol);
+#endif /* PPP_DEBUG */
+        if (pbuf_add_header(pb, sizeof(protocol))) {
+          PPPDEBUG(LOG_WARNING, ("ppp_input[%d]: Dropping (pbuf_add_header failed)\n", pcb->netif->num));
+          goto drop;
+        }
+        lcp_sprotrej(pcb, (u8_t*)pb->payload, pb->len);
+      }
+      break;
+  }
+
+drop:
+  LINK_STATS_INC(link.drop);
+  MIB2_STATS_NETIF_INC(pcb->netif, ifindiscards);
+
+out:
+  pbuf_free(pb);
+}

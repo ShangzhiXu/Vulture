@@ -1,0 +1,64 @@
+void ADC_DMAConvCplt(DMA_HandleTypeDef *hdma)
+{
+  /* Retrieve ADC handle corresponding to current DMA handle */
+  ADC_HandleTypeDef* hadc = ( ADC_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+  
+  /* Update state machine on conversion status if not in error state */
+  if(HAL_IS_BIT_CLR(hadc->State, (HAL_ADC_STATE_ERROR_INTERNAL | HAL_ADC_STATE_ERROR_DMA)))
+  {
+    /* Set ADC state */
+    SET_BIT(hadc->State, HAL_ADC_STATE_REG_EOC);
+    
+    /* Determine whether any further conversion upcoming on group regular     */
+    /* by external trigger, continuous mode or scan sequence on going         */
+    /* to disable interruption.                                               */
+    /* Is it the end of the regular sequence ? */
+    if(HAL_IS_BIT_SET(hadc->Instance->ISR, ADC_FLAG_EOS))
+    {
+      /* Are conversions software-triggered ? */
+      if(ADC_IS_SOFTWARE_START_REGULAR(hadc))
+      {
+        /* Is CONT bit set ? */
+        if(READ_BIT(hadc->Instance->CFGR, ADC_CFGR_CONT) == RESET)
+        {
+          /* CONT bit is not set, no more conversions expected */
+          CLEAR_BIT(hadc->State, HAL_ADC_STATE_REG_BUSY);
+          if(HAL_IS_BIT_CLR(hadc->State, HAL_ADC_STATE_INJ_BUSY))
+          { 
+            SET_BIT(hadc->State, HAL_ADC_STATE_READY);
+          }
+        }
+      }
+    }
+    else
+    {
+      /* DMA End of Transfer interrupt was triggered but conversions sequence
+         is not over. If DMACFG is set to 0, conversions are stopped. */
+      if(READ_BIT(hadc->Instance->CFGR, ADC_CFGR_DMACFG) == RESET)
+      {
+        /* DMACFG bit is not set, conversions are stopped. */
+        CLEAR_BIT(hadc->State, HAL_ADC_STATE_REG_BUSY);
+        if(HAL_IS_BIT_CLR(hadc->State, HAL_ADC_STATE_INJ_BUSY))
+        { 
+          SET_BIT(hadc->State, HAL_ADC_STATE_READY);
+        }
+      }
+    }
+    
+    /* Conversion complete callback */
+    HAL_ADC_ConvCpltCallback(hadc);
+  }
+  else /* DMA and-or internal error occurred */
+  {
+    if (HAL_IS_BIT_SET(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL))
+    {
+      /* Call HAL ADC Error Callback function */
+      HAL_ADC_ErrorCallback(hadc);
+    }
+    else
+    {
+      /* Call ADC DMA error callback */
+      hadc->DMA_Handle->XferErrorCallback(hdma);
+    }
+  }
+}

@@ -1,0 +1,27 @@
+STATIC osStatus_t osMessageQueueOp(osMessageQueueId_t mq_id, VOID *msg_ptr, UINT32 timeout, QueueReadWrite rw)
+{
+    LosQueueCB *queueCB = (LosQueueCB *)mq_id;
+    UINT32 ret;
+    UINT32 bufferSize;
+
+    if ((queueCB == NULL) || (msg_ptr == NULL) || (OS_INT_ACTIVE && (timeout != 0))) {
+        return osErrorParameter;
+    }
+
+    bufferSize = (UINT32)(queueCB->queueSize - sizeof(UINT32));
+    if (rw == OS_QUEUE_WRITE) {
+        ret = LOS_QueueWriteCopy(queueCB->queueId, msg_ptr, bufferSize, timeout);
+    } else {
+        ret = LOS_QueueReadCopy(queueCB->queueId, msg_ptr, &bufferSize, timeout);
+    }
+
+    if (ret == LOS_OK) {
+        return osOK;
+    } else if ((ret == LOS_ERRNO_QUEUE_INVALID) || (ret == LOS_ERRNO_QUEUE_NOT_CREATE)) {
+        return osErrorParameter;
+    } else if (ret == LOS_ERRNO_QUEUE_TIMEOUT) {
+        return osErrorTimeout;
+    } else {
+        return osErrorResource;
+    }
+}

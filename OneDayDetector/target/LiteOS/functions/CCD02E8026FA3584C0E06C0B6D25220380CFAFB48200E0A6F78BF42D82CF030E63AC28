@@ -1,0 +1,19 @@
+int __pthread_key_create(pthread_key_t *k, void (*dtor)(void *))
+{
+
+	/* Purely a sentinel value since null means slot is free. */
+	if (!dtor) dtor = nodtor;
+
+	(void)pthread_mutex_lock(&key_lock);
+	pthread_key_t j = next_key;
+	do {
+		if (!keys[j]) {
+			keys[next_key = *k = j] = dtor;
+			(void)pthread_mutex_unlock(&key_lock);
+			return 0;
+		}
+	} while ((j=(j+1)%PTHREAD_KEYS_MAX) != next_key);
+
+	(void)pthread_mutex_unlock(&key_lock);
+	return EAGAIN;
+}

@@ -1,0 +1,29 @@
+HAL_StatusTypeDef HAL_TIMEx_ConfigCommutationEvent_IT(TIM_HandleTypeDef *htim, uint32_t  InputTrigger, uint32_t  CommutationSource)
+{
+  /* Check the parameters */
+  assert_param(IS_TIM_COMMUTATION_EVENT_INSTANCE(htim->Instance));
+  assert_param(IS_TIM_INTERNAL_TRIGGEREVENT_SELECTION(InputTrigger));
+
+  __HAL_LOCK(htim);
+
+  if ((InputTrigger == TIM_TS_ITR0) || (InputTrigger == TIM_TS_ITR1) ||
+      (InputTrigger == TIM_TS_ITR2) || (InputTrigger == TIM_TS_ITR3))
+  {
+    /* Select the Input trigger */
+    htim->Instance->SMCR &= ~TIM_SMCR_TS;
+    htim->Instance->SMCR |= InputTrigger;
+  }
+
+  /* Select the Capture Compare preload feature */
+  htim->Instance->CR2 |= TIM_CR2_CCPC;
+  /* Select the Commutation event source */
+  htim->Instance->CR2 &= ~TIM_CR2_CCUS;
+  htim->Instance->CR2 |= CommutationSource;
+
+  /* Enable the Commutation Interrupt Request */
+  __HAL_TIM_ENABLE_IT(htim, TIM_IT_COM);
+
+  __HAL_UNLOCK(htim);
+
+  return HAL_OK;
+}

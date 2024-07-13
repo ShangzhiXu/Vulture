@@ -1,0 +1,16 @@
+LITE_OS_SEC_TEXT STATIC VOID OsMuxBitmapRestore(const LosTaskCB *runTask, LosTaskCB *owner)
+{
+    UINT16 bitMapPri;
+
+    if (owner->priority >= runTask->priority) {
+        bitMapPri = LOS_LowBitGet(owner->priBitMap);
+        if (bitMapPri != LOS_INVALID_BIT_INDEX) {
+            LOS_BitmapClr(&(owner->priBitMap), bitMapPri);
+            OsTaskPriModify(owner, bitMapPri);
+        }
+    } else {
+        if (LOS_HighBitGet(owner->priBitMap) != runTask->priority) {
+            LOS_BitmapClr(&(owner->priBitMap), runTask->priority);
+        }
+    }
+}

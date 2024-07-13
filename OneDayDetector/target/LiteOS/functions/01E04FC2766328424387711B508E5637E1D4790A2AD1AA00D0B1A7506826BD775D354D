@@ -1,0 +1,28 @@
+HAL_StatusTypeDef HAL_DACEx_DualSetValue(DAC_HandleTypeDef* hdac, uint32_t Alignment, uint32_t Data1, uint32_t Data2)
+{  
+  uint32_t data = 0U, tmp = 0U;
+  
+  /* Check the parameters */
+  assert_param(IS_DAC_ALIGN(Alignment));
+  assert_param(IS_DAC_DATA(Data1));
+  assert_param(IS_DAC_DATA(Data2));
+  
+  /* Calculate and set dual DAC data holding register value */
+  if (Alignment == DAC_ALIGN_8B_R)
+  {
+    data = ((uint32_t)Data2 << 8U) | Data1; 
+  }
+  else
+  {
+    data = ((uint32_t)Data2 << 16U) | Data1;
+  }
+  
+  tmp = (uint32_t)hdac->Instance;
+  tmp += DAC_DHR12RD_ALIGNMENT(Alignment);
+
+  /* Set the dual DAC selected data holding register */
+  *(__IO uint32_t *)tmp = data;
+  
+  /* Return function status */
+  return HAL_OK;
+}

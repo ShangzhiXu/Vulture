@@ -1,0 +1,33 @@
+int check_subs_exist(MQTTClient *c, const char *test_topic, int which)
+{
+    int rc = FAILURE;
+    int wait_seconds = 0;
+
+    memset(&pubmsg, '\0', sizeof(pubmsg));
+    pubmsg.payload = (void *)"a much longer message that we can shorten to the extent that we need to payload up to 11";
+    pubmsg.payloadlen = 11;
+    pubmsg.qos = QOS2;
+    pubmsg.retained = 0;
+    pubmsg.dup = 0;
+
+    test1_message_data = test2_message_data = NULL;
+    rc = MQTTPublish(c, test_topic, &pubmsg);
+    assert("Good rc from publish", rc == MQTT_SUCCESS, "rc was %d", rc);
+
+    /* wait for the message to be received */
+    wait_seconds = 10;
+    while (wait_seconds-- > 0)
+    {
+        MQTTYield(c, 100);
+    }
+
+    rc = (((which == 1 || which == 3) && test1_message_data) ||
+          (which == 2 && test1_message_data == NULL)) ? MQTT_SUCCESS : FAILURE;
+    assert("test1 subscription", rc == MQTT_SUCCESS, "test1_message_data %p\n",
+           test1_message_data);
+    rc = (((which == 2 || which == 3) && test2_message_data) ||
+          (which == 1 && test2_message_data == NULL)) ? MQTT_SUCCESS : FAILURE;
+    assert("test2 subscription", rc == MQTT_SUCCESS, "test2_message_data %p\n",
+           test2_message_data);
+    return rc;
+}

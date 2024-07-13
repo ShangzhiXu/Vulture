@@ -1,0 +1,27 @@
+osThreadState_t osThreadGetState(osThreadId_t thread_id)
+{
+    LosTaskCB *taskCB = (LosTaskCB *)thread_id;
+    osThreadState_t state;
+    UINT16 taskStatus;
+
+    if ((taskCB == NULL) || OS_INT_ACTIVE) {
+        return osThreadError;
+    }
+
+    taskStatus = taskCB->taskStatus;
+    if (taskStatus & OS_TASK_STATUS_RUNNING) {
+        state = osThreadRunning;
+    } else if (taskStatus & OS_TASK_STATUS_READY) {
+        state = osThreadReady;
+    } else if (taskStatus &
+        (OS_TASK_STATUS_DELAY | OS_TASK_STATUS_PEND |
+         OS_TASK_STATUS_SUSPEND | OS_TASK_STATUS_PEND_TIME)) {
+        state = osThreadBlocked;
+    } else if (taskStatus & OS_TASK_STATUS_UNUSED) {
+        state = osThreadInactive;
+    } else {
+        state = osThreadError;
+    }
+
+    return state;
+}

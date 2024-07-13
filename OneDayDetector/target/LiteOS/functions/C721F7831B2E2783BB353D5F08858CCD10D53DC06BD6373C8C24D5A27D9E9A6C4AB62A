@@ -1,0 +1,51 @@
+HAL_StatusTypeDef HAL_GFXMMU_Init(GFXMMU_HandleTypeDef *hgfxmmu)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  
+  /* Check GFXMMU handle */
+  if(hgfxmmu == NULL)
+  {
+    status = HAL_ERROR;
+  }
+  else
+  {
+    /* Check parameters */
+    assert_param(IS_GFXMMU_ALL_INSTANCE(hgfxmmu->Instance));
+    assert_param(IS_GFXMMU_BLOCKS_PER_LINE(hgfxmmu->Init.BlocksPerLine));
+    assert_param(IS_GFXMMU_BUFFER_ADDRESS(hgfxmmu->Init.Buffers.Buf0Address));
+    assert_param(IS_GFXMMU_BUFFER_ADDRESS(hgfxmmu->Init.Buffers.Buf1Address));
+    assert_param(IS_GFXMMU_BUFFER_ADDRESS(hgfxmmu->Init.Buffers.Buf2Address));
+    assert_param(IS_GFXMMU_BUFFER_ADDRESS(hgfxmmu->Init.Buffers.Buf3Address));
+    assert_param(IS_FUNCTIONAL_STATE(hgfxmmu->Init.Interrupts.Activation));
+    
+    /* Call GFXMMU MSP init function */
+    HAL_GFXMMU_MspInit(hgfxmmu);
+    
+    /* Configure blocks per line and interrupts parameters on GFXMMU_CR register */
+    hgfxmmu->Instance->CR &= ~(GFXMMU_CR_B0OIE | GFXMMU_CR_B1OIE | GFXMMU_CR_B2OIE | GFXMMU_CR_B3OIE |
+                               GFXMMU_CR_AMEIE | GFXMMU_CR_192BM);
+    hgfxmmu->Instance->CR |= (hgfxmmu->Init.BlocksPerLine);
+    if(hgfxmmu->Init.Interrupts.Activation == ENABLE)
+    {
+      assert_param(IS_GFXMMU_INTERRUPTS(hgfxmmu->Init.Interrupts.UsedInterrupts));
+      hgfxmmu->Instance->CR |= hgfxmmu->Init.Interrupts.UsedInterrupts;
+    }
+    
+    /* Configure default value on GFXMMU_DVR register */
+    hgfxmmu->Instance->DVR = hgfxmmu->Init.DefaultValue;
+    
+    /* Configure physical buffer adresses on GFXMMU_BxCR registers */
+    hgfxmmu->Instance->B0CR = hgfxmmu->Init.Buffers.Buf0Address;
+    hgfxmmu->Instance->B1CR = hgfxmmu->Init.Buffers.Buf1Address;
+    hgfxmmu->Instance->B2CR = hgfxmmu->Init.Buffers.Buf2Address;
+    hgfxmmu->Instance->B3CR = hgfxmmu->Init.Buffers.Buf3Address;
+    
+    /* Reset GFXMMU error code */
+    hgfxmmu->ErrorCode = GFXMMU_ERROR_NONE;
+    
+    /* Set GFXMMU to ready state */
+    hgfxmmu->State = HAL_GFXMMU_STATE_READY;
+  }
+  /* Return function status */
+  return status;
+}

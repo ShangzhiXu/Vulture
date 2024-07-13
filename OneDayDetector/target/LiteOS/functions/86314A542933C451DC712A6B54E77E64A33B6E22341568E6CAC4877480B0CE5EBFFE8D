@@ -1,0 +1,74 @@
+char *MQTTFormat_toServerString(char *strbuf, int strbuflen, unsigned char *buf, int buflen)
+{
+    int index = 0;
+    int rem_length = 0;
+    MQTTHeader header = {0};
+    int strindex = 0;
+
+    header.byte = buf[index++];
+    index += MQTTPacket_decodeBuf(&buf[index], &rem_length);
+
+    switch (header.bits.type)
+    {
+    case CONNECT:
+    {
+        MQTTPacket_connectData data;
+        int rc;
+        if ((rc = MQTTDeserialize_connect(&data, buf, buflen)) == 1)
+            strindex = MQTTStringFormat_connect(strbuf, strbuflen, &data);
+    }
+    break;
+    case PUBLISH:
+    {
+        unsigned char dup, retained, *payload;
+        unsigned short packetid;
+        int qos, payloadlen;
+        MQTTString topicName = MQTTString_initializer;
+        if (MQTTDeserialize_publish(&dup, &qos, &retained, &packetid, &topicName,
+                                    &payload, &payloadlen, buf, buflen) == 1)
+            strindex = MQTTStringFormat_publish(strbuf, strbuflen, dup, qos, retained, packetid,
+                                                topicName, payload, payloadlen);
+    }
+    break;
+    case PUBACK:
+    case PUBREC:
+    case PUBREL:
+    case PUBCOMP:
+    {
+        unsigned char packettype, dup;
+        unsigned short packetid;
+        if (MQTTDeserialize_ack(&packettype, &dup, &packetid, buf, buflen) == 1)
+            strindex = MQTTStringFormat_ack(strbuf, strbuflen, packettype, dup, packetid);
+    }
+    break;
+    case SUBSCRIBE:
+    {
+        unsigned char dup;
+        unsigned short packetid;
+        int maxcount = 1, count = 0;
+        MQTTString topicFilters[1];
+        int requestedQoSs[1];
+        if (MQTTDeserialize_subscribe(&dup, &packetid, maxcount, &count,
+                                      topicFilters, requestedQoSs, buf, buflen) == 1)
+            strindex = MQTTStringFormat_subscribe(strbuf, strbuflen, dup, packetid, count, topicFilters, requestedQoSs);;
+    }
+    break;
+    case UNSUBSCRIBE:
+    {
+        unsigned char dup;
+        unsigned short packetid;
+        int maxcount = 1, count = 0;
+        MQTTString topicFilters[1];
+        if (MQTTDeserialize_unsubscribe(&dup, &packetid, maxcount, &count, topicFilters, buf, buflen) == 1)
+            strindex =  MQTTStringFormat_unsubscribe(strbuf, strbuflen, dup, packetid, count, topicFilters);
+    }
+    break;
+    case PINGREQ:
+    case PINGRESP:
+    case DISCONNECT:
+        strindex = snprintf(strbuf, strbuflen, "%s", MQTTPacket_names[header.bits.type]);
+        break;
+    }
+    strbuf[strbuflen] = '\0';
+    return strbuf;
+}

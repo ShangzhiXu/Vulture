@@ -1,0 +1,18 @@
+osStatus osMailClear(osMailQId queue_id)
+{
+    osEvent evt;
+    UINTPTR intSave;
+    intSave = LOS_IntLock();
+    while (1) {
+        evt = osMailGet(queue_id, 0);
+        if (evt.status == osEventMail) {
+            (VOID)osMailFree(queue_id, evt.value.p);
+        } else if (evt.status == osEventTimeout) {
+            LOS_IntRestore(intSave);
+            return osOK;
+        } else {
+            LOS_IntRestore(intSave);
+            return evt.status;
+        }
+    }
+}

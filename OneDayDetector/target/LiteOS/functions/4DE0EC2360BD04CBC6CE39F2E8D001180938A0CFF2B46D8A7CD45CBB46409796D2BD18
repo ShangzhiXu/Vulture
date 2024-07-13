@@ -1,0 +1,22 @@
+static int pack_head_handle_checksum_tlv(pack_head_s *head, uint8_t *value, uint32_t len)
+{
+    if (head->checksum_pos) {
+        PACK_FREE(head->checksum_pos);
+        head->checksum_pos = NULL;
+        head->checksum_len = 0;
+    }
+
+    if (len > 0) {
+        head->checksum_pos = PACK_MALLOC(len);
+        if (head->checksum_pos == NULL) {
+            PACK_LOG("PACK_MALLOC %d fail", len);
+            return PACK_ERR;
+        }
+        memcpy(head->checksum_pos, value, len);
+    }
+
+    head->checksum_len = len;
+    memset(value, 0, len);
+
+    return PACK_OK;
+}

@@ -1,0 +1,45 @@
+int pthread_cancel(pthread_t thread)
+{
+    _pthread_data *data = NULL;
+
+    if (pthread_mutex_lock(&g_pthreadsDataMutex) != ENOERR) {
+        PRINT_ERR("%s: %d failed\n", __FUNCTION__, __LINE__);
+    }
+
+    data = pthread_get_data(thread);
+    if (data == NULL) {
+        if (pthread_mutex_unlock(&g_pthreadsDataMutex) != ENOERR) {
+            PRINT_ERR("%s: %d failed\n", __FUNCTION__, __LINE__);
+        }
+        return ESRCH;
+    }
+
+    data->canceled = 1;
+
+    if ((data->cancelstate == PTHREAD_CANCEL_ENABLE) &&
+        (data->canceltype == PTHREAD_CANCEL_ASYNCHRONOUS)) {
+        /*
+         * If the thread has cancellation enabled, and it is in
+         * asynchronous mode, suspend it and set corresponding thread's status.
+         * We also release the thread out of any current wait to make it wake up.
+         */
+        if (DoPthreadCancel(data) == LOS_NOK) {
+            goto ERROR_OUT;
+        }
+    }
+
+    /*
+     * Otherwise the thread has cancellation disabled, in which case
+     * it is up to the thread to enable cancellation
+     */
+    if (pthread_mutex_unlock(&g_pthreadsDataMutex) != ENOERR) {
+        PRINT_ERR("%s: %d failed\n", __FUNCTION__, __LINE__);
+    }
+
+    return ENOERR;
+ERROR_OUT:
+    if (pthread_mutex_unlock(&g_pthreadsDataMutex) != ENOERR) {
+        PRINT_ERR("%s: %d failed\n", __FUNCTION__, __LINE__);
+    }
+    return ESRCH;
+}

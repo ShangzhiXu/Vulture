@@ -1,0 +1,15 @@
+    Atomic deepSleepCores;
+    Atomic deepSleepDelay;
+    PowerMgrDeepSleepOps *deepSleepOps;
+    LowpowerExternalVoterHandle exVoterHandle;
+    Atomic freeLock;
+    Atomic freq;
+    Atomic freqPending;
+    SPIN_LOCK_S lock;
+    UINT32 maxSleepCount;
+    UINT32 minDeepSleepTicks;
+    UINT32 minSleepTicks;
+    Atomic resumeSleepCores;
+    UINT8 sleepMode[LOSCFG_KERNEL_CORE_NUM];
+    UINT32 sleepTime[LOSCFG_KERNEL_CORE_NUM];
+    Atomic sleepVoteCount;

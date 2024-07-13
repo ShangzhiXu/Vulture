@@ -1,0 +1,91 @@
+snmp_process_getbulk_request(struct snmp_request *request)
+{
+  snmp_vb_enumerator_err_t err;
+  s32_t non_repeaters     = request->non_repeaters;
+  s32_t repetitions;
+  u16_t repetition_offset = 0;
+  struct snmp_varbind_enumerator repetition_varbind_enumerator;
+  struct snmp_varbind vb;
+  vb.value = request->value_buffer;
+
+  if (SNMP_LWIP_GETBULK_MAX_REPETITIONS > 0) {
+    repetitions = LWIP_MIN(request->max_repetitions, SNMP_LWIP_GETBULK_MAX_REPETITIONS);
+  } else {
+    repetitions = request->max_repetitions;
+  }
+
+  LWIP_DEBUGF(SNMP_DEBUG, ("SNMP get-bulk request\n"));
+
+  /* process non repeaters and first repetition */
+  while (request->error_status == SNMP_ERR_NOERROR) {
+    if (non_repeaters == 0) {
+      repetition_offset = request->outbound_pbuf_stream.offset;
+
+      if (repetitions == 0) {
+        /* do not resolve repeaters when repetitions is set to 0 */
+        break;
+      }
+      repetitions--;
+    }
+
+    err = snmp_vb_enumerator_get_next(&request->inbound_varbind_enumerator, &vb);
+    if (err == SNMP_VB_ENUMERATOR_ERR_EOVB) {
+      /* no more varbinds in request */
+      break;
+    } else if (err == SNMP_VB_ENUMERATOR_ERR_ASN1ERROR) {
+      /* malformed ASN.1, don't answer */
+      return ERR_ARG;
+    } else if ((err != SNMP_VB_ENUMERATOR_ERR_OK) || (vb.type != SNMP_ASN1_TYPE_NULL) || (vb.value_len != 0)) {
+      request->error_status = SNMP_ERR_GENERROR;
+    } else {
+      snmp_process_varbind(request, &vb, 1);
+      non_repeaters--;
+    }
+  }
+
+  /* process repetitions > 1 */
+  while ((request->error_status == SNMP_ERR_NOERROR) && (repetitions > 0) && (request->outbound_pbuf_stream.offset != repetition_offset)) {
+
+    u8_t all_endofmibview = 1;
+
+    snmp_vb_enumerator_init(&repetition_varbind_enumerator, request->outbound_pbuf, repetition_offset, request->outbound_pbuf_stream.offset - repetition_offset);
+    repetition_offset = request->outbound_pbuf_stream.offset; /* for next loop */
+
+    while (request->error_status == SNMP_ERR_NOERROR) {
+      vb.value = NULL; /* do NOT decode value (we enumerate outbound buffer here, so all varbinds have values assigned) */
+      err = snmp_vb_enumerator_get_next(&repetition_varbind_enumerator, &vb);
+      if (err == SNMP_VB_ENUMERATOR_ERR_OK) {
+        vb.value = request->value_buffer;
+        snmp_process_varbind(request, &vb, 1);
+
+        if (request->error_status != SNMP_ERR_NOERROR) {
+          /* already set correct error-index (here it cannot be taken from inbound varbind enumerator) */
+          request->error_index = request->non_repeaters + repetition_varbind_enumerator.varbind_count;
+        } else if (vb.type != (SNMP_ASN1_CONTENTTYPE_PRIMITIVE | SNMP_ASN1_CLASS_CONTEXT | SNMP_ASN1_CONTEXT_VARBIND_END_OF_MIB_VIEW)) {
+          all_endofmibview = 0;
+        }
+      } else if (err == SNMP_VB_ENUMERATOR_ERR_EOVB) {
+        /* no more varbinds in request */
+        break;
+      } else {
+        LWIP_DEBUGF(SNMP_DEBUG, ("Very strange, we cannot parse the varbind output that we created just before!"));
+        request->error_status = SNMP_ERR_GENERROR;
+        request->error_index  = request->non_repeaters + repetition_varbind_enumerator.varbind_count;
+      }
+    }
+
+    if ((request->error_status == SNMP_ERR_NOERROR) && all_endofmibview) {
+      /* stop when all varbinds in a loop return EndOfMibView */
+      break;
+    }
+
+    repetitions--;
+  }
+
+  if (request->error_status == SNMP_ERR_TOOBIG) {
+    /* for GetBulk it is ok, if not all requested variables fit into the response -> just return the varbinds added so far */
+    request->error_status = SNMP_ERR_NOERROR;
+  }
+
+  return ERR_OK;
+}

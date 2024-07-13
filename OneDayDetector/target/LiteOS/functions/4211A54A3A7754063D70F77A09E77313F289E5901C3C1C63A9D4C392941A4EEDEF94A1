@@ -1,0 +1,79 @@
+HAL_StatusTypeDef HAL_LTDC_RegisterCallback(LTDC_HandleTypeDef *hltdc, HAL_LTDC_CallbackIDTypeDef CallbackID, pLTDC_CallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    /* Update the error code */
+    hltdc->ErrorCode |= HAL_LTDC_ERROR_INVALID_CALLBACK;
+
+    return HAL_ERROR;
+  }
+  /* Process locked */
+  __HAL_LOCK(hltdc);
+
+  if (hltdc->State == HAL_LTDC_STATE_READY)
+  {
+    switch (CallbackID)
+    {
+      case HAL_LTDC_LINE_EVENT_CB_ID :
+        hltdc->LineEventCallback = pCallback;
+        break;
+
+      case HAL_LTDC_RELOAD_EVENT_CB_ID :
+        hltdc->ReloadEventCallback = pCallback;
+        break;
+
+      case HAL_LTDC_ERROR_CB_ID :
+        hltdc->ErrorCallback = pCallback;
+        break;
+
+      case HAL_LTDC_MSPINIT_CB_ID :
+        hltdc->MspInitCallback = pCallback;
+        break;
+
+      case HAL_LTDC_MSPDEINIT_CB_ID :
+        hltdc->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hltdc->ErrorCode |= HAL_LTDC_ERROR_INVALID_CALLBACK;
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if (hltdc->State == HAL_LTDC_STATE_RESET)
+  {
+    switch (CallbackID)
+    {
+      case HAL_LTDC_MSPINIT_CB_ID :
+        hltdc->MspInitCallback = pCallback;
+        break;
+
+      case HAL_LTDC_MSPDEINIT_CB_ID :
+        hltdc->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hltdc->ErrorCode |= HAL_LTDC_ERROR_INVALID_CALLBACK;
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    hltdc->ErrorCode |= HAL_LTDC_ERROR_INVALID_CALLBACK;
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hltdc);
+
+  return status;
+}

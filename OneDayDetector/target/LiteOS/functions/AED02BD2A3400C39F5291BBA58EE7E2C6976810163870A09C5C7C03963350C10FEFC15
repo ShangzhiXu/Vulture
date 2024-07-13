@@ -1,0 +1,26 @@
+static void sift(unsigned char *head, size_t width, cmpfun cmp, int pshift, size_t lp[])
+{
+	unsigned char *rt, *lf;
+	unsigned char *ar[14 * sizeof(size_t) + 1];
+	int i = 1;
+
+	ar[0] = head;
+	while(pshift > 1) {
+		rt = head - width;
+		lf = head - width - lp[pshift - 2];
+
+		if((*cmp)(ar[0], lf) >= 0 && (*cmp)(ar[0], rt) >= 0) {
+			break;
+		}
+		if((*cmp)(lf, rt) >= 0) {
+			ar[i++] = lf;
+			head = lf;
+			pshift -= 1;
+		} else {
+			ar[i++] = rt;
+			head = rt;
+			pshift -= 2;
+		}
+	}
+	cycle(width, ar, i);
+}

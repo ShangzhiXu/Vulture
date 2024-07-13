@@ -1,0 +1,122 @@
+void HAL_CEC_IRQHandler(CEC_HandleTypeDef *hcec)
+{
+
+  /* save interrupts register for further error or interrupts handling purposes */
+  uint32_t reg;
+  reg = hcec->Instance->ISR;
+
+
+  /* ----------------------------Arbitration Lost Management----------------------------------*/
+  /* CEC TX arbitration error interrupt occurred --------------------------------------*/
+  if ((reg & CEC_FLAG_ARBLST) != 0U)
+  {
+    hcec->ErrorCode = HAL_CEC_ERROR_ARBLST;
+    __HAL_CEC_CLEAR_FLAG(hcec, CEC_FLAG_ARBLST);
+  }
+
+  /* ----------------------------Rx Management----------------------------------*/
+  /* CEC RX byte received interrupt  ---------------------------------------------------*/
+  if ((reg & CEC_FLAG_RXBR) != 0U)
+  {
+    /* reception is starting */
+    hcec->RxState = HAL_CEC_STATE_BUSY_RX;
+    hcec->RxXferSize++;
+    /* read received byte */
+    *hcec->Init.RxBuffer = (uint8_t) hcec->Instance->RXDR;
+    hcec->Init.RxBuffer++;
+    __HAL_CEC_CLEAR_FLAG(hcec, CEC_FLAG_RXBR);
+  }
+
+  /* CEC RX end received interrupt  ---------------------------------------------------*/
+  if ((reg & CEC_FLAG_RXEND) != 0U)
+  {
+    /* clear IT */
+    __HAL_CEC_CLEAR_FLAG(hcec, CEC_FLAG_RXEND);
+
+    /* Rx process is completed, restore hcec->RxState to Ready */
+    hcec->RxState = HAL_CEC_STATE_READY;
+    hcec->ErrorCode = HAL_CEC_ERROR_NONE;
+    hcec->Init.RxBuffer -= hcec->RxXferSize;
+#if (USE_HAL_CEC_REGISTER_CALLBACKS == 1U)
+    hcec->RxCpltCallback(hcec, hcec->RxXferSize);
+#else
+    HAL_CEC_RxCpltCallback(hcec, hcec->RxXferSize);
+#endif /* USE_HAL_CEC_REGISTER_CALLBACKS */
+    hcec->RxXferSize = 0U;
+  }
+
+  /* ----------------------------Tx Management----------------------------------*/
+  /* CEC TX byte request interrupt ------------------------------------------------*/
+  if ((reg & CEC_FLAG_TXBR) != 0U)
+  {
+    if (hcec->TxXferCount == 0U)
+    {
+      /* if this is the last byte transmission, set TX End of Message (TXEOM) bit */
+      __HAL_CEC_LAST_BYTE_TX_SET(hcec);
+      hcec->Instance->TXDR = *hcec->pTxBuffPtr;
+      hcec->pTxBuffPtr++;
+    }
+    else
+    {
+      hcec->Instance->TXDR = *hcec->pTxBuffPtr;
+      hcec->pTxBuffPtr++;
+      hcec->TxXferCount--;
+    }
+    /* clear Tx-Byte request flag */
+    __HAL_CEC_CLEAR_FLAG(hcec, CEC_FLAG_TXBR);
+  }
+
+  /* CEC TX end interrupt ------------------------------------------------*/
+  if ((reg & CEC_FLAG_TXEND) != 0U)
+  {
+    __HAL_CEC_CLEAR_FLAG(hcec, CEC_FLAG_TXEND);
+
+    /* Tx process is ended, restore hcec->gState to Ready */
+    hcec->gState = HAL_CEC_STATE_READY;
+    /* Call the Process Unlocked before calling the Tx call back API to give the possibility to
+    start again the Transmission under the Tx call back API */
+    __HAL_UNLOCK(hcec);
+    hcec->ErrorCode = HAL_CEC_ERROR_NONE;
+#if (USE_HAL_CEC_REGISTER_CALLBACKS == 1U)
+    hcec->TxCpltCallback(hcec);
+#else
+    HAL_CEC_TxCpltCallback(hcec);
+#endif /* USE_HAL_CEC_REGISTER_CALLBACKS */
+  }
+
+  /* ----------------------------Rx/Tx Error Management----------------------------------*/
+  if ((reg & (CEC_ISR_RXOVR | CEC_ISR_BRE | CEC_ISR_SBPE | CEC_ISR_LBPE | CEC_ISR_RXACKE | CEC_ISR_TXUDR | CEC_ISR_TXERR |
+              CEC_ISR_TXACKE)) != 0U)
+  {
+    hcec->ErrorCode = reg;
+    __HAL_CEC_CLEAR_FLAG(hcec, HAL_CEC_ERROR_RXOVR | HAL_CEC_ERROR_BRE | CEC_FLAG_LBPE | CEC_FLAG_SBPE |
+                         HAL_CEC_ERROR_RXACKE | HAL_CEC_ERROR_TXUDR | HAL_CEC_ERROR_TXERR | HAL_CEC_ERROR_TXACKE);
+
+
+    if ((reg & (CEC_ISR_RXOVR | CEC_ISR_BRE | CEC_ISR_SBPE | CEC_ISR_LBPE | CEC_ISR_RXACKE)) != 0U)
+    {
+      hcec->Init.RxBuffer -= hcec->RxXferSize;
+      hcec->RxXferSize = 0U;
+      hcec->RxState = HAL_CEC_STATE_READY;
+    }
+    else if (((reg & CEC_ISR_ARBLST) == 0U) && ((reg & (CEC_ISR_TXUDR | CEC_ISR_TXERR | CEC_ISR_TXACKE)) != 0U))
+    {
+      /* Set the CEC state ready to be able to start again the process */
+      hcec->gState = HAL_CEC_STATE_READY;
+    }
+    else
+    {
+      /* Nothing todo*/
+    }
+#if (USE_HAL_CEC_REGISTER_CALLBACKS == 1U)
+    hcec->ErrorCallback(hcec);
+#else
+    /* Error  Call Back */
+    HAL_CEC_ErrorCallback(hcec);
+#endif /* USE_HAL_CEC_REGISTER_CALLBACKS */
+  }
+  else
+  {
+    /* Nothing todo*/
+  }
+}

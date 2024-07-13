@@ -1,0 +1,135 @@
+static HAL_SD_ErrorTypedef SD_PowerON(SD_HandleTypeDef *hsd)
+{
+  SDIO_CmdInitTypeDef sdio_cmdinitstructure = {0}; 
+  __IO HAL_SD_ErrorTypedef errorstate = SD_OK; 
+  uint32_t response = 0, count = 0, validvoltage = 0;
+  uint32_t sdtype = SD_STD_CAPACITY;
+  
+  /* Power ON Sequence -------------------------------------------------------*/
+  /* Disable SDIO Clock */
+  __HAL_SD_SDIO_DISABLE(hsd); 
+  
+  /* Set Power State to ON */
+  SDIO_PowerState_ON(hsd->Instance);
+  
+  /* 1ms: required power up waiting time before starting the SD initialization 
+     sequence */
+  HAL_Delay(1);
+  
+  /* Enable SDIO Clock */
+  __HAL_SD_SDIO_ENABLE(hsd);
+  
+  /* CMD0: GO_IDLE_STATE -----------------------------------------------------*/
+  /* No CMD response required */
+  sdio_cmdinitstructure.Argument         = 0;
+  sdio_cmdinitstructure.CmdIndex         = SD_CMD_GO_IDLE_STATE;
+  sdio_cmdinitstructure.Response         = SDIO_RESPONSE_NO;
+  sdio_cmdinitstructure.WaitForInterrupt = SDIO_WAIT_NO;
+  sdio_cmdinitstructure.CPSM             = SDIO_CPSM_ENABLE;
+  SDIO_SendCommand(hsd->Instance, &sdio_cmdinitstructure);
+  
+  /* Check for error conditions */
+  errorstate = SD_CmdError(hsd);
+  
+  if(errorstate != SD_OK)
+  {
+    /* CMD Response TimeOut (wait for CMDSENT flag) */
+    return errorstate;
+  }
+  
+  /* CMD8: SEND_IF_COND ------------------------------------------------------*/
+  /* Send CMD8 to verify SD card interface operating condition */
+  /* Argument: - [31:12]: Reserved (shall be set to '0')
+  - [11:8]: Supply Voltage (VHS) 0x1 (Range: 2.7-3.6 V)
+  - [7:0]: Check Pattern (recommended 0xAA) */
+  /* CMD Response: R7 */
+  sdio_cmdinitstructure.Argument         = SD_CHECK_PATTERN;
+  sdio_cmdinitstructure.CmdIndex         = SD_SDIO_SEND_IF_COND;
+  sdio_cmdinitstructure.Response         = SDIO_RESPONSE_SHORT;
+  SDIO_SendCommand(hsd->Instance, &sdio_cmdinitstructure);
+  
+  /* Check for error conditions */ 
+  errorstate = SD_CmdResp7Error(hsd);
+  
+  if (errorstate == SD_OK)
+  {
+    /* SD Card 2.0 */
+    hsd->CardType = STD_CAPACITY_SD_CARD_V2_0; 
+    sdtype        = SD_HIGH_CAPACITY;
+  }
+  
+  /* Send CMD55 */
+  sdio_cmdinitstructure.Argument         = 0;
+  sdio_cmdinitstructure.CmdIndex         = SD_CMD_APP_CMD;
+  SDIO_SendCommand(hsd->Instance, &sdio_cmdinitstructure);
+  
+  /* Check for error conditions */
+  errorstate = SD_CmdResp1Error(hsd, SD_CMD_APP_CMD);
+  
+  /* If errorstate is Command TimeOut, it is a MMC card */
+  /* If errorstate is SD_OK it is a SD card: SD card 2.0 (voltage range mismatch)
+     or SD card 1.x */
+  if(errorstate == SD_OK)
+  {
+    /* SD CARD */
+    /* Send ACMD41 SD_APP_OP_COND with Argument 0x80100000 */
+    while((!validvoltage) && (count < SD_MAX_VOLT_TRIAL))
+    {
+      
+      /* SEND CMD55 APP_CMD with RCA as 0 */
+      sdio_cmdinitstructure.Argument         = 0;
+      sdio_cmdinitstructure.CmdIndex         = SD_CMD_APP_CMD;
+      sdio_cmdinitstructure.Response         = SDIO_RESPONSE_SHORT;
+      sdio_cmdinitstructure.WaitForInterrupt = SDIO_WAIT_NO;
+      sdio_cmdinitstructure.CPSM             = SDIO_CPSM_ENABLE;
+      SDIO_SendCommand(hsd->Instance, &sdio_cmdinitstructure);
+      
+      /* Check for error conditions */
+      errorstate = SD_CmdResp1Error(hsd, SD_CMD_APP_CMD);
+      
+      if(errorstate != SD_OK)
+      {
+        return errorstate;
+      }
+      
+      /* Send CMD41 */
+      sdio_cmdinitstructure.Argument         = SD_VOLTAGE_WINDOW_SD | sdtype;
+      sdio_cmdinitstructure.CmdIndex         = SD_CMD_SD_APP_OP_COND;
+      sdio_cmdinitstructure.Response         = SDIO_RESPONSE_SHORT;
+      sdio_cmdinitstructure.WaitForInterrupt = SDIO_WAIT_NO;
+      sdio_cmdinitstructure.CPSM             = SDIO_CPSM_ENABLE;
+      SDIO_SendCommand(hsd->Instance, &sdio_cmdinitstructure);
+      
+      /* Check for error conditions */
+      errorstate = SD_CmdResp3Error(hsd);
+      
+      if(errorstate != SD_OK)
+      {
+        return errorstate;
+      }
+      
+      /* Get command response */
+      response = SDIO_GetResponse(hsd->Instance, SDIO_RESP1);
+      
+      /* Get operating voltage*/
+      validvoltage = (((response >> 31) == 1) ? 1 : 0);
+      
+      count++;
+    }
+    
+    if(count >= SD_MAX_VOLT_TRIAL)
+    {
+      errorstate = SD_INVALID_VOLTRANGE;
+      
+      return errorstate;
+    }
+    
+    if((response & SD_HIGH_CAPACITY) == SD_HIGH_CAPACITY) /* (response &= SD_HIGH_CAPACITY) */
+    {
+      hsd->CardType = HIGH_CAPACITY_SD_CARD;
+    }
+    
+  } /* else MMC Card */
+  
+  return errorstate;
+}

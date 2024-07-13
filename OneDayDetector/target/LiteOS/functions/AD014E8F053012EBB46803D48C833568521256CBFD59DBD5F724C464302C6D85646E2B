@@ -1,0 +1,34 @@
+void _test_free(void* const ptr, const char* file, const int line) {
+    unsigned int i;
+    char *block = (char*)ptr;
+    MallocBlockInfo *block_info;
+    _assert_true((int)ptr, "ptr", file, line);
+    block_info = (MallocBlockInfo*)(block - (MALLOC_GUARD_SIZE +
+                                               sizeof(*block_info)));
+    // Check the guard blocks.
+    {
+        char *guards[2] = {block - MALLOC_GUARD_SIZE,
+                           block + block_info->size};
+        for (i = 0; i < ARRAY_LENGTH(guards); i++) {
+            unsigned int j;
+            char * const guard = guards[i];
+            for (j = 0; j < MALLOC_GUARD_SIZE; j++) {
+                const char diff = guard[j] - MALLOC_GUARD_PATTERN;
+                if (diff) {
+                    print_error(
+                        "Guard block of 0x%08x size=%d allocated by "
+                        SOURCE_LOCATION_FORMAT " at 0x%08x is corrupt\n",
+                        (size_t)ptr, block_info->size,
+                        block_info->location.file, block_info->location.line,
+                        (size_t)&guard[j]);
+                    _fail(file, line);
+                }
+            }
+        }
+    }
+    list_remove(&block_info->node, NULL, NULL);
+
+    block = block_info->block;
+    memset(block, MALLOC_FREE_PATTERN, block_info->allocated_size);
+    free(block);
+}

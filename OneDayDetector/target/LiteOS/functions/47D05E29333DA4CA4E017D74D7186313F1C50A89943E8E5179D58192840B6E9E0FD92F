@@ -1,0 +1,25 @@
+HAL_StatusTypeDef  HAL_LTDC_Reload(LTDC_HandleTypeDef *hltdc, uint32_t ReloadType)
+{
+  /* Check the parameters */
+  assert_param(IS_LTDC_RELOAD(ReloadType));
+
+  /* Process locked */
+  __HAL_LOCK(hltdc);
+
+  /* Change LTDC peripheral state */
+  hltdc->State = HAL_LTDC_STATE_BUSY;
+
+  /* Enable the Reload interrupt */
+  __HAL_LTDC_ENABLE_IT(hltdc, LTDC_IT_RR);
+
+  /* Apply Reload type */
+  hltdc->Instance->SRCR = ReloadType;
+
+  /* Change the LTDC state*/
+  hltdc->State = HAL_LTDC_STATE_READY;
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hltdc);
+
+  return HAL_OK;
+}

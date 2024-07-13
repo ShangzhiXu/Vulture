@@ -1,0 +1,35 @@
+STATIC VOID *OsMemAllocWithCheck(LosMemPoolInfo *pool, UINT32 size)
+{
+    LosMemDynNode *allocNode = NULL;
+    UINT32 allocSize;
+
+#ifdef LOSCFG_BASE_MEM_NODE_INTEGRITY_CHECK
+    LosMemDynNode *tmpNode = NULL;
+    LosMemDynNode *preNode = NULL;
+#endif
+    const VOID *firstNode = (const VOID *)((UINT8 *)OS_MEM_HEAD_ADDR(pool) + OS_DLNK_HEAD_SIZE);
+
+#ifdef LOSCFG_BASE_MEM_NODE_INTEGRITY_CHECK
+    if (OsMemIntegrityCheck(pool, &tmpNode, &preNode)) {
+        OsMemIntegrityCheckError(tmpNode, preNode);
+        return NULL;
+    }
+#endif
+
+    allocSize = OS_MEM_ALIGN(size + OS_MEM_NODE_HEAD_SIZE, OS_MEM_ALIGN_SIZE);
+    allocNode = OsMemFindSuitableFreeBlock(pool, allocSize);
+    if (allocNode == NULL) {
+        OsMemInfoAlert(pool, allocSize);
+        return NULL;
+    }
+    if ((allocSize + OS_MEM_NODE_HEAD_SIZE + OS_MEM_ALIGN_SIZE) <= allocNode->selfNode.sizeAndFlag) {
+        OsMemSplitNode(pool, allocNode, allocSize);
+    }
+    OsMemListDelete(&allocNode->selfNode.freeNodeInfo, firstNode);
+    OsMemSetMagicNumAndTaskID(allocNode);
+    OS_MEM_NODE_SET_USED_FLAG(allocNode->selfNode.sizeAndFlag);
+    OS_MEM_ADD_USED(&pool->stat, OS_MEM_NODE_GET_SIZE(allocNode->selfNode.sizeAndFlag),
+                    OS_MEM_TASKID_GET(allocNode));
+    OsMemNodeDebugOperate(pool, allocNode, size);
+    return (allocNode + 1);
+}

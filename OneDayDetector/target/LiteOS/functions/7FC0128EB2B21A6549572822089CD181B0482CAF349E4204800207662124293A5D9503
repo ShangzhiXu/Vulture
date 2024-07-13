@@ -1,0 +1,17 @@
+static int kifs_ioctl(struct file *file, int func, unsigned long arg)
+{
+    struct kifs_node *node = (struct kifs_node *) file->f_data;
+
+    if (node->attr & KIFS_ATTR_B) {
+        return -1;
+    }
+
+    if (node->kiops->ioctl == NULL) {
+        return -1;
+    }
+
+    /* <node->arg> is the private data for this kifile, the <arg> is the one
+     * of ioctl */
+
+    return node->kiops->ioctl(node->arg, func, arg);
+}

@@ -1,0 +1,30 @@
+float erfcf(float x)
+{
+	float r,s,z,y;
+	uint32_t ix;
+	int sign;
+
+	GET_FLOAT_WORD(ix, x);
+	sign = ix>>31;
+	ix &= 0x7fffffff;
+	if (ix >= 0x7f800000) {
+		/* erfc(nan)=nan, erfc(+-inf)=0,2 */
+		return 2*sign + 1/x;
+	}
+
+	if (ix < 0x3f580000) {  /* |x| < 0.84375 */
+		if (ix < 0x23800000)  /* |x| < 2**-56 */
+			return 1.0f - x;
+		z = x*x;
+		r = pp0+z*(pp1+z*(pp2+z*(pp3+z*pp4)));
+		s = 1.0f+z*(qq1+z*(qq2+z*(qq3+z*(qq4+z*qq5))));
+		y = r/s;
+		if (sign || ix < 0x3e800000)  /* x < 1/4 */
+			return 1.0f - (x+x*y);
+		return 0.5f - (x - 0.5f + x*y);
+	}
+	if (ix < 0x41e00000) {  /* |x| < 28 */
+		return sign ? 2 - erfc2(ix,x) : erfc2(ix,x);
+	}
+	return sign ? 2 - 0x1p-120f : 0x1p-120f*0x1p-120f;
+}

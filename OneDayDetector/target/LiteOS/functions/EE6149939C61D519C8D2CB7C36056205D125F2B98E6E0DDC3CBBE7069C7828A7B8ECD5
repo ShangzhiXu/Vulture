@@ -1,0 +1,133 @@
+int atiny_cmd_ioctl(atiny_cmd_e cmd, char *arg, int len)
+{
+    int result = ATINY_OK;
+    switch(cmd) {
+    case ATINY_GET_MANUFACTURER:
+        result = atiny_get_manufacturer(arg, len);
+        break;
+    case ATINY_GET_MODEL_NUMBER:
+        result = atiny_get_model_number(arg, len);
+        break;
+    case ATINY_GET_SERIAL_NUMBER:
+        result = atiny_get_serial_number(arg, len);
+        break;
+    case ATINY_GET_FIRMWARE_VER:
+        result = atiny_get_firmware_ver(arg, len);
+        break;
+    case ATINY_DO_DEV_REBOOT:
+        result = atiny_do_dev_reboot();
+        break;
+    case ATINY_DO_FACTORY_RESET:
+        result = atiny_do_factory_reset();
+        break;
+    case ATINY_GET_POWER_SOURCE:
+        result = atiny_get_power_source((int *)arg);
+        break;
+    case ATINY_GET_SOURCE_VOLTAGE:
+        result = atiny_get_source_voltage((int *)arg);
+        break;
+    case ATINY_GET_POWER_CURRENT:
+        result = atiny_get_power_current((int *)arg);
+        break;
+    case ATINY_GET_BATERRY_LEVEL:
+        result = atiny_get_baterry_level((int *)arg);
+        break;
+    case ATINY_GET_MEMORY_FREE:
+        result = atiny_get_memory_free((int *)arg);
+        break;
+    case ATINY_GET_DEV_ERR:
+        result = atiny_get_dev_err((int *)arg);
+        break;
+    case ATINY_DO_RESET_DEV_ERR:
+        result = atiny_do_reset_dev_err();
+        break;
+    case ATINY_GET_CURRENT_TIME:
+        result = atiny_get_current_time((int64_t *)arg);
+        break;
+    case ATINY_SET_CURRENT_TIME:
+        result = atiny_set_current_time((const int64_t *)arg);
+        break;
+    case ATINY_GET_UTC_OFFSET:
+        result = atiny_get_UTC_offset(arg, len);
+        break;
+    case ATINY_SET_UTC_OFFSET:
+        result = atiny_set_UTC_offset(arg, len);
+        break;
+    case ATINY_GET_TIMEZONE:
+        result = atiny_get_timezone(arg, len);
+        break;
+    case ATINY_SET_TIMEZONE:
+        result = atiny_set_timezone(arg, len);
+        break;
+    case ATINY_GET_BINDING_MODES:
+        result = atiny_get_bind_mode(arg, len);
+        break;
+    case ATINY_GET_FIRMWARE_STATE:
+        result = atiny_get_firmware_state((int *)arg);
+        break;
+    case ATINY_GET_NETWORK_BEARER:
+        result = atiny_get_network_bearer((int *)arg);
+        break;
+    case ATINY_GET_SIGNAL_STRENGTH:
+        result = atiny_get_signal_strength((int *)arg);
+        break;
+    case ATINY_GET_CELL_ID:
+        result = atiny_get_cell_id((long *)arg);
+        break;
+    case ATINY_GET_LINK_QUALITY:
+        result = atiny_get_link_quality((int *)arg);
+        break;
+    case ATINY_GET_LINK_UTILIZATION:
+        result = atiny_get_link_utilization((int *)arg);
+        break;
+    case ATINY_WRITE_APP_DATA:
+        result = atiny_write_app_write((int *)arg, len);
+        break;
+    case ATINY_UPDATE_PSK:
+        result = atiny_update_psk(arg, len);
+        break;
+    case ATINY_GET_LATITUDE:
+        result = atiny_get_latitude((float *)arg);
+        break;
+    case ATINY_GET_LONGITUDE:
+        result = atiny_get_longitude((float *)arg);
+        break;
+    case ATINY_GET_ALTITUDE:
+        result = atiny_get_altitude((float *)arg);
+        break;
+    case ATINY_GET_RADIUS:
+        result = atiny_get_radius((float *)arg);
+        break;
+    case ATINY_GET_SPEED:
+        result = atiny_get_speed((float *)arg);
+        break;
+    case ATINY_GET_TIMESTAMP:
+        result = atiny_get_timestamp((uint64_t *)arg);
+        break;
+    case ATINY_GET_VELOCITY:
+        result = atiny_get_velocity((atiny_velocity_s *)arg);
+        break;
+
+#ifdef CONFIG_FEATURE_FOTA
+    case ATINY_GET_OTA_OPT: {
+        ota_opt_s *opt = (ota_opt_s *)arg;
+        hal_get_ota_opt(opt);
+        opt->key.rsa_N = "C94BECB7BCBFF459B9A71F12C3CC0603B11F0D3A366A226FD3E73D453F96EFBBCD4DFED6D9F77FD78C3AB1805E1BD3858131ACB5303F61AF524F43971B4D429CB847905E68935C1748D0096C1A09DD539CE74857F9FDF0B0EA61574C5D76BD9A67681AC6A9DB1BB22F17120B1DBF3E32633DCE34F5446F52DD7335671AC3A1F21DC557FA4CE9A4E0E3E99FED33A0BAA1C6F6EE53EDD742284D6582B51E4BF019787B8C33C2F2A095BEED11D6FE68611BD00825AF97DB985C62C3AE0DC69BD7D0118E6D620B52AFD514AD5BFA8BAB998332213D7DBF5C98DC86CB8D4F98A416802B892B8D6BEE5D55B7E688334B281E4BEDDB11BD7B374355C5919BA5A9A1C91F";
+        opt->key.rsa_E = "10001";
+        result = ATINY_OK;
+        break;
+    }
+#endif
+
+#if defined(LOSCFG_COMPONNETS_NET_AT) && defined(USE_NB_NEUL95)
+    case ATINY_TRIGER_SERVER_INITIATED_BS:
+        nb_reattach();
+        result = ATINY_OK;
+        break;
+#endif
+
+    default:
+        break;
+    }
+    return result;
+}

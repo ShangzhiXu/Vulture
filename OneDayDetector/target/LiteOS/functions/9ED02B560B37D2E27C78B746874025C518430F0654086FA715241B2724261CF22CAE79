@@ -1,0 +1,21 @@
+static void UART_DMATransmitCplt(DMA_HandleTypeDef *hdma)     
+{
+  UART_HandleTypeDef* huart = ( UART_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+  /* DMA Normal mode*/
+  if ( HAL_IS_BIT_CLR(hdma->Instance->CCR, DMA_CCR_CIRC) )
+  {
+    huart->TxXferCount = 0;
+
+    /* Disable the DMA transfer for transmit request by setting the DMAT bit
+       in the UART CR3 register */
+    CLEAR_BIT(huart->Instance->CR3, USART_CR3_DMAT);
+
+    /* Enable the UART Transmit Complete Interrupt */    
+    __HAL_UART_ENABLE_IT(huart, UART_IT_TC);
+  }
+  /* DMA Circular mode */
+  else
+  {
+    HAL_UART_TxCpltCallback(huart);
+  }
+}

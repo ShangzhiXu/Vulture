@@ -1,0 +1,141 @@
+HAL_StatusTypeDef HAL_DMA_Init(DMA_HandleTypeDef *hdma)
+{
+  uint32_t tmp = 0;
+
+  /* Check the DMA handle allocation */
+  if(hdma == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_DMA_ALL_INSTANCE(hdma->Instance));
+  assert_param(IS_DMA_DIRECTION(hdma->Init.Direction));
+  assert_param(IS_DMA_PERIPHERAL_INC_STATE(hdma->Init.PeriphInc));
+  assert_param(IS_DMA_MEMORY_INC_STATE(hdma->Init.MemInc));
+  assert_param(IS_DMA_PERIPHERAL_DATA_SIZE(hdma->Init.PeriphDataAlignment));
+  assert_param(IS_DMA_MEMORY_DATA_SIZE(hdma->Init.MemDataAlignment));
+  assert_param(IS_DMA_MODE(hdma->Init.Mode));
+  assert_param(IS_DMA_PRIORITY(hdma->Init.Priority));
+
+  assert_param(IS_DMA_ALL_REQUEST(hdma->Init.Request));
+
+  /* Compute the channel index */
+  if ((uint32_t)(hdma->Instance) < (uint32_t)(DMA2_Channel1))
+  {
+    /* DMA1 */
+    hdma->ChannelIndex = (((uint32_t)hdma->Instance - (uint32_t)DMA1_Channel1) / ((uint32_t)DMA1_Channel2 - (uint32_t)DMA1_Channel1)) << 2;
+    hdma->DmaBaseAddress = DMA1;
+  }
+  else
+  {
+    /* DMA2 */
+    hdma->ChannelIndex = (((uint32_t)hdma->Instance - (uint32_t)DMA2_Channel1) / ((uint32_t)DMA2_Channel2 - (uint32_t)DMA2_Channel1)) << 2;
+    hdma->DmaBaseAddress = DMA2;
+  }
+
+  /* Change DMA peripheral state */
+  hdma->State = HAL_DMA_STATE_BUSY;
+
+  /* Get the CR register value */
+  tmp = hdma->Instance->CCR;
+
+  /* Clear PL, MSIZE, PSIZE, MINC, PINC, CIRC, DIR and MEM2MEM bits */
+  tmp &= ((uint32_t)~(DMA_CCR_PL    | DMA_CCR_MSIZE  | DMA_CCR_PSIZE  |
+                      DMA_CCR_MINC  | DMA_CCR_PINC   | DMA_CCR_CIRC   |
+                      DMA_CCR_DIR   | DMA_CCR_MEM2MEM));
+
+  /* Prepare the DMA Channel configuration */
+  tmp |=  hdma->Init.Direction        |
+          hdma->Init.PeriphInc           | hdma->Init.MemInc           |
+          hdma->Init.PeriphDataAlignment | hdma->Init.MemDataAlignment |
+          hdma->Init.Mode                | hdma->Init.Priority;
+
+  /* Write to DMA Channel CR register */
+  hdma->Instance->CCR = tmp;
+
+
+#if defined(DMAMUX1)
+  /* Initialize parameters for DMAMUX channel :
+     DMAmuxChannel, DMAmuxChannelStatus and DMAmuxChannelStatusMask
+  */
+  DMA_CalcDMAMUXChannelBaseAndMask(hdma);
+
+  if(hdma->Init.Direction == DMA_MEMORY_TO_MEMORY)
+  {
+    /* if memory to memory force the request to 0*/
+    hdma->Init.Request = DMA_REQUEST_MEM2MEM;
+  }
+
+  /* Set peripheral request  to DMAMUX channel */
+  hdma->DMAmuxChannel->CCR = (hdma->Init.Request & DMAMUX_CxCR_DMAREQ_ID);
+
+  /* Clear the DMAMUX synchro overrun flag */
+  hdma->DMAmuxChannelStatus->CFR = hdma->DMAmuxChannelStatusMask;
+
+  if(((hdma->Init.Request >  0) && (hdma->Init.Request <= DMA_REQUEST_GENERATOR3)))
+  {
+    /* Initialize parameters for DMAMUX request generator :
+       DMAmuxRequestGen, DMAmuxRequestGenStatus and DMAmuxRequestGenStatusMask
+    */
+    DMA_CalcDMAMUXRequestGenBaseAndMask(hdma);
+
+    /* Reset the DMAMUX request generator register*/
+    hdma->DMAmuxRequestGen->RGCR = 0U;
+
+    /* Clear the DMAMUX request generator overrun flag */
+    hdma->DMAmuxRequestGenStatus->RGCFR = hdma->DMAmuxRequestGenStatusMask;
+  }
+  else
+  {
+    hdma->DMAmuxRequestGen = 0U;
+    hdma->DMAmuxRequestGenStatus = 0U;
+    hdma->DMAmuxRequestGenStatusMask = 0U;
+  }
+#endif /* DMAMUX1 */
+
+#if !defined (DMAMUX1)
+
+  /* Set request selection */
+  if(hdma->Init.Direction != DMA_MEMORY_TO_MEMORY)
+  {
+    /* Write to DMA channel selection register */
+    if (DMA1 == hdma->DmaBaseAddress)
+    {
+      /* Reset request selection for DMA1 Channelx */
+      DMA1_CSELR->CSELR &= ~(DMA_CSELR_C1S << hdma->ChannelIndex);
+
+      /* Configure request selection for DMA1 Channelx */
+      DMA1_CSELR->CSELR |= (uint32_t) (hdma->Init.Request << (hdma->ChannelIndex));
+    }
+    else /* DMA2 */
+    {
+      /* Reset request selection for DMA2 Channelx */
+      DMA2_CSELR->CSELR &= ~(DMA_CSELR_C1S << hdma->ChannelIndex);
+
+      /* Configure request selection for DMA2 Channelx */
+      DMA2_CSELR->CSELR |= (uint32_t) (hdma->Init.Request << (hdma->ChannelIndex));
+    }
+  }
+
+#endif /* STM32L431xx || STM32L432xx || STM32L433xx || STM32L442xx || STM32L443xx */
+       /* STM32L471xx || STM32L475xx || STM32L476xx || STM32L442xx || STM32L486xx */
+       /* STM32L496xx || STM32L4A6xx                                              */
+
+  /* Clean callbacks */
+  hdma->XferCpltCallback = NULL;
+  hdma->XferHalfCpltCallback = NULL;
+  hdma->XferErrorCallback = NULL;
+  hdma->XferAbortCallback = NULL;
+
+  /* Initialise the error code */
+  hdma->ErrorCode = HAL_DMA_ERROR_NONE;
+
+  /* Initialize the DMA state*/
+  hdma->State  = HAL_DMA_STATE_READY;
+
+  /* Allocate lock resource and initialize it */
+  hdma->Lock = HAL_UNLOCKED;
+
+  return HAL_OK;
+}

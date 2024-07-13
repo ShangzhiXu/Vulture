@@ -1,0 +1,41 @@
+void copy_security_object(lwm2m_object_t *objectDest, lwm2m_object_t *objectSrc)
+{
+    security_instance_t *instanceSrc;
+    security_instance_t *previousInstanceDest = NULL;
+    memcpy(objectDest, objectSrc, sizeof(lwm2m_object_t));
+    objectDest->instanceList = NULL;
+    objectDest->userData = NULL;
+
+    instanceSrc = (security_instance_t *)objectSrc->instanceList;
+    while (instanceSrc != NULL)
+    {
+        security_instance_t *instanceDest = (security_instance_t *)lwm2m_malloc(sizeof(security_instance_t));
+        if (NULL == instanceDest)
+        {
+            return;
+        }
+        memcpy(instanceDest, instanceSrc, sizeof(security_instance_t));
+        instanceDest->uri = (char *)lwm2m_malloc(strlen(instanceSrc->uri) + 1);
+        if (instanceDest->uri == NULL)
+        {
+            lwm2m_free(instanceDest);
+            return;
+        }
+        strncpy(instanceDest->uri, instanceSrc->uri, strlen(instanceSrc->uri) + 1);
+        if (instanceSrc->securityMode == LWM2M_SECURITY_MODE_PRE_SHARED_KEY)
+        {
+            instanceDest->publicIdentity = lwm2m_strdup(instanceSrc->publicIdentity);
+            instanceDest->secretKey = lwm2m_strdup(instanceSrc->secretKey);
+        }
+        instanceSrc = (security_instance_t *)instanceSrc->next;
+        if (previousInstanceDest == NULL)
+        {
+            objectDest->instanceList = (lwm2m_list_t *)instanceDest;
+        }
+        else
+        {
+            previousInstanceDest->next = instanceDest;
+        }
+        previousInstanceDest = instanceDest;
+    }
+}

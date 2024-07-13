@@ -1,0 +1,28 @@
+struct netifapi_msg {
+  struct tcpip_api_call_data call;
+  struct netif *netif;
+  union {
+    struct {
+#if LWIP_IPV4
+      NETIFAPI_IPADDR_DEF(ip4_addr_t, ipaddr);
+      NETIFAPI_IPADDR_DEF(ip4_addr_t, netmask);
+      NETIFAPI_IPADDR_DEF(ip4_addr_t, gw);
+#endif /* LWIP_IPV4 */
+      void *state;
+      netif_init_fn init;
+      netif_input_fn input;
+    } add;
+    struct {
+      netifapi_void_fn voidfunc;
+      netifapi_errt_fn errtfunc;
+    } common;
+    struct {
+#if LWIP_MPU_COMPATIBLE
+      char name[NETIF_NAMESIZE];
+#else /* LWIP_MPU_COMPATIBLE */
+      char *name;
+#endif /* LWIP_MPU_COMPATIBLE */
+      u8_t index;
+    } ifs;
+  } msg;
+};

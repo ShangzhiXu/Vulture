@@ -1,0 +1,19 @@
+static int ecp_mod_p192( mbedtls_mpi *N )
+{
+    int ret;
+    mbedtls_mpi_uint c = 0;
+    mbedtls_mpi_uint *p, *end;
+
+    /* Make sure we have enough blocks so that A(5) is legal */
+    MBEDTLS_MPI_CHK( mbedtls_mpi_grow( N, 6 * WIDTH ) );
+
+    p = N->p;
+    end = p + N->n;
+
+    ADD( 3 ); ADD( 5 );             NEXT; // A0 += A3 + A5
+    ADD( 3 ); ADD( 4 ); ADD( 5 );   NEXT; // A1 += A3 + A4 + A5
+    ADD( 4 ); ADD( 5 );             LAST; // A2 += A4 + A5
+
+cleanup:
+    return( ret );
+}

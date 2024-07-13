@@ -1,0 +1,83 @@
+HAL_StatusTypeDef HAL_TIM_Encoder_Init(TIM_HandleTypeDef *htim,  TIM_Encoder_InitTypeDef* sConfig)
+{
+  uint32_t tmpsmcr = 0;
+  uint32_t tmpccmr1 = 0;
+  uint32_t tmpccer = 0;
+
+  /* Check the TIM handle allocation */
+  if(htim == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_TIM_CC2_INSTANCE(htim->Instance));
+  assert_param(IS_TIM_ENCODER_MODE(sConfig->EncoderMode));
+  assert_param(IS_TIM_IC_SELECTION(sConfig->IC1Selection));
+  assert_param(IS_TIM_IC_SELECTION(sConfig->IC2Selection));
+  assert_param(IS_TIM_IC_POLARITY(sConfig->IC1Polarity));
+  assert_param(IS_TIM_IC_POLARITY(sConfig->IC2Polarity));
+  assert_param(IS_TIM_IC_PRESCALER(sConfig->IC1Prescaler));
+  assert_param(IS_TIM_IC_PRESCALER(sConfig->IC2Prescaler));
+  assert_param(IS_TIM_IC_FILTER(sConfig->IC1Filter));
+  assert_param(IS_TIM_IC_FILTER(sConfig->IC2Filter));
+
+  if(htim->State == HAL_TIM_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    htim->Lock = HAL_UNLOCKED;
+    
+    /* Init the low level hardware : GPIO, CLOCK, NVIC and DMA */
+    HAL_TIM_Encoder_MspInit(htim);
+  }
+
+  /* Set the TIM state */
+  htim->State= HAL_TIM_STATE_BUSY;
+
+  /* Reset the SMS bits */
+  htim->Instance->SMCR &= ~TIM_SMCR_SMS;
+
+  /* Configure the Time base in the Encoder Mode */
+  TIM_Base_SetConfig(htim->Instance, &htim->Init);
+
+  /* Get the TIMx SMCR register value */
+  tmpsmcr = htim->Instance->SMCR;
+
+  /* Get the TIMx CCMR1 register value */
+  tmpccmr1 = htim->Instance->CCMR1;
+
+  /* Get the TIMx CCER register value */
+  tmpccer = htim->Instance->CCER;
+
+  /* Set the encoder Mode */
+  tmpsmcr |= sConfig->EncoderMode;
+
+  /* Select the Capture Compare 1 and the Capture Compare 2 as input */
+  tmpccmr1 &= ~(TIM_CCMR1_CC1S | TIM_CCMR1_CC2S);
+  tmpccmr1 |= (sConfig->IC1Selection | (sConfig->IC2Selection << 8));
+
+  /* Set the the Capture Compare 1 and the Capture Compare 2 prescalers and filters */
+  tmpccmr1 &= ~(TIM_CCMR1_IC1PSC | TIM_CCMR1_IC2PSC);
+  tmpccmr1 &= ~(TIM_CCMR1_IC1F | TIM_CCMR1_IC2F);
+  tmpccmr1 |= sConfig->IC1Prescaler | (sConfig->IC2Prescaler << 8);
+  tmpccmr1 |= (sConfig->IC1Filter << 4) | (sConfig->IC2Filter << 12);
+
+  /* Set the TI1 and the TI2 Polarities */
+  tmpccer &= ~(TIM_CCER_CC1P | TIM_CCER_CC2P);
+  tmpccer &= ~(TIM_CCER_CC1NP | TIM_CCER_CC2NP);
+  tmpccer |= sConfig->IC1Polarity | (sConfig->IC2Polarity << 4);
+
+  /* Write to TIMx SMCR */
+  htim->Instance->SMCR = tmpsmcr;
+
+  /* Write to TIMx CCMR1 */
+  htim->Instance->CCMR1 = tmpccmr1;
+
+  /* Write to TIMx CCER */
+  htim->Instance->CCER = tmpccer;
+
+  /* Initialize the TIM state*/
+  htim->State= HAL_TIM_STATE_READY;
+
+  return HAL_OK;
+}

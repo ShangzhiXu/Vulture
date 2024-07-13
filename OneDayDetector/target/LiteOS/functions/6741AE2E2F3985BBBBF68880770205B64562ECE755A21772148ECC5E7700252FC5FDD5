@@ -1,0 +1,157 @@
+static int ecp_mul_comb( mbedtls_ecp_group *grp, mbedtls_ecp_point *R,
+                         const mbedtls_mpi *m, const mbedtls_ecp_point *P,
+                         int (*f_rng)(void *, unsigned char *, size_t),
+                         void *p_rng,
+                         mbedtls_ecp_restart_ctx *rs_ctx )
+{
+    int ret;
+    unsigned char w, p_eq_g, i;
+    size_t d;
+    unsigned char T_size = 0, T_ok = 0;
+    mbedtls_ecp_point *T = NULL;
+#if !defined(MBEDTLS_ECP_NO_INTERNAL_RNG)
+    ecp_drbg_context drbg_ctx;
+
+    ecp_drbg_init( &drbg_ctx );
+#endif
+
+    ECP_RS_ENTER( rsm );
+
+#if !defined(MBEDTLS_ECP_NO_INTERNAL_RNG)
+    if( f_rng == NULL )
+    {
+        /* Adjust pointers */
+        f_rng = &ecp_drbg_random;
+#if defined(MBEDTLS_ECP_RESTARTABLE)
+        if( rs_ctx != NULL && rs_ctx->rsm != NULL )
+            p_rng = &rs_ctx->rsm->drbg_ctx;
+        else
+#endif
+            p_rng = &drbg_ctx;
+
+        /* Initialize internal DRBG if necessary */
+#if defined(MBEDTLS_ECP_RESTARTABLE)
+        if( rs_ctx == NULL || rs_ctx->rsm == NULL ||
+            rs_ctx->rsm->drbg_seeded == 0 )
+#endif
+        {
+            const size_t m_len = ( grp->nbits + 7 ) / 8;
+            MBEDTLS_MPI_CHK( ecp_drbg_seed( p_rng, m, m_len ) );
+        }
+#if defined(MBEDTLS_ECP_RESTARTABLE)
+        if( rs_ctx != NULL && rs_ctx->rsm != NULL )
+            rs_ctx->rsm->drbg_seeded = 1;
+#endif
+    }
+#endif /* !MBEDTLS_ECP_NO_INTERNAL_RNG */
+
+    /* Is P the base point ? */
+#if MBEDTLS_ECP_FIXED_POINT_OPTIM == 1
+    p_eq_g = ( mbedtls_mpi_cmp_mpi( &P->Y, &grp->G.Y ) == 0 &&
+               mbedtls_mpi_cmp_mpi( &P->X, &grp->G.X ) == 0 );
+#else
+    p_eq_g = 0;
+#endif
+
+    /* Pick window size and deduce related sizes */
+    w = ecp_pick_window_size( grp, p_eq_g );
+    T_size = 1U << ( w - 1 );
+    d = ( grp->nbits + w - 1 ) / w;
+
+    /* Pre-computed table: do we have it already for the base point? */
+    if( p_eq_g && grp->T != NULL )
+    {
+        /* second pointer to the same table, will be deleted on exit */
+        T = grp->T;
+        T_ok = 1;
+    }
+    else
+#if defined(MBEDTLS_ECP_RESTARTABLE)
+    /* Pre-computed table: do we have one in progress? complete? */
+    if( rs_ctx != NULL && rs_ctx->rsm != NULL && rs_ctx->rsm->T != NULL )
+    {
+        /* transfer ownership of T from rsm to local function */
+        T = rs_ctx->rsm->T;
+        rs_ctx->rsm->T = NULL;
+        rs_ctx->rsm->T_size = 0;
+
+        /* This effectively jumps to the call to mul_comb_after_precomp() */
+        T_ok = rs_ctx->rsm->state >= ecp_rsm_comb_core;
+    }
+    else
+#endif
+    /* Allocate table if we didn't have any */
+    {
+        T = mbedtls_calloc( T_size, sizeof( mbedtls_ecp_point ) );
+        if( T == NULL )
+        {
+            ret = MBEDTLS_ERR_ECP_ALLOC_FAILED;
+            goto cleanup;
+        }
+
+        for( i = 0; i < T_size; i++ )
+            mbedtls_ecp_point_init( &T[i] );
+
+        T_ok = 0;
+    }
+
+    /* Compute table (or finish computing it) if not done already */
+    if( !T_ok )
+    {
+        MBEDTLS_MPI_CHK( ecp_precompute_comb( grp, T, P, w, d, rs_ctx ) );
+
+        if( p_eq_g )
+        {
+            /* almost transfer ownership of T to the group, but keep a copy of
+             * the pointer to use for calling the next function more easily */
+            grp->T = T;
+            grp->T_size = T_size;
+        }
+    }
+
+    /* Actual comb multiplication using precomputed points */
+    MBEDTLS_MPI_CHK( ecp_mul_comb_after_precomp( grp, R, m,
+                                                 T, T_size, w, d,
+                                                 f_rng, p_rng, rs_ctx ) );
+
+cleanup:
+
+#if !defined(MBEDTLS_ECP_NO_INTERNAL_RNG)
+    ecp_drbg_free( &drbg_ctx );
+#endif
+
+    /* does T belong to the group? */
+    if( T == grp->T )
+        T = NULL;
+
+    /* does T belong to the restart context? */
+#if defined(MBEDTLS_ECP_RESTARTABLE)
+    if( rs_ctx != NULL && rs_ctx->rsm != NULL && ret == MBEDTLS_ERR_ECP_IN_PROGRESS && T != NULL )
+    {
+        /* transfer ownership of T from local function to rsm */
+        rs_ctx->rsm->T_size = T_size;
+        rs_ctx->rsm->T = T;
+        T = NULL;
+    }
+#endif
+
+    /* did T belong to us? then let's destroy it! */
+    if( T != NULL )
+    {
+        for( i = 0; i < T_size; i++ )
+            mbedtls_ecp_point_free( &T[i] );
+        mbedtls_free( T );
+    }
+
+    /* don't free R while in progress in case R == P */
+#if defined(MBEDTLS_ECP_RESTARTABLE)
+    if( ret != MBEDTLS_ERR_ECP_IN_PROGRESS )
+#endif
+    /* prevent caller from using invalid value */
+    if( ret != 0 )
+        mbedtls_ecp_point_free( R );
+
+    ECP_RS_LEAVE( rsm );
+
+    return( ret );
+}

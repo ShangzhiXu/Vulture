@@ -1,0 +1,23 @@
+STATIC INLINE VOID OsSystemSuspend(LosIntermitMode *mode)
+{
+    // If enterShutdownMode is not defined, will fall through to standby mode
+    // If enterStandbyMode is not defined, will fall through to stop mode
+    // If enterStopMode is not defined, will fall through to sleep mode
+    switch (*mode) {
+        case LOS_INTERMIT_SHUTDOWN:
+            /* fall through */
+        case LOS_INTERMIT_STANDBY:
+            /* fall through */
+        case LOS_INTERMIT_DEEP_SLEEP:
+#ifdef LOSCFG_KERNEL_DEEPSLEEP
+            if (g_pmRunOps.enterDeepSleep != NULL) {
+                OsEnterSleepMode();
+                break;
+            }
+#endif
+            /* fall through */
+        default:
+            *mode = LOS_INTERMIT_LIGHT_SLEEP;
+            break;
+    }
+}

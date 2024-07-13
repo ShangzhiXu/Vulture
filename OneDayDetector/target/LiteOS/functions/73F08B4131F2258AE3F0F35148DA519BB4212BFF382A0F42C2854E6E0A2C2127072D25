@@ -1,0 +1,58 @@
+static struct ramfs_element *ramfs_file_find(struct mount_point *mp, const char *path_in_mp, const char **path_unresolved)
+{
+    struct ramfs_element *walk;
+
+    /* walk every dir */
+    walk = &((struct ramfs_mount_point *)mp->m_data)->root;
+
+    while (1) {
+        const char *c;
+        struct ramfs_element *t;
+        int l;
+
+        if (walk->type != RAMFS_TYPE_DIR) {
+            VFS_ERRNO_SET(ENOTDIR);
+
+            return NULL;
+        }
+
+        while (*path_in_mp == '/') {
+            path_in_mp++;
+        }
+
+        c = strchr(path_in_mp, '/');
+
+        if (c == NULL) {
+            l = strlen(path_in_mp);
+        } else {
+            l = c - path_in_mp;
+        }
+
+        if (LOS_MAX_FILE_NAME_LEN <= l) {
+            VFS_ERRNO_SET(ENAMETOOLONG);
+
+            return NULL;
+        }
+
+        for (t = walk->d.child; t != NULL; t = t->sibling) {
+            if ((strncmp(t->name, path_in_mp, l) == 0) && (t->name[l] == '\0')) {
+                break;
+            }
+        }
+
+        if (t == NULL) {
+            break; /* no match */
+        }
+
+        path_in_mp += l;
+        walk = t;
+
+        if (c == NULL) {
+            break;
+        }
+    }
+
+    *path_unresolved = path_in_mp;
+
+    return walk;
+}

@@ -1,0 +1,21 @@
+dhcp_fine_tmr(void)
+{
+  struct netif *netif;
+  /* loop through netif's */
+  NETIF_FOREACH(netif) {
+    struct dhcp *dhcp = netif_dhcp_data(netif);
+    /* only act on DHCP configured interfaces */
+    if (dhcp != NULL) {
+      /* timer is active (non zero), and is about to trigger now */
+      if (dhcp->request_timeout > 1) {
+        dhcp->request_timeout--;
+      } else if (dhcp->request_timeout == 1) {
+        dhcp->request_timeout--;
+        /* { dhcp->request_timeout == 0 } */
+        LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("dhcp_fine_tmr(): request timeout\n"));
+        /* this client's request timeout triggered */
+        dhcp_timeout(netif);
+      }
+    }
+  }
+}

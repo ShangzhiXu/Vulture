@@ -1,0 +1,44 @@
+HAL_StatusTypeDef HAL_EXTI_ClearConfigLine(EXTI_HandleTypeDef *hexti)
+{
+  uint32_t regval;
+  uint32_t linepos;
+  uint32_t maskline;
+
+  /* Check null pointer */
+  if (hexti == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameter */
+  assert_param(IS_EXTI_LINE(hexti->Line));
+
+  /* compute line mask */
+  linepos = (hexti->Line & EXTI_PIN_MASK);
+  maskline = (1uL << linepos);
+
+  /* 1] Clear interrupt mode */
+  EXTI->IMR = (EXTI->IMR & ~maskline);
+
+  /* 2] Clear event mode */
+  EXTI->EMR = (EXTI->EMR & ~maskline);
+
+  /* 3] Clear triggers in case of configurable lines */
+  if ((hexti->Line & EXTI_CONFIG) != 0x00u)
+  {
+    EXTI->RTSR = (EXTI->RTSR & ~maskline);
+    EXTI->FTSR = (EXTI->FTSR & ~maskline);
+
+    /* Get Gpio port selection for gpio lines */
+    if ((hexti->Line & EXTI_GPIO) == EXTI_GPIO)
+    {
+      assert_param(IS_EXTI_GPIO_PIN(linepos));
+
+      regval = SYSCFG->EXTICR[linepos >> 2u];
+      regval &= ~(SYSCFG_EXTICR1_EXTI0 << (SYSCFG_EXTICR1_EXTI1_Pos * (linepos & 0x03u)));
+      SYSCFG->EXTICR[linepos >> 2u] = regval;
+    }
+  }
+
+  return HAL_OK;
+}

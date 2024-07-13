@@ -1,0 +1,93 @@
+snmp_mib_tree_resolve_next(const struct snmp_mib *mib, const u32_t *oid, u8_t oid_len, struct snmp_obj_id *oidret)
+{
+  u8_t  oid_offset = mib->base_oid_len;
+  const struct snmp_node *const *node;
+  const struct snmp_tree_node *node_stack[SNMP_MAX_OBJ_ID_LEN];
+  s32_t nsi = 0; /* NodeStackIndex */
+  u32_t subnode_oid;
+
+  if (mib->root_node->node_type != SNMP_NODE_TREE) {
+    /* a next operation on a mib with only a leaf node will always return NULL because there is no other node */
+    return NULL;
+  }
+
+  /* first build node stack related to passed oid (as far as possible), then go backwards to determine the next node */
+  node_stack[nsi] = (const struct snmp_tree_node *)(const void *)mib->root_node;
+  while (oid_offset < oid_len) {
+    /* search for matching sub node */
+    u32_t i = node_stack[nsi]->subnode_count;
+    node    = node_stack[nsi]->subnodes;
+
+    subnode_oid = *(oid + oid_offset);
+
+    while ((i > 0) && ((*node)->oid != subnode_oid)) {
+      node++;
+      i--;
+    }
+
+    if ((i == 0) || ((*node)->node_type != SNMP_NODE_TREE)) {
+      /* no (matching) tree-subnode found */
+      break;
+    }
+    nsi++;
+    node_stack[nsi] = (const struct snmp_tree_node *)(const void *)(*node);
+
+    oid_offset++;
+  }
+
+
+  if (oid_offset >= oid_len) {
+    /* passed oid references a tree node -> return first useable sub node of it */
+    subnode_oid = 0;
+  } else {
+    subnode_oid = *(oid + oid_offset) + 1;
+  }
+
+  while (nsi >= 0) {
+    const struct snmp_node *subnode = NULL;
+
+    /* find next node on current level */
+    s32_t i        = node_stack[nsi]->subnode_count;
+    node           = node_stack[nsi]->subnodes;
+    while (i > 0) {
+      if ((*node)->oid == subnode_oid) {
+        subnode = *node;
+        break;
+      } else if (((*node)->oid > subnode_oid) && ((subnode == NULL) || ((*node)->oid < subnode->oid))) {
+        subnode = *node;
+      }
+
+      node++;
+      i--;
+    }
+
+    if (subnode == NULL) {
+      /* no further node found on this level, go one level up and start searching with index of current node*/
+      subnode_oid = node_stack[nsi]->node.oid + 1;
+      nsi--;
+    } else {
+      if (subnode->node_type == SNMP_NODE_TREE) {
+        /* next is a tree node, go into it and start searching */
+        nsi++;
+        node_stack[nsi] = (const struct snmp_tree_node *)(const void *)subnode;
+        subnode_oid = 0;
+      } else {
+        /* we found a leaf node -> fill oidret and return it */
+        snmp_oid_assign(oidret, mib->base_oid, mib->base_oid_len);
+        i = 1;
+        while (i <= nsi) {
+          oidret->id[oidret->len] = node_stack[i]->node.oid;
+          oidret->len++;
+          i++;
+        }
+
+        oidret->id[oidret->len] = subnode->oid;
+        oidret->len++;
+
+        return subnode;
+      }
+    }
+  }
+
+  return NULL;
+}

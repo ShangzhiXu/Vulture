@@ -1,0 +1,70 @@
+HAL_StatusTypeDef HAL_TSC_UnRegisterCallback(TSC_HandleTypeDef *htsc, HAL_TSC_CallbackIDTypeDef CallbackID)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process locked */
+  __HAL_LOCK(htsc);
+
+  if (HAL_TSC_STATE_READY == htsc->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_TSC_CONV_COMPLETE_CB_ID :
+        htsc->ConvCpltCallback = HAL_TSC_ConvCpltCallback;       /* Legacy weak ConvCpltCallback      */
+        break;
+
+      case HAL_TSC_ERROR_CB_ID :
+        htsc->ErrorCallback = HAL_TSC_ErrorCallback;               /* Legacy weak ErrorCallback        */
+        break;
+
+      case HAL_TSC_MSPINIT_CB_ID :
+        htsc->MspInitCallback = HAL_TSC_MspInit;                   /* Legacy weak MspInit              */
+        break;
+
+      case HAL_TSC_MSPDEINIT_CB_ID :
+        htsc->MspDeInitCallback = HAL_TSC_MspDeInit;               /* Legacy weak MspDeInit            */
+        break;
+
+      default :
+        /* Update the error code */
+        htsc->ErrorCode |= HAL_TSC_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if (HAL_TSC_STATE_RESET == htsc->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_TSC_MSPINIT_CB_ID :
+        htsc->MspInitCallback = HAL_TSC_MspInit;                   /* Legacy weak MspInit              */
+        break;
+
+      case HAL_TSC_MSPDEINIT_CB_ID :
+        htsc->MspDeInitCallback = HAL_TSC_MspDeInit;               /* Legacy weak MspDeInit            */
+        break;
+
+      default :
+        /* Update the error code */
+        htsc->ErrorCode |= HAL_TSC_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    htsc->ErrorCode |= HAL_TSC_ERROR_INVALID_CALLBACK;
+
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(htsc);
+  return status;
+}

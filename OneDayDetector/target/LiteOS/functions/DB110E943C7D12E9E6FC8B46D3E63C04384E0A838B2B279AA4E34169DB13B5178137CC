@@ -1,0 +1,51 @@
+lwip_recvfrom(int s, void *mem, size_t len, int flags,
+              struct sockaddr *from, socklen_t *fromlen)
+{
+  struct lwip_sock *sock;
+  ssize_t ret;
+
+  LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_recvfrom(%d, %p, %"SZT_F", 0x%x, ..)\n", s, mem, len, flags));
+  sock = get_socket(s);
+  if (!sock) {
+    return -1;
+  }
+#if LWIP_TCP
+  if (NETCONNTYPE_GROUP(netconn_type(sock->conn)) == NETCONN_TCP) {
+    ret = lwip_recv_tcp(sock, mem, len, flags);
+    lwip_recv_tcp_from(sock, from, fromlen, "lwip_recvfrom", s, ret);
+    done_socket(sock);
+    return ret;
+  } else
+#endif
+  {
+    u16_t datagram_len = 0;
+    struct iovec vec;
+    struct msghdr msg;
+    err_t err;
+    vec.iov_base = mem;
+    vec.iov_len = len;
+    msg.msg_control = NULL;
+    msg.msg_controllen = 0;
+    msg.msg_flags = 0;
+    msg.msg_iov = &vec;
+    msg.msg_iovlen = 1;
+    msg.msg_name = from;
+    msg.msg_namelen = (fromlen ? *fromlen : 0);
+    err = lwip_recvfrom_udp_raw(sock, flags, &msg, &datagram_len, s);
+    if (err != ERR_OK) {
+      LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_recvfrom[UDP/RAW](%d): buf == NULL, error is \"%s\"!\n",
+                                  s, lwip_strerr(err)));
+      sock_set_errno(sock, err_to_errno(err));
+      done_socket(sock);
+      return -1;
+    }
+    ret = (ssize_t)LWIP_MIN(LWIP_MIN(len, datagram_len), SSIZE_MAX);
+    if (fromlen) {
+      *fromlen = msg.msg_namelen;
+    }
+  }
+
+  sock_set_errno(sock, 0);
+  done_socket(sock);
+  return ret;
+}

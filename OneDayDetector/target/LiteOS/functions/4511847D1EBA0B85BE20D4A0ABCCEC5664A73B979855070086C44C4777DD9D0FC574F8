@@ -1,0 +1,52 @@
+int mbedtls_mpi_gcd( mbedtls_mpi *G, const mbedtls_mpi *A, const mbedtls_mpi *B )
+{
+    int ret;
+    size_t lz, lzt;
+    mbedtls_mpi TG, TA, TB;
+
+    MPI_VALIDATE_RET( G != NULL );
+    MPI_VALIDATE_RET( A != NULL );
+    MPI_VALIDATE_RET( B != NULL );
+
+    mbedtls_mpi_init( &TG ); mbedtls_mpi_init( &TA ); mbedtls_mpi_init( &TB );
+
+    MBEDTLS_MPI_CHK( mbedtls_mpi_copy( &TA, A ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_copy( &TB, B ) );
+
+    lz = mbedtls_mpi_lsb( &TA );
+    lzt = mbedtls_mpi_lsb( &TB );
+
+    if( lzt < lz )
+        lz = lzt;
+
+    MBEDTLS_MPI_CHK( mbedtls_mpi_shift_r( &TA, lz ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_shift_r( &TB, lz ) );
+
+    TA.s = TB.s = 1;
+
+    while( mbedtls_mpi_cmp_int( &TA, 0 ) != 0 )
+    {
+        MBEDTLS_MPI_CHK( mbedtls_mpi_shift_r( &TA, mbedtls_mpi_lsb( &TA ) ) );
+        MBEDTLS_MPI_CHK( mbedtls_mpi_shift_r( &TB, mbedtls_mpi_lsb( &TB ) ) );
+
+        if( mbedtls_mpi_cmp_mpi( &TA, &TB ) >= 0 )
+        {
+            MBEDTLS_MPI_CHK( mbedtls_mpi_sub_abs( &TA, &TA, &TB ) );
+            MBEDTLS_MPI_CHK( mbedtls_mpi_shift_r( &TA, 1 ) );
+        }
+        else
+        {
+            MBEDTLS_MPI_CHK( mbedtls_mpi_sub_abs( &TB, &TB, &TA ) );
+            MBEDTLS_MPI_CHK( mbedtls_mpi_shift_r( &TB, 1 ) );
+        }
+    }
+
+    MBEDTLS_MPI_CHK( mbedtls_mpi_shift_l( &TB, lz ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_copy( G, &TB ) );
+
+cleanup:
+
+    mbedtls_mpi_free( &TG ); mbedtls_mpi_free( &TA ); mbedtls_mpi_free( &TB );
+
+    return( ret );
+}

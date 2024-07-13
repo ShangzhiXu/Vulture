@@ -1,0 +1,51 @@
+static HAL_StatusTypeDef JPEG_ACHuff_BitsVals_To_SizeCodes(JPEG_ACHuffTableTypeDef *AC_BitsValsTable,
+                                                           JPEG_AC_HuffCodeTableTypeDef *AC_SizeCodesTable)
+{
+  HAL_StatusTypeDef error;
+  uint8_t huffsize[257];
+  uint32_t huffcode[257];
+  uint32_t k;
+  uint32_t l, lsb, msb;
+  uint32_t lastK;
+
+  error = JPEG_Bits_To_SizeCodes(AC_BitsValsTable->Bits, huffsize, huffcode, &lastK);
+  if (error != HAL_OK)
+  {
+    return  error;
+  }
+
+  /* Figure C.3: Ordering procedure for encoding procedure code tables */
+  k = 0;
+
+  while (k < lastK)
+  {
+    l = AC_BitsValsTable->HuffVal[k];
+    if (l == 0UL)
+    {
+      l = 160; /*l = 0x00 EOB code*/
+    }
+    else if (l == 0xF0UL) /* l = 0xF0 ZRL code*/
+    {
+      l = 161;
+    }
+    else
+    {
+      msb = (l & 0xF0UL) >> 4;
+      lsb = (l & 0x0FUL);
+      l = (msb * 10UL) + lsb - 1UL;
+    }
+    if (l >= JPEG_AC_HUFF_TABLE_SIZE)
+    {
+      return HAL_ERROR; /* Huffman Table overflow error*/
+    }
+    else
+    {
+      AC_SizeCodesTable->HuffmanCode[l] = huffcode[k];
+      AC_SizeCodesTable->CodeLength[l] = huffsize[k] - 1U;
+      k++;
+    }
+  }
+
+  /* Return function status */
+  return HAL_OK;
+}

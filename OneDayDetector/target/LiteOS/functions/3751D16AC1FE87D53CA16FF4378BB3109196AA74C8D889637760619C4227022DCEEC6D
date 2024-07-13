@@ -1,0 +1,127 @@
+static void HCD_HC_OUT_IRQHandler (HCD_HandleTypeDef *hhcd, uint8_t chnum)
+{
+  USB_OTG_GlobalTypeDef *USBx = hhcd->Instance;
+  uint32_t tmpreg = 0;
+  
+  if ((USBx_HC(chnum)->HCINT) &  USB_OTG_HCINT_AHBERR)
+  {
+    __HAL_HCD_CLEAR_HC_INT(chnum, USB_OTG_HCINT_AHBERR);
+    __HAL_HCD_UNMASK_HALT_HC_INT(chnum);
+  }
+  else if ((USBx_HC(chnum)->HCINT) &  USB_OTG_HCINT_ACK)
+  {
+    __HAL_HCD_CLEAR_HC_INT(chnum, USB_OTG_HCINT_ACK);
+    
+    if( hhcd->hc[chnum].do_ping == 1)
+    {
+      hhcd->hc[chnum].state = HC_NYET;
+      __HAL_HCD_UNMASK_HALT_HC_INT(chnum);
+      USB_HC_Halt(hhcd->Instance, chnum);
+      hhcd->hc[chnum].urb_state  = URB_NOTREADY;
+    }
+  }
+  
+  else if ((USBx_HC(chnum)->HCINT) &  USB_OTG_HCINT_NYET)
+  {
+    hhcd->hc[chnum].state = HC_NYET;
+    hhcd->hc[chnum].ErrCnt= 0;
+    __HAL_HCD_UNMASK_HALT_HC_INT(chnum);
+    USB_HC_Halt(hhcd->Instance, chnum);
+    __HAL_HCD_CLEAR_HC_INT(chnum, USB_OTG_HCINT_NYET);
+  
+  }
+  
+  else if ((USBx_HC(chnum)->HCINT) &  USB_OTG_HCINT_FRMOR)
+  {
+    __HAL_HCD_UNMASK_HALT_HC_INT(chnum);
+    USB_HC_Halt(hhcd->Instance, chnum);
+    __HAL_HCD_CLEAR_HC_INT(chnum, USB_OTG_HCINT_FRMOR);
+  }
+  
+  else if ((USBx_HC(chnum)->HCINT) &  USB_OTG_HCINT_XFRC)
+  {
+    hhcd->hc[chnum].ErrCnt = 0;
+    __HAL_HCD_UNMASK_HALT_HC_INT(chnum);
+    USB_HC_Halt(hhcd->Instance, chnum);
+    __HAL_HCD_CLEAR_HC_INT(chnum, USB_OTG_HCINT_XFRC);
+    hhcd->hc[chnum].state = HC_XFRC;
+  }
+  else if ((USBx_HC(chnum)->HCINT) &  USB_OTG_HCINT_STALL)
+  {
+    __HAL_HCD_CLEAR_HC_INT(chnum, USB_OTG_HCINT_STALL);
+    __HAL_HCD_UNMASK_HALT_HC_INT(chnum);
+    USB_HC_Halt(hhcd->Instance, chnum);
+    hhcd->hc[chnum].state = HC_STALL;
+  }
+  else if ((USBx_HC(chnum)->HCINT) &  USB_OTG_HCINT_NAK)
+  {
+    hhcd->hc[chnum].ErrCnt = 0;
+    __HAL_HCD_UNMASK_HALT_HC_INT(chnum);
+    USB_HC_Halt(hhcd->Instance, chnum);
+    hhcd->hc[chnum].state = HC_NAK;
+    __HAL_HCD_CLEAR_HC_INT(chnum, USB_OTG_HCINT_NAK);
+  }
+  else if ((USBx_HC(chnum)->HCINT) &  USB_OTG_HCINT_TXERR)
+  {
+    __HAL_HCD_UNMASK_HALT_HC_INT(chnum); 
+    USB_HC_Halt(hhcd->Instance, chnum);
+    hhcd->hc[chnum].state = HC_XACTERR;
+     __HAL_HCD_CLEAR_HC_INT(chnum, USB_OTG_HCINT_TXERR);
+  }
+  else if ((USBx_HC(chnum)->HCINT) &  USB_OTG_HCINT_DTERR)
+  {
+    __HAL_HCD_UNMASK_HALT_HC_INT(chnum);
+    USB_HC_Halt(hhcd->Instance, chnum);
+    __HAL_HCD_CLEAR_HC_INT(chnum, USB_OTG_HCINT_NAK);
+    __HAL_HCD_CLEAR_HC_INT(chnum, USB_OTG_HCINT_DTERR);
+    hhcd->hc[chnum].state = HC_DATATGLERR;
+  }
+  else if ((USBx_HC(chnum)->HCINT) &  USB_OTG_HCINT_CHH)
+  {
+    __HAL_HCD_MASK_HALT_HC_INT(chnum);
+    
+    if(hhcd->hc[chnum].state == HC_XFRC)
+    {
+      hhcd->hc[chnum].urb_state  = URB_DONE;
+      if (hhcd->hc[chnum].ep_type == EP_TYPE_BULK)
+      {
+        hhcd->hc[chnum].toggle_out ^= 1;
+      }
+    }
+    else if (hhcd->hc[chnum].state == HC_NAK)
+    {
+      hhcd->hc[chnum].urb_state  = URB_NOTREADY;
+    }
+    else if (hhcd->hc[chnum].state == HC_NYET)
+    {
+      hhcd->hc[chnum].urb_state  = URB_NOTREADY;
+      hhcd->hc[chnum].do_ping = 0;
+    }
+    else if (hhcd->hc[chnum].state == HC_STALL)
+    {
+      hhcd->hc[chnum].urb_state  = URB_STALL;
+    }
+    else if((hhcd->hc[chnum].state == HC_XACTERR) ||
+            (hhcd->hc[chnum].state == HC_DATATGLERR))
+    {
+      if(hhcd->hc[chnum].ErrCnt++ > 3)
+      {
+        hhcd->hc[chnum].ErrCnt = 0;
+        hhcd->hc[chnum].urb_state = URB_ERROR;
+      }
+      else
+      {
+        hhcd->hc[chnum].urb_state = URB_NOTREADY;
+      }
+      
+      /* re-activate the channel  */
+      tmpreg = USBx_HC(chnum)->HCCHAR;
+      tmpreg &= ~USB_OTG_HCCHAR_CHDIS;
+      tmpreg |= USB_OTG_HCCHAR_CHENA;
+      USBx_HC(chnum)->HCCHAR = tmpreg;
+    }
+    
+    __HAL_HCD_CLEAR_HC_INT(chnum, USB_OTG_HCINT_CHH);
+    HAL_HCD_HC_NotifyURBChange_Callback(hhcd, chnum, hhcd->hc[chnum].urb_state);
+  }
+}

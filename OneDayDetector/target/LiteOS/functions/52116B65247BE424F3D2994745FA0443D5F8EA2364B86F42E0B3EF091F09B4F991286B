@@ -1,0 +1,41 @@
+smtp_set_auth(const char* username, const char* pass)
+{
+  size_t uname_len = 0;
+  size_t pass_len = 0;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  memset(smtp_auth_plain, 0xfa, 64);
+  if (username != NULL) {
+    uname_len = strlen(username);
+    if (uname_len > SMTP_MAX_USERNAME_LEN) {
+      LWIP_DEBUGF(SMTP_DEBUG_SERIOUS, ("Username is too long, %d instead of %d\n",
+        (int)uname_len, SMTP_MAX_USERNAME_LEN));
+      return ERR_ARG;
+    }
+  }
+  if (pass != NULL) {
+#if SMTP_SUPPORT_AUTH_LOGIN || SMTP_SUPPORT_AUTH_PLAIN
+    pass_len = strlen(pass);
+    if (pass_len > SMTP_MAX_PASS_LEN) {
+      LWIP_DEBUGF(SMTP_DEBUG_SERIOUS, ("Password is too long, %d instead of %d\n",
+        (int)uname_len, SMTP_MAX_USERNAME_LEN));
+      return ERR_ARG;
+    }
+#else /* SMTP_SUPPORT_AUTH_LOGIN || SMTP_SUPPORT_AUTH_PLAIN */
+    LWIP_DEBUGF(SMTP_DEBUG_WARN, ("Password not supported as no authentication methods are activated\n"));
+#endif /* SMTP_SUPPORT_AUTH_LOGIN || SMTP_SUPPORT_AUTH_PLAIN */
+  }
+  *smtp_auth_plain = 0;
+  if (username != NULL) {
+    smtp_username = smtp_auth_plain + 1;
+    strcpy(smtp_username, username);
+  }
+  if (pass != NULL) {
+    smtp_pass = smtp_auth_plain + uname_len + 2;
+    strcpy(smtp_pass, pass);
+  }
+  smtp_auth_plain_len = uname_len + pass_len + 2;
+
+  return ERR_OK;
+}

@@ -1,0 +1,49 @@
+static void upap_input(ppp_pcb *pcb, u_char *inpacket, int l) {
+    u_char *inp;
+    u_char code, id;
+    int len;
+
+    /*
+     * Parse header (code, id and length).
+     * If packet too short, drop it.
+     */
+    inp = inpacket;
+    if (l < UPAP_HEADERLEN) {
+	UPAPDEBUG(("pap_input: rcvd short header."));
+	return;
+    }
+    GETCHAR(code, inp);
+    GETCHAR(id, inp);
+    GETSHORT(len, inp);
+    if (len < UPAP_HEADERLEN) {
+	UPAPDEBUG(("pap_input: rcvd illegal length."));
+	return;
+    }
+    if (len > l) {
+	UPAPDEBUG(("pap_input: rcvd short packet."));
+	return;
+    }
+    len -= UPAP_HEADERLEN;
+
+    /*
+     * Action depends on code.
+     */
+    switch (code) {
+    case UPAP_AUTHREQ:
+#if PPP_SERVER
+	upap_rauthreq(pcb, inp, id, len);
+#endif /* PPP_SERVER */
+	break;
+
+    case UPAP_AUTHACK:
+	upap_rauthack(pcb, inp, id, len);
+	break;
+
+    case UPAP_AUTHNAK:
+	upap_rauthnak(pcb, inp, id, len);
+	break;
+
+    default:				/* XXX Need code reject */
+	break;
+    }
+}

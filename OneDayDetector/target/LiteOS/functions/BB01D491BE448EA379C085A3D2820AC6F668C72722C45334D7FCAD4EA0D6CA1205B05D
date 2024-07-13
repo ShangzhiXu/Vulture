@@ -1,0 +1,29 @@
+LITE_OS_SEC_TEXT UINT32 OsSortLinkGetNextExpireTime(const SortLinkAttribute *sortLinkHeader)
+{
+    UINT16 cursor;
+    UINT32 minSortIndex = OS_INVALID_VALUE;
+    UINT32 minRollNum = OS_TSK_LOW_BITS_MASK;
+    UINT32 expireTime = OS_INVALID_VALUE;
+    LOS_DL_LIST *listObject = NULL;
+    SortLinkList *listSorted = NULL;
+    UINT32 i;
+
+    cursor = (sortLinkHeader->cursor + 1) & OS_TSK_SORTLINK_MASK;
+
+    for (i = 0; i < OS_TSK_SORTLINK_LEN; i++) {
+        listObject = sortLinkHeader->sortLink + ((cursor + i) & OS_TSK_SORTLINK_MASK);
+        if (!LOS_ListEmpty(listObject)) {
+            listSorted = LOS_DL_LIST_ENTRY(listObject->pstNext, SortLinkList, sortLinkNode);
+            if (minRollNum > ROLLNUM(listSorted->idxRollNum)) {
+                minRollNum = ROLLNUM(listSorted->idxRollNum);
+                minSortIndex = (cursor + i) & OS_TSK_SORTLINK_MASK;
+            }
+        }
+    }
+
+    if (minRollNum != OS_TSK_LOW_BITS_MASK) {
+        expireTime = OsCalcExpierTime(minRollNum, minSortIndex, sortLinkHeader->cursor);
+    }
+
+    return expireTime;
+}

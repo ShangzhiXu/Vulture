@@ -1,0 +1,45 @@
+HAL_StatusTypeDef HAL_ADC_Stop_DMA(ADC_HandleTypeDef* hadc)
+{
+  HAL_StatusTypeDef tmp_hal_status = HAL_OK;
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_DMA_CAPABILITY_INSTANCE(hadc->Instance));
+     
+  /* Process locked */
+  __HAL_LOCK(hadc);
+  
+  /* Stop potential conversion on going, on regular and injected groups */
+  /* Disable ADC peripheral */
+  tmp_hal_status = ADC_ConversionStop_Disable(hadc);
+  
+  /* Check if ADC is effectively disabled */
+  if (tmp_hal_status == HAL_OK)
+  {
+    /* Disable ADC DMA mode */
+    CLEAR_BIT(hadc->Instance->CR2, ADC_CR2_DMA);
+    
+    /* Disable the DMA channel (in case of DMA in circular mode or stop while */
+    /* DMA transfer is on going)                                              */
+    tmp_hal_status = HAL_DMA_Abort(hadc->DMA_Handle);
+    
+    /* Check if DMA channel effectively disabled */
+    if (tmp_hal_status == HAL_OK)
+    {
+      /* Set ADC state */
+      ADC_STATE_CLR_SET(hadc->State,
+                        HAL_ADC_STATE_REG_BUSY | HAL_ADC_STATE_INJ_BUSY,
+                        HAL_ADC_STATE_READY);
+    }
+    else
+    {
+      /* Update ADC state machine to error */
+      SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_DMA);
+    }
+  }
+    
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+    
+  /* Return function status */
+  return tmp_hal_status;
+}

@@ -1,0 +1,77 @@
+static struct pbuf *eth_input(struct netif *netif)
+{
+    struct pbuf *p = NULL;
+    struct pbuf *q = NULL;
+    uint16_t len = 0;
+    uint8_t *buffer;
+    __IO ETH_DMADescTypeDef *dmarxdesc;
+    uint32_t bufferoffset = 0;
+    uint32_t payloadoffset = 0;
+    uint32_t byteslefttocopy = 0;
+    uint32_t i = 0;
+
+    /* get received frame */
+    if (HAL_ETH_GetReceivedFrame(&heth) != HAL_OK) {
+        return NULL;
+    }
+
+    /* Obtain the size of the packet and put it into the "len" variable. */
+    len = heth.RxFrameInfos.length;
+    buffer = (uint8_t *)heth.RxFrameInfos.buffer;
+
+    if (len > 0) {
+        /* We allocate a pbuf chain of pbufs from the Lwip buffer pool */
+        p = pbuf_alloc(PBUF_RAW, len, PBUF_POOL);
+    }
+
+    if (p != NULL) {
+        dmarxdesc = heth.RxFrameInfos.FSRxDesc;
+        bufferoffset = 0;
+
+        for (q = p; q != NULL; q = q->next) {
+            byteslefttocopy = q->len;
+            payloadoffset = 0;
+
+            /* Check if the length of bytes to copy in current pbuf is bigger than Rx buffer size */
+            while ((byteslefttocopy + bufferoffset) > ETH_RX_BUF_SIZE) {
+                /* Copy data to pbuf */
+                memcpy((uint8_t *)((uint8_t *)q->payload + payloadoffset), (uint8_t *)((uint8_t *)buffer + bufferoffset), (ETH_RX_BUF_SIZE - bufferoffset));
+
+                /* Point to next descriptor */
+                dmarxdesc = (ETH_DMADescTypeDef *)(dmarxdesc->Buffer2NextDescAddr);
+                buffer = (uint8_t *)(dmarxdesc->Buffer1Addr);
+
+                byteslefttocopy = byteslefttocopy - (ETH_RX_BUF_SIZE - bufferoffset);
+                payloadoffset = payloadoffset + (ETH_RX_BUF_SIZE - bufferoffset);
+                bufferoffset = 0;
+            }
+
+            /* Copy remaining data in pbuf */
+            memcpy((uint8_t *)((uint8_t *)q->payload + payloadoffset), (uint8_t *)((uint8_t *)buffer + bufferoffset), byteslefttocopy);
+            bufferoffset = bufferoffset + byteslefttocopy;
+        }
+    }
+
+    /* Release descriptors to DMA */
+    /* Point to first descriptor */
+    dmarxdesc = heth.RxFrameInfos.FSRxDesc;
+
+    /* Set Own bit in Rx descriptors: gives the buffers back to DMA */
+    for (i = 0; i < heth.RxFrameInfos.SegCount; i++) {
+        dmarxdesc->Status |= ETH_DMARXDESC_OWN;
+        dmarxdesc = (ETH_DMADescTypeDef *)(dmarxdesc->Buffer2NextDescAddr);
+    }
+
+    /* Clear Segment_Count */
+    heth.RxFrameInfos.SegCount = 0;
+
+    /* When Rx Buffer unavailable flag is set: clear it and resume reception */
+    if ((heth.Instance->DMASR & ETH_DMASR_RBUS) != (uint32_t)RESET) {
+        /* Clear RBUS ETHERNET DMA flag */
+        heth.Instance->DMASR = ETH_DMASR_RBUS;
+        /* Resume DMA reception */
+        heth.Instance->DMARPDR = 0;
+    }
+
+    return p;
+}

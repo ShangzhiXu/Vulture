@@ -1,0 +1,41 @@
+smtp_send_mail_bodycback(const char *from, const char* to, const char* subject,
+  smtp_bodycback_fn bodycback_fn, smtp_result_fn callback_fn, void* callback_arg)
+{
+  struct smtp_session* s;
+  size_t len;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  s = (struct smtp_session*)SMTP_STATE_MALLOC(sizeof(struct smtp_session));
+  if (s == NULL) {
+    return ERR_MEM;
+  }
+  memset(s, 0, sizeof(struct smtp_session));
+  s->bodydh = (struct smtp_bodydh_state*)SMTP_BODYDH_MALLOC(sizeof(struct smtp_bodydh_state));
+  if (s->bodydh == NULL) {
+    SMTP_STATE_FREE(s);
+    return ERR_MEM;
+  }
+  memset(s->bodydh, 0, sizeof(struct smtp_bodydh_state));
+  /* initialize the structure */
+  s->from = from;
+  len = strlen(from);
+  LWIP_ASSERT("string is too long", len <= 0xffff);
+  s->from_len = (u16_t)len;
+  s->to = to;
+  len = strlen(to);
+  LWIP_ASSERT("string is too long", len <= 0xffff);
+  s->to_len = (u16_t)len;
+  s->subject = subject;
+  len = strlen(subject);
+  LWIP_ASSERT("string is too long", len <= 0xffff);
+  s->subject_len = (u16_t)len;
+  s->body = NULL;
+  LWIP_ASSERT("string is too long", len <= 0xffff);
+  s->callback_fn = callback_fn;
+  s->callback_arg = callback_arg;
+  s->bodydh->callback_fn = bodycback_fn;
+  s->bodydh->state = BDH_SENDING;
+  /* call the actual implementation of this function */
+  return smtp_send_mail_alloced(s);
+}

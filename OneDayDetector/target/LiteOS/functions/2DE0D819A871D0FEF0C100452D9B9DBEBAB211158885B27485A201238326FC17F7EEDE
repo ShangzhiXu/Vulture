@@ -1,0 +1,16 @@
+memp_overflow_check_all(void)
+{
+  u16_t i, j;
+  struct memp *p;
+  SYS_ARCH_DECL_PROTECT(old_level);
+  SYS_ARCH_PROTECT(old_level);
+
+  for (i = 0; i < MEMP_MAX; ++i) {
+    p = (struct memp *)LWIP_MEM_ALIGN(memp_pools[i]->base);
+    for (j = 0; j < memp_pools[i]->num; ++j) {
+      memp_overflow_check_element(p, memp_pools[i]);
+      p = LWIP_ALIGNMENT_CAST(struct memp *, ((u8_t *)p + MEMP_SIZE + memp_pools[i]->size + MEM_SANITY_REGION_AFTER_ALIGNED));
+    }
+  }
+  SYS_ARCH_UNPROTECT(old_level);
+}

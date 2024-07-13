@@ -1,0 +1,18 @@
+free_socket(struct lwip_sock *sock, int is_tcp)
+{
+  int freed;
+  struct netconn *conn;
+  union lwip_sock_lastdata lastdata;
+  SYS_ARCH_DECL_PROTECT(lev);
+
+  /* Protect socket array */
+  SYS_ARCH_PROTECT(lev);
+
+  freed = free_socket_locked(sock, is_tcp, &conn, &lastdata);
+  SYS_ARCH_UNPROTECT(lev);
+  /* don't use 'sock' after this line, as another task might have allocated it */
+
+  if (freed) {
+    free_socket_free_elements(is_tcp, conn, &lastdata);
+  }
+}

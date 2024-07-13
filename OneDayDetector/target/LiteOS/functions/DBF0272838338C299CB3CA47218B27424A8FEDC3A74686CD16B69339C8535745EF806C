@@ -1,0 +1,31 @@
+netif_set_down(struct netif *netif)
+{
+  LWIP_ASSERT_CORE_LOCKED();
+
+  LWIP_ERROR("netif_set_down: invalid netif", netif != NULL, return);
+
+  if (netif->flags & NETIF_FLAG_UP) {
+#if LWIP_NETIF_EXT_STATUS_CALLBACK
+    {
+      netif_ext_callback_args_t args;
+      args.status_changed.state = 0;
+      netif_invoke_ext_callback(netif, LWIP_NSC_STATUS_CHANGED, &args);
+    }
+#endif
+
+    netif_clear_flags(netif, NETIF_FLAG_UP);
+    MIB2_COPY_SYSUPTIME_TO(&netif->ts);
+
+#if LWIP_IPV4 && LWIP_ARP
+    if (netif->flags & NETIF_FLAG_ETHARP) {
+      etharp_cleanup_netif(netif);
+    }
+#endif /* LWIP_IPV4 && LWIP_ARP */
+
+#if LWIP_IPV6
+    nd6_cleanup_netif(netif);
+#endif /* LWIP_IPV6 */
+
+    NETIF_STATUS_CALLBACK(netif);
+  }
+}

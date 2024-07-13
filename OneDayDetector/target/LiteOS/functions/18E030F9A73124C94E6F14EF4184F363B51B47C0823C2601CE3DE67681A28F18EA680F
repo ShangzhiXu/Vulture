@@ -1,0 +1,29 @@
+static HAL_StatusTypeDef SMBUS_Master_SB(SMBUS_HandleTypeDef *hsmbus)
+{
+  if (hsmbus->Init.AddressingMode == SMBUS_ADDRESSINGMODE_7BIT)
+  {
+    /* Send slave 7 Bits address */
+    if (hsmbus->State == HAL_SMBUS_STATE_BUSY_TX)
+    {
+      hsmbus->Instance->DR = SMBUS_7BIT_ADD_WRITE(hsmbus->Devaddress);
+    }
+    else
+    {
+      hsmbus->Instance->DR = SMBUS_7BIT_ADD_READ(hsmbus->Devaddress);
+    }
+  }
+  else
+  {
+    if (hsmbus->EventCount == 0U)
+    {
+      /* Send header of slave address */
+      hsmbus->Instance->DR = SMBUS_10BIT_HEADER_WRITE(hsmbus->Devaddress);
+    }
+    else if (hsmbus->EventCount == 1U)
+    {
+      /* Send header of slave address */
+      hsmbus->Instance->DR = SMBUS_10BIT_HEADER_READ(hsmbus->Devaddress);
+    }
+  }
+  return HAL_OK;
+}

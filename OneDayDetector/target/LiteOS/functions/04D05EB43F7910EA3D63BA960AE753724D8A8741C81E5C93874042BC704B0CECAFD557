@@ -1,0 +1,24 @@
+HAL_StatusTypeDef HAL_FMPSMBUS_UnRegisterAddrCallback(FMPSMBUS_HandleTypeDef *hfmpsmbus)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process locked */
+  __HAL_LOCK(hfmpsmbus);
+
+  if (HAL_FMPSMBUS_STATE_READY == hfmpsmbus->State)
+  {
+    hfmpsmbus->AddrCallback = HAL_FMPSMBUS_AddrCallback; /* Legacy weak AddrCallback  */
+  }
+  else
+  {
+    /* Update the error code */
+    hfmpsmbus->ErrorCode |= HAL_FMPSMBUS_ERROR_INVALID_CALLBACK;
+
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hfmpsmbus);
+  return status;
+}

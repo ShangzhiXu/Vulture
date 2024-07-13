@@ -1,0 +1,50 @@
+SECUREC_INLINE int SecDecodeSize(SecChar ch, SecFormatAttr *attr, const SecChar **format)
+{
+    switch (ch) {
+        case SECUREC_CHAR('l'):
+            if (**format == SECUREC_CHAR('l')) {
+                *format = *format + 1;
+                attr->flags |= SECUREC_FLAG_LONGLONG; /* For long long */
+            } else {
+                attr->flags |= SECUREC_FLAG_LONG;     /* For long int or wchar_t */
+            }
+            break;
+#ifdef SECUREC_COMPATIBLE_LINUX_FORMAT
+        case SECUREC_CHAR('z'): /* fall-through */ /* FALLTHRU */
+        case SECUREC_CHAR('Z'):
+            attr->flags |= SECUREC_FLAG_SIZE;
+            break;
+        case SECUREC_CHAR('j'):
+            attr->flags |= SECUREC_FLAG_INTMAX;
+            break;
+#endif
+        case SECUREC_CHAR('t'):
+            attr->flags |= SECUREC_FLAG_PTRDIFF;
+            break;
+        case SECUREC_CHAR('q'): /* fall-through */ /* FALLTHRU */
+        case SECUREC_CHAR('L'):
+            attr->flags |= (SECUREC_FLAG_LONGLONG | SECUREC_FLAG_LONG_DOUBLE);
+            break;
+        case SECUREC_CHAR('I'):
+            if (SecDecodeSizeI(attr, format) != 0) {
+                /* Compatibility  code for "%I" just print I */
+                return -1;
+            }
+            break;
+        case SECUREC_CHAR('h'):
+            if (**format == SECUREC_CHAR('h')) {
+                *format = *format + 1;
+                attr->flags |= SECUREC_FLAG_CHAR;   /* For char */
+            } else {
+                attr->flags |= SECUREC_FLAG_SHORT;  /* For short int */
+            }
+            break;
+        case SECUREC_CHAR('w'):
+            attr->flags |= SECUREC_FLAG_WIDECHAR;   /* For wide char */
+            break;
+        default:
+            /* Do nothing */
+            break;
+    }
+    return 0;
+}

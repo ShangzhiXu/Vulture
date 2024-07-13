@@ -1,0 +1,23 @@
+netconn_free(struct netconn *conn)
+{
+  LWIP_ASSERT("PCB must be deallocated outside this function", conn->pcb.tcp == NULL);
+
+#if LWIP_NETCONN_FULLDUPLEX
+  /* in fullduplex, netconn is drained here */
+  netconn_drain(conn);
+#endif /* LWIP_NETCONN_FULLDUPLEX */
+
+  LWIP_ASSERT("recvmbox must be deallocated before calling this function",
+              !sys_mbox_valid(&conn->recvmbox));
+#if LWIP_TCP
+  LWIP_ASSERT("acceptmbox must be deallocated before calling this function",
+              !sys_mbox_valid(&conn->acceptmbox));
+#endif /* LWIP_TCP */
+
+#if !LWIP_NETCONN_SEM_PER_THREAD
+  sys_sem_free(&conn->op_completed);
+  sys_sem_set_invalid(&conn->op_completed);
+#endif
+
+  memp_free(MEMP_NETCONN, conn);
+}

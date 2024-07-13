@@ -1,0 +1,16 @@
+        lv_color_t _color;
+        lv_color_t _color;
+        lv_style_int_t _int;
+        lv_style_int_t _int;
+        lv_opa_t _opa;
+        lv_opa_t _opa;
+        const void * _ptr;
+        const void * _ptr;
+    bool deleted;
+    } end_value;
+    lv_obj_t * obj;
+    lv_obj_t * obj;
+    uint8_t part;
+    struct _lv_event_temp_data * prev;
+    lv_style_property_t prop;
+    } start_value;

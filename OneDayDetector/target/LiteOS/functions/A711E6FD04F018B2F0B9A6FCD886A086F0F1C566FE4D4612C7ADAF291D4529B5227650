@@ -1,0 +1,46 @@
+VOID OsSlabMemDeinit(VOID *pool)
+{
+    UINT32 idx;
+    struct LosSlabControlHeader *slabMem = NULL;
+    OsSlabAllocator *slabAlloc = NULL;
+    UINT32 blkSz;
+    UINT32 blkCnt;
+#ifdef LOSCFG_KERNEL_MEM_SLAB_AUTO_EXPANSION_MODE
+    OsSlabMemAllocator **bucket = NULL;
+#endif
+
+    if (pool == NULL) {
+        return;
+    }
+    slabMem = OsSlabCtrlHdrGet(pool);
+
+    for (idx = 0; idx < SLAB_MEM_COUNT; idx++) {
+        blkSz = (SLAB_MEM_CALSS_STEP_SIZE << idx);
+        blkCnt = SLAB_MEM_ALLOCATOR_SIZE / blkSz;
+        slabMem->slabClass[idx].blkSz = blkSz;
+        slabMem->slabClass[idx].blkCnt = blkCnt;
+
+#ifdef LOSCFG_KERNEL_MEM_SLAB_AUTO_EXPANSION_MODE
+        bucket = &(slabMem->slabClass[idx].bucket);
+        while (*bucket != NULL) {
+            slabAlloc = (*bucket)->slabAlloc;
+            (*bucket) = (*bucket)->next;
+            OsSlabAllocatorDestroy(pool, slabAlloc);
+        }
+#else
+        if (slabMem->slabClass[idx].alloc != NULL) {
+            slabAlloc = slabMem->slabClass[idx].alloc;
+            OsSlabAllocatorDestroy(pool, slabAlloc);
+            slabMem->slabClass[idx].alloc = NULL;
+        }
+#endif
+    }
+#ifdef LOSCFG_KERNEL_MEM_SLAB_AUTO_EXPANSION_MODE
+    OsSlabAllocatorDestroy(pool, slabMem->allocatorBucket);
+    slabMem->allocatorBucket = NULL;
+#endif
+
+    OsSlabSizeReset();
+
+    return;
+}

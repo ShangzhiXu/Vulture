@@ -1,0 +1,42 @@
+uint32_t LL_RCC_GetDFSDMAudioClockFreq(uint32_t DFSDMxSource)
+{
+  uint32_t dfsdm_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_DFSDM_AUDIO_CLKSOURCE(DFSDMxSource));
+
+  if (DFSDMxSource == LL_RCC_DFSDM1_AUDIO_CLKSOURCE)
+  {
+    /* DFSDM1CLK clock frequency */
+    switch (LL_RCC_GetDFSDMAudioClockSource(DFSDMxSource))
+    {
+      case LL_RCC_DFSDM1_AUDIO_CLKSOURCE_I2S1:     /* I2S1 clock used as DFSDM1 clock */
+        dfsdm_frequency = LL_RCC_GetI2SClockFreq(LL_RCC_I2S1_CLKSOURCE);
+        break;
+
+      case LL_RCC_DFSDM1_AUDIO_CLKSOURCE_I2S2:     /* I2S2 clock used as DFSDM1 clock */
+      default:
+        dfsdm_frequency = LL_RCC_GetI2SClockFreq(LL_RCC_I2S2_CLKSOURCE);
+        break;
+    }
+  }
+#if defined(DFSDM2_Channel0)
+  else
+  {
+    /* DFSDM2CLK clock frequency */
+    switch (LL_RCC_GetDFSDMAudioClockSource(DFSDMxSource))
+    {
+      case LL_RCC_DFSDM2_AUDIO_CLKSOURCE_I2S1:     /* I2S1 clock used as DFSDM2 clock */
+        dfsdm_frequency = LL_RCC_GetI2SClockFreq(LL_RCC_I2S1_CLKSOURCE);
+        break;
+
+      case LL_RCC_DFSDM2_AUDIO_CLKSOURCE_I2S2:     /* I2S2 clock used as DFSDM2 clock */
+      default:
+        dfsdm_frequency = LL_RCC_GetI2SClockFreq(LL_RCC_I2S2_CLKSOURCE);
+        break;
+    }
+  }
+#endif /* DFSDM2_Channel0 */
+
+  return dfsdm_frequency;
+}

@@ -1,0 +1,44 @@
+tcp_write_checks(struct tcp_pcb *pcb, u16_t len)
+{
+  LWIP_ASSERT("tcp_write_checks: invalid pcb", pcb != NULL);
+
+  /* connection is in invalid state for data transmission? */
+  if ((pcb->state != ESTABLISHED) &&
+      (pcb->state != CLOSE_WAIT) &&
+      (pcb->state != SYN_SENT) &&
+      (pcb->state != SYN_RCVD)) {
+    LWIP_DEBUGF(TCP_OUTPUT_DEBUG | LWIP_DBG_STATE | LWIP_DBG_LEVEL_SEVERE, ("tcp_write() called in invalid state\n"));
+    return ERR_CONN;
+  } else if (len == 0) {
+    return ERR_OK;
+  }
+
+  /* fail on too much data */
+  if (len > pcb->snd_buf) {
+    LWIP_DEBUGF(TCP_OUTPUT_DEBUG | LWIP_DBG_LEVEL_SEVERE, ("tcp_write: too much data (len=%"U16_F" > snd_buf=%"TCPWNDSIZE_F")\n",
+                len, pcb->snd_buf));
+    tcp_set_flags(pcb, TF_NAGLEMEMERR);
+    return ERR_MEM;
+  }
+
+  LWIP_DEBUGF(TCP_QLEN_DEBUG, ("tcp_write: queuelen: %"TCPWNDSIZE_F"\n", (tcpwnd_size_t)pcb->snd_queuelen));
+
+  /* If total number of pbufs on the unsent/unacked queues exceeds the
+   * configured maximum, return an error */
+  /* check for configured max queuelen and possible overflow */
+  if (pcb->snd_queuelen >= LWIP_MIN(TCP_SND_QUEUELEN, (TCP_SNDQUEUELEN_OVERFLOW + 1))) {
+    LWIP_DEBUGF(TCP_OUTPUT_DEBUG | LWIP_DBG_LEVEL_SEVERE, ("tcp_write: too long queue %"U16_F" (max %"U16_F")\n",
+                pcb->snd_queuelen, (u16_t)TCP_SND_QUEUELEN));
+    TCP_STATS_INC(tcp.memerr);
+    tcp_set_flags(pcb, TF_NAGLEMEMERR);
+    return ERR_MEM;
+  }
+  if (pcb->snd_queuelen != 0) {
+    LWIP_ASSERT("tcp_write: pbufs on queue => at least one queue non-empty",
+                pcb->unacked != NULL || pcb->unsent != NULL);
+  } else {
+    LWIP_ASSERT("tcp_write: no pbufs on queue => both queues empty",
+                pcb->unacked == NULL && pcb->unsent == NULL);
+  }
+  return ERR_OK;
+}

@@ -1,0 +1,17 @@
+ble_addr_to_eui64(uint8_t *dst, const uint8_t *src, int public_addr)
+{
+  /* according to RFC7668 ch 3.2.2. */
+  memcpy(dst, src, 3);
+  dst[3] = 0xFF;
+  dst[4] = 0xFE;
+  memcpy(&dst[5], &src[3], 3);
+#if LWIP_RFC7668_LINUX_WORKAROUND_PUBLIC_ADDRESS
+  if(public_addr) {
+    dst[0] &= ~0x02;
+  } else {
+    dst[0] |= 0x02;
+  }
+#else
+  LWIP_UNUSED_ARG(public_addr);
+#endif
+}

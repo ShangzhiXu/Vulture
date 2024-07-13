@@ -1,0 +1,26 @@
+sockets_stresstest_wait_readable_poll(int s, int timeout_ms)
+{
+  int ret;
+  struct pollfd pfd;
+
+  pfd.fd = s;
+  pfd.revents = 0;
+  pfd.events = POLLIN | POLLERR;
+
+  ret = lwip_poll(&pfd, 1, timeout_ms);
+  if (ret) {
+    /* convert poll flags to our flags */
+    ret = 0;
+    if (pfd.revents & POLLIN) {
+      ret |= TEST_SOCK_READABLE;
+    }
+    if (pfd.revents & POLLOUT) {
+      ret |= TEST_SOCK_WRITABLE;
+    }
+    if (pfd.revents & POLLERR) {
+      ret |= TEST_SOCK_ERR;
+    }
+    return ret;
+  }
+  return 0;
+}

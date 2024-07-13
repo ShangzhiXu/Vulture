@@ -1,0 +1,46 @@
+SECUREC_INLINE void SecFinishNumberNegativeInt(SecScanSpec *spec)
+{
+    if (SECUREC_CONVERT_IS_SIGNED(spec->oriConvChr)) {
+#ifdef SECUREC_ON_64BITS
+        if (SecIsLongBitEqual(SECUREC_LP64_BIT_WIDTH) != 0) {
+            if ((spec->number > SECUREC_MIN_64BITS_NEG_VALUE)) {
+                spec->number = 0;
+            } else {
+                spec->number = (unsigned int)(0U - (unsigned int)spec->number); /* Wrap with unsigned int numbers */
+            }
+        }
+#else
+        if (SecIsLongBitEqual(SECUREC_LP32_BIT_WIDTH) != 0) {
+            if ((spec->number > SECUREC_MIN_32BITS_NEG_VALUE)) {
+                spec->number = SECUREC_MIN_32BITS_NEG_VALUE;
+            } else {
+                spec->number = (unsigned int)(0U - (unsigned int)spec->number); /* Wrap with unsigned int numbers */
+            }
+        }
+#endif
+        if (spec->beyondMax != 0) {
+#ifdef SECUREC_ON_64BITS
+            if (SecIsLongBitEqual(SECUREC_LP64_BIT_WIDTH) != 0) {
+                spec->number = 0;
+            }
+#else
+            if (SecIsLongBitEqual(SECUREC_LP32_BIT_WIDTH) != 0) {
+                spec->number = SECUREC_MIN_32BITS_NEG_VALUE;
+            }
+#endif
+        }
+    } else {            /* For o, u, x, X ,p */
+#ifdef SECUREC_ON_64BITS
+        if (spec->number > SECUREC_MAX_32BITS_VALUE_INC) {
+            spec->number = SECUREC_MAX_32BITS_VALUE;
+        } else {
+            spec->number = (unsigned int)(0U - (unsigned int)spec->number); /* Wrap with unsigned int numbers */
+        }
+#else
+        spec->number = (unsigned int)(0U - (unsigned int)spec->number); /* Wrap with unsigned int numbers */
+#endif
+        if (spec->beyondMax != 0) {
+            spec->number = (unsigned long)SECUREC_MAX_64BITS_VALUE;
+        }
+    }
+}

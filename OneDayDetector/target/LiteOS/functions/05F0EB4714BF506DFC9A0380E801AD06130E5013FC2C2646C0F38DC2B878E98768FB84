@@ -1,0 +1,36 @@
+void* unity_malloc(size_t size)
+{
+    char* mem;
+    Guard* guard;
+    size_t total_size = size + sizeof(Guard) + sizeof(end);
+
+    if (malloc_fail_countdown != MALLOC_DONT_FAIL)
+    {
+        if (malloc_fail_countdown == 0)
+            return NULL;
+        malloc_fail_countdown--;
+    }
+
+    if (size == 0) return NULL;
+#ifdef UNITY_EXCLUDE_STDLIB_MALLOC
+    if (heap_index + total_size > UNITY_INTERNAL_HEAP_SIZE_BYTES)
+    {
+        guard = NULL;
+    }
+    else
+    {
+        guard = (Guard*)&unity_heap[heap_index];
+        heap_index += total_size;
+    }
+#else
+    guard = (Guard*)UNITY_FIXTURE_MALLOC(total_size);
+#endif
+    if (guard == NULL) return NULL;
+    malloc_count++;
+    guard->size = size;
+    guard->guard_space = 0;
+    mem = (char*)&(guard[1]);
+    memcpy(&mem[size], end, sizeof(end));
+
+    return (void*)mem;
+}

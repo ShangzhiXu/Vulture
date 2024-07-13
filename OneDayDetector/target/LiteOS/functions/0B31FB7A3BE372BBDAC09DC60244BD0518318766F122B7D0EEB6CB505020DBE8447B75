@@ -1,0 +1,63 @@
+snmp_varbind_length(struct snmp_varbind *varbind, struct snmp_varbind_len *len)
+{
+  /* calculate required lengths */
+  snmp_asn1_enc_oid_cnt(varbind->oid.id, varbind->oid.len, &len->oid_value_len);
+  snmp_asn1_enc_length_cnt(len->oid_value_len, &len->oid_len_len);
+
+  if (varbind->value_len == 0) {
+    len->value_value_len = 0;
+  } else if (varbind->value_len & SNMP_GET_VALUE_RAW_DATA) {
+    len->value_value_len = varbind->value_len & (~SNMP_GET_VALUE_RAW_DATA);
+  } else {
+    switch (varbind->type) {
+      case SNMP_ASN1_TYPE_INTEGER:
+        if (varbind->value_len != sizeof (s32_t)) {
+          return ERR_VAL;
+        }
+        snmp_asn1_enc_s32t_cnt(*((s32_t *) varbind->value), &len->value_value_len);
+        break;
+      case SNMP_ASN1_TYPE_COUNTER:
+      case SNMP_ASN1_TYPE_GAUGE:
+      case SNMP_ASN1_TYPE_TIMETICKS:
+        if (varbind->value_len != sizeof (u32_t)) {
+          return ERR_VAL;
+        }
+        snmp_asn1_enc_u32t_cnt(*((u32_t *) varbind->value), &len->value_value_len);
+        break;
+      case SNMP_ASN1_TYPE_OCTET_STRING:
+      case SNMP_ASN1_TYPE_IPADDR:
+      case SNMP_ASN1_TYPE_OPAQUE:
+        len->value_value_len = varbind->value_len;
+        break;
+      case SNMP_ASN1_TYPE_NULL:
+        if (varbind->value_len != 0) {
+          return ERR_VAL;
+        }
+        len->value_value_len = 0;
+        break;
+      case SNMP_ASN1_TYPE_OBJECT_ID:
+        if ((varbind->value_len & 0x03) != 0) {
+          return ERR_VAL;
+        }
+        snmp_asn1_enc_oid_cnt((u32_t *) varbind->value, varbind->value_len >> 2, &len->value_value_len);
+        break;
+#if LWIP_HAVE_INT64
+      case SNMP_ASN1_TYPE_COUNTER64:
+        if (varbind->value_len != sizeof(u64_t)) {
+          return ERR_VAL;
+        }
+        snmp_asn1_enc_u64t_cnt(*(u64_t *)varbind->value, &len->value_value_len);
+        break;
+#endif
+      default:
+        /* unsupported type */
+        return ERR_VAL;
+    }
+  }
+  snmp_asn1_enc_length_cnt(len->value_value_len, &len->value_len_len);
+
+  len->vb_value_len = 1 + len->oid_len_len + len->oid_value_len + 1 + len->value_len_len + len->value_value_len;
+  snmp_asn1_enc_length_cnt(len->vb_value_len, &len->vb_len_len);
+
+  return ERR_OK;
+}

@@ -1,0 +1,107 @@
+HAL_StatusTypeDef USB_DevInit (USB_OTG_GlobalTypeDef *USBx, USB_OTG_CfgTypeDef cfg)
+{
+  uint32_t index = 0;
+
+  /*Activate VBUS Sensing B */
+  USBx->GCCFG |= USB_OTG_GCCFG_VBDEN;
+  
+  if (cfg.vbus_sensing_enable == 0)
+  {
+    /* Deactivate VBUS Sensing B */
+    USBx->GCCFG &= ~ USB_OTG_GCCFG_VBDEN;
+    
+    /* B-peripheral session valid override enable*/ 
+    USBx->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
+    USBx->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
+  }
+   
+  /* Restart the Phy Clock */
+  USBx_PCGCCTL = 0;
+
+  /* Device mode configuration */
+  USBx_DEVICE->DCFG |= DCFG_FRAME_INTERVAL_80;
+  
+  /* Set Full speed phy */
+  USB_SetDevSpeed (USBx , USB_OTG_SPEED_FULL);
+
+  /* Flush the FIFOs */
+  USB_FlushTxFifo(USBx , 0x10); /* all Tx FIFOs */
+  USB_FlushRxFifo(USBx);
+  
+  /* Clear all pending Device Interrupts */
+  USBx_DEVICE->DIEPMSK = 0;
+  USBx_DEVICE->DOEPMSK = 0;
+  USBx_DEVICE->DAINT = 0xFFFFFFFF;
+  USBx_DEVICE->DAINTMSK = 0;
+  
+  for (index = 0; index < cfg.dev_endpoints; index++)
+  {
+    if ((USBx_INEP(index)->DIEPCTL & USB_OTG_DIEPCTL_EPENA) == USB_OTG_DIEPCTL_EPENA)
+    {
+      USBx_INEP(index)->DIEPCTL = (USB_OTG_DIEPCTL_EPDIS | USB_OTG_DIEPCTL_SNAK);
+    }
+    else
+    {
+      USBx_INEP(index)->DIEPCTL = 0;
+    }
+    
+    USBx_INEP(index)->DIEPTSIZ = 0;
+    USBx_INEP(index)->DIEPINT  = 0xFF;
+  }
+  
+  for (index = 0; index < cfg.dev_endpoints; index++)
+  {
+    if ((USBx_OUTEP(index)->DOEPCTL & USB_OTG_DOEPCTL_EPENA) == USB_OTG_DOEPCTL_EPENA)
+    {
+      USBx_OUTEP(index)->DOEPCTL = (USB_OTG_DOEPCTL_EPDIS | USB_OTG_DOEPCTL_SNAK);
+    }
+    else
+    {
+      USBx_OUTEP(index)->DOEPCTL = 0;
+    }
+    
+    USBx_OUTEP(index)->DOEPTSIZ = 0;
+    USBx_OUTEP(index)->DOEPINT  = 0xFF;
+  }
+  
+  USBx_DEVICE->DIEPMSK &= ~(USB_OTG_DIEPMSK_TXFURM);
+  
+  if (cfg.dma_enable == 1)
+  {
+    /*Set threshold parameters */
+    USBx_DEVICE->DTHRCTL = (USB_OTG_DTHRCTL_TXTHRLEN_6 | USB_OTG_DTHRCTL_RXTHRLEN_6);
+    USBx_DEVICE->DTHRCTL |= (USB_OTG_DTHRCTL_RXTHREN | USB_OTG_DTHRCTL_ISOTHREN | USB_OTG_DTHRCTL_NONISOTHREN);
+    
+    index= USBx_DEVICE->DTHRCTL;
+  }
+  
+  /* Disable all interrupts. */
+  USBx->GINTMSK = 0;
+  
+  /* Clear any pending interrupts */
+  USBx->GINTSTS = 0xBFFFFFFF;
+
+  /* Enable the common interrupts */
+  if (cfg.dma_enable == DISABLE)
+  {
+    USBx->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM; 
+  }
+
+    /* Enable interrupts matching to the Device mode ONLY */
+  USBx->GINTMSK |= (USB_OTG_GINTMSK_USBSUSPM | USB_OTG_GINTMSK_USBRST |\
+                    USB_OTG_GINTMSK_ENUMDNEM | USB_OTG_GINTMSK_IEPINT |\
+                    USB_OTG_GINTMSK_OEPINT   | USB_OTG_GINTMSK_IISOIXFRM|\
+                    USB_OTG_GINTMSK_PXFRM_IISOOXFRM | USB_OTG_GINTMSK_WUIM);
+
+  if(cfg.Sof_enable)
+  {
+    USBx->GINTMSK |= USB_OTG_GINTMSK_SOFM;
+  }
+
+  if (cfg.vbus_sensing_enable == ENABLE)
+  {
+    USBx->GINTMSK |= (USB_OTG_GINTMSK_SRQIM | USB_OTG_GINTMSK_OTGINT); 
+  }
+  
+  return HAL_OK;
+}

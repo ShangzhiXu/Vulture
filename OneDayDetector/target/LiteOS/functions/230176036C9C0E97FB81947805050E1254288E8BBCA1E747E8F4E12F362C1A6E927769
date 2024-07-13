@@ -1,0 +1,36 @@
+static int pack_checksum_restore_checksum(pack_checksum_s *thi, uint32_t offset, pack_hardware_s *hardware)
+{
+    uint8_t *buff = NULL;
+    const uint32_t max_size = hardware->get_block_size(hardware);
+    uint32_t total_size = 0;
+    uint32_t left_size;
+    uint32_t read_size;
+    int ret = PACK_ERR;
+
+    buff = PACK_MALLOC(max_size);
+    if (buff == NULL) {
+        PACK_LOG("malloc null");
+        return PACK_ERR;
+    }
+    do {
+        ret = PACK_ERR;
+        left_size = offset - total_size;
+        read_size = MIN(left_size, max_size);
+        ret = hardware->read_software(hardware, total_size, buff, read_size);
+        if (ret != PACK_OK) {
+            PACK_LOG("read_software fail, ret %d, offset %d, read_size %d", ret, total_size, read_size);
+            break;
+        }
+        ret = pack_checksum_get_alg(thi)->update(pack_checksum_get_alg(thi), buff, read_size);
+        if (ret != PACK_OK) {
+            break;
+        }
+        total_size += read_size;
+    } while (total_size < offset);
+
+    if (buff) {
+        PACK_FREE(buff);
+    }
+
+    return ret;
+}

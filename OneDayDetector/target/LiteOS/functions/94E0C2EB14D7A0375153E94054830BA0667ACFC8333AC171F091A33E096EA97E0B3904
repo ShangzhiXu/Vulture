@@ -1,0 +1,25 @@
+mdns_read_question(struct mdns_packet *pkt, struct mdns_question *question)
+{
+  /* Safety check */
+  if (pkt->pbuf->tot_len < pkt->parse_offset) {
+    return ERR_VAL;
+  }
+
+  if (pkt->questions_left) {
+    err_t res;
+    pkt->questions_left--;
+
+    memset(question, 0, sizeof(struct mdns_question));
+    res = mdns_read_rr_info(pkt, &question->info);
+    if (res != ERR_OK) {
+      return res;
+    }
+
+    /* Extract unicast flag from class field */
+    question->unicast = question->info.klass & 0x8000;
+    question->info.klass &= 0x7FFF;
+
+    return ERR_OK;
+  }
+  return ERR_VAL;
+}

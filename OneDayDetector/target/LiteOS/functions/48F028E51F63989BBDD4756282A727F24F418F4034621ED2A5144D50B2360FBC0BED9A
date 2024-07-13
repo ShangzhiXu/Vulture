@@ -1,0 +1,47 @@
+HAL_StatusTypeDef HAL_QSPI_Abort(QSPI_HandleTypeDef *hqspi)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t tickstart = HAL_GetTick();
+  
+  /* Check if the state is in one of the busy states */
+  if ((hqspi->State & 0x2) != 0)
+  {
+    /* Process unlocked */
+    __HAL_UNLOCK(hqspi);
+
+    if ((hqspi->Instance->CR & QUADSPI_CR_DMAEN) != 0)
+    {
+      /* Disable the DMA transfer by clearing the DMAEN bit in the QSPI CR register */
+      CLEAR_BIT(hqspi->Instance->CR, QUADSPI_CR_DMAEN);
+
+      /* Abort DMA channel */
+      status = HAL_DMA_Abort(hqspi->hdma);
+      if(status != HAL_OK)
+      {
+        hqspi->ErrorCode |= HAL_QSPI_ERROR_DMA;
+      }
+    }  
+  
+    /* Configure QSPI: CR register with Abort request */
+    SET_BIT(hqspi->Instance->CR, QUADSPI_CR_ABORT);
+
+    /* Wait until TC flag is set to go back in idle state */
+    status = QSPI_WaitFlagStateUntilTimeout(hqspi, QSPI_FLAG_TC, SET, tickstart, hqspi->Timeout);
+
+      if (status == HAL_OK)
+      { 
+      __HAL_QSPI_CLEAR_FLAG(hqspi, QSPI_FLAG_TC);
+    
+      /* Wait until BUSY flag is reset */
+      status = QSPI_WaitFlagStateUntilTimeout(hqspi, QSPI_FLAG_BUSY, RESET, tickstart, hqspi->Timeout);
+    }
+
+    if (status == HAL_OK)
+    {
+      /* Update state */
+      hqspi->State = HAL_QSPI_STATE_READY;
+    }
+  }
+
+  return status;
+}

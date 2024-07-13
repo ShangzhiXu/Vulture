@@ -1,0 +1,28 @@
+HAL_StatusTypeDef HAL_DFSDM_FilterConfigInjChannel(DFSDM_Filter_HandleTypeDef *hdfsdm_filter,
+                                                   uint32_t                    Channel)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Check parameters */
+  assert_param(IS_DFSDM_FILTER_ALL_INSTANCE(hdfsdm_filter->Instance));
+  assert_param(IS_DFSDM_INJECTED_CHANNEL(Channel));
+  
+  /* Check DFSDM filter state */
+  if((hdfsdm_filter->State != HAL_DFSDM_FILTER_STATE_RESET) && 
+     (hdfsdm_filter->State != HAL_DFSDM_FILTER_STATE_ERROR))
+  {
+    /* Configure channel for injected conversion */
+    hdfsdm_filter->Instance->FLTJCHGR = (uint32_t) (Channel & DFSDM_LSB_MASK);
+    /* Store number of injected channels */
+    hdfsdm_filter->InjectedChannelsNbr = DFSDM_GetInjChannelsNbr(Channel);
+    /* Update number of injected channels remaining */
+    hdfsdm_filter->InjConvRemaining = (hdfsdm_filter->InjectedScanMode == ENABLE) ? \
+                                      hdfsdm_filter->InjectedChannelsNbr : 1;
+  }
+  else
+  {
+    status = HAL_ERROR;
+  }
+  /* Return function status */
+  return status;
+}

@@ -1,0 +1,47 @@
+UINT32 Example_StaticMem(VOID)
+{
+    UINT32 *mem = NULL;
+    UINT32 blksize = 3;
+    UINT32 boxsize = 48;
+    UINT32 ret;
+
+    printf("Kernel static memory demo begin.\n");
+    ret = LOS_MemboxInit(&g_demoBoxMem[0], boxsize, blksize);
+    if (ret != LOS_OK) {
+        printf("Mem box init failed.\n");
+        return LOS_NOK;
+    } else {
+        printf("Mem box init ok.\n");
+    }
+
+    /* membox alloc */
+    mem = (UINT32*)LOS_MemboxAlloc(g_demoBoxMem);
+    if (mem == NULL) {
+        printf("Mem box alloc failed.\n");
+        return LOS_NOK;
+    }
+    printf("Mem box alloc ok.\n");
+    /* assignment */
+    *mem = 828;
+    printf("*mem = %d.\n", *mem);
+    /* clear mem context */
+    LOS_MemboxClr(g_demoBoxMem, mem);
+    printf("Clear data ok, *mem = %d.\n", *mem);
+    /* membox free */
+    ret = LOS_MemboxFree(g_demoBoxMem, mem);
+    if (ret == LOS_OK) {
+        printf("Mem box free ok.\n");
+        ret = LOS_InspectStatusSetById(LOS_INSPECT_SMEM, LOS_INSPECT_STU_SUCCESS);
+        if (ret != LOS_OK) {
+            printf("Set InspectStatus Err.\n");
+        }
+    } else {
+        printf("Mem box free failed.\n");
+        ret = LOS_InspectStatusSetById(LOS_INSPECT_SMEM, LOS_INSPECT_STU_ERROR);
+        if (ret != LOS_OK) {
+            printf("Set InspectStatus Err.\n");
+        }
+    }
+
+    return LOS_OK;
+}

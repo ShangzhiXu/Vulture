@@ -1,0 +1,28 @@
+httpc_get_file_dns(const char* server_name, u16_t port, const char* uri, const httpc_connection_t *settings,
+                   altcp_recv_fn recv_fn, void* callback_arg, httpc_state_t **connection)
+{
+  err_t err;
+  httpc_state_t* req;
+
+  LWIP_ERROR("invalid parameters", (server_name != NULL) && (uri != NULL) && (recv_fn != NULL), return ERR_ARG;);
+
+  err = httpc_init_connection(&req, settings, server_name, port, uri, recv_fn, callback_arg);
+  if (err != ERR_OK) {
+    return err;
+  }
+
+  if (settings->use_proxy) {
+    err = httpc_get_internal_addr(req, &settings->proxy_addr);
+  } else {
+    err = httpc_get_internal_dns(req, server_name);
+  }
+  if(err != ERR_OK) {
+    httpc_free_state(req);
+    return err;
+  }
+
+  if (connection != NULL) {
+    *connection = req;
+  }
+  return ERR_OK;
+}

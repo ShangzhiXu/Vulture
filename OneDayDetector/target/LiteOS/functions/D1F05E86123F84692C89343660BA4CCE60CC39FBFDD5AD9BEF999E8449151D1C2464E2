@@ -1,0 +1,36 @@
+void FLASH_Erase_Sector(uint32_t Sector, uint8_t VoltageRange)
+{
+  uint32_t tmp_psize = 0;
+
+  /* Check the parameters */
+  assert_param(IS_FLASH_SECTOR(Sector));
+  assert_param(IS_VOLTAGERANGE(VoltageRange));
+  
+  if(VoltageRange == FLASH_VOLTAGE_RANGE_1)
+  {
+     tmp_psize = FLASH_PSIZE_BYTE;
+  }
+  else if(VoltageRange == FLASH_VOLTAGE_RANGE_2)
+  {
+    tmp_psize = FLASH_PSIZE_HALF_WORD;
+  }
+  else if(VoltageRange == FLASH_VOLTAGE_RANGE_3)
+  {
+    tmp_psize = FLASH_PSIZE_WORD;
+  }
+  else
+  {
+    tmp_psize = FLASH_PSIZE_DOUBLE_WORD;
+  }
+
+  /* If the previous operation is completed, proceed to erase the sector */
+  FLASH->CR &= CR_PSIZE_MASK;
+  FLASH->CR |= tmp_psize;
+  FLASH->CR &= SECTOR_MASK;
+  FLASH->CR |= FLASH_CR_SER | (Sector << FLASH_CR_SNB_Pos);
+  FLASH->CR |= FLASH_CR_STRT;
+  
+  /* Data synchronous Barrier (DSB) Just after the write operation
+     This will force the CPU to respect the sequence of instruction (no optimization).*/
+  __DSB();
+}

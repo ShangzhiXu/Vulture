@@ -1,0 +1,102 @@
+HAL_StatusTypeDef HAL_SPI_RegisterCallback(SPI_HandleTypeDef *hspi, HAL_SPI_CallbackIDTypeDef CallbackID,
+                                           pSPI_CallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    /* Update the error code */
+    hspi->ErrorCode |= HAL_SPI_ERROR_INVALID_CALLBACK;
+
+    return HAL_ERROR;
+  }
+  /* Process locked */
+  __HAL_LOCK(hspi);
+
+  if (HAL_SPI_STATE_READY == hspi->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_SPI_TX_COMPLETE_CB_ID :
+        hspi->TxCpltCallback = pCallback;
+        break;
+
+      case HAL_SPI_RX_COMPLETE_CB_ID :
+        hspi->RxCpltCallback = pCallback;
+        break;
+
+      case HAL_SPI_TX_RX_COMPLETE_CB_ID :
+        hspi->TxRxCpltCallback = pCallback;
+        break;
+
+      case HAL_SPI_TX_HALF_COMPLETE_CB_ID :
+        hspi->TxHalfCpltCallback = pCallback;
+        break;
+
+      case HAL_SPI_RX_HALF_COMPLETE_CB_ID :
+        hspi->RxHalfCpltCallback = pCallback;
+        break;
+
+      case HAL_SPI_TX_RX_HALF_COMPLETE_CB_ID :
+        hspi->TxRxHalfCpltCallback = pCallback;
+        break;
+
+      case HAL_SPI_ERROR_CB_ID :
+        hspi->ErrorCallback = pCallback;
+        break;
+
+      case HAL_SPI_ABORT_CB_ID :
+        hspi->AbortCpltCallback = pCallback;
+        break;
+
+      case HAL_SPI_MSPINIT_CB_ID :
+        hspi->MspInitCallback = pCallback;
+        break;
+
+      case HAL_SPI_MSPDEINIT_CB_ID :
+        hspi->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_INVALID_CALLBACK);
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if (HAL_SPI_STATE_RESET == hspi->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_SPI_MSPINIT_CB_ID :
+        hspi->MspInitCallback = pCallback;
+        break;
+
+      case HAL_SPI_MSPDEINIT_CB_ID :
+        hspi->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_INVALID_CALLBACK);
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_INVALID_CALLBACK);
+
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hspi);
+  return status;
+}

@@ -1,0 +1,43 @@
+HAL_StatusTypeDef HAL_SDRAM_Init(SDRAM_HandleTypeDef *hsdram, FMC_SDRAM_TimingTypeDef *Timing)
+{   
+  /* Check the SDRAM handle parameter */
+  if(hsdram == NULL)
+  {
+    return HAL_ERROR;
+  }
+  
+  if(hsdram->State == HAL_SDRAM_STATE_RESET)
+  {  
+    /* Allocate lock resource and initialize it */
+    hsdram->Lock = HAL_UNLOCKED;
+#if (USE_HAL_SDRAM_REGISTER_CALLBACKS == 1)
+    if(hsdram->MspInitCallback == NULL)
+    {
+      hsdram->MspInitCallback = HAL_SDRAM_MspInit;
+    }
+    hsdram->RefreshErrorCallback = HAL_SDRAM_RefreshErrorCallback;
+    hsdram->DmaXferCpltCallback = HAL_SDRAM_DMA_XferCpltCallback;
+    hsdram->DmaXferErrorCallback = HAL_SDRAM_DMA_XferErrorCallback;
+
+    /* Init the low level hardware */
+    hsdram->MspInitCallback(hsdram);
+#else
+    /* Initialize the low level hardware (MSP) */
+    HAL_SDRAM_MspInit(hsdram);
+#endif
+  }
+  
+  /* Initialize the SDRAM controller state */
+  hsdram->State = HAL_SDRAM_STATE_BUSY;
+  
+  /* Initialize SDRAM control Interface */
+  FMC_SDRAM_Init(hsdram->Instance, &(hsdram->Init));
+  
+  /* Initialize SDRAM timing Interface */
+  FMC_SDRAM_Timing_Init(hsdram->Instance, Timing, hsdram->Init.SDBank); 
+  
+  /* Update the SDRAM controller state */
+  hsdram->State = HAL_SDRAM_STATE_READY;
+  
+  return HAL_OK;
+}

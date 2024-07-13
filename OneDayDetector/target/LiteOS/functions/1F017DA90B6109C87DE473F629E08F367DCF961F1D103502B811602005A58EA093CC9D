@@ -1,0 +1,41 @@
+STATIC INLINE BOOL FindSuitableStack(UINTPTR regFP, UINTPTR *start, UINTPTR *end)
+{
+    UINT32 index, stackStart, stackEnd;
+    BOOL found = FALSE;
+    LosTaskCB *taskCB = NULL;
+    const StackInfo *stack = NULL;
+
+    /* Search in the task stacks */
+    for (index = 0; index < g_taskMaxNum; index++) {
+        taskCB = &g_taskCBArray[index];
+        if (taskCB->taskStatus & OS_TASK_STATUS_UNUSED) {
+            continue;
+        }
+
+        stackStart = taskCB->topOfStack;
+        stackEnd = taskCB->topOfStack + taskCB->stackSize;
+        if (IsValidFP(regFP, stackStart, stackEnd)) {
+            found = TRUE;
+            goto FOUND;
+        }
+    }
+
+    /* Search in the exc stacks */
+    for (index = 0; index < sizeof(g_excStack) / sizeof(StackInfo); index++) {
+        stack = &g_excStack[index];
+        stackStart = (UINTPTR)stack->stackTop;
+        stackEnd = stackStart + LOSCFG_KERNEL_CORE_NUM * stack->stackSize;
+        if (IsValidFP(regFP, stackStart, stackEnd)) {
+            found = TRUE;
+            goto FOUND;
+        }
+    }
+
+FOUND:
+    if (found == TRUE) {
+        *start = stackStart;
+        *end = stackEnd;
+    }
+
+    return found;
+}

@@ -1,0 +1,50 @@
+static void SPI_CloseRxTx_ISR(SPI_HandleTypeDef *hspi)
+{
+  uint32_t tickstart = 0U;
+
+  /* Init tickstart for timeout managment*/
+  tickstart = HAL_GetTick();
+
+  /* Disable ERR interrupt */
+  __HAL_SPI_DISABLE_IT(hspi, SPI_IT_ERR);
+
+  /* Check the end of the transaction */
+  if (SPI_EndRxTxTransaction(hspi, SPI_DEFAULT_TIMEOUT, tickstart) != HAL_OK)
+  {
+    SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_FLAG);
+  }
+
+#if (USE_SPI_CRC != 0U)
+  /* Check if CRC error occurred */
+  if (__HAL_SPI_GET_FLAG(hspi, SPI_FLAG_CRCERR) != RESET)
+  {
+    hspi->State = HAL_SPI_STATE_READY;
+    SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_CRC);
+    __HAL_SPI_CLEAR_CRCERRFLAG(hspi);
+    HAL_SPI_ErrorCallback(hspi);
+  }
+  else
+  {
+#endif /* USE_SPI_CRC */
+    if (hspi->ErrorCode == HAL_SPI_ERROR_NONE)
+    {
+      if (hspi->State == HAL_SPI_STATE_BUSY_RX)
+      {
+        hspi->State = HAL_SPI_STATE_READY;
+        HAL_SPI_RxCpltCallback(hspi);
+      }
+      else
+      {
+        hspi->State = HAL_SPI_STATE_READY;
+        HAL_SPI_TxRxCpltCallback(hspi);
+      }
+    }
+    else
+    {
+      hspi->State = HAL_SPI_STATE_READY;
+      HAL_SPI_ErrorCallback(hspi);
+    }
+#if (USE_SPI_CRC != 0U)
+  }
+#endif /* USE_SPI_CRC */
+}

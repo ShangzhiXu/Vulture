@@ -1,0 +1,47 @@
+static lv_res_t lv_list_btn_signal(lv_obj_t * btn, lv_signal_t sign, void * param)
+{
+    lv_res_t res;
+
+    /* Include the ancient signal function */
+    res = ancestor_btn_signal(btn, sign, param);
+    if(res != LV_RES_OK) return res;
+    if(sign == LV_SIGNAL_GET_TYPE) return lv_obj_handle_get_type_signal(param, "");
+
+    if((sign == LV_SIGNAL_COORD_CHG && (lv_obj_get_width(btn) != lv_area_get_width(param) ||
+                                        lv_obj_get_height(btn) != lv_area_get_height(param))) ||
+       sign == LV_SIGNAL_STYLE_CHG) {
+        lv_obj_t * label = lv_list_get_btn_label(btn);
+        if(label) {
+            const lv_font_t * font = lv_obj_get_style_text_font(label, LV_LABEL_PART_MAIN);
+            lv_coord_t font_h = lv_font_get_line_height(font);
+            if(lv_obj_get_base_dir(btn) == LV_BIDI_DIR_RTL) {
+                lv_coord_t pad = lv_obj_get_style_pad_left(btn, LV_BTN_PART_MAIN);
+                lv_obj_set_size(label, label->coords.x2 - btn->coords.x1 - pad, font_h);
+            }
+            else {
+                lv_coord_t pad = lv_obj_get_style_pad_right(btn, LV_BTN_PART_MAIN);
+                lv_obj_set_size(label, btn->coords.x2 - label->coords.x1 - pad + 1, font_h);
+            }
+        }
+    }
+    else if(sign == LV_SIGNAL_RELEASED) {
+        if(lv_indev_is_dragging(lv_indev_get_act()) == false) {
+            lv_obj_t * list = lv_obj_get_parent(lv_obj_get_parent(btn));
+            lv_list_focus_btn(list, btn);
+#if LV_USE_GROUP
+            if(lv_obj_get_group(list)) {
+                lv_group_focus_obj(list);
+            }
+#endif
+        }
+    }
+    else if(sign == LV_SIGNAL_CLEANUP) {
+#if LV_USE_GROUP
+        lv_obj_t * list = lv_obj_get_parent(lv_obj_get_parent(btn));
+        lv_obj_t * sel  = lv_list_get_btn_selected(list);
+        if(sel == btn) lv_list_focus_btn(list, lv_list_get_next_btn(list, btn));
+#endif
+    }
+
+    return res;
+}

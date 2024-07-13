@@ -1,0 +1,39 @@
+static void SPI_2linesTxISR_8BIT(struct __SPI_HandleTypeDef *hspi)
+{
+  /* Transmit data in packing Bit mode */
+  if (hspi->TxXferCount >= 2U)
+  {
+    hspi->Instance->DR = *((uint16_t *)hspi->pTxBuffPtr);
+    hspi->pTxBuffPtr += sizeof(uint16_t);
+    hspi->TxXferCount -= 2U;
+  }
+  /* Transmit data in 8 Bit mode */
+  else
+  {
+    *(__IO uint8_t *)&hspi->Instance->DR = (*hspi->pTxBuffPtr++);
+    hspi->TxXferCount--;
+  }
+
+  /* Check the end of the transmission */
+  if (hspi->TxXferCount == 0U)
+  {
+#if (USE_SPI_CRC != 0U)
+    if (hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+    {
+      /* Set CRC Next Bit to send CRC */
+      SET_BIT(hspi->Instance->CR1, SPI_CR1_CRCNEXT);
+      /* Disable TXE interrupt */
+      __HAL_SPI_DISABLE_IT(hspi, SPI_IT_TXE);
+      return;
+    }
+#endif /* USE_SPI_CRC */
+
+    /* Disable TXE interrupt */
+    __HAL_SPI_DISABLE_IT(hspi, SPI_IT_TXE);
+
+    if (hspi->RxXferCount == 0U)
+    {
+      SPI_CloseRxTx_ISR(hspi);
+    }
+  }
+}

@@ -1,0 +1,27 @@
+STATIC UINT16 GicTargetList(UINT32 *base, UINT32 cpuMask, UINT64 cluster)
+{
+    UINT32 nextCpu;
+    UINT16 tList = 0;
+    UINT32 cpu = *base;
+    UINT64 mpidr = CPU_MAP_GET(cpu);
+
+    while (cpu < LOSCFG_KERNEL_CORE_NUM) {
+        tList |= 1U << (mpidr & 0xf);
+
+        nextCpu = NextCpu(cpu, cpuMask);
+        if (nextCpu >= LOSCFG_KERNEL_CORE_NUM) {
+            goto out;
+        }
+
+        cpu = nextCpu;
+        mpidr = CPU_MAP_GET(cpu);
+        if (cluster != (mpidr & ~0xffUL)) {
+            cpu--;
+            goto out;
+        }
+    }
+
+out:
+    *base = cpu;
+    return tList;
+}

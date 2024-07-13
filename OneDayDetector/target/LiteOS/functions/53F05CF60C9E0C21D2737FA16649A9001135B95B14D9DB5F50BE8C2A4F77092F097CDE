@@ -1,0 +1,33 @@
+static bool_t checkmi(char *devname, int times)
+{
+    bool_t result = false;
+    char atrcvbuf[CN_AT_LEN];
+
+    char *argv[6];
+    int argc;
+    int i = 0;
+    int position;
+
+    // first we should check if the sim card inserted:at+cpin?
+    printf("checkcgmi:");
+    for (i = 0; i < times; i++) {
+        printf("%d->", i);
+        memset(argv, 0, sizeof(argv));
+        memset(atrcvbuf, 0, sizeof(atrcvbuf));
+        argc = AtCmd(devname, "AT+CGMI", atrcvbuf, CN_AT_LEN, 6, argv);
+        if (argc > 0) {
+            position = strinargs(argc, argv, "OK");
+            if ((position != 0) && (position != -1)) {
+                result = true;
+                break;
+            }
+        }
+        task_sleepms(1000);
+    }
+    if (result) {
+        printf(".:OK:%s\n\r", argv[position - 1]);
+    } else {
+        printf(".timeout!\n\r");
+    }
+    return result;
+}

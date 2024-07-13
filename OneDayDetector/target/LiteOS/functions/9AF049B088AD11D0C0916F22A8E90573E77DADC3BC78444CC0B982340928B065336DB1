@@ -1,0 +1,37 @@
+int parse_firmware_uri(char *uri, int uri_len)
+{
+    char *char_p, *path;
+    int path_len, proto_len;
+
+    if (!uri || (*uri == '\0') || (uri_len <= 0)) {
+        return -1;
+    }
+
+    if (strncmp(uri, COAP_PROTO_PREFIX, strlen(COAP_PROTO_PREFIX)) == 0) {
+        proto_len = strlen(COAP_PROTO_PREFIX);
+    } else if (strncmp(uri, COAPS_PROTO_PREFIX, strlen(COAPS_PROTO_PREFIX)) == 0) {
+        proto_len = strlen(COAPS_PROTO_PREFIX);
+    } else {
+        ATINY_LOG(LOG_ERR, "unsupported proto");
+        return -1;
+    }
+
+    char_p = uri + proto_len;
+    if (*char_p == '\0') // eg. just "coap://"
+        return -1;
+    path = strchr(char_p, '/');
+    if (path == NULL) {
+        return -1;
+    }
+    path_len = uri_len - (path - uri);
+
+    g_ota_uri = (char *)lwm2m_malloc(path_len + 1);
+    if (!g_ota_uri) {
+        ATINY_LOG(LOG_ERR, "lwm2m_malloc failed");
+        return -1;
+    }
+    memcpy(g_ota_uri, path, path_len);
+    g_ota_uri[path_len] = '\0';
+
+    return 0;
+}

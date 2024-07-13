@@ -1,0 +1,35 @@
+uint32_t LL_RCC_GetDFSDMAudioClockFreq(uint32_t DFSDMxSource)
+{
+  uint32_t dfsdm_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_DFSDM_AUDIO_CLKSOURCE(DFSDMxSource));
+
+  /* DFSDM1CLK clock frequency */
+  switch (LL_RCC_GetDFSDMAudioClockSource(DFSDMxSource))
+  {
+    case LL_RCC_DFSDM1_AUDIO_CLKSOURCE_SAI1:     /* SAI1 clock used as DFSDM1 audio clock */
+      dfsdm_frequency = LL_RCC_GetSAIClockFreq(LL_RCC_SAI1_CLKSOURCE);
+      break;
+
+    case LL_RCC_DFSDM1_AUDIO_CLKSOURCE_MSI:      /* MSI clock used as DFSDM1 audio clock */
+      if (LL_RCC_MSI_IsReady())
+      {
+        dfsdm_frequency = __LL_RCC_CALC_MSI_FREQ(LL_RCC_MSI_IsEnabledRangeSelect(),
+                                    (LL_RCC_MSI_IsEnabledRangeSelect() ?
+                                     LL_RCC_MSI_GetRange() :
+                                     LL_RCC_MSI_GetRangeAfterStandby()));
+      }
+      break;
+
+    case LL_RCC_DFSDM1_AUDIO_CLKSOURCE_HSI:      /* HSI clock used as DFSDM1 audio clock */
+    default:
+      if (LL_RCC_HSI_IsReady())
+      {
+        dfsdm_frequency = HSI_VALUE;
+      }
+      break;
+  }
+
+  return dfsdm_frequency;
+}

@@ -1,0 +1,67 @@
+static HAL_StatusTypeDef SMBUS_Disable_IRQ(SMBUS_HandleTypeDef *hsmbus, uint16_t InterruptRequest)
+{
+  uint32_t tmpisr = 0U;
+
+  if (((InterruptRequest & SMBUS_IT_ALERT) == SMBUS_IT_ALERT) && (hsmbus->State == HAL_SMBUS_STATE_READY))
+  {
+    /* Disable ERR interrupt */
+    tmpisr |= SMBUS_IT_ERRI;
+  }
+
+  if ((InterruptRequest & SMBUS_IT_TX) == SMBUS_IT_TX)
+  {
+    /* Disable TC, STOP, NACK, TXI interrupt */
+    tmpisr |= SMBUS_IT_TCI | SMBUS_IT_TXI;
+
+    if ((SMBUS_GET_ALERT_ENABLED(hsmbus) == RESET)
+        && ((hsmbus->State & HAL_SMBUS_STATE_LISTEN) != HAL_SMBUS_STATE_LISTEN))
+    {
+      /* Disable ERR interrupt */
+      tmpisr |= SMBUS_IT_ERRI;
+    }
+
+    if ((hsmbus->State & HAL_SMBUS_STATE_LISTEN) != HAL_SMBUS_STATE_LISTEN)
+    {
+      /* Disable STOPI, NACKI */
+      tmpisr |= SMBUS_IT_STOPI | SMBUS_IT_NACKI;
+    }
+  }
+
+  if ((InterruptRequest & SMBUS_IT_RX) == SMBUS_IT_RX)
+  {
+    /* Disable TC, STOP, NACK, RXI interrupt */
+    tmpisr |= SMBUS_IT_TCI | SMBUS_IT_RXI;
+
+    if ((SMBUS_GET_ALERT_ENABLED(hsmbus) == RESET)
+        && ((hsmbus->State & HAL_SMBUS_STATE_LISTEN) != HAL_SMBUS_STATE_LISTEN))
+    {
+      /* Disable ERR interrupt */
+      tmpisr |= SMBUS_IT_ERRI;
+    }
+
+    if ((hsmbus->State & HAL_SMBUS_STATE_LISTEN) != HAL_SMBUS_STATE_LISTEN)
+    {
+      /* Disable STOPI, NACKI */
+      tmpisr |= SMBUS_IT_STOPI | SMBUS_IT_NACKI;
+    }
+  }
+
+  if ((InterruptRequest & SMBUS_IT_ADDR) == SMBUS_IT_ADDR)
+  {
+    /* Enable ADDR, STOP interrupt */
+    tmpisr |= SMBUS_IT_ADDRI | SMBUS_IT_STOPI | SMBUS_IT_NACKI;
+
+    if (SMBUS_GET_ALERT_ENABLED(hsmbus) == RESET)
+    {
+      /* Disable ERR interrupt */
+      tmpisr |= SMBUS_IT_ERRI;
+    }
+  }
+
+  /* Disable interrupts only at the end */
+  /* to avoid a breaking situation like at "t" time */
+  /* all disable interrupts request are not done */
+  __HAL_SMBUS_DISABLE_IT(hsmbus, tmpisr);
+
+  return HAL_OK;
+}

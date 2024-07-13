@@ -1,0 +1,41 @@
+HAL_StatusTypeDef HAL_COMP_Start_IT(COMP_HandleTypeDef *hcomp)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t extiline = 0U;
+  
+  /* Check the parameter */
+  assert_param(IS_COMP_TRIGGERMODE(hcomp->Init.TriggerMode));
+
+  status = HAL_COMP_Start(hcomp);
+  if(status == HAL_OK)
+  {
+    /* Check the Exti Line output configuration */
+    extiline = COMP_GET_EXTI_LINE(hcomp->Instance);
+    /* Configure the rising edge */
+    if((hcomp->Init.TriggerMode & COMP_TRIGGERMODE_IT_RISING) != RESET)
+    {
+      SET_BIT(EXTI->RTSR, extiline);
+    }
+    else
+    {
+      CLEAR_BIT(EXTI->RTSR, extiline);
+    }
+    /* Configure the falling edge */
+    if((hcomp->Init.TriggerMode & COMP_TRIGGERMODE_IT_FALLING) != RESET)
+    {
+      SET_BIT(EXTI->FTSR, extiline);
+    }
+    else
+    {
+      CLEAR_BIT(EXTI->FTSR, extiline);
+    }
+
+    /* Clear COMP EXTI pending bit */
+    WRITE_REG(EXTI->PR, extiline);
+    
+    /* Enable Exti interrupt mode */
+    SET_BIT(EXTI->IMR, extiline);
+  }
+
+  return status;
+}

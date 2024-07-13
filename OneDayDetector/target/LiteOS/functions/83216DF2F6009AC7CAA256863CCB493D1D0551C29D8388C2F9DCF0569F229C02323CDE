@@ -1,0 +1,66 @@
+static void draw_series_bg(lv_obj_t * chart, const lv_area_t * series_area, const lv_area_t * clip_area)
+{
+    /*Draw the background of the series*/
+    lv_draw_rect_dsc_t bg_dsc;
+    lv_draw_rect_dsc_init(&bg_dsc);
+    lv_obj_init_draw_rect_dsc(chart, LV_CHART_PART_SERIES_BG, &bg_dsc);
+    lv_draw_rect(series_area, clip_area, &bg_dsc);
+
+    lv_chart_ext_t * ext     = lv_obj_get_ext_attr(chart);
+
+    uint8_t div_i;
+    uint8_t div_i_end;
+    uint8_t div_i_start;
+    lv_point_t p1;
+    lv_point_t p2;
+    lv_coord_t w     = lv_area_get_width(series_area);
+    lv_coord_t h     = lv_area_get_height(series_area);
+    lv_coord_t x_ofs = series_area->x1;
+    lv_coord_t y_ofs = series_area->y1;
+
+    lv_draw_line_dsc_t line_dsc;
+    lv_draw_line_dsc_init(&line_dsc);
+    lv_obj_init_draw_line_dsc(chart, LV_CHART_PART_SERIES_BG, &line_dsc);
+
+    if(ext->hdiv_cnt != 0) {
+        /*Draw side lines if no border*/
+        if(bg_dsc.border_width != 0) {
+            div_i_start = 1;
+            div_i_end   = ext->hdiv_cnt;
+        }
+        else {
+            div_i_start = 0;
+            div_i_end   = ext->hdiv_cnt + 1;
+        }
+
+        p1.x = 0 + x_ofs;
+        p2.x = w - 1 + x_ofs;
+        for(div_i = div_i_start; div_i <= div_i_end; div_i++) {
+            p1.y = (int32_t)((int32_t)(h - line_dsc.width) * div_i) / (ext->hdiv_cnt + 1);
+            p1.y += y_ofs;
+            p2.y = p1.y;
+            lv_draw_line(&p1, &p2, clip_area, &line_dsc);
+        }
+    }
+
+    if(ext->vdiv_cnt != 0) {
+        /*Draw side lines if no border*/
+        if(bg_dsc.border_width != 0) {
+            div_i_start = 1;
+            div_i_end   = ext->vdiv_cnt;
+        }
+        else {
+            div_i_start = 0;
+            div_i_end   = ext->vdiv_cnt + 1;
+        }
+
+        p1.y = 0 + y_ofs;
+        p2.y = h + y_ofs - 1;
+        for(div_i = div_i_start; div_i <= div_i_end; div_i++) {
+            p1.x = (int32_t)((int32_t)(w - line_dsc.width) * div_i) / (ext->vdiv_cnt + 1);
+            p1.x += x_ofs;
+            p2.x = p1.x;
+            lv_draw_line(&p1, &p2, clip_area, &line_dsc);
+        }
+    }
+}

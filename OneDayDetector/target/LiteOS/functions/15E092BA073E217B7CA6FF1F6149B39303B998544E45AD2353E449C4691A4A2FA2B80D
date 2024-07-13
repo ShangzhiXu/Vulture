@@ -1,0 +1,30 @@
+HAL_StatusTypeDef HAL_TIM_OnePulse_DeInit(TIM_HandleTypeDef *htim)
+{
+  /* Check the parameters */
+  assert_param(IS_TIM_INSTANCE(htim->Instance));
+
+  htim->State = HAL_TIM_STATE_BUSY;
+
+  /* Disable the TIM Peripheral Clock */
+  __HAL_TIM_DISABLE(htim);
+
+#if (USE_HAL_TIM_REGISTER_CALLBACKS == 1)
+  if (htim->OnePulse_MspDeInitCallback == NULL)
+  {
+    htim->OnePulse_MspDeInitCallback = HAL_TIM_OnePulse_MspDeInit;
+  }
+  /* DeInit the low level hardware */
+  htim->OnePulse_MspDeInitCallback(htim);
+#else
+  /* DeInit the low level hardware: GPIO, CLOCK, NVIC */
+  HAL_TIM_OnePulse_MspDeInit(htim);
+#endif /* USE_HAL_TIM_REGISTER_CALLBACKS */
+
+  /* Change TIM state */
+  htim->State = HAL_TIM_STATE_RESET;
+
+  /* Release Lock */
+  __HAL_UNLOCK(htim);
+
+  return HAL_OK;
+}

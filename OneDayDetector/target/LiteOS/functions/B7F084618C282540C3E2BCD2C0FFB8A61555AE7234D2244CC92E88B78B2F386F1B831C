@@ -1,0 +1,29 @@
+lwip_sock_make_addr(struct netconn *conn, ip_addr_t *fromaddr, u16_t port,
+                    struct sockaddr *from, socklen_t *fromlen)
+{
+  int truncated = 0;
+  union sockaddr_aligned saddr;
+
+  LWIP_UNUSED_ARG(conn);
+
+  LWIP_ASSERT("fromaddr != NULL", fromaddr != NULL);
+  LWIP_ASSERT("from != NULL", from != NULL);
+  LWIP_ASSERT("fromlen != NULL", fromlen != NULL);
+
+#if LWIP_IPV4 && LWIP_IPV6
+  /* Dual-stack: Map IPv4 addresses to IPv4 mapped IPv6 */
+  if (NETCONNTYPE_ISIPV6(netconn_type(conn)) && IP_IS_V4(fromaddr)) {
+    ip4_2_ipv4_mapped_ipv6(ip_2_ip6(fromaddr), ip_2_ip4(fromaddr));
+    IP_SET_TYPE(fromaddr, IPADDR_TYPE_V6);
+  }
+#endif /* LWIP_IPV4 && LWIP_IPV6 */
+
+  IPADDR_PORT_TO_SOCKADDR(&saddr, fromaddr, port);
+  if (*fromlen < saddr.sa.sa_len) {
+    truncated = 1;
+  } else if (*fromlen > saddr.sa.sa_len) {
+    *fromlen = saddr.sa.sa_len;
+  }
+  MEMCPY(from, &saddr, *fromlen);
+  return truncated;
+}

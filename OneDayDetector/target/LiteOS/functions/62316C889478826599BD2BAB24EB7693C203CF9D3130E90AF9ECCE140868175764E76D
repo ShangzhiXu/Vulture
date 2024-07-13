@@ -1,0 +1,65 @@
+s32_t spiffs_object_create(
+    spiffs *fs,
+    spiffs_obj_id obj_id,
+    const u8_t name[],
+    const u8_t meta[],
+    spiffs_obj_type type,
+    spiffs_page_ix *objix_hdr_pix)
+{
+    s32_t res = SPIFFS_OK;
+    spiffs_block_ix bix;
+    spiffs_page_object_ix_header oix_hdr;
+    int entry;
+
+    res = spiffs_gc_check(fs, SPIFFS_DATA_PAGE_SIZE(fs));
+    SPIFFS_CHECK_RES(res);
+
+    obj_id |= SPIFFS_OBJ_ID_IX_FLAG;
+
+    // find free entry
+    res = spiffs_obj_lu_find_free(fs, fs->free_cursor_block_ix, fs->free_cursor_obj_lu_entry, &bix, &entry);
+    SPIFFS_CHECK_RES(res);
+    SPIFFS_DBG("create: found free page @ "_SPIPRIpg" bix:"_SPIPRIbl" entry:"_SPIPRIsp"\n", (spiffs_page_ix)SPIFFS_OBJ_LOOKUP_ENTRY_TO_PIX(fs, bix, entry), bix, entry);
+
+    // occupy page in object lookup
+    res = _spiffs_wr(fs, SPIFFS_OP_T_OBJ_LU | SPIFFS_OP_C_UPDT,
+                     0, SPIFFS_BLOCK_TO_PADDR(fs, bix) + entry * sizeof(spiffs_obj_id), sizeof(spiffs_obj_id), (u8_t *)&obj_id);
+    SPIFFS_CHECK_RES(res);
+
+    fs->stats_p_allocated++;
+
+    // write empty object index page
+    oix_hdr.p_hdr.obj_id = obj_id;
+    oix_hdr.p_hdr.span_ix = 0;
+    oix_hdr.p_hdr.flags = 0xff & ~(SPIFFS_PH_FLAG_FINAL | SPIFFS_PH_FLAG_INDEX | SPIFFS_PH_FLAG_USED);
+    oix_hdr.type = type;
+    oix_hdr.size = SPIFFS_UNDEFINED_LEN; // keep ones so we can update later without wasting this page
+    strncpy((char *)oix_hdr.name, (const char *)name, SPIFFS_OBJ_NAME_LEN);
+#if SPIFFS_OBJ_META_LEN
+    if (meta)
+    {
+        _SPIFFS_MEMCPY(oix_hdr.meta, meta, SPIFFS_OBJ_META_LEN);
+    }
+    else
+    {
+        memset(oix_hdr.meta, 0xff, SPIFFS_OBJ_META_LEN);
+    }
+#else
+    (void) meta;
+#endif
+
+    // update page
+    res = _spiffs_wr(fs, SPIFFS_OP_T_OBJ_DA | SPIFFS_OP_C_UPDT,
+                     0, SPIFFS_OBJ_LOOKUP_ENTRY_TO_PADDR(fs, bix, entry), sizeof(spiffs_page_object_ix_header), (u8_t *)&oix_hdr);
+
+    SPIFFS_CHECK_RES(res);
+    spiffs_cb_object_event(fs, (spiffs_page_object_ix *)&oix_hdr,
+                           SPIFFS_EV_IX_NEW, obj_id, 0, SPIFFS_OBJ_LOOKUP_ENTRY_TO_PIX(fs, bix, entry), SPIFFS_UNDEFINED_LEN);
+
+    if (objix_hdr_pix)
+    {
+        *objix_hdr_pix = SPIFFS_OBJ_LOOKUP_ENTRY_TO_PIX(fs, bix, entry);
+    }
+
+    return res;
+}

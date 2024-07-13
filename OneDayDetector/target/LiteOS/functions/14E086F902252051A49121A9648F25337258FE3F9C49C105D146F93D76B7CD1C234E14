@@ -1,0 +1,25 @@
+int atiny_task_mutex_delete(atiny_task_mutex_s *mutex)
+{
+    int ret;
+
+    if (mutex == NULL) {
+        return ERR;
+    }
+
+    if (!atiny_task_mutex_is_valid(mutex)) {
+        return ERR;
+    }
+
+    do {
+        ret = (int)LOS_MuxDelete(mutex->mutex);
+        if (ret == (int)LOS_ERRNO_MUX_PENDED) {
+            (void)LOS_TaskDelay(ATINY_DESTROY_MUTEX_WAIT_INTERVAL);
+        } else {
+            break;
+        }
+    }while (true);
+
+    (void)memset_s(mutex, sizeof(atiny_task_mutex_s), 0, sizeof(atiny_task_mutex_s));
+
+    return ret;
+}

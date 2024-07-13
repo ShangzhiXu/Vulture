@@ -1,0 +1,62 @@
+snmp_err_t snmp_table_simple_get_instance(const u32_t *root_oid, u8_t root_oid_len, struct snmp_node_instance *instance)
+{
+  snmp_err_t ret = SNMP_ERR_NOSUCHINSTANCE;
+  const struct snmp_table_simple_node *table_node = (const struct snmp_table_simple_node *)(const void *)instance->node;
+
+  LWIP_UNUSED_ARG(root_oid);
+  LWIP_UNUSED_ARG(root_oid_len);
+
+  /* check min. length (fixed row entry definition, column, row instance oid with at least one entry */
+  /* fixed row entry always has oid 1 */
+  if ((instance->instance_oid.len >= 3) && (instance->instance_oid.id[0] == 1)) {
+    ret = table_node->get_cell_value(
+            &(instance->instance_oid.id[1]),
+            &(instance->instance_oid.id[2]),
+            instance->instance_oid.len - 2,
+            &instance->reference,
+            &instance->reference_len);
+
+    if (ret == SNMP_ERR_NOERROR) {
+      /* search column */
+      const struct snmp_table_simple_col_def *col_def = table_node->columns;
+      u32_t i = table_node->column_count;
+      while (i > 0) {
+        if (col_def->index == instance->instance_oid.id[1]) {
+          break;
+        }
+
+        col_def++;
+        i--;
+      }
+
+      if (i > 0) {
+        instance->asn1_type = col_def->asn1_type;
+        instance->access    = SNMP_NODE_INSTANCE_READ_ONLY;
+        instance->set_test  = NULL;
+        instance->set_value = NULL;
+
+        switch (col_def->data_type) {
+          case SNMP_VARIANT_VALUE_TYPE_U32:
+            instance->get_value = snmp_table_extract_value_from_u32ref;
+            break;
+          case SNMP_VARIANT_VALUE_TYPE_S32:
+            instance->get_value = snmp_table_extract_value_from_s32ref;
+            break;
+          case SNMP_VARIANT_VALUE_TYPE_PTR: /* fall through */
+          case SNMP_VARIANT_VALUE_TYPE_CONST_PTR:
+            instance->get_value = snmp_table_extract_value_from_refconstptr;
+            break;
+          default:
+            LWIP_DEBUGF(SNMP_DEBUG, ("snmp_table_simple_get_instance(): unknown column data_type: %d\n", col_def->data_type));
+            return SNMP_ERR_GENERROR;
+        }
+
+        ret = SNMP_ERR_NOERROR;
+      } else {
+        ret = SNMP_ERR_NOSUCHINSTANCE;
+      }
+    }
+  }
+
+  return ret;
+}

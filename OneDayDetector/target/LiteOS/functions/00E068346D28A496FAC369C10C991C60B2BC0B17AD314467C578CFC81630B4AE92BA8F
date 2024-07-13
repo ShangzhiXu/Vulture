@@ -1,0 +1,40 @@
+coap_add_multi_option(multi_option_t **dst, uint8_t *option, size_t option_len, uint8_t is_static)
+{
+    multi_option_t *opt = (multi_option_t *)lwm2m_malloc(sizeof(multi_option_t));
+
+    if (opt)
+    {
+        opt->next = NULL;
+        opt->len = (uint8_t)option_len;
+        if (is_static)
+        {
+            opt->data = option;
+            opt->is_static = 1;
+        }
+        else
+        {
+            opt->is_static = 0;
+            opt->data = (uint8_t *)lwm2m_malloc(option_len);
+            if (opt->data == NULL)
+            {
+                lwm2m_free(opt);
+                return;
+            }
+            memcpy(opt->data, option, option_len);
+        }
+
+        if (*dst)
+        {
+            multi_option_t *i = *dst;
+            while (i->next)
+            {
+                i = i->next;
+            }
+            i->next = opt;
+        }
+        else
+        {
+            *dst = opt;
+        }
+    }
+}

@@ -1,0 +1,24 @@
+SECUREC_INLINE int SecAssignFloatW(const SecFloatSpec *floatSpec, const  SecScanSpec *spec)
+{
+    /* Convert float string */
+    size_t mbsLen;
+    size_t tempFloatStrLen = (size_t)(floatSpec->floatStrTotalLen + 1) * sizeof(wchar_t);
+    char *tempFloatStr = (char *)SECUREC_MALLOC(tempFloatStrLen);
+
+    if (tempFloatStr == NULL) {
+        return -1;
+    }
+    tempFloatStr[0] = '\0';
+    SECUREC_MASK_MSVC_CRT_WARNING
+    mbsLen = wcstombs(tempFloatStr, floatSpec->floatStr, tempFloatStrLen - 1);
+    SECUREC_END_MASK_MSVC_CRT_WARNING
+    /* This condition must satisfy mbsLen is not -1 */
+    if (mbsLen >= tempFloatStrLen) {
+        SECUREC_FREE(tempFloatStr);
+        return -1;
+    }
+    tempFloatStr[mbsLen] = '\0';
+    SecAssignFloat(tempFloatStr, spec->numberWidth, spec->argPtr);
+    SECUREC_FREE(tempFloatStr);
+    return 0;
+}

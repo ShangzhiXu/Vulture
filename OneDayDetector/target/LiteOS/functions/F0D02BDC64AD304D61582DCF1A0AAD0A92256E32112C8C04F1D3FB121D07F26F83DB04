@@ -1,0 +1,21 @@
+int pthread_cond_destroy(pthread_cond_t *cond)
+{
+    if (cond == NULL) {
+        return EINVAL;
+    }
+
+    if (CondInitCheck(cond)) {
+        return ENOERR;
+    }
+
+    if (LOS_EventDestroy(&cond->event) != LOS_OK) {
+        return EBUSY;
+    }
+    if (pthread_mutex_destroy(cond->mutex) != ENOERR) {
+        PRINT_ERR("%s mutex destroy fail!\n", __FUNCTION__);
+        return EINVAL;
+    }
+    free(cond->mutex);
+    cond->mutex = NULL;
+    return ENOERR;
+}

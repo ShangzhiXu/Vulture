@@ -1,0 +1,37 @@
+static void MMC_DMAError(DMA_HandleTypeDef *hdma)   
+{
+  MMC_HandleTypeDef* hmmc = (MMC_HandleTypeDef* )(hdma->Parent);
+  HAL_MMC_CardStateTypeDef CardState;
+  uint32_t RxErrorCode, TxErrorCode;
+  
+  /* if DMA error is FIFO error ignore it */
+  if(HAL_DMA_GetError(hdma) != HAL_DMA_ERROR_FE)
+  {
+    RxErrorCode = hmmc->hdmarx->ErrorCode;
+    TxErrorCode = hmmc->hdmatx->ErrorCode;  
+    if((RxErrorCode == HAL_DMA_ERROR_TE) || (TxErrorCode == HAL_DMA_ERROR_TE))
+    {
+      /* Clear All flags */
+      __HAL_MMC_CLEAR_FLAG(hmmc, SDIO_STATIC_FLAGS);
+      
+      /* Disable All interrupts */
+      __HAL_MMC_DISABLE_IT(hmmc, SDIO_IT_DATAEND | SDIO_IT_DCRCFAIL | SDIO_IT_DTIMEOUT|\
+        SDIO_IT_TXUNDERR| SDIO_IT_RXOVERR);
+      
+      hmmc->ErrorCode |= HAL_MMC_ERROR_DMA;
+      CardState = HAL_MMC_GetCardState(hmmc);
+      if((CardState == HAL_MMC_CARD_RECEIVING) || (CardState == HAL_MMC_CARD_SENDING))
+      {
+        hmmc->ErrorCode |= SDMMC_CmdStopTransfer(hmmc->Instance);
+      }
+      
+      hmmc->State= HAL_MMC_STATE_READY;
+    }
+    
+#if defined (USE_HAL_MMC_REGISTER_CALLBACKS) && (USE_HAL_MMC_REGISTER_CALLBACKS == 1U)
+    hmmc->ErrorCallback(hmmc);
+#else
+    HAL_MMC_ErrorCallback(hmmc);
+#endif
+  }
+}

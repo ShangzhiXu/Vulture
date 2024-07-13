@@ -1,0 +1,24 @@
+void lv_img_cache_set_size(uint16_t new_entry_cnt)
+{
+    if(LV_GC_ROOT(_lv_img_cache_array) != NULL) {
+        /*Clean the cache before free it*/
+        lv_img_cache_invalidate_src(NULL);
+        lv_mem_free(LV_GC_ROOT(_lv_img_cache_array));
+    }
+
+    /*Reallocate the cache*/
+    LV_GC_ROOT(_lv_img_cache_array) = lv_mem_alloc(sizeof(lv_img_cache_entry_t) * new_entry_cnt);
+    LV_ASSERT_MEM(LV_GC_ROOT(_lv_img_cache_array));
+    if(LV_GC_ROOT(_lv_img_cache_array) == NULL) {
+        entry_cnt = 0;
+        return;
+    }
+    entry_cnt = new_entry_cnt;
+
+    /*Clean the cache*/
+    uint16_t i;
+    for(i = 0; i < entry_cnt; i++) {
+        _lv_memset_00(&LV_GC_ROOT(_lv_img_cache_array)[i].dec_dsc, sizeof(lv_img_decoder_dsc_t));
+        _lv_memset_00(&LV_GC_ROOT(_lv_img_cache_array)[i], sizeof(lv_img_cache_entry_t));
+    }
+}

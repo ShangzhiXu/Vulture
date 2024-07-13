@@ -1,0 +1,30 @@
+snmpv3_build_priv_param(u8_t *priv_param)
+{
+#ifdef LWIP_RAND /* Based on RFC3826 */
+  static u8_t init;
+  static u32_t priv1, priv2;
+
+  /* Lazy initialisation */
+  if (init == 0) {
+    init = 1;
+    priv1 = LWIP_RAND();
+    priv2 = LWIP_RAND();
+  }
+
+  SMEMCPY(&priv_param[0], &priv1, sizeof(priv1));
+  SMEMCPY(&priv_param[4], &priv2, sizeof(priv2));
+
+  /* Emulate 64bit increment */
+  priv1++;
+  if (!priv1) { /* Overflow */
+    priv2++;
+  }
+#else /* Based on RFC3414 */
+  static u32_t ctr;
+  u32_t boots = snmpv3_get_engine_boots_internal();
+  SMEMCPY(&priv_param[0], &boots, 4);
+  SMEMCPY(&priv_param[4], &ctr, 4);
+  ctr++;
+#endif
+  return ERR_OK;
+}

@@ -1,0 +1,37 @@
+static lwm2m_list_t *prv_findServerInstance(lwm2m_object_t *objectP,
+        uint16_t shortID)
+{
+    lwm2m_list_t *instanceP;
+
+    instanceP = objectP->instanceList;
+    while (NULL != instanceP)
+    {
+        int64_t value;
+        lwm2m_data_t *dataP;
+        int size;
+
+        size = 1;
+        dataP = lwm2m_data_new(size);
+        if (dataP == NULL) return NULL;
+        dataP->id = LWM2M_SERVER_SHORT_ID_ID;
+
+        if (objectP->readFunc(instanceP->id, &size, &dataP, NULL, objectP) != COAP_205_CONTENT)
+        {
+            lwm2m_data_free(size, dataP);
+            return NULL;
+        }
+
+        if (1 == lwm2m_data_decode_int(dataP, &value))
+        {
+            if (value == shortID)
+            {
+                lwm2m_data_free(size, dataP);
+                break;
+            }
+        }
+        lwm2m_data_free(size, dataP);
+        instanceP = instanceP->next;
+    }
+
+    return instanceP;
+}

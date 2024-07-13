@@ -1,0 +1,42 @@
+lwm2m_object_t *get_object_device(atiny_param_t *atiny_params, const char *manufacturer)
+{
+    /*
+     * The get_object_device function create the object itself and return a pointer to the structure that represent it.
+     */
+    lwm2m_object_t *deviceObj;
+
+    deviceObj = (lwm2m_object_t *)lwm2m_malloc(sizeof(lwm2m_object_t));
+    if (deviceObj != NULL) {
+        memset(deviceObj, 0, sizeof(lwm2m_object_t));
+
+        /*
+         * It assigns his unique ID
+         * The 3 is the standard ID for the mandatory object "Object device".
+         */
+        deviceObj->objID = LWM2M_DEVICE_OBJECT_ID;
+
+        /*
+         * and its unique instance
+         *
+         */
+        deviceObj->instanceList = (lwm2m_list_t *)lwm2m_malloc(sizeof(lwm2m_list_t));
+        if (deviceObj->instanceList != NULL) {
+            memset(deviceObj->instanceList, 0, sizeof(lwm2m_list_t));
+        } else {
+            lwm2m_free(deviceObj);
+            return NULL;
+        }
+
+        /*
+         * And the private function that will access the object.
+         * Those function will be called when a read/write/execute query is made by the server. In fact the library don't need to
+         * know the resources of the object, only the server does.
+         */
+        deviceObj->readFunc     = prv_device_read;
+        deviceObj->discoverFunc = prv_device_discover;
+        deviceObj->writeFunc    = prv_device_write;
+        deviceObj->executeFunc  = prv_device_execute;
+    }
+
+    return deviceObj;
+}

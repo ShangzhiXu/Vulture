@@ -1,0 +1,26 @@
+STATIC INLINE VOID *OsMemPtrToNode(VOID *ptr)
+{
+    UINT32 gapSize;
+
+    if ((UINTPTR)ptr & (OS_MEM_ALIGN_SIZE - 1)) {
+        PRINT_ERR("[%s:%d]ptr:%p not align by 4byte\n", __FUNCTION__, __LINE__, ptr);
+        return NULL;
+    }
+
+    gapSize = *((UINT32 *)((UINTPTR)ptr - sizeof(UINT32)));
+    if (OS_MEM_NODE_GET_ALIGNED_FLAG(gapSize) && OS_MEM_NODE_GET_USED_FLAG(gapSize)) {
+        PRINT_ERR("[%s:%d]gapSize:0x%x error\n", __FUNCTION__, __LINE__, gapSize);
+        return NULL;
+    }
+    if (OS_MEM_NODE_GET_ALIGNED_FLAG(gapSize)) {
+        gapSize = OS_MEM_NODE_GET_ALIGNED_GAPSIZE(gapSize);
+        if ((gapSize & (OS_MEM_ALIGN_SIZE - 1)) || (gapSize > ((UINTPTR)ptr - OS_MEM_NODE_HEAD_SIZE))) {
+            PRINT_ERR("[%s:%d]gapSize:0x%x error\n", __FUNCTION__, __LINE__, gapSize);
+            return NULL;
+        }
+
+        ptr = (VOID *)((UINTPTR)ptr - gapSize);
+    }
+
+    return (VOID *)((UINTPTR)ptr - OS_MEM_NODE_HEAD_SIZE);
+}

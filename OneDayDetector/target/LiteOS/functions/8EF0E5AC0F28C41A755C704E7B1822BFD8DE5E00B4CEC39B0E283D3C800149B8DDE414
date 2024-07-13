@@ -1,0 +1,51 @@
+ErrorStatus LL_COMP_DeInit(COMP_TypeDef *COMPx)
+{
+  ErrorStatus status = SUCCESS;
+  
+  /* Check the parameters */
+  assert_param(IS_COMP_ALL_INSTANCE(COMPx));
+  
+  /* Note: Hardware constraint (refer to description of this function):       */
+  /*       COMP instance must not be locked.                                  */
+  if(LL_COMP_IsLocked(COMPx) == 0U)
+  {
+    /* Note: Connection switch is applicable only to COMP instance COMP1,     */
+    /*       therefore is COMP2 is selected the equivalent bit is             */
+    /*       kept unmodified.                                                 */
+    if(COMPx == COMP1)
+    {
+      CLEAR_BIT(COMP->CSR,
+                (  COMP_CSR_COMP1MODE
+                 | COMP_CSR_COMP1INSEL
+                 | COMP_CSR_COMP1SW1
+                 | COMP_CSR_COMP1OUTSEL
+                 | COMP_CSR_COMP1HYST
+                 | COMP_CSR_COMP1POL
+                 | COMP_CSR_COMP1EN
+                ) << __COMP_BITOFFSET_INSTANCE(COMPx)
+               );
+    }
+    else
+    {
+      CLEAR_BIT(COMP->CSR,
+                (  COMP_CSR_COMP1MODE
+                 | COMP_CSR_COMP1INSEL
+                 | COMP_CSR_COMP1OUTSEL
+                 | COMP_CSR_COMP1HYST
+                 | COMP_CSR_COMP1POL
+                 | COMP_CSR_COMP1EN
+                ) << __COMP_BITOFFSET_INSTANCE(COMPx)
+               );
+    }
+    
+  }
+  else
+  {
+    /* Comparator instance is locked: de-initialization by software is         */
+    /* not possible.                                                           */
+    /* The only way to unlock the comparator is a device hardware reset.       */
+    status = ERROR;
+  }
+  
+  return status;
+}

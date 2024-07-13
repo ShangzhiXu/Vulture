@@ -1,0 +1,23 @@
+LITE_OS_SEC_TEXT VOID *LOS_MemboxAlloc(VOID *pool)
+{
+    LOS_MEMBOX_INFO *boxInfo = (LOS_MEMBOX_INFO *)pool;
+    LOS_MEMBOX_NODE *node = NULL;
+    LOS_MEMBOX_NODE *nodeTmp = NULL;
+    UINT32 intSave;
+
+    if (pool == NULL) {
+        return NULL;
+    }
+
+    MEMBOX_LOCK(intSave);
+    node = &(boxInfo->stFreeList);
+    if (node->pstNext != NULL) {
+        nodeTmp = node->pstNext;
+        node->pstNext = nodeTmp->pstNext;
+        OS_MEMBOX_SET_MAGIC(nodeTmp);
+        boxInfo->uwBlkCnt++;
+    }
+    MEMBOX_UNLOCK(intSave);
+
+    return (nodeTmp == NULL) ? NULL : OS_MEMBOX_USER_ADDR(nodeTmp);
+}

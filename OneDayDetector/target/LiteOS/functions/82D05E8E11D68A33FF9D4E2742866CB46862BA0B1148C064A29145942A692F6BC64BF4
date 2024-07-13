@@ -1,0 +1,20 @@
+int mbedtls_hkdf( const mbedtls_md_info_t *md, const unsigned char *salt,
+                  size_t salt_len, const unsigned char *ikm, size_t ikm_len,
+                  const unsigned char *info, size_t info_len,
+                  unsigned char *okm, size_t okm_len )
+{
+    int ret;
+    unsigned char prk[MBEDTLS_MD_MAX_SIZE];
+
+    ret = mbedtls_hkdf_extract( md, salt, salt_len, ikm, ikm_len, prk );
+
+    if( ret == 0 )
+    {
+        ret = mbedtls_hkdf_expand( md, prk, mbedtls_md_get_size( md ),
+                                   info, info_len, okm, okm_len );
+    }
+
+    mbedtls_platform_zeroize( prk, sizeof( prk ) );
+
+    return( ret );
+}

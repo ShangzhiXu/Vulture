@@ -1,0 +1,59 @@
+static HAL_StatusTypeDef I2C_Disable_IRQ(I2C_HandleTypeDef *hi2c, uint16_t InterruptRequest)
+{
+  uint32_t tmpisr = 0U;
+
+  if ((InterruptRequest & I2C_XFER_TX_IT) == I2C_XFER_TX_IT)
+  {
+    /* Disable TC and TXI interrupts */
+    tmpisr |= I2C_IT_TCI | I2C_IT_TXI;
+
+    if ((hi2c->State & HAL_I2C_STATE_LISTEN) != HAL_I2C_STATE_LISTEN)
+    {
+      /* Disable NACK and STOP interrupts */
+      tmpisr |= I2C_IT_STOPI | I2C_IT_NACKI | I2C_IT_ERRI;
+    }
+  }
+
+  if ((InterruptRequest & I2C_XFER_RX_IT) == I2C_XFER_RX_IT)
+  {
+    /* Disable TC and RXI interrupts */
+    tmpisr |= I2C_IT_TCI | I2C_IT_RXI;
+
+    if ((hi2c->State & HAL_I2C_STATE_LISTEN) != HAL_I2C_STATE_LISTEN)
+    {
+      /* Disable NACK and STOP interrupts */
+      tmpisr |= I2C_IT_STOPI | I2C_IT_NACKI | I2C_IT_ERRI;
+    }
+  }
+
+  if ((InterruptRequest & I2C_XFER_LISTEN_IT) == I2C_XFER_LISTEN_IT)
+  {
+    /* Disable ADDR, NACK and STOP interrupts */
+    tmpisr |= I2C_IT_ADDRI | I2C_IT_STOPI | I2C_IT_NACKI | I2C_IT_ERRI;
+  }
+
+  if ((InterruptRequest & I2C_XFER_ERROR_IT) == I2C_XFER_ERROR_IT)
+  {
+    /* Enable ERR and NACK interrupts */
+    tmpisr |= I2C_IT_ERRI | I2C_IT_NACKI;
+  }
+
+  if ((InterruptRequest & I2C_XFER_CPLT_IT) == I2C_XFER_CPLT_IT)
+  {
+    /* Enable STOP interrupts */
+    tmpisr |= I2C_IT_STOPI;
+  }
+
+  if ((InterruptRequest & I2C_XFER_RELOAD_IT) == I2C_XFER_RELOAD_IT)
+  {
+    /* Enable TC interrupts */
+    tmpisr |= I2C_IT_TCI;
+  }
+
+  /* Disable interrupts only at the end */
+  /* to avoid a breaking situation like at "t" time */
+  /* all disable interrupts request are not done */
+  __HAL_I2C_DISABLE_IT(hi2c, tmpisr);
+
+  return HAL_OK;
+}

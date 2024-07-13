@@ -1,0 +1,67 @@
+static lv_design_res_t lv_page_design(lv_obj_t * page, const lv_area_t * clip_area, lv_design_mode_t mode)
+{
+    if(mode == LV_DESIGN_COVER_CHK) {
+        return ancestor_design(page, clip_area, mode);
+    }
+
+    if(mode == LV_DESIGN_DRAW_MAIN) {
+        return ancestor_design(page, clip_area, mode);
+    }
+    else if(mode == LV_DESIGN_DRAW_POST) {
+        ancestor_design(page, clip_area, mode);
+        lv_page_ext_t * ext = lv_obj_get_ext_attr(page);
+
+        lv_area_t sb_hor_area;
+        lv_area_t sb_ver_area;
+        /*Convert the relative coordinates to absolute*/
+        lv_area_copy(&sb_hor_area, &ext->scrlbar.hor_area);
+        sb_hor_area.x1 += page->coords.x1;
+        sb_hor_area.y1 += page->coords.y1;
+        sb_hor_area.x2 += page->coords.x1;
+        sb_hor_area.y2 += page->coords.y1;
+
+        /*Convert the relative coordinates to absolute*/
+        lv_area_copy(&sb_ver_area, &ext->scrlbar.ver_area);
+        sb_ver_area.x1 += page->coords.x1;
+        sb_ver_area.y1 += page->coords.y1;
+        sb_ver_area.x2 += page->coords.x1;
+        sb_ver_area.y2 += page->coords.y1;
+
+        if((ext->scrlbar.hor_draw && _lv_area_is_on(&sb_hor_area, clip_area)) ||
+           (ext->scrlbar.ver_draw && _lv_area_is_on(&sb_ver_area, clip_area))) {
+            /*Draw the scrollbars*/
+            lv_draw_rect_dsc_t rect_dsc;
+            lv_draw_rect_dsc_init(&rect_dsc);
+            lv_obj_init_draw_rect_dsc(page, LV_PAGE_PART_SCROLLBAR, &rect_dsc);
+            if(ext->scrlbar.hor_draw && (ext->scrlbar.mode & LV_SCROLLBAR_MODE_HIDE) == 0) {
+                lv_draw_rect(&sb_hor_area, clip_area, &rect_dsc);
+            }
+
+            if(ext->scrlbar.ver_draw && (ext->scrlbar.mode & LV_SCROLLBAR_MODE_HIDE) == 0) {
+                lv_draw_rect(&sb_ver_area, clip_area, &rect_dsc);
+            }
+        }
+
+#if LV_USE_ANIMATION
+        {
+
+
+            if(ext->edge_flash.left_ip || ext->edge_flash.right_ip || ext->edge_flash.top_ip ||
+               ext->edge_flash.bottom_ip) {
+                lv_area_t flash_area;
+                get_edge_flash_area(page, &flash_area, ext->edge_flash.state);
+
+                lv_draw_rect_dsc_t edge_draw_dsc;
+                lv_draw_rect_dsc_init(&edge_draw_dsc);
+                lv_obj_init_draw_rect_dsc(page, LV_PAGE_PART_EDGE_FLASH, &edge_draw_dsc);
+                edge_draw_dsc.radius  = LV_RADIUS_CIRCLE;
+                uint32_t opa            = (edge_draw_dsc.bg_opa * ext->edge_flash.state) / LV_PAGE_END_FLASH_SIZE;
+                edge_draw_dsc.bg_opa    = opa;
+                lv_draw_rect(&flash_area, clip_area, &edge_draw_dsc);
+            }
+        }
+#endif
+    }
+
+    return LV_DESIGN_RES_OK;
+}

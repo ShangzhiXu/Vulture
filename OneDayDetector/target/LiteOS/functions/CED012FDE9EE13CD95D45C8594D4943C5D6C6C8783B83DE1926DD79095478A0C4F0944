@@ -1,0 +1,17 @@
+STATIC INLINE UINT32 ArchCurrCpuid(VOID)
+{
+#if (LOSCFG_KERNEL_SMP == YES)
+    UINT32 cpuid;
+    UINT64 mpidr = AARCH64_SYSREG_READ(mpidr_el1);
+    if (!(mpidr & MPIDR_MT_MASK)) {
+        /* single-thread type */
+        cpuid = MPIDR_AFF_LEVEL(mpidr, 0);
+    } else {
+        /* muti-thread type, aff1 is cpuid */
+        cpuid = MPIDR_AFF_LEVEL(mpidr, 1);
+    }
+    return cpuid;
+#else
+    return 0;
+#endif
+}

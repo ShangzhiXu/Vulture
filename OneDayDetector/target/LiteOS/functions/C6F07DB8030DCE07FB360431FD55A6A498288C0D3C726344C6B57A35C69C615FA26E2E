@@ -1,0 +1,41 @@
+static VOID *recv_Entry(UINT32 param)
+{
+    UINT32 readbuf;
+    UINT32 ret;
+    UINT32 msgCount = 0;
+
+    while (1) {
+        /* read data from queue to readbuf */
+        ret = LOS_QueueRead(g_demoQueue, &readbuf, 24, 0);
+        if (ret != LOS_OK) {
+            printf("Recv message failed, error: %x.\n", ret);
+            break;
+        } else {
+            printf("Recv message : %s.\n", (CHAR *)readbuf);
+            msgCount++;
+        }
+
+        (VOID)LOS_TaskDelay(50);
+    }
+
+    /* delete queue */
+    while (LOS_QueueDelete(g_demoQueue) != LOS_OK) {
+        (VOID)LOS_TaskDelay(1);
+    }
+
+    printf("Delete the queue ok.\n");
+
+    if (API_MSG_NUM == msgCount) {
+        ret = LOS_InspectStatusSetById(LOS_INSPECT_MSG, LOS_INSPECT_STU_SUCCESS);
+        if (ret != LOS_OK) {
+            printf("Set Inspect Status Err.\n");
+        }
+    } else {
+        ret = LOS_InspectStatusSetById(LOS_INSPECT_MSG, LOS_INSPECT_STU_ERROR);
+        if (ret != LOS_OK) {
+            printf("Set Inspect Status Err.\n");
+        }
+    }
+
+    return NULL;
+}

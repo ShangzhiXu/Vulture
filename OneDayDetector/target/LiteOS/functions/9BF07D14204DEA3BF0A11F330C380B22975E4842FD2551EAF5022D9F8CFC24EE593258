@@ -1,0 +1,30 @@
+int32_t sota_init(const sota_arg_s *sota_arg)
+{
+    int ret;
+    flag_op_s flag_op;
+    pack_params_s pack_param;
+
+    if ((sota_arg == NULL) || (sota_arg->sota_malloc == NULL) || (sota_arg->sota_free == NULL)) {
+        return SOTA_FAILED;
+    }
+
+    memcpy(&pack_param.ota_opt, &sota_arg->ota_info, sizeof(pack_param.ota_opt));
+    pack_param.malloc = sota_arg->sota_malloc;
+    pack_param.free = sota_arg->sota_free;
+    pack_param.printf = sota_arg->sota_printf;
+    ret = pack_init_device(&pack_param);
+    if (ret != SOTA_OK) {
+        return SOTA_FAILED;
+    }
+
+    g_storage_device = pack_get_device();
+
+    memcpy(&g_flash_op, sota_arg, sizeof(sota_arg_s));
+
+    flag_op.func_flag_read = func_flag_read;
+    flag_op.func_flag_write = func_flag_write;
+    (void)flag_init(&flag_op);
+    (void)flag_upgrade_init();
+
+    return sota_status_check();
+}

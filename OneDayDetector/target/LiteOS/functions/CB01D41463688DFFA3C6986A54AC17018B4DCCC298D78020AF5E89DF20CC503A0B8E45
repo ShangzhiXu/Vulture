@@ -1,0 +1,43 @@
+static int prv_refreshServerList(lwm2m_context_t *contextP)
+{
+    lwm2m_server_t *targetP;
+    lwm2m_server_t *nextP;
+
+    // Remove all servers marked as dirty
+    targetP = contextP->bootstrapServerList;
+    contextP->bootstrapServerList = NULL;
+    while (targetP != NULL)
+    {
+        nextP = targetP->next;
+        targetP->next = NULL;
+        if (!targetP->dirty)
+        {
+            targetP->status = STATE_DEREGISTERED;
+            contextP->bootstrapServerList = (lwm2m_server_t *)LWM2M_LIST_ADD(contextP->bootstrapServerList, targetP);
+        }
+        else
+        {
+            prv_deleteServer(targetP, contextP->userData);
+        }
+        targetP = nextP;
+    }
+    targetP = contextP->serverList;
+    contextP->serverList = NULL;
+    while (targetP != NULL)
+    {
+        nextP = targetP->next;
+        targetP->next = NULL;
+        if (!targetP->dirty)
+        {
+            // TODO: Should we revert the status to STATE_DEREGISTERED ?
+            contextP->serverList = (lwm2m_server_t *)LWM2M_LIST_ADD(contextP->serverList, targetP);
+        }
+        else
+        {
+            prv_deleteServer(targetP, contextP->userData);
+        }
+        targetP = nextP;
+    }
+
+    return object_getServers(contextP, false);
+}

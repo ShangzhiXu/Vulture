@@ -1,0 +1,39 @@
+FRESULT f_chmod (
+	const TCHAR* path,	/* Pointer to the file path */
+	BYTE attr,			/* Attribute bits */
+	BYTE mask			/* Attribute mask to change */
+)
+{
+	FRESULT res;
+	DIR dj;
+	FATFS *fs;
+	DEF_NAMBUF
+
+
+	res = find_volume(&path, &fs, FA_WRITE);	/* Get logical drive */
+	if (res == FR_OK) {
+		dj.obj.fs = fs;
+		INIT_NAMBUF(fs);
+		res = follow_path(&dj, path);	/* Follow the file path */
+		if (res == FR_OK && (dj.fn[NSFLAG] & (NS_DOT | NS_NONAME))) res = FR_INVALID_NAME;	/* Check object validity */
+		if (res == FR_OK) {
+			mask &= AM_RDO|AM_HID|AM_SYS|AM_ARC;	/* Valid attribute mask */
+#if FF_FS_EXFAT
+			if (fs->fs_type == FS_EXFAT) {
+				fs->dirbuf[XDIR_Attr] = (attr & mask) | (fs->dirbuf[XDIR_Attr] & (BYTE)~mask);	/* Apply attribute change */
+				res = store_xdir(&dj);
+			} else
+#endif
+			{
+				dj.dir[DIR_Attr] = (attr & mask) | (dj.dir[DIR_Attr] & (BYTE)~mask);	/* Apply attribute change */
+				fs->wflag = 1;
+			}
+			if (res == FR_OK) {
+				res = sync_fs(fs);
+			}
+		}
+		FREE_NAMBUF();
+	}
+
+	LEAVE_FF(fs, res);
+}

@@ -1,0 +1,36 @@
+void _lv_style_set_opa(lv_style_t * style, lv_style_property_t prop, lv_opa_t opa)
+{
+    LV_ASSERT_STYLE(style);
+
+    int32_t id = get_property_index(style, prop);
+    /*The property already exists but not sure it's state is the same*/
+    if(id >= 0) {
+        lv_style_attr_t attr_found;
+        lv_style_attr_t attr_goal;
+
+        attr_found.full = *(style->map + id + 1);
+        attr_goal.full = (prop >> 8) & 0xFFU;
+
+        if(attr_found.bits.state == attr_goal.bits.state) {
+            _lv_memcpy_small(style->map + id + sizeof(lv_style_property_t), &opa, sizeof(lv_opa_t));
+            return;
+        }
+    }
+
+    /*Add new property if not exists yet*/
+    uint8_t new_prop_size = (sizeof(lv_style_property_t) + sizeof(lv_opa_t));
+    lv_style_property_t end_mark = _LV_STYLE_CLOSEING_PROP;
+    uint8_t end_mark_size = sizeof(end_mark);
+
+    uint16_t size = _lv_style_get_mem_size(style);
+    if(size == 0) size += end_mark_size;
+
+    size += sizeof(lv_style_property_t) + sizeof(lv_opa_t);
+    style->map = lv_mem_realloc(style->map, size);
+    LV_ASSERT_MEM(style->map);
+    if(style == NULL) return;
+
+    _lv_memcpy_small(style->map + size - new_prop_size - end_mark_size, &prop, sizeof(lv_style_property_t));
+    _lv_memcpy_small(style->map + size - sizeof(lv_opa_t) - end_mark_size, &opa, sizeof(lv_opa_t));
+    _lv_memcpy_small(style->map + size - end_mark_size, &end_mark, sizeof(end_mark));
+}

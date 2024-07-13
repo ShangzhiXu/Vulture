@@ -1,0 +1,15 @@
+VOID OsTraceWriteOrSendEvent(const TraceEventFrame *frame)
+{
+    UINT16 index;
+    UINT32 intSave;
+
+    TRACE_LOCK(intSave);
+    index = g_traceRecoder.ctrl.curIndex;
+    (VOID)memcpy_s(&g_traceRecoder.ctrl.frameBuf[index], sizeof(TraceEventFrame), frame, sizeof(TraceEventFrame));
+
+    g_traceRecoder.ctrl.curIndex++;
+    if (g_traceRecoder.ctrl.curIndex >= g_traceRecoder.ctrl.maxRecordCount) {
+        g_traceRecoder.ctrl.curIndex = 0;
+    }
+    TRACE_UNLOCK(intSave);
+}

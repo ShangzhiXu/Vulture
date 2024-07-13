@@ -1,0 +1,17 @@
+int lwm2m_remove_object(lwm2m_context_t *contextP,
+                        uint16_t id)
+{
+    lwm2m_object_t *targetP;
+
+    LOG_ARG("ID: %d", id);
+    contextP->objectList = (lwm2m_object_t *)LWM2M_LIST_RM(contextP->objectList, id, &targetP);
+
+    if (targetP == NULL) return COAP_404_NOT_FOUND;
+
+    if (contextP->state == STATE_READY)
+    {
+        return lwm2m_update_registration(contextP, 0, true);
+    }
+
+    return 0;
+}

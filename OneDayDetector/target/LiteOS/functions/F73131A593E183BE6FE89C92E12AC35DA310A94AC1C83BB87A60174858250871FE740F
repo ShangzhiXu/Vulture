@@ -1,0 +1,116 @@
+HAL_StatusTypeDef HAL_USART_TransmitReceive(USART_HandleTypeDef *husart, uint8_t *pTxData, uint8_t *pRxData, uint16_t Size, uint32_t Timeout)
+{
+  uint16_t* tmp;
+  uint16_t uhMask;
+  uint32_t tickstart = 0;
+
+  if(husart->State == HAL_USART_STATE_READY)
+  {
+    if((pTxData == NULL) || (pRxData == NULL) || (Size == 0))
+    {
+      return  HAL_ERROR;
+    }
+    
+    /* Process Locked */
+    __HAL_LOCK(husart);
+
+    husart->ErrorCode = HAL_USART_ERROR_NONE;
+    husart->State = HAL_USART_STATE_BUSY_RX;
+
+    /* Init tickstart for timeout managment*/
+    tickstart = HAL_GetTick();
+
+    husart->RxXferSize = Size;
+    husart->TxXferSize = Size;
+    husart->TxXferCount = Size;
+    husart->RxXferCount = Size;
+
+    /* Computation of USART mask to apply to RDR register */
+    USART_MASK_COMPUTATION(husart);
+    uhMask = husart->Mask;
+
+#if defined(USART_CR2_SLVEN)
+    if ((husart->SlaveMode == USART_SLAVEMODE_ENABLE) || (husart->TxXferCount == 0x01U))
+#else
+    if (husart->TxXferCount == 0x01U)
+#endif
+    {
+      /* Wait until TXE flag is set to send data */
+      if(USART_WaitOnFlagUntilTimeout(husart, USART_FLAG_TXE, RESET, tickstart, Timeout) != HAL_OK)
+      {
+        return HAL_TIMEOUT;
+      }
+      if((husart->Init.WordLength == USART_WORDLENGTH_9B) && (husart->Init.Parity == USART_PARITY_NONE))
+      {
+        tmp = (uint16_t*) pTxData;
+        husart->Instance->TDR = (*tmp & uhMask);
+        pTxData += 2U;
+      }
+      else
+    {
+        husart->Instance->TDR = (*pTxData++ & (uint8_t)uhMask);
+      }
+
+      husart->TxXferCount--;
+    }
+    
+    /* Check the remain data to be sent */
+    while ((husart->TxXferCount > 0) || (husart->RxXferCount > 0))
+    {
+      if (husart->TxXferCount > 0)
+      {
+        /* Wait until TXE flag is set to send data */
+        if(USART_WaitOnFlagUntilTimeout(husart, USART_FLAG_TXE, RESET, tickstart, Timeout) != HAL_OK)
+        {
+          return HAL_TIMEOUT;
+        }
+        if((husart->Init.WordLength == USART_WORDLENGTH_9B) && (husart->Init.Parity == USART_PARITY_NONE))
+        {
+          tmp = (uint16_t*) pTxData;
+          husart->Instance->TDR = (*tmp & uhMask);
+          pTxData += 2;
+        }
+        else
+        {
+          husart->Instance->TDR = (*pTxData++ & (uint8_t)uhMask);
+        }
+        
+        husart->TxXferCount--;
+      }
+      
+      if (husart->RxXferCount > 0)
+      {
+        /* Wait for RXNE Flag */
+        if(USART_WaitOnFlagUntilTimeout(husart, USART_FLAG_RXNE, RESET, tickstart, Timeout) != HAL_OK)
+        {
+          return HAL_TIMEOUT;
+        }
+        
+        if((husart->Init.WordLength == USART_WORDLENGTH_9B) && (husart->Init.Parity == USART_PARITY_NONE))
+        {
+          tmp = (uint16_t*) pRxData ;
+          *tmp = (uint16_t)(husart->Instance->RDR & uhMask);
+          pRxData +=2;
+        }
+        else
+        {
+          *pRxData++ = (uint8_t)(husart->Instance->RDR & (uint8_t)uhMask);
+        }
+        
+        husart->RxXferCount--;
+      }
+    }
+
+    /* At end of TxRx process, restore husart->State to Ready */
+    husart->State = HAL_USART_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(husart);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

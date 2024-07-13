@@ -1,0 +1,83 @@
+HAL_StatusTypeDef HAL_LPTIM_UnRegisterCallback(LPTIM_HandleTypeDef        *hlptim,
+                                               HAL_LPTIM_CallbackIDTypeDef CallbackID)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process locked */
+  __HAL_LOCK(hlptim);
+
+  if (hlptim->State == HAL_LPTIM_STATE_READY)
+  {
+    switch (CallbackID)
+    {
+      case HAL_LPTIM_MSPINIT_CB_ID :
+        hlptim->MspInitCallback = HAL_LPTIM_MspInit;                          /* Legacy weak MspInit Callback */
+        break;
+
+      case HAL_LPTIM_MSPDEINIT_CB_ID :
+        hlptim->MspDeInitCallback = HAL_LPTIM_MspDeInit;                       /* Legacy weak Msp DeInit Callback */
+        break;
+
+      case HAL_LPTIM_COMPARE_MATCH_CB_ID :
+        hlptim->CompareMatchCallback = HAL_LPTIM_CompareMatchCallback;         /* Legacy weak Compare match Callback */
+        break;
+
+      case HAL_LPTIM_AUTORELOAD_MATCH_CB_ID :
+        hlptim->AutoReloadMatchCallback = HAL_LPTIM_AutoReloadMatchCallback;   /* Legacy weak Auto-reload match Callback */
+        break;
+
+      case HAL_LPTIM_TRIGGER_CB_ID :
+        hlptim->TriggerCallback = HAL_LPTIM_TriggerCallback;                   /* Legacy weak External trigger event detection Callback */
+        break;
+
+      case HAL_LPTIM_COMPARE_WRITE_CB_ID :
+        hlptim->CompareWriteCallback = HAL_LPTIM_CompareWriteCallback;         /* Legacy weak Compare register write complete Callback */
+        break;
+
+      case HAL_LPTIM_AUTORELOAD_WRITE_CB_ID :
+        hlptim->AutoReloadWriteCallback = HAL_LPTIM_AutoReloadWriteCallback;   /* Legacy weak Auto-reload register write complete Callback */
+        break;
+
+      case HAL_LPTIM_DIRECTION_UP_CB_ID :
+        hlptim->DirectionUpCallback = HAL_LPTIM_DirectionUpCallback;           /* Legacy weak Up-counting direction change Callback */
+        break;
+
+      case HAL_LPTIM_DIRECTION_DOWN_CB_ID :
+        hlptim->DirectionDownCallback = HAL_LPTIM_DirectionDownCallback;       /* Legacy weak Down-counting direction change Callback */
+        break;
+
+      default :
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if (hlptim->State == HAL_LPTIM_STATE_RESET)
+  {
+    switch (CallbackID)
+    {
+      case HAL_LPTIM_MSPINIT_CB_ID :
+        hlptim->MspInitCallback = HAL_LPTIM_MspInit;                           /* Legacy weak MspInit Callback */
+        break;
+
+      case HAL_LPTIM_MSPDEINIT_CB_ID :
+        hlptim->MspDeInitCallback = HAL_LPTIM_MspDeInit;                        /* Legacy weak Msp DeInit Callback */
+        break;
+
+      default :
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hlptim);
+
+  return status;
+}

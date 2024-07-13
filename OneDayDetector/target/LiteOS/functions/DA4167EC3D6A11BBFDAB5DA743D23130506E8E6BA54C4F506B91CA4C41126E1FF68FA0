@@ -1,0 +1,121 @@
+int mbedtls_ssl_psk_derive_premaster( mbedtls_ssl_context *ssl, mbedtls_key_exchange_type_t key_ex )
+{
+    unsigned char *p = ssl->handshake->premaster;
+    unsigned char *end = p + sizeof( ssl->handshake->premaster );
+    const unsigned char *psk = ssl->conf->psk;
+    size_t psk_len = ssl->conf->psk_len;
+
+    /* If the psk callback was called, use its result */
+    if( ssl->handshake->psk != NULL )
+    {
+        psk = ssl->handshake->psk;
+        psk_len = ssl->handshake->psk_len;
+    }
+
+    /*
+     * PMS = struct {
+     *     opaque other_secret<0..2^16-1>;
+     *     opaque psk<0..2^16-1>;
+     * };
+     * with "other_secret" depending on the particular key exchange
+     */
+#if defined(MBEDTLS_KEY_EXCHANGE_PSK_ENABLED)
+    if( key_ex == MBEDTLS_KEY_EXCHANGE_PSK )
+    {
+        if( end - p < 2 )
+            return( MBEDTLS_ERR_SSL_BAD_INPUT_DATA );
+
+        *(p++) = (unsigned char)( psk_len >> 8 );
+        *(p++) = (unsigned char)( psk_len      );
+
+        if( end < p || (size_t)( end - p ) < psk_len )
+            return( MBEDTLS_ERR_SSL_BAD_INPUT_DATA );
+
+        memset( p, 0, psk_len );
+        p += psk_len;
+    }
+    else
+#endif /* MBEDTLS_KEY_EXCHANGE_PSK_ENABLED */
+#if defined(MBEDTLS_KEY_EXCHANGE_RSA_PSK_ENABLED)
+    if( key_ex == MBEDTLS_KEY_EXCHANGE_RSA_PSK )
+    {
+        /*
+         * other_secret already set by the ClientKeyExchange message,
+         * and is 48 bytes long
+         */
+        if( end - p < 2 )
+            return( MBEDTLS_ERR_SSL_BAD_INPUT_DATA );
+
+        *p++ = 0;
+        *p++ = 48;
+        p += 48;
+    }
+    else
+#endif /* MBEDTLS_KEY_EXCHANGE_RSA_PSK_ENABLED */
+#if defined(MBEDTLS_KEY_EXCHANGE_DHE_PSK_ENABLED)
+    if( key_ex == MBEDTLS_KEY_EXCHANGE_DHE_PSK )
+    {
+        int ret;
+        size_t len;
+
+        /* Write length only when we know the actual value */
+        if( ( ret = mbedtls_dhm_calc_secret( &ssl->handshake->dhm_ctx,
+                                      p + 2, end - ( p + 2 ), &len,
+                                      ssl->conf->f_rng, ssl->conf->p_rng ) ) != 0 )
+        {
+            MBEDTLS_SSL_DEBUG_RET( 1, "mbedtls_dhm_calc_secret", ret );
+            return( ret );
+        }
+        *(p++) = (unsigned char)( len >> 8 );
+        *(p++) = (unsigned char)( len );
+        p += len;
+
+        MBEDTLS_SSL_DEBUG_MPI( 3, "DHM: K ", &ssl->handshake->dhm_ctx.K  );
+    }
+    else
+#endif /* MBEDTLS_KEY_EXCHANGE_DHE_PSK_ENABLED */
+#if defined(MBEDTLS_KEY_EXCHANGE_ECDHE_PSK_ENABLED)
+    if( key_ex == MBEDTLS_KEY_EXCHANGE_ECDHE_PSK )
+    {
+        int ret;
+        size_t zlen;
+
+        if( ( ret = mbedtls_ecdh_calc_secret( &ssl->handshake->ecdh_ctx, &zlen,
+                                       p + 2, end - ( p + 2 ),
+                                       ssl->conf->f_rng, ssl->conf->p_rng ) ) != 0 )
+        {
+            MBEDTLS_SSL_DEBUG_RET( 1, "mbedtls_ecdh_calc_secret", ret );
+            return( ret );
+        }
+
+        *(p++) = (unsigned char)( zlen >> 8 );
+        *(p++) = (unsigned char)( zlen      );
+        p += zlen;
+
+        MBEDTLS_SSL_DEBUG_ECDH( 3, &ssl->handshake->ecdh_ctx,
+                                MBEDTLS_DEBUG_ECDH_Z );
+    }
+    else
+#endif /* MBEDTLS_KEY_EXCHANGE_ECDHE_PSK_ENABLED */
+    {
+        MBEDTLS_SSL_DEBUG_MSG( 1, ( "should never happen" ) );
+        return( MBEDTLS_ERR_SSL_INTERNAL_ERROR );
+    }
+
+    /* opaque psk<0..2^16-1>; */
+    if( end - p < 2 )
+        return( MBEDTLS_ERR_SSL_BAD_INPUT_DATA );
+
+    *(p++) = (unsigned char)( psk_len >> 8 );
+    *(p++) = (unsigned char)( psk_len      );
+
+    if( end < p || (size_t)( end - p ) < psk_len )
+        return( MBEDTLS_ERR_SSL_BAD_INPUT_DATA );
+
+    memcpy( p, psk, psk_len );
+    p += psk_len;
+
+    ssl->handshake->pmslen = p - ssl->handshake->premaster;
+
+    return( 0 );
+}

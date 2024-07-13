@@ -1,0 +1,33 @@
+int mq_setattr(mqd_t personal, const struct mq_attr *mqSetAttr, struct mq_attr *mqOldAttr)
+{
+    struct mqpersonal *privateMqPersonal = NULL;
+
+    if ((personal == (mqd_t)NULL) || (personal == (mqd_t)-1)) {
+        errno = EBADF;
+        return -1;
+    }
+
+    if (mqSetAttr == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    (VOID)pthread_mutex_lock(&g_mqueueMutex);
+    privateMqPersonal = (struct mqpersonal *)personal;
+    if (privateMqPersonal->mq_status != MQ_USE_MAGIC) {
+        errno = EBADF;
+        (VOID)pthread_mutex_unlock(&g_mqueueMutex);
+        return -1;
+    }
+
+    if (mqOldAttr != NULL) {
+        (VOID)mq_getattr((mqd_t)privateMqPersonal, mqOldAttr);
+    }
+
+    privateMqPersonal->mq_flags = (INT32)((UINT32)privateMqPersonal->mq_flags & (UINT32)(~FNONBLOCK)); /* clear */
+    if (((UINT32)mqSetAttr->mq_flags & (UINT32)FNONBLOCK) == (UINT32)FNONBLOCK) {
+        privateMqPersonal->mq_flags = (INT32)((UINT32)privateMqPersonal->mq_flags | (UINT32)FNONBLOCK);
+    }
+    (VOID)pthread_mutex_unlock(&g_mqueueMutex);
+    return 0;
+}

@@ -1,0 +1,150 @@
+lowpan6_frag(struct netif *netif, struct pbuf *p, const struct lowpan6_link_addr *src, const struct lowpan6_link_addr *dst)
+{
+  struct pbuf *p_frag;
+  u16_t frag_len, remaining_len, max_data_len;
+  u8_t *buffer;
+  u8_t ieee_header_len;
+  u8_t lowpan6_header_len;
+  u8_t hidden_header_len;
+  u16_t crc;
+  u16_t datagram_offset;
+  err_t err = ERR_IF;
+
+  LWIP_ASSERT("lowpan6_frag: netif->linkoutput not set", netif->linkoutput != NULL);
+
+  /* We'll use a dedicated pbuf for building 6LowPAN fragments. */
+  p_frag = pbuf_alloc(PBUF_RAW, 127, PBUF_RAM);
+  if (p_frag == NULL) {
+    MIB2_STATS_NETIF_INC(netif, ifoutdiscards);
+    return ERR_MEM;
+  }
+  LWIP_ASSERT("this needs a pbuf in one piece", p_frag->len == p_frag->tot_len);
+
+  /* Write IEEE 802.15.4 header. */
+  buffer = (u8_t *)p_frag->payload;
+  ieee_header_len = lowpan6_write_iee802154_header((struct ieee_802154_hdr *)buffer, src, dst);
+  LWIP_ASSERT("ieee_header_len < p_frag->len", ieee_header_len < p_frag->len);
+
+#if LWIP_6LOWPAN_IPHC
+  /* Perform 6LowPAN IPv6 header compression according to RFC 6282 */
+  /* do the header compression (this does NOT copy any non-compressed data) */
+  err = lowpan6_compress_headers(netif, (u8_t *)p->payload, p->len,
+    &buffer[ieee_header_len], p_frag->len - ieee_header_len, &lowpan6_header_len,
+    &hidden_header_len, LWIP_6LOWPAN_CONTEXTS(netif), src, dst);
+  if (err != ERR_OK) {
+    MIB2_STATS_NETIF_INC(netif, ifoutdiscards);
+    pbuf_free(p_frag);
+    return err;
+  }
+  pbuf_remove_header(p, hidden_header_len);
+
+#else /* LWIP_6LOWPAN_IPHC */
+  /* Send uncompressed IPv6 header with appropriate dispatch byte. */
+  lowpan6_header_len = 1;
+  buffer[ieee_header_len] = 0x41; /* IPv6 dispatch */
+#endif /* LWIP_6LOWPAN_IPHC */
+
+  /* Calculate remaining packet length */
+  remaining_len = p->tot_len;
+
+  if (remaining_len > 0x7FF) {
+    MIB2_STATS_NETIF_INC(netif, ifoutdiscards);
+    /* datagram_size must fit into 11 bit */
+    pbuf_free(p_frag);
+    return ERR_VAL;
+  }
+
+  /* Fragment, or 1 packet? */
+  max_data_len = LOWPAN6_MAX_PAYLOAD - ieee_header_len - lowpan6_header_len;
+  if (remaining_len > max_data_len) {
+    u16_t data_len;
+    /* We must move the 6LowPAN header to make room for the FRAG header. */
+    memmove(&buffer[ieee_header_len + 4], &buffer[ieee_header_len], lowpan6_header_len);
+
+    /* Now we need to fragment the packet. FRAG1 header first */
+    buffer[ieee_header_len] = 0xc0 | (((p->tot_len + hidden_header_len) >> 8) & 0x7);
+    buffer[ieee_header_len + 1] = (p->tot_len + hidden_header_len) & 0xff;
+
+    lowpan6_data.tx_datagram_tag++;
+    buffer[ieee_header_len + 2] = (lowpan6_data.tx_datagram_tag >> 8) & 0xff;
+    buffer[ieee_header_len + 3] = lowpan6_data.tx_datagram_tag & 0xff;
+
+    /* Fragment follows. */
+    data_len = (max_data_len - 4) & 0xf8;
+    frag_len = data_len + lowpan6_header_len;
+
+    pbuf_copy_partial(p, buffer + ieee_header_len + lowpan6_header_len + 4, frag_len - lowpan6_header_len, 0);
+    remaining_len -= frag_len - lowpan6_header_len;
+    /* datagram offset holds the offset before compression */
+    datagram_offset = frag_len - lowpan6_header_len + hidden_header_len;
+    LWIP_ASSERT("datagram offset must be a multiple of 8", (datagram_offset & 7) == 0);
+
+    /* Calculate frame length */
+    p_frag->len = p_frag->tot_len = ieee_header_len + 4 + frag_len + 2; /* add 2 bytes for crc*/
+
+    /* 2 bytes CRC */
+    crc = LWIP_6LOWPAN_DO_CALC_CRC(p_frag->payload, p_frag->len - 2);
+    pbuf_take_at(p_frag, &crc, 2, p_frag->len - 2);
+
+    /* send the packet */
+    MIB2_STATS_NETIF_ADD(netif, ifoutoctets, p_frag->tot_len);
+    LWIP_DEBUGF(LWIP_LOWPAN6_DEBUG | LWIP_DBG_TRACE, ("lowpan6_send: sending packet %p\n", (void *)p));
+    err = netif->linkoutput(netif, p_frag);
+
+    while ((remaining_len > 0) && (err == ERR_OK)) {
+      struct ieee_802154_hdr *hdr = (struct ieee_802154_hdr *)buffer;
+      /* new frame, new seq num for ACK */
+      hdr->sequence_number = lowpan6_data.tx_frame_seq_num++;
+
+      buffer[ieee_header_len] |= 0x20; /* Change FRAG1 to FRAGN */
+
+      LWIP_ASSERT("datagram offset must be a multiple of 8", (datagram_offset & 7) == 0);
+      buffer[ieee_header_len + 4] = (u8_t)(datagram_offset >> 3); /* datagram offset in FRAGN header (datagram_offset is max. 11 bit) */
+
+      frag_len = (127 - ieee_header_len - 5 - 2) & 0xf8;
+      if (frag_len > remaining_len) {
+        frag_len = remaining_len;
+      }
+
+      pbuf_copy_partial(p, buffer + ieee_header_len + 5, frag_len, p->tot_len - remaining_len);
+      remaining_len -= frag_len;
+      datagram_offset += frag_len;
+
+      /* Calculate frame length */
+      p_frag->len = p_frag->tot_len = frag_len + 5 + ieee_header_len + 2;
+
+      /* 2 bytes CRC */
+      crc = LWIP_6LOWPAN_DO_CALC_CRC(p_frag->payload, p_frag->len - 2);
+      pbuf_take_at(p_frag, &crc, 2, p_frag->len - 2);
+
+      /* send the packet */
+      MIB2_STATS_NETIF_ADD(netif, ifoutoctets, p_frag->tot_len);
+      LWIP_DEBUGF(LWIP_LOWPAN6_DEBUG | LWIP_DBG_TRACE, ("lowpan6_send: sending packet %p\n", (void *)p));
+      err = netif->linkoutput(netif, p_frag);
+    }
+  } else {
+    /* It fits in one frame. */
+    frag_len = remaining_len;
+
+    /* Copy IPv6 packet */
+    pbuf_copy_partial(p, buffer + ieee_header_len + lowpan6_header_len, frag_len, 0);
+    remaining_len = 0;
+
+    /* Calculate frame length */
+    p_frag->len = p_frag->tot_len = frag_len + lowpan6_header_len + ieee_header_len + 2;
+    LWIP_ASSERT("", p_frag->len <= 127);
+
+    /* 2 bytes CRC */
+    crc = LWIP_6LOWPAN_DO_CALC_CRC(p_frag->payload, p_frag->len - 2);
+    pbuf_take_at(p_frag, &crc, 2, p_frag->len - 2);
+
+    /* send the packet */
+    MIB2_STATS_NETIF_ADD(netif, ifoutoctets, p_frag->tot_len);
+    LWIP_DEBUGF(LWIP_LOWPAN6_DEBUG | LWIP_DBG_TRACE, ("lowpan6_send: sending packet %p\n", (void *)p));
+    err = netif->linkoutput(netif, p_frag);
+  }
+
+  pbuf_free(p_frag);
+
+  return err;
+}

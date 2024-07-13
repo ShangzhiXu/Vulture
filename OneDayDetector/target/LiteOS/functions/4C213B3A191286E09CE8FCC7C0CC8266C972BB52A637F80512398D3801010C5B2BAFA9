@@ -1,0 +1,64 @@
+VOID OsSchedResched(VOID)
+{
+    LosTaskCB *runTask = NULL;
+    LosTaskCB *newTask = NULL;
+
+    LOS_ASSERT(LOS_SpinHeld(&g_taskSpin));
+
+    if (!OsPreemptableInSched()) {
+        return;
+    }
+
+    runTask = OsCurrTaskGet();
+    newTask = OsGetTopTask();
+
+    /* always be able to get one task */
+    LOS_ASSERT(newTask != NULL);
+
+    newTask->taskStatus &= ~OS_TASK_STATUS_READY;
+
+    if (runTask == newTask) {
+        return;
+    }
+
+    runTask->taskStatus &= ~OS_TASK_STATUS_RUNNING;
+    newTask->taskStatus |= OS_TASK_STATUS_RUNNING;
+
+#ifdef LOSCFG_KERNEL_SMP
+    /* mask new running task's owner processor */
+    runTask->currCpu = OS_TASK_INVALID_CPUID;
+    newTask->currCpu = ArchCurrCpuid();
+#endif
+
+    OsTaskTimeUpdateHook(runTask->taskId, LOS_TickCountGet());
+
+#ifdef LOSCFG_KERNEL_CPUP
+    OsTaskCycleEndStart(newTask);
+#endif
+
+#ifdef LOSCFG_BASE_CORE_TSK_MONITOR
+    OsTaskSwitchCheck(runTask, newTask);
+#endif
+
+    LOS_TRACE(TASK_SWITCH, newTask->taskId, runTask->priority, runTask->taskStatus, newTask->priority,
+        newTask->taskStatus);
+
+#ifdef LOSCFG_DEBUG_SCHED_STATISTICS
+    OsSchedStatistics(runTask, newTask);
+#endif
+
+    PRINT_TRACE("cpu%u (%s) status: %x -> (%s) status:%x\n", ArchCurrCpuid(),
+                runTask->taskName, runTask->taskStatus,
+                newTask->taskName, newTask->taskStatus);
+
+#ifdef LOSCFG_BASE_CORE_TIMESLICE
+    if (newTask->timeSlice == 0) {
+        newTask->timeSlice = LOSCFG_BASE_CORE_TIMESLICE_TIMEOUT;
+    }
+#endif
+
+    OsCurrTaskSet((VOID*)newTask);
+
+    /* do the task context switch */
+    OsTaskSchedule(newTask, runTask);
+}

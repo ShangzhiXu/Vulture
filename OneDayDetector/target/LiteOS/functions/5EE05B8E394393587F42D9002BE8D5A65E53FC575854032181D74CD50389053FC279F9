@@ -1,0 +1,28 @@
+static int ecdh_compute_shared_restartable( mbedtls_ecp_group *grp,
+                         mbedtls_mpi *z,
+                         const mbedtls_ecp_point *Q, const mbedtls_mpi *d,
+                         int (*f_rng)(void *, unsigned char *, size_t),
+                         void *p_rng,
+                         mbedtls_ecp_restart_ctx *rs_ctx )
+{
+    int ret;
+    mbedtls_ecp_point P;
+
+    mbedtls_ecp_point_init( &P );
+
+    MBEDTLS_MPI_CHK( mbedtls_ecp_mul_restartable( grp, &P, d, Q,
+                                                  f_rng, p_rng, rs_ctx ) );
+
+    if( mbedtls_ecp_is_zero( &P ) )
+    {
+        ret = MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+        goto cleanup;
+    }
+
+    MBEDTLS_MPI_CHK( mbedtls_mpi_copy( z, &P.X ) );
+
+cleanup:
+    mbedtls_ecp_point_free( &P );
+
+    return( ret );
+}

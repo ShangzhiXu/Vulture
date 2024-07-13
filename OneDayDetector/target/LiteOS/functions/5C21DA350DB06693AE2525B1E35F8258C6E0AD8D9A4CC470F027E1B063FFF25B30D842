@@ -1,0 +1,43 @@
+LITE_OS_SEC_TEXT_MINOR VOID OsMemPoolHeadInfoPrint(const VOID *pool)
+{
+    const LosMemPoolInfo *poolInfo = (const LosMemPoolInfo *)pool;
+    UINT32 dlinkNum;
+    UINT32 flag = 0;
+    const LosMultipleDlinkHead *dlinkHead = NULL;
+
+    if (!IS_ALIGNED(poolInfo, sizeof(VOID *))) {
+        PRINT_ERR("wrong mem pool addr: %p, func:%s,line:%d\n", poolInfo, __FUNCTION__, __LINE__);
+#ifdef LOSCFG_SHELL_EXCINFO_DUMP
+        WriteExcInfoToBuf("wrong mem pool addr: %p, func:%s,line:%d\n", poolInfo, __FUNCTION__, __LINE__);
+#endif
+        return;
+    }
+
+    dlinkHead = (const LosMultipleDlinkHead *)(VOID *)(poolInfo + 1);
+    for (dlinkNum = 0; dlinkNum < OS_MULTI_DLNK_NUM; dlinkNum++) {
+        if (OsMemPoolDlinkcheck(pool, dlinkHead->listHead[dlinkNum])) {
+            flag = 1;
+            PRINT_ERR("DlinkHead[%u]: pstPrev:%p, pstNext:%p\n",
+                      dlinkNum, dlinkHead->listHead[dlinkNum].pstPrev, dlinkHead->listHead[dlinkNum].pstNext);
+#ifdef LOSCFG_SHELL_EXCINFO_DUMP
+            WriteExcInfoToBuf("DlinkHead[%u]: pstPrev:%p, pstNext:%p\n",
+                              dlinkNum, dlinkHead->listHead[dlinkNum].pstPrev, dlinkHead->listHead[dlinkNum].pstNext);
+#endif
+        }
+    }
+    if (flag) {
+        PRINTK("mem pool info: poolAddr:%p, poolSize:0x%x\n", poolInfo->pool, poolInfo->poolSize);
+#ifdef LOSCFG_MEM_TASK_STAT
+        PRINTK("mem pool info: poolWaterLine:0x%x, poolCurUsedSize:0x%x\n", poolInfo->stat.memTotalPeak,
+               poolInfo->stat.memTotalUsed);
+#endif
+
+#ifdef LOSCFG_SHELL_EXCINFO_DUMP
+        WriteExcInfoToBuf("mem pool info: poolAddr:%p, poolSize:0x%x\n", poolInfo->pool, poolInfo->poolSize);
+#ifdef LOSCFG_MEM_TASK_STAT
+        WriteExcInfoToBuf("mem pool info: poolWaterLine:0x%x, poolCurUsedSize:0x%x\n",
+                          poolInfo->stat.memTotalPeak, poolInfo->stat.memTotalUsed);
+#endif
+#endif
+    }
+}

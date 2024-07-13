@@ -1,0 +1,33 @@
+ErrorStatus LL_RTC_Init(RTC_TypeDef *RTCx, LL_RTC_InitTypeDef *RTC_InitStruct)
+{
+  ErrorStatus status = ERROR;
+
+  /* Check the parameters */
+  assert_param(IS_RTC_ALL_INSTANCE(RTCx));
+  assert_param(IS_LL_RTC_HOURFORMAT(RTC_InitStruct->HourFormat));
+  assert_param(IS_LL_RTC_ASYNCH_PREDIV(RTC_InitStruct->AsynchPrescaler));
+  assert_param(IS_LL_RTC_SYNCH_PREDIV(RTC_InitStruct->SynchPrescaler));
+
+  /* Disable the write protection for RTC registers */
+  LL_RTC_DisableWriteProtection(RTCx);
+
+  /* Set Initialization mode */
+  if (LL_RTC_EnterInitMode(RTCx) != ERROR)
+  {
+    /* Set Hour Format */
+    LL_RTC_SetHourFormat(RTCx, RTC_InitStruct->HourFormat);
+
+    /* Configure Synchronous and Asynchronous prescaler factor */
+    LL_RTC_SetSynchPrescaler(RTCx, RTC_InitStruct->SynchPrescaler);
+    LL_RTC_SetAsynchPrescaler(RTCx, RTC_InitStruct->AsynchPrescaler);
+
+    /* Exit Initialization mode */
+    LL_RTC_DisableInitMode(RTCx);
+
+    status = SUCCESS;
+  }
+  /* Enable the write protection for RTC registers */
+  LL_RTC_EnableWriteProtection(RTCx);
+
+  return status;
+}

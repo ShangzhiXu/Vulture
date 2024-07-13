@@ -1,0 +1,54 @@
+static BOOL OsSlabMemBucketInit(VOID *pool, UINT32 size)
+{
+    UINT32 bucketNum, idx, i, blkSz, blkCnt;
+    struct LosSlabControlHeader *slabMemHead = OsSlabCtrlHdrGet(pool);
+
+    bucketNum = (size / SLAB_MEM_ALLOCATOR_SIZE) >> SLAB_MEM_BUCKET_SIZE_TYPE;
+    if ((slabMemHead == NULL) ||
+        (SLAB_MEM_BUCKET_SIZE_TYPE >= SLAB_BUCKET_SIZE_TYPE_MAX) ||
+        (bucketNum < SLAB_MEM_COUNT)) {
+        PRINT_ERR("invalid para, size type %d, bucketNum %d\n", SLAB_MEM_BUCKET_SIZE_TYPE, bucketNum);
+        return FALSE;
+    }
+
+    slabMemHead->allocatorBucket = OsSlabAllocatorNew(pool, sizeof(OsSlabMemAllocator),
+                                                      (UINT32)sizeof(UINT32), bucketNum);
+    if (slabMemHead->allocatorBucket == NULL) {
+        return FALSE;
+    }
+
+    for (idx = 0; idx < SLAB_MEM_COUNT; idx++) {
+        blkSz = (SLAB_MEM_CALSS_STEP_SIZE << idx);
+        blkCnt = SLAB_MEM_ALLOCATOR_SIZE / blkSz;
+        slabMemHead->slabClass[idx].blkSz = blkSz;
+        slabMemHead->slabClass[idx].blkCnt = blkCnt;
+        slabMemHead->slabClass[idx].blkUsedCnt = 0;
+
+        slabMemHead->slabClass[idx].bucket = OsSlabAllocatorAlloc(slabMemHead->allocatorBucket);
+        if (slabMemHead->slabClass[idx].bucket == NULL) {
+            goto BUCKET_ALLOC_FAIL;
+        }
+
+        slabMemHead->slabClass[idx].bucket->slabAlloc =
+            OsSlabAllocatorNew(pool, blkSz + sizeof(OsSlabBlockNode), (UINT32)sizeof(CHAR *), blkCnt);
+        if (slabMemHead->slabClass[idx].bucket->slabAlloc == NULL) {
+            goto ALLOCATOR_ALLOC_FAIL;
+        }
+
+        slabMemHead->slabClass[idx].bucket->next = NULL;
+        slabMemHead->slabClass[idx].allocatorCnt = 1;
+    }
+
+    return TRUE;
+
+ALLOCATOR_ALLOC_FAIL:
+    /* free all buckets that alloc before */
+    for (i = 0; i < idx; i++) {
+        (VOID)OsSlabAllocatorFree(slabMemHead->allocatorBucket, slabMemHead->slabClass[i].bucket);
+    }
+
+BUCKET_ALLOC_FAIL:
+    OsSlabAllocatorDestroy(pool, slabMemHead->allocatorBucket);
+
+    return FALSE;
+}

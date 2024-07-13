@@ -1,0 +1,24 @@
+STATIC VOID OsShellCmdDoWatch(VOID *arg1)
+{
+    WatchCB *watchItem = (WatchCB *)arg1;
+    UINT32 ret;
+    g_watchCmd = watchItem;
+
+    while (watchItem->count--) {
+        PRINTK("\033[2J\n");
+        if (watchItem->title) {
+            PrintTime();
+        }
+        (VOID)ShellMsgParse(watchItem->cmdBuf);
+        ret = LOS_EventRead(&watchItem->watchEvent, WATCH_EVENT_MASK,
+                            LOS_WAITMODE_OR | LOS_WAITMODE_CLR, watchItem->interval);
+        if (ret == WATCH_EVENT_MASK) {
+            break;
+        }
+    }
+
+    (VOID)LOS_EventDestroy(&watchItem->watchEvent);
+    free(g_watchCmd);
+    g_watchCmd = NULL;
+    PRINTK("\nHuawei LiteOS # ");
+}

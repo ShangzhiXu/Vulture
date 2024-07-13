@@ -1,0 +1,64 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 OsCmdKeyShift(const CHAR *cmdKey, CHAR *cmdOut, UINT32 size)
+{
+    CHAR *output = NULL;
+    CHAR *outputBak = NULL;
+    UINT32 len;
+    INT32 ret;
+    BOOL quotes = FALSE;
+
+    if ((cmdKey == NULL) || (cmdOut == NULL)) {
+        return OS_ERROR;
+    }
+
+    len = strlen(cmdKey);
+    if (len >= size) {
+        return OS_ERROR;
+    }
+    output = (CHAR*)LOS_MemAlloc(m_aucSysMem0, len + 1);
+    if (output == NULL) {
+        PRINTK("malloc failure in %s[%d]", __FUNCTION__, __LINE__);
+        return OS_ERROR;
+    }
+    /* Backup the 'output' start address */
+    outputBak = output;
+    /* Scan each character in 'cmdKey',and squeeze the overmuch space and ignore Invalid character */
+    for (; *cmdKey != '\0'; cmdKey++) {
+        /* Detected a Double Quotes, switch the matching status */
+        if (*cmdKey == '\"') {
+            SWITCH_QUOTES_STATUS(quotes);
+        }
+        /* Ignore the current character in following situation */
+        /* 1) Quotes matching status is FALSE (which said that the space is not been marked by double quotes) */
+        /* 2) Current character is a space */
+        /* 3) Next character is a space too, or the string is been seeked to the end already(\0) */
+        /* 4) Invalid character, such as single quotes */
+        if ((*cmdKey == ' ') && ((*(cmdKey + 1) == ' ') || (*(cmdKey + 1) == '\0')) && QUOTES_STATUS_CLOSE(quotes)) {
+            continue;
+        }
+        if (*cmdKey == '\'') {
+            continue;
+        }
+        *output = *cmdKey;
+        output++;
+    }
+    *output = '\0';
+    /* Restore the 'output' start address */
+    output = outputBak;
+    len = strlen(output);
+    /* Clear the space which is located at the first character in buffer */
+    if (*output == ' ') {
+        output++;
+        len--;
+    }
+    /* Copy out the buffer which is been operated already */
+    ret = strncpy_s(cmdOut, size, output, len);
+    if (ret != EOK) {
+        PRINT_ERR("%s,%d strncpy_s failed, err:%d!\n", __FUNCTION__, __LINE__, ret);
+        (VOID)LOS_MemFree(m_aucSysMem0, outputBak);
+        return OS_ERROR;
+    }
+
+    (VOID)LOS_MemFree(m_aucSysMem0, outputBak);
+
+    return LOS_OK;
+}

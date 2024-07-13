@@ -1,0 +1,40 @@
+static inline void bits_write(uint8_t * out, uint32_t bit_pos, uint8_t val, uint8_t len)
+{
+    if(len == 3) {
+        len = 4;
+        switch(val) {
+            case 0:
+                val = 0;
+                break;
+            case 1:
+                val = 2;
+                break;
+            case 2:
+                val = 4;
+                break;
+            case 3:
+                val = 6;
+                break;
+            case 4:
+                val = 9;
+                break;
+            case 5:
+                val = 11;
+                break;
+            case 6:
+                val = 13;
+                break;
+            case 7:
+                val = 15;
+                break;
+        }
+    }
+
+    uint16_t byte_pos = bit_pos >> 3;
+    bit_pos = bit_pos & 0x7;
+    bit_pos = 8 - bit_pos - len;
+
+    uint8_t bit_mask = (uint16_t)((uint16_t) 1 << len) - 1;
+    out[byte_pos] &= ((~bit_mask) << bit_pos);
+    out[byte_pos] |= (val << bit_pos);
+}

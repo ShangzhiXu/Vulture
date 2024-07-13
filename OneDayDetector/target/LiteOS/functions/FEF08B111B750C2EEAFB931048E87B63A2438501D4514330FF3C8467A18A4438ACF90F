@@ -1,0 +1,40 @@
+static uint8_t prv_init_forbidden(lwm2m_context_t *contextP,
+                                  lwm2m_object_t *targetP,
+                                  uint16_t objId,
+                                  uint16_t serverId,
+                                  int *sizeP,
+                                  uint8_t **forbidden)
+{
+    lwm2m_list_t *instanceP;
+    lwm2m_uri_t uriP;
+    int i;
+
+    uriP.flag = LWM2M_URI_FLAG_INSTANCE_ID;
+    uriP.objectId = objId;
+
+    i = 0;
+    *forbidden = (uint8_t *)lwm2m_malloc(*sizeP);
+    if (*forbidden == NULL)
+    {
+        return COAP_500_INTERNAL_SERVER_ERROR;
+    }
+    memset(*forbidden, 0, *sizeP);
+    for (instanceP = targetP->instanceList; instanceP != NULL ; instanceP = instanceP->next)
+    {
+        uriP.instanceId = instanceP->id;
+        if (acc_auth_operate(contextP, &uriP, OBJ_ACC_READ, serverId) != COAP_NO_ERROR)
+        {
+            (*sizeP)--;
+            (*forbidden)[i] = 1;
+        }
+        ++i;
+    }
+
+    if (*sizeP == 0)
+    {
+        lwm2m_free(*forbidden);
+        return COAP_500_INTERNAL_SERVER_ERROR;
+    }
+
+    return COAP_NO_ERROR;
+}

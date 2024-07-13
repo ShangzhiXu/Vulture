@@ -1,0 +1,30 @@
+VOID OsMemInfoPrint(const VOID *pool)
+{
+    LosMemPoolInfo *poolInfo = (LosMemPoolInfo *)pool;
+    LOS_MEM_POOL_STATUS status = {0};
+
+    if (OsMemInfoGet(pool, &status) == LOS_NOK) {
+        return;
+    }
+
+#ifdef LOSCFG_MEM_TASK_STAT
+    PRINTK("pool addr          pool size    used size     free size    "
+           "max free node size   used node num     free node num      UsageWaterLine\n");
+    PRINTK("---------------    --------     -------       --------     "
+           "--------------       -------------      ------------      ------------\n");
+    PRINTK("%-16p   0x%-8x   0x%-8x    0x%-8x   0x%-16x   0x%-13x    0x%-13x    0x%-13x\n",
+           poolInfo->pool, poolInfo->poolSize, status.uwTotalUsedSize,
+           status.uwTotalFreeSize, status.uwMaxFreeNodeSize, status.uwUsedNodeNum,
+           status.uwFreeNodeNum, status.uwUsageWaterLine);
+
+#else
+    PRINTK("pool addr          pool size    used size     free size    "
+           "max free node size   used node num     free node num\n");
+    PRINTK("---------------    --------     -------       --------     "
+           "--------------       -------------      ------------\n");
+    PRINTK("%-16p   0x%-8x   0x%-8x    0x%-8x   0x%-16x   0x%-13x    0x%-13x\n",
+           poolInfo->pool, poolInfo->poolSize, status.uwTotalUsedSize,
+           status.uwTotalFreeSize, status.uwMaxFreeNodeSize, status.uwUsedNodeNum,
+           status.uwFreeNodeNum);
+#endif
+}

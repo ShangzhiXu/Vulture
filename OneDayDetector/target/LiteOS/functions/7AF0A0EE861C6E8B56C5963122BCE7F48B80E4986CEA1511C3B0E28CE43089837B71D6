@@ -1,0 +1,32 @@
+VOID HalClockInitStart(VOID)
+{
+    UINT32 temp;
+
+#ifndef NO_SC_CTRL
+    /*
+     * enable timer2 here,
+     * but only time0 is used for system clock.
+     */
+    READ_UINT32(temp, SYS_CTRL_REG_BASE + REG_SC_CTRL);
+    temp |= TIMER2_ENABLE;
+    WRITE_UINT32(temp, SYS_CTRL_REG_BASE + REG_SC_CTRL);
+#endif
+
+    /* init the timestamp and lastdec value */
+    ResetTimerMasked();
+
+    /* disable timer2 */
+    WRITE_UINT32(0x0, TIMER2_REG_BASE + TIMER_CONTROL);
+    /* set init value as period */
+    WRITE_UINT32(TIMER_MAXLOAD, TIMER2_REG_BASE + TIMER_LOAD);
+
+    /*
+     * Timing mode: 32bits [bit 1 set as 1]
+     * ticking with 1/256 clock frequency [bit 3 set as 1, bit 2 set as 0]
+     * timer mode periodic [bit 6 set as 1]
+     * timer enabled [bit 7 set as 1]
+     */
+    temp = (1U << TIMER_ENABLE_BIT) | (1U << TIMER_COUNTING_MODE_BIT) |
+           (1U << TIMER_FREQUENCY_DIV_BIT) | (1U << TIMER_SIZE_SELECT_BIT);
+    WRITE_UINT32(temp, TIMER2_REG_BASE + TIMER_CONTROL);
+}

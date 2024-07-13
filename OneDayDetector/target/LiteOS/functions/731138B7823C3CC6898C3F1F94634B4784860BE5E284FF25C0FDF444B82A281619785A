@@ -1,0 +1,55 @@
+HAL_StatusTypeDef HAL_ADC_AnalogWDGConfig(ADC_HandleTypeDef* hadc, ADC_AnalogWDGConfTypeDef* AnalogWDGConfig)
+{
+#ifdef USE_FULL_ASSERT  
+  uint32_t tmp = 0;
+#endif /* USE_FULL_ASSERT  */  
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ANALOG_WATCHDOG(AnalogWDGConfig->WatchdogMode));
+  assert_param(IS_ADC_CHANNEL(AnalogWDGConfig->Channel));
+  assert_param(IS_FUNCTIONAL_STATE(AnalogWDGConfig->ITMode));
+
+#ifdef USE_FULL_ASSERT  
+  tmp = ADC_GET_RESOLUTION(hadc);
+  assert_param(IS_ADC_RANGE(tmp, AnalogWDGConfig->HighThreshold));
+  assert_param(IS_ADC_RANGE(tmp, AnalogWDGConfig->LowThreshold));
+#endif /* USE_FULL_ASSERT  */
+  
+  /* Process locked */
+  __HAL_LOCK(hadc);
+  
+  if(AnalogWDGConfig->ITMode == ENABLE)
+  {
+    /* Enable the ADC Analog watchdog interrupt */
+    __HAL_ADC_ENABLE_IT(hadc, ADC_IT_AWD);
+  }
+  else
+  {
+    /* Disable the ADC Analog watchdog interrupt */
+    __HAL_ADC_DISABLE_IT(hadc, ADC_IT_AWD);
+  }
+  
+  /* Clear AWDEN, JAWDEN and AWDSGL bits */
+  hadc->Instance->CR1 &=  ~(ADC_CR1_AWDSGL | ADC_CR1_JAWDEN | ADC_CR1_AWDEN);
+  
+  /* Set the analog watchdog enable mode */
+  hadc->Instance->CR1 |= AnalogWDGConfig->WatchdogMode;
+  
+  /* Set the high threshold */
+  hadc->Instance->HTR = AnalogWDGConfig->HighThreshold;
+  
+  /* Set the low threshold */
+  hadc->Instance->LTR = AnalogWDGConfig->LowThreshold;
+  
+  /* Clear the Analog watchdog channel select bits */
+  hadc->Instance->CR1 &= ~ADC_CR1_AWDCH;
+  
+  /* Set the Analog watchdog channel */
+  hadc->Instance->CR1 |= (uint32_t)((uint16_t)(AnalogWDGConfig->Channel));
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+  
+  /* Return function status */
+  return HAL_OK;
+}

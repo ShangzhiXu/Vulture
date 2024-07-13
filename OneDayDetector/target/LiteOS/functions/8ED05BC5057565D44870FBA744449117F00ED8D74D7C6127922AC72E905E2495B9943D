@@ -1,0 +1,18 @@
+fs_is_file_ready(struct fs_file *file, fs_wait_cb callback_fn, void *callback_arg)
+{
+  if (file != NULL) {
+#if LWIP_HTTPD_FS_ASYNC_READ
+#if LWIP_HTTPD_CUSTOM_FILES
+    if (!fs_canread_custom(file)) {
+      if (fs_wait_read_custom(file, callback_fn, callback_arg)) {
+        return 0;
+      }
+    }
+#else /* LWIP_HTTPD_CUSTOM_FILES */
+    LWIP_UNUSED_ARG(callback_fn);
+    LWIP_UNUSED_ARG(callback_arg);
+#endif /* LWIP_HTTPD_CUSTOM_FILES */
+#endif /* LWIP_HTTPD_FS_ASYNC_READ */
+  }
+  return 1;
+}

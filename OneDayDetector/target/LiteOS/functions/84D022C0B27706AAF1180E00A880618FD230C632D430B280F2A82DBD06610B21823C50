@@ -1,0 +1,18 @@
+int psk_callback( void *p_info, mbedtls_ssl_context *ssl,
+                  const unsigned char *name, size_t name_len )
+{
+    psk_entry *cur = (psk_entry *) p_info;
+
+    while( cur != NULL )
+    {
+        if( name_len == strlen( cur->name ) &&
+            memcmp( name, cur->name, name_len ) == 0 )
+        {
+            return( mbedtls_ssl_set_hs_psk( ssl, cur->key, cur->key_len ) );
+        }
+
+        cur = cur->next;
+    }
+
+    return( -1 );
+}

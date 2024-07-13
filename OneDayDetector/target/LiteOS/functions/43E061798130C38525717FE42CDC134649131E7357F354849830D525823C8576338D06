@@ -1,0 +1,23 @@
+STATIC VOID OsTaskDeleteJoined(LosTaskCB *taskCB, VOID *ret)
+{
+#ifdef LOSCFG_COMPAT_POSIX
+    UINT32 intSave;
+    taskCB->threadJoinRetval = ret;
+
+    intSave = LOS_IntLock();
+    OsPercpuGet()->taskLockCnt = 1;
+
+    if (taskCB->threadJoin != NULL) {
+        if (LOS_SemPost((UINT32)(((LosSemCB *)taskCB->threadJoin)->semId)) != LOS_OK) {
+            PRINT_ERR("OsTaskEntry LOS_SemPost fail!\n");
+        }
+        taskCB->threadJoin = NULL;
+    }
+    OsPercpuGet()->taskLockCnt = 0;
+
+    LOS_SpinLock(&g_taskSpin);
+    OsSchedResched();
+
+    SCHEDULER_UNLOCK(intSave);
+#endif
+}

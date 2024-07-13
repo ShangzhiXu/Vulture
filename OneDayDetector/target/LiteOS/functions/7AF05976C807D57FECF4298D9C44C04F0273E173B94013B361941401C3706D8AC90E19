@@ -1,0 +1,46 @@
+void UnityTestRunner(unityfunction* setup,
+                     unityfunction* testBody,
+                     unityfunction* teardown,
+                     const char* printableName,
+                     const char* group,
+                     const char* name,
+                     const char* file,
+                     unsigned int line)
+{
+    if (testSelected(name) && groupSelected(group))
+    {
+        Unity.TestFile = file;
+        Unity.CurrentTestName = printableName;
+        Unity.CurrentTestLineNumber = line;
+        if (!UnityFixture.Verbose)
+            UNITY_OUTPUT_CHAR('.');
+        else
+        {
+            UnityPrint(printableName);
+        #ifndef UNITY_REPEAT_TEST_NAME
+            Unity.CurrentTestName = NULL;
+        #endif
+        }
+
+        Unity.NumberOfTests++;
+        UnityMalloc_StartTest();
+        UnityPointer_Init();
+
+        if (TEST_PROTECT())
+        {
+            setup();
+            testBody();
+        }
+        if (TEST_PROTECT())
+        {
+            teardown();
+        }
+        if (TEST_PROTECT())
+        {
+            UnityPointer_UndoAllSets();
+            if (!Unity.CurrentTestFailed)
+                UnityMalloc_EndTest();
+        }
+        UnityConcludeFixtureTest();
+    }
+}

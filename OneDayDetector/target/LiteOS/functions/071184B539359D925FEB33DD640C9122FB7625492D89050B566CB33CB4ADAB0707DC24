@@ -1,0 +1,52 @@
+static ErrorStatus OC5Config(TIM_TypeDef *TIMx, LL_TIM_OC_InitTypeDef *TIM_OCInitStruct)
+{
+  uint32_t tmpccmr3 = 0U;
+  uint32_t tmpccer = 0U;
+
+  /* Check the parameters */
+  assert_param(IS_TIM_CC5_INSTANCE(TIMx));
+  assert_param(IS_LL_TIM_OCMODE(TIM_OCInitStruct->OCMode));
+  assert_param(IS_LL_TIM_OCSTATE(TIM_OCInitStruct->OCState));
+  assert_param(IS_LL_TIM_OCPOLARITY(TIM_OCInitStruct->OCPolarity));
+  assert_param(IS_LL_TIM_OCPOLARITY(TIM_OCInitStruct->OCNPolarity));
+  assert_param(IS_LL_TIM_OCSTATE(TIM_OCInitStruct->OCNState));
+
+  /* Disable the Channel 5: Reset the CC5E Bit */
+  CLEAR_BIT(TIMx->CCER, TIM_CCER_CC5E);
+
+  /* Get the TIMx CCER register value */
+  tmpccer = LL_TIM_ReadReg(TIMx, CCER);
+
+  /* Get the TIMx CCMR3 register value */
+  tmpccmr3 = LL_TIM_ReadReg(TIMx, CCMR3);
+
+  /* Select the Output Compare Mode */
+  MODIFY_REG(tmpccmr3, TIM_CCMR3_OC5M, TIM_OCInitStruct->OCMode);
+
+  /* Set the Output Compare Polarity */
+  MODIFY_REG(tmpccer, TIM_CCER_CC5P, TIM_OCInitStruct->OCPolarity << 16U);
+
+  /* Set the Output State */
+  MODIFY_REG(tmpccer, TIM_CCER_CC5E, TIM_OCInitStruct->OCState << 16U);
+
+  if (IS_TIM_BREAK_INSTANCE(TIMx))
+  {
+    assert_param(IS_LL_TIM_OCIDLESTATE(TIM_OCInitStruct->OCNIdleState));
+    assert_param(IS_LL_TIM_OCIDLESTATE(TIM_OCInitStruct->OCIdleState));
+
+    /* Set the Output Idle state */
+    MODIFY_REG(TIMx->CR2, TIM_CR2_OIS5, TIM_OCInitStruct->OCIdleState << 8U);
+
+  }
+
+  /* Write to TIMx CCMR3 */
+  LL_TIM_WriteReg(TIMx, CCMR3, tmpccmr3);
+
+  /* Set the Capture Compare Register value */
+  LL_TIM_OC_SetCompareCH5(TIMx, TIM_OCInitStruct->CompareValue);
+
+  /* Write to TIMx CCER */
+  LL_TIM_WriteReg(TIMx, CCER, tmpccer);
+
+  return SUCCESS;
+}

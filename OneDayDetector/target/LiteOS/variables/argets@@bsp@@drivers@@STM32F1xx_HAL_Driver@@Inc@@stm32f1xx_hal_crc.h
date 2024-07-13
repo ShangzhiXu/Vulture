@@ -1,0 +1,3 @@
+  CRC_TypeDef                 *Instance;  /*!< Register base address   */
+  HAL_LockTypeDef             Lock;       /*!< CRC locking object      */
+  __IO HAL_CRC_StateTypeDef   State;      /*!< CRC communication state */

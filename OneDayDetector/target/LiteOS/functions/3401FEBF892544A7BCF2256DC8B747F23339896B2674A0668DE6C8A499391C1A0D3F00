@@ -1,0 +1,42 @@
+int MQTTUnsubscribe(MQTTClient* c, const char* topicFilter)
+{
+    int rc = FAILURE;
+    Timer timer;
+    MQTTString topic = MQTTString_initializer;
+    topic.cstring = (char *)topicFilter;
+    int len = 0;
+
+#if defined(MQTT_TASK)
+	  MutexLock(&c->mutex);
+#endif
+	  if (!c->isconnected)
+		  goto exit;
+
+    TimerInit(&timer);
+    TimerCountdownMS(&timer, c->command_timeout_ms);
+
+    if ((len = MQTTSerialize_unsubscribe(c->buf, c->buf_size, 0, getNextPacketId(c), 1, &topic)) <= 0)
+        goto exit;
+    if ((rc = sendPacket(c, len, &timer)) != MQTT_SUCCESS) // send the subscribe packet
+        goto exit; // there was a problem
+
+    if (waitfor(c, UNSUBACK, &timer) == UNSUBACK)
+    {
+        unsigned short mypacketid;  // should be the same as the packetid above
+        if (MQTTDeserialize_unsuback(&mypacketid, c->readbuf, c->readbuf_size) == 1)
+        {
+            /* remove the subscription message handler associated with this topic, if there is one */
+            MQTTSetMessageHandler(c, topicFilter, NULL);
+        }
+    }
+    else
+        rc = FAILURE;
+
+exit:
+    if (rc == FAILURE)
+        MQTTCloseSession(c);
+#if defined(MQTT_TASK)
+	  MutexUnlock(&c->mutex);
+#endif
+    return rc;
+}

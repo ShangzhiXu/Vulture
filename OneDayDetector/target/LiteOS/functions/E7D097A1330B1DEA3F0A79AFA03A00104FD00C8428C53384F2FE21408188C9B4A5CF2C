@@ -1,0 +1,19 @@
+STATIC INLINE BOOL ArchAtomicCmpXchg32bits(Atomic *v, INT32 val, INT32 oldVal)
+{
+    INT32 prevVal;
+    UINT32 status;
+
+    do {
+        __asm__ __volatile__("1: ldrex %0, %2\n"
+                             "    mov %1, #0\n"
+                             "    cmp %0, %3\n"
+                             "    bne 2f\n"
+                             "    strex %1, %4, %2\n"
+                             "2:"
+                             : "=&r"(prevVal), "=&r"(status), "+Q"(*v)
+                             : "r"(oldVal), "r"(val)
+                             : "cc");
+    } while (__builtin_expect(status != 0, 0));
+
+    return prevVal != oldVal;
+}

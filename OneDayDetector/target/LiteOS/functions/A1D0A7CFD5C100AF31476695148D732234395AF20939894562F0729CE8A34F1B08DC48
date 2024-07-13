@@ -1,0 +1,15 @@
+HAL_StatusTypeDef  USB_ActivateSetup(USB_OTG_GlobalTypeDef *USBx)
+{
+  uint32_t USBx_BASE = (uint32_t)USBx;
+
+  /* Set the MPS of the IN EP based on the enumeration speed */
+  USBx_INEP(0U)->DIEPCTL &= ~USB_OTG_DIEPCTL_MPSIZ;
+
+  if ((USBx_DEVICE->DSTS & USB_OTG_DSTS_ENUMSPD) == DSTS_ENUMSPD_LS_PHY_6MHZ)
+  {
+    USBx_INEP(0U)->DIEPCTL |= 3U;
+  }
+  USBx_DEVICE->DCTL |= USB_OTG_DCTL_CGINAK;
+
+  return HAL_OK;
+}

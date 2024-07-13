@@ -1,0 +1,30 @@
+default_netif_add(void)
+{
+  struct netif *n;
+
+#if LWIP_HAVE_LOOPIF
+  fail_unless(netif_list != NULL); /* the loopif */
+  fail_unless(netif_list->next == NULL);
+#else
+  fail_unless(netif_list == NULL);
+#endif
+  fail_unless(netif_default == NULL);
+
+  IP4_ADDR(&test_ipaddr1, 192,168,0,1);
+  IP4_ADDR(&test_netmask1, 255,255,255,0);
+  IP4_ADDR(&test_gw1, 192,168,0,254);
+  n = netif_add(&test_netif1, &test_ipaddr1, &test_netmask1,
+                &test_gw1, NULL, default_netif_init, NULL);
+  fail_unless(n == &test_netif1);
+
+  IP4_ADDR(&test_ipaddr2, 192,168,1,1);
+  IP4_ADDR(&test_netmask2, 255,255,255,0);
+  IP4_ADDR(&test_gw2, 192,168,1,254);
+  n = netif_add(&test_netif2, &test_ipaddr2, &test_netmask2,
+                &test_gw2, NULL, default_netif_init, NULL);
+  fail_unless(n == &test_netif2);
+
+  netif_set_default(&test_netif1);
+  netif_set_up(&test_netif1);
+  netif_set_up(&test_netif2);
+}

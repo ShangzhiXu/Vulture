@@ -1,0 +1,82 @@
+static int perform_operation(
+        int number_of_arguments, char *arguments[],
+        const size_t number_of_operator_functions,
+        const OperatorFunction * const operator_functions,
+        int * const number_of_intermediate_values,
+        int ** const intermediate_values, int * const error_occurred) {
+    char *end_of_integer;
+    int value;
+    unsigned int i;
+    assert(!number_of_arguments || arguments);
+    assert(!number_of_operator_functions || operator_functions);
+    assert(error_occurred);
+    assert(number_of_intermediate_values);
+    assert(intermediate_values);
+
+    *error_occurred = 0;
+    *number_of_intermediate_values = 0;
+    *intermediate_values = NULL;
+    if (!number_of_arguments)
+        return 0;
+
+    // Parse the first value.
+    value = (int)strtol(arguments[0], &end_of_integer, 10);
+    if (end_of_integer == arguments[0]) {
+        // If an error occurred while parsing the integer.
+        fprintf(stderr, "Unable to parse integer from argument %s\n",
+                arguments[0]);
+        *error_occurred = 1;
+        return 0;
+    }
+
+    // Allocate an array for the output values.
+    *intermediate_values = calloc(((number_of_arguments - 1) / 2),
+                                  sizeof(**intermediate_values));
+
+    i = 1;
+    while (i < number_of_arguments) {
+        int other_value;
+        const char* const operator_string = arguments[i];
+        const BinaryOperator function = find_operator_function_by_string(
+            number_of_operator_functions, operator_functions, operator_string);
+        int * const intermediate_value =
+            &((*intermediate_values)[*number_of_intermediate_values]);
+        (*number_of_intermediate_values) ++;
+
+        if (!function) {
+            fprintf(stderr, "Unknown operator %s, argument %d\n",
+                    operator_string, i);
+            *error_occurred = 1;
+            break;
+        }
+        i ++;
+
+        if (i == number_of_arguments) {
+            fprintf(stderr, "Binary operator %s missing argument\n",
+                    operator_string);
+            *error_occurred = 1;
+            break;
+        }
+
+        other_value = (int)strtol(arguments[i], &end_of_integer, 10);
+        if (end_of_integer == arguments[i]) {
+            // If an error occurred while parsing the integer.
+            fprintf(stderr, "Unable to parse integer %s of argument %d\n",
+                    arguments[i], i);
+            *error_occurred = 1;
+            break;
+        }
+        i ++;
+
+        // Perform the operation and store the intermediate value.
+        *intermediate_value = function(value, other_value);
+        value = *intermediate_value;
+    }
+    if (*error_occurred) {
+        free(*intermediate_values);
+        *intermediate_values = NULL;
+        *number_of_intermediate_values = 0;
+        return 0;
+    }
+    return value;
+}

@@ -1,0 +1,25 @@
+sys_untimeout(sys_timeout_handler handler, void *arg)
+{
+  struct sys_timeo *prev_t, *t;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  if (next_timeout == NULL) {
+    return;
+  }
+
+  for (t = next_timeout, prev_t = NULL; t != NULL; prev_t = t, t = t->next) {
+    if ((t->h == handler) && (t->arg == arg)) {
+      /* We have a match */
+      /* Unlink from previous in list */
+      if (prev_t == NULL) {
+        next_timeout = t->next;
+      } else {
+        prev_t->next = t->next;
+      }
+      memp_free(MEMP_SYS_TIMEOUT, t);
+      return;
+    }
+  }
+  return;
+}

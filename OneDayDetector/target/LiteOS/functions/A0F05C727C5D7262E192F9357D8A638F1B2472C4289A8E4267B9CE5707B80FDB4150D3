@@ -1,0 +1,38 @@
+void ft6x06_TS_GetTouchInfo(uint16_t   DeviceAddr,
+                            uint32_t   touchIdx,
+                            uint32_t * pWeight,
+                            uint32_t * pArea,
+                            uint32_t * pEvent)
+{
+  uint8_t regAddress = 0;
+  uint8_t dataxy[3];
+  
+  if(touchIdx < ft6x06_handle.currActiveTouchNb)
+  {
+    switch(touchIdx)
+    {
+    case 0 : 
+      regAddress = FT6206_P1_WEIGHT_REG;
+      break;
+      
+    case 1 :
+      regAddress = FT6206_P2_WEIGHT_REG;
+      break;
+      
+    default :
+      break;
+      
+    } /* end switch(touchIdx) */
+    
+    /* Read weight, area and Event Id of touch index */
+    TS_IO_ReadMultiple(DeviceAddr, regAddress, dataxy, sizeof(dataxy)); 
+    
+    /* Return weight of touch index */
+    * pWeight = (dataxy[0] & FT6206_TOUCH_WEIGHT_MASK) >> FT6206_TOUCH_WEIGHT_SHIFT;
+    /* Return area of touch index */
+    * pArea = (dataxy[1] & FT6206_TOUCH_AREA_MASK) >> FT6206_TOUCH_AREA_SHIFT;
+    /* Return Event Id  of touch index */
+    * pEvent = (dataxy[2] & FT6206_TOUCH_EVT_FLAG_MASK) >> FT6206_TOUCH_EVT_FLAG_SHIFT;
+    
+  } /* of if(touchIdx < ft6x06_handle.currActiveTouchNb) */
+}

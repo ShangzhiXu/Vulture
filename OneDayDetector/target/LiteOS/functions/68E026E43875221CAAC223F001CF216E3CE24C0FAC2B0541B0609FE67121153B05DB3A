@@ -1,0 +1,27 @@
+tftp_init(const struct tftp_context *ctx)
+{
+  err_t ret;
+
+  /* LWIP_ASSERT_CORE_LOCKED(); is checked by udp_new() */
+  struct udp_pcb *pcb = udp_new_ip_type(IPADDR_TYPE_ANY);
+  if (pcb == NULL) {
+    return ERR_MEM;
+  }
+
+  ret = udp_bind(pcb, IP_ANY_TYPE, TFTP_PORT);
+  if (ret != ERR_OK) {
+    udp_remove(pcb);
+    return ret;
+  }
+
+  tftp_state.handle    = NULL;
+  tftp_state.port      = 0;
+  tftp_state.ctx       = ctx;
+  tftp_state.timer     = 0;
+  tftp_state.last_data = NULL;
+  tftp_state.upcb      = pcb;
+
+  udp_recv(pcb, recv, NULL);
+
+  return ERR_OK;
+}

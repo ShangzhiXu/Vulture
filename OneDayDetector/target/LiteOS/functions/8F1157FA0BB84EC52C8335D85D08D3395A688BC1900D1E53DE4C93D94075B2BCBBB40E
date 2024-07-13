@@ -1,0 +1,74 @@
+HAL_StatusTypeDef HAL_SMBUS_Master_Transmit_IT(SMBUS_HandleTypeDef *hsmbus, uint16_t DevAddress, uint8_t *pData, uint16_t Size, uint32_t XferOptions)
+{
+  uint32_t count      = 0x00U;
+
+  /* Check the parameters */
+  assert_param(IS_SMBUS_TRANSFER_OPTIONS_REQUEST(XferOptions));
+
+  if (hsmbus->State == HAL_SMBUS_STATE_READY)
+  {
+    /* Check Busy Flag only if FIRST call of Master interface */
+    if ((XferOptions == SMBUS_FIRST_AND_LAST_FRAME_NO_PEC) || (XferOptions == SMBUS_FIRST_AND_LAST_FRAME_WITH_PEC) || (XferOptions == SMBUS_FIRST_FRAME))
+    {
+      /* Wait until BUSY flag is reset */
+      count = SMBUS_TIMEOUT_BUSY_FLAG * (SystemCoreClock / 25U / 1000U);
+      do
+      {
+        if (count-- == 0U)
+        {
+          hsmbus->PreviousState = SMBUS_STATE_NONE;
+          hsmbus->State = HAL_SMBUS_STATE_READY;
+
+          /* Process Unlocked */
+          __HAL_UNLOCK(hsmbus);
+
+          return HAL_TIMEOUT;
+        }
+      }
+      while (__HAL_SMBUS_GET_FLAG(hsmbus, SMBUS_FLAG_BUSY) != RESET);
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hsmbus);
+
+    /* Check if the SMBUS is already enabled */
+    if ((hsmbus->Instance->CR1 & I2C_CR1_PE) != I2C_CR1_PE)
+    {
+      /* Enable SMBUS peripheral */
+      __HAL_SMBUS_ENABLE(hsmbus);
+    }
+
+    /* Disable Pos */
+    CLEAR_BIT(hsmbus->Instance->CR1, I2C_CR1_POS);
+
+    hsmbus->State     = HAL_SMBUS_STATE_BUSY_TX;
+    hsmbus->ErrorCode = HAL_SMBUS_ERROR_NONE;
+    hsmbus->Mode      = HAL_SMBUS_MODE_MASTER;
+
+    /* Prepare transfer parameters */
+    hsmbus->pBuffPtr    = pData;
+    hsmbus->XferCount   = Size;
+    hsmbus->XferOptions = XferOptions;
+    hsmbus->XferSize    = hsmbus->XferCount;
+    hsmbus->Devaddress  = DevAddress;
+
+    /* Generate Start */
+    SET_BIT(hsmbus->Instance->CR1, I2C_CR1_START);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hsmbus);
+
+    /* Note : The SMBUS interrupts must be enabled after unlocking current process
+    to avoid the risk of hsmbus interrupt handle execution before current
+    process unlock */
+
+    /* Enable EVT, BUF and ERR interrupt */
+    __HAL_SMBUS_ENABLE_IT(hsmbus, SMBUS_IT_EVT | SMBUS_IT_BUF | SMBUS_IT_ERR);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

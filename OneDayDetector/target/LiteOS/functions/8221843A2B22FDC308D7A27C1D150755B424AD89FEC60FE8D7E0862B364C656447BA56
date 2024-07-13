@@ -1,0 +1,63 @@
+HAL_StatusTypeDef HAL_RCCEx_EnablePLLSAI1(RCC_PLLSAI1InitTypeDef  *PLLSAI1Init)
+{
+  uint32_t tickstart = 0U;
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* check for PLLSAI1 Parameters used to output PLLSAI1CLK */
+  assert_param(IS_RCC_PLLSAI1SOURCE(PLLSAI1Init->PLLSAI1Source));
+  assert_param(IS_RCC_PLLSAI1M_VALUE(PLLSAI1Init->PLLSAI1M));
+  assert_param(IS_RCC_PLLSAI1N_VALUE(PLLSAI1Init->PLLSAI1N));
+  assert_param(IS_RCC_PLLSAI1P_VALUE(PLLSAI1Init->PLLSAI1P));
+  assert_param(IS_RCC_PLLSAI1Q_VALUE(PLLSAI1Init->PLLSAI1Q));
+  assert_param(IS_RCC_PLLSAI1R_VALUE(PLLSAI1Init->PLLSAI1R));
+  assert_param(IS_RCC_PLLSAI1CLOCKOUT_VALUE(PLLSAI1Init->PLLSAI1ClockOut));
+
+  /* Disable the PLLSAI1 */
+  __HAL_RCC_PLLSAI1_DISABLE();
+
+  /* Get Start Tick*/
+  tickstart = HAL_GetTick();
+
+  /* Wait till PLLSAI1 is ready to be updated */
+  while(READ_BIT(RCC->CR, RCC_CR_PLLSAI1RDY) != RESET)
+  {
+    if((HAL_GetTick() - tickstart) > PLLSAI1_TIMEOUT_VALUE)
+    {
+      status = HAL_TIMEOUT;
+      break;
+    }
+  }
+
+  if(status == HAL_OK)
+  {
+#if defined(RCC_PLLSAI1M_DIV_1_16_SUPPORT)
+    /* Configure the PLLSAI1 Multiplication factor N */
+    /* Configure the PLLSAI1 Division factors M, P, Q and R */
+    __HAL_RCC_PLLSAI1_CONFIG(PLLSAI1Init->PLLSAI1M, PLLSAI1Init->PLLSAI1N, PLLSAI1Init->PLLSAI1P, PLLSAI1Init->PLLSAI1Q, PLLSAI1Init->PLLSAI1R);
+#else
+    /* Configure the PLLSAI1 Multiplication factor N */
+    /* Configure the PLLSAI1 Division factors P, Q and R */
+    __HAL_RCC_PLLSAI1_CONFIG(PLLSAI1Init->PLLSAI1N, PLLSAI1Init->PLLSAI1P, PLLSAI1Init->PLLSAI1Q, PLLSAI1Init->PLLSAI1R);
+#endif /* RCC_PLLSAI1M_DIV_1_16_SUPPORT */
+    /* Configure the PLLSAI1 Clock output(s) */
+    __HAL_RCC_PLLSAI1CLKOUT_ENABLE(PLLSAI1Init->PLLSAI1ClockOut);
+
+    /* Enable the PLLSAI1 again by setting PLLSAI1ON to 1*/
+    __HAL_RCC_PLLSAI1_ENABLE();
+
+    /* Get Start Tick*/
+    tickstart = HAL_GetTick();
+
+    /* Wait till PLLSAI1 is ready */
+    while(READ_BIT(RCC->CR, RCC_CR_PLLSAI1RDY) == RESET)
+    {
+      if((HAL_GetTick() - tickstart) > PLLSAI1_TIMEOUT_VALUE)
+      {
+        status = HAL_TIMEOUT;
+        break;
+      }
+    }
+  }
+
+  return status;
+}

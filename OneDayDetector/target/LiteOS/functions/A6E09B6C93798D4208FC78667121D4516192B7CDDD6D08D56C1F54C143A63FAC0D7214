@@ -1,0 +1,21 @@
+STATIC INLINE UINT32 OsTimespec2Tick(const struct timespec *tp)
+{
+    UINT64 tickCnt, tmp, tickNs;
+
+    /* Fail a NULL pointer */
+    if (tp == NULL) {
+        return 0;
+    }
+
+    tickNs = ((UINT64)tp->tv_nsec * LOSCFG_BASE_CORE_TICK_PER_SECOND) / OS_SYS_NS_PER_SECOND;
+    tmp = (UINT64)tp->tv_nsec - (((UINT64)tickNs * OS_SYS_NS_PER_SECOND) / LOSCFG_BASE_CORE_TICK_PER_SECOND);
+    if (tmp > 0) {
+        tickNs++;
+    }
+
+    tickCnt = (UINT64)tp->tv_sec * LOSCFG_BASE_CORE_TICK_PER_SECOND + tickNs;
+    if (tickCnt > LOS_WAIT_FOREVER) {
+        tickCnt = LOS_WAIT_FOREVER;
+    }
+    return (UINT32)tickCnt;
+}

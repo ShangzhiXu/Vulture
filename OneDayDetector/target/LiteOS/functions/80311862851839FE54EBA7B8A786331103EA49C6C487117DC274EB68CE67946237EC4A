@@ -1,0 +1,104 @@
+HAL_StatusTypeDef HAL_TIMEx_ConfigBreakInput(TIM_HandleTypeDef *htim,
+                                             uint32_t BreakInput,
+                                             TIMEx_BreakInputConfigTypeDef *sBreakInputConfig)
+
+{
+  uint32_t tmporx;
+  uint32_t bkin_enable_mask = 0U;
+  uint32_t bkin_polarity_mask = 0U;
+  uint32_t bkin_enable_bitpos = 0U;
+  uint32_t bkin_polarity_bitpos = 0U;
+
+  /* Check the parameters */
+  assert_param(IS_TIM_BREAK_INSTANCE(htim->Instance));
+  assert_param(IS_TIM_BREAKINPUT(BreakInput));
+  assert_param(IS_TIM_BREAKINPUTSOURCE(sBreakInputConfig->Source));
+  assert_param(IS_TIM_BREAKINPUTSOURCE_STATE(sBreakInputConfig->Enable));
+#if defined(DFSDM1_Channel0)
+  if (sBreakInputConfig->Source != TIM_BREAKINPUTSOURCE_DFSDM1)
+  {
+    assert_param(IS_TIM_BREAKINPUTSOURCE_POLARITY(sBreakInputConfig->Polarity));
+  }
+#else
+  assert_param(IS_TIM_BREAKINPUTSOURCE_POLARITY(sBreakInputConfig->Polarity));
+#endif /* DFSDM1_Channel0 */
+
+  /* Check input state */
+  __HAL_LOCK(htim);
+
+  switch (sBreakInputConfig->Source)
+  {
+    case TIM_BREAKINPUTSOURCE_BKIN:
+    {
+      bkin_enable_mask = TIM1_AF1_BKINE;
+      bkin_enable_bitpos = 0;
+      bkin_polarity_mask = TIM1_AF1_BKINP;
+      bkin_polarity_bitpos = 9;
+      break;
+    }
+
+    case TIM_BREAKINPUTSOURCE_DFSDM1:
+    {
+      bkin_enable_mask = TIM1_AF1_BKDF1BKE;
+      bkin_enable_bitpos = 8;
+      break;
+    }
+
+    default:
+      break;
+  }
+
+  switch (BreakInput)
+  {
+    case TIM_BREAKINPUT_BRK:
+    {
+      /* Get the TIMx_AF1 register value */
+      tmporx = htim->Instance->AF1;
+
+      /* Enable the break input */
+      tmporx &= ~bkin_enable_mask;
+      tmporx |= (sBreakInputConfig->Enable << bkin_enable_bitpos) & bkin_enable_mask;
+
+      /* Set the break input polarity */
+#if defined(DFSDM1_Channel0)
+      if (sBreakInputConfig->Source != TIM_BREAKINPUTSOURCE_DFSDM1)
+#endif /* DFSDM1_Channel0 */
+      {
+        tmporx &= ~bkin_polarity_mask;
+        tmporx |= (sBreakInputConfig->Polarity << bkin_polarity_bitpos) & bkin_polarity_mask;
+      }
+
+      /* Set TIMx_AF1 */
+      htim->Instance->AF1 = tmporx;
+      break;
+    }
+    case TIM_BREAKINPUT_BRK2:
+    {
+      /* Get the TIMx_AF2 register value */
+      tmporx = htim->Instance->AF2;
+
+      /* Enable the break input */
+      tmporx &= ~bkin_enable_mask;
+      tmporx |= (sBreakInputConfig->Enable << bkin_enable_bitpos) & bkin_enable_mask;
+
+      /* Set the break input polarity */
+#if defined(DFSDM1_Channel0)
+      if (sBreakInputConfig->Source != TIM_BREAKINPUTSOURCE_DFSDM1)
+#endif /* DFSDM1_Channel0 */
+      {
+        tmporx &= ~bkin_polarity_mask;
+        tmporx |= (sBreakInputConfig->Polarity << bkin_polarity_bitpos) & bkin_polarity_mask;
+      }
+
+      /* Set TIMx_AF2 */
+      htim->Instance->AF2 = tmporx;
+      break;
+    }
+    default:
+      break;
+  }
+
+  __HAL_UNLOCK(htim);
+
+  return HAL_OK;
+}

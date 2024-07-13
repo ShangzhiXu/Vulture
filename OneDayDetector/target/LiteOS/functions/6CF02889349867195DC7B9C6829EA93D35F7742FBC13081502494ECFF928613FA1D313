@@ -1,0 +1,28 @@
+send_data(void)
+{
+  u16_t *payload;
+  int ret;
+
+  if (tftp_state.last_data != NULL) {
+    pbuf_free(tftp_state.last_data);
+  }
+
+  tftp_state.last_data = pbuf_alloc(PBUF_TRANSPORT, TFTP_HEADER_LENGTH + TFTP_MAX_PAYLOAD_SIZE, PBUF_RAM);
+  if (tftp_state.last_data == NULL) {
+    return;
+  }
+
+  payload = (u16_t *) tftp_state.last_data->payload;
+  payload[0] = PP_HTONS(TFTP_DATA);
+  payload[1] = lwip_htons(tftp_state.blknum);
+
+  ret = tftp_state.ctx->read(tftp_state.handle, &payload[2], TFTP_MAX_PAYLOAD_SIZE);
+  if (ret < 0) {
+    send_error(&tftp_state.addr, tftp_state.port, TFTP_ERROR_ACCESS_VIOLATION, "Error occured while reading the file.");
+    close_handle();
+    return;
+  }
+
+  pbuf_realloc(tftp_state.last_data, (u16_t)(TFTP_HEADER_LENGTH + ret));
+  resend_data();
+}

@@ -1,0 +1,22 @@
+static int pk_write_ec_pubkey( unsigned char **p, unsigned char *start,
+                               mbedtls_ecp_keypair *ec )
+{
+    int ret;
+    size_t len = 0;
+    unsigned char buf[MBEDTLS_ECP_MAX_PT_LEN];
+
+    if( ( ret = mbedtls_ecp_point_write_binary( &ec->grp, &ec->Q,
+                                        MBEDTLS_ECP_PF_UNCOMPRESSED,
+                                        &len, buf, sizeof( buf ) ) ) != 0 )
+    {
+        return( ret );
+    }
+
+    if( *p < start || (size_t)( *p - start ) < len )
+        return( MBEDTLS_ERR_ASN1_BUF_TOO_SMALL );
+
+    *p -= len;
+    memcpy( *p, buf, len );
+
+    return( (int) len );
+}

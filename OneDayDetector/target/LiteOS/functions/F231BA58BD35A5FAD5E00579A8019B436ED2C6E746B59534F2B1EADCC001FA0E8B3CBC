@@ -1,0 +1,122 @@
+void link_established(ppp_pcb *pcb) {
+#if PPP_AUTH_SUPPORT
+    int auth;
+#if PPP_SERVER
+#if PAP_SUPPORT
+    lcp_options *wo = &pcb->lcp_wantoptions;
+#endif /* PAP_SUPPORT */
+    lcp_options *go = &pcb->lcp_gotoptions;
+#endif /* PPP_SERVER */
+    lcp_options *ho = &pcb->lcp_hisoptions;
+#endif /* PPP_AUTH_SUPPORT */
+    int i;
+    const struct protent *protp;
+
+    /*
+     * Tell higher-level protocols that LCP is up.
+     */
+    if (!doing_multilink) {
+	for (i = 0; (protp = protocols[i]) != NULL; ++i)
+	    if (protp->protocol != PPP_LCP
+		&& protp->lowerup != NULL)
+		(*protp->lowerup)(pcb);
+    }
+
+#if PPP_AUTH_SUPPORT
+#if PPP_SERVER
+#if PPP_ALLOWED_ADDRS
+    if (!auth_required && noauth_addrs != NULL)
+	set_allowed_addrs(unit, NULL, NULL);
+#endif /* PPP_ALLOWED_ADDRS */
+
+    if (pcb->settings.auth_required && !(0
+#if PAP_SUPPORT
+	|| go->neg_upap
+#endif /* PAP_SUPPORT */
+#if CHAP_SUPPORT
+	|| go->neg_chap
+#endif /* CHAP_SUPPORT */
+#if EAP_SUPPORT
+	|| go->neg_eap
+#endif /* EAP_SUPPORT */
+	)) {
+
+#if PPP_ALLOWED_ADDRS
+	/*
+	 * We wanted the peer to authenticate itself, and it refused:
+	 * if we have some address(es) it can use without auth, fine,
+	 * otherwise treat it as though it authenticated with PAP using
+	 * a username of "" and a password of "".  If that's not OK,
+	 * boot it out.
+	 */
+	if (noauth_addrs != NULL) {
+	    set_allowed_addrs(unit, NULL, NULL);
+	} else
+#endif /* PPP_ALLOWED_ADDRS */
+	if (!pcb->settings.null_login
+#if PAP_SUPPORT
+	    || !wo->neg_upap
+#endif /* PAP_SUPPORT */
+	    ) {
+	    ppp_warn("peer refused to authenticate: terminating link");
+#if 0 /* UNUSED */
+	    status = EXIT_PEER_AUTH_FAILED;
+#endif /* UNUSED */
+	    pcb->err_code = PPPERR_AUTHFAIL;
+	    lcp_close(pcb, "peer refused to authenticate");
+	    return;
+	}
+    }
+#endif /* PPP_SERVER */
+
+    new_phase(pcb, PPP_PHASE_AUTHENTICATE);
+    auth = 0;
+#if PPP_SERVER
+#if EAP_SUPPORT
+    if (go->neg_eap) {
+	eap_authpeer(pcb, PPP_OUR_NAME);
+	auth |= EAP_PEER;
+    } else
+#endif /* EAP_SUPPORT */
+#if CHAP_SUPPORT
+    if (go->neg_chap) {
+	chap_auth_peer(pcb, PPP_OUR_NAME, CHAP_DIGEST(go->chap_mdtype));
+	auth |= CHAP_PEER;
+    } else
+#endif /* CHAP_SUPPORT */
+#if PAP_SUPPORT
+    if (go->neg_upap) {
+	upap_authpeer(pcb);
+	auth |= PAP_PEER;
+    } else
+#endif /* PAP_SUPPORT */
+    {}
+#endif /* PPP_SERVER */
+
+#if EAP_SUPPORT
+    if (ho->neg_eap) {
+	eap_authwithpeer(pcb, pcb->settings.user);
+	auth |= EAP_WITHPEER;
+    } else
+#endif /* EAP_SUPPORT */
+#if CHAP_SUPPORT
+    if (ho->neg_chap) {
+	chap_auth_with_peer(pcb, pcb->settings.user, CHAP_DIGEST(ho->chap_mdtype));
+	auth |= CHAP_WITHPEER;
+    } else
+#endif /* CHAP_SUPPORT */
+#if PAP_SUPPORT
+    if (ho->neg_upap) {
+	upap_authwithpeer(pcb, pcb->settings.user, pcb->settings.passwd);
+	auth |= PAP_WITHPEER;
+    } else
+#endif /* PAP_SUPPORT */
+    {}
+
+    pcb->auth_pending = auth;
+    pcb->auth_done = 0;
+
+    if (!auth)
+#endif /* PPP_AUTH_SUPPORT */
+	network_phase(pcb);
+}

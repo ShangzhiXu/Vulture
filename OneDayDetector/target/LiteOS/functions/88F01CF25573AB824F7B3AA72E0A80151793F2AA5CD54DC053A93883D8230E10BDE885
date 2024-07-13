@@ -1,0 +1,23 @@
+STATIC VOID OsMemListDelete(LOS_DL_LIST *node, const VOID *firstNode)
+{
+    LosMemDynNode *dynNode = NULL;
+
+    node->pstNext->pstPrev = node->pstPrev;
+    node->pstPrev->pstNext = node->pstNext;
+
+    if ((VOID *)(node->pstNext) >= firstNode) {
+        dynNode = LOS_DL_LIST_ENTRY(node->pstNext, LosMemDynNode, selfNode.freeNodeInfo);
+        OsMemNodeSave(dynNode);
+    }
+
+    if ((VOID *)(node->pstPrev) >= firstNode) {
+        dynNode = LOS_DL_LIST_ENTRY(node->pstPrev, LosMemDynNode, selfNode.freeNodeInfo);
+        OsMemNodeSave(dynNode);
+    }
+
+    node->pstNext = NULL;
+    node->pstPrev = NULL;
+
+    dynNode = LOS_DL_LIST_ENTRY(node, LosMemDynNode, selfNode.freeNodeInfo);
+    OsMemNodeSave(dynNode);
+}

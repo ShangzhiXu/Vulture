@@ -1,0 +1,46 @@
+static void parse_object_should_parse_objects_with_multiple_elements(void)
+{
+    assert_parse_object("{\"one\":1\t,\t\"two\"\n:2, \"three\":3}");
+    assert_is_child(item->child, "one", cJSON_Number);
+    assert_is_child(item->child->next, "two", cJSON_Number);
+    assert_is_child(item->child->next->next, "three", cJSON_Number);
+    reset(item);
+
+    {
+        size_t i = 0;
+        cJSON *node = NULL;
+        int expected_types[7] =
+        {
+            cJSON_Number,
+            cJSON_NULL,
+            cJSON_True,
+            cJSON_False,
+            cJSON_Array,
+            cJSON_String,
+            cJSON_Object
+        };
+        const char *expected_names[7] =
+        {
+            "one",
+            "NULL",
+            "TRUE",
+            "FALSE",
+            "array",
+            "world",
+            "object"
+        };
+        assert_parse_object("{\"one\":1, \"NULL\":null, \"TRUE\":true, \"FALSE\":false, \"array\":[], \"world\":\"hello\", \"object\":{}}");
+
+        node = item->child;
+        for (
+                i = 0;
+                (i < (sizeof(expected_types)/sizeof(int)))
+                && (node != NULL);
+                (void)i++, node = node->next)
+        {
+            assert_is_child(node, expected_names[i], expected_types[i]);
+        }
+        TEST_ASSERT_EQUAL_INT(i, 7);
+        reset(item);
+    }
+}

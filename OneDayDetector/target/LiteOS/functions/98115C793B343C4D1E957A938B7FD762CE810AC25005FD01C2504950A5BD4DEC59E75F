@@ -1,0 +1,82 @@
+HAL_StatusTypeDef HAL_ADCEx_MultiModeStop_DMA(ADC_HandleTypeDef* hadc)
+{
+  HAL_StatusTypeDef tmp_hal_status = HAL_OK;
+  ADC_HandleTypeDef tmphadcSlave;
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_MULTIMODE_MASTER_INSTANCE(hadc->Instance));
+  
+  /* Process locked */
+  __HAL_LOCK(hadc);
+  
+ 
+  /* Stop potential conversion on going, on regular and injected groups */
+  /* Disable ADC master peripheral */
+  tmp_hal_status = ADC_ConversionStop_Disable(hadc);
+  
+  /* Check if ADC is effectively disabled */
+  if (tmp_hal_status == HAL_OK)
+  {
+    /* Set a temporary handle of the ADC slave associated to the ADC master   */
+    ADC_MULTI_SLAVE(hadc, &tmphadcSlave);
+
+    if (tmphadcSlave.Instance == NULL)
+    {
+      /* Update ADC state machine to error */
+      SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_DMA);
+      
+      /* Process unlocked */
+      __HAL_UNLOCK(hadc);
+      
+      return HAL_ERROR;
+    }
+    else
+    {
+      /* Disable ADC slave peripheral */
+      tmp_hal_status = ADC_ConversionStop_Disable(&tmphadcSlave);
+      
+      /* Check if ADC is effectively disabled */
+      if (tmp_hal_status != HAL_OK)
+      {
+        /* Update ADC state machine to error */
+        SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL);
+        
+        /* Process unlocked */
+        __HAL_UNLOCK(hadc);
+        
+        return HAL_ERROR;
+      }
+    }
+    
+    /* Disable ADC DMA mode */
+    CLEAR_BIT(hadc->Instance->CR2, ADC_CR2_DMA);
+    
+    /* Reset configuration of ADC DMA continuous request for dual mode */
+    CLEAR_BIT(hadc->Instance->CR1, ADC_CR1_DUALMOD);
+        
+    /* Disable the DMA channel (in case of DMA in circular mode or stop while */
+    /* while DMA transfer is on going)                                        */
+    tmp_hal_status = HAL_DMA_Abort(hadc->DMA_Handle);
+    
+    
+    /* Check if DMA channel effectively disabled */
+    if (tmp_hal_status == HAL_OK)
+    {
+      /* Change ADC state (ADC master) */
+      ADC_STATE_CLR_SET(hadc->State,
+                        HAL_ADC_STATE_REG_BUSY | HAL_ADC_STATE_INJ_BUSY,
+                        HAL_ADC_STATE_READY);
+    }
+    else
+    {
+      /* Update ADC state machine to error */
+      SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_DMA);    
+    }
+  }
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+  
+  /* Return function status */
+  return tmp_hal_status;
+}

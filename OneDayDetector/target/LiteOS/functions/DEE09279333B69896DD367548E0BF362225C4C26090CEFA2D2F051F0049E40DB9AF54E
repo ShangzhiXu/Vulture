@@ -1,0 +1,39 @@
+HAL_StatusTypeDef HAL_IWDG_Refresh(IWDG_HandleTypeDef *hiwdg)
+{
+  uint32_t tickstart = 0;
+
+  /* Process Locked */
+  __HAL_LOCK(hiwdg);
+
+    /* Change IWDG peripheral state */
+  hiwdg->State = HAL_IWDG_STATE_BUSY;
+
+  tickstart = HAL_GetTick();
+
+  /* Wait until RVU flag is RESET */
+  while(__HAL_IWDG_GET_FLAG(hiwdg, IWDG_FLAG_RVU) != RESET)
+  {
+    if((HAL_GetTick() - tickstart ) > IWDG_DEFAULT_TIMEOUT)
+    {
+      /* Set IWDG state */
+      hiwdg->State = HAL_IWDG_STATE_TIMEOUT;
+
+       /* Process unlocked */
+      __HAL_UNLOCK(hiwdg);
+
+      return HAL_TIMEOUT;
+    }
+  }
+  
+  /* Reload IWDG counter with value defined in the reload register */
+  __HAL_IWDG_RELOAD_COUNTER(hiwdg);
+    
+  /* Change IWDG peripheral state */    
+  hiwdg->State = HAL_IWDG_STATE_READY; 
+  
+  /* Process Unlocked */
+  __HAL_UNLOCK(hiwdg);
+  
+  /* Return function status */
+  return HAL_OK;
+}

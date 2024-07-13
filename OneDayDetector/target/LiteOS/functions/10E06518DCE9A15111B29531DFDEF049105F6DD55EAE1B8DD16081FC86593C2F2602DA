@@ -1,0 +1,23 @@
+netconn_connect(struct netconn *conn, const ip_addr_t *addr, u16_t port)
+{
+  API_MSG_VAR_DECLARE(msg);
+  err_t err;
+
+  LWIP_ERROR("netconn_connect: invalid conn", (conn != NULL), return ERR_ARG;);
+
+#if LWIP_IPV4
+  /* Don't propagate NULL pointer (IP_ADDR_ANY alias) to subsequent functions */
+  if (addr == NULL) {
+    addr = IP4_ADDR_ANY;
+  }
+#endif /* LWIP_IPV4 */
+
+  API_MSG_VAR_ALLOC(msg);
+  API_MSG_VAR_REF(msg).conn = conn;
+  API_MSG_VAR_REF(msg).msg.bc.ipaddr = API_MSG_VAR_REF(addr);
+  API_MSG_VAR_REF(msg).msg.bc.port = port;
+  err = netconn_apimsg(lwip_netconn_do_connect, &API_MSG_VAR_REF(msg));
+  API_MSG_VAR_FREE(msg);
+
+  return err;
+}

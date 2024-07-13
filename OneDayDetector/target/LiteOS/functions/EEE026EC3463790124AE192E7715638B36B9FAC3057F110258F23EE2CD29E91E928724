@@ -1,0 +1,25 @@
+osEventFlagsId_t osEventFlagsNew(const osEventFlagsAttr_t *attr)
+{
+    (VOID)attr;
+    PEVENT_CB_S eventCB = NULL;
+    UINT32 ret;
+
+    if (OS_INT_ACTIVE) {
+        return NULL;
+    }
+
+    eventCB = (PEVENT_CB_S)LOS_MemAlloc(m_aucSysMem0, sizeof(EVENT_CB_S));
+    if (eventCB == NULL) {
+        return NULL;
+    }
+
+    ret = LOS_EventInit(eventCB);
+    if (ret == LOS_OK) {
+        return (osEventFlagsId_t)eventCB;
+    } else {
+        if (LOS_MemFree(m_aucSysMem0, eventCB) != LOS_OK) {
+            PRINT_ERR("[%s] memory free fail!\n", __func__);
+        }
+        return NULL;
+    }
+}

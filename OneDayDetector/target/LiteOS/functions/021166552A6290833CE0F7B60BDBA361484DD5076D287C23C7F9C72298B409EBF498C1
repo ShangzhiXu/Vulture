@@ -1,0 +1,71 @@
+HAL_StatusTypeDef HAL_SPDIFRX_UnRegisterCallback(SPDIFRX_HandleTypeDef *hspdif, HAL_SPDIFRX_CallbackIDTypeDef CallbackID)
+{
+HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process locked */
+  __HAL_LOCK(hspdif);
+
+  if(HAL_SPDIFRX_STATE_READY == hspdif->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_SPDIFRX_RX_HALF_CB_ID :
+        hspdif->RxHalfCpltCallback = HAL_SPDIFRX_RxHalfCpltCallback;
+        break;
+
+      case HAL_SPDIFRX_RX_CPLT_CB_ID :
+        hspdif->RxCpltCallback = HAL_SPDIFRX_RxCpltCallback;
+        break;
+
+      case HAL_SPDIFRX_CX_HALF_CB_ID :
+        hspdif->CxHalfCpltCallback = HAL_SPDIFRX_CxHalfCpltCallback;
+        break;
+
+      case HAL_SPDIFRX_CX_CPLT_CB_ID :
+        hspdif->CxCpltCallback = HAL_SPDIFRX_CxCpltCallback;
+        break;
+
+      case HAL_SPDIFRX_ERROR_CB_ID :
+        hspdif->ErrorCallback = HAL_SPDIFRX_ErrorCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hspdif->ErrorCode |= HAL_SPDIFRX_ERROR_INVALID_CALLBACK;
+       /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if(HAL_SPDIFRX_STATE_RESET == hspdif->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_SPDIFRX_MSPINIT_CB_ID :
+        hspdif->MspInitCallback = HAL_SPDIFRX_MspInit;  /* Legacy weak MspInit  */
+        break;
+
+      case HAL_SPDIFRX_MSPDEINIT_CB_ID :
+        hspdif->MspDeInitCallback = HAL_SPDIFRX_MspDeInit;  /* Legacy weak MspInit  */
+        break;
+
+      default :
+        /* Update the error code */
+        hspdif->ErrorCode |= HAL_SPDIFRX_ERROR_INVALID_CALLBACK;
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    hspdif->ErrorCode |= HAL_SPDIFRX_ERROR_INVALID_CALLBACK;
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hspdif);
+  return status;
+}

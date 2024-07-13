@@ -1,0 +1,22 @@
+static void SAI_FillFifo(SAI_HandleTypeDef *hsai)
+{
+  /* fill the fifo with data before to enabled the SAI */
+  while(((hsai->Instance->SR & SAI_xSR_FLVL) != SAI_FIFOSTATUS_FULL) && (hsai->XferCount > 0))
+  {
+    if((hsai->Init.DataSize == SAI_DATASIZE_8) && (hsai->Init.CompandingMode == SAI_NOCOMPANDING))
+    {
+      hsai->Instance->DR = (*hsai->pBuffPtr++);
+    }
+    else if(hsai->Init.DataSize <= SAI_DATASIZE_16)
+    {
+      hsai->Instance->DR = *((uint32_t *)hsai->pBuffPtr);
+      hsai->pBuffPtr+= 2;
+    }
+    else
+    {
+      hsai->Instance->DR = *((uint32_t *)hsai->pBuffPtr);
+      hsai->pBuffPtr+= 4;
+    }
+    hsai->XferCount--;
+  }
+}

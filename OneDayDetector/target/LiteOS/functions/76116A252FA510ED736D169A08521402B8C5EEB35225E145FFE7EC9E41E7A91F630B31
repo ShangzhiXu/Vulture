@@ -1,0 +1,60 @@
+UINT32 OsShellInit(INT32 consoleId)
+{
+    UINT32 ret;
+    ShellCB *shellCB = NULL;
+
+    ret = OsShellSourceInit();
+    if (ret != LOS_OK) {
+        return ret;
+    }
+
+    shellCB = LOS_MemAlloc(m_aucSysMem0, sizeof(ShellCB));
+    if (shellCB == NULL) {
+        return LOS_NOK;
+    }
+
+    (VOID)memset_s(shellCB, sizeof(ShellCB), 0, sizeof(ShellCB));
+
+#ifdef LOSCFG_SHELL_CONSOLE
+    CONSOLE_CB *consoleCB = OsGetConsoleByID(consoleId);
+    if ((consoleCB == NULL) || (consoleCB->shellHandle != NULL)) {
+        (VOID)LOS_MemFree(m_aucSysMem0, shellCB);
+        return LOS_NOK;
+    }
+
+    consoleCB->shellHandle = shellCB;
+    shellCB->consoleID = (UINT32)consoleId;
+#else
+    g_shellCB = shellCB;
+#endif
+
+    (VOID)pthread_mutex_init(&shellCB->keyMutex, NULL);
+    (VOID)pthread_mutex_init(&shellCB->historyMutex, NULL);
+
+    if (strncpy_s(shellCB->shellWorkingDirectory, PATH_MAX, "/", 1) != EOK) {
+        ret = LOS_NOK;
+        goto ERR_OUT1;
+    }
+
+    ret = OsShellKeyInit(shellCB);
+    if (ret != LOS_OK) {
+        goto ERR_OUT1;
+    }
+
+    ret = OsShellCreateTask(shellCB);
+    if (ret != LOS_OK) {
+        goto ERR_OUT2;
+    }
+
+    return LOS_OK;
+ERR_OUT2:
+    OsShellKeyDeInit(shellCB);
+ERR_OUT1:
+    (VOID)pthread_mutex_destroy(&shellCB->historyMutex);
+    (VOID)pthread_mutex_destroy(&shellCB->keyMutex);
+    (VOID)LOS_MemFree((VOID *)m_aucSysMem0, shellCB);
+#ifdef LOSCFG_SHELL_CONSOLE
+    consoleCB->shellHandle = NULL;
+#endif
+    return ret;
+}

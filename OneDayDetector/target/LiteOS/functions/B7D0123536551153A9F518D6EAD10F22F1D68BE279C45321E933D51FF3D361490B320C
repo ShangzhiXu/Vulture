@@ -1,0 +1,15 @@
+LITE_OS_SEC_TEXT VOID OsTimerListDelete(LosTaskCB *taskCB)
+{
+    SortLinkAttribute *sortLinkHeader = NULL;
+
+#ifdef LOSCFG_KERNEL_SMP
+    /*
+     * the task delay timer is on the specific processor,
+     * we need delete the timer from that processor's sortlink.
+     */
+    sortLinkHeader = &g_percpu[taskCB->timerCpu].taskSortLink;
+#else
+    sortLinkHeader = &g_percpu[0].taskSortLink;
+#endif
+    OsDeleteSortLink(sortLinkHeader, &taskCB->sortList);
+}

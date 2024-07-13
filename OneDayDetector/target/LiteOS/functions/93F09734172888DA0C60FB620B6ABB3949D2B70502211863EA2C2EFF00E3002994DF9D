@@ -1,0 +1,33 @@
+static void SD_DMARxAbort(DMA_HandleTypeDef *hdma)   
+{
+  SD_HandleTypeDef* hsd = (SD_HandleTypeDef* )(hdma->Parent);
+  HAL_SD_CardStateTypedef CardState;
+  
+  if(hsd->hdmarx != NULL)
+  {
+    hsd->hdmarx = NULL;
+  }
+  
+  /* All DMA channels are aborted */
+  if((hsd->hdmatx == NULL) && (hsd->hdmarx == NULL))
+  {
+    /* Clear All flags */
+    __HAL_SD_CLEAR_FLAG(hsd, SDMMC_STATIC_DATA_FLAGS);
+
+    CardState = HAL_SD_GetCardState(hsd);
+    hsd->State = HAL_SD_STATE_READY;
+    if((CardState == HAL_SD_CARD_RECEIVING) || (CardState == HAL_SD_CARD_SENDING))
+    {
+      hsd->ErrorCode |= SDMMC_CmdStopTransfer(hsd->Instance);
+      
+      if(hsd->ErrorCode == HAL_SD_ERROR_NONE)
+      {
+        HAL_SD_AbortCallback(hsd);
+      }
+      else
+      {
+        HAL_SD_ErrorCallback(hsd);
+      }
+    }
+  }
+}

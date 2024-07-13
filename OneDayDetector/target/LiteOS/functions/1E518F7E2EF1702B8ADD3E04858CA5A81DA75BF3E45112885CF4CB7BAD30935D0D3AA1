@@ -1,0 +1,86 @@
+snmp_vb_enumerator_get_next(struct snmp_varbind_enumerator *enumerator, struct snmp_varbind *varbind)
+{
+  struct snmp_asn1_tlv tlv;
+  u16_t  varbind_len;
+  err_t  err;
+
+  if (enumerator->pbuf_stream.length == 0) {
+    return SNMP_VB_ENUMERATOR_ERR_EOVB;
+  }
+  enumerator->varbind_count++;
+
+  /* decode varbind itself (parent container of a varbind) */
+  VB_PARSE_EXEC(snmp_asn1_dec_tlv(&(enumerator->pbuf_stream), &tlv));
+  VB_PARSE_ASSERT((tlv.type == SNMP_ASN1_TYPE_SEQUENCE) && (tlv.value_len <= enumerator->pbuf_stream.length));
+  varbind_len = tlv.value_len;
+
+  /* decode varbind name (object id) */
+  VB_PARSE_EXEC(snmp_asn1_dec_tlv(&(enumerator->pbuf_stream), &tlv));
+  VB_PARSE_ASSERT((tlv.type == SNMP_ASN1_TYPE_OBJECT_ID) && (SNMP_ASN1_TLV_LENGTH(tlv) < varbind_len) && (tlv.value_len < enumerator->pbuf_stream.length));
+
+  VB_PARSE_EXEC(snmp_asn1_dec_oid(&(enumerator->pbuf_stream), tlv.value_len, varbind->oid.id, &(varbind->oid.len), SNMP_MAX_OBJ_ID_LEN));
+  varbind_len -= SNMP_ASN1_TLV_LENGTH(tlv);
+
+  /* decode varbind value (object id) */
+  VB_PARSE_EXEC(snmp_asn1_dec_tlv(&(enumerator->pbuf_stream), &tlv));
+  VB_PARSE_ASSERT((SNMP_ASN1_TLV_LENGTH(tlv) == varbind_len) && (tlv.value_len <= enumerator->pbuf_stream.length));
+  varbind->type = tlv.type;
+
+  /* shall the value be decoded ? */
+  if (varbind->value != NULL) {
+    switch (varbind->type) {
+      case SNMP_ASN1_TYPE_INTEGER:
+        VB_PARSE_EXEC(snmp_asn1_dec_s32t(&(enumerator->pbuf_stream), tlv.value_len, (s32_t *)varbind->value));
+        varbind->value_len = sizeof(s32_t);
+        break;
+      case SNMP_ASN1_TYPE_COUNTER:
+      case SNMP_ASN1_TYPE_GAUGE:
+      case SNMP_ASN1_TYPE_TIMETICKS:
+        VB_PARSE_EXEC(snmp_asn1_dec_u32t(&(enumerator->pbuf_stream), tlv.value_len, (u32_t *)varbind->value));
+        varbind->value_len = sizeof(u32_t);
+        break;
+      case SNMP_ASN1_TYPE_OCTET_STRING:
+      case SNMP_ASN1_TYPE_OPAQUE:
+        err = snmp_asn1_dec_raw(&(enumerator->pbuf_stream), tlv.value_len, (u8_t *)varbind->value, &varbind->value_len, SNMP_MAX_VALUE_SIZE);
+        if (err == ERR_MEM) {
+          return SNMP_VB_ENUMERATOR_ERR_INVALIDLENGTH;
+        }
+        VB_PARSE_ASSERT(err == ERR_OK);
+        break;
+      case SNMP_ASN1_TYPE_NULL:
+        varbind->value_len = 0;
+        break;
+      case SNMP_ASN1_TYPE_OBJECT_ID:
+        /* misuse tlv.length_len as OID_length transporter */
+        err = snmp_asn1_dec_oid(&(enumerator->pbuf_stream), tlv.value_len, (u32_t *)varbind->value, &tlv.length_len, SNMP_MAX_OBJ_ID_LEN);
+        if (err == ERR_MEM) {
+          return SNMP_VB_ENUMERATOR_ERR_INVALIDLENGTH;
+        }
+        VB_PARSE_ASSERT(err == ERR_OK);
+        varbind->value_len = tlv.length_len * sizeof(u32_t);
+        break;
+      case SNMP_ASN1_TYPE_IPADDR:
+        if (tlv.value_len == 4) {
+          /* must be exactly 4 octets! */
+          VB_PARSE_EXEC(snmp_asn1_dec_raw(&(enumerator->pbuf_stream), tlv.value_len, (u8_t *)varbind->value, &varbind->value_len, SNMP_MAX_VALUE_SIZE));
+        } else {
+          VB_PARSE_ASSERT(0);
+        }
+        break;
+#if LWIP_HAVE_INT64
+      case SNMP_ASN1_TYPE_COUNTER64:
+        VB_PARSE_EXEC(snmp_asn1_dec_u64t(&(enumerator->pbuf_stream), tlv.value_len, (u64_t *)varbind->value));
+        varbind->value_len = sizeof(u64_t);
+        break;
+#endif
+      default:
+        VB_PARSE_ASSERT(0);
+        break;
+    }
+  } else {
+    snmp_pbuf_stream_seek(&(enumerator->pbuf_stream), tlv.value_len);
+    varbind->value_len = tlv.value_len;
+  }
+
+  return SNMP_VB_ENUMERATOR_ERR_OK;
+}

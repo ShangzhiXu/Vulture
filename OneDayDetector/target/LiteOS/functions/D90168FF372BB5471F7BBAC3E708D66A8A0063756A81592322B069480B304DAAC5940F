@@ -1,0 +1,49 @@
+static void IRDA_Receive_IT(IRDA_HandleTypeDef *hirda)
+{
+  uint16_t *tmp;
+  uint16_t  uhMask = hirda->Mask;
+  uint16_t  uhdata;
+
+  /* Check that a Rx process is ongoing */
+  if (hirda->RxState == HAL_IRDA_STATE_BUSY_RX)
+  {
+    uhdata = (uint16_t) READ_REG(hirda->Instance->RDR);
+    if ((hirda->Init.WordLength == IRDA_WORDLENGTH_9B) && (hirda->Init.Parity == IRDA_PARITY_NONE))
+    {
+      tmp = (uint16_t *) hirda->pRxBuffPtr; /* Derogation R.11.3 */
+      *tmp = (uint16_t)(uhdata & uhMask);
+      hirda->pRxBuffPtr  += 2U;
+    }
+    else
+    {
+      *hirda->pRxBuffPtr = (uint8_t)(uhdata & (uint8_t)uhMask);
+      hirda->pRxBuffPtr++;
+    }
+
+    hirda->RxXferCount--;
+    if (hirda->RxXferCount == 0U)
+    {
+      /* Disable the IRDA Parity Error Interrupt and RXNE interrupt */
+      CLEAR_BIT(hirda->Instance->CR1, (USART_CR1_RXNEIE | USART_CR1_PEIE));
+
+      /* Disable the IRDA Error Interrupt: (Frame error, noise error, overrun error) */
+      CLEAR_BIT(hirda->Instance->CR3, USART_CR3_EIE);
+
+      /* Rx process is completed, restore hirda->RxState to Ready */
+      hirda->RxState = HAL_IRDA_STATE_READY;
+
+#if (USE_HAL_IRDA_REGISTER_CALLBACKS == 1)
+      /* Call registered Rx complete callback */
+      hirda->RxCpltCallback(hirda);
+#else
+      /* Call legacy weak Rx complete callback */
+      HAL_IRDA_RxCpltCallback(hirda);
+#endif /* USE_HAL_IRDA_REGISTER_CALLBACKS */
+    }
+  }
+  else
+  {
+    /* Clear RXNE interrupt flag */
+    __HAL_IRDA_SEND_REQ(hirda, IRDA_RXDATA_FLUSH_REQUEST);
+  }
+}

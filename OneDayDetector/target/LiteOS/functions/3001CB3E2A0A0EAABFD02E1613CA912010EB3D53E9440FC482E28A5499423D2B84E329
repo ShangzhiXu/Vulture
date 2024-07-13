@@ -1,0 +1,34 @@
+altcp_mbedtls_sndbuf(struct altcp_pcb *conn)
+{
+  if (conn) {
+    altcp_mbedtls_state_t *state;
+    state = (altcp_mbedtls_state_t*)conn->state;
+    if (!state || !(state->flags & ALTCP_MBEDTLS_FLAGS_HANDSHAKE_DONE)) {
+      return 0;
+    }
+    if (conn->inner_conn) {
+      u16_t sndbuf = altcp_sndbuf(conn->inner_conn);
+      /* Take care of record header, IV, AuthTag */
+      int ssl_expan = mbedtls_ssl_get_record_expansion(&state->ssl_context);
+      if (ssl_expan > 0) {
+        size_t ssl_added = (u16_t)LWIP_MIN(ssl_expan, 0xFFFF);
+        /* internal sndbuf smaller than our offset */
+        if (ssl_added < sndbuf) {
+          size_t max_len = 0xFFFF;
+          size_t ret;
+#if defined(MBEDTLS_SSL_MAX_FRAGMENT_LENGTH)
+          /* @todo: adjust ssl_added to real value related to negociated cipher */
+          size_t max_frag_len = mbedtls_ssl_get_max_frag_len(&state->ssl_context);
+          max_len = LWIP_MIN(max_frag_len, max_len);
+#endif
+          /* Adjust sndbuf of inner_conn with what added by SSL */
+          ret = LWIP_MIN(sndbuf - ssl_added, max_len);
+          LWIP_ASSERT("sndbuf overflow", ret <= 0xFFFF);
+          return (u16_t)ret;
+        }
+      }
+    }
+  }
+  /* fallback: use sendbuf of the inner connection */
+  return altcp_default_sndbuf(conn);
+}

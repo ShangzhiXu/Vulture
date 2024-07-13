@@ -1,0 +1,20 @@
+static HAL_StatusTypeDef USART_EndTransmit_IT(USART_HandleTypeDef *husart)
+{
+  /* Disable the USART Transmit Complete Interrupt */
+  CLEAR_BIT(husart->Instance->CR1, USART_CR1_TCIE);
+
+  /* Disable the USART Error Interrupt: (Frame error, noise error, overrun error) */
+  CLEAR_BIT(husart->Instance->CR3, USART_CR3_EIE);
+
+  husart->State = HAL_USART_STATE_READY;
+
+#if (USE_HAL_USART_REGISTER_CALLBACKS == 1)
+  /* Call registered Tx Complete Callback */
+  husart->TxCpltCallback(husart);
+#else
+  /* Call legacy weak Tx Complete Callback */
+  HAL_USART_TxCpltCallback(husart);
+#endif /* USE_HAL_USART_REGISTER_CALLBACKS */
+
+  return HAL_OK;
+}

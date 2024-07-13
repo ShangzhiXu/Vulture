@@ -1,0 +1,22 @@
+static void aria_rot128( uint32_t r[4], const uint32_t a[4],
+                         const uint32_t b[4], uint8_t n )
+{
+    uint8_t i, j;
+    uint32_t t, u;
+
+    const uint8_t n1 = n % 32;              // bit offset
+    const uint8_t n2 = n1 ? 32 - n1 : 0;    // reverse bit offset
+
+    j = ( n / 32 ) % 4;                     // initial word offset
+    t = ARIA_P3( b[j] );                    // big endian
+    for( i = 0; i < 4; i++ )
+    {
+        j = ( j + 1 ) % 4;                  // get next word, big endian
+        u = ARIA_P3( b[j] );
+        t <<= n1;                           // rotate
+        t |= u >> n2;
+        t = ARIA_P3( t );                   // back to little endian
+        r[i] = a[i] ^ t;                    // store
+        t = u;                              // move to next word
+    }
+}

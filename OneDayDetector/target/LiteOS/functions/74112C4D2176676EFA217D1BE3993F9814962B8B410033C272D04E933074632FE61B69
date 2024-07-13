@@ -1,0 +1,55 @@
+static int entropy_update( mbedtls_entropy_context *ctx, unsigned char source_id,
+                           const unsigned char *data, size_t len )
+{
+    unsigned char header[2];
+    unsigned char tmp[MBEDTLS_ENTROPY_BLOCK_SIZE];
+    size_t use_len = len;
+    const unsigned char *p = data;
+    int ret = 0;
+
+    if( use_len > MBEDTLS_ENTROPY_BLOCK_SIZE )
+    {
+#if defined(MBEDTLS_ENTROPY_SHA512_ACCUMULATOR)
+        if( ( ret = mbedtls_sha512_ret( data, len, tmp, 0 ) ) != 0 )
+            goto cleanup;
+#else
+        if( ( ret = mbedtls_sha256_ret( data, len, tmp, 0 ) ) != 0 )
+            goto cleanup;
+#endif
+        p = tmp;
+        use_len = MBEDTLS_ENTROPY_BLOCK_SIZE;
+    }
+
+    header[0] = source_id;
+    header[1] = use_len & 0xFF;
+
+    /*
+     * Start the accumulator if this has not already happened. Note that
+     * it is sufficient to start the accumulator here only because all calls to
+     * gather entropy eventually execute this code.
+     */
+#if defined(MBEDTLS_ENTROPY_SHA512_ACCUMULATOR)
+    if( ctx->accumulator_started == 0 &&
+        ( ret = mbedtls_sha512_starts_ret( &ctx->accumulator, 0 ) ) != 0 )
+        goto cleanup;
+    else
+        ctx->accumulator_started = 1;
+    if( ( ret = mbedtls_sha512_update_ret( &ctx->accumulator, header, 2 ) ) != 0 )
+        goto cleanup;
+    ret = mbedtls_sha512_update_ret( &ctx->accumulator, p, use_len );
+#else
+    if( ctx->accumulator_started == 0 &&
+        ( ret = mbedtls_sha256_starts_ret( &ctx->accumulator, 0 ) ) != 0 )
+        goto cleanup;
+    else
+        ctx->accumulator_started = 1;
+    if( ( ret = mbedtls_sha256_update_ret( &ctx->accumulator, header, 2 ) ) != 0 )
+        goto cleanup;
+    ret = mbedtls_sha256_update_ret( &ctx->accumulator, p, use_len );
+#endif
+
+cleanup:
+    mbedtls_platform_zeroize( tmp, sizeof( tmp ) );
+
+    return( ret );
+}

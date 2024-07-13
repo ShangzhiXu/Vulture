@@ -1,0 +1,31 @@
+http_state_eof(struct http_state *hs)
+{
+  if (hs->handle) {
+#if LWIP_HTTPD_TIMING
+    u32_t ms_needed = sys_now() - hs->time_started;
+    u32_t needed = LWIP_MAX(1, (ms_needed / 100));
+    LWIP_DEBUGF(HTTPD_DEBUG_TIMING, ("httpd: needed %"U32_F" ms to send file of %d bytes -> %"U32_F" bytes/sec\n",
+                                     ms_needed, hs->handle->len, ((((u32_t)hs->handle->len) * 10) / needed)));
+#endif /* LWIP_HTTPD_TIMING */
+    fs_close(hs->handle);
+    hs->handle = NULL;
+  }
+#if LWIP_HTTPD_DYNAMIC_FILE_READ
+  if (hs->buf != NULL) {
+    mem_free(hs->buf);
+    hs->buf = NULL;
+  }
+#endif /* LWIP_HTTPD_DYNAMIC_FILE_READ */
+#if LWIP_HTTPD_SSI
+  if (hs->ssi) {
+    http_ssi_state_free(hs->ssi);
+    hs->ssi = NULL;
+  }
+#endif /* LWIP_HTTPD_SSI */
+#if LWIP_HTTPD_SUPPORT_REQUESTLIST
+  if (hs->req) {
+    pbuf_free(hs->req);
+    hs->req = NULL;
+  }
+#endif /* LWIP_HTTPD_SUPPORT_REQUESTLIST */
+}

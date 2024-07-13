@@ -1,0 +1,21 @@
+void HAL_SPI_MspInit(SPI_HandleTypeDef *hspi)
+{
+    GPIO_InitTypeDef GPIO_InitStruct;
+
+    if (hspi->Instance == SPI_FLASH_PERIPHERAL) {
+        SPI_FLASH_RCC_CLK_ENABLE();
+        SPI_FLASH_GPIO_CLK_ENABLE();
+        SPI_FLASH_CS_CLK_ENABLE();
+
+        GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+        GPIO_InitStruct.Pull = GPIO_NOPULL;
+        GPIO_InitStruct.Pin = SPI_FLASH_CS_PIN;
+        GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+        HAL_GPIO_Init(SPI_FLASH_CS_PORT, &GPIO_InitStruct);
+
+        GPIO_InitStruct.Pin = SPI_FLASH_SCK_PIN | SPI_FLASH_MOSI_PIN | SPI_FLASH_MISO_PIN;
+        GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+        GPIO_InitStruct.Alternate = SPI_FLASH_ALTERNATE;
+        HAL_GPIO_Init(SPI_FLASH_GPIO_PORT, &GPIO_InitStruct);
+    }
+}

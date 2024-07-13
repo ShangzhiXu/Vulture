@@ -1,0 +1,17 @@
+sockets_stresstest_init_loopback(int addr_family)
+{
+  sys_thread_t t;
+  struct test_settings *settings = (struct test_settings *)mem_malloc(sizeof(struct test_settings));
+
+  LWIP_ASSERT("OOM", settings != NULL);
+  memset(settings, 0, sizeof(struct test_settings));
+#if LWIP_IPV4 && LWIP_IPV6
+  LWIP_ASSERT("invalid addr_family", (addr_family == AF_INET) || (addr_family == AF_INET6));
+#endif
+  settings->addr.ss_family = (sa_family_t)addr_family;
+  LWIP_UNUSED_ARG(addr_family);
+  settings->start_client = 1;
+
+  t = sys_thread_new("sockets_stresstest_listener_loop", sockets_stresstest_listener_loop, settings, 0, 0);
+  LWIP_ASSERT("thread != NULL", t != 0);
+}

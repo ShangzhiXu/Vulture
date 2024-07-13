@@ -1,0 +1,33 @@
+void ipv6_udp_test(void)
+{
+    struct sockaddr_in6 server_addr;
+    char msg[128] = "Hi ipv6 server";
+    int rbytes = -1;
+
+    int client_fd = socket(AF_INET6, SOCK_DGRAM, 17);
+    if (client_fd < 0) {
+        printf("client_fd is %d\n", client_fd);
+        return;
+    }
+
+    server_addr.sin6_family = AF_INET6;
+    server_addr.sin6_port = htons(SERVER_PORT);
+    if (inet_pton(AF_INET6, SERVER_ADDR, &server_addr.sin6_addr) <= 0) {
+        printf("inet_pton error!!!\n");
+        return;
+    }
+
+    if (connect(client_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        printf("socket connect error=%d(%s)!!!\n", errno, strerror(errno));
+        return;
+    }
+
+    LOS_TaskDelay(1500);
+    rbytes = write(client_fd, msg, strlen(msg));
+    if (rbytes > 0) {
+        printf("write to server: %d bytes written\n> %s\n", rbytes, msg);
+    } else {
+        printf("write faile\n");
+    }
+    close(client_fd);
+}

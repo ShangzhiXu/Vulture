@@ -1,0 +1,38 @@
+int mbedtls_mpi_write_file( const char *p, const mbedtls_mpi *X, int radix, FILE *fout )
+{
+    int ret;
+    size_t n, slen, plen;
+    /*
+     * Buffer should have space for (short) label and decimal formatted MPI,
+     * newline characters and '\0'
+     */
+    char s[ MBEDTLS_MPI_RW_BUFFER_SIZE ];
+    MPI_VALIDATE_RET( X != NULL );
+
+    if( radix < 2 || radix > 16 )
+        return( MBEDTLS_ERR_MPI_BAD_INPUT_DATA );
+
+    memset( s, 0, sizeof( s ) );
+
+    MBEDTLS_MPI_CHK( mbedtls_mpi_write_string( X, radix, s, sizeof( s ) - 2, &n ) );
+
+    if( p == NULL ) p = "";
+
+    plen = strlen( p );
+    slen = strlen( s );
+    s[slen++] = '\r';
+    s[slen++] = '\n';
+
+    if( fout != NULL )
+    {
+        if( fwrite( p, 1, plen, fout ) != plen ||
+            fwrite( s, 1, slen, fout ) != slen )
+            return( MBEDTLS_ERR_MPI_FILE_IO_ERROR );
+    }
+    else
+        mbedtls_printf( "%s%s", p, s );
+
+cleanup:
+
+    return( ret );
+}

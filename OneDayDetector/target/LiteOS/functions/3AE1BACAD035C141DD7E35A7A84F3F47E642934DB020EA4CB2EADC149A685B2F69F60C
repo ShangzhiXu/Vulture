@@ -1,0 +1,275 @@
+s32_t spiffs_object_truncate(
+    spiffs_fd *fd,
+    u32_t new_size,
+    u8_t remove_full)
+{
+    s32_t res = SPIFFS_OK;
+    spiffs *fs = fd->fs;
+
+    if ((fd->size == SPIFFS_UNDEFINED_LEN || fd->size == 0) && !remove_full)
+    {
+        // no op
+        return res;
+    }
+
+    // need 2 pages if not removing: object index page + possibly chopped data page
+    if (remove_full == 0)
+    {
+        res = spiffs_gc_check(fs, SPIFFS_DATA_PAGE_SIZE(fs) * 2);
+        SPIFFS_CHECK_RES(res);
+    }
+
+    spiffs_page_ix objix_pix = fd->objix_hdr_pix;
+    spiffs_span_ix data_spix = (fd->size > 0 ? fd->size - 1 : 0) / SPIFFS_DATA_PAGE_SIZE(fs);
+    u32_t cur_size = fd->size == (u32_t)SPIFFS_UNDEFINED_LEN ? 0 : fd->size ;
+    spiffs_span_ix cur_objix_spix = 0;
+    spiffs_span_ix prev_objix_spix = (spiffs_span_ix) - 1;
+    spiffs_page_object_ix_header *objix_hdr = (spiffs_page_object_ix_header *)fs->work;
+    spiffs_page_object_ix *objix = (spiffs_page_object_ix *)fs->work;
+    spiffs_page_ix data_pix;
+    spiffs_page_ix new_objix_hdr_pix;
+
+    // before truncating, check if object is to be fully removed and mark this
+    if (remove_full && new_size == 0)
+    {
+        u8_t flags = ~( SPIFFS_PH_FLAG_USED | SPIFFS_PH_FLAG_INDEX | SPIFFS_PH_FLAG_FINAL | SPIFFS_PH_FLAG_IXDELE);
+        res = _spiffs_wr(fs, SPIFFS_OP_T_OBJ_IX | SPIFFS_OP_C_UPDT,
+                         fd->file_nbr, SPIFFS_PAGE_TO_PADDR(fs, fd->objix_hdr_pix) + offsetof(spiffs_page_header, flags),
+                         sizeof(u8_t),
+                         (u8_t *)&flags);
+        SPIFFS_CHECK_RES(res);
+    }
+
+    // delete from end of object until desired len is reached
+    while (cur_size > new_size)
+    {
+        cur_objix_spix = SPIFFS_OBJ_IX_ENTRY_SPAN_IX(fs, data_spix);
+
+        // put object index for current data span index in work buffer
+        if (prev_objix_spix != cur_objix_spix)
+        {
+            if (prev_objix_spix != (spiffs_span_ix) - 1)
+            {
+                // remove previous object index page
+                SPIFFS_DBG("truncate: delete objix page "_SPIPRIpg":"_SPIPRIsp"\n", objix_pix, prev_objix_spix);
+
+                res = spiffs_page_index_check(fs, fd, objix_pix, prev_objix_spix);
+                SPIFFS_CHECK_RES(res);
+
+                res = spiffs_page_delete(fs, objix_pix);
+                SPIFFS_CHECK_RES(res);
+                spiffs_cb_object_event(fs, (spiffs_page_object_ix *)0,
+                                       SPIFFS_EV_IX_DEL, fd->obj_id, objix->p_hdr.span_ix, objix_pix, 0);
+                if (prev_objix_spix > 0)
+                {
+                    // Update object index header page, unless we totally want to remove the file.
+                    // If fully removing, we're not keeping consistency as good as when storing the header between chunks,
+                    // would we be aborted. But when removing full files, a crammed system may otherwise
+                    // report ERR_FULL a la windows. We cannot have that.
+                    // Hence, take the risk - if aborted, a file check would free the lost pages and mend things
+                    // as the file is marked as fully deleted in the beginning.
+                    if (remove_full == 0)
+                    {
+                        SPIFFS_DBG("truncate: update objix hdr page "_SPIPRIpg":"_SPIPRIsp" to size "_SPIPRIi"\n", fd->objix_hdr_pix, prev_objix_spix, cur_size);
+                        res = spiffs_object_update_index_hdr(fs, fd, fd->obj_id,
+                                                             fd->objix_hdr_pix, 0, 0, 0, cur_size, &new_objix_hdr_pix);
+                        SPIFFS_CHECK_RES(res);
+                    }
+                    fd->size = cur_size;
+                }
+            }
+            // load current object index (header) page
+            if (cur_objix_spix == 0)
+            {
+                objix_pix = fd->objix_hdr_pix;
+            }
+            else
+            {
+                res = spiffs_obj_lu_find_id_and_span(fs, fd->obj_id | SPIFFS_OBJ_ID_IX_FLAG, cur_objix_spix, 0, &objix_pix);
+                SPIFFS_CHECK_RES(res);
+            }
+
+            SPIFFS_DBG("truncate: load objix page "_SPIPRIpg":"_SPIPRIsp" for data spix:"_SPIPRIsp"\n", objix_pix, cur_objix_spix, data_spix);
+            res = _spiffs_rd(fs, SPIFFS_OP_T_OBJ_IX | SPIFFS_OP_C_READ,
+                             fd->file_nbr, SPIFFS_PAGE_TO_PADDR(fs, objix_pix), SPIFFS_CFG_LOG_PAGE_SZ(fs), fs->work);
+            SPIFFS_CHECK_RES(res);
+            SPIFFS_VALIDATE_OBJIX(objix_hdr->p_hdr, fd->obj_id, cur_objix_spix);
+            fd->cursor_objix_pix = objix_pix;
+            fd->cursor_objix_spix = cur_objix_spix;
+            fd->offset = cur_size;
+
+            prev_objix_spix = cur_objix_spix;
+        }
+
+        if (cur_objix_spix == 0)
+        {
+            // get data page from object index header page
+            data_pix = ((spiffs_page_ix *)((u8_t *)objix_hdr + sizeof(spiffs_page_object_ix_header)))[data_spix];
+            ((spiffs_page_ix *)((u8_t *)objix_hdr + sizeof(spiffs_page_object_ix_header)))[data_spix] = SPIFFS_OBJ_ID_FREE;
+        }
+        else
+        {
+            // get data page from object index page
+            data_pix = ((spiffs_page_ix *)((u8_t *)objix + sizeof(spiffs_page_object_ix)))[SPIFFS_OBJ_IX_ENTRY(fs, data_spix)];
+            ((spiffs_page_ix *)((u8_t *)objix + sizeof(spiffs_page_object_ix)))[SPIFFS_OBJ_IX_ENTRY(fs, data_spix)] = SPIFFS_OBJ_ID_FREE;
+        }
+
+        SPIFFS_DBG("truncate: got data pix "_SPIPRIpg"\n", data_pix);
+
+        if (new_size == 0 || remove_full || cur_size - new_size >= SPIFFS_DATA_PAGE_SIZE(fs))
+        {
+            // delete full data page
+            res = spiffs_page_data_check(fs, fd, data_pix, data_spix);
+            if (res != SPIFFS_ERR_DELETED && res != SPIFFS_OK && res != SPIFFS_ERR_INDEX_REF_FREE)
+            {
+                SPIFFS_DBG("truncate: err validating data pix "_SPIPRIi"\n", res);
+                break;
+            }
+
+            if (res == SPIFFS_OK)
+            {
+                res = spiffs_page_delete(fs, data_pix);
+                if (res != SPIFFS_OK)
+                {
+                    SPIFFS_DBG("truncate: err deleting data pix "_SPIPRIi"\n", res);
+                    break;
+                }
+            }
+            else if (res == SPIFFS_ERR_DELETED || res == SPIFFS_ERR_INDEX_REF_FREE)
+            {
+                res = SPIFFS_OK;
+            }
+
+            // update current size
+            if (cur_size % SPIFFS_DATA_PAGE_SIZE(fs) == 0)
+            {
+                cur_size -= SPIFFS_DATA_PAGE_SIZE(fs);
+            }
+            else
+            {
+                cur_size -= cur_size % SPIFFS_DATA_PAGE_SIZE(fs);
+            }
+            fd->size = cur_size;
+            fd->offset = cur_size;
+            SPIFFS_DBG("truncate: delete data page "_SPIPRIpg" for data spix:"_SPIPRIsp", cur_size:"_SPIPRIi"\n", data_pix, data_spix, cur_size);
+        }
+        else
+        {
+            // delete last page, partially
+            spiffs_page_header p_hdr;
+            spiffs_page_ix new_data_pix;
+            u32_t bytes_to_remove = SPIFFS_DATA_PAGE_SIZE(fs) - (new_size % SPIFFS_DATA_PAGE_SIZE(fs));
+            SPIFFS_DBG("truncate: delete "_SPIPRIi" bytes from data page "_SPIPRIpg" for data spix:"_SPIPRIsp", cur_size:"_SPIPRIi"\n", bytes_to_remove, data_pix, data_spix, cur_size);
+
+            res = spiffs_page_data_check(fs, fd, data_pix, data_spix);
+            if (res != SPIFFS_OK) break;
+
+            p_hdr.obj_id = fd->obj_id & ~SPIFFS_OBJ_ID_IX_FLAG;
+            p_hdr.span_ix = data_spix;
+            p_hdr.flags = 0xff;
+            // allocate new page and copy unmodified data
+            res = spiffs_page_allocate_data(fs, fd->obj_id & ~SPIFFS_OBJ_ID_IX_FLAG,
+                                            &p_hdr, 0, 0, 0, 0, &new_data_pix);
+            if (res != SPIFFS_OK) break;
+            res = spiffs_phys_cpy(fs, 0,
+                                  SPIFFS_PAGE_TO_PADDR(fs, new_data_pix) + sizeof(spiffs_page_header),
+                                  SPIFFS_PAGE_TO_PADDR(fs, data_pix) + sizeof(spiffs_page_header),
+                                  SPIFFS_DATA_PAGE_SIZE(fs) - bytes_to_remove);
+            if (res != SPIFFS_OK) break;
+            // delete original data page
+            res = spiffs_page_delete(fs, data_pix);
+            if (res != SPIFFS_OK) break;
+            p_hdr.flags &= ~SPIFFS_PH_FLAG_FINAL;
+            res = _spiffs_wr(fs, SPIFFS_OP_T_OBJ_DA | SPIFFS_OP_C_UPDT,
+                             fd->file_nbr,
+                             SPIFFS_PAGE_TO_PADDR(fs, new_data_pix) + offsetof(spiffs_page_header, flags),
+                             sizeof(u8_t),
+                             (u8_t *)&p_hdr.flags);
+            if (res != SPIFFS_OK) break;
+
+            // update memory representation of object index page with new data page
+            if (cur_objix_spix == 0)
+            {
+                // update object index header page
+                ((spiffs_page_ix *)((u8_t *)objix_hdr + sizeof(spiffs_page_object_ix_header)))[data_spix] = new_data_pix;
+                SPIFFS_DBG("truncate: wrote page "_SPIPRIpg" to objix_hdr entry "_SPIPRIsp" in mem\n", new_data_pix, (spiffs_span_ix)SPIFFS_OBJ_IX_ENTRY(fs, data_spix));
+            }
+            else
+            {
+                // update object index page
+                ((spiffs_page_ix *)((u8_t *)objix + sizeof(spiffs_page_object_ix)))[SPIFFS_OBJ_IX_ENTRY(fs, data_spix)] = new_data_pix;
+                SPIFFS_DBG("truncate: wrote page "_SPIPRIpg" to objix entry "_SPIPRIsp" in mem\n", new_data_pix, (spiffs_span_ix)SPIFFS_OBJ_IX_ENTRY(fs, data_spix));
+            }
+            cur_size = new_size;
+            fd->size = new_size;
+            fd->offset = cur_size;
+            break;
+        }
+        data_spix--;
+    } // while all data
+
+    // update object indices
+    if (cur_objix_spix == 0)
+    {
+        // update object index header page
+        if (cur_size == 0)
+        {
+            if (remove_full)
+            {
+                // remove object altogether
+                SPIFFS_DBG("truncate: remove object index header page "_SPIPRIpg"\n", objix_pix);
+
+                res = spiffs_page_index_check(fs, fd, objix_pix, 0);
+                SPIFFS_CHECK_RES(res);
+
+                res = spiffs_page_delete(fs, objix_pix);
+                SPIFFS_CHECK_RES(res);
+                spiffs_cb_object_event(fs, (spiffs_page_object_ix *)0,
+                                       SPIFFS_EV_IX_DEL, fd->obj_id, 0, objix_pix, 0);
+            }
+            else
+            {
+                // make uninitialized object
+                SPIFFS_DBG("truncate: reset objix_hdr page "_SPIPRIpg"\n", objix_pix);
+                memset(fs->work + sizeof(spiffs_page_object_ix_header), 0xff,
+                       SPIFFS_CFG_LOG_PAGE_SZ(fs) - sizeof(spiffs_page_object_ix_header));
+                res = spiffs_object_update_index_hdr(fs, fd, fd->obj_id,
+                                                     objix_pix, fs->work, 0, 0, SPIFFS_UNDEFINED_LEN, &new_objix_hdr_pix);
+                SPIFFS_CHECK_RES(res);
+            }
+        }
+        else
+        {
+            // update object index header page
+            SPIFFS_DBG("truncate: update object index header page with indices and size\n");
+            res = spiffs_object_update_index_hdr(fs, fd, fd->obj_id,
+                                                 objix_pix, fs->work, 0, 0, cur_size, &new_objix_hdr_pix);
+            SPIFFS_CHECK_RES(res);
+        }
+    }
+    else
+    {
+        // update both current object index page and object index header page
+        spiffs_page_ix new_objix_pix;
+
+        res = spiffs_page_index_check(fs, fd, objix_pix, cur_objix_spix);
+        SPIFFS_CHECK_RES(res);
+
+        // move and update object index page
+        res = spiffs_page_move(fs, fd->file_nbr, (u8_t *)objix_hdr, fd->obj_id, 0, objix_pix, &new_objix_pix);
+        SPIFFS_CHECK_RES(res);
+        spiffs_cb_object_event(fs, (spiffs_page_object_ix *)objix_hdr,
+                               SPIFFS_EV_IX_UPD, fd->obj_id, objix->p_hdr.span_ix, new_objix_pix, 0);
+        SPIFFS_DBG("truncate: store modified objix page, "_SPIPRIpg":"_SPIPRIsp"\n", new_objix_pix, cur_objix_spix);
+        fd->cursor_objix_pix = new_objix_pix;
+        fd->cursor_objix_spix = cur_objix_spix;
+        fd->offset = cur_size;
+        // update object index header page with new size
+        res = spiffs_object_update_index_hdr(fs, fd, fd->obj_id,
+                                             fd->objix_hdr_pix, 0, 0, 0, cur_size, &new_objix_hdr_pix);
+        SPIFFS_CHECK_RES(res);
+    }
+    fd->size = cur_size;
+
+    return res;
+} // spiffs_object_truncate

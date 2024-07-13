@@ -1,0 +1,23 @@
+netif_get_ip6_addr_match(struct netif *netif, const ip6_addr_t *ip6addr)
+{
+  s8_t i;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  LWIP_ASSERT("netif_get_ip6_addr_match: invalid netif", netif != NULL);
+  LWIP_ASSERT("netif_get_ip6_addr_match: invalid ip6addr", ip6addr != NULL);
+
+#if LWIP_IPV6_SCOPES
+  if (ip6_addr_has_zone(ip6addr) && !ip6_addr_test_zone(ip6addr, netif)) {
+    return -1; /* wrong zone, no match */
+  }
+#endif /* LWIP_IPV6_SCOPES */
+
+  for (i = 0; i < LWIP_IPV6_NUM_ADDRESSES; i++) {
+    if (!ip6_addr_isinvalid(netif_ip6_addr_state(netif, i)) &&
+        ip6_addr_cmp_zoneless(netif_ip6_addr(netif, i), ip6addr)) {
+      return i;
+    }
+  }
+  return -1;
+}

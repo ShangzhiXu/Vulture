@@ -1,0 +1,25 @@
+LITE_OS_SEC_TEXT UINT32 OsMuxInit(VOID)
+{
+    LosMuxCB *muxNode = NULL;
+    UINT32 index;
+
+    LOS_ListInit(&g_unusedMuxList);
+    /* system resident memory, don't free */
+    g_allMux = (LosMuxCB *)LOS_MemAlloc(m_aucSysMem0, (LOSCFG_BASE_IPC_MUX_LIMIT * sizeof(LosMuxCB)));
+    if (g_allMux == NULL) {
+        return LOS_ERRNO_MUX_NO_MEMORY;
+    }
+
+    for (index = 0; index < LOSCFG_BASE_IPC_MUX_LIMIT; index++) {
+        muxNode = g_allMux + index;
+        muxNode->muxId = index;
+        muxNode->owner = NULL;
+        muxNode->muxStat = OS_MUX_UNUSED;
+        LOS_ListTailInsert(&g_unusedMuxList, &muxNode->muxList);
+    }
+
+    if (OsMuxDbgInitHook() != LOS_OK) {
+        return LOS_ERRNO_MUX_NO_MEMORY;
+    }
+    return LOS_OK;
+}

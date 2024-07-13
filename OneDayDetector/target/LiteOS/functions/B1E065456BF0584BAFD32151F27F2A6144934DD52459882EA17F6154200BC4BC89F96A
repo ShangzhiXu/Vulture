@@ -1,0 +1,32 @@
+HAL_StatusTypeDef HAL_DFSDM_FilterInjectedStop_DMA(DFSDM_Filter_HandleTypeDef *hdfsdm_filter)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Check parameters */
+  assert_param(IS_DFSDM_FILTER_ALL_INSTANCE(hdfsdm_filter->Instance));
+
+  /* Check DFSDM filter state */
+  if((hdfsdm_filter->State != HAL_DFSDM_FILTER_STATE_INJ) && \
+     (hdfsdm_filter->State != HAL_DFSDM_FILTER_STATE_REG_INJ))
+  {
+    /* Return error status */
+    status = HAL_ERROR;
+  }
+  else
+  {
+    /* Stop current DMA transfer */
+    if(HAL_DMA_Abort(hdfsdm_filter->hdmaInj) != HAL_OK)
+    {
+      /* Set DFSDM filter in error state */
+      hdfsdm_filter->State = HAL_DFSDM_FILTER_STATE_ERROR;
+      status = HAL_ERROR;
+    }
+    else
+    {
+      /* Stop regular conversion */
+      DFSDM_InjConvStop(hdfsdm_filter);
+    }
+  }
+  /* Return function status */
+  return status;
+}

@@ -1,0 +1,132 @@
+void lv_canvas_blur_ver(lv_obj_t * canvas, const lv_area_t * area, uint16_t r)
+{
+    LV_ASSERT_OBJ(canvas, LV_OBJX_NAME);
+
+    if(r == 0) return;
+
+    lv_canvas_ext_t * ext = lv_obj_get_ext_attr(canvas);
+
+    lv_area_t a;
+    if(area) {
+        lv_area_copy(&a, area);
+        if(a.x1 < 0) a.x1 = 0;
+        if(a.y1 < 0) a.y1 = 0;
+        if(a.x2 > ext->dsc.header.w - 1) a.x2 = ext->dsc.header.w - 1;
+        if(a.y2 > ext->dsc.header.h - 1) a.y2 = ext->dsc.header.h - 1;
+    }
+    else {
+        a.x1 = 0;
+        a.y1 = 0;
+        a.x2 = ext->dsc.header.w - 1;
+        a.y2 = ext->dsc.header.h - 1;
+    }
+
+    lv_color_t color = lv_obj_get_style_image_recolor(canvas, LV_CANVAS_PART_MAIN);
+
+    uint16_t r_back = r / 2;
+    uint16_t r_front = r / 2;
+
+    if((r & 0x1) == 0) r_back--;
+
+    bool has_alpha = lv_img_cf_has_alpha(ext->dsc.header.cf);
+    lv_coord_t col_w = lv_img_buf_get_img_size(1, ext->dsc.header.h, ext->dsc.header.cf);
+    uint8_t * col_buf = _lv_mem_buf_get(col_w);
+    lv_img_dsc_t line_img;
+
+    line_img.data = col_buf;
+    line_img.header.always_zero = 0;
+    line_img.header.w = 1;
+    line_img.header.h = ext->dsc.header.h;
+    line_img.header.cf = ext->dsc.header.cf;
+
+    lv_coord_t x;
+    lv_coord_t y;
+    lv_coord_t y_safe;
+
+    for(x = a.x1; x <= a.x2; x++) {
+        uint32_t asum = 0;
+        uint32_t rsum = 0;
+        uint32_t gsum = 0;
+        uint32_t bsum = 0;
+
+        lv_color_t c;
+        lv_opa_t opa = LV_OPA_COVER;
+
+        for(y = a.y1 - r_back; y <= a.y1 + r_front; y++) {
+            y_safe = y < 0 ? 0 : y;
+            y_safe = y_safe > ext->dsc.header.h - 1 ? ext->dsc.header.h - 1 : y_safe;
+
+            c = lv_img_buf_get_px_color(&ext->dsc, x, y_safe, color);
+            if(has_alpha) opa = lv_img_buf_get_px_alpha(&ext->dsc, x, y_safe);
+
+            lv_img_buf_set_px_color(&line_img, 0, y_safe, c);
+            if(has_alpha) lv_img_buf_set_px_alpha(&line_img, 0, y_safe, opa);
+
+            rsum += c.ch.red;
+#if LV_COLOR_DEPTH == 16 && LV_COLOR_16_SWAP
+            gsum += (c.ch.green_h << 3) + c.ch.green_l;
+#else
+            gsum += c.ch.green;
+#endif
+            bsum += c.ch.blue;
+            if(has_alpha) asum += opa;
+        }
+
+        /*Just to indicate that the px is visible*/
+        if(has_alpha == false) asum = LV_OPA_COVER;
+
+        for(y = a.y1; y <= a.y2; y++) {
+            if(asum) {
+                c.ch.red = rsum / r;
+#if LV_COLOR_DEPTH == 16 && LV_COLOR_16_SWAP
+                uint8_t gtmp = gsum / r;
+                c.ch.green_h = gtmp >> 3;
+                c.ch.green_l = gtmp & 0x7;
+#else
+                c.ch.green = gsum / r;
+#endif
+                c.ch.blue = bsum / r;
+                if(has_alpha) opa = asum / r;
+
+                lv_img_buf_set_px_color(&ext->dsc, x, y, c);
+            }
+            if(has_alpha) lv_img_buf_set_px_alpha(&ext->dsc, x, y, opa);
+
+            y_safe = y - r_back;
+            y_safe = y_safe < 0 ? 0 : y_safe;
+            c = lv_img_buf_get_px_color(&line_img, 0, y_safe, color);
+            if(has_alpha) opa = lv_img_buf_get_px_alpha(&line_img, 0, y_safe);
+
+            rsum -= c.ch.red;
+#if LV_COLOR_DEPTH == 16 && LV_COLOR_16_SWAP
+            gsum -= (c.ch.green_h << 3) + c.ch.green_l;
+#else
+            gsum -= c.ch.green;
+#endif
+            bsum -= c.ch.blue;
+            if(has_alpha) asum -= opa;
+
+            y_safe = y + 1 + r_front;
+            y_safe = y_safe > ext->dsc.header.h - 1 ? ext->dsc.header.h - 1 : y_safe;
+
+            c = lv_img_buf_get_px_color(&ext->dsc, x, y_safe, color);
+            if(has_alpha) opa = lv_img_buf_get_px_alpha(&ext->dsc, x, y_safe);
+
+            lv_img_buf_set_px_color(&line_img, 0, y_safe, c);
+            if(has_alpha) lv_img_buf_set_px_alpha(&line_img, 0, y_safe, opa);
+
+            rsum += c.ch.red;
+#if LV_COLOR_DEPTH == 16 && LV_COLOR_16_SWAP
+            gsum += (c.ch.green_h << 3) + c.ch.green_l;
+#else
+            gsum += c.ch.green;
+#endif
+            bsum += c.ch.blue;
+            if(has_alpha) asum += opa;
+        }
+    }
+
+    lv_obj_invalidate(canvas);
+
+    _lv_mem_buf_release(col_buf);
+}

@@ -1,0 +1,26 @@
+STATIC INT32 OsGettimeOfDay(struct timeval64 *tv, struct timezone *tz)
+{
+    UINT64 nowNsec;
+    UINT32 intSave;
+
+    (VOID)tz;
+    struct timespec64 hwTime = {0};
+    struct timespec64 realTime = {0};
+
+    nowNsec = LOS_CurrNanosec();
+    hwTime.tv_sec = nowNsec / OS_SYS_NS_PER_SECOND;
+    hwTime.tv_nsec = (INT64)(nowNsec - (hwTime.tv_sec * OS_SYS_NS_PER_SECOND));
+
+    LOS_SpinLockSave(&g_timeSpin, &intSave);
+    realTime = OsTimeSpecAdd(hwTime, g_accDeltaFromAdj);
+    realTime = OsTimeSpecAdd(realTime, g_accDeltaFromSet);
+    LOS_SpinUnlockRestore(&g_timeSpin, intSave);
+
+    tv->tv_sec = realTime.tv_sec;
+    tv->tv_usec = realTime.tv_nsec / OS_SYS_NS_PER_US;
+
+    if (tv->tv_sec < 0) {
+        TIME_RETURN(EINVAL);
+    }
+    return 0;
+}

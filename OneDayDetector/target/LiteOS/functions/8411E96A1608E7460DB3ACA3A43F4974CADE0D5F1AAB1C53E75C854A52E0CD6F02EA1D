@@ -1,0 +1,65 @@
+HAL_StatusTypeDef HAL_PCCARD_Read_Sector(PCCARD_HandleTypeDef *hpccard, uint16_t *pBuffer, uint16_t SectorAddress, uint8_t *pStatus)
+{
+  uint32_t timeout = PCCARD_TIMEOUT_SECTOR, index = 0;
+  uint8_t status = 0;
+
+  /* Process Locked */
+  __HAL_LOCK(hpccard);
+  
+  /* Check the PCCARD controller state */
+  if(hpccard->State == HAL_PCCARD_STATE_BUSY)
+  {
+     return HAL_BUSY;
+  }
+  
+  /* Update the PCCARD controller state */
+  hpccard->State = HAL_PCCARD_STATE_BUSY;
+
+  /* Initialize CF status */
+  *pStatus = PCCARD_READY;
+
+  /* Set the parameters to write a sector */
+  *(__IO uint16_t *)(PCCARD_IO_SPACE_PRIMARY_ADDR | ATA_CYLINDER_HIGH) = (uint16_t)0x00;
+  *(__IO uint16_t *)(PCCARD_IO_SPACE_PRIMARY_ADDR | ATA_SECTOR_COUNT)  = ((uint16_t)0x0100 ) | ((uint16_t)SectorAddress);
+  *(__IO uint16_t *)(PCCARD_IO_SPACE_PRIMARY_ADDR | ATA_STATUS_CMD)    = (uint16_t)0xE4A0;  
+
+  do
+  {
+    /* wait till the Status = 0x80 */
+    status =  *(__IO uint16_t *)(PCCARD_IO_SPACE_PRIMARY_ADDR | ATA_STATUS_CMD_ALTERNATE);
+    timeout--;
+  }while((status == 0x80) && timeout);
+  
+  if(timeout == 0)
+  {
+    *pStatus = PCCARD_TIMEOUT_ERROR;
+  }
+  
+  timeout = 0xFFFF;
+
+  do
+  {
+    /* wait till the Status = PCCARD_STATUS_OK */
+    status =  *(__IO uint16_t *)(PCCARD_IO_SPACE_PRIMARY_ADDR | ATA_STATUS_CMD_ALTERNATE);
+    timeout--;
+  }while((status != PCCARD_STATUS_OK) && timeout);
+  
+  if(timeout == 0)
+  {
+    *pStatus = PCCARD_TIMEOUT_ERROR;
+  }
+  
+  /* Read bytes */
+  for(; index < PCCARD_SECTOR_SIZE; index++)
+  {
+    *(uint16_t *)pBuffer++ = *(uint16_t *)(PCCARD_IO_SPACE_PRIMARY_ADDR);
+  } 
+
+  /* Update the PCCARD controller state */
+  hpccard->State = HAL_PCCARD_STATE_READY;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hpccard);
+      
+  return HAL_OK;
+}

@@ -1,0 +1,23 @@
+VOID HalIrqInit(VOID)
+{
+    UINT32 i;
+
+    for (i = OS_SYS_VECTOR_CNT; i < LOSCFG_PLATFORM_HWI_LIMIT; i++) {
+        g_hwiVec[i] = (HWI_PROC_FUNC)IrqEntryV7M;
+    }
+#if (__CORTEX_M == 0x0U)  /* only for Cortex-M0*/
+    __HAL_RCC_SYSCFG_CLK_ENABLE();
+    /* Remap SRAM at 0x00000000 */
+    __HAL_SYSCFG_REMAPMEMORY_SRAM();
+#else
+/* Interrupt vector table location */
+    SCB->VTOR = (UINT32)g_hwiVec;
+#endif
+#if (__CORTEX_M >= 0x03U) /* only for Cortex-M3 and above */
+    NVIC_SetPriorityGrouping(OS_NVIC_AIRCR_PRIGROUP);
+#endif
+
+    /* register interrupt controller's operations */
+    OsHwiControllerReg(&g_nvicOps);
+    return;
+}

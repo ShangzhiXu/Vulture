@@ -1,0 +1,40 @@
+s32_t SPIFFS_update_meta(spiffs *fs, const char *name, const void *meta)
+{
+#if SPIFFS_READ_ONLY
+    (void)fs;
+    (void)name;
+    (void)meta;
+    return SPIFFS_ERR_RO_NOT_IMPL;
+#else
+    SPIFFS_API_CHECK_CFG(fs);
+    SPIFFS_API_CHECK_MOUNT(fs);
+    SPIFFS_LOCK(fs);
+
+    spiffs_page_ix pix, pix_dummy;
+    spiffs_fd *fd;
+
+    s32_t res = spiffs_object_find_object_index_header_by_name(fs, (const u8_t *)name, &pix);
+    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+
+    res = spiffs_fd_find_new(fs, &fd, 0);
+    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+
+    res = spiffs_object_open_by_page(fs, pix, fd, 0, 0);
+    if (res != SPIFFS_OK)
+    {
+        spiffs_fd_return(fs, fd->file_nbr);
+    }
+    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+
+    res = spiffs_object_update_index_hdr(fs, fd, fd->obj_id, fd->objix_hdr_pix, 0, 0, meta,
+                                         0, &pix_dummy);
+
+    spiffs_fd_return(fs, fd->file_nbr);
+
+    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+
+    SPIFFS_UNLOCK(fs);
+
+    return res;
+#endif // SPIFFS_READ_ONLY
+}

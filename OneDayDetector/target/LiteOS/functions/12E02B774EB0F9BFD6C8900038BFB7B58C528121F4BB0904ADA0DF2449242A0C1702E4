@@ -1,0 +1,18 @@
+snmp_trap_varbind_enc(struct snmp_msg_trap *trap, struct snmp_pbuf_stream *pbuf_stream, struct snmp_varbind *varbinds)
+{
+  struct snmp_asn1_tlv tlv;
+  struct snmp_varbind *varbind;
+
+  varbind = varbinds;
+
+  SNMP_ASN1_SET_TLV_PARAMS(tlv, SNMP_ASN1_TYPE_SEQUENCE, 0, trap->vbseqlen);
+  BUILD_EXEC( snmp_ans1_enc_tlv(pbuf_stream, &tlv) );
+
+  while (varbind != NULL) {
+    BUILD_EXEC( snmp_append_outbound_varbind(pbuf_stream, varbind) );
+
+    varbind = varbind->next;
+  }
+
+  return ERR_OK;
+}

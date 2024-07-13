@@ -1,0 +1,62 @@
+LITE_OS_SEC_TEXT VOID OsSwtmrScan(VOID)
+{
+    SortLinkList *sortList = NULL;
+    LosSwtmrCB *swtmr = NULL;
+    LOS_DL_LIST *listObject = NULL;
+    SortLinkAttribute* swtmrSortLink = &OsPercpuGet()->swtmrSortLink;
+
+    SORTLINK_CURSOR_UPDATE(swtmrSortLink->cursor);
+    SORTLINK_LISTOBJ_GET(listObject, swtmrSortLink);
+
+    /*
+     * it needs to be carefully coped with, since the swtmr is in specific sortlink
+     * while other cores still has the chance to process it, like stop the timer.
+     */
+    LOS_SpinLock(&g_swtmrSpin);
+
+    if (LOS_ListEmpty(listObject)) {
+        LOS_SpinUnlock(&g_swtmrSpin);
+        return;
+    }
+    sortList = LOS_DL_LIST_ENTRY(listObject->pstNext, SortLinkList, sortLinkNode);
+    ROLLNUM_DEC(sortList->idxRollNum);
+
+    while (ROLLNUM(sortList->idxRollNum) == 0) {
+        sortList = LOS_DL_LIST_ENTRY(listObject->pstNext, SortLinkList, sortLinkNode);
+        LOS_ListDelete(&sortList->sortLinkNode);
+        swtmr = LOS_DL_LIST_ENTRY(sortList, LosSwtmrCB, sortList);
+
+#ifndef LOSCFG_BASE_CORE_SWTMR_IN_ISR
+        LOS_TRACE(SWTMR_EXPIRED, swtmr->timerId);
+        SwtmrHandlerItemPtr swtmrHandler = (SwtmrHandlerItemPtr)LOS_MemAlloc(m_aucSysMem0, sizeof(SwtmrHandlerItem));
+        if (swtmrHandler != NULL) {
+            swtmrHandler->handler = swtmr->handler;
+            swtmrHandler->arg = swtmr->arg;
+            if (LOS_QueueWriteCopy(OsPercpuGet()->swtmrHandlerQueue, &swtmrHandler, sizeof(CHAR *), LOS_NO_WAIT)) {
+                (VOID)LOS_MemFree(m_aucSysMem0, swtmrHandler);
+            }
+        }
+        OsSwtmrUpdate(swtmr);
+#else
+        SWTMR_PROC_FUNC handler = swtmr->handler;
+        UINTPTR arg = swtmr->arg;
+        OsSwtmrUpdate(swtmr);
+        if (handler != NULL) {
+            LOS_SpinUnlock(&g_swtmrSpin);
+
+            LOS_TRACE(SWTMR_EXPIRED, swtmr->timerId);
+            handler(arg); /* do swtmr callback */
+
+            LOS_SpinLock(&g_swtmrSpin);
+        }
+#endif
+
+        if (LOS_ListEmpty(listObject)) {
+            break;
+        }
+
+        sortList = LOS_DL_LIST_ENTRY(listObject->pstNext, SortLinkList, sortLinkNode);
+    }
+
+    LOS_SpinUnlock(&g_swtmrSpin);
+}

@@ -1,0 +1,35 @@
+udp_Table_get_next_cell_instance_and_value(const u32_t *column, struct snmp_obj_id *row_oid, union snmp_variant_value *value, u32_t *value_len)
+{
+  struct udp_pcb *pcb;
+  struct snmp_next_oid_state state;
+  u32_t  result_temp[LWIP_ARRAYSIZE(udp_Table_oid_ranges)];
+
+  /* init struct to search next oid */
+  snmp_next_oid_init(&state, row_oid->id, row_oid->len, result_temp, LWIP_ARRAYSIZE(udp_Table_oid_ranges));
+
+  /* iterate over all possible OIDs to find the next one */
+  pcb = udp_pcbs;
+  while (pcb != NULL) {
+    u32_t test_oid[LWIP_ARRAYSIZE(udp_Table_oid_ranges)];
+
+    if (IP_IS_V4_VAL(pcb->local_ip)) {
+      snmp_ip4_to_oid(ip_2_ip4(&pcb->local_ip), &test_oid[0]);
+      test_oid[4] = pcb->local_port;
+
+      /* check generated OID: is it a candidate for the next one? */
+      snmp_next_oid_check(&state, test_oid, LWIP_ARRAYSIZE(udp_Table_oid_ranges), pcb);
+    }
+
+    pcb = pcb->next;
+  }
+
+  /* did we find a next one? */
+  if (state.status == SNMP_NEXT_OID_STATUS_SUCCESS) {
+    snmp_oid_assign(row_oid, state.next_oid, state.next_oid_len);
+    /* fill in object properties */
+    return udp_Table_get_cell_value_core((struct udp_pcb *)state.reference, column, value, value_len);
+  } else {
+    /* not found */
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+}

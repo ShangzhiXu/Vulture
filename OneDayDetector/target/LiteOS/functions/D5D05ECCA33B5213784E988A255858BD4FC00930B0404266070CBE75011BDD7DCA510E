@@ -1,0 +1,20 @@
+static void SPI_2LinesRxISR(SPI_HandleTypeDef *hspi)
+{
+  /* Receive data in 8 Bit mode */
+  if(hspi->Init.DataSize == SPI_DATASIZE_8BIT)
+  {
+    (*hspi->pRxBuffPtr++) = hspi->Instance->DR;
+  }
+  /* Receive data in 16 Bit mode */
+  else
+  {
+    *((uint16_t*)hspi->pRxBuffPtr) = hspi->Instance->DR;
+    hspi->pRxBuffPtr+=2;
+  }
+  hspi->RxXferCount--;
+
+  if(hspi->RxXferCount==0)
+  {
+    SPI_RxCloseIRQHandler(hspi);
+  }
+}

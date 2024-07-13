@@ -1,0 +1,25 @@
+LITE_OS_SEC_TEXT_MINOR VOID OsCmdAscendingInsert(CmdItemNode *cmd)
+{
+    CmdItemNode *cmdItem = NULL;
+    CmdItemNode *cmdNext = NULL;
+
+    for (cmdItem = LOS_DL_LIST_ENTRY((&g_cmdInfo.cmdList.list)->pstPrev, CmdItemNode, list);
+         &cmdItem->list != &g_cmdInfo.cmdList.list;) {
+        cmdNext = LOS_DL_LIST_ENTRY(cmdItem->list.pstPrev, CmdItemNode, list);
+        if (&cmdNext->list != &g_cmdInfo.cmdList.list) {
+            if ((strncmp(cmdItem->cmd->cmdKey, cmd->cmd->cmdKey, strlen(cmd->cmd->cmdKey)) >= 0) &&
+                (strncmp(cmdNext->cmd->cmdKey, cmd->cmd->cmdKey, strlen(cmd->cmd->cmdKey)) < 0)) {
+                LOS_ListTailInsert(&cmdItem->list, &cmd->list);
+                return;
+            }
+            cmdItem = cmdNext;
+        } else {
+            if (strncmp(cmd->cmd->cmdKey, cmdItem->cmd->cmdKey, strlen(cmd->cmd->cmdKey)) > 0) {
+                cmdItem = cmdNext;
+            }
+            break;
+        }
+    }
+
+    LOS_ListTailInsert(&cmdItem->list, &cmd->list);
+}

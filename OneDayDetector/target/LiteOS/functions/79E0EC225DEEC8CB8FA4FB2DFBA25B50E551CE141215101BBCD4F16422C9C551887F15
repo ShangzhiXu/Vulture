@@ -1,0 +1,13 @@
+check_rx_counters(struct tcp_pcb *pcb, struct test_tcp_counters *counters, u32_t exp_close_calls, u32_t exp_rx_calls,
+                  u32_t exp_rx_bytes, u32_t exp_err_calls, int exp_oos_count, int exp_oos_len)
+{
+  int oos_len;
+  EXPECT(counters->close_calls == exp_close_calls);
+  EXPECT(counters->recv_calls == exp_rx_calls);
+  EXPECT(counters->recved_bytes == exp_rx_bytes);
+  EXPECT(counters->err_calls == exp_err_calls);
+  /* check that pbuf is queued in ooseq */
+  EXPECT_OOSEQ(tcp_oos_count(pcb) == exp_oos_count);
+  oos_len = tcp_oos_tcplen(pcb);
+  EXPECT_OOSEQ(exp_oos_len == oos_len);
+}

@@ -1,0 +1,51 @@
+int mbedtls_hmac_drbg_seed( mbedtls_hmac_drbg_context *ctx,
+                    const mbedtls_md_info_t * md_info,
+                    int (*f_entropy)(void *, unsigned char *, size_t),
+                    void *p_entropy,
+                    const unsigned char *custom,
+                    size_t len )
+{
+    int ret;
+    size_t md_size;
+
+    if( ( ret = mbedtls_md_setup( &ctx->md_ctx, md_info, 1 ) ) != 0 )
+        return( ret );
+
+    md_size = mbedtls_md_get_size( md_info );
+
+    /*
+     * Set initial working state.
+     * Use the V memory location, which is currently all 0, to initialize the
+     * MD context with an all-zero key. Then set V to its initial value.
+     */
+    if( ( ret = mbedtls_md_hmac_starts( &ctx->md_ctx, ctx->V, md_size ) ) != 0 )
+        return( ret );
+    memset( ctx->V, 0x01, md_size );
+
+    ctx->f_entropy = f_entropy;
+    ctx->p_entropy = p_entropy;
+
+    ctx->reseed_interval = MBEDTLS_HMAC_DRBG_RESEED_INTERVAL;
+
+    if( ctx->entropy_len == 0 )
+    {
+        /*
+         * See SP800-57 5.6.1 (p. 65-66) for the security strength provided by
+         * each hash function, then according to SP800-90A rev1 10.1 table 2,
+         * min_entropy_len (in bits) is security_strength.
+         *
+         * (This also matches the sizes used in the NIST test vectors.)
+         */
+        ctx->entropy_len = md_size <= 20 ? 16 : /* 160-bits hash -> 128 bits */
+                           md_size <= 28 ? 24 : /* 224-bits hash -> 192 bits */
+                           32;  /* better (256+) -> 256 bits */
+    }
+
+    if( ( ret = hmac_drbg_reseed_core( ctx, custom, len,
+                                       1 /* add nonce */ ) ) != 0 )
+    {
+        return( ret );
+    }
+
+    return( 0 );
+}

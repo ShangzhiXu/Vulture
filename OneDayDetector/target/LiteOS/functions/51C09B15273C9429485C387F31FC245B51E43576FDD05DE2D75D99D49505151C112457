@@ -1,0 +1,13 @@
+static void FLASH_MassErase(uint8_t VoltageRange)
+{
+  /* Check the parameters */
+  assert_param(IS_VOLTAGERANGE(VoltageRange));
+
+  /* if the previous operation is completed, proceed to erase all sectors */
+  FLASH->CR &= CR_PSIZE_MASK;
+  FLASH->CR |= FLASH_CR_MER;
+  FLASH->CR |= FLASH_CR_STRT | ((uint32_t)VoltageRange <<8);
+  /* Data synchronous Barrier (DSB) Just after the write operation
+     This will force the CPU to respect the sequence of instruction (no optimization).*/
+  __DSB();
+}

@@ -1,0 +1,59 @@
+VOID HalIrqInit(VOID)
+{
+    UINT32 i;
+    UINT64 affinity;
+
+    /* disable distributor */
+    GIC_REG_32(GICD_CTLR) = 0;
+    GicWaitForRwp(GICD_CTLR);
+    ISB();
+
+    /* set external interrupts to be level triggered, active low. */
+    for (i = 32; i < OS_HWI_MAX_NUM; i += 16) {
+        GIC_REG_32(GICD_ICFGR(i / 16)) = 0;
+    }
+
+    /* config distributer, mask and clear all spis, set group x */
+    for (i = 32; i < OS_HWI_MAX_NUM; i += 32) {
+        GIC_REG_32(GICD_ICENABLER(i / 32)) = 0xffffffff;
+        GIC_REG_32(GICD_ICPENDR(i / 32)) = 0xffffffff;
+        GIC_REG_32(GICD_IGRPMODR(i / 32)) = 0;
+
+        GicdSetGroup(i);
+    }
+
+    /* set spi priority as default */
+    for (i = 32; i < OS_HWI_MAX_NUM; i++) {
+        GicdSetPmr(i, MIN_INTERRUPT_PRIORITY);
+    }
+
+    GicWaitForRwp(GICD_CTLR);
+
+    /* disable all interrupts. */
+    for (i = 0; i < OS_HWI_MAX_NUM; i += 32) {
+        GIC_REG_32(GICD_ICENABLER(i / 32)) = 0xffffffff;
+    }
+
+    /* enable distributor with ARE, group 1 enabled */
+    GIC_REG_32(GICD_CTLR) = CTLR_ENALBE_G0 | CTLR_ENABLE_G1NS | CTLR_ARE_S;
+
+    /* set spi to boot cpu only. ARE must be enabled */
+    affinity = MpidrToAffinity(AARCH64_SYSREG_READ(mpidr_el1));
+    for (i = 32; i < OS_HWI_MAX_NUM; i++) {
+        GIC_REG_64(GICD_IROUTER(i)) = affinity;
+    }
+
+    HalIrqInitPercpu();
+
+    /* register interrupt controller's operations */
+    OsHwiControllerReg(&g_gicv3Ops);
+#if (LOSCFG_KERNEL_SMP == YES)
+    /* register inter-processor interrupt */
+    LOS_HwiCreate(LOS_MP_IPI_WAKEUP, 0xa0, 0, OsMpWakeHandler, 0);
+    LOS_HwiCreate(LOS_MP_IPI_SCHEDULE, 0xa0, 0, OsMpScheduleHandler, 0);
+    LOS_HwiCreate(LOS_MP_IPI_HALT, 0xa0, 0, OsMpScheduleHandler, 0);
+#ifdef LOSCFG_KERNEL_SMP_CALL
+    LOS_HwiCreate(LOS_MP_IPI_FUNC_CALL, 0xa0, 0, OsMpFuncCallHandler, 0);
+#endif
+#endif
+}

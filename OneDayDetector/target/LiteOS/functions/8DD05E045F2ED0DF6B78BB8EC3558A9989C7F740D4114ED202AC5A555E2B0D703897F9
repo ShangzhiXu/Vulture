@@ -1,0 +1,19 @@
+static void CRYP_DMAOutCplt(DMA_HandleTypeDef *hdma)
+{  
+  CRYP_HandleTypeDef* hcryp = (CRYP_HandleTypeDef*)((DMA_HandleTypeDef*)hdma)->Parent;
+  
+  /* Disable the DMA transfer for output request */
+  CLEAR_BIT(hcryp->Instance->CR, AES_CR_DMAOUTEN);
+
+  /* Clear CCF Flag */
+  __HAL_CRYP_CLEAR_FLAG(hcryp, CRYP_CCF_CLEAR);
+  
+  /* Disable CRYP */
+  __HAL_CRYP_DISABLE(hcryp);
+  
+  /* Change the CRYP state to ready */
+  hcryp->State = HAL_CRYP_STATE_READY;
+  
+  /* Call output data transfer complete callback */
+  HAL_CRYP_OutCpltCallback(hcryp);
+}

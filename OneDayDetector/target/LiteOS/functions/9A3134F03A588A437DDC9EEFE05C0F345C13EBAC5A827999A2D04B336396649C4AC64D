@@ -1,0 +1,70 @@
+void HAL_DFSDM_FilterRegConvHalfCpltCallback(DFSDM_Filter_HandleTypeDef *hdfsdm_filter)
+{
+  uint32_t index = 0;
+  
+  if(hdfsdm_filter == &hAudioInTopLeftFilter)
+  {
+    DmaTopLeftRecHalfCplt = 1;
+  }
+  else if(hdfsdm_filter == &hAudioInTopRightFilter)
+  {
+    DmaTopRightRecHalfCplt = 1;
+  }
+  else if(hdfsdm_filter == &hAudioInButtomLeftFilter)
+  {
+    DmaButtomLeftRecHalfCplt = 1;
+  }
+  else
+  {
+    DmaButtomRightRecHalfCplt = 1;
+  }
+  
+  if(AudioIn_ChannelNumber > 2)
+  {
+    if((DmaTopLeftRecHalfCplt == 1) && (DmaTopRightRecHalfCplt == 1) && (DmaButtomLeftRecHalfCplt == 1) && (DmaButtomRightRecHalfCplt == 1))
+    {
+      for(index = 0 ; index < ScratchSize/2; index++)
+      {
+        hAudioIn.pRecBuf[AppBuffTrigger]     = (uint16_t)(SaturaLH((pScratchBuff[1][index] >> 8), -32760, 32760));
+        hAudioIn.pRecBuf[AppBuffTrigger + 1] = (uint16_t)(SaturaLH((pScratchBuff[0][index] >> 8), -32760, 32760)); 
+        hAudioIn.pRecBuf[AppBuffTrigger + 2] = (uint16_t)(SaturaLH((pScratchBuff[3][index] >> 8), -32760, 32760));
+        hAudioIn.pRecBuf[AppBuffTrigger + 3] = (uint16_t)(SaturaLH((pScratchBuff[2][index] >> 8), -32760, 32760));      
+        AppBuffTrigger +=4;
+      }
+      DmaTopLeftRecHalfCplt  = 0;
+      DmaTopRightRecHalfCplt = 0;
+      DmaButtomLeftRecHalfCplt  = 0;
+      DmaButtomRightRecHalfCplt = 0;     
+    }
+  }
+  else
+  {
+    if((DmaTopLeftRecHalfCplt == 1) && (DmaTopRightRecHalfCplt == 1))
+    {    
+      for(index = 0 ; index < ScratchSize/2; index++)
+      {
+        hAudioIn.pRecBuf[AppBuffTrigger]     = (uint16_t)(SaturaLH((pScratchBuff[1][index] >> 8), -32760, 32760));
+        hAudioIn.pRecBuf[AppBuffTrigger + 1] = (uint16_t)(SaturaLH((pScratchBuff[0][index] >> 8), -32760, 32760));
+        AppBuffTrigger +=2;
+      }
+      DmaTopLeftRecHalfCplt  = 0;
+      DmaTopRightRecHalfCplt = 0;  
+    }
+  }
+  
+  /* Call Half Transfer Complete callback */
+  if((AppBuffTrigger == hAudioIn.RecSize/2) && (AppBuffHalf == 0))
+  { 
+    AppBuffHalf = 1;  
+    BSP_AUDIO_IN_HalfTransfer_CallBack();
+  }
+  /* Call Transfer Complete callback */
+  if(AppBuffTrigger == hAudioIn.RecSize)
+  {
+    /* Reset Application Buffer Trigger */
+    AppBuffTrigger = 0;
+    AppBuffHalf = 0;
+    /* Call the record update function to get the next buffer to fill and its size (size is ignored) */
+    BSP_AUDIO_IN_TransferComplete_CallBack();
+  }  
+}

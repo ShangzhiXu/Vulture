@@ -1,0 +1,38 @@
+LITE_OS_SEC_TEXT UINT32 LOS_MuxCreate(UINT32 *muxHandle)
+{
+    UINT32 intSave;
+    LosMuxCB *muxCreated = NULL;
+    LOS_DL_LIST *unusedMux = NULL;
+    UINT32 errNo;
+    UINT32 errLine;
+
+    if (muxHandle == NULL) {
+        return LOS_ERRNO_MUX_PTR_NULL;
+    }
+
+    SCHEDULER_LOCK(intSave);
+    if (LOS_ListEmpty(&g_unusedMuxList)) {
+        SCHEDULER_UNLOCK(intSave);
+        OsMutexCheckHook();
+        OS_GOTO_ERR_HANDLER(LOS_ERRNO_MUX_ALL_BUSY);
+    }
+
+    unusedMux = LOS_DL_LIST_FIRST(&g_unusedMuxList);
+    LOS_ListDelete(unusedMux);
+    muxCreated = LOS_DL_LIST_ENTRY(unusedMux, LosMuxCB, muxList);
+    muxCreated->muxCount = 0;
+    muxCreated->muxStat = OS_MUX_USED;
+    muxCreated->owner = NULL;
+    LOS_ListInit(&muxCreated->muxList);
+    *muxHandle = muxCreated->muxId;
+
+    OsMuxDbgUpdateHook(muxCreated->muxId, OsCurrTaskGet()->taskEntry);
+
+    SCHEDULER_UNLOCK(intSave);
+
+    LOS_TRACE(MUX_CREATE, muxCreated->muxId);
+    return LOS_OK;
+
+ERR_HANDLER:
+    OS_RETURN_ERROR_P2(errLine, errNo);
+}

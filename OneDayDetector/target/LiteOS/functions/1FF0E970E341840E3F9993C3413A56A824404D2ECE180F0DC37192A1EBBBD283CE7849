@@ -1,0 +1,22 @@
+SECUREC_INLINE int SecInputNumberDigital(SecFileStream *stream, SecScanSpec *spec)
+{
+    static void (*secFinishNumber[SECUREC_DECODE_NUMBER_FUNC_NUM])(SecScanSpec *spec) = {
+        SecFinishNumber, SecFinishNumber64
+    };
+    while (SECUREC_FILED_WIDTH_ENOUGH(spec)) {
+        spec->ch = SecGetChar(stream, &(spec->charCount));
+        /* Decode ch to number */
+        if (SecDecodeNumber(spec) != 0) {
+            SecUnGetChar(spec->ch, stream, &(spec->charCount));
+            break;
+        }
+        SECUREC_FILED_WIDTH_DEC(spec); /* Must be behind un get char, otherwise the logic is incorrect */
+        spec->numberState = SECUREC_NUMBER_STATE_STARTED;
+    }
+    /* Handling integer negative numbers and beyond max */
+    (*secFinishNumber[spec->numberArgType])(spec);
+    if (spec->numberState == SECUREC_NUMBER_STATE_STARTED) {
+        return 0;
+    }
+    return -1;
+}

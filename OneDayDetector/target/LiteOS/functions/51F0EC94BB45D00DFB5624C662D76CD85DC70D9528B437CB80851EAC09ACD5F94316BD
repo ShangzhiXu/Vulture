@@ -1,0 +1,23 @@
+int vsprintf_s(char *strDest, size_t destMax, const char *format, va_list argList)
+{
+    int retVal;               /* If initialization causes  e838 */
+
+    if (SECUREC_VSPRINTF_PARAM_ERROR(format, strDest, destMax, SECUREC_STRING_MAX_LEN)) {
+        SECUREC_VSPRINTF_CLEAR_DEST(strDest, destMax, SECUREC_STRING_MAX_LEN);
+        SECUREC_ERROR_INVALID_PARAMTER("vsprintf_s");
+        return -1;
+    }
+
+    retVal = SecVsnprintfImpl(strDest, destMax, format, argList);
+    if (retVal < 0) {
+        strDest[0] = '\0';
+        if (retVal == SECUREC_PRINTF_TRUNCATE) {
+            /* Buffer is too small */
+            SECUREC_ERROR_INVALID_RANGE("vsprintf_s");
+        }
+        SECUREC_ERROR_INVALID_PARAMTER("vsprintf_s");
+        return -1;
+    }
+
+    return retVal;
+}

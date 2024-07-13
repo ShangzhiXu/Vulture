@@ -1,0 +1,52 @@
+static cJSON *detach_path(cJSON *object, const unsigned char *path, const cJSON_bool case_sensitive)
+{
+    unsigned char *parent_pointer = NULL;
+    unsigned char *child_pointer = NULL;
+    cJSON *parent = NULL;
+    cJSON *detached_item = NULL;
+
+    /* copy path and split it in parent and child */
+    parent_pointer = cJSONUtils_strdup(path);
+    if (parent_pointer == NULL) {
+        goto cleanup;
+    }
+
+    child_pointer = (unsigned char*)strrchr((char*)parent_pointer, '/'); /* last '/' */
+    if (child_pointer == NULL)
+    {
+        goto cleanup;
+    }
+    /* split strings */
+    child_pointer[0] = '\0';
+    child_pointer++;
+
+    parent = get_item_from_pointer(object, (char*)parent_pointer, case_sensitive);
+    decode_pointer_inplace(child_pointer);
+
+    if (cJSON_IsArray(parent))
+    {
+        size_t index = 0;
+        if (!decode_array_index_from_pointer(child_pointer, &index))
+        {
+            goto cleanup;
+        }
+        detached_item = detach_item_from_array(parent, index);
+    }
+    else if (cJSON_IsObject(parent))
+    {
+        detached_item = cJSON_DetachItemFromObject(parent, (char*)child_pointer);
+    }
+    else
+    {
+        /* Couldn't find object to remove child from. */
+        goto cleanup;
+    }
+
+cleanup:
+    if (parent_pointer != NULL)
+    {
+        cJSON_free(parent_pointer);
+    }
+
+    return detached_item;
+}

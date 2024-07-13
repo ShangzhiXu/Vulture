@@ -1,0 +1,31 @@
+VOID OsExcStackInfo(VOID)
+{
+    UINT32 index;
+    UINT32 cpuid;
+    UINT32 size;
+    UINTPTR *stackTop = NULL;
+    UINTPTR *stack = NULL;
+    const StackInfo *stackInfo = NULL;
+    UINT32 stackNum;
+
+    OsGetStackInfo(&stackInfo, &stackNum);
+    if ((stackInfo == NULL) || (stackNum == 0)) {
+        return;
+    }
+
+    PrintExcInfo("\n stack name    cpu id     stack addr     total size   used size\n"
+                 " ----------    ------     ---------      --------     --------\n");
+
+    for (index = 0; index < stackNum; index++) {
+        for (cpuid = 0; cpuid < LOSCFG_KERNEL_CORE_NUM; cpuid++) {
+            stackTop = (UINTPTR *)((UINTPTR)stackInfo[index].stackTop + cpuid * stackInfo[index].stackSize);
+            stack = (UINTPTR *)((UINTPTR)stackTop + stackInfo[index].stackSize);
+            (VOID)OsStackWaterLineGet(stack, stackTop, &size);
+
+            PrintExcInfo("%11s      %-5d    %-10p     0x%-8x   0x%-4x\n", stackInfo[index].stackName,
+                         LOSCFG_KERNEL_CORE_NUM - 1 - cpuid, stackTop, stackInfo[index].stackSize, size);
+        }
+    }
+
+    OsExcStackCheck();
+}

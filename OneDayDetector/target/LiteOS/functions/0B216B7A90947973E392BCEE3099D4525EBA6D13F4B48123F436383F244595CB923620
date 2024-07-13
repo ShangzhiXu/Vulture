@@ -1,0 +1,61 @@
+int pack_head_parse(pack_head_s *head, uint32_t offset, const uint8_t *buff, uint16_t len, uint16_t *used_len)
+{
+    int ret;
+    uint16_t tmp_len = 0;
+
+    *used_len = 0;
+    ret = pack_head_parse_head_len(head, offset, buff, len, &tmp_len);
+    if (ret != PACK_OK) {
+        return ret;
+    }
+
+    len -= tmp_len;
+    if ((len == 0) && (head->stored_len < head->head_len)) {
+        *used_len = tmp_len;
+        return PACK_OK;
+    }
+
+    offset += tmp_len;
+    buff += tmp_len;
+
+    if ((head->head_len < PACK_HEADER_MIN_LEN) || (head->buff == NULL) ||
+        ((head->stored_len < head->head_len) && (offset > head->stored_len))) {
+        PACK_LOG("head not continuous, len %u offset %u", head->stored_len, offset);
+        return PACK_ERR;
+    }
+
+    if (offset < head->head_len) {
+        uint16_t copy_len;
+
+        copy_len = MIN(len, head->head_len - offset);
+        (void)memcpy(head->buff + offset, buff, copy_len);
+        *used_len = copy_len + tmp_len;
+        head->stored_len = offset + copy_len;
+        if (head->stored_len >= head->head_len) {
+            uint32_t save_len;
+            save_len = GET_DWORD(head->buff, PACK_HEADER_TOTAL_LEN_POS);
+            if (save_len <= head->head_len) {
+                PACK_LOG("head len err, save len %d head len %u", save_len, head->head_len);
+                return PACK_ERR;
+            }
+
+            if (head->hardware && head->hardware->get_max_size) {
+                uint32_t max_len = head->hardware->get_max_size(head->hardware);
+                if (max_len < save_len - head->head_len) {
+                    PACK_LOG("size exceed, save len %u head len %u max_len %u", save_len, head->head_len, max_len);
+                    return PACK_ERR;
+                }
+            }
+
+            if (head->update_check) {
+                if (head->update_check(head->buff, head->head_len, head->param) != PACK_OK) {
+                    return PACK_ERR;
+                }
+            }
+
+            return pack_head_parse_tlvs(head, head->buff, head->head_len);
+        }
+    }
+
+    return PACK_OK;
+}

@@ -1,0 +1,32 @@
+HAL_StatusTypeDef HAL_USART_DMAResume(USART_HandleTypeDef *husart)
+{
+  /* Process Locked */
+  __HAL_LOCK(husart);
+
+  if(husart->State == HAL_USART_STATE_BUSY_TX)
+  {
+    /* Enable the USART DMA Tx request */
+    SET_BIT(husart->Instance->CR3, USART_CR3_DMAT);
+  }
+  else if( (husart->State == HAL_USART_STATE_BUSY_RX) ||
+           (husart->State == HAL_USART_STATE_BUSY_TX_RX) )
+  {
+    /* Clear the Overrun flag before resuming the Rx transfer*/
+    __HAL_USART_CLEAR_FLAG(husart, USART_CLEAR_OREF);    
+
+    /* Reenable PE and ERR (Frame error, noise error, overrun error) interrupts */
+    SET_BIT(husart->Instance->CR1, USART_CR1_PEIE);
+    SET_BIT(husart->Instance->CR3, USART_CR3_EIE);
+
+    /* Enable the USART DMA Rx request  before the DMA Tx request */
+    SET_BIT(husart->Instance->CR3, USART_CR3_DMAR);
+
+    /* Enable the USART DMA Tx request */
+    SET_BIT(husart->Instance->CR3, USART_CR3_DMAT);
+  }
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(husart);
+
+  return HAL_OK;
+}

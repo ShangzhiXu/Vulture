@@ -1,0 +1,36 @@
+nd6_reachability_hint(const ip6_addr_t *ip6addr)
+{
+  s8_t i;
+  s16_t dst_idx;
+
+  /* Find destination in cache. */
+  if (ip6_addr_cmp(ip6addr, &(destination_cache[nd6_cached_destination_index].destination_addr))) {
+    dst_idx = nd6_cached_destination_index;
+    ND6_STATS_INC(nd6.cachehit);
+  } else {
+    dst_idx = nd6_find_destination_cache_entry(ip6addr);
+  }
+  if (dst_idx < 0) {
+    return;
+  }
+
+  /* Find next hop neighbor in cache. */
+  if (ip6_addr_cmp(&(destination_cache[dst_idx].next_hop_addr), &(neighbor_cache[nd6_cached_neighbor_index].next_hop_address))) {
+    i = nd6_cached_neighbor_index;
+    ND6_STATS_INC(nd6.cachehit);
+  } else {
+    i = nd6_find_neighbor_cache_entry(&(destination_cache[dst_idx].next_hop_addr));
+  }
+  if (i < 0) {
+    return;
+  }
+
+  /* For safety: don't set as reachable if we don't have a LL address yet. Misuse protection. */
+  if (neighbor_cache[i].state == ND6_INCOMPLETE || neighbor_cache[i].state == ND6_NO_ENTRY) {
+    return;
+  }
+
+  /* Set reachability state. */
+  neighbor_cache[i].state = ND6_REACHABLE;
+  neighbor_cache[i].counter.reachable_time = reachable_time;
+}

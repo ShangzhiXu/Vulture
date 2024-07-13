@@ -1,0 +1,143 @@
+int lwm2m_step(lwm2m_context_t *contextP,
+               time_t *timeoutP)
+{
+    time_t tv_sec;
+    int result;
+    lwm2m_client_state_t state;
+    int ret = 0;
+
+    LOG_ARG("timeoutP: %" PRId64, *timeoutP);
+    tv_sec = lwm2m_gettime();
+    //if (tv_sec < 0) return COAP_500_INTERNAL_SERVER_ERROR;
+
+#ifdef LWM2M_CLIENT_MODE
+    LOG_ARG("State: %s", STR_STATE(contextP->state));
+    // state can also be modified in bootstrap_handleCommand().
+
+next_step:
+    switch (contextP->state)
+    {
+    case STATE_INITIAL:
+        if (0 != prv_refreshServerList(contextP))
+        {
+            LOG("prv_refreshServerList fail");
+            return COAP_503_SERVICE_UNAVAILABLE;
+        }
+
+        state = ((!prv_isBoostrpEnable(contextP))
+                 || ((contextP->serverList != NULL) && contextP->regist_first_flag)
+                 ?  STATE_REGISTER_REQUIRED : STATE_BOOTSTRAP_REQUIRED);
+
+        contextP->regist_first_flag = true;
+
+        SET_BS_LATER(contextP, state);
+        goto next_step;
+    //break;
+
+    case STATE_BOOTSTRAP_REQUIRED:
+#ifdef LWM2M_BOOTSTRAP
+        if (contextP->bootstrapServerList != NULL)
+        {
+            bootstrap_start(contextP);
+            contextP->state = STATE_BOOTSTRAPPING;
+            bootstrap_step(contextP, tv_sec, timeoutP);
+            break;
+        }
+        else
+#endif
+        {
+            SET_BS_LATER(contextP, STATE_BOOTSTRAP_REQUIRED);
+            ret = COAP_503_SERVICE_UNAVAILABLE;
+            break;
+        }
+
+#ifdef LWM2M_BOOTSTRAP
+    case STATE_BOOTSTRAPPING:
+        switch (bootstrap_getStatus(contextP))
+        {
+        case STATE_BS_FINISHED:
+            contextP->state = STATE_INITIAL;
+            lwm2m_setBsCtrlStat(contextP, STATE_INITIAL);
+            goto next_step;
+            break;
+
+        case STATE_BS_FAILED:
+            SET_BS_LATER(contextP, STATE_BOOTSTRAP_REQUIRED);
+            ret = COAP_503_SERVICE_UNAVAILABLE;
+            break;
+
+        default:
+            // keep on waiting
+            bootstrap_step(contextP, tv_sec, timeoutP);
+            break;
+        }
+        break;
+#endif
+    case STATE_REGISTER_REQUIRED:
+        result = registration_start(contextP);
+        LOG_ARG("[bootstrap_tag]: ---the return value result = %d of registration_start-----", result);
+        if (COAP_NO_ERROR != result)
+        {
+            SET_BS_LATER(contextP, STATE_REGISTER_REQUIRED);
+            ret = result;
+            break;
+        }
+        contextP->state = STATE_REGISTERING;
+        break;
+
+    case STATE_REGISTERING:
+    {
+        switch (registration_getStatus(contextP))
+        {
+        case STATE_REGISTERED:
+            contextP->state = STATE_READY;
+            lwm2m_notify_even(MODULE_LWM2M, STATE_REGISTERED, NULL, 0);
+            lwm2m_setBsCtrlStat(contextP, STATE_INITIAL);
+            break;
+
+        case STATE_REG_FAILED:
+            // TODO avoid infinite loop by checking the bootstrap info is different
+            //contextP->state = STATE_BOOTSTRAP_REQUIRED;
+
+            lwm2m_notify_even(MODULE_LWM2M,STATE_REG_FAILED, NULL, 0);
+            SET_BS_LATER(contextP, STATE_REGISTER_REQUIRED);
+
+            break;
+
+        case STATE_REG_PENDING:
+        default:
+            // keep on waiting
+            break;
+        }
+    }
+    break;
+
+    case STATE_READY:
+        if (registration_getStatus(contextP) == STATE_REG_FAILED)
+        {
+            // TODO avoid infinite loop by checking the bootstrap info is different
+            //contextP->state = STATE_BOOTSTRAP_REQUIRED;
+            contextP->state = STATE_REGISTER_REQUIRED;
+            lwm2m_setBsCtrlStat(contextP, STATE_REGISTER_REQUIRED);
+            goto next_step;
+            //            break;
+        }
+        break;
+
+    default:
+        // do nothing
+        break;
+    }
+
+    observe_step(contextP, tv_sec, timeoutP);
+#endif
+
+    registration_step(contextP, tv_sec, timeoutP);
+    transaction_step(contextP, tv_sec, timeoutP);
+
+    LOG_ARG("Final timeoutP: %" PRId64, *timeoutP);
+#ifdef LWM2M_CLIENT_MODE
+    LOG_ARG("Final state: %s", STR_STATE(contextP->state));
+#endif
+    return ret;
+}

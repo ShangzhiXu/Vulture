@@ -1,0 +1,23 @@
+s32_t SPIFFS_stat(spiffs *fs, const char *path, spiffs_stat *s)
+{
+    SPIFFS_API_DBG("%s '%s'\n", __func__, path);
+    SPIFFS_API_CHECK_CFG(fs);
+    SPIFFS_API_CHECK_MOUNT(fs);
+    if (strlen(path) > SPIFFS_OBJ_NAME_LEN - 1)
+    {
+        SPIFFS_API_CHECK_RES(fs, SPIFFS_ERR_NAME_TOO_LONG);
+    }
+    SPIFFS_LOCK(fs);
+
+    s32_t res;
+    spiffs_page_ix pix;
+
+    res = spiffs_object_find_object_index_header_by_name(fs, (const u8_t *)path, &pix);
+    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+
+    res = spiffs_stat_pix(fs, pix, 0, s);
+
+    SPIFFS_UNLOCK(fs);
+
+    return res;
+}

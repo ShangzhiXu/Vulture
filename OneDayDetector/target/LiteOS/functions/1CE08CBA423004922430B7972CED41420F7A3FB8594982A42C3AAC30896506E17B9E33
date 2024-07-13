@@ -1,0 +1,26 @@
+STATIC INLINE VOID OsTaskSyncWake(const LosTaskCB *taskCB)
+{
+#ifdef LOSCFG_KERNEL_SMP_TASK_SYNC
+    UINT32 syncSignal = taskCB->syncSignal;
+    /*
+     * unlock to let synchronization works.
+     * this operation needs task status set to UNUSED, and yet not put
+     * back to the recycle or free tcb list.
+     */
+    LOS_ASSERT(taskCB->taskStatus & OS_TASK_STATUS_UNUSED);
+    LOS_ASSERT(LOS_SpinHeld(&g_taskSpin));
+
+    LOS_SpinUnlock(&g_taskSpin);
+
+    /*
+     * do the sync, because botton half of LOS_SemPend has no operation on the sem,
+     * we can delete this sem after the post.
+     */
+    (VOID)LOS_SemPost(syncSignal);
+    (VOID)LOS_SemDelete(syncSignal);
+
+    LOS_SpinLock(&g_taskSpin);
+#else
+    (VOID)taskCB;
+#endif
+}

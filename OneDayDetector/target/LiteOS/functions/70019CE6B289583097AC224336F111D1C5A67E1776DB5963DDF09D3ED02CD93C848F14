@@ -1,0 +1,31 @@
+INT32 SensorManagerInit(VOID)
+{
+    TSK_INIT_PARAM_S taskInitParam = {0};
+    const UINT16 semCount = 1;
+    UINT32 ret;
+
+    ret = LOS_QueueCreate("SmQueue", SM_MAILS_SIZE, &g_sensorManagerQueue, 0, SM_MAILS_TYPE_SIZE);
+    if (ret != LOS_OK) {
+        PRINT_ERR("Sensor Manager Queue create fail, ret %u\n", ret);
+        return LOS_NOK;
+    }
+
+    ret = LOS_SemCreate(semCount, &g_sensorManagerSem);
+    if (ret != LOS_OK) {
+        PRINT_ERR("Sensor Manager Sem create fail, ret %u\n", ret);
+        return LOS_NOK;
+    }
+
+    taskInitParam.pfnTaskEntry = (TSK_ENTRY_FUNC)SmTask;
+    taskInitParam.uwStackSize  = STASK_STKDEPTH_SM;
+    taskInitParam.pcName       = "Sensor Manager task";
+    taskInitParam.usTaskPrio   = STASK_PRIORITY_SM; /* 1~7 */
+    taskInitParam.uwResved     = LOS_TASK_STATUS_DETACHED; /* task is detached, the task can deleteself */
+
+    ret = LOS_TaskCreate(&g_sensorManagerTskId, &taskInitParam);
+    if (ret != LOS_OK) {
+        PRINT_ERR("Sensor Manager Task create fail, ret %u\n", ret);
+        return LOS_NOK;
+    }
+    return LOS_OK;
+}

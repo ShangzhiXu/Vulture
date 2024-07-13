@@ -1,0 +1,32 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 OsShellCmdMemRead(INT32 argc, const CHAR *argv[])
+{
+    size_t tempAddr;
+    size_t length;
+    CHAR *ptrlen = NULL;
+    CHAR *ptrAddr = NULL;
+
+    if ((argc == 0) || (argc > 2)) { /* argc is num of parameters */
+        PRINTK("\nUsage: readreg [ADDRESS] [LENGTH]\n");
+        return OS_ERROR;
+    }
+
+    if (argc == 1) {
+        length = 0;
+    } else {
+        length = strtoul(argv[1], &ptrlen, 0);
+        if ((ptrlen == NULL) || (*ptrlen != 0)) {
+            PRINTK("readreg invalid length %s\n", argv[1]);
+            return OS_ERROR;
+        }
+    }
+    tempAddr = strtoul(argv[0], &ptrAddr, 0);
+    if ((ptrAddr == NULL) || (*ptrAddr != 0) || (tempAddr > g_sys_mem_addr_end) ||
+        ((tempAddr + length) > g_sys_mem_addr_end) || (tempAddr > (OS_NULL_INT - length))) {
+        PRINTK("readreg invalid address %s\n", argv[0]);
+        return OS_ERROR;
+    }
+
+    OsDumpMemByte(length, tempAddr);
+
+    return 0;
+}

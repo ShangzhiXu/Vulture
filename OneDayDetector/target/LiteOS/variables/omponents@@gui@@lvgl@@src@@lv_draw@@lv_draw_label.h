@@ -1,0 +1,17 @@
+    lv_bidi_dir_t bidi_dir;
+    lv_blend_mode_t blend_mode;
+    lv_color_t color;
+    int32_t coord_y;
+    lv_text_decor_t decor;
+    lv_txt_flag_t flag;
+    const lv_font_t * font;
+    lv_style_int_t letter_space;
+    lv_style_int_t line_space;
+    int32_t line_start;
+    lv_coord_t ofs_x;
+    lv_coord_t ofs_y;
+    lv_opa_t opa;
+    lv_color_t sel_color;
+    uint16_t sel_end;
+    uint16_t sel_start;
+    int32_t y;

@@ -1,0 +1,279 @@
+static int ccp_reqci(fsm *f, u_char *p, int *lenp, int dont_nak) {
+    ppp_pcb *pcb = f->pcb;
+    ccp_options *ho = &pcb->ccp_hisoptions;
+    ccp_options *ao = &pcb->ccp_allowoptions;
+    int ret, newret;
+#if DEFLATE_SUPPORT || BSDCOMPRESS_SUPPORT
+    int res;
+    int nb;
+#endif /* DEFLATE_SUPPORT || BSDCOMPRESS_SUPPORT */
+    u_char *p0, *retp;
+    int len, clen, type;
+#if MPPE_SUPPORT
+    u8_t rej_for_ci_mppe = 1;	/* Are we rejecting based on a bad/missing */
+				/* CI_MPPE, or due to other options?       */
+#endif /* MPPE_SUPPORT */
+
+    ret = CONFACK;
+    retp = p0 = p;
+    len = *lenp;
+
+    memset(ho, 0, sizeof(ccp_options));
+    ho->method = (len > 0)? p[0]: 0;
+
+    while (len > 0) {
+	newret = CONFACK;
+	if (len < 2 || p[1] < 2 || p[1] > len) {
+	    /* length is bad */
+	    clen = len;
+	    newret = CONFREJ;
+
+	} else {
+	    type = p[0];
+	    clen = p[1];
+
+	    switch (type) {
+#if MPPE_SUPPORT
+	    case CI_MPPE:
+		if (!ao->mppe || clen != CILEN_MPPE) {
+		    newret = CONFREJ;
+		    break;
+		}
+		MPPE_CI_TO_OPTS(&p[2], ho->mppe);
+
+		/* Nak if anything unsupported or unknown are set. */
+		if (ho->mppe & MPPE_OPT_UNSUPPORTED) {
+		    newret = CONFNAK;
+		    ho->mppe &= ~MPPE_OPT_UNSUPPORTED;
+		}
+		if (ho->mppe & MPPE_OPT_UNKNOWN) {
+		    newret = CONFNAK;
+		    ho->mppe &= ~MPPE_OPT_UNKNOWN;
+		}
+
+		/* Check state opt */
+		if (ho->mppe & MPPE_OPT_STATEFUL) {
+		    /*
+		     * We can Nak and request stateless, but it's a
+		     * lot easier to just assume the peer will request
+		     * it if he can do it; stateful mode is bad over
+		     * the Internet -- which is where we expect MPPE.
+		     */
+		   if (pcb->settings.refuse_mppe_stateful) {
+			ppp_error("Refusing MPPE stateful mode offered by peer");
+			newret = CONFREJ;
+			break;
+		    }
+		}
+
+		/* Find out which of {S,L} are set. */
+		if ((ho->mppe & MPPE_OPT_128)
+		     && (ho->mppe & MPPE_OPT_40)) {
+		    /* Both are set, negotiate the strongest. */
+		    newret = CONFNAK;
+		    if (ao->mppe & MPPE_OPT_128)
+			ho->mppe &= ~MPPE_OPT_40;
+		    else if (ao->mppe & MPPE_OPT_40)
+			ho->mppe &= ~MPPE_OPT_128;
+		    else {
+			newret = CONFREJ;
+			break;
+		    }
+		} else if (ho->mppe & MPPE_OPT_128) {
+		    if (!(ao->mppe & MPPE_OPT_128)) {
+			newret = CONFREJ;
+			break;
+		    }
+		} else if (ho->mppe & MPPE_OPT_40) {
+		    if (!(ao->mppe & MPPE_OPT_40)) {
+			newret = CONFREJ;
+			break;
+		    }
+		} else {
+		    /* Neither are set. */
+		    /* We cannot accept this.  */
+		    newret = CONFNAK;
+		    /* Give the peer our idea of what can be used,
+		       so it can choose and confirm */
+		    ho->mppe = ao->mppe;
+		}
+
+		/* rebuild the opts */
+		MPPE_OPTS_TO_CI(ho->mppe, &p[2]);
+		if (newret == CONFACK) {
+		    int mtu;
+
+		    mppe_init(pcb, &pcb->mppe_comp, ho->mppe);
+		    /*
+		     * We need to decrease the interface MTU by MPPE_PAD
+		     * because MPPE frames **grow**.  The kernel [must]
+		     * allocate MPPE_PAD extra bytes in xmit buffers.
+		     */
+		    mtu = netif_get_mtu(pcb);
+		    if (mtu)
+			netif_set_mtu(pcb, mtu - MPPE_PAD);
+		    else
+			newret = CONFREJ;
+		}
+
+		/*
+		 * We have accepted MPPE or are willing to negotiate
+		 * MPPE parameters.  A CONFREJ is due to subsequent
+		 * (non-MPPE) processing.
+		 */
+		rej_for_ci_mppe = 0;
+		break;
+#endif /* MPPE_SUPPORT */
+#if DEFLATE_SUPPORT
+	    case CI_DEFLATE:
+	    case CI_DEFLATE_DRAFT:
+		if (!ao->deflate || clen != CILEN_DEFLATE
+		    || (!ao->deflate_correct && type == CI_DEFLATE)
+		    || (!ao->deflate_draft && type == CI_DEFLATE_DRAFT)) {
+		    newret = CONFREJ;
+		    break;
+		}
+
+		ho->deflate = 1;
+		ho->deflate_size = nb = DEFLATE_SIZE(p[2]);
+		if (DEFLATE_METHOD(p[2]) != DEFLATE_METHOD_VAL
+		    || p[3] != DEFLATE_CHK_SEQUENCE
+		    || nb > ao->deflate_size || nb < DEFLATE_MIN_WORKS) {
+		    newret = CONFNAK;
+		    if (!dont_nak) {
+			p[2] = DEFLATE_MAKE_OPT(ao->deflate_size);
+			p[3] = DEFLATE_CHK_SEQUENCE;
+			/* fall through to test this #bits below */
+		    } else
+			break;
+		}
+
+		/*
+		 * Check whether we can do Deflate with the window
+		 * size they want.  If the window is too big, reduce
+		 * it until the kernel can cope and nak with that.
+		 * We only check this for the first option.
+		 */
+		if (p == p0) {
+		    for (;;) {
+			res = ccp_test(pcb, p, CILEN_DEFLATE, 1);
+			if (res > 0)
+			    break;		/* it's OK now */
+			if (res < 0 || nb == DEFLATE_MIN_WORKS || dont_nak) {
+			    newret = CONFREJ;
+			    p[2] = DEFLATE_MAKE_OPT(ho->deflate_size);
+			    break;
+			}
+			newret = CONFNAK;
+			--nb;
+			p[2] = DEFLATE_MAKE_OPT(nb);
+		    }
+		}
+		break;
+#endif /* DEFLATE_SUPPORT */
+#if BSDCOMPRESS_SUPPORT
+	    case CI_BSD_COMPRESS:
+		if (!ao->bsd_compress || clen != CILEN_BSD_COMPRESS) {
+		    newret = CONFREJ;
+		    break;
+		}
+
+		ho->bsd_compress = 1;
+		ho->bsd_bits = nb = BSD_NBITS(p[2]);
+		if (BSD_VERSION(p[2]) != BSD_CURRENT_VERSION
+		    || nb > ao->bsd_bits || nb < BSD_MIN_BITS) {
+		    newret = CONFNAK;
+		    if (!dont_nak) {
+			p[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION, ao->bsd_bits);
+			/* fall through to test this #bits below */
+		    } else
+			break;
+		}
+
+		/*
+		 * Check whether we can do BSD-Compress with the code
+		 * size they want.  If the code size is too big, reduce
+		 * it until the kernel can cope and nak with that.
+		 * We only check this for the first option.
+		 */
+		if (p == p0) {
+		    for (;;) {
+			res = ccp_test(pcb, p, CILEN_BSD_COMPRESS, 1);
+			if (res > 0)
+			    break;
+			if (res < 0 || nb == BSD_MIN_BITS || dont_nak) {
+			    newret = CONFREJ;
+			    p[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION,
+						ho->bsd_bits);
+			    break;
+			}
+			newret = CONFNAK;
+			--nb;
+			p[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION, nb);
+		    }
+		}
+		break;
+#endif /* BSDCOMPRESS_SUPPORT */
+#if PREDICTOR_SUPPORT
+	    case CI_PREDICTOR_1:
+		if (!ao->predictor_1 || clen != CILEN_PREDICTOR_1) {
+		    newret = CONFREJ;
+		    break;
+		}
+
+		ho->predictor_1 = 1;
+		if (p == p0
+		    && ccp_test(pcb, p, CILEN_PREDICTOR_1, 1) <= 0) {
+		    newret = CONFREJ;
+		}
+		break;
+
+	    case CI_PREDICTOR_2:
+		if (!ao->predictor_2 || clen != CILEN_PREDICTOR_2) {
+		    newret = CONFREJ;
+		    break;
+		}
+
+		ho->predictor_2 = 1;
+		if (p == p0
+		    && ccp_test(pcb, p, CILEN_PREDICTOR_2, 1) <= 0) {
+		    newret = CONFREJ;
+		}
+		break;
+#endif /* PREDICTOR_SUPPORT */
+
+	    default:
+		newret = CONFREJ;
+	    }
+	}
+
+	if (newret == CONFNAK && dont_nak)
+	    newret = CONFREJ;
+	if (!(newret == CONFACK || (newret == CONFNAK && ret == CONFREJ))) {
+	    /* we're returning this option */
+	    if (newret == CONFREJ && ret == CONFNAK)
+		retp = p0;
+	    ret = newret;
+	    if (p != retp)
+		MEMCPY(retp, p, clen);
+	    retp += clen;
+	}
+
+	p += clen;
+	len -= clen;
+    }
+
+    if (ret != CONFACK) {
+	if (ret == CONFREJ && *lenp == retp - p0)
+	    pcb->ccp_all_rejected = 1;
+	else
+	    *lenp = retp - p0;
+    }
+#if MPPE_SUPPORT
+    if (ret == CONFREJ && ao->mppe && rej_for_ci_mppe) {
+	ppp_error("MPPE required but peer negotiation failed");
+	lcp_close(pcb, "MPPE required but peer negotiation failed");
+    }
+#endif /* MPPE_SUPPORT */
+    return ret;
+}

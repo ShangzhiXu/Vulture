@@ -1,0 +1,25 @@
+HAL_StatusTypeDef HAL_HCD_UnRegisterHC_NotifyURBChangeCallback(HCD_HandleTypeDef *hhcd)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process locked */
+  __HAL_LOCK(hhcd);
+
+  if (hhcd->State == HAL_HCD_STATE_READY)
+  {
+    hhcd->HC_NotifyURBChangeCallback = HAL_HCD_HC_NotifyURBChange_Callback; /* Legacy weak DataOutStageCallback  */
+  }
+  else
+  {
+    /* Update the error code */
+    hhcd->ErrorCode |= HAL_HCD_ERROR_INVALID_CALLBACK;
+
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hhcd);
+
+  return status;
+}

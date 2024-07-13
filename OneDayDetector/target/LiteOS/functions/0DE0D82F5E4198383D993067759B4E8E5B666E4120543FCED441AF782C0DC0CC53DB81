@@ -1,0 +1,20 @@
+char *gets_s(char *buffer, size_t destMax)
+{
+#ifdef SECUREC_COMPATIBLE_WIN_FORMAT
+    size_t bufferSize = ((destMax == (size_t)(-1)) ? SECUREC_STRING_MAX_LEN : destMax);
+#else
+    size_t bufferSize = destMax;
+#endif
+
+    if (buffer == NULL || bufferSize == 0 || bufferSize > SECUREC_STRING_MAX_LEN) {
+        SECUREC_ERROR_INVALID_PARAMTER("gets_s");
+        return NULL;
+    }
+
+    if (fgets(buffer, (int)bufferSize, SECUREC_STREAM_STDIN) != NULL) {
+        SecTrimCRLF(buffer, bufferSize);
+        return buffer;
+    }
+
+    return NULL;
+}

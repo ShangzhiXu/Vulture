@@ -1,0 +1,56 @@
+lv_obj_t * lv_list_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+    LV_LOG_TRACE("list create started");
+
+    /*Create the ancestor basic object*/
+    lv_obj_t * list = lv_page_create(par, copy);
+    LV_ASSERT_MEM(list);
+    if(list == NULL) return NULL;
+
+    if(ancestor_page_signal == NULL) ancestor_page_signal = lv_obj_get_signal_cb(list);
+
+    lv_list_ext_t * ext = lv_obj_allocate_ext_attr(list, sizeof(lv_list_ext_t));
+    LV_ASSERT_MEM(ext);
+    if(ext == NULL) {
+        lv_obj_del(list);
+        return NULL;
+    }
+
+#if LV_USE_GROUP
+    ext->last_sel_btn = NULL;
+#endif
+    ext->act_sel_btn = NULL;
+
+    lv_obj_set_signal_cb(list, lv_list_signal);
+
+    /*Init the new list object*/
+    if(copy == NULL) {
+        lv_page_set_anim_time(list, LV_LIST_DEF_ANIM_TIME);
+        lv_page_set_scrllable_fit2(list, LV_FIT_PARENT, LV_FIT_TIGHT);
+        lv_obj_set_size(list, 2 * LV_DPI, 3 * LV_DPI);
+        lv_page_set_scrl_layout(list, LV_LIST_LAYOUT_DEF);
+        lv_list_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_DRAG);
+
+        lv_theme_apply(list, LV_THEME_LIST);
+
+    }
+    else {
+        lv_obj_t * copy_btn = lv_list_get_next_btn(copy, NULL);
+        while(copy_btn) {
+            const void * img_src = NULL;
+#if LV_USE_IMG
+            lv_obj_t * copy_img = lv_list_get_btn_img(copy_btn);
+            if(copy_img) img_src = lv_img_get_src(copy_img);
+#endif
+            lv_list_add_btn(list, img_src, lv_list_get_btn_text(copy_btn));
+            copy_btn = lv_list_get_next_btn(copy, copy_btn);
+        }
+
+        /*Refresh the style with new signal function*/
+        lv_obj_refresh_style(list, LV_STYLE_PROP_ALL);
+    }
+
+    LV_LOG_INFO("list created");
+
+    return list;
+}

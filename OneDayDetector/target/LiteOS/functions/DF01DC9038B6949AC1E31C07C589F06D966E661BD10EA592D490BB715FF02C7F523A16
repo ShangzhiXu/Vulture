@@ -1,0 +1,49 @@
+recv_raw(void *arg, struct raw_pcb *pcb, struct pbuf *p,
+         const ip_addr_t *addr)
+{
+  struct pbuf *q;
+  struct netbuf *buf;
+  struct netconn *conn;
+
+  LWIP_UNUSED_ARG(addr);
+  conn = (struct netconn *)arg;
+
+  if ((conn != NULL) && NETCONN_MBOX_VALID(conn, &conn->recvmbox)) {
+#if LWIP_SO_RCVBUF
+    int recv_avail;
+    SYS_ARCH_GET(conn->recv_avail, recv_avail);
+    if ((recv_avail + (int)(p->tot_len)) > conn->recv_bufsize) {
+      return 0;
+    }
+#endif /* LWIP_SO_RCVBUF */
+    /* copy the whole packet into new pbufs */
+    q = pbuf_clone(PBUF_RAW, PBUF_RAM, p);
+    if (q != NULL) {
+      u16_t len;
+      buf = (struct netbuf *)memp_malloc(MEMP_NETBUF);
+      if (buf == NULL) {
+        pbuf_free(q);
+        return 0;
+      }
+
+      buf->p = q;
+      buf->ptr = q;
+      ip_addr_copy(buf->addr, *ip_current_src_addr());
+      buf->port = pcb->protocol;
+
+      len = q->tot_len;
+      if (sys_mbox_trypost(&conn->recvmbox, buf) != ERR_OK) {
+        netbuf_delete(buf);
+        return 0;
+      } else {
+#if LWIP_SO_RCVBUF
+        SYS_ARCH_INC(conn->recv_avail, len);
+#endif /* LWIP_SO_RCVBUF */
+        /* Register event with callback */
+        API_EVENT(conn, NETCONN_EVT_RCVPLUS, len);
+      }
+    }
+  }
+
+  return 0; /* do not eat the packet */
+}

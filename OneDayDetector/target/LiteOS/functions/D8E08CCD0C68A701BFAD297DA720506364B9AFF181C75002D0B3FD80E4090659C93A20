@@ -1,0 +1,18 @@
+LITE_OS_SEC_TEXT STATIC UINT32 OsEventRead(PEVENT_CB_S eventCB, UINT32 eventMask, UINT32 mode,
+                                           UINT32 timeout, BOOL once)
+{
+    UINT32 ret;
+    UINT32 intSave;
+
+    ret = OsEventReadCheck(eventCB, eventMask, mode);
+    if (ret != LOS_OK) {
+        return ret;
+    }
+
+    LOS_TRACE(EVENT_READ, (UINTPTR)eventCB, eventCB->uwEventID, eventMask, mode, timeout);
+
+    SCHEDULER_LOCK(intSave);
+    ret = OsEventReadImp(eventCB, eventMask, mode, timeout, once, &intSave);
+    SCHEDULER_UNLOCK(intSave);
+    return ret;
+}

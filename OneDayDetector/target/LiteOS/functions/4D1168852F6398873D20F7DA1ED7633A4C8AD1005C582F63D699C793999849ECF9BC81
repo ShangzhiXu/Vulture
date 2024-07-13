@@ -1,0 +1,65 @@
+HAL_StatusTypeDef HAL_SAI_UnRegisterCallback(SAI_HandleTypeDef        *hsai,
+                                             HAL_SAI_CallbackIDTypeDef CallbackID)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (HAL_SAI_STATE_READY == hsai->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_SAI_RX_COMPLETE_CB_ID :
+        hsai->RxCpltCallback = HAL_SAI_RxCpltCallback;
+        break;
+      case HAL_SAI_RX_HALFCOMPLETE_CB_ID :
+        hsai->RxHalfCpltCallback = HAL_SAI_RxHalfCpltCallback;
+        break;
+      case HAL_SAI_TX_COMPLETE_CB_ID :
+        hsai->TxCpltCallback = HAL_SAI_TxCpltCallback;
+        break;
+      case HAL_SAI_TX_HALFCOMPLETE_CB_ID :
+        hsai->TxHalfCpltCallback = HAL_SAI_TxHalfCpltCallback;
+        break;
+      case HAL_SAI_ERROR_CB_ID :
+        hsai->ErrorCallback = HAL_SAI_ErrorCallback;
+        break;
+      case HAL_SAI_MSPINIT_CB_ID :
+        hsai->MspInitCallback = HAL_SAI_MspInit;
+        break;
+      case HAL_SAI_MSPDEINIT_CB_ID :
+        hsai->MspDeInitCallback = HAL_SAI_MspDeInit;
+        break;
+      default :
+        /* update the error code */
+        hsai->ErrorCode |= HAL_SAI_ERROR_INVALID_CALLBACK;
+        /* update return status */
+        status = HAL_ERROR;
+        break;
+    }
+  }
+  else if (HAL_SAI_STATE_RESET == hsai->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_SAI_MSPINIT_CB_ID :
+        hsai->MspInitCallback = HAL_SAI_MspInit;
+        break;
+      case HAL_SAI_MSPDEINIT_CB_ID :
+        hsai->MspDeInitCallback = HAL_SAI_MspDeInit;
+        break;
+      default :
+        /* update the error code */
+        hsai->ErrorCode |= HAL_SAI_ERROR_INVALID_CALLBACK;
+        /* update return status */
+        status = HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* update the error code */
+    hsai->ErrorCode |= HAL_SAI_ERROR_INVALID_CALLBACK;
+    /* update return status */
+    status = HAL_ERROR;
+  }
+  return status;
+}

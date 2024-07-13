@@ -1,0 +1,46 @@
+static tagImsi *checkcimi(char *devname, int times, char *simapn)
+{
+    char *argv[6];
+    int argc;
+    int i = 0, tmp = 0;
+    int position = -1;
+    char atrcvbuf[CN_AT_LEN];
+    // find the mnc here
+    tagImsi *result = NULL;
+    // first we should check if the sim card inserted:at+cpin?
+    printf("checkcimi:");
+    for (i = 0; i < times; i++) {
+        printf("%d->", i);
+        memset(argv, 0, sizeof(argv));
+        memset(atrcvbuf, 0, sizeof(atrcvbuf));
+        argc = AtCmd(devname, "AT+CIMI", atrcvbuf, CN_AT_LEN, 6, argv);
+        if (argc > 0) {
+            position = strinargs(argc, argv, "OK");
+            if ((position != 0) && (position != -1)) {
+                char mnc[6];
+                memset(mnc, 0, 6);
+                memcpy(mnc, argv[position - 1], 5);
+                for (tmp = 0; tmp < CN_CIMI_SIZE; tmp++) {
+                    if (strcmp(mnc, gAtcimi[tmp].mcc_mnc) == 0) {
+                        result = &gAtcimi[tmp];
+                        if ((simapn == NULL) || (simapn[0] == '\0')) {
+                            printf(".:OK:cimi:%s apn:%s\n\r", argv[position - 1], result->apndefault);
+                        } else {
+                            printf(".:OK:cimi:%s apn:%s\n\r", argv[position - 1], simapn);
+                        }
+                        break;
+                    }
+                }
+                if (result == NULL) {
+                    printf(".:OK:cimi:%s apn:%s\n\r", argv[position - 1], "unknown");
+                }
+                break;
+            }
+        }
+        task_sleepms(1000);
+    }
+    if ((position == 0) || (position == -1)) {
+        printf(".timeout!\n\r");
+    }
+    return result;
+}

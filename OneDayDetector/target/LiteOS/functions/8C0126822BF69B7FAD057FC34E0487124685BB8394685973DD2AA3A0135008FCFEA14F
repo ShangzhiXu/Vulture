@@ -1,0 +1,51 @@
+HAL_StatusTypeDef HAL_SMARTCARD_Receive_DMA(SMARTCARD_HandleTypeDef *hsmartcard, uint8_t *pData, uint16_t Size)
+{
+  /* Check that a Rx process is not already ongoing */
+  if(hsmartcard->RxState == HAL_SMARTCARD_STATE_READY)
+  {
+    if((pData == NULL) || (Size == 0))
+    {
+      return HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hsmartcard);
+
+    hsmartcard->ErrorCode = HAL_SMARTCARD_ERROR_NONE;
+    hsmartcard->RxState   = HAL_SMARTCARD_STATE_BUSY_RX;
+
+    hsmartcard->pRxBuffPtr = pData;
+    hsmartcard->RxXferSize = Size;
+
+    /* Set the SMARTCARD DMA transfer complete callback */
+    hsmartcard->hdmarx->XferCpltCallback = SMARTCARD_DMAReceiveCplt;
+
+    /* Set the SMARTCARD DMA error callback */
+    hsmartcard->hdmarx->XferErrorCallback = SMARTCARD_DMAError;
+
+    /* Set the DMA abort callback */
+    hsmartcard->hdmarx->XferAbortCallback = NULL;
+
+    /* Enable the DMA channel */
+    HAL_DMA_Start_IT(hsmartcard->hdmarx, (uint32_t)&hsmartcard->Instance->RDR, (uint32_t)hsmartcard->pRxBuffPtr, Size);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hsmartcard);
+
+    /* Enable the UART Parity Error Interrupt */
+    SET_BIT(hsmartcard->Instance->CR1, USART_CR1_PEIE);
+
+    /* Enable the UART Error Interrupt: (Frame error, noise error, overrun error) */
+    SET_BIT(hsmartcard->Instance->CR3, USART_CR3_EIE);
+
+    /* Enable the DMA transfer for the receiver request by setting the DMAR bit
+       in the SMARTCARD associated USART CR3 register */
+    SET_BIT(hsmartcard->Instance->CR3, USART_CR3_DMAR);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

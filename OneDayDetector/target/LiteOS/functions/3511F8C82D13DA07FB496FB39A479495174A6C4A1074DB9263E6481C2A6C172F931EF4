@@ -1,0 +1,35 @@
+int mbedtls_hmac_calc(mbedtls_hmac_t *hmac_info)
+{
+    int ret;
+
+    mbedtls_md_context_t mbedtls_md_ctx;
+    const mbedtls_md_info_t *md_info;
+
+    if ((hmac_info == NULL) || (hmac_info->secret == NULL) || (hmac_info->input == NULL)
+        || (hmac_info->secret_len <= 0) || (hmac_info->input_len <= 0)
+        || (hmac_info->digest_len <= 0)) {
+        return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+    }
+
+    md_info = mbedtls_md_info_from_type(hmac_info->hmac_type);
+    if ((md_info == NULL) || (md_info->size > hmac_info->digest_len)) {
+        return MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+    }
+
+    mbedtls_md_init(&mbedtls_md_ctx);
+    memset(hmac_info->digest, 0x00, hmac_info->digest_len);
+
+    ret = mbedtls_md_setup(&mbedtls_md_ctx, md_info, 1);
+    if (ret != 0) {
+        printf("mbedtls_md_setup() returned -0x%04x\n", -ret);
+        goto exit;
+    }
+
+    (void)mbedtls_md_hmac_starts(&mbedtls_md_ctx, hmac_info->secret, hmac_info->secret_len);
+    (void)mbedtls_md_hmac_update(&mbedtls_md_ctx, hmac_info->input, hmac_info->input_len);
+    (void)mbedtls_md_hmac_finish(&mbedtls_md_ctx, hmac_info->digest);
+
+exit:
+    mbedtls_md_free(&mbedtls_md_ctx);
+    return ret;
+}

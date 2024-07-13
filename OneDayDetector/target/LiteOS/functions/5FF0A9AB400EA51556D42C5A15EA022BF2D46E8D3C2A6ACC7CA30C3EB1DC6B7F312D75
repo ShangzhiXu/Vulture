@@ -1,0 +1,26 @@
+static int mqtt_check_param(const mqtt_param_s *param)
+{
+    if ((param->server_ip == NULL)
+        || (param->server_port == NULL)
+        || (param->info.security_type >= MQTT_SECURITY_TYPE_MAX)
+        || (param->cmd_ioctl == NULL)) {
+        ATINY_LOG(LOG_FATAL, "invalid param, sec type %d", param->info.security_type);
+        return ATINY_ARG_INVALID;
+    }
+    if (param->info.security_type == MQTT_SECURITY_TYPE_PSK) {
+        if ((param->info.u.psk.psk == NULL)
+            || (param->info.u.psk.psk_len <= 0)
+            || (param->info.u.psk.psk_id == NULL)
+            || (param->info.u.psk.psk_id_len <= 0)) {
+            ATINY_LOG(LOG_FATAL, "invalid psk");
+            return ATINY_ARG_INVALID;
+        }
+    }
+    if (param->info.security_type == MQTT_SECURITY_TYPE_CA) {
+        if (param->info.u.ca.ca_crt == NULL) {
+            ATINY_LOG(LOG_FATAL, "invalid ca");
+            return ATINY_ARG_INVALID;
+        }
+    }
+    return ATINY_OK;
+}

@@ -1,0 +1,105 @@
+HAL_StatusTypeDef HAL_RTC_Init(RTC_HandleTypeDef *hrtc)
+{
+  uint32_t prescaler = 0;
+  /* Check input parameters */
+  if(hrtc == NULL)
+  {
+     return HAL_ERROR;
+  }
+  
+  /* Check the parameters */
+  assert_param(IS_RTC_ALL_INSTANCE(hrtc->Instance));
+  assert_param(IS_RTC_CALIB_OUTPUT(hrtc->Init.OutPut));
+  assert_param(IS_RTC_ASYNCH_PREDIV(hrtc->Init.AsynchPrediv));
+    
+  if(hrtc->State == HAL_RTC_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hrtc->Lock = HAL_UNLOCKED;
+    
+    /* Initialize RTC MSP */
+    HAL_RTC_MspInit(hrtc);
+  }
+  
+  /* Set RTC state */  
+  hrtc->State = HAL_RTC_STATE_BUSY;  
+       
+  /* Waiting for synchro */
+  if(HAL_RTC_WaitForSynchro(hrtc) != HAL_OK)
+  {
+    /* Set RTC state */
+    hrtc->State = HAL_RTC_STATE_ERROR;
+    
+    return HAL_ERROR;
+  } 
+
+  /* Set Initialization mode */
+  if(RTC_EnterInitMode(hrtc) != HAL_OK)
+  {
+    /* Set RTC state */
+    hrtc->State = HAL_RTC_STATE_ERROR;
+    
+    return HAL_ERROR;
+  } 
+  else
+  { 
+    /* Clear Flags Bits */
+    CLEAR_BIT(hrtc->Instance->CRL, (RTC_FLAG_OW | RTC_FLAG_ALRAF | RTC_FLAG_SEC));
+    
+    if(hrtc->Init.OutPut != RTC_OUTPUTSOURCE_NONE)
+    {
+      /* Disable the selected Tamper pin */
+      CLEAR_BIT(BKP->CR, BKP_CR_TPE);
+    }
+    
+    /* Set the signal which will be routed to RTC Tamper pin*/
+    MODIFY_REG(BKP->RTCCR, (BKP_RTCCR_CCO | BKP_RTCCR_ASOE | BKP_RTCCR_ASOS), hrtc->Init.OutPut);
+
+    if (hrtc->Init.AsynchPrediv != RTC_AUTO_1_SECOND)
+    {
+      /* RTC Prescaler provided directly by end-user*/
+      prescaler = hrtc->Init.AsynchPrediv;
+    }
+    else
+    {
+      /* RTC Prescaler will be automatically calculated to get 1 second timebase */
+      /* Get the RTCCLK frequency */
+      prescaler = HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_RTC);
+
+      /* Check that RTC clock is enabled*/
+      if (prescaler == 0)
+      {
+        /* Should not happen. Frequency is not available*/
+        hrtc->State = HAL_RTC_STATE_ERROR;
+        return HAL_ERROR;
+      }
+      else
+      {
+        /* RTC period = RTCCLK/(RTC_PR + 1) */
+        prescaler = prescaler - 1;
+      }
+    }
+    
+    /* Configure the RTC_PRLH / RTC_PRLL */
+    MODIFY_REG(hrtc->Instance->PRLH, RTC_PRLH_PRL, (prescaler >> 16));
+    MODIFY_REG(hrtc->Instance->PRLL, RTC_PRLL_PRL, (prescaler & RTC_PRLL_PRL));
+      
+    /* Wait for synchro */
+    if(RTC_ExitInitMode(hrtc) != HAL_OK)
+    {       
+      hrtc->State = HAL_RTC_STATE_ERROR;
+      
+      return HAL_ERROR;
+    }
+    
+    /* Initialize date to 1st of January 2000 */
+    hrtc->DateToUpdate.Year = 0x00;
+    hrtc->DateToUpdate.Month = RTC_MONTH_JANUARY;
+    hrtc->DateToUpdate.Date = 0x01;
+
+    /* Set RTC state */
+    hrtc->State = HAL_RTC_STATE_READY;
+    
+    return HAL_OK;
+  }
+}

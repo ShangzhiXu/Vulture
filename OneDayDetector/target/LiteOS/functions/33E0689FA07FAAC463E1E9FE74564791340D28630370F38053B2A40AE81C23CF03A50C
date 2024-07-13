@@ -1,0 +1,22 @@
+INT32 OsLogMemcpyRecord(const CHAR *buf, UINT32 logLen)
+{
+    UINT32 intSave;
+
+    LOS_SpinLockSave(&g_dmesgSpin, &intSave);
+    if (OsCheckError()) {
+        LOS_SpinUnlockRestore(&g_dmesgSpin, intSave);
+        return -1;
+    }
+    if (g_dmesgInfo->logSize < g_logBufSize) {
+        if (g_dmesgInfo->logHead <= g_dmesgInfo->logTail) {
+            OsWriteTailToEnd(buf, logLen);
+        } else {
+            OsWriteTailToHead(buf, logLen);
+        }
+    } else {
+        OsBufFullWrite(buf, logLen);
+    }
+    LOS_SpinUnlockRestore(&g_dmesgSpin, intSave);
+
+    return LOS_OK;
+}

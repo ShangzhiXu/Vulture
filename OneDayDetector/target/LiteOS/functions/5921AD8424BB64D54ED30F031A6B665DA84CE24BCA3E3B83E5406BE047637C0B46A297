@@ -1,0 +1,67 @@
+accept_function(void *arg, struct tcp_pcb *newpcb, err_t err)
+{
+  struct netconn *newconn;
+  struct netconn *conn = (struct netconn *)arg;
+
+  if (conn == NULL) {
+    return ERR_VAL;
+  }
+  if (!NETCONN_MBOX_VALID(conn, &conn->acceptmbox)) {
+    LWIP_DEBUGF(API_MSG_DEBUG, ("accept_function: acceptmbox already deleted\n"));
+    return ERR_VAL;
+  }
+
+  if (newpcb == NULL) {
+    /* out-of-pcbs during connect: pass on this error to the application */
+    if (sys_mbox_trypost(&conn->acceptmbox, lwip_netconn_err_to_msg(ERR_ABRT)) == ERR_OK) {
+      /* Register event with callback */
+      API_EVENT(conn, NETCONN_EVT_RCVPLUS, 0);
+    }
+    return ERR_VAL;
+  }
+  LWIP_ASSERT("expect newpcb == NULL or err == ERR_OK", err == ERR_OK);
+  LWIP_UNUSED_ARG(err); /* for LWIP_NOASSERT */
+
+  LWIP_DEBUGF(API_MSG_DEBUG, ("accept_function: newpcb->state: %s\n", tcp_debug_state_str(newpcb->state)));
+
+  /* We have to set the callback here even though
+   * the new socket is unknown. newconn->socket is marked as -1. */
+  newconn = netconn_alloc(conn->type, conn->callback);
+  if (newconn == NULL) {
+    /* outof netconns: pass on this error to the application */
+    if (sys_mbox_trypost(&conn->acceptmbox, lwip_netconn_err_to_msg(ERR_ABRT)) == ERR_OK) {
+      /* Register event with callback */
+      API_EVENT(conn, NETCONN_EVT_RCVPLUS, 0);
+    }
+    return ERR_MEM;
+  }
+  newconn->pcb.tcp = newpcb;
+  setup_tcp(newconn);
+
+  /* handle backlog counter */
+  tcp_backlog_delayed(newpcb);
+
+  if (sys_mbox_trypost(&conn->acceptmbox, newconn) != ERR_OK) {
+    /* When returning != ERR_OK, the pcb is aborted in tcp_process(),
+       so do nothing here! */
+    /* remove all references to this netconn from the pcb */
+    struct tcp_pcb *pcb = newconn->pcb.tcp;
+    tcp_arg(pcb, NULL);
+    tcp_recv(pcb, NULL);
+    tcp_sent(pcb, NULL);
+    tcp_poll(pcb, NULL, 0);
+    tcp_err(pcb, NULL);
+    /* remove reference from to the pcb from this netconn */
+    newconn->pcb.tcp = NULL;
+    /* no need to drain since we know the recvmbox is empty. */
+    sys_mbox_free(&newconn->recvmbox);
+    sys_mbox_set_invalid(&newconn->recvmbox);
+    netconn_free(newconn);
+    return ERR_MEM;
+  } else {
+    /* Register event with callback */
+    API_EVENT(conn, NETCONN_EVT_RCVPLUS, 0);
+  }
+
+  return ERR_OK;
+}

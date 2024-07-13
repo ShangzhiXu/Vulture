@@ -1,0 +1,43 @@
+HAL_StatusTypeDef HAL_DFSDM_FilterAwdStart_IT(DFSDM_Filter_HandleTypeDef   *hdfsdm_filter,
+                                              DFSDM_Filter_AwdParamTypeDef *awdParam)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Check parameters */
+  assert_param(IS_DFSDM_FILTER_ALL_INSTANCE(hdfsdm_filter->Instance));
+  assert_param(IS_DFSDM_FILTER_AWD_DATA_SOURCE(awdParam->DataSource));
+  assert_param(IS_DFSDM_INJECTED_CHANNEL(awdParam->Channel));
+  assert_param(IS_DFSDM_FILTER_AWD_THRESHOLD(awdParam->HighThreshold));
+  assert_param(IS_DFSDM_FILTER_AWD_THRESHOLD(awdParam->LowThreshold));
+  assert_param(IS_DFSDM_BREAK_SIGNALS(awdParam->HighBreakSignal));
+  assert_param(IS_DFSDM_BREAK_SIGNALS(awdParam->LowBreakSignal));
+  
+  /* Check DFSDM filter state */
+  if((hdfsdm_filter->State == HAL_DFSDM_FILTER_STATE_RESET) || \
+     (hdfsdm_filter->State == HAL_DFSDM_FILTER_STATE_ERROR))
+  {
+    /* Return error status */
+    status = HAL_ERROR;
+  }
+  else
+  {
+    /* Set analog watchdog data source */
+    hdfsdm_filter->Instance->FLTCR1 &= ~(DFSDM_FLTCR1_AWFSEL);
+    hdfsdm_filter->Instance->FLTCR1 |= awdParam->DataSource;
+
+    /* Set thresholds and break signals */
+    hdfsdm_filter->Instance->FLTAWHTR &= ~(DFSDM_FLTAWHTR_AWHT | DFSDM_FLTAWHTR_BKAWH);
+    hdfsdm_filter->Instance->FLTAWHTR |= (((uint32_t) awdParam->HighThreshold << DFSDM_FLTAWHTR_AWHT_Pos) | \
+                                        awdParam->HighBreakSignal);
+    hdfsdm_filter->Instance->FLTAWLTR &= ~(DFSDM_FLTAWLTR_AWLT | DFSDM_FLTAWLTR_BKAWL);
+    hdfsdm_filter->Instance->FLTAWLTR |= (((uint32_t) awdParam->LowThreshold << DFSDM_FLTAWLTR_AWLT_Pos) | \
+                                        awdParam->LowBreakSignal);
+
+    /* Set channels and interrupt for analog watchdog */
+    hdfsdm_filter->Instance->FLTCR2 &= ~(DFSDM_FLTCR2_AWDCH);
+    hdfsdm_filter->Instance->FLTCR2 |= (((awdParam->Channel & DFSDM_LSB_MASK) << DFSDM_FLTCR2_AWDCH_Pos) | \
+                                        DFSDM_FLTCR2_AWDIE);
+  }
+  /* Return function status */
+  return status;
+}

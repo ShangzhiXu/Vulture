@@ -1,0 +1,52 @@
+VOID OsQueueCheck(VOID)
+{
+    LosQueueCB queueNode = {0};
+    QueueDebugCB queueDebugNode = {0};
+    UINT32 index, intSave;
+    UINT32 count = 0;
+
+    /*
+     * This return value does not need to be judged immediately,
+     * and the following code logic has already distinguished the return value from null and non-empty,
+     * and there is no case of accessing the null pointer.
+     */
+    UINT32 *indexArray = (UINT32 *)LOS_MemAlloc((VOID *)OS_SYS_MEM_ADDR, LOSCFG_BASE_IPC_QUEUE_LIMIT * sizeof(UINT32));
+
+    for (index = 0; index < LOSCFG_BASE_IPC_QUEUE_LIMIT; index++) {
+        SCHEDULER_LOCK(intSave);
+        (VOID)memcpy_s(&queueNode, sizeof(LosQueueCB),
+                       GET_QUEUE_HANDLE(index), sizeof(LosQueueCB));
+        (VOID)memcpy_s(&queueDebugNode, sizeof(QueueDebugCB),
+                       &g_queueDebugArray[index], sizeof(QueueDebugCB));
+        SCHEDULER_UNLOCK(intSave);
+        if ((queueNode.queueState == OS_QUEUE_UNUSED) ||
+            ((queueNode.queueState == OS_QUEUE_INUSED) && (queueDebugNode.creator == NULL))) {
+            continue;
+        }
+        if ((queueNode.queueState == OS_QUEUE_INUSED) &&
+            (queueNode.queueLen == queueNode.readWriteableCnt[OS_QUEUE_WRITE]) &&
+            LOS_ListEmpty(&queueNode.readWriteList[OS_QUEUE_READ]) &&
+            LOS_ListEmpty(&queueNode.readWriteList[OS_QUEUE_WRITE]) &&
+            LOS_ListEmpty(&queueNode.memList)) {
+            PRINTK("Queue ID <0x%x> may leak, No task uses it, "
+                   "QueueLen is 0x%x, ",
+                   queueNode.queueId,
+                   queueNode.queueLen);
+            OsQueueOpsOutput(&queueDebugNode);
+        } else {
+            if (indexArray != NULL) {
+                *(indexArray + count) = index;
+                count++;
+            } else {
+                OsQueueInfoOutPut(&queueNode);
+                OsQueueOpsOutput(&queueDebugNode);
+            }
+        }
+    }
+
+    if (indexArray != NULL) {
+        SortQueueIndexArray(indexArray, count);
+    }
+
+    return;
+}

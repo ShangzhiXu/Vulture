@@ -1,0 +1,46 @@
+HAL_StatusTypeDef HAL_DSI_ConfigHostTimeouts(DSI_HandleTypeDef *hdsi, DSI_HOST_TimeoutTypeDef *HostTimeouts)
+{
+  /* Process locked */
+  __HAL_LOCK(hdsi);
+
+  /* Set the timeout clock division factor */
+  hdsi->Instance->CCR &= ~DSI_CCR_TOCKDIV;
+  hdsi->Instance->CCR |= ((HostTimeouts->TimeoutCkdiv) << 8U);
+
+  /* High-speed transmission timeout */
+  hdsi->Instance->TCCR[0U] &= ~DSI_TCCR0_HSTX_TOCNT;
+  hdsi->Instance->TCCR[0U] |= ((HostTimeouts->HighSpeedTransmissionTimeout) << 16U);
+
+  /* Low-power reception timeout */
+  hdsi->Instance->TCCR[0U] &= ~DSI_TCCR0_LPRX_TOCNT;
+  hdsi->Instance->TCCR[0U] |= HostTimeouts->LowPowerReceptionTimeout;
+
+  /* High-speed read timeout */
+  hdsi->Instance->TCCR[1U] &= ~DSI_TCCR1_HSRD_TOCNT;
+  hdsi->Instance->TCCR[1U] |= HostTimeouts->HighSpeedReadTimeout;
+
+  /* Low-power read timeout */
+  hdsi->Instance->TCCR[2U] &= ~DSI_TCCR2_LPRD_TOCNT;
+  hdsi->Instance->TCCR[2U] |= HostTimeouts->LowPowerReadTimeout;
+
+  /* High-speed write timeout */
+  hdsi->Instance->TCCR[3U] &= ~DSI_TCCR3_HSWR_TOCNT;
+  hdsi->Instance->TCCR[3U] |= HostTimeouts->HighSpeedWriteTimeout;
+
+  /* High-speed write presp mode */
+  hdsi->Instance->TCCR[3U] &= ~DSI_TCCR3_PM;
+  hdsi->Instance->TCCR[3U] |= HostTimeouts->HighSpeedWritePrespMode;
+
+  /* Low-speed write timeout */
+  hdsi->Instance->TCCR[4U] &= ~DSI_TCCR4_LPWR_TOCNT;
+  hdsi->Instance->TCCR[4U] |= HostTimeouts->LowPowerWriteTimeout;
+
+  /* BTA timeout */
+  hdsi->Instance->TCCR[5U] &= ~DSI_TCCR5_BTA_TOCNT;
+  hdsi->Instance->TCCR[5U] |= HostTimeouts->BTATimeout;
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hdsi);
+
+  return HAL_OK;
+}

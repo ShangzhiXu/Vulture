@@ -1,0 +1,31 @@
+int8_t esp8266_get_localip(int8_t *ip, int8_t *gw, int8_t *mask)
+{
+    char resp[512] = {0};
+    int len = 512;
+    esp8266_cmd((int8_t *)AT_CMD_CHECK_IP, strlen((char *)AT_CMD_CHECK_IP), "OK", resp, &len);
+
+    AT_LOG("resp:%s", resp);
+    char *p1, *p2;
+    p1 = strstr(resp, "ip");
+    if (ip && p1) {
+        p1 = strstr(p1, "\"");
+        p2 = strstr(p1 + 1, "\"");
+        memcpy(ip, p1 + 1, p2 - p1 - 1);
+    }
+
+    p1 = strstr(resp, "gateway");
+    if (gw && p1) {
+        p1 = strstr(p1, "\"");
+        p2 = strstr(p1 + 1, "\"");
+        memcpy(gw, p1 + 1, p2 - p1 - 1);
+    }
+
+    p1 = strstr(resp, "netmask");
+    if (mask && p1) {
+        p1 = strstr(p1, "\"");
+        p2 = strstr(p1 + 1, "\"");
+        memcpy(mask, p1 + 1, p2 - p1 - 1);
+    }
+
+    return AT_OK;
+}

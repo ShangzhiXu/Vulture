@@ -1,0 +1,22 @@
+static HAL_StatusTypeDef USART_WaitOnFlagUntilTimeout(USART_HandleTypeDef *husart, uint32_t Flag, FlagStatus Status,
+                                                      uint32_t Tickstart, uint32_t Timeout)
+{
+  /* Wait until flag is set */
+  while ((__HAL_USART_GET_FLAG(husart, Flag) ? SET : RESET) == Status)
+  {
+    /* Check for the Timeout */
+    if (Timeout != HAL_MAX_DELAY)
+    {
+      if (((HAL_GetTick() - Tickstart) > Timeout) || (Timeout == 0U))
+      {
+        husart->State = HAL_USART_STATE_READY;
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(husart);
+
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+  return HAL_OK;
+}

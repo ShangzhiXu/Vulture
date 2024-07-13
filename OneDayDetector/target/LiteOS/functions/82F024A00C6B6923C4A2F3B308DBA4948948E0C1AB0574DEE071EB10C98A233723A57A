@@ -1,0 +1,25 @@
+mdns_resp_init(void)
+{
+  err_t res;
+
+  /* LWIP_ASSERT_CORE_LOCKED(); is checked by udp_new() */
+
+  mdns_pcb = udp_new_ip_type(IPADDR_TYPE_ANY);
+  LWIP_ASSERT("Failed to allocate pcb", mdns_pcb != NULL);
+#if LWIP_MULTICAST_TX_OPTIONS
+  udp_set_multicast_ttl(mdns_pcb, MDNS_TTL);
+#else
+  mdns_pcb->ttl = MDNS_TTL;
+#endif
+  res = udp_bind(mdns_pcb, IP_ANY_TYPE, LWIP_IANA_PORT_MDNS);
+  LWIP_UNUSED_ARG(res); /* in case of LWIP_NOASSERT */
+  LWIP_ASSERT("Failed to bind pcb", res == ERR_OK);
+  udp_recv(mdns_pcb, mdns_recv, NULL);
+
+  mdns_netif_client_id = netif_alloc_client_data_id();
+
+#if MDNS_RESP_USENETIF_EXTCALLBACK
+  /* register for netif events when started on first netif */
+  netif_add_ext_callback(&netif_callback, mdns_netif_ext_status_callback);
+#endif
+}

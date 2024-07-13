@@ -1,0 +1,19 @@
+static void SAI_Receive_IT8Bit(SAI_HandleTypeDef *hsai)
+{
+  /* Receive data */
+  (*hsai->pBuffPtr++) = hsai->Instance->DR;
+  hsai->XferCount--;
+  
+  /* Check end of the transfer */
+  if(hsai->XferCount == 0)
+  {
+    /* Disable TXE and OVRUDR interrupts */
+    __HAL_SAI_DISABLE_IT(hsai, SAI_InterruptFlag(hsai, SAI_MODE_IT));
+    
+    /* Clear the SAI Overrun flag */
+    __HAL_SAI_CLEAR_FLAG(hsai, SAI_FLAG_OVRUDR);
+    
+    hsai->State = HAL_SAI_STATE_READY;
+    HAL_SAI_RxCpltCallback(hsai);
+  }
+}

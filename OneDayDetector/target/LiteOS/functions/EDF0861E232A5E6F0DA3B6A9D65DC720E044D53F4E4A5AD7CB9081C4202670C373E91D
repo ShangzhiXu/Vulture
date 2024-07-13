@@ -1,0 +1,47 @@
+static void I2C_ITMasterSeqCplt(I2C_HandleTypeDef *hi2c)
+{
+  /* Reset I2C handle mode */
+  hi2c->Mode = HAL_I2C_MODE_NONE;
+
+  /* No Generate Stop, to permit restart mode */
+  /* The stop will be done at the end of transfer, when I2C_AUTOEND_MODE enable */
+  if (hi2c->State == HAL_I2C_STATE_BUSY_TX)
+  {
+    hi2c->State         = HAL_I2C_STATE_READY;
+    hi2c->PreviousState = I2C_STATE_MASTER_BUSY_TX;
+    hi2c->XferISR       = NULL;
+
+    /* Disable Interrupts */
+    I2C_Disable_IRQ(hi2c, I2C_XFER_TX_IT);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2c);
+
+    /* Call the corresponding callback to inform upper layer of End of Transfer */
+#if (USE_HAL_I2C_REGISTER_CALLBACKS == 1)
+    hi2c->MasterTxCpltCallback(hi2c);
+#else
+    HAL_I2C_MasterTxCpltCallback(hi2c);
+#endif /* USE_HAL_I2C_REGISTER_CALLBACKS */
+  }
+  /* hi2c->State == HAL_I2C_STATE_BUSY_RX */
+  else
+  {
+    hi2c->State         = HAL_I2C_STATE_READY;
+    hi2c->PreviousState = I2C_STATE_MASTER_BUSY_RX;
+    hi2c->XferISR       = NULL;
+
+    /* Disable Interrupts */
+    I2C_Disable_IRQ(hi2c, I2C_XFER_RX_IT);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2c);
+
+    /* Call the corresponding callback to inform upper layer of End of Transfer */
+#if (USE_HAL_I2C_REGISTER_CALLBACKS == 1)
+    hi2c->MasterRxCpltCallback(hi2c);
+#else
+    HAL_I2C_MasterRxCpltCallback(hi2c);
+#endif /* USE_HAL_I2C_REGISTER_CALLBACKS */
+  }
+}

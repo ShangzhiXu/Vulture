@@ -1,0 +1,38 @@
+sntp_request(void *arg)
+{
+  ip_addr_t sntp_server_address;
+  err_t err;
+
+  LWIP_UNUSED_ARG(arg);
+
+  /* initialize SNTP server address */
+#if SNTP_SERVER_DNS
+  if (sntp_servers[sntp_current_server].name) {
+    /* always resolve the name and rely on dns-internal caching & timeout */
+    ip_addr_set_zero(&sntp_servers[sntp_current_server].addr);
+    err = dns_gethostbyname(sntp_servers[sntp_current_server].name, &sntp_server_address,
+                            sntp_dns_found, NULL);
+    if (err == ERR_INPROGRESS) {
+      /* DNS request sent, wait for sntp_dns_found being called */
+      LWIP_DEBUGF(SNTP_DEBUG_STATE, ("sntp_request: Waiting for server address to be resolved.\n"));
+      return;
+    } else if (err == ERR_OK) {
+      sntp_servers[sntp_current_server].addr = sntp_server_address;
+    }
+  } else
+#endif /* SNTP_SERVER_DNS */
+  {
+    sntp_server_address = sntp_servers[sntp_current_server].addr;
+    err = (ip_addr_isany_val(sntp_server_address)) ? ERR_ARG : ERR_OK;
+  }
+
+  if (err == ERR_OK) {
+    LWIP_DEBUGF(SNTP_DEBUG_TRACE, ("sntp_request: current server address is %s\n",
+                                   ipaddr_ntoa(&sntp_server_address)));
+    sntp_send_request(&sntp_server_address);
+  } else {
+    /* address conversion failed, try another server */
+    LWIP_DEBUGF(SNTP_DEBUG_WARN_STATE, ("sntp_request: Invalid server address, trying next server.\n"));
+    sys_timeout((u32_t)SNTP_RETRY_TIMEOUT, sntp_try_next_server, NULL);
+  }
+}

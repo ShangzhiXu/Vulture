@@ -1,0 +1,26 @@
+static int ssl_ticket_gen_key( mbedtls_ssl_ticket_context *ctx,
+                               unsigned char index )
+{
+    int ret;
+    unsigned char buf[MAX_KEY_BYTES];
+    mbedtls_ssl_ticket_key *key = ctx->keys + index;
+
+#if defined(MBEDTLS_HAVE_TIME)
+    key->generation_time = (uint32_t) mbedtls_time( NULL );
+#endif
+
+    if( ( ret = ctx->f_rng( ctx->p_rng, key->name, sizeof( key->name ) ) ) != 0 )
+        return( ret );
+
+    if( ( ret = ctx->f_rng( ctx->p_rng, buf, sizeof( buf ) ) ) != 0 )
+        return( ret );
+
+    /* With GCM and CCM, same context can encrypt & decrypt */
+    ret = mbedtls_cipher_setkey( &key->ctx, buf,
+                                 mbedtls_cipher_get_key_bitlen( &key->ctx ),
+                                 MBEDTLS_ENCRYPT );
+
+    mbedtls_platform_zeroize( buf, sizeof( buf ) );
+
+    return( ret );
+}

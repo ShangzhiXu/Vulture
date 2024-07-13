@@ -1,0 +1,48 @@
+UINT32 ArchBackTraceGet(UINTPTR fp, UINTPTR *callChain, UINT32 maxDepth)
+{
+    UINTPTR tmpFP;
+    UINTPTR backLR;
+    UINTPTR backFP = fp;
+    UINTPTR stackStart, stackEnd;
+    UINT32 count = 0;
+
+    if (FindSuitableStack(fp, &stackStart, &stackEnd) == FALSE) {
+        return 0;
+    }
+
+    if (callChain == NULL) {
+        PrintExcInfo("*******backtrace begin*******\n");
+    }
+
+    /*
+     * Check whether it is the leaf function.
+     * Generally, the frame pointer points to the address of link register, while in the leaf function,
+     * there's no function call, and compiler will not store the link register, but the frame pointer
+     * will still be stored and updated. In that case we needs to find the right position of frame pointer.
+     */
+    tmpFP = *((UINTPTR *)(fp));
+    if (IsValidFP(tmpFP, stackStart, stackEnd)) {
+        backFP = tmpFP;
+
+        if (callChain == NULL) {
+            PrintExcInfo("traceback fp fixed, trace using   fp = 0x%x\n", backFP);
+        }
+    }
+
+    while (IsValidFP(backFP, stackStart, stackEnd)) {
+        tmpFP = backFP;
+        backLR = *((UINTPTR *)(tmpFP));
+        backFP = *((UINTPTR *)(tmpFP - POINTER_SIZE));
+
+        if (callChain == NULL) {
+            PrintExcInfo("traceback %u -- lr = 0x%x    fp = 0x%x\n", count, backLR, backFP);
+        } else {
+            callChain[count] = backLR;
+        }
+        count++;
+        if ((count == maxDepth) || (backFP == tmpFP)) {
+            break;
+        }
+    }
+    return count;
+}

@@ -1,0 +1,28 @@
+HAL_StatusTypeDef HAL_I2S_DMAResume(I2S_HandleTypeDef *hi2s)
+{
+  /* Process Locked */
+  __HAL_LOCK(hi2s);
+  
+  if(hi2s->State == HAL_I2S_STATE_BUSY_TX)
+  {
+    /* Enable the I2S DMA Tx request */
+    SET_BIT(hi2s->Instance->CR2, SPI_CR2_TXDMAEN);
+  }
+  else if(hi2s->State == HAL_I2S_STATE_BUSY_RX)
+  {
+    /* Enable the I2S DMA Rx request */
+    SET_BIT(hi2s->Instance->CR2, SPI_CR2_RXDMAEN);
+  }
+  
+  /* If the I2S peripheral is still not enabled, enable it */
+  if(HAL_IS_BIT_CLR(hi2s->Instance->I2SCFGR, SPI_I2SCFGR_I2SE))
+  {
+    /* Enable I2S peripheral */    
+    __HAL_I2S_ENABLE(hi2s);
+  }
+  
+  /* Process Unlocked */
+  __HAL_UNLOCK(hi2s);
+  
+  return HAL_OK;
+}

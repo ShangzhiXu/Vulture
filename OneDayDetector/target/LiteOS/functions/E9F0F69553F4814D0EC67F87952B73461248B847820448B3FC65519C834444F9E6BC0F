@@ -1,0 +1,42 @@
+static HAL_StatusTypeDef SMARTCARD_CheckIdleState(SMARTCARD_HandleTypeDef *hsmartcard)
+{
+  uint32_t tickstart;
+
+  /* Initialize the SMARTCARD ErrorCode */
+  hsmartcard->ErrorCode = HAL_SMARTCARD_ERROR_NONE;
+
+  /* Init tickstart for timeout management */
+  tickstart = HAL_GetTick();
+
+  /* Check if the Transmitter is enabled */
+  if ((hsmartcard->Instance->CR1 & USART_CR1_TE) == USART_CR1_TE)
+  {
+    /* Wait until TEACK flag is set */
+    if (SMARTCARD_WaitOnFlagUntilTimeout(hsmartcard, USART_ISR_TEACK, RESET, tickstart,
+                                         SMARTCARD_TEACK_REACK_TIMEOUT) != HAL_OK)
+    {
+      /* Timeout occurred */
+      return HAL_TIMEOUT;
+    }
+  }
+  /* Check if the Receiver is enabled */
+  if ((hsmartcard->Instance->CR1 & USART_CR1_RE) == USART_CR1_RE)
+  {
+    /* Wait until REACK flag is set */
+    if (SMARTCARD_WaitOnFlagUntilTimeout(hsmartcard, USART_ISR_REACK, RESET, tickstart,
+                                         SMARTCARD_TEACK_REACK_TIMEOUT) != HAL_OK)
+    {
+      /* Timeout occurred */
+      return HAL_TIMEOUT;
+    }
+  }
+
+  /* Initialize the SMARTCARD states */
+  hsmartcard->gState  = HAL_SMARTCARD_STATE_READY;
+  hsmartcard->RxState = HAL_SMARTCARD_STATE_READY;
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(hsmartcard);
+
+  return HAL_OK;
+}

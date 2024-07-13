@@ -1,0 +1,51 @@
+static HAL_StatusTypeDef HASH_WaitOnFlagUntilTimeout(HASH_HandleTypeDef *hhash, uint32_t Flag, FlagStatus Status, uint32_t Timeout)
+{
+  uint32_t tickstart = HAL_GetTick();
+
+  /* Wait until flag is set */
+  if(Status == RESET)
+  {
+    while(__HAL_HASH_GET_FLAG(Flag) == RESET)
+    {
+      /* Check for the Timeout */
+      if(Timeout != HAL_MAX_DELAY)
+      {
+        if(((HAL_GetTick()-tickstart) > Timeout) || (Timeout == 0U))
+        {
+          /* Set State to Ready to be able to restart later on */
+          hhash->State  = HAL_HASH_STATE_READY;
+          /* Store time out issue in handle status */
+          hhash->Status = HAL_TIMEOUT;
+
+          /* Process Unlocked */
+          __HAL_UNLOCK(hhash);
+
+          return HAL_TIMEOUT;
+        }
+      }
+    }
+  }
+  else
+  {
+    while(__HAL_HASH_GET_FLAG(Flag) != RESET)
+    {
+      /* Check for the Timeout */
+      if(Timeout != HAL_MAX_DELAY)
+      {
+        if(((HAL_GetTick()-tickstart) > Timeout) || (Timeout == 0U))
+        {
+          /* Set State to Ready to be able to restart later on */
+          hhash->State  = HAL_HASH_STATE_READY;
+          /* Store time out issue in handle status */
+          hhash->Status = HAL_TIMEOUT;
+
+          /* Process Unlocked */
+          __HAL_UNLOCK(hhash);
+
+          return HAL_TIMEOUT;
+        }
+      }
+    }
+  }
+  return HAL_OK;
+}

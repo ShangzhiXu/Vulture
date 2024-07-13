@@ -1,0 +1,37 @@
+int32_t nb_send_payload(const char *buf, int len)
+{
+    char *cmd1 = "AT+NMGS=";
+    char *cmd2 = "AT+NQMGS\r";
+    int ret;
+    char *str = NULL;
+    int curcnt = 0;
+    int rbuflen;
+    static int sndcnt = 0;
+    if ((buf == NULL) || (len > AT_MAX_PAYLOADLEN)) {
+        AT_LOG("payload too long");
+        return -1;
+    }
+    memset(tmpbuf, 0, AT_DATA_LEN);
+    memset(wbuf, 0, AT_DATA_LEN);
+    str_to_hex(buf, len, tmpbuf);
+    memset(rbuf, 0, AT_DATA_LEN);
+    snprintf(wbuf, AT_DATA_LEN, "%s%d,%s%c", cmd1, (int)len, tmpbuf, '\r');
+    ret = at.cmd((int8_t *)wbuf, strlen(wbuf), "OK", NULL, NULL);
+    if (ret < 0) {
+        return -1;
+    }
+    ret = at.cmd((int8_t *)cmd2, strlen(cmd2), "SENT=", rbuf, &rbuflen);
+    if (ret < 0) {
+        return -1;
+    }
+    str = strstr(rbuf, "SENT=");
+    if (str == NULL) {
+        return -1;
+    }
+    sscanf(str, "SENT=%d,%s", &curcnt, wbuf);
+    if (curcnt == sndcnt) {
+        return -1;
+    }
+    sndcnt = curcnt;
+    return ret;
+}

@@ -1,0 +1,14 @@
+    UINTPTR addr;
+    CHAR keyValue[0];
+    BinNode leaf;
+    BinNode leaf;
+    BinNode leaf;
+    BinNode leaf;
+    struct tagBinNode *left;
+    UINTPTR linkReg1;
+    UINTPTR linkReg2;
+    UINTPTR linkReg3;
+    UINT32 nodeId;
+    UINT32 reqSize;
+    struct tagBinNode *right;
+    UINT32 taskId;

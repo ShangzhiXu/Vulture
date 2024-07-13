@@ -1,0 +1,32 @@
+int deliverMessage(MQTTClient* c, MQTTString* topicName, MQTTMessage* message)
+{
+    int i;
+    int rc = FAILURE;
+    char match_rst = 0;
+
+    // we have to find the right message handler - indexed by topic
+    for (i = 0; i < MAX_MESSAGE_HANDLERS; ++i)
+    {
+        if (c->messageHandlers[i].topicFilter != 0)
+        {
+            (void)MQTTTopicMatched((const char *)c->messageHandlers[i].topicFilter, topicName, &match_rst);
+            if (1 == match_rst && c->messageHandlers[i].fp != NULL)
+            {
+                MessageData md;
+                NewMessageData(&md, topicName, message, (const char *)c->messageHandlers[i].topicFilter);
+                c->messageHandlers[i].fp(&md);
+                rc = MQTT_SUCCESS;
+            }
+        }
+    }
+
+    if (rc == FAILURE && c->defaultMessageHandler != NULL)
+    {
+        MessageData md;
+        NewMessageData(&md, topicName, message, NULL);
+        c->defaultMessageHandler(&md);
+        rc = MQTT_SUCCESS;
+    }
+
+    return rc;
+}

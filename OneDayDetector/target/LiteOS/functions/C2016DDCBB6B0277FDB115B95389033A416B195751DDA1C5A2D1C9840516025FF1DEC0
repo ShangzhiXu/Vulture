@@ -1,0 +1,41 @@
+int mbedtls_ssl_cookie_write( void *p_ctx,
+                      unsigned char **p, unsigned char *end,
+                      const unsigned char *cli_id, size_t cli_id_len )
+{
+    int ret;
+    mbedtls_ssl_cookie_ctx *ctx = (mbedtls_ssl_cookie_ctx *) p_ctx;
+    unsigned long t;
+
+    if( ctx == NULL || cli_id == NULL )
+        return( MBEDTLS_ERR_SSL_BAD_INPUT_DATA );
+
+    MBEDTLS_SSL_CHK_BUF_PTR( *p, end, COOKIE_LEN );
+
+#if defined(MBEDTLS_HAVE_TIME)
+    t = (unsigned long) mbedtls_time( NULL );
+#else
+    t = ctx->serial++;
+#endif
+
+    (*p)[0] = (unsigned char)( t >> 24 );
+    (*p)[1] = (unsigned char)( t >> 16 );
+    (*p)[2] = (unsigned char)( t >>  8 );
+    (*p)[3] = (unsigned char)( t       );
+    *p += 4;
+
+#if defined(MBEDTLS_THREADING_C)
+    if( ( ret = mbedtls_mutex_lock( &ctx->mutex ) ) != 0 )
+        return( MBEDTLS_ERR_SSL_INTERNAL_ERROR + ret );
+#endif
+
+    ret = ssl_cookie_hmac( &ctx->hmac_ctx, *p - 4,
+                           p, end, cli_id, cli_id_len );
+
+#if defined(MBEDTLS_THREADING_C)
+    if( mbedtls_mutex_unlock( &ctx->mutex ) != 0 )
+        return( MBEDTLS_ERR_SSL_INTERNAL_ERROR +
+                MBEDTLS_ERR_THREADING_MUTEX_ERROR );
+#endif
+
+    return( ret );
+}

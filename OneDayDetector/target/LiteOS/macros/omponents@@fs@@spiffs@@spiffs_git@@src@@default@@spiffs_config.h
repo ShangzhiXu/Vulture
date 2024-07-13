@@ -1,0 +1,15 @@
+#define SPIFFS_API_DBG(_f, ...) //printf(_f, ## __VA_ARGS__)
+#define SPIFFS_CACHE_DBG(_f, ...) //printf(_f, ## __VA_ARGS__)
+#define SPIFFS_CFG_LOG_BLOCK_SZ(ignore)   (65536)
+#define SPIFFS_CFG_LOG_PAGE_SZ(ignore)    (256)
+#define SPIFFS_CFG_PHYS_ADDR(ignore)      (0)
+#define SPIFFS_CFG_PHYS_ERASE_SZ(ignore)  (65536)
+#define SPIFFS_CFG_PHYS_SZ(ignore)        (1024*1024*2)
+#define SPIFFS_CHECK_DBG(_f, ...) //printf(_f, ## __VA_ARGS__)
+#define SPIFFS_DBG(_f, ...) //printf(_f, ## __VA_ARGS__)
+#define SPIFFS_GC_DBG(_f, ...) //printf(_f, ## __VA_ARGS__)
+#define SPIFFS_LOCK(fs)
+#define SPIFFS_TEST_VIS_DATA_STR(id)      "d"
+#define SPIFFS_TEST_VIS_INDX_STR(id)      "i"
+#define SPIFFS_UNLOCK(fs)
+#define spiffs_printf(...)                printf(__VA_ARGS__)

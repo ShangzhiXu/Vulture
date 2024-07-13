@@ -1,0 +1,72 @@
+static void lv_refr_obj(lv_obj_t * obj, const lv_area_t * mask_ori_p)
+{
+    /*Do not refresh hidden objects*/
+    if(obj->hidden != 0) return;
+
+    bool union_ok; /* Store the return value of area_union */
+    /* Truncate the original mask to the coordinates of the parent
+     * because the parent and its children are visible only here */
+    lv_area_t obj_mask;
+    lv_area_t obj_ext_mask;
+    lv_area_t obj_area;
+    lv_coord_t ext_size = obj->ext_draw_pad;
+    lv_obj_get_coords(obj, &obj_area);
+    obj_area.x1 -= ext_size;
+    obj_area.y1 -= ext_size;
+    obj_area.x2 += ext_size;
+    obj_area.y2 += ext_size;
+    union_ok = _lv_area_intersect(&obj_ext_mask, mask_ori_p, &obj_area);
+
+    /*Draw the parent and its children only if they ore on 'mask_parent'*/
+    if(union_ok != false) {
+
+        /* Redraw the object */
+        if(obj->design_cb) obj->design_cb(obj, &obj_ext_mask, LV_DESIGN_DRAW_MAIN);
+
+#if MASK_AREA_DEBUG
+        static lv_color_t debug_color = LV_COLOR_RED;
+        lv_draw_rect_dsc_t draw_dsc;
+        lv_draw_rect_dsc_init(&draw_dsc);
+        draw_dsc.bg_color.full = debug_color.full;
+        draw_dsc.bg_opa = LV_OPA_20;
+        draw_dsc.border_width = 2;
+        draw_dsc.border_opa = LV_OPA_50;
+        draw_dsc.border_color.full = (debug_color.full + 0x13) * 9;
+
+        lv_draw_rect(&obj_ext_mask, &obj_ext_mask, &draw_dsc);
+        debug_color.full *= 17;
+        debug_color.full += 0xA1;
+#if LV_COLOR_DEPTH == 32
+        debug_color.ch.alpha = 0xff;
+#endif
+#endif
+        /*Create a new 'obj_mask' without 'ext_size' because the children can't be visible there*/
+        lv_obj_get_coords(obj, &obj_area);
+        union_ok = _lv_area_intersect(&obj_mask, mask_ori_p, &obj_area);
+        if(union_ok != false) {
+            lv_area_t mask_child; /*Mask from obj and its child*/
+            lv_obj_t * child_p;
+            lv_area_t child_area;
+            _LV_LL_READ_BACK(obj->child_ll, child_p) {
+                lv_obj_get_coords(child_p, &child_area);
+                ext_size = child_p->ext_draw_pad;
+                child_area.x1 -= ext_size;
+                child_area.y1 -= ext_size;
+                child_area.x2 += ext_size;
+                child_area.y2 += ext_size;
+                /* Get the union (common parts) of original mask (from obj)
+                 * and its child */
+                union_ok = _lv_area_intersect(&mask_child, &obj_mask, &child_area);
+
+                /*If the parent and the child has common area then refresh the child */
+                if(union_ok) {
+                    /*Refresh the next children*/
+                    lv_refr_obj(child_p, &mask_child);
+                }
+            }
+        }
+
+        /* If all the children are redrawn make 'post draw' design */
+        if(obj->design_cb) obj->design_cb(obj, &obj_ext_mask, LV_DESIGN_DRAW_POST);
+    }
+}

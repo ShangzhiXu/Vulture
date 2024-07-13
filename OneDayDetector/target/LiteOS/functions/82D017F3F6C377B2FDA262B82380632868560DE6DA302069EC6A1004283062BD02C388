@@ -1,0 +1,21 @@
+STATIC UINT32 OsRingbufWriteLinear(Ringbuf *ringbuf, const CHAR *buf, UINT32 size)
+{
+    UINT32 cpSize;
+    errno_t err;
+
+    cpSize = (ringbuf->remain < size) ? ringbuf->remain : size;
+
+    if (cpSize == 0) {
+        return 0;
+    }
+
+    err = memcpy_s(ringbuf->fifo + ringbuf->endIdx, ringbuf->remain, buf, cpSize);
+    if (err != EOK) {
+        return 0;
+    }
+
+    ringbuf->remain -= cpSize;
+    ringbuf->endIdx += cpSize;
+
+    return cpSize;
+}

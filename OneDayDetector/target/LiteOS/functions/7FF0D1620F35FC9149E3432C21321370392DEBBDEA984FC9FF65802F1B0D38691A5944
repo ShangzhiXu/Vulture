@@ -1,0 +1,39 @@
+HAL_StatusTypeDef HAL_RCCEx_DisablePLLSAI2(void)
+{
+  uint32_t tickstart = 0U;
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Disable the PLLSAI2 */
+  __HAL_RCC_PLLSAI2_DISABLE();
+
+  /* Get Start Tick*/
+  tickstart = HAL_GetTick();
+
+  /* Wait till PLLSAI2 is ready */
+  while(READ_BIT(RCC->CR, RCC_CR_PLLSAI2RDY) != RESET)
+  {
+    if((HAL_GetTick() - tickstart) > PLLSAI2_TIMEOUT_VALUE)
+    {
+      status = HAL_TIMEOUT;
+      break;
+    }
+  }
+
+  /* Disable the PLLSAI2 Clock outputs */
+#if defined(RCC_PLLSAI2Q_DIV_SUPPORT)
+  __HAL_RCC_PLLSAI2CLKOUT_DISABLE(RCC_PLLSAI2CFGR_PLLSAI2PEN|RCC_PLLSAI2CFGR_PLLSAI2QEN|RCC_PLLSAI2CFGR_PLLSAI2REN);
+#else
+  __HAL_RCC_PLLSAI2CLKOUT_DISABLE(RCC_PLLSAI2CFGR_PLLSAI2PEN|RCC_PLLSAI2CFGR_PLLSAI2REN);
+#endif /* RCC_PLLSAI2M_DIV_1_16_SUPPORT && RCC_PLLSAI2Q_DIV_SUPPORT */
+
+  /* Reset PLL source to save power if no PLLs on */
+  if((READ_BIT(RCC->CR, RCC_CR_PLLRDY) == RESET)
+      &&
+     (READ_BIT(RCC->CR, RCC_CR_PLLSAI1RDY) == RESET)
+    )
+  {
+    MODIFY_REG(RCC->PLLCFGR, RCC_PLLCFGR_PLLSRC, RCC_PLLSOURCE_NONE);
+  }
+
+  return status;
+}

@@ -1,0 +1,33 @@
+mdns_resp_remove_netif(struct netif *netif)
+{
+  int i;
+  struct mdns_host *mdns;
+
+  LWIP_ASSERT_CORE_LOCKED();
+  LWIP_ASSERT("mdns_resp_remove_netif: Null pointer", netif);
+  mdns = NETIF_TO_HOST(netif);
+  LWIP_ERROR("mdns_resp_remove_netif: Not an active netif", (mdns != NULL), return ERR_VAL);
+
+  if (mdns->probing_state == MDNS_PROBING_ONGOING) {
+    sys_untimeout(mdns_probe, netif);
+  }
+
+  for (i = 0; i < MDNS_MAX_SERVICES; i++) {
+    struct mdns_service *service = mdns->services[i];
+    if (service) {
+      mem_free(service);
+    }
+  }
+
+  /* Leave multicast groups */
+#if LWIP_IPV4
+  igmp_leavegroup_netif(netif, ip_2_ip4(&v4group));
+#endif
+#if LWIP_IPV6
+  mld6_leavegroup_netif(netif, ip_2_ip6(&v6group));
+#endif
+
+  mem_free(mdns);
+  netif_set_client_data(netif, mdns_netif_client_id, NULL);
+  return ERR_OK;
+}

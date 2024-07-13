@@ -1,0 +1,55 @@
+void pthread_exit(void *retVal)
+{
+    _pthread_data *self = pthread_get_self_data();
+    UINT32 intSave;
+    int *oldState = NULL;
+
+    if (pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, oldState) != ENOERR) {
+        PRINT_ERR("%s: %d failed\n", __FUNCTION__, __LINE__);
+    }
+
+    if (pthread_mutex_lock(&g_pthreadsDataMutex) != ENOERR) {
+        PRINT_ERR("%s: %d failed\n", __FUNCTION__, __LINE__);
+    }
+
+    self->task->threadJoinRetval = retVal;
+
+    /* Call the cleanup handlers. */
+    while (self->cancelbuf != NULL) {
+        if (self->cancelbuf->routine != NULL) {
+            self->cancelbuf->routine(self->cancelbuf->arg);
+        }
+        self->cancelbuf = self->cancelbuf->next;
+    }
+
+    /*
+     * If we are already detached, go to EXITED state, otherwise
+     * go into JOIN state.
+     */
+    if (self->state == PTHREAD_STATE_DETACHED) {
+        self->state = PTHREAD_STATE_EXITED;
+        g_pthreadsExited++;
+    } else {
+        self->state = PTHREAD_STATE_JOIN;
+    }
+
+    if (pthread_mutex_unlock(&g_pthreadsDataMutex) != ENOERR) {
+        PRINT_ERR("%s: %d failed\n", __FUNCTION__, __LINE__);
+    }
+    /* Kick any waiting joiners */
+    if (self->task->threadJoin != NULL) {
+        if (LOS_SemPost(self->joiner->semId) != ENOERR) {
+            PRINT_ERR("%s: %d failed\n", __FUNCTION__, __LINE__);
+        }
+    }
+
+    __pthread_tsd_run_dtors();
+
+    SCHEDULER_LOCK(intSave);
+
+    /* If the thread is the highest thread,it can't schedule in LOS_SemPost. */
+    if (self->task->taskStatus & OS_TASK_STATUS_RUNNING) {
+        OsSchedResched();
+    }
+    SCHEDULER_UNLOCK(intSave);
+}

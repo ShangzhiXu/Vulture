@@ -1,0 +1,120 @@
+HAL_StatusTypeDef HAL_DMA2D_PollForTransfer(DMA2D_HandleTypeDef *hdma2d, uint32_t Timeout)
+{
+  uint32_t tickstart = 0;
+  __IO uint32_t isrflags = 0x0;  
+
+  /* Polling for DMA2D transfer */
+  if((hdma2d->Instance->CR & DMA2D_CR_START) != RESET)
+  {
+   /* Get tick */
+   tickstart = HAL_GetTick();
+
+    while(__HAL_DMA2D_GET_FLAG(hdma2d, DMA2D_FLAG_TC) == RESET)
+    {
+      isrflags = READ_REG(hdma2d->Instance->ISR); 
+      if ((isrflags & (DMA2D_FLAG_CE|DMA2D_FLAG_TE)) != RESET)
+      {
+        if ((isrflags & DMA2D_FLAG_CE) != RESET)
+        {
+          hdma2d->ErrorCode |= HAL_DMA2D_ERROR_CE;        
+        }
+        if ((isrflags & DMA2D_FLAG_TE) != RESET)        
+        {
+          hdma2d->ErrorCode |= HAL_DMA2D_ERROR_TE;        
+        }
+        /* Clear the transfer and configuration error flags */
+        __HAL_DMA2D_CLEAR_FLAG(hdma2d, DMA2D_FLAG_CE | DMA2D_FLAG_TE);
+
+        /* Change DMA2D state */
+        hdma2d->State = HAL_DMA2D_STATE_ERROR;
+
+        /* Process unlocked */
+        __HAL_UNLOCK(hdma2d);
+        
+        return HAL_ERROR;
+      }
+      /* Check for the Timeout */
+      if(Timeout != HAL_MAX_DELAY)
+      {
+        if((Timeout == 0)||((HAL_GetTick() - tickstart ) > Timeout))
+        {
+          /* Update error code */
+          hdma2d->ErrorCode |= HAL_DMA2D_ERROR_TIMEOUT;
+
+          /* Change the DMA2D state */
+          hdma2d->State = HAL_DMA2D_STATE_TIMEOUT;
+         
+          /* Process unlocked */
+          __HAL_UNLOCK(hdma2d);
+           
+          return HAL_TIMEOUT;
+        }
+      }        
+    }
+  }
+  /* Polling for CLUT loading (foreground or background) */
+  if (((hdma2d->Instance->FGPFCCR & DMA2D_FGPFCCR_START) != RESET)  || 
+      ((hdma2d->Instance->BGPFCCR & DMA2D_BGPFCCR_START) != RESET))
+  {
+    /* Get tick */
+    tickstart = HAL_GetTick();
+   
+    while(__HAL_DMA2D_GET_FLAG(hdma2d, DMA2D_FLAG_CTC) == RESET)
+    {
+      isrflags = READ_REG(hdma2d->Instance->ISR);   
+      if ((isrflags & (DMA2D_FLAG_CAE|DMA2D_FLAG_CE|DMA2D_FLAG_TE)) != RESET)        
+      {      
+        if ((isrflags & DMA2D_FLAG_CAE) != RESET)
+        {
+          hdma2d->ErrorCode |= HAL_DMA2D_ERROR_CAE;        
+        }   
+        if ((isrflags & DMA2D_FLAG_CE) != RESET)             
+        {
+          hdma2d->ErrorCode |= HAL_DMA2D_ERROR_CE;        
+        }
+        if ((isrflags & DMA2D_FLAG_TE) != RESET)        
+        {
+          hdma2d->ErrorCode |= HAL_DMA2D_ERROR_TE;        
+        }
+        /* Clear the CLUT Access Error, Configuration Error and Transfer Error flags */
+        __HAL_DMA2D_CLEAR_FLAG(hdma2d, DMA2D_FLAG_CAE | DMA2D_FLAG_CE | DMA2D_FLAG_TE);
+        
+        /* Change DMA2D state */
+        hdma2d->State= HAL_DMA2D_STATE_ERROR;
+        
+        /* Process unlocked */
+        __HAL_UNLOCK(hdma2d);
+          
+        return HAL_ERROR;      
+      }      
+      /* Check for the Timeout */
+      if(Timeout != HAL_MAX_DELAY)
+      {
+        if((Timeout == 0)||((HAL_GetTick() - tickstart ) > Timeout))
+        {
+          /* Update error code */
+          hdma2d->ErrorCode |= HAL_DMA2D_ERROR_TIMEOUT;
+    
+          /* Change the DMA2D state */
+          hdma2d->State= HAL_DMA2D_STATE_TIMEOUT;
+        
+          /* Process unlocked */
+          __HAL_UNLOCK(hdma2d);
+                    
+          return HAL_TIMEOUT;
+        }
+      }      
+    }
+  }
+
+  /* Clear the transfer complete and CLUT loading flags */
+  __HAL_DMA2D_CLEAR_FLAG(hdma2d, DMA2D_FLAG_TC|DMA2D_FLAG_CTC);
+  
+  /* Change DMA2D state */
+  hdma2d->State = HAL_DMA2D_STATE_READY;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hdma2d);
+  
+  return HAL_OK;
+}

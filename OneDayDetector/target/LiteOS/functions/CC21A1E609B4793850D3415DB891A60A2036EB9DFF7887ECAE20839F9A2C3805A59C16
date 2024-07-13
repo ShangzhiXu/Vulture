@@ -1,0 +1,83 @@
+uint32_t LL_RCC_GetSAIClockFreq(uint32_t SAIxSource)
+{
+  uint32_t sai_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_SAI_CLKSOURCE(SAIxSource));
+
+  if (SAIxSource == LL_RCC_SAI1_CLKSOURCE)
+  {
+    /* SAI1CLK clock frequency */
+    switch (LL_RCC_GetSAIClockSource(SAIxSource))
+    {
+      case LL_RCC_SAI1_CLKSOURCE_PLLSAI1:    /* PLLSAI1 clock used as SAI1 clock source */
+        if (LL_RCC_PLLSAI1_IsReady())
+        {
+          sai_frequency = RCC_PLLSAI1_GetFreqDomain_SAI();
+        }
+        break;
+
+#if defined(RCC_PLLSAI2_SUPPORT)
+      case LL_RCC_SAI1_CLKSOURCE_PLLSAI2:    /* PLLSAI2 clock used as SAI1 clock source */
+        if (LL_RCC_PLLSAI2_IsReady())
+        {
+          sai_frequency = RCC_PLLSAI2_GetFreqDomain_SAI();
+        }
+        break;
+
+#endif /* RCC_PLLSAI2_SUPPORT */
+      case LL_RCC_SAI1_CLKSOURCE_PLL:        /* PLL clock used as SAI1 clock source */
+        if (LL_RCC_PLL_IsReady())
+        {
+          sai_frequency = RCC_PLL_GetFreqDomain_SAI();
+        }
+        break;
+
+      case LL_RCC_SAI1_CLKSOURCE_PIN:        /* External input clock used as SAI1 clock source */
+      default:
+        sai_frequency = LL_RCC_PERIPH_FREQUENCY_NA;
+        break;
+    }
+  }
+  else
+  {
+#if defined(RCC_CCIPR_SAI2SEL)
+    if (SAIxSource == LL_RCC_SAI2_CLKSOURCE)
+    {
+      /* SAI2CLK clock frequency */
+      switch (LL_RCC_GetSAIClockSource(SAIxSource))
+      {
+        case LL_RCC_SAI2_CLKSOURCE_PLLSAI1:  /* PLLSAI1 clock used as SAI2 clock source */
+          if (LL_RCC_PLLSAI1_IsReady())
+          {
+            sai_frequency = RCC_PLLSAI1_GetFreqDomain_SAI();
+          }
+          break;
+
+  #if defined(RCC_PLLSAI2_SUPPORT)
+        case LL_RCC_SAI2_CLKSOURCE_PLLSAI2:  /* PLLSAI2 clock used as SAI2 clock source */
+          if (LL_RCC_PLLSAI2_IsReady())
+          {
+            sai_frequency = RCC_PLLSAI2_GetFreqDomain_SAI();
+          }
+          break;
+
+  #endif /* RCC_PLLSAI2_SUPPORT */
+        case LL_RCC_SAI2_CLKSOURCE_PLL:      /* PLL clock used as SAI2 clock source */
+          if (LL_RCC_PLL_IsReady())
+          {
+            sai_frequency = RCC_PLL_GetFreqDomain_SAI();
+          }
+          break;
+
+        case LL_RCC_SAI2_CLKSOURCE_PIN:      /* External input clock used as SAI2 clock source */
+        default:
+          sai_frequency = LL_RCC_PERIPH_FREQUENCY_NA;
+          break;
+      }
+    }
+#endif /* RCC_CCIPR_SAI2SEL */
+  }
+
+  return sai_frequency;
+}

@@ -1,0 +1,51 @@
+STATIC VOID OsQueueBufferOperate(LosQueueCB *queueCB, UINT32 operateType, VOID *bufferAddr, UINT32 *bufferSize)
+{
+    UINT8 *queueNode = NULL;
+    UINT32 msgDataSize;
+    UINT16 queuePosition;
+
+    /* get the queue position */
+    switch (OS_QUEUE_OPERATE_GET(operateType)) {
+        case OS_QUEUE_READ_HEAD:
+            queuePosition = queueCB->queueHead;
+            ((queueCB->queueHead + 1) == queueCB->queueLen) ? (queueCB->queueHead = 0) : (queueCB->queueHead++);
+            break;
+        case OS_QUEUE_WRITE_HEAD:
+            (queueCB->queueHead == 0) ? (queueCB->queueHead = queueCB->queueLen - 1) : (--queueCB->queueHead);
+            queuePosition = queueCB->queueHead;
+            break;
+        case OS_QUEUE_WRITE_TAIL:
+            queuePosition = queueCB->queueTail;
+            ((queueCB->queueTail + 1) == queueCB->queueLen) ? (queueCB->queueTail = 0) : (queueCB->queueTail++);
+            break;
+        default:  /* read tail, reserved. */
+            PRINT_ERR("invalid queue operate type!\n");
+            return;
+    }
+
+    queueNode = &(queueCB->queueHandle[(queuePosition * (queueCB->queueSize))]);
+
+    if (OS_QUEUE_IS_READ(operateType)) {
+        if (memcpy_s(&msgDataSize, sizeof(UINT32), queueNode + queueCB->queueSize - sizeof(UINT32),
+                     sizeof(UINT32)) != EOK) {
+            PRINT_ERR("get msgdatasize failed\n");
+            return;
+        }
+        if (memcpy_s(bufferAddr, *bufferSize, queueNode, msgDataSize) != EOK) {
+            PRINT_ERR("copy message to buffer failed\n");
+            return;
+        }
+
+        *bufferSize = msgDataSize;
+    } else {
+        if (memcpy_s(queueNode, queueCB->queueSize, bufferAddr, *bufferSize) != EOK) {
+            PRINT_ERR("store message failed\n");
+            return;
+        }
+        if (memcpy_s(queueNode + queueCB->queueSize - sizeof(UINT32), sizeof(UINT32), bufferSize,
+                     sizeof(UINT32)) != EOK) {
+            PRINT_ERR("store message size failed\n");
+            return;
+        }
+    }
+}

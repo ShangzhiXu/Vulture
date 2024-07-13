@@ -1,0 +1,26 @@
+LITE_OS_SEC_TEXT VOID OsTickHandler(VOID)
+{
+    UINT32 intSave;
+
+    TICK_LOCK(intSave);
+    g_tickCount[ArchCurrCpuid()]++;
+    TICK_UNLOCK(intSave);
+
+#ifdef LOSCFG_KERNEL_TICKLESS
+    OsTickIrqFlagSet(OsTicklessFlagGet());
+#endif
+
+#if (LOSCFG_BASE_CORE_TICK_HW_TIME == YES)
+    HalClockIrqClear(); /* diff from every platform */
+#endif
+
+#ifdef LOSCFG_BASE_CORE_TIMESLICE
+    OsTimesliceCheck();
+#endif
+
+    OsTaskScan(); /* task timeout scan */
+
+#if (LOSCFG_BASE_CORE_SWTMR == YES)
+    OsSwtmrScan();
+#endif
+}

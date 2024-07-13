@@ -1,0 +1,35 @@
+HAL_StatusTypeDef  HAL_JPEG_SetUserQuantTables(JPEG_HandleTypeDef *hjpeg, uint8_t *QTable0, uint8_t *QTable1,
+                                               uint8_t *QTable2, uint8_t *QTable3)
+{
+  /* Process Locked */
+  __HAL_LOCK(hjpeg);
+
+  if (hjpeg->State == HAL_JPEG_STATE_READY)
+  {
+    /* Change the DMA state */
+    hjpeg->State = HAL_JPEG_STATE_BUSY;
+
+    hjpeg->Context |= JPEG_CONTEXT_CUSTOM_TABLES;
+
+    hjpeg->QuantTable0 = QTable0;
+    hjpeg->QuantTable1 = QTable1;
+    hjpeg->QuantTable2 = QTable2;
+    hjpeg->QuantTable3 = QTable3;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hjpeg);
+
+    /* Change the DMA state */
+    hjpeg->State = HAL_JPEG_STATE_READY;
+
+    /* Return function status */
+    return HAL_OK;
+  }
+  else
+  {
+    /* Process Unlocked */
+    __HAL_UNLOCK(hjpeg);
+
+    return HAL_BUSY;
+  }
+}

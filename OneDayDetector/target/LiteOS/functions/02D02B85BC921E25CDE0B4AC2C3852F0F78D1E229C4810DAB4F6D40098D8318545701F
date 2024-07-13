@@ -1,0 +1,18 @@
+sys_timeouts_sleeptime(void)
+{
+  u32_t now;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  if (next_timeout == NULL) {
+    return SYS_TIMEOUTS_SLEEPTIME_INFINITE;
+  }
+  now = sys_now();
+  if (TIME_LESS_THAN(next_timeout->time, now)) {
+    return 0;
+  } else {
+    u32_t ret = (u32_t)(next_timeout->time - now);
+    LWIP_ASSERT("invalid sleeptime", ret <= LWIP_MAX_TIMEOUT);
+    return ret;
+  }
+}

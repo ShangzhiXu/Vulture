@@ -1,0 +1,17 @@
+VOID ArchRemapNoCached(UINTPTR physAddr, size_t size)
+{
+    MMU_PARAM para;
+
+    if (physAddr < SYS_MEM_BASE)
+        return;
+
+    para.startAddr = physAddr;
+    para.endAddr = physAddr + size;
+#ifdef LOSCFG_ARCH_ARM926
+    para.uwFlag = BUFFER_DISABLE | CACHE_DISABLE | ACCESS_PERM_RW_RW;
+#elif defined(LOSCFG_ARCH_CORTEX_A7) || defined(LOSCFG_ARCH_CORTEX_A17) || defined(LOSCFG_ARCH_CORTEX_A53_AARCH32)
+    para.uwFlag = BUFFER_DISABLE | CACHE_DISABLE | EXEC_DISABLE | ACCESS_PERM_RW_RW;
+#endif
+    para.stPage = (SENCOND_PAGE *)&g_mmuAppPage;
+    ArchMMUParamSet(&para);
+}

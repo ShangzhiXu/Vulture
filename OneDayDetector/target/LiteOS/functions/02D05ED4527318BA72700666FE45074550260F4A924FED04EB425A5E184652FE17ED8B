@@ -1,0 +1,15 @@
+wint_t __fgetwc_unlocked(FILE *f)
+{
+#ifndef __LITEOS__
+	locale_t *ploc = &CURRENT_LOCALE, loc = *ploc;
+	if (f->mode <= 0) fwide(f, 1);
+	*ploc = f->locale;
+	wchar_t wc = __fgetwc_unlocked_internal(f);
+	*ploc = loc;
+	return wc;
+#else
+	if (f->mode <= 0) fwide(f, 1);
+	wchar_t wc = __fgetwc_unlocked_internal(f);
+	return wc;
+#endif
+}

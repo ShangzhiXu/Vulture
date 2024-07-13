@@ -1,0 +1,62 @@
+int32_t sim900a_data_handler(void *arg, int8_t *buf, int32_t len)
+{
+    if (buf == NULL || len <= 0) {
+        AT_LOG("param invailed!");
+        return -1;
+    }
+    AT_LOG("entry!");
+
+    // process data frame ,like +IPD,linkid,len:data
+    int32_t ret = 0;
+    int32_t linkid = 0, data_len = 0;
+    char *p1, *p2;
+    QUEUE_BUFF qbuf;
+    p1 = (char *)buf;
+
+    if (memcmp(p1, prefix_name, strlen(prefix_name)) == 0) {
+        p2 = strstr(p1, ",");
+        if (p2 == NULL) {
+            AT_LOG("got data prefix invailed!");
+            goto END;
+        }
+
+        if (at.mux_mode == AT_MUXMODE_MULTI) {
+            linkid = 0;
+            for (p2++; *p2 <= '9' && *p2 >= '0'; p2++) {
+                linkid = linkid * 10 + (*p2 - '0');
+            }
+        }
+
+        for (p2++; *p2 <= '9' && *p2 >= '0'; p2++) {
+            data_len = (data_len * 10 + (*p2 - '0'));
+        }
+        p2++; // over ':'
+
+        if (data_len > len) {
+            AT_LOG("error !! receive data not complete data_len:%ld len:%ld", data_len, len);
+            goto END;
+        }
+
+        qbuf.addr = at_malloc(data_len);
+        if (qbuf.addr == NULL) {
+            AT_LOG("malloc for qbuf failed!");
+            goto END;
+        }
+
+        qbuf.len = data_len;
+        if (at.mux_mode == AT_MUXMODE_MULTI) {
+            p2++;
+            p2++; // multi-connect prefix is +RECEIVE,0,13:\r\n+packet content
+        }
+        memcpy(qbuf.addr, p2, data_len);
+
+        if ((ret = LOS_QueueWriteCopy(at.linkid[linkid].qid, &qbuf, sizeof(QUEUE_BUFF), 0)) != LOS_OK) {
+            AT_LOG("LOS_QueueWriteCopy  failed! ret = %lx", ret);
+            at_free(qbuf.addr);
+            goto END;
+        }
+        ret = (p2 + data_len - (char *)buf);
+    }
+END:
+    return ret;
+}

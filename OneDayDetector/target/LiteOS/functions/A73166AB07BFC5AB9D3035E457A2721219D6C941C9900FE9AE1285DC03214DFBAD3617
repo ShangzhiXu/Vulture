@@ -1,0 +1,111 @@
+void HAL_CAN_IRQHandler(CAN_HandleTypeDef* hcan)
+{
+  /* Check End of transmission flag */
+  if(__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_TME))
+  {
+    if((__HAL_CAN_TRANSMIT_STATUS(hcan, CAN_TXMAILBOX_0)) ||
+       (__HAL_CAN_TRANSMIT_STATUS(hcan, CAN_TXMAILBOX_1)) ||
+       (__HAL_CAN_TRANSMIT_STATUS(hcan, CAN_TXMAILBOX_2)))
+    {
+      /* Call transmit function */
+      CAN_Transmit_IT(hcan);
+    }
+  }
+  
+  /* Check End of reception flag for FIFO0 */
+  if((__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_FMP0)) &&
+     (__HAL_CAN_MSG_PENDING(hcan, CAN_FIFO0) != 0))
+  {
+    /* Call receive function */
+    CAN_Receive_IT(hcan, CAN_FIFO0);
+  }
+  
+  /* Check End of reception flag for FIFO1 */
+  if((__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_FMP1)) &&
+     (__HAL_CAN_MSG_PENDING(hcan, CAN_FIFO1) != 0))
+  {
+    /* Call receive function */
+    CAN_Receive_IT(hcan, CAN_FIFO1);
+  }
+  
+  /* Check Error Warning Flag */
+  if((__HAL_CAN_GET_FLAG(hcan, CAN_FLAG_EWG))    &&
+     (__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_EWG)) &&
+     (__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_ERR)))
+  {
+    /* Set CAN error code to EWG error */
+    hcan->ErrorCode |= HAL_CAN_ERROR_EWG;
+    /* No need for clear of Error Warning Flag as read-only */
+  }
+  
+  /* Check Error Passive Flag */
+  if((__HAL_CAN_GET_FLAG(hcan, CAN_FLAG_EPV))    &&
+     (__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_EPV)) &&
+     (__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_ERR)))
+  {
+    /* Set CAN error code to EPV error */
+    hcan->ErrorCode |= HAL_CAN_ERROR_EPV;
+    /* No need for clear of Error Passive Flag as read-only */ 
+  }
+  
+  /* Check Bus-Off Flag */
+  if((__HAL_CAN_GET_FLAG(hcan, CAN_FLAG_BOF))    &&
+     (__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_BOF)) &&
+     (__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_ERR)))
+  {
+    /* Set CAN error code to BOF error */
+    hcan->ErrorCode |= HAL_CAN_ERROR_BOF;
+    /* No need for clear of Bus-Off Flag as read-only */
+  }
+  
+  /* Check Last error code Flag */
+  if((!HAL_IS_BIT_CLR(hcan->Instance->ESR, CAN_ESR_LEC)) &&
+     (__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_LEC))         &&
+     (__HAL_CAN_GET_IT_SOURCE(hcan, CAN_IT_ERR)))
+  {
+    switch(hcan->Instance->ESR & CAN_ESR_LEC)
+    {
+      case(CAN_ESR_LEC_0):
+          /* Set CAN error code to STF error */
+          hcan->ErrorCode |= HAL_CAN_ERROR_STF;
+          break;
+      case(CAN_ESR_LEC_1):
+          /* Set CAN error code to FOR error */
+          hcan->ErrorCode |= HAL_CAN_ERROR_FOR;
+          break;
+      case(CAN_ESR_LEC_1 | CAN_ESR_LEC_0):
+          /* Set CAN error code to ACK error */
+          hcan->ErrorCode |= HAL_CAN_ERROR_ACK;
+          break;
+      case(CAN_ESR_LEC_2):
+          /* Set CAN error code to BR error */
+          hcan->ErrorCode |= HAL_CAN_ERROR_BR;
+          break;
+      case(CAN_ESR_LEC_2 | CAN_ESR_LEC_0):
+          /* Set CAN error code to BD error */
+          hcan->ErrorCode |= HAL_CAN_ERROR_BD;
+          break;
+      case(CAN_ESR_LEC_2 | CAN_ESR_LEC_1):
+          /* Set CAN error code to CRC error */
+          hcan->ErrorCode |= HAL_CAN_ERROR_CRC;
+          break;
+      default:
+          break;
+    }
+
+    /* Clear Last error code Flag */ 
+    CLEAR_BIT(hcan->Instance->ESR, CAN_ESR_LEC);
+  }
+  
+  /* Call the Error call Back in case of Errors */
+  if(hcan->ErrorCode != HAL_CAN_ERROR_NONE)
+  {
+    /* Clear ERRI Flag */ 
+    hcan->Instance->MSR |= CAN_MSR_ERRI; 
+    /* Set the CAN state ready to be able to start again the process */
+    hcan->State = HAL_CAN_STATE_READY;
+    
+    /* Call Error callback function */
+    HAL_CAN_ErrorCallback(hcan);
+  }  
+}

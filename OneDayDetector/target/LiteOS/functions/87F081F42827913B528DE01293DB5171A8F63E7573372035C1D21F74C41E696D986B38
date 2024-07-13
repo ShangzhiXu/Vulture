@@ -1,0 +1,26 @@
+STATIC UINT32 OsWatchTaskCreate(WatchCB *watchItem)
+{
+    TSK_INIT_PARAM_S initParam = {0};
+    UINT32 watchTaskId = 0;
+    UINT32 ret;
+
+    ret = LOS_EventInit(&watchItem->watchEvent);
+    if (ret != 0) {
+        PRINT_ERR("Watch event init failed in %s, %d\n", __FUNCTION__, __LINE__);
+        return ret;
+    }
+
+    initParam.pfnTaskEntry = (TSK_ENTRY_FUNC)OsShellCmdDoWatch;
+    initParam.usTaskPrio   = 10; /* 10:shellcmd_watch task priority */
+    initParam.uwStackSize  = 0x3000; /* 0x3000:stack size of shellcmd_watch task */
+    initParam.pcName       = "shellcmd_watch";
+    initParam.uwResved     = LOS_TASK_STATUS_DETACHED;
+    LOS_TASK_PARAM_INIT_ARG(initParam, watchItem);
+
+    ret = LOS_TaskCreate(&watchTaskId, &initParam);
+    if (ret != 0) {
+        PRINT_ERR("Watch task init failed in %s, %d\n", __FUNCTION__, __LINE__);
+        return ret;
+    }
+    return ret;
+}

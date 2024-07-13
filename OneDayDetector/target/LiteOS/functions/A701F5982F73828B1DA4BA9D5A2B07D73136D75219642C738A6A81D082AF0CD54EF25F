@@ -1,0 +1,60 @@
+HAL_StatusTypeDef HAL_DMA_Abort(DMA_HandleTypeDef *hdma)
+{
+  /* calculate DMA base and stream number */
+  DMA_Base_Registers *regs = (DMA_Base_Registers *)hdma->StreamBaseAddress;
+  
+  uint32_t tickstart = HAL_GetTick();
+  
+  if(hdma->State != HAL_DMA_STATE_BUSY)
+  {
+    hdma->ErrorCode = HAL_DMA_ERROR_NO_XFER;
+    
+    /* Process Unlocked */
+    __HAL_UNLOCK(hdma);
+    
+    return HAL_ERROR;
+  }
+  else
+  {
+    /* Disable all the transfer interrupts */
+    hdma->Instance->CR  &= ~(DMA_IT_TC | DMA_IT_TE | DMA_IT_DME);
+    hdma->Instance->FCR &= ~(DMA_IT_FE);
+    
+    if((hdma->XferHalfCpltCallback != NULL) || (hdma->XferM1HalfCpltCallback != NULL))
+    {
+      hdma->Instance->CR  &= ~(DMA_IT_HT);
+    }
+    
+    /* Disable the stream */
+    __HAL_DMA_DISABLE(hdma);
+    
+    /* Check if the DMA Stream is effectively disabled */
+    while((hdma->Instance->CR & DMA_SxCR_EN) != RESET)
+    {
+      /* Check for the Timeout */
+      if((HAL_GetTick() - tickstart ) > HAL_TIMEOUT_DMA_ABORT)
+      {
+        /* Update error code */
+        hdma->ErrorCode = HAL_DMA_ERROR_TIMEOUT;
+        
+        /* Process Unlocked */
+        __HAL_UNLOCK(hdma);
+        
+        /* Change the DMA state */
+        hdma->State = HAL_DMA_STATE_TIMEOUT;
+        
+        return HAL_TIMEOUT;
+      }
+    }
+    
+    /* Clear all interrupt flags at correct offset within the register */
+    regs->IFCR = 0x3FU << hdma->StreamIndex;
+    
+    /* Process Unlocked */
+    __HAL_UNLOCK(hdma);
+    
+    /* Change the DMA state*/
+    hdma->State = HAL_DMA_STATE_READY;
+  }
+  return HAL_OK;
+}

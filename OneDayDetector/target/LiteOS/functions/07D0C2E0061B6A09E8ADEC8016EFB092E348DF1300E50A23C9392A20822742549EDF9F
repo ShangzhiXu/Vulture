@@ -1,0 +1,18 @@
+etharp_find_addr(struct netif *netif, const ip4_addr_t *ipaddr,
+                 struct eth_addr **eth_ret, const ip4_addr_t **ip_ret)
+{
+  s16_t i;
+
+  LWIP_ASSERT("eth_ret != NULL && ip_ret != NULL",
+              eth_ret != NULL && ip_ret != NULL);
+
+  LWIP_UNUSED_ARG(netif);
+
+  i = etharp_find_entry(ipaddr, ETHARP_FLAG_FIND_ONLY, netif);
+  if ((i >= 0) && (arp_table[i].state >= ETHARP_STATE_STABLE)) {
+    *eth_ret = &arp_table[i].ethaddr;
+    *ip_ret = &arp_table[i].ipaddr;
+    return i;
+  }
+  return -1;
+}

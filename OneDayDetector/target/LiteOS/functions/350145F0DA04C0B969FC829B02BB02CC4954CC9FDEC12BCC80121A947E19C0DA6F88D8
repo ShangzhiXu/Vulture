@@ -1,0 +1,25 @@
+static void SecDecodeNumberDecimal(SecScanSpec *spec)
+{
+#if (defined(SECUREC_COMPATIBLE_LINUX_FORMAT) && !(defined(SECUREC_ON_UNIX)))
+    unsigned long decimalEdge = SECUREC_MAX_32BITS_VALUE_DIV_TEN;
+#ifdef SECUREC_ON_64BITS
+    if (SecIsLongBitEqual(SECUREC_LP64_BIT_WIDTH) != 0) {
+        decimalEdge = (unsigned long)SECUREC_MAX_64BITS_VALUE_DIV_TEN;
+    }
+#endif
+    if (spec->number > decimalEdge) {
+        spec->beyondMax = 1;
+    }
+#endif
+    spec->number = SECUREC_MUL_TEN(spec->number);
+#if (defined(SECUREC_COMPATIBLE_LINUX_FORMAT) && !(defined(SECUREC_ON_UNIX)))
+    if (spec->number == SECUREC_MUL_TEN(decimalEdge)) {
+        /* This code is specially converted to unsigned long type for compatibility */
+        SecUnsignedInt64 number64As = (unsigned long)SECUREC_MAX_64BITS_VALUE - spec->number;
+        if (number64As < (SecUnsignedInt64)((SecUnsignedInt)spec->ch - SECUREC_CHAR('0'))) {
+            spec->beyondMax = 1;
+        }
+    }
+#endif
+    spec->number += (unsigned long)((SecUnsignedInt)spec->ch - SECUREC_CHAR('0'));
+}

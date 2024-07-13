@@ -1,0 +1,30 @@
+HAL_StatusTypeDef FMC_NAND_CommonSpace_Timing_Init(FMC_NAND_TypeDef *Device, FMC_NAND_PCC_TimingTypeDef *Timing, uint32_t Bank)
+{
+  uint32_t tmpr = 0;  
+  
+  /* Check the parameters */
+  assert_param(IS_FMC_NAND_DEVICE(Device));
+  assert_param(IS_FMC_SETUP_TIME(Timing->SetupTime));
+  assert_param(IS_FMC_WAIT_TIME(Timing->WaitSetupTime));
+  assert_param(IS_FMC_HOLD_TIME(Timing->HoldSetupTime));
+  assert_param(IS_FMC_HIZ_TIME(Timing->HiZSetupTime));
+  assert_param(IS_FMC_NAND_BANK(Bank));
+  
+  /* Get the NAND bank 3 register value */
+  tmpr = Device->PMEM;
+
+  /* Clear MEMSETx, MEMWAITx, MEMHOLDx and MEMHIZx bits */
+  tmpr &= ((uint32_t)~(FMC_PMEM_MEMSET3  | FMC_PMEM_MEMWAIT3 | FMC_PMEM_MEMHOLD3 | \
+                       FMC_PMEM_MEMHIZ3)); 
+  /* Set FMC_NAND device timing parameters */
+  tmpr |= (uint32_t)(Timing->SetupTime                  |\
+                       ((Timing->WaitSetupTime) << 8)     |\
+                       ((Timing->HoldSetupTime) << 16)    |\
+                       ((Timing->HiZSetupTime) << 24)
+                       );
+                            
+    /* NAND bank 3 registers configuration */
+    Device->PMEM = tmpr;
+  
+  return HAL_OK;  
+}

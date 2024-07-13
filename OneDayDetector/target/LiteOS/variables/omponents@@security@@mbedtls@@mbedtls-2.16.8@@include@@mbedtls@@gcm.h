@@ -1,0 +1,9 @@
+    uint64_t HH[16];                      /*!< Precalculated HTable high. */
+    uint64_t HL[16];                      /*!< Precalculated HTable low. */
+    uint64_t add_len;                     /*!< The total length of the additional data. */
+    unsigned char base_ectr[16];          /*!< The first ECTR for tag. */
+    unsigned char buf[16];                /*!< The buf working value. */
+    mbedtls_cipher_context_t cipher_ctx;  /*!< The cipher context used. */
+    uint64_t len;                         /*!< The total length of the encrypted data. */
+    int mode;                             /*!< The operation to perform:
+    unsigned char y[16];                  /*!< The Y working value. */

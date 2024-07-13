@@ -1,0 +1,32 @@
+static void lv_bar_set_value_with_anim(lv_obj_t * bar, int16_t new_value, int16_t * value_ptr,
+                                       lv_bar_anim_t * anim_info, lv_anim_enable_t en)
+{
+    if(en == LV_ANIM_OFF) {
+        *value_ptr = new_value;
+        lv_obj_invalidate(bar);
+    }
+    else {
+        lv_bar_ext_t * ext = lv_obj_get_ext_attr(bar);
+        /*No animation in progress -> simply set the values*/
+        if(anim_info->anim_state == LV_BAR_ANIM_STATE_INV) {
+            anim_info->anim_start = *value_ptr;
+            anim_info->anim_end   = new_value;
+        }
+        /*Animation in progress. Start from the animation end value*/
+        else {
+            anim_info->anim_start = anim_info->anim_end;
+            anim_info->anim_end   = new_value;
+        }
+        /* Stop the previous animation if it exists */
+        lv_anim_del(anim_info, NULL);
+
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, anim_info);
+        lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_bar_anim);
+        lv_anim_set_values(&a, LV_BAR_ANIM_STATE_START, LV_BAR_ANIM_STATE_END);
+        lv_anim_set_ready_cb(&a, lv_bar_anim_ready);
+        lv_anim_set_time(&a, ext->anim_time);
+        lv_anim_start(&a);
+    }
+}

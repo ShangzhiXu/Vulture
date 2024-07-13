@@ -1,0 +1,24 @@
+static HAL_SD_ErrorTypedef SD_CmdError(SD_HandleTypeDef *hsd)
+{
+  HAL_SD_ErrorTypedef errorstate = SD_OK;
+  uint32_t timeout = SDIO_CMD0TIMEOUT, tmp;
+  
+  tmp = __HAL_SD_SDIO_GET_FLAG(hsd, SDIO_FLAG_CMDSENT);
+    
+  while((timeout > 0) && (!tmp))
+  {
+    tmp = __HAL_SD_SDIO_GET_FLAG(hsd, SDIO_FLAG_CMDSENT);
+    timeout--;
+  }
+  
+  if(timeout == 0)
+  {
+    errorstate = SD_CMD_RSP_TIMEOUT;
+    return errorstate;
+  }
+  
+  /* Clear all the static flags */
+  __HAL_SD_SDIO_CLEAR_FLAG(hsd, SDIO_STATIC_FLAGS);
+  
+  return errorstate;
+}

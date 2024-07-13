@@ -1,0 +1,35 @@
+void spiffs_cache_init(spiffs *fs)
+{
+    if (fs->cache == 0) return;
+    u32_t sz = fs->cache_size;
+    u32_t cache_mask = 0;
+    int i;
+    int cache_entries =
+        (sz - sizeof(spiffs_cache)) / (SPIFFS_CACHE_PAGE_SIZE(fs));
+    if (cache_entries <= 0) return;
+
+    for (i = 0; i < cache_entries; i++)
+    {
+        cache_mask <<= 1;
+        cache_mask |= 1;
+    }
+
+    spiffs_cache cache;
+    memset(&cache, 0, sizeof(spiffs_cache));
+    cache.cpage_count = cache_entries;
+    cache.cpages = (u8_t *)((u8_t *)fs->cache + sizeof(spiffs_cache));
+
+    cache.cpage_use_map = 0xffffffff;
+    cache.cpage_use_mask = cache_mask;
+    _SPIFFS_MEMCPY(fs->cache, &cache, sizeof(spiffs_cache));
+
+    spiffs_cache *c = spiffs_get_cache(fs);
+
+    memset(c->cpages, 0, c->cpage_count * SPIFFS_CACHE_PAGE_SIZE(fs));
+
+    c->cpage_use_map &= ~(c->cpage_use_mask);
+    for (i = 0; i < cache.cpage_count; i++)
+    {
+        spiffs_get_cache_page_hdr(fs, c, i)->ix = i;
+    }
+}

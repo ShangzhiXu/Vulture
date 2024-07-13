@@ -1,0 +1,39 @@
+static HAL_StatusTypeDef CRYP_ReadKey(CRYP_HandleTypeDef *hcryp, uint8_t* Output, uint32_t Timeout)
+{
+  uint32_t outputaddr = (uint32_t)Output;
+  
+  /* Wait for CCF flag to be raised */  
+  if(CRYP_WaitOnCCFlag(hcryp, Timeout) != HAL_OK)  
+  { 
+    hcryp->State = HAL_CRYP_STATE_READY;        
+    __HAL_UNLOCK(hcryp);
+    return HAL_TIMEOUT;
+  }
+  /* Clear CCF Flag */
+  __HAL_CRYP_CLEAR_FLAG(hcryp, CRYP_CCF_CLEAR);
+  
+    /* Read the derivative key from the AES_KEYRx registers */
+  if (hcryp->Init.KeySize == CRYP_KEYSIZE_256B)
+  {   
+    *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->KEYR7);
+    outputaddr+=4;
+    *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->KEYR6);
+    outputaddr+=4;
+    *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->KEYR5);
+    outputaddr+=4;
+    *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->KEYR4);
+    outputaddr+=4;
+  }
+  
+    *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->KEYR3);
+    outputaddr+=4;
+    *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->KEYR2);
+    outputaddr+=4;
+    *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->KEYR1);
+    outputaddr+=4;
+    *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->KEYR0);
+
+    
+  /* Return function status */
+  return HAL_OK;
+}

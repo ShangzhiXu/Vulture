@@ -1,0 +1,268 @@
+void HAL_QSPI_IRQHandler(QSPI_HandleTypeDef *hqspi)
+{
+  __IO uint32_t *data_reg;
+  uint32_t flag = READ_REG(hqspi->Instance->SR);
+  uint32_t itsource = READ_REG(hqspi->Instance->CR);
+
+  /* QSPI Fifo Threshold interrupt occurred ----------------------------------*/
+  if(((flag & QSPI_FLAG_FT)!= RESET) && ((itsource & QSPI_IT_FT)!= RESET))
+  {
+    data_reg = &hqspi->Instance->DR;
+
+    if(hqspi->State == HAL_QSPI_STATE_BUSY_INDIRECT_TX)
+    {
+      /* Transmission process */
+      while(__HAL_QSPI_GET_FLAG(hqspi, QSPI_FLAG_FT) != 0)
+      {
+        if (hqspi->TxXferCount > 0)
+        {
+          /* Fill the FIFO until it is full */
+          *(__IO uint8_t *)data_reg = *hqspi->pTxBuffPtr++;
+          hqspi->TxXferCount--;
+        }
+        else
+        {
+          /* No more data available for the transfer */
+          /* Disable the QSPI FIFO Threshold Interrupt */
+          __HAL_QSPI_DISABLE_IT(hqspi, QSPI_IT_FT);
+          break;
+        }
+      }
+    }
+    else if(hqspi->State == HAL_QSPI_STATE_BUSY_INDIRECT_RX)
+    {
+      /* Receiving Process */
+      while(__HAL_QSPI_GET_FLAG(hqspi, QSPI_FLAG_FT) != 0)
+      {
+        if (hqspi->RxXferCount > 0)
+        {
+          /* Read the FIFO until it is empty */
+          *hqspi->pRxBuffPtr++ = *(__IO uint8_t *)data_reg;
+          hqspi->RxXferCount--;
+        }
+        else
+        {
+          /* All data have been received for the transfer */
+          /* Disable the QSPI FIFO Threshold Interrupt */
+          __HAL_QSPI_DISABLE_IT(hqspi, QSPI_IT_FT);
+          break;
+        }
+      }
+    }
+    
+    /* FIFO Threshold callback */
+#if (USE_HAL_QSPI_REGISTER_CALLBACKS == 1)
+    hqspi->FifoThresholdCallback(hqspi);
+#else
+    HAL_QSPI_FifoThresholdCallback(hqspi);
+#endif
+  }
+
+  /* QSPI Transfer Complete interrupt occurred -------------------------------*/
+  else if(((flag & QSPI_FLAG_TC)!= RESET) && ((itsource & QSPI_IT_TC)!= RESET))
+  {
+    /* Clear interrupt */
+    WRITE_REG(hqspi->Instance->FCR, QSPI_FLAG_TC);
+
+    /* Disable the QSPI FIFO Threshold, Transfer Error and Transfer complete Interrupts */
+    __HAL_QSPI_DISABLE_IT(hqspi, QSPI_IT_TC | QSPI_IT_TE | QSPI_IT_FT);
+    
+    /* Transfer complete callback */
+    if(hqspi->State == HAL_QSPI_STATE_BUSY_INDIRECT_TX)
+    {
+      if ((hqspi->Instance->CR & QUADSPI_CR_DMAEN)!= RESET)
+      {
+        /* Disable the DMA transfer by clearing the DMAEN bit in the QSPI CR register */
+        CLEAR_BIT(hqspi->Instance->CR, QUADSPI_CR_DMAEN);
+        
+        /* Disable the DMA channel */
+        __HAL_DMA_DISABLE(hqspi->hdma);
+      }
+
+#if defined(QSPI1_V1_0)
+/* Clear Busy bit */
+      HAL_QSPI_Abort_IT(hqspi);
+#endif
+      
+      /* Change state of QSPI */
+      hqspi->State = HAL_QSPI_STATE_READY;
+
+      /* TX Complete callback */
+#if (USE_HAL_QSPI_REGISTER_CALLBACKS == 1)
+      hqspi->TxCpltCallback(hqspi);
+#else
+      HAL_QSPI_TxCpltCallback(hqspi);
+#endif
+    }
+    else if(hqspi->State == HAL_QSPI_STATE_BUSY_INDIRECT_RX)
+    {
+      if ((hqspi->Instance->CR & QUADSPI_CR_DMAEN)!= RESET)
+      {
+        /* Disable the DMA transfer by clearing the DMAEN bit in the QSPI CR register */
+        CLEAR_BIT(hqspi->Instance->CR, QUADSPI_CR_DMAEN);
+        
+        /* Disable the DMA channel */
+        __HAL_DMA_DISABLE(hqspi->hdma);
+      }
+      else
+      {
+        data_reg = &hqspi->Instance->DR;
+        while(READ_BIT(hqspi->Instance->SR, QUADSPI_SR_FLEVEL) != 0)
+        {
+          if (hqspi->RxXferCount > 0)
+          {
+            /* Read the last data received in the FIFO until it is empty */
+            *hqspi->pRxBuffPtr++ = *(__IO uint8_t *)data_reg;
+            hqspi->RxXferCount--;
+          }
+          else
+          {
+            /* All data have been received for the transfer */
+            break;
+          }
+        }
+      }
+#if defined(QSPI1_V1_0)
+      /* Workaround - Extra data written in the FIFO at the end of a read transfer */
+      HAL_QSPI_Abort_IT(hqspi);
+#endif /* QSPI_V1_0*/      
+      
+      /* Change state of QSPI */
+      hqspi->State = HAL_QSPI_STATE_READY;
+
+      /* RX Complete callback */
+#if (USE_HAL_QSPI_REGISTER_CALLBACKS == 1)
+      hqspi->RxCpltCallback(hqspi);
+#else
+      HAL_QSPI_RxCpltCallback(hqspi);
+#endif
+    }
+    else if(hqspi->State == HAL_QSPI_STATE_BUSY)
+    {
+      /* Change state of QSPI */
+      hqspi->State = HAL_QSPI_STATE_READY;
+
+      /* Command Complete callback */
+#if (USE_HAL_QSPI_REGISTER_CALLBACKS == 1)
+      hqspi->CmdCpltCallback(hqspi);
+#else
+      HAL_QSPI_CmdCpltCallback(hqspi);
+#endif
+    }
+    else if(hqspi->State == HAL_QSPI_STATE_ABORT)
+    {
+      /* Change state of QSPI */
+      hqspi->State = HAL_QSPI_STATE_READY;
+
+      if (hqspi->ErrorCode == HAL_QSPI_ERROR_NONE)
+      {
+        /* Abort called by the user */
+
+        /* Abort Complete callback */
+#if (USE_HAL_QSPI_REGISTER_CALLBACKS == 1)
+        hqspi->AbortCpltCallback(hqspi);
+#else
+        HAL_QSPI_AbortCpltCallback(hqspi);
+#endif
+      }
+      else 
+      {
+        /* Abort due to an error (eg :  DMA error) */
+
+        /* Error callback */
+#if (USE_HAL_QSPI_REGISTER_CALLBACKS == 1)
+        hqspi->ErrorCallback(hqspi);
+#else
+        HAL_QSPI_ErrorCallback(hqspi);
+#endif
+      }
+    }
+  }
+
+  /* QSPI Status Match interrupt occurred ------------------------------------*/
+  else if(((flag & QSPI_FLAG_SM)!= RESET) && ((itsource & QSPI_IT_SM)!= RESET))
+  {
+    /* Clear interrupt */
+    WRITE_REG(hqspi->Instance->FCR, QSPI_FLAG_SM);
+   
+    /* Check if the automatic poll mode stop is activated */
+    if(READ_BIT(hqspi->Instance->CR, QUADSPI_CR_APMS) != 0)
+    {
+      /* Disable the QSPI Transfer Error and Status Match Interrupts */
+      __HAL_QSPI_DISABLE_IT(hqspi, (QSPI_IT_SM | QSPI_IT_TE));
+
+      /* Change state of QSPI */
+      hqspi->State = HAL_QSPI_STATE_READY;
+    }
+
+    /* Status match callback */
+#if (USE_HAL_QSPI_REGISTER_CALLBACKS == 1)
+    hqspi->StatusMatchCallback(hqspi);
+#else
+    HAL_QSPI_StatusMatchCallback(hqspi);
+#endif
+  }
+
+  /* QSPI Transfer Error interrupt occurred ----------------------------------*/
+  else if(((flag & QSPI_FLAG_TE)!= RESET) && ((itsource & QSPI_IT_TE)!= RESET))
+  {
+    /* Clear interrupt */
+    WRITE_REG(hqspi->Instance->FCR, QSPI_FLAG_TE);
+    
+    /* Disable all the QSPI Interrupts */
+    __HAL_QSPI_DISABLE_IT(hqspi, QSPI_IT_SM | QSPI_IT_TC | QSPI_IT_TE | QSPI_IT_FT);
+
+    /* Set error code */
+    hqspi->ErrorCode |= HAL_QSPI_ERROR_TRANSFER;
+    
+    if ((hqspi->Instance->CR & QUADSPI_CR_DMAEN)!= RESET)
+    {
+      /* Disable the DMA transfer by clearing the DMAEN bit in the QSPI CR register */
+      CLEAR_BIT(hqspi->Instance->CR, QUADSPI_CR_DMAEN);
+      
+      /* Disable the DMA channel */
+      hqspi->hdma->XferAbortCallback = QSPI_DMAAbortCplt;
+      if (HAL_DMA_Abort_IT(hqspi->hdma) != HAL_OK)
+      {
+        /* Set error code to DMA */
+        hqspi->ErrorCode |= HAL_QSPI_ERROR_DMA;
+
+        /* Change state of QSPI */
+        hqspi->State = HAL_QSPI_STATE_READY;
+        
+        /* Error callback */
+#if (USE_HAL_QSPI_REGISTER_CALLBACKS == 1)
+        hqspi->ErrorCallback(hqspi);
+#else
+        HAL_QSPI_ErrorCallback(hqspi);
+#endif
+      }
+    }
+    else
+    {
+      /* Change state of QSPI */
+      hqspi->State = HAL_QSPI_STATE_READY;
+      
+      /* Error callback */
+#if (USE_HAL_QSPI_REGISTER_CALLBACKS == 1)
+      hqspi->ErrorCallback(hqspi);
+#else
+      HAL_QSPI_ErrorCallback(hqspi);
+#endif
+    }
+  }
+
+  /* QSPI Timeout interrupt occurred -----------------------------------------*/
+  else if(((flag & QSPI_FLAG_TO)!= RESET) && ((itsource & QSPI_IT_TO)!= RESET))
+  {
+    /* Clear interrupt */
+    WRITE_REG(hqspi->Instance->FCR, QSPI_FLAG_TO);
+    
+    /* Time out callback */
+#if (USE_HAL_QSPI_REGISTER_CALLBACKS == 1)
+    hqspi->TimeOutCallback(hqspi);
+#else
+    HAL_QSPI_TimeOutCallback(hqspi);
+#endif
+  }
+}

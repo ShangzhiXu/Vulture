@@ -1,0 +1,12 @@
+            struct ramfs_element *child;
+            char *content;
+        } d;
+        } f;
+    void *memory;
+    char name[LOS_MAX_FILE_NAME_LEN];
+    struct ramfs_element *parent;
+    volatile uint32_t refs;
+    struct ramfs_element root;
+    struct ramfs_element *sibling;
+            size_t size;
+    uint32_t type;

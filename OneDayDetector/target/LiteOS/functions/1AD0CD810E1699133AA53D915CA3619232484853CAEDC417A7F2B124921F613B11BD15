@@ -1,0 +1,20 @@
+UINT32 LOS_MemboxFree(VOID *pool, VOID *box)
+{
+    LOS_MEMBOX_INFO *boxInfo = (LOS_MEMBOX_INFO *)pool;
+    UINT32 freeRes;
+    UINT32 intSave;
+
+    if ((pool == NULL) || (box == NULL)) {
+        return LOS_NOK;
+    }
+
+    freeRes = LOS_MemFree(OS_SYS_MEM_ADDR, box);
+    if (freeRes == LOS_OK) {
+        MEMBOX_LOCK(intSave);
+        if (boxInfo->uwBlkCnt) {
+            boxInfo->uwBlkCnt--;
+        }
+        MEMBOX_UNLOCK(intSave);
+    }
+    return freeRes;
+}

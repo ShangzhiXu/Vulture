@@ -1,0 +1,65 @@
+s32_t spiffs_page_move(
+    spiffs *fs,
+    spiffs_file fh,
+    u8_t *page_data,
+    spiffs_obj_id obj_id,
+    spiffs_page_header *page_hdr,
+    spiffs_page_ix src_pix,
+    spiffs_page_ix *dst_pix)
+{
+    s32_t res;
+    u8_t was_final = 0;
+    spiffs_page_header *p_hdr;
+    spiffs_block_ix bix;
+    int entry;
+    spiffs_page_ix free_pix;
+
+    // find free entry
+    res = spiffs_obj_lu_find_free(fs, fs->free_cursor_block_ix, fs->free_cursor_obj_lu_entry, &bix, &entry);
+    SPIFFS_CHECK_RES(res);
+    free_pix = SPIFFS_OBJ_LOOKUP_ENTRY_TO_PIX(fs, bix, entry);
+
+    if (dst_pix) *dst_pix = free_pix;
+
+    p_hdr = page_data ? (spiffs_page_header *)page_data : page_hdr;
+    if (page_data)
+    {
+        // got page data
+        was_final = (p_hdr->flags & SPIFFS_PH_FLAG_FINAL) == 0;
+        // write unfinalized page
+        p_hdr->flags |= SPIFFS_PH_FLAG_FINAL;
+        p_hdr->flags &= ~SPIFFS_PH_FLAG_USED;
+        res = _spiffs_wr(fs, SPIFFS_OP_T_OBJ_DA | SPIFFS_OP_C_UPDT,
+                         0, SPIFFS_PAGE_TO_PADDR(fs, free_pix), SPIFFS_CFG_LOG_PAGE_SZ(fs), page_data);
+    }
+    else
+    {
+        // copy page data
+        res = spiffs_phys_cpy(fs, fh, SPIFFS_PAGE_TO_PADDR(fs, free_pix), SPIFFS_PAGE_TO_PADDR(fs, src_pix), SPIFFS_CFG_LOG_PAGE_SZ(fs));
+    }
+    SPIFFS_CHECK_RES(res);
+
+    // mark entry in destination object lookup
+    res = _spiffs_wr(fs, SPIFFS_OP_T_OBJ_LU | SPIFFS_OP_C_UPDT,
+                     0, SPIFFS_BLOCK_TO_PADDR(fs, SPIFFS_BLOCK_FOR_PAGE(fs, free_pix)) + SPIFFS_OBJ_LOOKUP_ENTRY_FOR_PAGE(fs, free_pix) * sizeof(spiffs_page_ix),
+                     sizeof(spiffs_obj_id),
+                     (u8_t *)&obj_id);
+    SPIFFS_CHECK_RES(res);
+
+    fs->stats_p_allocated++;
+
+    if (was_final)
+    {
+        // mark finalized in destination page
+        p_hdr->flags &= ~(SPIFFS_PH_FLAG_FINAL | SPIFFS_PH_FLAG_USED);
+        res = _spiffs_wr(fs, SPIFFS_OP_T_OBJ_DA | SPIFFS_OP_C_UPDT,
+                         fh,
+                         SPIFFS_PAGE_TO_PADDR(fs, free_pix) + offsetof(spiffs_page_header, flags),
+                         sizeof(u8_t),
+                         (u8_t *)&p_hdr->flags);
+        SPIFFS_CHECK_RES(res);
+    }
+    // mark source deleted
+    res = spiffs_page_delete(fs, src_pix);
+    return res;
+}

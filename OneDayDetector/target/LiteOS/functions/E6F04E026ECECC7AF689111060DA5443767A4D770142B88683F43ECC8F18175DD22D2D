@@ -1,0 +1,26 @@
+int32_t nb_set_cdpserver(char *host, char *port)
+{
+    char *cmd = "AT+NCDP=";
+    char *cmd2 = "AT+NCDP?";
+    char *cmdNNMI = "AT+NNMI=1\r";
+    char *cmdCMEE = "AT+CMEE=1\r";
+    char cdpbuf[128] = {0};
+    int ret = -1;
+    char ipaddr[100] = {0};
+    if ((strlen(host) > 70) || (strlen(port) > 20) || (host == NULL) || (port == NULL)) {
+        ret = at.cmd((int8_t *)cmdNNMI, strlen(cmdNNMI), "OK", NULL, NULL);
+        ret = at.cmd((int8_t *)cmdCMEE, strlen(cmdCMEE), "OK", NULL, NULL);
+        return ret;
+    }
+
+    snprintf(ipaddr, sizeof(ipaddr) - 1, "%s,%s\r", host, port);
+    snprintf(cdpbuf, sizeof(cdpbuf) - 1, "%s%s%c", cmd, ipaddr, '\r');
+
+    ret = at.cmd((int8_t *)cdpbuf, strlen(cdpbuf), "OK", NULL, NULL);
+    if (ret < 0) {
+        return ret;
+    }
+    ret = at.cmd((int8_t *)cmd2, strlen(cmd2), ipaddr, NULL, NULL);
+    ret = at.cmd((int8_t *)cmdNNMI, strlen(cmdNNMI), "OK", NULL, NULL);
+    return ret;
+}

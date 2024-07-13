@@ -1,0 +1,12 @@
+    UINT32 align    : 1;
+    UINT8  data[0];
+    UINT32 freeNodeNum;
+    UINT32 maxFreeNodeSize;
+    struct LosHeapNode *prev;
+    UINT32 size     : 30;
+    UINT32 taskId;
+    UINT32 totalFreeSize;
+    UINT32 totalUsedSize;
+    UINT32 usageWaterLine;
+    UINT32 used     : 1;
+    UINT32 usedNodeNum;

@@ -1,0 +1,33 @@
+void fsm_open(fsm *f) {
+    switch( f->state ){
+    case PPP_FSM_INITIAL:
+	f->state = PPP_FSM_STARTING;
+	if( f->callbacks->starting )
+	    (*f->callbacks->starting)(f);
+	break;
+
+    case PPP_FSM_CLOSED:
+	if( f->flags & OPT_SILENT )
+	    f->state = PPP_FSM_STOPPED;
+	else {
+	    /* Send an initial configure-request */
+	    fsm_sconfreq(f, 0);
+	    f->state = PPP_FSM_REQSENT;
+	}
+	break;
+
+    case PPP_FSM_CLOSING:
+	f->state = PPP_FSM_STOPPING;
+	/* fall through */
+	/* no break */
+    case PPP_FSM_STOPPED:
+    case PPP_FSM_OPENED:
+	if( f->flags & OPT_RESTART ){
+	    fsm_lowerdown(f);
+	    fsm_lowerup(f);
+	}
+	break;
+    default:
+	break;
+    }
+}

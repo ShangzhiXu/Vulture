@@ -1,0 +1,20 @@
+HAL_StatusTypeDef HAL_TIMEx_HallSensor_Stop_DMA(TIM_HandleTypeDef *htim)
+{
+  /* Check the parameters */
+  assert_param(IS_TIM_HALL_SENSOR_INTERFACE_INSTANCE(htim->Instance));
+
+  /* Disable the Input Capture channel 1
+    (in the Hall Sensor Interface the three possible channels that can be used are TIM_CHANNEL_1, TIM_CHANNEL_2 and TIM_CHANNEL_3) */
+  TIM_CCxChannelCmd(htim->Instance, TIM_CHANNEL_1, TIM_CCx_DISABLE);
+
+
+  /* Disable the capture compare Interrupts 1 event */
+  __HAL_TIM_DISABLE_DMA(htim, TIM_DMA_CC1);
+
+  (void)HAL_DMA_Abort_IT(htim->hdma[TIM_DMA_ID_CC1]);
+  /* Disable the Peripheral */
+  __HAL_TIM_DISABLE(htim);
+
+  /* Return function status */
+  return HAL_OK;
+}

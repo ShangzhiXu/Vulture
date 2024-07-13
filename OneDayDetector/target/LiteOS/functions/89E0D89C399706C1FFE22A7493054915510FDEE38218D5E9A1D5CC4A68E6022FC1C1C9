@@ -1,0 +1,19 @@
+int mbedtls_ctr_drbg_random( void *p_rng, unsigned char *output, size_t output_len )
+{
+    int ret;
+    mbedtls_ctr_drbg_context *ctx = (mbedtls_ctr_drbg_context *) p_rng;
+
+#if defined(MBEDTLS_THREADING_C)
+    if( ( ret = mbedtls_mutex_lock( &ctx->mutex ) ) != 0 )
+        return( ret );
+#endif
+
+    ret = mbedtls_ctr_drbg_random_with_add( ctx, output, output_len, NULL, 0 );
+
+#if defined(MBEDTLS_THREADING_C)
+    if( mbedtls_mutex_unlock( &ctx->mutex ) != 0 )
+        return( MBEDTLS_ERR_THREADING_MUTEX_ERROR );
+#endif
+
+    return( ret );
+}

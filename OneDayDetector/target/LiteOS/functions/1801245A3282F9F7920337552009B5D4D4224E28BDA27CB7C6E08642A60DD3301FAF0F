@@ -1,0 +1,37 @@
+void HAL_RCCEx_CRSConfig(RCC_CRSInitTypeDef *pInit)
+{
+  uint32_t value = 0U;
+  
+  /* Check the parameters */
+  assert_param(IS_RCC_CRS_SYNC_DIV(pInit->Prescaler));
+  assert_param(IS_RCC_CRS_SYNC_SOURCE(pInit->Source));
+  assert_param(IS_RCC_CRS_SYNC_POLARITY(pInit->Polarity));
+  assert_param(IS_RCC_CRS_RELOADVALUE(pInit->ReloadValue));
+  assert_param(IS_RCC_CRS_ERRORLIMIT(pInit->ErrorLimitValue));
+  assert_param(IS_RCC_CRS_HSI48CALIBRATION(pInit->HSI48CalibrationValue));
+
+  /* CONFIGURATION */
+
+  /* Before configuration, reset CRS registers to their default values*/
+  __HAL_RCC_CRS_FORCE_RESET();
+  __HAL_RCC_CRS_RELEASE_RESET();
+
+  /* Set the SYNCDIV[2:0] bits according to Prescaler value */
+  /* Set the SYNCSRC[1:0] bits according to Source value */
+  /* Set the SYNCSPOL bit according to Polarity value */
+  value = (pInit->Prescaler | pInit->Source | pInit->Polarity);
+  /* Set the RELOAD[15:0] bits according to ReloadValue value */
+  value |= pInit->ReloadValue;
+  /* Set the FELIM[7:0] bits according to ErrorLimitValue value */
+  value |= (pInit->ErrorLimitValue << CRS_CFGR_FELIM_BITNUMBER);
+  WRITE_REG(CRS->CFGR, value);
+
+  /* Adjust HSI48 oscillator smooth trimming */
+  /* Set the TRIM[5:0] bits according to RCC_CRS_HSI48CalibrationValue value */
+  MODIFY_REG(CRS->CR, CRS_CR_TRIM, (pInit->HSI48CalibrationValue << CRS_CR_TRIM_BITNUMBER));
+  
+  /* START AUTOMATIC SYNCHRONIZATION*/
+  
+  /* Enable Automatic trimming & Frequency error counter */
+  SET_BIT(CRS->CR, CRS_CR_AUTOTRIMEN | CRS_CR_CEN);
+}

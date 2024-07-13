@@ -1,0 +1,11 @@
+static void FMPSMBUS_TransferConfig(struct __FMPSMBUS_HandleTypeDef *hfmpsmbus,  uint16_t DevAddress, uint8_t Size, uint32_t Mode, uint32_t Request)
+{
+  /* Check the parameters */
+  assert_param(IS_FMPSMBUS_ALL_INSTANCE(hfmpsmbus->Instance));
+  assert_param(IS_FMPSMBUS_TRANSFER_MODE(Mode));
+  assert_param(IS_FMPSMBUS_TRANSFER_REQUEST(Request));
+
+  /* update CR2 register */
+  MODIFY_REG(hfmpsmbus->Instance->CR2, ((FMPI2C_CR2_SADD | FMPI2C_CR2_NBYTES | FMPI2C_CR2_RELOAD | FMPI2C_CR2_AUTOEND | (FMPI2C_CR2_RD_WRN & (uint32_t)(Request >> (31UL - FMPI2C_CR2_RD_WRN_Pos))) | FMPI2C_CR2_START | FMPI2C_CR2_STOP  | FMPI2C_CR2_PECBYTE)), \
+             (uint32_t)(((uint32_t)DevAddress & FMPI2C_CR2_SADD) | (((uint32_t)Size << FMPI2C_CR2_NBYTES_Pos) & FMPI2C_CR2_NBYTES) | (uint32_t)Mode | (uint32_t)Request));
+}

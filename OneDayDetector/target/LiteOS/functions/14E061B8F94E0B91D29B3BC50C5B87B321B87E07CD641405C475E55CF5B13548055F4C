@@ -1,0 +1,27 @@
+static bool char_is_accepted(lv_obj_t * ta, uint32_t c)
+{
+    lv_textarea_ext_t * ext = lv_obj_get_ext_attr(ta);
+
+    /*If no restriction accept it*/
+    if(ext->accapted_chars == NULL && ext->max_length == 0) return true;
+
+    /*Too many characters?*/
+    if(ext->max_length > 0 && _lv_txt_get_encoded_length(lv_textarea_get_text(ta)) >= ext->max_length) {
+        return false;
+    }
+
+    /*Accepted character?*/
+    if(ext->accapted_chars) {
+        uint32_t i = 0;
+
+        while(ext->accapted_chars[i] != '\0') {
+            uint32_t a = _lv_txt_encoded_next(ext->accapted_chars, &i);
+            if(a == c) return true; /*Accepted*/
+        }
+
+        return false; /*The character wasn't in the list*/
+    }
+    else {
+        return true; /*If the accepted char list in not specified the accept the character*/
+    }
+}

@@ -1,0 +1,51 @@
+recv_tcp(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err)
+{
+  struct netconn *conn;
+  u16_t len;
+  void *msg;
+
+  LWIP_UNUSED_ARG(pcb);
+  LWIP_ASSERT("recv_tcp must have a pcb argument", pcb != NULL);
+  LWIP_ASSERT("recv_tcp must have an argument", arg != NULL);
+  LWIP_ASSERT("err != ERR_OK unhandled", err == ERR_OK);
+  LWIP_UNUSED_ARG(err); /* for LWIP_NOASSERT */
+  conn = (struct netconn *)arg;
+
+  if (conn == NULL) {
+    return ERR_VAL;
+  }
+  LWIP_ASSERT("recv_tcp: recv for wrong pcb!", conn->pcb.tcp == pcb);
+
+  if (!NETCONN_MBOX_VALID(conn, &conn->recvmbox)) {
+    /* recvmbox already deleted */
+    if (p != NULL) {
+      tcp_recved(pcb, p->tot_len);
+      pbuf_free(p);
+    }
+    return ERR_OK;
+  }
+  /* Unlike for UDP or RAW pcbs, don't check for available space
+     using recv_avail since that could break the connection
+     (data is already ACKed) */
+
+  if (p != NULL) {
+    msg = p;
+    len = p->tot_len;
+  } else {
+    msg = LWIP_CONST_CAST(void *, &netconn_closed);
+    len = 0;
+  }
+
+  if (sys_mbox_trypost(&conn->recvmbox, msg) != ERR_OK) {
+    /* don't deallocate p: it is presented to us later again from tcp_fasttmr! */
+    return ERR_MEM;
+  } else {
+#if LWIP_SO_RCVBUF
+    SYS_ARCH_INC(conn->recv_avail, len);
+#endif /* LWIP_SO_RCVBUF */
+    /* Register event with callback */
+    API_EVENT(conn, NETCONN_EVT_RCVPLUS, len);
+  }
+
+  return ERR_OK;
+}

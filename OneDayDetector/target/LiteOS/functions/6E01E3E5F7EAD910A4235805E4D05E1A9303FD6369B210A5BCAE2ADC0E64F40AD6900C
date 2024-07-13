@@ -1,0 +1,47 @@
+static err_t pppol2tp_send_icrq(pppol2tp_pcb *l2tp, u16_t ns) {
+  struct pbuf *pb;
+  u8_t *p;
+  u16_t len;
+  u32_t serialnumber;
+
+  /* calculate UDP packet length */
+  len = 12 +8 +8 +10;
+
+  /* allocate a buffer */
+  pb = pbuf_alloc(PBUF_TRANSPORT, len, PBUF_RAM);
+  if (pb == NULL) {
+    return ERR_MEM;
+  }
+  LWIP_ASSERT("pb->tot_len == pb->len", pb->tot_len == pb->len);
+
+  p = (u8_t*)pb->payload;
+  /* fill in pkt */
+  /* L2TP control header */
+  PUTSHORT(PPPOL2TP_HEADERFLAG_CONTROL_MANDATORY, p);
+  PUTSHORT(len, p); /* Length */
+  PUTSHORT(l2tp->source_tunnel_id, p); /* Tunnel Id */
+  PUTSHORT(0, p); /* Session Id */
+  PUTSHORT(ns, p); /* NS Sequence number - to peer */
+  PUTSHORT(l2tp->peer_ns, p); /* NR Sequence number - expected for peer */
+
+  /* AVP - Message type */
+  PUTSHORT(PPPOL2TP_AVPHEADERFLAG_MANDATORY + 8, p); /* Mandatory flag + len field */
+  PUTSHORT(0, p); /* Vendor ID */
+  PUTSHORT(PPPOL2TP_AVPTYPE_MESSAGE, p); /* Attribute type: Message Type */
+  PUTSHORT(PPPOL2TP_MESSAGETYPE_ICRQ, p); /* Attribute value: Message type: ICRQ */
+
+  /* AVP - Assign session ID */
+  PUTSHORT(PPPOL2TP_AVPHEADERFLAG_MANDATORY + 8, p); /* Mandatory flag + len field */
+  PUTSHORT(0, p); /* Vendor ID */
+  PUTSHORT(PPPOL2TP_AVPTYPE_SESSIONID, p); /* Attribute type: Session ID */
+  PUTSHORT(l2tp->remote_session_id, p); /* Attribute value: Session ID */
+
+  /* AVP - Call Serial Number */
+  PUTSHORT(PPPOL2TP_AVPHEADERFLAG_MANDATORY + 10, p); /* Mandatory flag + len field */
+  PUTSHORT(0, p); /* Vendor ID */
+  PUTSHORT(PPPOL2TP_AVPTYPE_CALLSERIALNUMBER, p); /* Attribute type: Serial number */
+  serialnumber = magic();
+  PUTLONG(serialnumber, p); /* Attribute value: Serial number */
+
+  return pppol2tp_udp_send(l2tp, pb);
+}

@@ -1,0 +1,38 @@
+static void fill_set_px(const lv_area_t * disp_area, lv_color_t * disp_buf,  const lv_area_t * draw_area,
+                        lv_color_t color, lv_opa_t opa,
+                        const lv_opa_t * mask, lv_draw_mask_res_t mask_res)
+{
+
+    lv_disp_t * disp = _lv_refr_get_disp_refreshing();
+
+    /*Get the width of the `disp_area` it will be used to go to the next line*/
+    int32_t disp_w = lv_area_get_width(disp_area);
+
+    int32_t x;
+    int32_t y;
+
+    if(mask_res == LV_DRAW_MASK_RES_FULL_COVER) {
+        for(y = draw_area->y1; y <= draw_area->y2; y++) {
+            for(x = draw_area->x1; x <= draw_area->x2; x++) {
+                disp->driver.set_px_cb(&disp->driver, (void *)disp_buf, disp_w, x, y, color, opa);
+            }
+        }
+    }
+    else {
+        /* The mask is relative to the clipped area.
+         * In the cycles below mask will be indexed from `draw_area.x1`
+         * but it corresponds to zero index. So prepare `mask_tmp` accordingly. */
+        const lv_opa_t * mask_tmp = mask - draw_area->x1;
+
+        /*Get the width of the `draw_area` it will be used to go to the next line of the mask*/
+        int32_t draw_area_w = lv_area_get_width(draw_area);
+
+        for(y = draw_area->y1; y <= draw_area->y2; y++) {
+            for(x = draw_area->x1; x <= draw_area->x2; x++) {
+                disp->driver.set_px_cb(&disp->driver, (void *)disp_buf, disp_w, x, y, color,
+                                       (uint32_t)((uint32_t)opa * mask_tmp[x]) >> 8);
+            }
+            mask_tmp += draw_area_w;
+        }
+    }
+}

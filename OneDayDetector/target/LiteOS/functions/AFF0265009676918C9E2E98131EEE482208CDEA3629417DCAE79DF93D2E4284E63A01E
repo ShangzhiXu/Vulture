@@ -1,0 +1,36 @@
+netif_add_ip6_address(struct netif *netif, const ip6_addr_t *ip6addr, s8_t *chosen_idx)
+{
+  s8_t i;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  LWIP_ASSERT("netif_add_ip6_address: invalid netif", netif != NULL);
+  LWIP_ASSERT("netif_add_ip6_address: invalid ip6addr", ip6addr != NULL);
+
+  i = netif_get_ip6_addr_match(netif, ip6addr);
+  if (i >= 0) {
+    /* Address already added */
+    if (chosen_idx != NULL) {
+      *chosen_idx = i;
+    }
+    return ERR_OK;
+  }
+
+  /* Find a free slot. The first one is reserved for link-local addresses. */
+  for (i = ip6_addr_islinklocal(ip6addr) ? 0 : 1; i < LWIP_IPV6_NUM_ADDRESSES; i++) {
+    if (ip6_addr_isinvalid(netif_ip6_addr_state(netif, i))) {
+      ip_addr_copy_from_ip6(netif->ip6_addr[i], *ip6addr);
+      ip6_addr_assign_zone(ip_2_ip6(&netif->ip6_addr[i]), IP6_UNICAST, netif);
+      netif_ip6_addr_set_state(netif, i, IP6_ADDR_TENTATIVE);
+      if (chosen_idx != NULL) {
+        *chosen_idx = i;
+      }
+      return ERR_OK;
+    }
+  }
+
+  if (chosen_idx != NULL) {
+    *chosen_idx = -1;
+  }
+  return ERR_VAL;
+}

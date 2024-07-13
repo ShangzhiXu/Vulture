@@ -1,0 +1,26 @@
+smtp_prepare_header(struct smtp_session *s, u16_t *tx_buf_len)
+{
+  char *target = s->tx_buf;
+  int len = SMTP_CMD_HEADER_1_LEN + SMTP_CMD_HEADER_2_LEN +
+    SMTP_CMD_HEADER_3_LEN + SMTP_CMD_HEADER_4_LEN + s->from_len + s->to_len +
+    s->subject_len;
+  LWIP_ASSERT("tx_buf overflow detected", len > 0 && len <= SMTP_TX_BUF_LEN);
+  *tx_buf_len = (u16_t)len;
+  target[*tx_buf_len] = 0;
+
+  SMEMCPY(target, SMTP_CMD_HEADER_1, SMTP_CMD_HEADER_1_LEN);
+  target += SMTP_CMD_HEADER_1_LEN;
+  MEMCPY(target, s->from, s->from_len);
+  target += s->from_len;
+  SMEMCPY(target, SMTP_CMD_HEADER_2, SMTP_CMD_HEADER_2_LEN);
+  target += SMTP_CMD_HEADER_2_LEN;
+  MEMCPY(target, s->to, s->to_len);
+  target += s->to_len;
+  SMEMCPY(target, SMTP_CMD_HEADER_3, SMTP_CMD_HEADER_3_LEN);
+  target += SMTP_CMD_HEADER_3_LEN;
+  MEMCPY(target, s->subject, s->subject_len);
+  target += s->subject_len;
+  SMEMCPY(target, SMTP_CMD_HEADER_4, SMTP_CMD_HEADER_4_LEN);
+
+  return SMTP_BODY;
+}

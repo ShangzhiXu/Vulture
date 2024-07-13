@@ -1,0 +1,124 @@
+lv_obj_t * lv_tabview_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+    LV_LOG_TRACE("tab view create started");
+
+    /*Create the ancestor of tab*/
+    lv_obj_t * tabview = lv_obj_create(par, copy);
+    LV_ASSERT_MEM(tabview);
+    if(tabview == NULL) return NULL;
+    if(ancestor_signal == NULL) ancestor_signal = lv_obj_get_signal_cb(tabview);
+
+    /*Allocate the tab type specific extended data*/
+    lv_tabview_ext_t * ext = lv_obj_allocate_ext_attr(tabview, sizeof(lv_tabview_ext_t));
+    LV_ASSERT_MEM(ext);
+    if(ext == NULL) {
+        lv_obj_del(tabview);
+        return NULL;
+    }
+
+    /*Initialize the allocated 'ext' */
+    ext->tab_cur      = 0;
+    ext->tab_cnt      = 0;
+    ext->point_last.x = 0;
+    ext->point_last.y = 0;
+    ext->content      = NULL;
+    ext->indic        = NULL;
+    ext->btns         = NULL;
+    ext->btns_pos     = LV_TABVIEW_TAB_POS_TOP;
+#if LV_USE_ANIMATION
+    ext->anim_time = LV_TABVIEW_DEF_ANIM_TIME;
+#endif
+
+    /*The signal and design functions are not copied so set them here*/
+    lv_obj_set_signal_cb(tabview, lv_tabview_signal);
+    /*Init the new tab tab*/
+    if(copy == NULL) {
+        ext->tab_name_ptr = lv_mem_alloc(sizeof(char *));
+        LV_ASSERT_MEM(ext->tab_name_ptr);
+        if(ext->tab_name_ptr == NULL) return NULL;
+        ext->tab_name_ptr[0] = "";
+
+        /* Set a size which fits into the parent.
+         * Don't use `par` directly because if the tabview is created on a page it is moved to the
+         * scrollable so the parent has changed */
+        lv_coord_t w;
+        lv_coord_t h;
+        if(par) {
+            w = lv_obj_get_width_fit(lv_obj_get_parent(tabview));
+            h = lv_obj_get_height_fit(lv_obj_get_parent(tabview));
+        }
+        else {
+            w = lv_disp_get_hor_res(NULL);
+            h = lv_disp_get_ver_res(NULL);
+        }
+
+        lv_obj_set_size(tabview, w, h);
+
+        ext->content = lv_page_create(tabview, NULL);
+        ext->btns    = lv_btnmatrix_create(tabview, NULL);
+        ext->indic   = lv_obj_create(ext->btns, NULL);
+
+        if(ancestor_scrl_signal == NULL) ancestor_scrl_signal = lv_obj_get_signal_cb(lv_page_get_scrllable(ext->content));
+        lv_obj_set_signal_cb(lv_page_get_scrllable(ext->content), tabview_scrl_signal);
+
+        lv_btnmatrix_set_map(ext->btns, tab_def);
+        lv_obj_set_event_cb(ext->btns, tab_btnm_event_cb);
+
+        lv_obj_set_click(ext->indic, false);
+        lv_obj_set_drag_dir(lv_page_get_scrllable(ext->content), LV_DRAG_DIR_ONE);
+
+        lv_page_set_scrllable_fit2(ext->content, LV_FIT_TIGHT, LV_FIT_PARENT);
+        lv_page_set_scrl_layout(ext->content, LV_LAYOUT_ROW_TOP);
+        lv_page_set_scrollbar_mode(ext->content, LV_SCROLLBAR_MODE_OFF);
+
+        lv_obj_clean_style_list(ext->content, LV_PAGE_PART_BG);
+
+        lv_theme_apply(tabview, LV_THEME_TABVIEW);
+
+    }
+    /*Copy an existing tab view*/
+    else {
+        lv_tabview_ext_t * copy_ext = lv_obj_get_ext_attr(copy);
+        ext->point_last.x           = 0;
+        ext->point_last.y           = 0;
+        ext->btns                   = lv_btnmatrix_create(tabview, copy_ext->btns);
+        ext->indic                  = lv_obj_create(ext->btns, copy_ext->indic);
+        ext->content                = lv_page_create(tabview, copy_ext->content);
+#if LV_USE_ANIMATION
+        ext->anim_time = copy_ext->anim_time;
+#endif
+
+        ext->tab_name_ptr = lv_mem_alloc(sizeof(char *));
+        LV_ASSERT_MEM(ext->tab_name_ptr);
+        if(ext->tab_name_ptr == NULL) return NULL;
+        ext->tab_name_ptr[0] = "";
+        lv_btnmatrix_set_map(ext->btns, ext->tab_name_ptr);
+
+        lv_style_list_copy(lv_obj_get_style_list(tabview, LV_TABVIEW_PART_BG_SCRLLABLE), lv_obj_get_style_list(copy,
+                                                                                                               LV_TABVIEW_PART_BG_SCRLLABLE));
+        lv_style_list_copy(lv_obj_get_style_list(tabview, LV_TABVIEW_PART_TAB_BG), lv_obj_get_style_list(copy,
+                                                                                                         LV_TABVIEW_PART_TAB_BG));
+        lv_style_list_copy(lv_obj_get_style_list(tabview, LV_TABVIEW_PART_TAB_BTN), lv_obj_get_style_list(copy,
+                                                                                                          LV_TABVIEW_PART_TAB_BTN));
+
+        uint16_t i;
+        for(i = 0; i < copy_ext->tab_cnt; i++) {
+            lv_obj_t * new_tab = lv_tabview_add_tab(tabview, copy_ext->tab_name_ptr[i]);
+            lv_obj_t * copy_tab = lv_tabview_get_tab(copy, i);
+            lv_style_list_copy(lv_obj_get_style_list(new_tab, LV_PAGE_PART_SCROLLABLE), lv_obj_get_style_list(copy_tab,
+                                                                                                              LV_PAGE_PART_SCROLLABLE));
+            lv_style_list_copy(lv_obj_get_style_list(new_tab, LV_PAGE_PART_SCROLLBAR), lv_obj_get_style_list(copy_tab,
+                                                                                                             LV_PAGE_PART_SCROLLBAR));
+            lv_obj_refresh_style(new_tab, LV_STYLE_PROP_ALL);
+        }
+
+        /*Refresh the style with new signal function*/
+        lv_obj_refresh_style(tabview, LV_STYLE_PROP_ALL);
+    }
+
+    tabview_realign(tabview);
+
+    LV_LOG_INFO("tab view created");
+
+    return tabview;
+}

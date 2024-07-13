@@ -1,0 +1,20 @@
+STATIC INT32 ProcessReturnVal(pthread_cond_t *cond, INT32 val)
+{
+    INT32 ret;
+    switch (val) {
+        /* 0: event does not occur */
+        case 0:
+        case BROADCAST_EVENT:
+            ret = ENOERR;
+            break;
+        case LOS_ERRNO_EVENT_READ_TIMEOUT:
+            PthreadCountSub(cond);
+            ret = ETIMEDOUT;
+            break;
+        default:
+            PthreadCountSub(cond);
+            ret = EINVAL;
+            break;
+    }
+    return ret;
+}

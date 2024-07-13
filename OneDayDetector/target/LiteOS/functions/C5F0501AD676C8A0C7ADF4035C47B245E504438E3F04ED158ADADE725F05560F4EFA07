@@ -1,0 +1,37 @@
+s32_t SPIFFS_fremove(spiffs *fs, spiffs_file fh)
+{
+    SPIFFS_API_DBG("%s "_SPIPRIfd "\n", __func__, fh);
+#if SPIFFS_READ_ONLY
+    (void)fs;
+    (void)fh;
+    return SPIFFS_ERR_RO_NOT_IMPL;
+#else
+    SPIFFS_API_CHECK_CFG(fs);
+    SPIFFS_API_CHECK_MOUNT(fs);
+    SPIFFS_LOCK(fs);
+
+    spiffs_fd *fd;
+    s32_t res;
+    fh = SPIFFS_FH_UNOFFS(fs, fh);
+    res = spiffs_fd_get(fs, fh, &fd);
+    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+
+    if ((fd->flags & SPIFFS_O_WRONLY) == 0)
+    {
+        res = SPIFFS_ERR_NOT_WRITABLE;
+        SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+    }
+
+#if SPIFFS_CACHE_WR
+    spiffs_cache_fd_release(fs, fd->cache_page);
+#endif
+
+    res = spiffs_object_truncate(fd, 0, 1);
+
+    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+
+    SPIFFS_UNLOCK(fs);
+
+    return 0;
+#endif // SPIFFS_READ_ONLY
+}

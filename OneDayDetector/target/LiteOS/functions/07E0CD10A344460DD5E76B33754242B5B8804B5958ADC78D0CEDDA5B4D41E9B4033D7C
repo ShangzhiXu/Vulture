@@ -1,0 +1,21 @@
+SECUREC_INLINE void SecWriteTextAfterWctomb(SecPrintfStream *stream, const SecFormatAttr *attr, int *charsOut)
+{
+    const wchar_t *p = attr->text.wStr;
+    int count = attr->textLen;
+    while (count > 0) {
+        char tmpBuf[SECUREC_MB_LEN + 1];
+        SECUREC_MASK_MSVC_CRT_WARNING
+        int retVal = wctomb(tmpBuf, *p);
+        SECUREC_END_MASK_MSVC_CRT_WARNING
+        if (retVal <= 0) {
+            *charsOut = -1;
+            break;
+        }
+        SecWriteString(tmpBuf, retVal, stream, charsOut);
+        if (*charsOut == -1) {
+            break;
+        }
+        --count;
+        ++p;
+    }
+}

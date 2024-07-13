@@ -1,0 +1,87 @@
+void HAL_LTDC_IRQHandler(LTDC_HandleTypeDef *hltdc)
+{
+  uint32_t isrflags  = READ_REG(hltdc->Instance->ISR);
+  uint32_t itsources = READ_REG(hltdc->Instance->IER);
+  
+  /* Transfer Error Interrupt management ***************************************/
+  if(((isrflags & LTDC_ISR_TERRIF) != RESET) && ((itsources & LTDC_IER_TERRIE) != RESET))
+  {
+    /* Disable the transfer Error interrupt */
+    __HAL_LTDC_DISABLE_IT(hltdc, LTDC_IT_TE);
+
+    /* Clear the transfer error flag */
+    __HAL_LTDC_CLEAR_FLAG(hltdc, LTDC_FLAG_TE);
+
+    /* Update error code */
+    hltdc->ErrorCode |= HAL_LTDC_ERROR_TE;
+
+    /* Change LTDC state */
+    hltdc->State = HAL_LTDC_STATE_ERROR;
+
+    /* Process unlocked */
+    __HAL_UNLOCK(hltdc);
+
+    /* Transfer error Callback */
+    HAL_LTDC_ErrorCallback(hltdc);
+  }
+
+  /* FIFO underrun Interrupt management ***************************************/
+  if(((isrflags & LTDC_ISR_FUIF) != RESET) && ((itsources & LTDC_IER_FUIE) != RESET))
+  {
+    /* Disable the FIFO underrun interrupt */
+    __HAL_LTDC_DISABLE_IT(hltdc, LTDC_IT_FU);
+
+    /* Clear the FIFO underrun flag */
+    __HAL_LTDC_CLEAR_FLAG(hltdc, LTDC_FLAG_FU);
+
+    /* Update error code */
+    hltdc->ErrorCode |= HAL_LTDC_ERROR_FU;
+
+    /* Change LTDC state */
+    hltdc->State = HAL_LTDC_STATE_ERROR;
+
+    /* Process unlocked */
+    __HAL_UNLOCK(hltdc);
+      
+    /* Transfer error Callback */
+    HAL_LTDC_ErrorCallback(hltdc);
+  }
+
+  /* Line Interrupt management ************************************************/
+  if(((isrflags & LTDC_ISR_LIF) != RESET) && ((itsources & LTDC_IER_LIE) != RESET))
+  {
+    /* Disable the Line interrupt */
+    __HAL_LTDC_DISABLE_IT(hltdc, LTDC_IT_LI);
+
+    /* Clear the Line interrupt flag */  
+    __HAL_LTDC_CLEAR_FLAG(hltdc, LTDC_FLAG_LI);
+
+    /* Change LTDC state */
+    hltdc->State = HAL_LTDC_STATE_READY;
+
+    /* Process unlocked */
+    __HAL_UNLOCK(hltdc);
+
+    /* Line interrupt Callback */
+    HAL_LTDC_LineEventCallback(hltdc);
+  }
+
+  /* Register reload Interrupt management ***************************************/
+  if(((isrflags & LTDC_ISR_RRIF) != RESET) && ((itsources & LTDC_IER_RRIE) != RESET))
+  {
+    /* Disable the register reload interrupt */
+    __HAL_LTDC_DISABLE_IT(hltdc, LTDC_IT_RR);
+      
+    /* Clear the register reload flag */
+    __HAL_LTDC_CLEAR_FLAG(hltdc, LTDC_FLAG_RR);
+      
+    /* Change LTDC state */
+    hltdc->State = HAL_LTDC_STATE_READY;
+      
+    /* Process unlocked */
+    __HAL_UNLOCK(hltdc);
+      
+    /* Register reload interrupt Callback */
+    HAL_LTDC_ReloadEventCallback(hltdc);
+  }
+}

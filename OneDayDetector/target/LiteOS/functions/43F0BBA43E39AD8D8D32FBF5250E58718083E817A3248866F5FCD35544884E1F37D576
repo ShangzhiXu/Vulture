@@ -1,0 +1,43 @@
+STATIC INT32 ProcessByJoinState(_pthread_data *joined)
+{
+    INT32 err = 0;
+    UINT32 ret = LOS_OK;
+    switch (joined->state) {
+        case PTHREAD_STATE_RUNNING:
+            /* The thread is still running, we must wait for it. */
+            if (joined->joiner != NULL) {
+                joined->state = PTHREAD_STATE_ALRDY_JOIN;
+                ret = LOS_SemPend(joined->joiner->semId, LOS_WAIT_FOREVER);
+            }
+
+            if (ret != LOS_OK) {
+                err = ESRCH;
+                break;
+            }
+
+            /* Check that the thread is still joinable */
+            if (joined->state == PTHREAD_STATE_JOIN) {
+                break;
+            }
+            break;
+           /*
+            * The thread has become unjoinable while we waited, so we
+            * fall through to complain.
+            */
+        case PTHREAD_STATE_FREE:
+        case PTHREAD_STATE_DETACHED:
+        case PTHREAD_STATE_EXITED:
+            /* None of these may be joined. */
+            err = EINVAL;
+            break;
+        case PTHREAD_STATE_ALRDY_JOIN:
+            err = EINVAL;
+            break;
+        case PTHREAD_STATE_JOIN:
+            break;
+        default:
+            PRINT_ERR("state: %u is not supported\n", (UINT32)joined->state);
+            break;
+    }
+    return err;
+}

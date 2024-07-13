@@ -1,0 +1,32 @@
+static bool_t setnetapn(char *devname, char *apn, int times)
+{
+    bool_t result = false;
+    char *argv[6];
+    int argc;
+    int i = 0;
+    char atrcvbuf[CN_AT_LEN];
+    printf("setapn:");
+    for (i = 0; i < times; i++) {
+        printf("%d->", i);
+        memset(argv, 0, sizeof(argv));
+        memset(atrcvbuf, 0, sizeof(atrcvbuf));
+        char cgdcont[64];
+        memset(cgdcont, 0, 64);
+        snprintf(cgdcont, 63, "%s%s%s%s", "AT+CGDCONT=1,\"IP\",", "\"", apn, "\"");
+        argc = AtCmd(devname, cgdcont, atrcvbuf, CN_AT_LEN, 6, argv);
+        if (argc > 0) {
+            if ((strinargs(argc, argv, "OK") != -1) || (strinargs(argc, argv, "ok") != -1)) {
+                result = true;
+                break;
+            }
+        }
+        task_sleepms(1000);
+    }
+    if (result) {
+        printf(".ready!\n\r");
+    }
+    else {
+        printf(".timeout!\n\r");
+    }
+    return result;
+}

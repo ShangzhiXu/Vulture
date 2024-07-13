@@ -1,0 +1,28 @@
+void HAL_RCC_DeInit(void)
+{
+  /* Switch SYSCLK to HSI */
+  CLEAR_BIT(RCC->CFGR, RCC_CFGR_SW);
+
+  /* Reset HSEON, CSSON, & PLLON bits */
+  CLEAR_BIT(RCC->CR, RCC_CR_HSEON | RCC_CR_CSSON | RCC_CR_PLLON);
+  
+  /* Reset HSEBYP bit */
+  CLEAR_BIT(RCC->CR, RCC_CR_HSEBYP);
+  
+  /* Reset CFGR register */
+  CLEAR_REG(RCC->CFGR);
+  
+  /* Set HSITRIM bits to the reset value */
+  MODIFY_REG(RCC->CR, RCC_CR_HSITRIM, ((uint32_t)0x10 << POSITION_VAL(RCC_CR_HSITRIM)));
+  
+#if (defined(STM32F105xC) || defined(STM32F107xC) || defined (STM32F100xB) || defined (STM32F100xE))
+  /* Reset CFGR2 register */
+  CLEAR_REG(RCC->CFGR2);
+
+#endif /* STM32F105xC || STM32F107xC || STM32F100xB || STM32F100xE */
+  /* Disable all interrupts */
+  CLEAR_REG(RCC->CIR);
+
+  /* Update the SystemCoreClock global variable */
+  SystemCoreClock = HSI_VALUE;
+}

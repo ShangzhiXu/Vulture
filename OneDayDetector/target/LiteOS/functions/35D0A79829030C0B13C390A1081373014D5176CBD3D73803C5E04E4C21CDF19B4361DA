@@ -1,0 +1,27 @@
+HAL_StatusTypeDef HAL_GPIO_LockPin(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin)
+{
+  __IO uint32_t tmp = GPIO_LCKR_LCKK;
+
+  /* Check the parameters */
+  assert_param(IS_GPIO_PIN(GPIO_Pin));
+
+  /* Apply lock key write sequence */
+  tmp |= GPIO_Pin;
+  /* Set LCKx bit(s): LCKK='1' + LCK[15-0] */
+  GPIOx->LCKR = tmp;
+  /* Reset LCKx bit(s): LCKK='0' + LCK[15-0] */
+  GPIOx->LCKR = GPIO_Pin;
+  /* Set LCKx bit(s): LCKK='1' + LCK[15-0] */
+  GPIOx->LCKR = tmp;
+  /* Read LCKK bit*/
+  tmp = GPIOx->LCKR;
+
+ if((GPIOx->LCKR & GPIO_LCKR_LCKK) != RESET)
+  {
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_ERROR;
+  }
+}

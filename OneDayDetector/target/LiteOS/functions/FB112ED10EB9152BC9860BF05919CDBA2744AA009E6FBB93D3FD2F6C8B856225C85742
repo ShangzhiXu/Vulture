@@ -1,0 +1,68 @@
+static HAL_SD_ErrorTypedef SD_CmdResp6Error(SD_HandleTypeDef *hsd, uint8_t SD_CMD, uint16_t *pRCA)
+{
+  HAL_SD_ErrorTypedef errorstate = SD_OK;
+  uint32_t response_r1 = 0;
+  
+  while(!__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_FLAG_CCRCFAIL | SDIO_FLAG_CMDREND | SDIO_FLAG_CTIMEOUT))
+  {
+  }
+  
+  if(__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_FLAG_CTIMEOUT))
+  {
+    errorstate = SD_CMD_RSP_TIMEOUT;
+    
+    __HAL_SD_SDIO_CLEAR_FLAG(hsd, SDIO_FLAG_CTIMEOUT);
+    
+    return errorstate;
+  }
+  else if(__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_FLAG_CCRCFAIL))
+  {
+    errorstate = SD_CMD_CRC_FAIL;
+    
+    __HAL_SD_SDIO_CLEAR_FLAG(hsd, SDIO_FLAG_CCRCFAIL);
+    
+    return errorstate;
+  }
+  else
+  {
+    /* No error flag set */
+  }
+  
+  /* Check response received is of desired command */
+  if(SDIO_GetCommandResponse(hsd->Instance) != SD_CMD)
+  {
+    errorstate = SD_ILLEGAL_CMD;
+    
+    return errorstate;
+  }
+  
+  /* Clear all the static flags */
+  __HAL_SD_SDIO_CLEAR_FLAG(hsd, SDIO_STATIC_FLAGS);
+  
+  /* We have received response, retrieve it.  */
+  response_r1 = SDIO_GetResponse(hsd->Instance, SDIO_RESP1);
+  
+  if((response_r1 & (SD_R6_GENERAL_UNKNOWN_ERROR | SD_R6_ILLEGAL_CMD | SD_R6_COM_CRC_FAILED)) == SD_ALLZERO)
+  {
+    *pRCA = (uint16_t) (response_r1 >> 16);
+    
+    return errorstate;
+  }
+  
+  if((response_r1 & SD_R6_GENERAL_UNKNOWN_ERROR) == SD_R6_GENERAL_UNKNOWN_ERROR)
+  {
+    return(SD_GENERAL_UNKNOWN_ERROR);
+  }
+  
+  if((response_r1 & SD_R6_ILLEGAL_CMD) == SD_R6_ILLEGAL_CMD)
+  {
+    return(SD_ILLEGAL_CMD);
+  }
+  
+  if((response_r1 & SD_R6_COM_CRC_FAILED) == SD_R6_COM_CRC_FAILED)
+  {
+    return(SD_COM_CRC_FAILED);
+  }
+  
+  return errorstate;
+}

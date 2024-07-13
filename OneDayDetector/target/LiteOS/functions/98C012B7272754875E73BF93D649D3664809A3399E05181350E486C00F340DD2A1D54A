@@ -1,0 +1,16 @@
+static void IRDA_EndTransmit_IT(IRDA_HandleTypeDef *hirda)
+{
+  /* Disable the IRDA Transmit Complete Interrupt */
+  CLEAR_BIT(hirda->Instance->CR1, USART_CR1_TCIE);
+
+  /* Tx process is ended, restore hirda->gState to Ready */
+  hirda->gState = HAL_IRDA_STATE_READY;
+
+#if (USE_HAL_IRDA_REGISTER_CALLBACKS == 1)
+  /* Call registered Tx complete callback */
+  hirda->TxCpltCallback(hirda);
+#else
+  /* Call legacy weak Tx complete callback */
+  HAL_IRDA_TxCpltCallback(hirda);
+#endif /* USE_HAL_IRDA_REGISTER_CALLBACK */
+}

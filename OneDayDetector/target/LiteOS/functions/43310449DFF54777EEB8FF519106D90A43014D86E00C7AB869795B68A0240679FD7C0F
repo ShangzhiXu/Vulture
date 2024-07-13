@@ -1,0 +1,95 @@
+HAL_StatusTypeDef HAL_USART_TransmitReceive_IT(USART_HandleTypeDef *husart, uint8_t *pTxData, uint8_t *pRxData,  uint16_t Size)
+{
+
+  if(husart->State == HAL_USART_STATE_READY)
+  {
+    if((pTxData == NULL) || (pRxData == NULL) || (Size == 0))
+    {
+      return HAL_ERROR;
+    }
+    /* Process Locked */
+    __HAL_LOCK(husart);
+
+    husart->pRxBuffPtr = pRxData;
+    husart->RxXferSize = Size;
+    husart->RxXferCount = Size;
+    husart->pTxBuffPtr = pTxData;
+    husart->TxXferSize = Size;
+    husart->TxXferCount = Size;
+
+    /* Computation of USART mask to apply to RDR register */
+    USART_MASK_COMPUTATION(husart);
+
+    husart->ErrorCode = HAL_USART_ERROR_NONE;
+    husart->State = HAL_USART_STATE_BUSY_TX_RX;
+    
+#if defined(USART_CR1_FIFOEN)
+    /* Configure TxRx interrupt processing */
+    if ((husart->FifoMode == USART_FIFOMODE_ENABLE) && (Size >= husart->NbRxDataToProcess))
+    {
+      /* Set the Rx ISR function pointer according to the data word length */
+      if ((husart->Init.WordLength == USART_WORDLENGTH_9B) && (husart->Init.Parity == USART_PARITY_NONE))
+      {
+        husart->TxISR = USART_TxISR_16BIT_FIFOEN;
+        husart->RxISR = USART_RxISR_16BIT_FIFOEN;
+      }
+      else
+      {
+        husart->TxISR = USART_TxISR_8BIT_FIFOEN;
+        husart->RxISR = USART_RxISR_8BIT_FIFOEN;
+      }
+      
+      /* Process Locked */
+      __HAL_UNLOCK(husart);
+      
+      /* Enable the USART Error Interrupt: (Frame error, noise error, overrun error) */
+      SET_BIT(husart->Instance->CR3, USART_CR3_EIE);
+      
+      /* Enable the USART Parity Error interrupt  */
+      SET_BIT(husart->Instance->CR1, USART_CR1_PEIE);
+
+      /* Enable the TX and  RX FIFO Threshold interrupts */
+      SET_BIT(husart->Instance->CR3, (USART_CR3_TXFTIE | USART_CR3_RXFTIE));
+    }
+    else
+#endif
+    {
+      if ((husart->Init.WordLength == USART_WORDLENGTH_9B) && (husart->Init.Parity == USART_PARITY_NONE))
+      {
+        husart->TxISR = USART_TxISR_16BIT;
+        husart->RxISR = USART_RxISR_16BIT;
+      }
+      else
+      {
+        husart->TxISR = USART_TxISR_8BIT;
+        husart->RxISR = USART_RxISR_8BIT;
+      }
+
+      /* Process Locked */
+      __HAL_UNLOCK(husart);
+      
+      /* Enable the USART Error Interrupt: (Frame error, noise error, overrun error) */
+      SET_BIT(husart->Instance->CR3, USART_CR3_EIE);
+      
+      /* Enable the USART Parity Error and USART Data Register not empty Interrupts */
+#if defined(USART_CR1_FIFOEN)
+      SET_BIT(husart->Instance->CR1, USART_CR1_PEIE | USART_CR1_RXNEIE_RXFNEIE);
+#else
+    SET_BIT(husart->Instance->CR1, USART_CR1_PEIE | USART_CR1_RXNEIE);
+#endif
+      
+      /* Enable the USART Transmit Data Register Empty Interrupt */
+#if defined(USART_CR1_FIFOEN)
+      SET_BIT(husart->Instance->CR1, USART_CR1_TXEIE_TXFNFIE);
+#else
+      SET_BIT(husart->Instance->CR1, USART_CR1_TXEIE);
+#endif
+    }
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

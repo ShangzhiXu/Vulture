@@ -1,0 +1,70 @@
+int AtDial(char *devname, char *apn)
+{
+    bool_t result = false;
+    int ret = -1;
+    char *simapn;
+    simapn = apn;
+    printf("ATCMD CALL BEGIN:\n\r");
+    // first we should check the module type
+    result = checkmi(devname, 32);
+    if (result == false) {
+        return ret;
+    }
+    // check the signal
+    result = atgetsignal(devname, NULL);
+    if (result == false) {
+        return ret;
+    }
+    // check the mm
+    result = checkmm(devname, 32);
+    if (result == false) {
+        return ret;
+    }
+    // check the mr
+    result = checkmr(devname, 32);
+    if (result == false) {
+        return ret;
+    }
+    // check the sn
+    result = checksn(devname, 32);
+    if (result == false) {
+        return ret;
+    }
+    // first we should check if the sim card inserted:at+cpin?
+    result = checkcpin(devname, 32);
+    if (result == false) {
+        return ret;
+    }
+    // check the apn here
+    if ((simapn == NULL) || (simapn[0] == '\0')) {
+        // do check our self
+        tagImsi *imsi;
+        imsi = checkcimi(devname, 32, NULL);
+        if (imsi == NULL) {
+            result = false ;
+            return ret;
+        } else {
+            simapn = (char *)imsi->apndefault;
+        }
+    } else {
+        checkcimi(devname, 32, simapn);
+    }
+    // check if we has register the sim card to the carrieroperator
+    result = checkcgreg(devname, 32);
+    if (result == false) {
+        return result;
+    }
+    // OK,now set the apn to the carrieroperator
+    result = setnetapn(devname, simapn, 32);
+    if (result == false) {
+        return result;
+    }
+    // now we begin to atd(call the data service)
+    result = atdcall(devname, 32);
+    if (result == false) {
+        return ret;
+    }
+    // for the end
+    ret = 0;
+    return ret;
+}

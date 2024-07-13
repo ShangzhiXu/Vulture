@@ -1,0 +1,32 @@
+int32_t at_init(at_config *config)
+{
+    if (config == NULL) {
+        AT_LOG("Config is NULL, failed!!\n");
+        return AT_FAILED;
+    }
+
+    memcpy(&at_user_conf, config, sizeof(at_config));
+
+    AT_LOG_DEBUG("Config %s(buffer total is %lu)......\n", at_user_conf.name, at_user_conf.user_buf_len);
+
+    if (at_struct_init(&at) != AT_OK) {
+        AT_LOG("prepare AT struct failed!");
+        return AT_FAILED;
+    }
+    at_init_oob();
+
+    if (at_usart_init() != AT_OK) {
+        AT_LOG("at_usart_init failed!");
+        (void)at_struct_deinit(&at);
+        return AT_FAILED;
+    }
+    if (create_at_recv_task() != AT_OK) {
+        AT_LOG("create_at_recv_task failed!");
+        at_usart_deinit();
+        (void)at_struct_deinit(&at);
+        return AT_FAILED;
+    }
+
+    AT_LOG("Config complete!!\n");
+    return AT_OK;
+}

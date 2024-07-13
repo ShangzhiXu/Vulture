@@ -1,0 +1,59 @@
+tcp_close_shutdown(struct tcp_pcb *pcb, u8_t rst_on_unacked_data)
+{
+  LWIP_ASSERT("tcp_close_shutdown: invalid pcb", pcb != NULL);
+
+  if (rst_on_unacked_data && ((pcb->state == ESTABLISHED) || (pcb->state == CLOSE_WAIT))) {
+    if ((pcb->refused_data != NULL) || (pcb->rcv_wnd != TCP_WND_MAX(pcb))) {
+      /* Not all data received by application, send RST to tell the remote
+         side about this. */
+      LWIP_ASSERT("pcb->flags & TF_RXCLOSED", pcb->flags & TF_RXCLOSED);
+
+      /* don't call tcp_abort here: we must not deallocate the pcb since
+         that might not be expected when calling tcp_close */
+      tcp_rst(pcb, pcb->snd_nxt, pcb->rcv_nxt, &pcb->local_ip, &pcb->remote_ip,
+              pcb->local_port, pcb->remote_port);
+
+      tcp_pcb_purge(pcb);
+      TCP_RMV_ACTIVE(pcb);
+      /* Deallocate the pcb since we already sent a RST for it */
+      if (tcp_input_pcb == pcb) {
+        /* prevent using a deallocated pcb: free it from tcp_input later */
+        tcp_trigger_input_pcb_close();
+      } else {
+        tcp_free(pcb);
+      }
+      return ERR_OK;
+    }
+  }
+
+  /* - states which free the pcb are handled here,
+     - states which send FIN and change state are handled in tcp_close_shutdown_fin() */
+  switch (pcb->state) {
+    case CLOSED:
+      /* Closing a pcb in the CLOSED state might seem erroneous,
+       * however, it is in this state once allocated and as yet unused
+       * and the user needs some way to free it should the need arise.
+       * Calling tcp_close() with a pcb that has already been closed, (i.e. twice)
+       * or for a pcb that has been used and then entered the CLOSED state
+       * is erroneous, but this should never happen as the pcb has in those cases
+       * been freed, and so any remaining handles are bogus. */
+      if (pcb->local_port != 0) {
+        TCP_RMV(&tcp_bound_pcbs, pcb);
+      }
+      tcp_free(pcb);
+      break;
+    case LISTEN:
+      tcp_listen_closed(pcb);
+      tcp_pcb_remove(&tcp_listen_pcbs.pcbs, pcb);
+      tcp_free_listen(pcb);
+      break;
+    case SYN_SENT:
+      TCP_PCB_REMOVE_ACTIVE(pcb);
+      tcp_free(pcb);
+      MIB2_STATS_INC(mib2.tcpattemptfails);
+      break;
+    default:
+      return tcp_close_shutdown_fin(pcb);
+  }
+  return ERR_OK;
+}

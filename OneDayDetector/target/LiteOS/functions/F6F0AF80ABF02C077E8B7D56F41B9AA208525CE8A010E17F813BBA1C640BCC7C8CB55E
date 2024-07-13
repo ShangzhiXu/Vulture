@@ -1,0 +1,32 @@
+HAL_StatusTypeDef HAL_DFSDM_FilterAwdStop_IT(DFSDM_Filter_HandleTypeDef *hdfsdm_filter)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Check parameters */
+  assert_param(IS_DFSDM_FILTER_ALL_INSTANCE(hdfsdm_filter->Instance));
+  
+  /* Check DFSDM filter state */
+  if((hdfsdm_filter->State == HAL_DFSDM_FILTER_STATE_RESET) || \
+     (hdfsdm_filter->State == HAL_DFSDM_FILTER_STATE_ERROR))
+  {
+    /* Return error status */
+    status = HAL_ERROR;
+  }
+  else
+  {
+    /* Reset channels for analog watchdog and deactivate interrupt */
+    hdfsdm_filter->Instance->FLTCR2 &= ~(DFSDM_FLTCR2_AWDCH | DFSDM_FLTCR2_AWDIE);
+
+    /* Clear all analog watchdog flags */
+    hdfsdm_filter->Instance->FLTAWCFR = (DFSDM_FLTAWCFR_CLRAWHTF | DFSDM_FLTAWCFR_CLRAWLTF);
+    
+    /* Reset thresholds and break signals */
+    hdfsdm_filter->Instance->FLTAWHTR &= ~(DFSDM_FLTAWHTR_AWHT | DFSDM_FLTAWHTR_BKAWH);
+    hdfsdm_filter->Instance->FLTAWLTR &= ~(DFSDM_FLTAWLTR_AWLT | DFSDM_FLTAWLTR_BKAWL);
+
+    /* Reset analog watchdog data source */
+    hdfsdm_filter->Instance->FLTCR1 &= ~(DFSDM_FLTCR1_AWFSEL);
+  }
+  /* Return function status */
+  return status;
+}

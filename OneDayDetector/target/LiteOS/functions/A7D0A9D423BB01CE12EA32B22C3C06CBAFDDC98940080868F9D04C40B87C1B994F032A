@@ -1,0 +1,20 @@
+STATIC INT32 ConvertTimeout(long flags, const struct timespec *absTimeout, UINT64 *ticks)
+{
+    if ((UINT32)flags & (UINT32)FNONBLOCK) {
+        *ticks = LOS_NO_WAIT;
+        return 0;
+    }
+
+    if (absTimeout == NULL) {
+        *ticks = LOS_WAIT_FOREVER;
+        return 0;
+    }
+
+    if (!ValidTimespec(absTimeout)) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    *ticks = OsTimespec2Tick(absTimeout);
+    return 0;
+}

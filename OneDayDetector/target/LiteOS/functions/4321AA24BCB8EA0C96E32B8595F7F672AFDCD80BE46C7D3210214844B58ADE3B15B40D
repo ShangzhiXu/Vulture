@@ -1,0 +1,74 @@
+tcp_zero_window_probe(struct tcp_pcb *pcb)
+{
+  err_t err;
+  struct pbuf *p;
+  struct tcp_hdr *tcphdr;
+  struct tcp_seg *seg;
+  u16_t len;
+  u8_t is_fin;
+  u32_t snd_nxt;
+  u8_t optlen = LWIP_TCP_OPT_LENGTH_SEGMENT(0, pcb);
+
+  LWIP_ASSERT("tcp_zero_window_probe: invalid pcb", pcb != NULL);
+
+  LWIP_DEBUGF(TCP_DEBUG, ("tcp_zero_window_probe: sending ZERO WINDOW probe to "));
+  ip_addr_debug_print_val(TCP_DEBUG, pcb->remote_ip);
+  LWIP_DEBUGF(TCP_DEBUG, ("\n"));
+
+  LWIP_DEBUGF(TCP_DEBUG,
+              ("tcp_zero_window_probe: tcp_ticks %"U32_F
+               "   pcb->tmr %"U32_F" pcb->keep_cnt_sent %"U16_F"\n",
+               tcp_ticks, pcb->tmr, (u16_t)pcb->keep_cnt_sent));
+
+  /* Only consider unsent, persist timer should be off when there is data in-flight */
+  seg = pcb->unsent;
+  if (seg == NULL) {
+    /* Not expected, persist timer should be off when the send buffer is empty */
+    return ERR_OK;
+  }
+
+  /* increment probe count. NOTE: we record probe even if it fails
+     to actually transmit due to an error. This ensures memory exhaustion/
+     routing problem doesn't leave a zero-window pcb as an indefinite zombie.
+     RTO mechanism has similar behavior, see pcb->nrtx */
+  if (pcb->persist_probe < 0xFF) {
+    ++pcb->persist_probe;
+  }
+
+  is_fin = ((TCPH_FLAGS(seg->tcphdr) & TCP_FIN) != 0) && (seg->len == 0);
+  /* we want to send one seqno: either FIN or data (no options) */
+  len = is_fin ? 0 : 1;
+
+  p = tcp_output_alloc_header(pcb, optlen, len, seg->tcphdr->seqno);
+  if (p == NULL) {
+    LWIP_DEBUGF(TCP_DEBUG, ("tcp_zero_window_probe: no memory for pbuf\n"));
+    return ERR_MEM;
+  }
+  tcphdr = (struct tcp_hdr *)p->payload;
+
+  if (is_fin) {
+    /* FIN segment, no data */
+    TCPH_FLAGS_SET(tcphdr, TCP_ACK | TCP_FIN);
+  } else {
+    /* Data segment, copy in one byte from the head of the unacked queue */
+    char *d = ((char *)p->payload + TCP_HLEN);
+    /* Depending on whether the segment has already been sent (unacked) or not
+       (unsent), seg->p->payload points to the IP header or TCP header.
+       Ensure we copy the first TCP data byte: */
+    pbuf_copy_partial(seg->p, d, 1, seg->p->tot_len - seg->len);
+  }
+
+  /* The byte may be acknowledged without the window being opened. */
+  snd_nxt = lwip_ntohl(seg->tcphdr->seqno) + 1;
+  if (TCP_SEQ_LT(pcb->snd_nxt, snd_nxt)) {
+    pcb->snd_nxt = snd_nxt;
+  }
+  tcp_output_fill_options(pcb, p, 0, optlen);
+
+  err = tcp_output_control_segment(pcb, p, &pcb->local_ip, &pcb->remote_ip);
+
+  LWIP_DEBUGF(TCP_DEBUG, ("tcp_zero_window_probe: seqno %"U32_F
+                          " ackno %"U32_F" err %d.\n",
+                          pcb->snd_nxt - 1, pcb->rcv_nxt, (int)err));
+  return err;
+}

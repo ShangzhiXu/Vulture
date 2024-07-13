@@ -1,0 +1,32 @@
+dns_skip_name(struct pbuf *p, u16_t query_idx)
+{
+  int n;
+  u16_t offset = query_idx;
+
+  do {
+    n = pbuf_try_get_at(p, offset++);
+    if ((n < 0) || (offset == 0)) {
+      return 0xFFFF;
+    }
+    /** @see RFC 1035 - 4.1.4. Message compression */
+    if ((n & 0xc0) == 0xc0) {
+      /* Compressed name: since we only want to skip it (not check it), stop here */
+      break;
+    } else {
+      /* Not compressed name */
+      if (offset + n >= p->tot_len) {
+        return 0xFFFF;
+      }
+      offset = (u16_t)(offset + n);
+    }
+    n = pbuf_try_get_at(p, offset);
+    if (n < 0) {
+      return 0xFFFF;
+    }
+  } while (n != 0);
+
+  if (offset == 0xFFFF) {
+    return 0xFFFF;
+  }
+  return (u16_t)(offset + 1);
+}

@@ -1,0 +1,115 @@
+static ErrorStatus UTILS_SetFlashLatency(uint32_t HCLK_Frequency)
+{
+  ErrorStatus status = SUCCESS;
+
+  uint32_t latency = LL_FLASH_LATENCY_0;  /* default value 0WS */
+
+  /* Frequency cannot be equal to 0 */
+  if(HCLK_Frequency == 0U)
+  {
+    status = ERROR;
+  }
+  else
+  {
+    if(LL_PWR_GetRegulVoltageScaling() == LL_PWR_REGU_VOLTAGE_SCALE1)
+    {
+#if defined (UTILS_SCALE1_LATENCY5_FREQ)
+      if((HCLK_Frequency > UTILS_SCALE1_LATENCY5_FREQ)&&(latency == LL_FLASH_LATENCY_0))
+      {
+        latency = LL_FLASH_LATENCY_5;
+      }
+#endif /*UTILS_SCALE1_LATENCY5_FREQ */
+#if defined (UTILS_SCALE1_LATENCY4_FREQ)
+      if((HCLK_Frequency > UTILS_SCALE1_LATENCY4_FREQ)&&(latency == LL_FLASH_LATENCY_0))
+      {
+        latency = LL_FLASH_LATENCY_4;
+      }
+#endif /* UTILS_SCALE1_LATENCY4_FREQ */
+#if defined (UTILS_SCALE1_LATENCY3_FREQ)
+      if((HCLK_Frequency > UTILS_SCALE1_LATENCY3_FREQ)&&(latency == LL_FLASH_LATENCY_0))
+      {
+        latency = LL_FLASH_LATENCY_3;
+      }
+#endif /* UTILS_SCALE1_LATENCY3_FREQ */
+#if defined (UTILS_SCALE1_LATENCY2_FREQ) 
+      if((HCLK_Frequency > UTILS_SCALE1_LATENCY2_FREQ)&&(latency == LL_FLASH_LATENCY_0))
+      {
+        latency = LL_FLASH_LATENCY_2;
+      }
+      else
+      {
+        if((HCLK_Frequency > UTILS_SCALE1_LATENCY1_FREQ)&&(latency == LL_FLASH_LATENCY_0))
+        {
+          latency = LL_FLASH_LATENCY_1;
+        }
+      }
+#endif /* UTILS_SCALE1_LATENCY2_FREQ */
+    }
+    if(LL_PWR_GetRegulVoltageScaling() == LL_PWR_REGU_VOLTAGE_SCALE2)
+    {
+#if defined (UTILS_SCALE2_LATENCY5_FREQ)
+      if((HCLK_Frequency > UTILS_SCALE2_LATENCY5_FREQ)&&(latency == LL_FLASH_LATENCY_0))
+      {
+        latency = LL_FLASH_LATENCY_5;
+      }
+#endif /*UTILS_SCALE1_LATENCY5_FREQ */
+#if defined (UTILS_SCALE2_LATENCY4_FREQ)
+      if((HCLK_Frequency > UTILS_SCALE2_LATENCY4_FREQ)&&(latency == LL_FLASH_LATENCY_0))
+      {
+        latency = LL_FLASH_LATENCY_4;
+      }
+#endif /*UTILS_SCALE1_LATENCY4_FREQ */
+#if defined (UTILS_SCALE2_LATENCY3_FREQ)
+      if((HCLK_Frequency > UTILS_SCALE2_LATENCY3_FREQ)&&(latency == LL_FLASH_LATENCY_0))
+      {
+        latency = LL_FLASH_LATENCY_3;
+      }
+#endif /*UTILS_SCALE1_LATENCY3_FREQ */
+      if((HCLK_Frequency > UTILS_SCALE2_LATENCY2_FREQ)&&(latency == LL_FLASH_LATENCY_0))
+      {
+        latency = LL_FLASH_LATENCY_2;
+      }
+      else
+      {
+        if((HCLK_Frequency > UTILS_SCALE2_LATENCY1_FREQ)&&(latency == LL_FLASH_LATENCY_0))
+        {
+          latency = LL_FLASH_LATENCY_1;
+        }
+      }
+    }
+#if defined (LL_PWR_REGU_VOLTAGE_SCALE3)
+    if(LL_PWR_GetRegulVoltageScaling() == LL_PWR_REGU_VOLTAGE_SCALE3)
+    {
+#if defined (UTILS_SCALE3_LATENCY3_FREQ)
+      if((HCLK_Frequency > UTILS_SCALE3_LATENCY3_FREQ)&&(latency == LL_FLASH_LATENCY_0))
+      {
+        latency = LL_FLASH_LATENCY_3;
+      }
+#endif /*UTILS_SCALE1_LATENCY3_FREQ */
+#if defined (UTILS_SCALE3_LATENCY2_FREQ)
+      if((HCLK_Frequency > UTILS_SCALE3_LATENCY2_FREQ)&&(latency == LL_FLASH_LATENCY_0))
+      {
+        latency = LL_FLASH_LATENCY_2;
+      }
+      else
+      {
+        if((HCLK_Frequency > UTILS_SCALE3_LATENCY1_FREQ)&&(latency == LL_FLASH_LATENCY_0))
+        {
+          latency = LL_FLASH_LATENCY_1;
+        }
+      }
+    }
+#endif /*UTILS_SCALE1_LATENCY2_FREQ */
+#endif /* LL_PWR_REGU_VOLTAGE_SCALE3 */
+
+    LL_FLASH_SetLatency(latency);
+
+    /* Check that the new number of wait states is taken into account to access the Flash
+       memory by reading the FLASH_ACR register */
+    if(LL_FLASH_GetLatency() != latency)
+    {
+      status = ERROR;
+    }
+  }
+  return status;
+}

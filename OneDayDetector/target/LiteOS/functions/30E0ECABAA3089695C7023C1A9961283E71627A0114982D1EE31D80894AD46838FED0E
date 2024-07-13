@@ -1,0 +1,22 @@
+LITE_OS_SEC_TEXT VOID OsSysTimeUpdate(UINT32 sleepTicks)
+{
+    UINT32 intSave;
+
+    if (sleepTicks == 0) {
+        return;
+    }
+
+    intSave = LOS_IntLock();
+    g_tickCount[ArchCurrCpuid()] += (sleepTicks - 1);
+    LOS_SpinLock(&g_taskSpin);
+    OsSortLinkUpdateExpireTime(sleepTicks, &OsPercpuGet()->taskSortLink);
+    LOS_SpinUnlock(&g_taskSpin);
+
+#ifdef LOSCFG_BASE_CORE_SWTMR
+    LOS_SpinLock(&g_swtmrSpin);
+    OsSortLinkUpdateExpireTime(sleepTicks, &OsPercpuGet()->swtmrSortLink);
+    LOS_SpinUnlock(&g_swtmrSpin);
+#endif
+
+    LOS_IntRestore(intSave);
+}

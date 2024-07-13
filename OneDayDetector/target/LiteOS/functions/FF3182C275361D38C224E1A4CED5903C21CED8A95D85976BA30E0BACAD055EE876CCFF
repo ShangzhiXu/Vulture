@@ -1,0 +1,123 @@
+static ErrorStatus UTILS_SetFlashLatency(uint32_t HCLK_Frequency)
+{
+  ErrorStatus status = SUCCESS;
+
+  uint32_t latency = LL_FLASH_LATENCY_0;  /* default value 0WS */
+
+  /* Frequency cannot be equal to 0 */
+  if(HCLK_Frequency == 0U)
+  {
+    status = ERROR;
+  }
+  else
+  {
+    if(LL_PWR_GetRegulVoltageScaling() == LL_PWR_REGU_VOLTAGE_SCALE1)
+    {
+#if defined(STM32L4R5xx) || defined(STM32L4R7xx) || defined(STM32L4R9xx) || defined(STM32L4S5xx) || defined(STM32L4S7xx) || defined(STM32L4S9xx)
+      if(HCLK_Frequency > UTILS_SCALE1_LATENCY5_FREQ)
+      {
+        /* 100 < HCLK <= 120 => 5WS (6 CPU cycles) */
+        latency = LL_FLASH_LATENCY_5;
+      }
+      else if(HCLK_Frequency > UTILS_SCALE1_LATENCY4_FREQ)
+      {
+        /* 80 < HCLK <= 100 => 4WS (5 CPU cycles) */
+        latency = LL_FLASH_LATENCY_4;
+      }
+      else if(HCLK_Frequency > UTILS_SCALE1_LATENCY3_FREQ)
+      {
+        /* 60 < HCLK <= 80 => 3WS (4 CPU cycles) */
+        latency = LL_FLASH_LATENCY_3;
+      }
+      else if(HCLK_Frequency > UTILS_SCALE1_LATENCY2_FREQ)
+      {
+        /* 40 < HCLK <= 20 => 2WS (3 CPU cycles) */
+        latency = LL_FLASH_LATENCY_2;
+      }
+      else
+      {
+        if(HCLK_Frequency > UTILS_SCALE1_LATENCY1_FREQ)
+        {
+          /* 20 < HCLK <= 40 => 1WS (2 CPU cycles) */
+          latency = LL_FLASH_LATENCY_1;
+        }
+        /* else HCLK_Frequency <= 10MHz default LL_FLASH_LATENCY_0 0WS */
+      }
+#else
+      if(HCLK_Frequency > UTILS_SCALE1_LATENCY4_FREQ)
+      {
+        /* 64 < HCLK <= 80 => 4WS (5 CPU cycles) */
+        latency = LL_FLASH_LATENCY_4;
+      }
+      else if(HCLK_Frequency > UTILS_SCALE1_LATENCY3_FREQ)
+      {
+        /* 48 < HCLK <= 64 => 3WS (4 CPU cycles) */
+        latency = LL_FLASH_LATENCY_3;
+      }
+      else if(HCLK_Frequency > UTILS_SCALE1_LATENCY2_FREQ)
+      {
+        /* 32 < HCLK <= 48 => 2WS (3 CPU cycles) */
+        latency = LL_FLASH_LATENCY_2;
+      }
+      else
+      {
+        if(HCLK_Frequency > UTILS_SCALE1_LATENCY1_FREQ)
+        {
+          /* 16 < HCLK <= 32 => 1WS (2 CPU cycles) */
+          latency = LL_FLASH_LATENCY_1;
+        }
+        /* else HCLK_Frequency <= 16MHz default LL_FLASH_LATENCY_0 0WS */
+      }
+#endif
+    }
+    else /* SCALE2 */
+    {
+#if defined(STM32L4R5xx) || defined(STM32L4R7xx) || defined(STM32L4R9xx) || defined(STM32L4S5xx) || defined(STM32L4S7xx) || defined(STM32L4S9xx)
+      if(HCLK_Frequency > UTILS_SCALE2_LATENCY2_FREQ)
+      {
+        /* 16 < HCLK <= 26 => 2WS (3 CPU cycles) */
+        latency = LL_FLASH_LATENCY_2;
+      }
+      else
+      {
+        if(HCLK_Frequency > UTILS_SCALE2_LATENCY1_FREQ)
+        {
+          /* 8 < HCLK <= 16 => 1WS (2 CPU cycles) */
+          latency = LL_FLASH_LATENCY_1;
+        }
+        /* else HCLK_Frequency <= 8MHz default LL_FLASH_LATENCY_0 0WS */
+      }
+#else
+      if(HCLK_Frequency > UTILS_SCALE2_LATENCY3_FREQ)
+      {
+        /* 18 < HCLK <= 26 => 3WS (4 CPU cycles) */
+        latency = LL_FLASH_LATENCY_3;
+      }
+      else if(HCLK_Frequency > UTILS_SCALE2_LATENCY2_FREQ)
+      {
+        /* 12 < HCLK <= 18 => 2WS (3 CPU cycles) */
+        latency = LL_FLASH_LATENCY_2;
+      }
+      else
+      {
+        if(HCLK_Frequency > UTILS_SCALE2_LATENCY1_FREQ)
+        {
+          /* 6 < HCLK <= 12 => 1WS (2 CPU cycles) */
+          latency = LL_FLASH_LATENCY_1;
+        }
+        /* else HCLK_Frequency <= 6MHz default LL_FLASH_LATENCY_0 0WS */
+      }
+#endif
+    }
+
+    LL_FLASH_SetLatency(latency);
+
+    /* Check that the new number of wait states is taken into account to access the Flash
+       memory by reading the FLASH_ACR register */
+    if(LL_FLASH_GetLatency() != latency)
+    {
+      status = ERROR;
+    }
+  }
+  return status;
+}

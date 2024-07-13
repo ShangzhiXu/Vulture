@@ -1,0 +1,37 @@
+int mbedtls_ccm_star_auth_decrypt( mbedtls_ccm_context *ctx, size_t length,
+                      const unsigned char *iv, size_t iv_len,
+                      const unsigned char *add, size_t add_len,
+                      const unsigned char *input, unsigned char *output,
+                      const unsigned char *tag, size_t tag_len )
+{
+    int ret;
+    unsigned char check_tag[16];
+    unsigned char i;
+    int diff;
+
+    CCM_VALIDATE_RET( ctx != NULL );
+    CCM_VALIDATE_RET( iv != NULL );
+    CCM_VALIDATE_RET( add_len == 0 || add != NULL );
+    CCM_VALIDATE_RET( length == 0 || input != NULL );
+    CCM_VALIDATE_RET( length == 0 || output != NULL );
+    CCM_VALIDATE_RET( tag_len == 0 || tag != NULL );
+
+    if( ( ret = ccm_auth_crypt( ctx, CCM_DECRYPT, length,
+                                iv, iv_len, add, add_len,
+                                input, output, check_tag, tag_len ) ) != 0 )
+    {
+        return( ret );
+    }
+
+    /* Check tag in "constant-time" */
+    for( diff = 0, i = 0; i < tag_len; i++ )
+        diff |= tag[i] ^ check_tag[i];
+
+    if( diff != 0 )
+    {
+        mbedtls_platform_zeroize( output, length );
+        return( MBEDTLS_ERR_CCM_AUTH_FAILED );
+    }
+
+    return( 0 );
+}

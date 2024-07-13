@@ -1,0 +1,73 @@
+static int upap_printpkt(const u_char *p, int plen, void (*printer) (void *, const char *, ...), void *arg) {
+    int code, id, len;
+    int mlen, ulen, wlen;
+    const u_char *user, *pwd, *msg;
+    const u_char *pstart;
+
+    if (plen < UPAP_HEADERLEN)
+	return 0;
+    pstart = p;
+    GETCHAR(code, p);
+    GETCHAR(id, p);
+    GETSHORT(len, p);
+    if (len < UPAP_HEADERLEN || len > plen)
+	return 0;
+
+    if (code >= 1 && code <= (int)LWIP_ARRAYSIZE(upap_codenames))
+	printer(arg, " %s", upap_codenames[code-1]);
+    else
+	printer(arg, " code=0x%x", code);
+    printer(arg, " id=0x%x", id);
+    len -= UPAP_HEADERLEN;
+    switch (code) {
+    case UPAP_AUTHREQ:
+	if (len < 1)
+	    break;
+	ulen = p[0];
+	if (len < ulen + 2)
+	    break;
+	wlen = p[ulen + 1];
+	if (len < ulen + wlen + 2)
+	    break;
+	user = (const u_char *) (p + 1);
+	pwd = (const u_char *) (p + ulen + 2);
+	p += ulen + wlen + 2;
+	len -= ulen + wlen + 2;
+	printer(arg, " user=");
+	ppp_print_string(user, ulen, printer, arg);
+	printer(arg, " password=");
+/* FIXME: require ppp_pcb struct as printpkt() argument */
+#if 0
+	if (!pcb->settings.hide_password)
+#endif
+	    ppp_print_string(pwd, wlen, printer, arg);
+#if 0
+	else
+	    printer(arg, "<hidden>");
+#endif
+	break;
+    case UPAP_AUTHACK:
+    case UPAP_AUTHNAK:
+	if (len < 1)
+	    break;
+	mlen = p[0];
+	if (len < mlen + 1)
+	    break;
+	msg = (const u_char *) (p + 1);
+	p += mlen + 1;
+	len -= mlen + 1;
+	printer(arg, " ");
+	ppp_print_string(msg, mlen, printer, arg);
+	break;
+    default:
+	break;
+    }
+
+    /* print the rest of the bytes in the packet */
+    for (; len > 0; --len) {
+	GETCHAR(code, p);
+	printer(arg, " %.2x", code);
+    }
+
+    return p - pstart;
+}

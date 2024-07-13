@@ -1,0 +1,54 @@
+HAL_StatusTypeDef HAL_ADCEx_InjectedPollForConversion(ADC_HandleTypeDef* hadc, uint32_t Timeout)
+{
+  uint32_t tickstart = 0;
+
+  /* Get tick */ 
+  tickstart = HAL_GetTick();
+
+  /* Check End of conversion flag */
+  while(!(__HAL_ADC_GET_FLAG(hadc, ADC_FLAG_JEOC)))
+  {
+    /* Check for the Timeout */
+    if(Timeout != HAL_MAX_DELAY)
+    {
+      if((Timeout == 0)||((HAL_GetTick() - tickstart ) > Timeout))
+      {
+        hadc->State= HAL_ADC_STATE_TIMEOUT;
+        /* Process unlocked */
+        __HAL_UNLOCK(hadc);
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+  
+  /* Clear injected group conversion flag */
+  __HAL_ADC_CLEAR_FLAG(hadc, ADC_FLAG_JSTRT | ADC_FLAG_JEOC);
+    
+  /* Update ADC state machine */
+  SET_BIT(hadc->State, HAL_ADC_STATE_INJ_EOC);
+  
+  /* Determine whether any further conversion upcoming on group injected      */
+  /* by external trigger, continuous mode or scan sequence on going.          */
+  /* Note: On STM32F7, there is no independent flag of end of sequence.       */
+  /*       The test of scan sequence on going is done either with scan        */
+  /*       sequence disabled or with end of conversion flag set to            */
+  /*       of end of sequence.                                                */
+  if(ADC_IS_SOFTWARE_START_INJECTED(hadc)                    &&
+     (HAL_IS_BIT_CLR(hadc->Instance->JSQR, ADC_JSQR_JL)  ||
+      HAL_IS_BIT_CLR(hadc->Instance->CR2, ADC_CR2_EOCS)    ) &&
+     (HAL_IS_BIT_CLR(hadc->Instance->CR1, ADC_CR1_JAUTO) &&
+      (ADC_IS_SOFTWARE_START_REGULAR(hadc)       &&
+      (hadc->Init.ContinuousConvMode == DISABLE)   )       )   )
+  {
+    /* Set ADC state */
+    CLEAR_BIT(hadc->State, HAL_ADC_STATE_INJ_BUSY);
+    
+    if (HAL_IS_BIT_CLR(hadc->State, HAL_ADC_STATE_REG_BUSY))
+    { 
+      SET_BIT(hadc->State, HAL_ADC_STATE_READY);
+    }
+  }
+  
+  /* Return ADC state */
+  return HAL_OK;
+}      

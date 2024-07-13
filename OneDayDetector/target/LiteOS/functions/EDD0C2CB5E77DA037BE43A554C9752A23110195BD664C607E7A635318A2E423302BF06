@@ -1,0 +1,20 @@
+VOID *LOS_MemboxAlloc(VOID *pool)
+{
+    LOS_MEMBOX_INFO *boxInfo = (LOS_MEMBOX_INFO *)pool;
+    VOID *ret = NULL;
+    UINT32 intSave;
+
+    if (pool == NULL) {
+        return NULL;
+    }
+
+    MEMBOX_LOCK(intSave);
+    if (boxInfo->uwBlkCnt < boxInfo->uwBlkNum) {
+        ret = LOS_MemAlloc(OS_SYS_MEM_ADDR, boxInfo->uwBlkSize);
+        if (ret != NULL) {
+            boxInfo->uwBlkCnt++;
+        }
+    }
+    MEMBOX_UNLOCK(intSave);
+    return ret;
+}

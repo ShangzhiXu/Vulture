@@ -1,0 +1,13 @@
+static void I2S_DMARxCplt(DMA_HandleTypeDef *hdma)
+{
+  I2S_HandleTypeDef* hi2s = (I2S_HandleTypeDef*)((DMA_HandleTypeDef*)hdma)->Parent;
+
+  if(HAL_IS_BIT_CLR(hdma->Instance->CCR, DMA_CCR_CIRC))
+  {
+    /* Disable Rx DMA Request */
+    CLEAR_BIT(hi2s->Instance->CR2, SPI_CR2_RXDMAEN);
+    hi2s->RxXferCount = 0;
+    hi2s->State = HAL_I2S_STATE_READY;
+  }
+  HAL_I2S_RxCpltCallback(hi2s); 
+}

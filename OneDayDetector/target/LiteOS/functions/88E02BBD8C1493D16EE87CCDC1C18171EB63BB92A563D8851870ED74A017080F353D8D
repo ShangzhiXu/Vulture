@@ -1,0 +1,30 @@
+VOID OsSchedPreempt(VOID)
+{
+    LosTaskCB *runTask = NULL;
+    UINT32 intSave;
+
+    if (!OsPreemptable()) {
+        return;
+    }
+
+    SCHEDULER_LOCK(intSave);
+
+    /* add run task back to ready queue */
+    runTask = OsCurrTaskGet();
+    runTask->taskStatus |= OS_TASK_STATUS_READY;
+
+#ifdef LOSCFG_BASE_CORE_TIMESLICE
+    if (runTask->timeSlice == 0) {
+        OsPriQueueEnqueue(&runTask->pendList, runTask->priority);
+    } else {
+#endif
+        OsPriQueueEnqueueHead(&runTask->pendList, runTask->priority);
+#ifdef LOSCFG_BASE_CORE_TIMESLICE
+    }
+#endif
+
+    /* reschedule to new thread */
+    OsSchedResched();
+
+    SCHEDULER_UNLOCK(intSave);
+}

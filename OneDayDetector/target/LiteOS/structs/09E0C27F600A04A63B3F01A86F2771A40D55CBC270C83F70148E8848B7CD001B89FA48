@@ -1,0 +1,20 @@
+struct mbedtls_ecp_restart_mul
+{
+    mbedtls_ecp_point R;    /* current intermediate result                  */
+    size_t i;               /* current index in various loops, 0 outside    */
+    mbedtls_ecp_point *T;   /* table for precomputed points                 */
+    unsigned char T_size;   /* number of points in table T                  */
+    enum {                  /* what were we doing last time we returned?    */
+        ecp_rsm_init = 0,       /* nothing so far, dummy initial state      */
+        ecp_rsm_pre_dbl,        /* precompute 2^n multiples                 */
+        ecp_rsm_pre_norm_dbl,   /* normalize precomputed 2^n multiples      */
+        ecp_rsm_pre_add,        /* precompute remaining points by adding    */
+        ecp_rsm_pre_norm_add,   /* normalize all precomputed points         */
+        ecp_rsm_comb_core,      /* ecp_mul_comb_core()                      */
+        ecp_rsm_final_norm,     /* do the final normalization               */
+    } state;
+#if !defined(MBEDTLS_ECP_NO_INTERNAL_RNG)
+    ecp_drbg_context drbg_ctx;
+    unsigned char drbg_seeded;
+#endif
+};

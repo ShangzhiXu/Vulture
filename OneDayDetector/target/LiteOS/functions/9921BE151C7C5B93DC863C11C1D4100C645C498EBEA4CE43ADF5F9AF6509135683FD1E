@@ -1,0 +1,59 @@
+static int pack_head_parse_tlvs(pack_head_s *head, uint8_t *buff, uint32_t len)
+{
+    uint32_t attribute;
+    uint32_t tlv_len;
+    uint8_t *cur = buff + PACK_TLV_START_POS;
+    uint32_t left_len = len - PACK_TLV_START_POS;
+
+    int (*tlv_handles[2])(pack_head_s * head, uint8_t * value, uint32_t len) = {
+        pack_head_handle_checksum_tlv,
+        pack_head_handle_bin_type_tlv
+    };
+    uint32_t attributes[array_size(tlv_handles)] = {PACK_INVALID_TLV_T, PACK_TLV_T_BIN_TYPE};
+
+    attributes[0] = pack_head_get_checksum_attribute();
+    while (left_len > 0) {
+        uint32_t i;
+
+        attribute = GET_WORD(cur, 0);
+        cur += PACK_TLV_T_LEN;
+        tlv_len = GET_WORD(cur, 0);
+        cur += PACK_TLV_L_LEN;
+        if (left_len < (PACK_TLV_T_LEN + PACK_TLV_L_LEN + tlv_len)) {
+            PACK_LOG("tvl err attribute %d, tlv_len %d", attribute, tlv_len);
+            return PACK_ERR;
+        }
+
+        for (i = 0; i < array_size(tlv_handles); i++) {
+            if (attributes[i] == attribute) {
+                if (tlv_handles[i](head, cur, tlv_len) != PACK_OK) {
+                    return PACK_ERR;
+                }
+                break;
+            }
+        }
+
+        cur += tlv_len;
+        left_len -= (PACK_TLV_T_LEN + PACK_TLV_L_LEN + tlv_len);
+    }
+
+    if (head->checksum_pos == NULL) {
+        PACK_LOG("head empty checksum info");
+#if (PACK_CHECKSUM != PACK_NO_CHECKSUM)
+        return PACK_ERR;
+#else
+        return PACK_OK;
+#endif
+    }
+
+    if (head->checksum) {
+        pack_checksum_delete(head->checksum);
+        head->checksum = NULL;
+    }
+    head->checksum = pack_checksum_create(head);
+    if (head->checksum == NULL) {
+        PACK_LOG("pack_checksum_create fail");
+        return PACK_ERR;
+    }
+    return PACK_OK;
+}

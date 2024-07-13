@@ -1,0 +1,22 @@
+STATIC INLINE VOID OsMemMergeNodeForReAllocBigger(LosMemPoolInfo *pool, UINT32 allocSize, LosMemDynNode *node,
+                                                  UINT32 nodeSize, LosMemDynNode *nextNode)
+{
+    const VOID *firstNode = (const VOID *)((UINT8 *)OS_MEM_HEAD_ADDR(pool) + OS_DLNK_HEAD_SIZE);
+
+    node->selfNode.sizeAndFlag = nodeSize;
+    OsMemListDelete(&nextNode->selfNode.freeNodeInfo, firstNode);
+    OsMemMergeNode(nextNode);
+    if ((allocSize + OS_MEM_NODE_HEAD_SIZE + OS_MEM_ALIGN_SIZE) <= node->selfNode.sizeAndFlag) {
+        OsMemSplitNode(pool, node, allocSize);
+    }
+
+    OS_MEM_ADD_USED(&pool->stat, node->selfNode.sizeAndFlag - nodeSize, OS_MEM_TASKID_GET(node));
+
+    OS_MEM_NODE_SET_USED_FLAG(node->selfNode.sizeAndFlag);
+#ifdef LOSCFG_MEM_HEAD_BACKUP
+    OsMemNodeSave(node);
+#endif
+#ifdef LOSCFG_MEM_LEAKCHECK
+    OsMemLinkRegisterRecord(node);
+#endif
+}

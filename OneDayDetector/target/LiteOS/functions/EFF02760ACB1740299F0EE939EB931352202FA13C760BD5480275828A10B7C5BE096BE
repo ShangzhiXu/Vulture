@@ -1,0 +1,25 @@
+done_socket(struct lwip_sock *sock)
+{
+  int freed = 0;
+  int is_tcp = 0;
+  struct netconn *conn = NULL;
+  union lwip_sock_lastdata lastdata;
+  SYS_ARCH_DECL_PROTECT(lev);
+  LWIP_ASSERT("sock != NULL", sock != NULL);
+
+  SYS_ARCH_PROTECT(lev);
+  LWIP_ASSERT("sock->fd_used > 0", sock->fd_used > 0);
+  if (--sock->fd_used == 0) {
+    if (sock->fd_free_pending) {
+      /* free the socket */
+      sock->fd_used = 1;
+      is_tcp = sock->fd_free_pending & LWIP_SOCK_FD_FREE_TCP;
+      freed = free_socket_locked(sock, is_tcp, &conn, &lastdata);
+    }
+  }
+  SYS_ARCH_UNPROTECT(lev);
+
+  if (freed) {
+    free_socket_free_elements(is_tcp, conn, &lastdata);
+  }
+}

@@ -1,0 +1,33 @@
+VOID OsIntHandle(UINT32 hwiNum, HwiHandleInfo *hwiForm)
+{
+    size_t *intCnt = NULL;
+
+#ifdef LOSCFG_CPUP_INCLUDE_IRQ
+    OsCpupIrqStart();
+#endif
+    intCnt = &g_intCount[ArchCurrCpuid()];
+    *intCnt = *intCnt + 1;
+
+#ifdef LOSCFG_DEBUG_SCHED_STATISTICS
+    OsHwiStatistics(hwiNum);
+#endif
+
+#ifdef LOSCFG_KERNEL_LOWPOWER
+    if (g_intWakeupHook != NULL) {
+        g_intWakeupHook(hwiNum);
+    }
+#endif
+    LOS_TRACE(HWI_RESPONSE_IN, hwiNum);
+
+    OsIrqNestingActive(hwiNum);
+    InterruptHandle(hwiForm);
+    OsIrqNestingInactive(hwiNum);
+
+    LOS_TRACE(HWI_RESPONSE_OUT, hwiNum);
+
+    *intCnt = *intCnt - 1;
+
+#ifdef LOSCFG_CPUP_INCLUDE_IRQ
+    OsCpupIrqEnd(hwiNum);
+#endif
+}

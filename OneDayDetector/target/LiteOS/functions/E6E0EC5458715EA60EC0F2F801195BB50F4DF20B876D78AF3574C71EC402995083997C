@@ -1,0 +1,26 @@
+static void fsm_rtermreq(fsm *f, int id, u_char *p, int len) {
+    ppp_pcb *pcb = f->pcb;
+
+    switch (f->state) {
+    case PPP_FSM_ACKRCVD:
+    case PPP_FSM_ACKSENT:
+	f->state = PPP_FSM_REQSENT;		/* Start over but keep trying */
+	break;
+
+    case PPP_FSM_OPENED:
+	if (len > 0) {
+	    ppp_info("%s terminated by peer (%0.*v)", PROTO_NAME(f), len, p);
+	} else
+	    ppp_info("%s terminated by peer", PROTO_NAME(f));
+	f->retransmits = 0;
+	f->state = PPP_FSM_STOPPING;
+	if (f->callbacks->down)
+	    (*f->callbacks->down)(f);	/* Inform upper layers */
+	TIMEOUT(fsm_timeout, f, pcb->settings.fsm_timeout_time);
+	break;
+    default:
+	break;
+    }
+
+    fsm_sdata(f, TERMACK, id, NULL, 0);
+}

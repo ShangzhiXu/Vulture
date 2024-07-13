@@ -1,0 +1,66 @@
+static void FMPSMBUS_Disable_IRQ(struct __FMPSMBUS_HandleTypeDef *hfmpsmbus, uint32_t InterruptRequest)
+{
+  uint32_t tmpisr = 0UL;
+  uint32_t tmpstate = hfmpsmbus->State;
+
+  if ((tmpstate == HAL_FMPSMBUS_STATE_READY) && ((InterruptRequest & FMPSMBUS_IT_ALERT) == FMPSMBUS_IT_ALERT))
+  {
+    /* Disable ERR interrupt */
+    tmpisr |= FMPSMBUS_IT_ERRI;
+  }
+
+  if ((InterruptRequest & FMPSMBUS_IT_TX) == FMPSMBUS_IT_TX)
+  {
+    /* Disable TC, STOP, NACK and TXI interrupt */
+    tmpisr |= FMPSMBUS_IT_TCI | FMPSMBUS_IT_TXI;
+
+    if ((FMPSMBUS_GET_ALERT_ENABLED(hfmpsmbus) == 0UL)
+        && ((tmpstate & HAL_FMPSMBUS_STATE_LISTEN) != HAL_FMPSMBUS_STATE_LISTEN))
+    {
+      /* Disable ERR interrupt */
+      tmpisr |= FMPSMBUS_IT_ERRI;
+    }
+
+    if ((tmpstate & HAL_FMPSMBUS_STATE_LISTEN) != HAL_FMPSMBUS_STATE_LISTEN)
+    {
+      /* Disable STOP and NACK interrupt */
+      tmpisr |= FMPSMBUS_IT_STOPI | FMPSMBUS_IT_NACKI;
+    }
+  }
+
+  if ((InterruptRequest & FMPSMBUS_IT_RX) == FMPSMBUS_IT_RX)
+  {
+    /* Disable TC, STOP, NACK and RXI interrupt */
+    tmpisr |= FMPSMBUS_IT_TCI | FMPSMBUS_IT_RXI;
+
+    if ((FMPSMBUS_GET_ALERT_ENABLED(hfmpsmbus) == 0UL)
+        && ((tmpstate & HAL_FMPSMBUS_STATE_LISTEN) != HAL_FMPSMBUS_STATE_LISTEN))
+    {
+      /* Disable ERR interrupt */
+      tmpisr |= FMPSMBUS_IT_ERRI;
+    }
+
+    if ((tmpstate & HAL_FMPSMBUS_STATE_LISTEN) != HAL_FMPSMBUS_STATE_LISTEN)
+    {
+      /* Disable STOP and NACK interrupt */
+      tmpisr |= FMPSMBUS_IT_STOPI | FMPSMBUS_IT_NACKI;
+    }
+  }
+
+  if ((InterruptRequest & FMPSMBUS_IT_ADDR) == FMPSMBUS_IT_ADDR)
+  {
+    /* Disable ADDR, STOP and NACK interrupt */
+    tmpisr |= FMPSMBUS_IT_ADDRI | FMPSMBUS_IT_STOPI | FMPSMBUS_IT_NACKI;
+
+    if (FMPSMBUS_GET_ALERT_ENABLED(hfmpsmbus) == 0UL)
+    {
+      /* Disable ERR interrupt */
+      tmpisr |= FMPSMBUS_IT_ERRI;
+    }
+  }
+
+  /* Disable interrupts only at the end */
+  /* to avoid a breaking situation like at "t" time */
+  /* all disable interrupts request are not done */
+  __HAL_FMPSMBUS_DISABLE_IT(hfmpsmbus, tmpisr);
+}

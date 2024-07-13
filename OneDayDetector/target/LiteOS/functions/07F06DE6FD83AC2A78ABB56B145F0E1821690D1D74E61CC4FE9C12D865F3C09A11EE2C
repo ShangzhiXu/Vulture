@@ -1,0 +1,29 @@
+int main(int argc, char *argv[]) {
+    int return_value;
+    int number_of_intermediate_values;
+    int *intermediate_values;
+    // Peform the operation.
+    const int result = perform_operation(
+        argc - 1, &argv[1],
+        sizeof(operator_function_map) / sizeof(operator_function_map[0]),
+        operator_function_map, &number_of_intermediate_values,
+        &intermediate_values, &return_value);
+
+    // If no errors occurred display the result.
+    if (!return_value && argc > 1) {
+        unsigned int i;
+        unsigned int intermediate_value_index = 0;
+        printf("%s\n", argv[1]);
+        for (i = 2; i < argc; i += 2) {
+            assert(intermediate_value_index < number_of_intermediate_values);
+            printf("  %s %s = %d\n", argv[i], argv[i + 1],
+                   intermediate_values[intermediate_value_index++]);
+        }
+        printf("= %d\n", result);
+    }
+    if (intermediate_values) {
+        free(intermediate_values);
+    }
+
+    return return_value;
+}

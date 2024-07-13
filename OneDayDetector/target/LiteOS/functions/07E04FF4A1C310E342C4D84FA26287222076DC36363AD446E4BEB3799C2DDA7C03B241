@@ -1,0 +1,41 @@
+smtp_is_response_finished(struct smtp_session *s)
+{
+  u8_t sp;
+  u16_t crlf;
+  u16_t offset;
+
+  if (s->p == NULL) {
+    return ERR_VAL;
+  }
+  offset = 0;
+again:
+  /* We could check the response number here, but we trust the
+   * protocol definition which says the client can rely on it being
+   * the same on every line. */
+
+  /* find CRLF */
+  if (offset > 0xFFFF - 4) {
+    /* would overflow */
+    return ERR_VAL;
+  }
+  crlf = pbuf_memfind(s->p, SMTP_CRLF, SMTP_CRLF_LEN, (u16_t)(offset + 4));
+  if (crlf == 0xFFFF) {
+    /* no CRLF found */
+    return ERR_VAL;
+  }
+  sp = pbuf_get_at(s->p, (u16_t)(offset + 3));
+  if (sp == '-') {
+    /* no space after response code -> try next line */
+    offset = (u16_t)(crlf + 2);
+    if (offset < crlf) {
+      /* overflow */
+      return ERR_VAL;
+    }
+    goto again;
+  } else if (sp == ' ') {
+    /* CRLF found after response code + space -> valid response */
+    return ERR_OK;
+  }
+  /* sp contains invalid character */
+  return ERR_VAL;
+}

@@ -1,0 +1,40 @@
+static err_t pppoe_write(ppp_pcb *ppp, void *ctx, struct pbuf *p) {
+  struct pppoe_softc *sc = (struct pppoe_softc *)ctx;
+  struct pbuf *ph; /* Ethernet + PPPoE header */
+  err_t ret;
+#if MIB2_STATS
+  u16_t tot_len;
+#else /* MIB2_STATS */
+  LWIP_UNUSED_ARG(ppp);
+#endif /* MIB2_STATS */
+
+  /* skip address & flags */
+  pbuf_remove_header(p, 2);
+
+  ph = pbuf_alloc(PBUF_LINK, (u16_t)(PPPOE_HEADERLEN), PBUF_RAM);
+  if(!ph) {
+    LINK_STATS_INC(link.memerr);
+    LINK_STATS_INC(link.proterr);
+    MIB2_STATS_NETIF_INC(ppp->netif, ifoutdiscards);
+    pbuf_free(p);
+    return ERR_MEM;
+  }
+
+  pbuf_remove_header(ph, PPPOE_HEADERLEN); /* hide PPPoE header */
+  pbuf_cat(ph, p);
+#if MIB2_STATS
+  tot_len = ph->tot_len;
+#endif /* MIB2_STATS */
+
+  ret = pppoe_xmit(sc, ph);
+  if (ret != ERR_OK) {
+    LINK_STATS_INC(link.err);
+    MIB2_STATS_NETIF_INC(ppp->netif, ifoutdiscards);
+    return ret;
+  }
+
+  MIB2_STATS_NETIF_ADD(ppp->netif, ifoutoctets, (u16_t)tot_len);
+  MIB2_STATS_NETIF_INC(ppp->netif, ifoutucastpkts);
+  LINK_STATS_INC(link.xmit);
+  return ERR_OK;
+}

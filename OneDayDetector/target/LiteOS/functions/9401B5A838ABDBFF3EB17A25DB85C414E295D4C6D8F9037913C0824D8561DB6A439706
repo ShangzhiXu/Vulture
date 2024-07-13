@@ -1,0 +1,23 @@
+LITE_OS_SEC_TEXT_MINOR STATIC VOID ItemInit(const MailItemInit *itemInit)
+{
+    SensorType *sensorInterface = NULL;
+    SensorItem *item = NULL;
+
+    PRINT_DEBUG("item init tag %d index %d \n", itemInit->item->tag, itemInit->tag - TAG_BEGIN);
+    itemInit->item->state      = IDLE;
+    itemInit->item->respFunc   = itemInit->respFunc;
+    itemInit->item->tag        = itemInit->tag;
+    itemInit->item->updateFunc = itemInit->updateFunc;
+    itemInit->item->updateArg  = itemInit->updateArg;
+
+    sensorInterface = g_sensorScbTable[ScbTableIndex(itemInit->tag)].sensorInterface;
+    if (sensorInterface != NULL) {
+        LOS_DL_LIST_FOR_EACH_ENTRY(item, &(sensorInterface->slist), SensorItem, list) {
+            if ((item->tag == itemInit->item->tag) && (item->id == itemInit->item->id)) {
+                PRINT_ERR("duplicate item init err tag %d id %u\n", item->tag, item->id);
+                return;
+            }
+        }
+        LOS_ListAdd(&(sensorInterface->slist), &(itemInit->item->list));
+    }
+}

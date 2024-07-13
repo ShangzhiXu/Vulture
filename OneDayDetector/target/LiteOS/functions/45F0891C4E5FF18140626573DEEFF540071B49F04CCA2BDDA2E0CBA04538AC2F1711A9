@@ -1,0 +1,27 @@
+netifapi_netif_set_addr(struct netif *netif,
+                        const ip4_addr_t *ipaddr,
+                        const ip4_addr_t *netmask,
+                        const ip4_addr_t *gw)
+{
+  err_t err;
+  NETIFAPI_VAR_DECLARE(msg);
+  NETIFAPI_VAR_ALLOC(msg);
+
+  if (ipaddr == NULL) {
+    ipaddr = IP4_ADDR_ANY4;
+  }
+  if (netmask == NULL) {
+    netmask = IP4_ADDR_ANY4;
+  }
+  if (gw == NULL) {
+    gw = IP4_ADDR_ANY4;
+  }
+
+  NETIFAPI_VAR_REF(msg).netif = netif;
+  NETIFAPI_VAR_REF(msg).msg.add.ipaddr  = NETIFAPI_VAR_REF(ipaddr);
+  NETIFAPI_VAR_REF(msg).msg.add.netmask = NETIFAPI_VAR_REF(netmask);
+  NETIFAPI_VAR_REF(msg).msg.add.gw      = NETIFAPI_VAR_REF(gw);
+  err = tcpip_api_call(netifapi_do_netif_set_addr, &API_VAR_REF(msg).call);
+  NETIFAPI_VAR_FREE(msg);
+  return err;
+}

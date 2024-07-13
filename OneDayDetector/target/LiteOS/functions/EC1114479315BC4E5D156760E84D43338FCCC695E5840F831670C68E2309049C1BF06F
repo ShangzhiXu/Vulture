@@ -1,0 +1,68 @@
+HAL_StatusTypeDef HAL_CEC_Transmit_IT(CEC_HandleTypeDef *hcec, uint8_t DestinationAddress, uint8_t *pData, uint32_t Size)
+{
+  uint8_t  temp = 0;
+  uint32_t tmp_state = 0;
+  
+  tmp_state = hcec->State;
+  if(((tmp_state == HAL_CEC_STATE_READY) || (tmp_state == HAL_CEC_STATE_BUSY_RX))
+     && (__HAL_CEC_GET_TRANSMISSION_START_FLAG(hcec) == RESET)) 
+  {
+    
+    /* Basic check on pData pointer */
+    if(((pData == NULL) && (Size > 0)) || (! IS_CEC_MSGSIZE(Size))) 
+    {
+      return  HAL_ERROR;
+    }
+
+    assert_param(IS_CEC_ADDRESS(DestinationAddress));
+    
+    /* Process Locked */
+    __HAL_LOCK(hcec);
+    hcec->pTxBuffPtr = pData;
+    
+    /* Check if a receive process is ongoing or not */
+    if(hcec->State == HAL_CEC_STATE_BUSY_RX) 
+    {
+      hcec->State = HAL_CEC_STATE_BUSY_TX_RX;
+      
+      /* Interrupt are not enabled here because they are already enabled in the Reception process */
+    }
+    else
+    {
+      hcec->State = HAL_CEC_STATE_BUSY_TX;    
+      
+      /* Enable the CEC interrupt */
+      __HAL_CEC_ENABLE_IT(hcec, CEC_IT_IE);
+    }    
+    
+    hcec->ErrorCode = HAL_CEC_ERROR_NONE;
+    
+    /* initialize the number of bytes to send,
+     * 0 means only one header is sent (ping operation) */
+    hcec->TxXferCount = Size;
+
+    /* send header block */
+    temp = (uint8_t)((uint32_t)(hcec->Init.InitiatorAddress) << CEC_INITIATOR_LSB_POS) | DestinationAddress;
+    hcec->Instance->TXD = temp;
+    
+    /* Process Unlocked */
+    __HAL_UNLOCK(hcec); 
+
+    /* case no data to be sent, sender is only pinging the system */
+    if (Size != 0)
+    {    
+      /* Set TX Start of Message (TXSOM) bit */
+      MODIFY_REG(hcec->Instance->CSR, CEC_FLAG_TRANSMIT_MASK, CEC_FLAG_TSOM);
+    }
+    else
+    {
+      /* Send a ping command */
+      MODIFY_REG(hcec->Instance->CSR, CEC_FLAG_TRANSMIT_MASK, CEC_FLAG_TEOM|CEC_FLAG_TSOM);
+    }
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;   
+  }
+}

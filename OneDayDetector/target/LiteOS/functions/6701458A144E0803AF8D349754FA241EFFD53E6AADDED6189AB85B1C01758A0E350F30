@@ -1,0 +1,36 @@
+int flash_manager_read(flash_info_s *flash_info)
+{
+    int ret;
+    uint32_t len;
+    uint32_t magic_num;
+    uint8_t *buf;
+
+    memset(flash_info, 0, sizeof(*flash_info));
+    buf = atiny_malloc(MAX_FLASH_INFO);
+    if (buf == NULL) {
+        ATINY_LOG(LOG_ERR, "atiny_malloc fail len %d", MAX_FLASH_INFO);
+        return ATINY_MALLOC_FAILED;
+    }
+
+    ret = g_cmd_ioctl(MQTT_READ_SECRET_INFO, buf, MAX_FLASH_INFO);
+    if (ret != ATINY_OK) {
+        ATINY_LOG(LOG_FATAL, "g_cmd_ioctl MQTT_READ_SECRET_INFO fail ret %ld", ret);
+         goto EXIT;
+    }
+
+    magic_num = *((uint32_t*)buf);
+    if (magic_num != FLASH_MAGIC_NUM) {
+        ATINY_LOG(LOG_INFO, "mqtt flash info not valid");
+         goto EXIT;
+    }
+
+    len = *((uint32_t*)&buf[TOTAL_LEN_POS]);
+    if ((len > MAX_FLASH_INFO) || (len <= DATA_POS)) {
+        ATINY_LOG(LOG_ERR, "mqtt flash info len %d invalid", len);
+         goto EXIT;
+    }
+    ret = flash_manager_parse((char *)(buf + DATA_POS), len - DATA_POS, flash_info);
+EXIT:
+    atiny_free(buf);
+    return ret;
+}

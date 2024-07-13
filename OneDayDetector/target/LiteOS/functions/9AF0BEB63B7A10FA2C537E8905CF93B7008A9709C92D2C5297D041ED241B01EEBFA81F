@@ -1,0 +1,38 @@
+HAL_StatusTypeDef HAL_FMPSMBUS_DeInit(FMPSMBUS_HandleTypeDef *hfmpsmbus)
+{
+  /* Check the FMPSMBUS handle allocation */
+  if (hfmpsmbus == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_FMPSMBUS_ALL_INSTANCE(hfmpsmbus->Instance));
+
+  hfmpsmbus->State = HAL_FMPSMBUS_STATE_BUSY;
+
+  /* Disable the FMPSMBUS Peripheral Clock */
+  __HAL_FMPSMBUS_DISABLE(hfmpsmbus);
+
+#if (USE_HAL_FMPSMBUS_REGISTER_CALLBACKS == 1)
+  if (hfmpsmbus->MspDeInitCallback == NULL)
+  {
+    hfmpsmbus->MspDeInitCallback = HAL_FMPSMBUS_MspDeInit; /* Legacy weak MspDeInit  */
+  }
+
+  /* DeInit the low level hardware: GPIO, CLOCK, NVIC */
+  hfmpsmbus->MspDeInitCallback(hfmpsmbus);
+#else
+  /* DeInit the low level hardware: GPIO, CLOCK, NVIC */
+  HAL_FMPSMBUS_MspDeInit(hfmpsmbus);
+#endif /* USE_HAL_FMPSMBUS_REGISTER_CALLBACKS */
+
+  hfmpsmbus->ErrorCode = HAL_FMPSMBUS_ERROR_NONE;
+  hfmpsmbus->PreviousState =  HAL_FMPSMBUS_STATE_RESET;
+  hfmpsmbus->State = HAL_FMPSMBUS_STATE_RESET;
+
+  /* Release Lock */
+  __HAL_UNLOCK(hfmpsmbus);
+
+  return HAL_OK;
+}

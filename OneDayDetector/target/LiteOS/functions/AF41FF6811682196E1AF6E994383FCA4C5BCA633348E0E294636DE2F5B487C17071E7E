@@ -1,0 +1,91 @@
+void _lv_bidi_process_paragraph(const char * str_in, char * str_out, uint32_t len, lv_bidi_dir_t base_dir,
+                                uint16_t * pos_conv_out, uint16_t pos_conv_len)
+{
+    uint32_t run_len = 0;
+    lv_bidi_dir_t run_dir;
+    uint32_t rd = 0;
+    uint32_t wr;
+    uint16_t pos_conv_run_len = 0;
+    uint16_t pos_conv_rd = 0;
+    uint16_t pos_conv_wr;
+
+    if(base_dir == LV_BIDI_DIR_AUTO) base_dir = _lv_bidi_detect_base_dir(str_in);
+    if(base_dir == LV_BIDI_DIR_RTL) {
+        wr = len;
+        pos_conv_wr = pos_conv_len;
+    }
+    else {
+        wr = 0;
+        pos_conv_wr = 0;
+    }
+
+    if(str_out) str_out[len] = '\0';
+
+    lv_bidi_dir_t dir = base_dir;
+
+    /*Empty the bracket stack*/
+    br_stack_p = 0;
+
+    /*Process neutral chars in the beginning*/
+    while(rd < len) {
+        uint32_t letter = _lv_txt_encoded_next(str_in, &rd);
+        pos_conv_rd++;
+        dir = lv_bidi_get_letter_dir(letter);
+        if(dir == LV_BIDI_DIR_NEUTRAL)  dir = bracket_process(str_in, rd, len, letter, base_dir);
+        if(dir != LV_BIDI_DIR_NEUTRAL && dir != LV_BIDI_DIR_WEAK) break;
+    }
+
+    if(rd && str_in[rd] != '\0') {
+        _lv_txt_encoded_prev(str_in, &rd);
+        pos_conv_rd--;
+    }
+
+    if(rd) {
+        if(base_dir == LV_BIDI_DIR_LTR) {
+            if(str_out) {
+                _lv_memcpy(&str_out[wr], str_in, rd);
+                wr += rd;
+            }
+            if(pos_conv_out) {
+                fill_pos_conv(&pos_conv_out[pos_conv_wr], pos_conv_rd, 0);
+                pos_conv_wr += pos_conv_rd;
+            }
+        }
+        else {
+            wr -= rd;
+            pos_conv_wr -= pos_conv_rd;
+            rtl_reverse(str_out ? &str_out[wr] : NULL, str_in, rd, pos_conv_out ? &pos_conv_out[pos_conv_wr] : NULL, 0,
+                        pos_conv_rd);
+        }
+    }
+
+    /*Get and process the runs*/
+
+    while(rd < len && str_in[rd]) {
+        run_dir = get_next_run(&str_in[rd], base_dir, len - rd, &run_len, &pos_conv_run_len);
+
+        if(base_dir == LV_BIDI_DIR_LTR) {
+            if(run_dir == LV_BIDI_DIR_LTR) {
+                if(str_out) _lv_memcpy(&str_out[wr], &str_in[rd], run_len);
+                if(pos_conv_out) fill_pos_conv(&pos_conv_out[pos_conv_wr], pos_conv_run_len, pos_conv_rd);
+            }
+            else rtl_reverse(str_out ? &str_out[wr] : NULL, &str_in[rd], run_len, pos_conv_out ? &pos_conv_out[pos_conv_wr] : NULL,
+                                 pos_conv_rd, pos_conv_run_len);
+            wr += run_len;
+            pos_conv_wr += pos_conv_run_len;
+        }
+        else {
+            wr -= run_len;
+            pos_conv_wr -= pos_conv_run_len;
+            if(run_dir == LV_BIDI_DIR_LTR) {
+                if(str_out) _lv_memcpy(&str_out[wr], &str_in[rd], run_len);
+                if(pos_conv_out) fill_pos_conv(&pos_conv_out[pos_conv_wr], pos_conv_run_len, pos_conv_rd);
+            }
+            else rtl_reverse(str_out ? &str_out[wr] : NULL, &str_in[rd], run_len, pos_conv_out ? &pos_conv_out[pos_conv_wr] : NULL,
+                                 pos_conv_rd, pos_conv_run_len);
+        }
+
+        rd += run_len;
+        pos_conv_rd += pos_conv_run_len;
+    }
+}

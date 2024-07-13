@@ -1,0 +1,32 @@
+static uint32_t SDMMC_GetCmdResp7(SDMMC_TypeDef *SDMMCx)
+{
+  /* 8 is the number of required instructions cycles for the below loop statement.
+  The SDMMC_CMDTIMEOUT is expressed in ms */
+  register uint32_t count = SDMMC_CMDTIMEOUT * (SystemCoreClock / 8 /1000);
+  
+  do
+  {
+    if (count-- == 0)
+    {
+      return SDMMC_ERROR_TIMEOUT;
+    }
+    
+  }while(!__SDMMC_GET_FLAG(SDMMCx, SDMMC_FLAG_CCRCFAIL | SDMMC_FLAG_CMDREND | SDMMC_FLAG_CTIMEOUT));
+
+  if(__SDMMC_GET_FLAG(SDMMCx, SDMMC_FLAG_CTIMEOUT))
+  {
+    /* Card is SD V2.0 compliant */
+    __SDMMC_CLEAR_FLAG(SDMMCx, SDMMC_FLAG_CMDREND);
+    
+    return SDMMC_ERROR_CMD_RSP_TIMEOUT;
+  }
+  
+  if(__SDMMC_GET_FLAG(SDMMCx, SDMMC_FLAG_CMDREND))
+  {
+    /* Card is SD V2.0 compliant */
+    __SDMMC_CLEAR_FLAG(SDMMCx, SDMMC_FLAG_CMDREND);
+  }
+  
+  return SDMMC_ERROR_NONE;
+  
+}

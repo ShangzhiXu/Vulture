@@ -1,0 +1,15 @@
+lwip_netconn_do_disconnect(void *m)
+{
+  struct api_msg *msg = (struct api_msg *)m;
+
+#if LWIP_UDP
+  if (NETCONNTYPE_GROUP(msg->conn->type) == NETCONN_UDP) {
+    udp_disconnect(msg->conn->pcb.udp);
+    msg->err = ERR_OK;
+  } else
+#endif /* LWIP_UDP */
+  {
+    msg->err = ERR_VAL;
+  }
+  TCPIP_APIMSG_ACK(msg);
+}

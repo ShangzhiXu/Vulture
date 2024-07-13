@@ -1,0 +1,44 @@
+lv_obj_t * lv_templ_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+    LV_LOG_TRACE("template create started");
+
+    /*Create the ancestor of template*/
+    /*TODO modify it to the ancestor create function */
+    lv_obj_t * new_templ = lv_ANCESTOR_create(par, copy);
+    LV_ASSERT_MEM(new_templ);
+    if(new_templ == NULL) return NULL;
+
+    /*Allocate the template type specific extended data*/
+    lv_templ_ext_t * ext = lv_obj_allocate_ext_attr(new_templ, sizeof(lv_templ_ext_t));
+    lv_mem_assert(ext);
+    if(ext == NULL) {
+        lv_obj_del(new_templ);
+        return NULL;
+    }
+
+    if(ancestor_signal == NULL) ancestor_signal = lv_obj_get_signal_cb(new_templ);
+    if(ancestor_design == NULL) ancestor_design = lv_obj_get_design_cb(new_templ);
+
+    /*Initialize the allocated 'ext' */
+    ext->xyz = 0;
+
+    /*The signal and design functions are not copied so set them here*/
+    lv_obj_set_signal_cb(new_templ, lv_templ_signal);
+    lv_obj_set_design_cb(new_templ, lv_templ_design);
+
+    /*Init the new template template*/
+    if(copy == NULL) {
+
+    }
+    /*Copy an existing template*/
+    else {
+        lv_templ_ext_t * copy_ext = lv_obj_get_ext_attr(copy);
+
+        /*Refresh the style with new signal function*/
+        lv_obj_refresh_style(new_templ);
+    }
+
+    LV_LOG_INFO("template created");
+
+    return new_templ;
+}

@@ -1,0 +1,38 @@
+int mbedtls_ripemd160_self_test( int verbose )
+{
+    int i, ret = 0;
+    unsigned char output[20];
+
+    memset( output, 0, sizeof output );
+
+    for( i = 0; i < TESTS; i++ )
+    {
+        if( verbose != 0 )
+            mbedtls_printf( "  RIPEMD-160 test #%d: ", i + 1 );
+
+        ret = mbedtls_ripemd160_ret( ripemd160_test_str[i],
+                                     ripemd160_test_strlen[i], output );
+        if( ret != 0 )
+            goto fail;
+
+        if( memcmp( output, ripemd160_test_md[i], 20 ) != 0 )
+        {
+            ret = 1;
+            goto fail;
+        }
+
+        if( verbose != 0 )
+            mbedtls_printf( "passed\n" );
+    }
+
+    if( verbose != 0 )
+        mbedtls_printf( "\n" );
+
+    return( 0 );
+
+fail:
+    if( verbose != 0 )
+        mbedtls_printf( "failed\n" );
+
+    return( ret );
+}

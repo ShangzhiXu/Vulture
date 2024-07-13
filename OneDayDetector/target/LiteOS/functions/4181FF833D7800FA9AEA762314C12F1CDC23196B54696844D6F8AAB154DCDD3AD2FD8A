@@ -1,0 +1,279 @@
+int json_parse(lwm2m_uri_t *uriP,
+               uint8_t *buffer,
+               size_t bufferLen,
+               lwm2m_data_t **dataP)
+{
+    size_t index;
+    int count = 0;
+    bool eFound = false;
+    bool bnFound = false;
+    bool btFound = false;
+    int bnStart;
+    int bnLen;
+    _record_t *recordArray;
+    lwm2m_data_t *parsedP;
+
+    LOG_ARG("bufferLen: %d, buffer: \"%s\"", bufferLen, (char *)buffer);
+    LOG_URI(uriP);
+    *dataP = NULL;
+    recordArray = NULL;
+    parsedP = NULL;
+
+    index = prv_skipSpace(buffer, bufferLen);
+    if (index == bufferLen) return -1;
+
+    if (buffer[index] != '{') return -1;
+    do
+    {
+        _GO_TO_NEXT_CHAR(index, buffer, bufferLen);
+        if (buffer[index] != '"') goto error;
+        if (index++ >= bufferLen) goto error;
+        switch (buffer[index])
+        {
+        case 'e':
+        {
+            int recordIndex;
+
+            if (bufferLen - index < JSON_MIN_ARRAY_LEN) goto error;
+            index++;
+            if (buffer[index] != '"') goto error;
+            if (eFound == true) goto error;
+            eFound = true;
+
+            _GO_TO_NEXT_CHAR(index, buffer, bufferLen);
+            if (buffer[index] != ':') goto error;
+            _GO_TO_NEXT_CHAR(index, buffer, bufferLen);
+            if (buffer[index] != '[') goto error;
+            _GO_TO_NEXT_CHAR(index, buffer, bufferLen);
+            count = prv_countItems(buffer + index, bufferLen - index);
+            if (count <= 0) goto error;
+            recordArray = (_record_t *)lwm2m_malloc(count * sizeof(_record_t));
+            if (recordArray == NULL) goto error;
+            // at this point we are sure buffer[index] is '{' and all { and } are matching
+            recordIndex = 0;
+            while (recordIndex < count)
+            {
+                int itemLen;
+
+                if (buffer[index] != '{') goto error;
+                itemLen = 0;
+                while (buffer[index + itemLen] != '}') itemLen++;
+                if (0 != prv_parseItem(buffer + index + 1, itemLen - 1, recordArray + recordIndex))
+                {
+                    goto error;
+                }
+                recordIndex++;
+                index += itemLen;
+                _GO_TO_NEXT_CHAR(index, buffer, bufferLen);
+                switch (buffer[index])
+                {
+                case ',':
+                    _GO_TO_NEXT_CHAR(index, buffer, bufferLen);
+                    break;
+                case ']':
+                    if (recordIndex == count) break;
+                // else this is an error
+                default:
+                    goto error;
+                }
+            }
+            if (buffer[index] != ']') goto error;
+        }
+        break;
+
+        case 'b':
+            if (bufferLen - index < JSON_MIN_BX_LEN) goto error;
+            index++;
+            switch (buffer[index])
+            {
+            case 't':
+                index++;
+                if (buffer[index] != '"') goto error;
+                if (btFound == true) goto error;
+                btFound = true;
+
+                // TODO: handle timed values
+                // temp: skip this token
+                while(index < bufferLen && buffer[index] != ',' && buffer[index] != '}') index++;
+                if (index == bufferLen) goto error;
+                index--;
+                // end temp
+                break;
+            case 'n':
+            {
+                int next;
+                int tokenStart;
+                int tokenLen;
+                int itemLen;
+
+                index++;
+                if (buffer[index] != '"') goto error;
+                if (bnFound == true) goto error;
+                bnFound = true;
+                index -= 3;
+                itemLen = 0;
+                while (buffer[index + itemLen] != '}'
+                        && buffer[index + itemLen] != ','
+                        && index + itemLen < bufferLen)
+                {
+                    itemLen++;
+                }
+                if (index + itemLen == bufferLen) goto error;
+                next = prv_split(buffer + index, itemLen, &tokenStart, &tokenLen, &bnStart, &bnLen);
+                if (next < 0) goto error;
+                bnStart += index;
+                index += next - 1;
+            }
+            break;
+            default:
+                goto error;
+            }
+            break;
+
+        default:
+            goto error;
+        }
+
+        _GO_TO_NEXT_CHAR(index, buffer, bufferLen);
+    }
+    while (buffer[index] == ',');
+
+    if (buffer[index] != '}') goto error;
+
+    if (eFound == true)
+    {
+        lwm2m_uri_t baseURI;
+        lwm2m_uri_t *baseUriP;
+        lwm2m_data_t *resultP;
+        int size;
+
+        memset(&baseURI, 0, sizeof(lwm2m_uri_t));
+        if (bnFound == false)
+        {
+            baseUriP = uriP;
+        }
+        else
+        {
+            int res;
+
+            // we ignore the request URI and use the bn one.
+
+            // Check for " around URI
+            if (bnLen < 3
+                    || buffer[bnStart] != '"'
+                    || buffer[bnStart + bnLen - 1] != '"')
+            {
+                goto error;
+            }
+            bnStart += 1;
+            bnLen -= 2;
+
+            if (bnLen == 1)
+            {
+                if (buffer[bnStart] != '/') goto error;
+                baseUriP = NULL;
+            }
+            else
+            {
+                res = lwm2m_stringToUri((char *)buffer + bnStart, bnLen, &baseURI);
+                if (res < 0 || res != bnLen) goto error;
+                baseUriP = &baseURI;
+            }
+        }
+
+        count = prv_convertRecord(baseUriP, recordArray, count, &parsedP);
+        lwm2m_free(recordArray);
+        recordArray = NULL;
+
+        if (count > 0 && uriP != NULL)
+        {
+            if (parsedP->type != LWM2M_TYPE_OBJECT || parsedP->id != uriP->objectId) goto error;
+            if (!LWM2M_URI_IS_SET_INSTANCE(uriP))
+            {
+                size = parsedP->value.asChildren.count;
+                resultP = parsedP->value.asChildren.array;
+            }
+            else
+            {
+                int i;
+
+                resultP = NULL;
+                // be permissive and allow full object JSON when requesting for a single instance
+                for (i = 0 ; i < (int)parsedP->value.asChildren.count && resultP == NULL; i++)
+                {
+                    lwm2m_data_t *targetP;
+
+                    targetP = parsedP->value.asChildren.array + i;
+                    if (targetP->id == uriP->instanceId)
+                    {
+                        resultP = targetP->value.asChildren.array;
+                        size = targetP->value.asChildren.count;
+                    }
+                }
+                if (resultP == NULL) goto error;
+                if (LWM2M_URI_IS_SET_RESOURCE(uriP))
+                {
+                    lwm2m_data_t *resP;
+
+                    resP = NULL;
+                    for (i = 0 ; i < size && resP == NULL; i++)
+                    {
+                        lwm2m_data_t *targetP;
+
+                        targetP = resultP + i;
+                        if (targetP->id == uriP->resourceId)
+                        {
+                            if (targetP->type == LWM2M_TYPE_MULTIPLE_RESOURCE)
+                            {
+                                resP = targetP->value.asChildren.array;
+                                size = targetP->value.asChildren.count;
+                            }
+                            else
+                            {
+                                size = prv_dataStrip(1, targetP, &resP);
+                                if (size <= 0) goto error;
+                                lwm2m_data_free(count, parsedP);
+                                parsedP = NULL;
+                            }
+                        }
+                    }
+                    if (resP == NULL) goto error;
+                    resultP = resP;
+                }
+            }
+        }
+        else
+        {
+            resultP = parsedP;
+            size = count;
+        }
+
+        if (parsedP != NULL)
+        {
+            lwm2m_data_t *tempP;
+
+            size = prv_dataStrip(size, resultP, &tempP);
+            if (size <= 0) goto error;
+            lwm2m_data_free(count, parsedP);
+            resultP = tempP;
+        }
+        count = size;
+        *dataP = resultP;
+    }
+
+    LOG_ARG("Parsing successful. count: %d", count);
+    return count;
+
+error:
+    LOG("Parsing failed");
+    if (parsedP != NULL)
+    {
+        lwm2m_data_free(count, parsedP);
+        parsedP = NULL;
+    }
+    if (recordArray != NULL)
+    {
+        lwm2m_free(recordArray);
+    }
+    return -1;
+}

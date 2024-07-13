@@ -1,0 +1,76 @@
+__weak HAL_StatusTypeDef HAL_DCMI_Init(DCMI_HandleTypeDef *hdcmi)
+{
+  /* Check the DCMI peripheral state */
+  if(hdcmi == NULL)
+  {
+     return HAL_ERROR;
+  }
+
+  /* Check function parameters */
+  assert_param(IS_DCMI_ALL_INSTANCE(hdcmi->Instance));
+  assert_param(IS_DCMI_PCKPOLARITY(hdcmi->Init.PCKPolarity));
+  assert_param(IS_DCMI_VSPOLARITY(hdcmi->Init.VSPolarity));
+  assert_param(IS_DCMI_HSPOLARITY(hdcmi->Init.HSPolarity));
+  assert_param(IS_DCMI_SYNCHRO(hdcmi->Init.SynchroMode));
+  assert_param(IS_DCMI_CAPTURE_RATE(hdcmi->Init.CaptureRate));
+  assert_param(IS_DCMI_EXTENDED_DATA(hdcmi->Init.ExtendedDataMode));
+  assert_param(IS_DCMI_MODE_JPEG(hdcmi->Init.JPEGMode));
+
+  if(hdcmi->State == HAL_DCMI_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hdcmi->Lock = HAL_UNLOCKED;
+    /* Init the low level hardware */
+  /* Init the DCMI Callback settings */
+#if (USE_HAL_DCMI_REGISTER_CALLBACKS == 1)
+    hdcmi->FrameEventCallback = HAL_DCMI_FrameEventCallback; /* Legacy weak FrameEventCallback  */ 
+    hdcmi->VsyncEventCallback = HAL_DCMI_VsyncEventCallback; /* Legacy weak VsyncEventCallback  */ 
+    hdcmi->LineEventCallback  = HAL_DCMI_LineEventCallback;  /* Legacy weak LineEventCallback   */  
+    hdcmi->ErrorCallback      = HAL_DCMI_ErrorCallback;      /* Legacy weak ErrorCallback       */ 
+    
+    if(hdcmi->MspInitCallback == NULL)  
+    {
+      /* Legacy weak MspInit Callback        */
+      hdcmi->MspInitCallback = HAL_DCMI_MspInit;
+    }
+    /* Initialize the low level hardware (MSP) */
+    hdcmi->MspInitCallback(hdcmi);
+#else  
+    /* Init the low level hardware : GPIO, CLOCK, NVIC and DMA */
+    HAL_DCMI_MspInit(hdcmi);
+#endif /* (USE_HAL_DCMI_REGISTER_CALLBACKS) */
+    HAL_DCMI_MspInit(hdcmi);
+  }
+
+  /* Change the DCMI state */
+  hdcmi->State = HAL_DCMI_STATE_BUSY;
+
+  /* Set DCMI parameters */
+  /* Configures the HS, VS, DE and PC polarity */
+  hdcmi->Instance->CR &= ~(DCMI_CR_PCKPOL | DCMI_CR_HSPOL  | DCMI_CR_VSPOL  | DCMI_CR_EDM_0 |
+                           DCMI_CR_EDM_1  | DCMI_CR_FCRC_0 | DCMI_CR_FCRC_1 | DCMI_CR_JPEG  |
+                           DCMI_CR_ESS);
+  hdcmi->Instance->CR |=  (uint32_t)(hdcmi->Init.SynchroMode | hdcmi->Init.CaptureRate | \
+                                     hdcmi->Init.VSPolarity  | hdcmi->Init.HSPolarity  | \
+                                     hdcmi->Init.PCKPolarity | hdcmi->Init.ExtendedDataMode | \
+                                     hdcmi->Init.JPEGMode);
+
+  if(hdcmi->Init.SynchroMode == DCMI_SYNCHRO_EMBEDDED)
+  {
+    hdcmi->Instance->ESCR = (((uint32_t)hdcmi->Init.SyncroCode.FrameStartCode)    |
+                             ((uint32_t)hdcmi->Init.SyncroCode.LineStartCode << DCMI_POSITION_ESCR_LSC)|
+                             ((uint32_t)hdcmi->Init.SyncroCode.LineEndCode << DCMI_POSITION_ESCR_LEC) |
+                             ((uint32_t)hdcmi->Init.SyncroCode.FrameEndCode << DCMI_POSITION_ESCR_FEC));
+  }
+
+  /* Enable the Line, Vsync, Error and Overrun interrupts */
+  __HAL_DCMI_ENABLE_IT(hdcmi, DCMI_IT_LINE | DCMI_IT_VSYNC | DCMI_IT_ERR | DCMI_IT_OVR);
+
+  /* Update error code */
+  hdcmi->ErrorCode = HAL_DCMI_ERROR_NONE;
+
+  /* Initialize the DCMI state*/
+  hdcmi->State  = HAL_DCMI_STATE_READY;
+
+  return HAL_OK;
+}

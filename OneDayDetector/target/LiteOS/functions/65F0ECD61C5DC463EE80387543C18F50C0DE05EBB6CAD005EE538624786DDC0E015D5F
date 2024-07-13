@@ -1,0 +1,29 @@
+STATIC VOID SetPthreadAttr(const _pthread_data *self, const pthread_attr_t *attr, pthread_attr_t *outAttr)
+{
+    /*
+     * Set use_attr to the set of attributes we are going to
+     * actually use. Either those passed in, or the default set.
+     */
+    if (attr == NULL) {
+        (VOID)pthread_attr_init(outAttr);
+    } else {
+        (VOID)memcpy_s(outAttr, sizeof(pthread_attr_t), attr, sizeof(pthread_attr_t));
+    }
+
+    /*
+     * If the stack size is not valid, we can assume that it is at
+     * least PTHREAD_STACK_MIN bytes.
+     */
+    if (!outAttr->stacksize_set) {
+        outAttr->stacksize = LOSCFG_BASE_CORE_TSK_DEFAULT_STACK_SIZE;
+    }
+    if (outAttr->inheritsched == PTHREAD_INHERIT_SCHED) {
+        if (self->task == NULL) {
+            outAttr->schedparam.sched_priority = ((LosTaskCB *)(OsCurrTaskGet()))->priority;
+        } else {
+            outAttr->schedpolicy = self->attr.schedpolicy;
+            outAttr->schedparam  = self->attr.schedparam;
+            outAttr->scope       = self->attr.scope;
+        }
+    }
+}

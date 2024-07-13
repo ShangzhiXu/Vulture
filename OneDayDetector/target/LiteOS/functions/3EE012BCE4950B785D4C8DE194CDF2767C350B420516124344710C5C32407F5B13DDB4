@@ -1,0 +1,17 @@
+snmp_next_oid_precheck(struct snmp_next_oid_state *state, const u32_t *oid, u8_t oid_len)
+{
+  if (state->status != SNMP_NEXT_OID_STATUS_BUF_TO_SMALL) {
+    u8_t start_oid_len = (oid_len < state->start_oid_len) ? oid_len : state->start_oid_len;
+
+    /* check passed OID is located behind start offset */
+    if (snmp_oid_compare(oid, oid_len, state->start_oid, start_oid_len) >= 0) {
+      /* check if new oid is located closer to start oid than current closest oid */
+      if ((state->status == SNMP_NEXT_OID_STATUS_NO_MATCH) ||
+          (snmp_oid_compare(oid, oid_len, state->next_oid, state->next_oid_len) < 0)) {
+        return 1;
+      }
+    }
+  }
+
+  return 0;
+}

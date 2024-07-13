@@ -1,0 +1,43 @@
+void _lv_style_list_remove_style(lv_style_list_t * list, lv_style_t * style)
+{
+    LV_ASSERT_STYLE_LIST(list);
+    LV_ASSERT_STYLE(style);
+
+    if(list->style_cnt == 0) return;
+
+    /*Check if the style really exists here*/
+    uint8_t i;
+    bool found = false;
+    for(i = 0; i < list->style_cnt; i++) {
+        if(list->style_list[i] == style) {
+            found = true;
+            break;
+        }
+    }
+    if(found == false) return;
+
+    if(list->style_cnt == 1) {
+        lv_mem_free(list->style_list);
+        list->style_list = NULL;
+        list->style_cnt = 0;
+        list->has_local = 0;
+        return;
+    }
+
+    lv_style_t ** new_classes = lv_mem_realloc(list->style_list, sizeof(lv_style_t *) * (list->style_cnt - 1));
+    LV_ASSERT_MEM(new_classes);
+    if(new_classes == NULL) {
+        LV_LOG_WARN("lv_style_list_remove_style: couldn't reallocate class list");
+        return;
+    }
+    uint8_t j;
+    for(i = 0, j = 0; i < list->style_cnt; i++) {
+        if(list->style_list[i] == style) continue;
+        new_classes[j] = list->style_list[i];
+        j++;
+
+    }
+
+    list->style_cnt--;
+    list->style_list = new_classes;
+}

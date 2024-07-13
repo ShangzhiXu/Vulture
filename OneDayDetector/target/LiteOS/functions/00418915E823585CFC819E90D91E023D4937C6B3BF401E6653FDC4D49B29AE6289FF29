@@ -1,0 +1,126 @@
+int _run_tests(const UnitTest * const tests, const size_t number_of_tests) {
+    // Whether to execute the next test.
+    int run_next_test = 1;
+    // Whether the previous test failed.
+    int previous_test_failed = 0;
+    // Check point of the heap state.
+    const ListNode * const check_point = check_point_allocated_blocks();
+    // Current test being executed.
+    size_t current_test = 0;
+    // Number of tests executed.
+    size_t tests_executed = 0;
+    // Number of failed tests.
+    size_t total_failed = 0;
+    // Number of setup functions.
+    size_t setups = 0;
+    // Number of teardown functions.
+    size_t teardowns = 0;
+    /* A stack of test states.  A state is pushed on the stack
+     * when a test setup occurs and popped on tear down. */
+    TestState* test_states = malloc(number_of_tests * sizeof(*test_states));
+    size_t number_of_test_states = 0;
+    // Names of the tests that failed.
+    const char** failed_names = malloc(number_of_tests *
+                                       sizeof(*failed_names));
+    void **current_state = NULL;
+    // Make sure LargestIntegralType is at least the size of a pointer.
+    assert_true(sizeof(LargestIntegralType) >= sizeof(void*));
+
+    while (current_test < number_of_tests) {
+        const ListNode *test_check_point = NULL;
+        TestState *current_TestState;
+        const UnitTest * const test = &tests[current_test++];
+        if (!test->function) {
+            continue;
+        }
+
+        switch (test->function_type) {
+        case UNIT_TEST_FUNCTION_TYPE_TEST:
+            run_next_test = 1;
+            break;
+        case UNIT_TEST_FUNCTION_TYPE_SETUP: {
+            // Checkpoint the heap before the setup.
+            current_TestState = &test_states[number_of_test_states++];
+            current_TestState->check_point = check_point_allocated_blocks();
+            test_check_point = current_TestState->check_point;
+            current_state = &current_TestState->state;
+            *current_state = NULL;
+            run_next_test = 1;
+            setups ++;
+            break;
+        }
+        case UNIT_TEST_FUNCTION_TYPE_TEARDOWN:
+            // Check the heap based on the last setup checkpoint.
+            assert_true(number_of_test_states);
+            current_TestState = &test_states[--number_of_test_states];
+            test_check_point = current_TestState->check_point;
+            current_state = &current_TestState->state;
+            teardowns ++;
+            break;
+        default:
+            print_error("Invalid unit test function type %d\n",
+                        test->function_type);
+            exit_test(1);
+            break;
+        }
+
+        if (run_next_test) {
+            int failed = _run_test(test->name, test->function, current_state,
+                                   test->function_type, test_check_point);
+            if (failed) {
+                failed_names[total_failed] = test->name;
+            }
+
+            switch (test->function_type) {
+            case UNIT_TEST_FUNCTION_TYPE_TEST:
+                previous_test_failed = failed;
+                total_failed += failed;
+                tests_executed ++;
+                break;
+
+            case UNIT_TEST_FUNCTION_TYPE_SETUP:
+                if (failed) {
+                    total_failed ++;
+                    tests_executed ++;
+                    // Skip forward until the next test or setup function.
+                    run_next_test = 0;
+                }
+                previous_test_failed = 0;
+                break;
+
+            case UNIT_TEST_FUNCTION_TYPE_TEARDOWN:
+                // If this test failed.
+                if (failed && !previous_test_failed) {
+                    total_failed ++;
+                }
+                break;
+            default:
+                assert_false("BUG: shouldn't be here!");
+                break;
+            }
+        }
+    }
+
+    if (total_failed) {
+        size_t i;
+        print_error("%d out of %d tests failed!\n", total_failed,
+                    tests_executed);
+        for (i = 0; i < total_failed; i++) {
+            print_error("    %s\n", failed_names[i]);
+        }
+    } else {
+        print_message("All %d tests passed\n", tests_executed);
+    }
+
+    if (number_of_test_states) {
+        print_error("Mismatched number of setup %d and teardown %d "
+                    "functions\n", setups, teardowns);
+        total_failed = (size_t)-1;
+    }
+
+    free(test_states);
+    free((void*)failed_names);
+
+    fail_if_blocks_allocated(check_point, "run_tests");
+    return (int)total_failed;
+}

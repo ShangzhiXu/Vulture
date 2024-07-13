@@ -1,0 +1,25 @@
+lv_style_t * _lv_style_list_add_trans_style(lv_style_list_t * list)
+{
+    LV_ASSERT_STYLE_LIST(list);
+    if(list->has_trans) return _lv_style_list_get_transition_style(list);
+
+    lv_style_t * trans_style = lv_mem_alloc(sizeof(lv_style_t));
+    LV_ASSERT_MEM(trans_style);
+    if(trans_style == NULL) {
+        LV_LOG_WARN("lv_style_list_add_trans_style: couldn't create transition style");
+        return NULL;
+    }
+
+    lv_style_init(trans_style);
+
+    _lv_style_list_add_style(list, trans_style);
+    list->has_trans = 1;
+
+    /*If the list has local style trans was added after it. But trans should be the first so swap them*/
+    if(list->has_local) {
+        lv_style_t * tmp = list->style_list[0];
+        list->style_list[0] = list->style_list[1];
+        list->style_list[1] = tmp;
+    }
+    return trans_style;
+}

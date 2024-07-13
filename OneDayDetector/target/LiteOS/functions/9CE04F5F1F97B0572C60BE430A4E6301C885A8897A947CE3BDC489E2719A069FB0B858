@@ -1,0 +1,25 @@
+HAL_StatusTypeDef HAL_SRAM_DeInit(SRAM_HandleTypeDef *hsram)
+{
+#if (USE_HAL_SRAM_REGISTER_CALLBACKS == 1)
+  if(hsram->MspDeInitCallback == NULL)
+  {
+    hsram->MspDeInitCallback = HAL_SRAM_MspDeInit;
+  }
+
+  /* DeInit the low level hardware */
+  hsram->MspDeInitCallback(hsram);
+#else
+  /* De-Initialize the low level hardware (MSP) */
+  HAL_SRAM_MspDeInit(hsram);
+#endif
+
+  /* Configure the SRAM registers with their reset values */
+  FMC_NORSRAM_DeInit(hsram->Instance, hsram->Extended, hsram->Init.NSBank);
+
+  hsram->State = HAL_SRAM_STATE_RESET;
+  
+  /* Release Lock */
+  __HAL_UNLOCK(hsram);
+
+  return HAL_OK;
+}

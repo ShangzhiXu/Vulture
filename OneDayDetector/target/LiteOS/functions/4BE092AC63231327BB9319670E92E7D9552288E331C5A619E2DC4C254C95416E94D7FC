@@ -1,0 +1,24 @@
+static int pem_des3_decrypt( unsigned char des3_iv[8],
+                             unsigned char *buf, size_t buflen,
+                             const unsigned char *pwd, size_t pwdlen )
+{
+    mbedtls_des3_context des3_ctx;
+    unsigned char des3_key[24];
+    int ret;
+
+    mbedtls_des3_init( &des3_ctx );
+
+    if( ( ret = pem_pbkdf1( des3_key, 24, des3_iv, pwd, pwdlen ) ) != 0 )
+        goto exit;
+
+    if( ( ret = mbedtls_des3_set3key_dec( &des3_ctx, des3_key ) ) != 0 )
+        goto exit;
+    ret = mbedtls_des3_crypt_cbc( &des3_ctx, MBEDTLS_DES_DECRYPT, buflen,
+                     des3_iv, buf, buf );
+
+exit:
+    mbedtls_des3_free( &des3_ctx );
+    mbedtls_platform_zeroize( des3_key, 24 );
+
+    return( ret );
+}

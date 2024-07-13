@@ -1,0 +1,11 @@
+#define          raw_clear_flags(pcb, clr_flags)   do { (pcb)->flags = (u8_t)((pcb)->flags & (u8_t)(~(clr_flags) & 0xff)); } while(0)
+#define          raw_flags(pcb) ((pcb)->flags)
+#define raw_get_multicast_netif_index(pcb)      ((pcb)->mcast_ifindex)
+#define raw_get_multicast_ttl(pcb)              ((pcb)->mcast_ttl)
+#define raw_init() /* Compatibility define, no init needed. */
+#define          raw_is_flag_set(pcb, flag)        (((pcb)->flags & (flag)) != 0)
+#define raw_new_ip6(proto) raw_new_ip_type(IPADDR_TYPE_V6, proto)
+#define          raw_set_flags(pcb, set_flags)     do { (pcb)->flags = (u8_t)((pcb)->flags |  (set_flags)); } while(0)
+#define raw_set_multicast_netif_index(pcb, idx) ((pcb)->mcast_ifindex = (idx))
+#define raw_set_multicast_ttl(pcb, value)       ((pcb)->mcast_ttl = (value))
+#define          raw_setflags(pcb,f)  ((pcb)->flags = (f))

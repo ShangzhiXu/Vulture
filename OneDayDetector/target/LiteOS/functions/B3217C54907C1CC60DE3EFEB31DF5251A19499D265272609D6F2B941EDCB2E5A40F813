@@ -1,0 +1,53 @@
+lwiperf_tcp_accept(void *arg, struct tcp_pcb *newpcb, err_t err)
+{
+  lwiperf_state_tcp_t *s, *conn;
+  if ((err != ERR_OK) || (newpcb == NULL) || (arg == NULL)) {
+    return ERR_VAL;
+  }
+
+  s = (lwiperf_state_tcp_t *)arg;
+  LWIP_ASSERT("invalid session", s->base.server);
+  LWIP_ASSERT("invalid listen pcb", s->server_pcb != NULL);
+  LWIP_ASSERT("invalid conn pcb", s->conn_pcb == NULL);
+  if (s->specific_remote) {
+    LWIP_ASSERT("s->base.related_master_state != NULL", s->base.related_master_state != NULL);
+    if (!ip_addr_cmp(&newpcb->remote_ip, &s->remote_addr)) {
+      /* this listener belongs to a client session, and this is not the correct remote */
+      return ERR_VAL;
+    }
+  } else {
+    LWIP_ASSERT("s->base.related_master_state == NULL", s->base.related_master_state == NULL);
+  }
+
+  conn = (lwiperf_state_tcp_t *)LWIPERF_ALLOC(lwiperf_state_tcp_t);
+  if (conn == NULL) {
+    return ERR_MEM;
+  }
+  memset(conn, 0, sizeof(lwiperf_state_tcp_t));
+  conn->base.tcp = 1;
+  conn->base.server = 1;
+  conn->base.related_master_state = &s->base;
+  conn->conn_pcb = newpcb;
+  conn->time_started = sys_now();
+  conn->report_fn = s->report_fn;
+  conn->report_arg = s->report_arg;
+
+  /* setup the tcp rx connection */
+  tcp_arg(newpcb, conn);
+  tcp_recv(newpcb, lwiperf_tcp_recv);
+  tcp_poll(newpcb, lwiperf_tcp_poll, 2U);
+  tcp_err(conn->conn_pcb, lwiperf_tcp_err);
+
+  if (s->specific_remote) {
+    /* this listener belongs to a client, so make the client the master of the newly created connection */
+    conn->base.related_master_state = s->base.related_master_state;
+    /* if dual mode or (tradeoff mode AND client is done): close the listener */
+    if (!s->client_tradeoff_mode || !lwiperf_list_find(s->base.related_master_state)) {
+      /* prevent report when closing: this is expected */
+      s->report_fn = NULL;
+      lwiperf_tcp_close(s, LWIPERF_TCP_ABORTED_LOCAL);
+    }
+  }
+  lwiperf_list_add(&conn->base);
+  return ERR_OK;
+}

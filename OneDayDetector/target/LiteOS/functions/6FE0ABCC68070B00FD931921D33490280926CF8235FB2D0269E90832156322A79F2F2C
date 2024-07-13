@@ -1,0 +1,32 @@
+int mbedtls_chacha20_self_test( int verbose )
+{
+    unsigned char output[381];
+    unsigned i;
+    int ret;
+
+    for( i = 0U; i < 2U; i++ )
+    {
+        if( verbose != 0 )
+            mbedtls_printf( "  ChaCha20 test %u ", i );
+
+        ret = mbedtls_chacha20_crypt( test_keys[i],
+                                      test_nonces[i],
+                                      test_counters[i],
+                                      test_lengths[i],
+                                      test_input[i],
+                                      output );
+
+        ASSERT( 0 == ret, ( "error code: %i\n", ret ) );
+
+        ASSERT( 0 == memcmp( output, test_output[i], test_lengths[i] ),
+                ( "failed (output)\n" ) );
+
+        if( verbose != 0 )
+            mbedtls_printf( "passed\n" );
+    }
+
+    if( verbose != 0 )
+        mbedtls_printf( "\n" );
+
+    return( 0 );
+}

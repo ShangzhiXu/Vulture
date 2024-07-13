@@ -1,0 +1,20 @@
+SECUREC_INLINE int SecInputForChar(SecScanSpec *spec, SecFileStream *stream)
+{
+    void *endPtr = spec->argPtr;
+    if (spec->isWCharOrLong > 0) {
+#if SECUREC_HAVE_WCHART
+        *(wchar_t UNALIGNED *)endPtr = SecConvertInputCharToWchar(spec, stream);
+        endPtr = (wchar_t *)endPtr + 1;
+        --spec->arrayWidth;
+#else
+    (void)stream;    /* To clear e438 last value assigned not used , the compiler will optimize this code */
+    return -1;
+#endif
+    } else {
+        *(char *)endPtr = (char)spec->ch;
+        endPtr = (char *)endPtr + 1;
+        --spec->arrayWidth;
+    }
+    spec->argPtr = endPtr;
+    return 0;
+}

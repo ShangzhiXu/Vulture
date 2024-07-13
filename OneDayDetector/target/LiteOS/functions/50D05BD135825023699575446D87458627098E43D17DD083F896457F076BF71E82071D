@@ -1,0 +1,22 @@
+osStatus osPoolDelete(osPoolId pool_id)
+{
+    LOS_MEMBOX_INFO *memBox = (LOS_MEMBOX_INFO *)pool_id;
+    UINT32 ret;
+
+    if (memBox == NULL) {
+        return osErrorParameter;
+    }
+    if (OS_INT_ACTIVE) {
+        return osErrorISR;
+    }
+    if (memBox->uwBlkCnt != 0) {
+        return osErrorResource;
+    }
+
+    ret = LOS_MemFree(m_aucSysMem0, memBox);
+    if (ret == LOS_OK) {
+        return osOK;
+    } else {
+        return osErrorValue;
+    }
+}

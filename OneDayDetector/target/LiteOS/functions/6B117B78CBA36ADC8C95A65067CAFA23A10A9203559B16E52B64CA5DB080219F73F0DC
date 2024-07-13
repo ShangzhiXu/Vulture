@@ -1,0 +1,40 @@
+ip_RouteTable_get_next_cell_instance_and_value(const u32_t *column, struct snmp_obj_id *row_oid, union snmp_variant_value *value, u32_t *value_len)
+{
+  struct netif *netif;
+  struct snmp_next_oid_state state;
+  u32_t result_temp[LWIP_ARRAYSIZE(ip_RouteTable_oid_ranges)];
+  u32_t test_oid[LWIP_ARRAYSIZE(ip_RouteTable_oid_ranges)];
+
+  /* init struct to search next oid */
+  snmp_next_oid_init(&state, row_oid->id, row_oid->len, result_temp, LWIP_ARRAYSIZE(ip_RouteTable_oid_ranges));
+
+  /* check default route */
+  if (netif_default != NULL) {
+    snmp_ip4_to_oid(IP4_ADDR_ANY4, &test_oid[0]);
+    snmp_next_oid_check(&state, test_oid, LWIP_ARRAYSIZE(ip_RouteTable_oid_ranges), netif_default);
+  }
+
+  /* iterate over all possible OIDs to find the next one */
+  NETIF_FOREACH(netif) {
+    ip4_addr_t dst;
+    ip4_addr_get_network(&dst, netif_ip4_addr(netif), netif_ip4_netmask(netif));
+
+    /* check generated OID: is it a candidate for the next one? */
+    if (!ip4_addr_isany_val(dst)) {
+      snmp_ip4_to_oid(&dst, &test_oid[0]);
+      snmp_next_oid_check(&state, test_oid, LWIP_ARRAYSIZE(ip_RouteTable_oid_ranges), netif);
+    }
+  }
+
+  /* did we find a next one? */
+  if (state.status == SNMP_NEXT_OID_STATUS_SUCCESS) {
+    ip4_addr_t dst;
+    snmp_oid_to_ip4(&result_temp[0], &dst);
+    snmp_oid_assign(row_oid, state.next_oid, state.next_oid_len);
+    /* fill in object properties */
+    return ip_RouteTable_get_cell_value_core((struct netif *)state.reference, ip4_addr_isany_val(dst), column, value, value_len);
+  } else {
+    /* not found */
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+}

@@ -1,0 +1,76 @@
+void net_init(void)
+{
+    /* IP addresses initialization */
+    IP_ADDRESS[0] = 192;
+    IP_ADDRESS[1] = 168;
+    IP_ADDRESS[2] = 3;
+    IP_ADDRESS[3] = 200;
+    NETMASK_ADDRESS[0] = 255;
+    NETMASK_ADDRESS[1] = 255;
+    NETMASK_ADDRESS[2] = 255;
+    NETMASK_ADDRESS[3] = 0;
+    GATEWAY_ADDRESS[0] = 192;
+    GATEWAY_ADDRESS[1] = 168;
+    GATEWAY_ADDRESS[2] = 3;
+    GATEWAY_ADDRESS[3] = 1;
+
+#if LWIP_IPV4 && LWIP_IPV6
+    IP_ADDR4(&ipaddr, IP_ADDRESS[0], IP_ADDRESS[1], IP_ADDRESS[2], IP_ADDRESS[3]);
+    IP_ADDR4(&netmask, NETMASK_ADDRESS[0], NETMASK_ADDRESS[1], NETMASK_ADDRESS[2], NETMASK_ADDRESS[3]);
+    IP_ADDR4(&gw, GATEWAY_ADDRESS[0], GATEWAY_ADDRESS[1], GATEWAY_ADDRESS[2], GATEWAY_ADDRESS[3]);
+#elif LWIP_IPV6
+#else
+    /* IP addresses initialization without DHCP (IPv4) */
+    IP4_ADDR(&ipaddr, IP_ADDRESS[0], IP_ADDRESS[1], IP_ADDRESS[2], IP_ADDRESS[3]);
+    IP4_ADDR(&netmask, NETMASK_ADDRESS[0], NETMASK_ADDRESS[1], NETMASK_ADDRESS[2], NETMASK_ADDRESS[3]);
+    IP4_ADDR(&gw, GATEWAY_ADDRESS[0], GATEWAY_ADDRESS[1], GATEWAY_ADDRESS[2], GATEWAY_ADDRESS[3]);
+#endif
+
+    /* Initilialize the LwIP stack without RTOS */
+    tcpip_init(NULL, NULL);
+    printf("lwip test init ok.\n");
+
+    (void)ethernetif_api_register(&g_eth_api);
+    /* Add the network interface (IPv4/IPv6) without RTOS */
+#if LWIP_IPV4 && LWIP_IPV6
+    (void)netif_add(&gnetif, &ipaddr, &netmask, &gw, NULL, ethernetif_init, tcpip_input);
+#elif LWIP_IPV6
+    (void)netif_add(&gnetif, NULL, ethernetif_init, tcpip_input);
+    netif_create_ip6_linklocal_address(&gnetif, 1);
+    {
+        ip6_addr_t ip6;
+        err_t ret;
+        s8_t idx;
+        ip6_addr_t ipv6_gw;
+
+        if (inet_pton(AF_INET6, "2000::2", &ip6) <= 0) {
+            printf("set source ip6 failed \n");
+            return;
+        }
+        ret = netif_add_ip6_address(&gnetif, &ip6, &idx);
+        if (ret != 0) {
+            printf("netif_add_ip6_address failed,ret %d\n", ret);
+            return;
+        }
+
+        if (inet_pton(AF_INET6, "2000::1", &ipv6_gw) <= 0) {
+            printf("inet_pton failed\n");
+            return;
+        }
+        set_lwip_ipv6_default_gw(&gnetif, &ipv6_gw);
+    }
+#else
+    (void)netif_add(&gnetif, &ipaddr, &netmask, &gw, NULL, ethernetif_init, tcpip_input);
+#endif
+
+    /* Registers the default network interface */
+    netif_set_default(&gnetif);
+    if (netif_is_link_up(&gnetif)) {
+        /* When the netif is fully configured this function must be called */
+        gnetif.flags |= NETIF_FLAG_LINK_UP;
+        netif_set_up(&gnetif);
+    } else {
+        /* When the netif link is down this function must be called */
+        netif_set_down(&gnetif);
+    }
+}

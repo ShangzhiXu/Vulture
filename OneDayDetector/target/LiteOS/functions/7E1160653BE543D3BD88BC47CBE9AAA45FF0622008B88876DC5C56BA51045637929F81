@@ -1,0 +1,47 @@
+STATIC VOID OsSchedStatisticsPerCpu(const LosTaskCB *runTask, const LosTaskCB *newTask)
+{
+    UINT32 cpuId;
+    UINT32 idleTaskId;
+    UINT64 now, runtime;
+
+    if (g_statisticsStartFlag != TRUE) {
+        return;
+    }
+
+    cpuId = ArchCurrCpuid();
+    idleTaskId = OsGetIdleTaskId();
+    now = LOS_CurrNanosec();
+
+    g_statPercpu[cpuId].contexSwitch++;
+
+    if ((runTask->taskId != idleTaskId) && (newTask->taskId == idleTaskId)) {
+        g_statPercpu[cpuId].idleStarttime = now;
+    }
+
+    if ((runTask->taskId == idleTaskId) && (newTask->taskId != idleTaskId)) {
+        runtime = now - g_statPercpu[cpuId].idleStarttime;
+        g_statPercpu[cpuId].idleRuntime += runtime;
+        g_statPercpu[cpuId].idleStarttime = 0;
+    }
+
+    if ((runTask->priority >= HIGHTASKPRI) && (newTask->priority < HIGHTASKPRI)) {
+        g_statPercpu[cpuId].highTaskStarttime = now;
+    }
+
+    if ((runTask->priority < HIGHTASKPRI) && (newTask->priority >= HIGHTASKPRI)) {
+        runtime = now - g_statPercpu[cpuId].highTaskStarttime;
+        g_statPercpu[cpuId].highTaskRuntime += runtime;
+        g_statPercpu[cpuId].highTaskStarttime = 0;
+    }
+
+    if (newTask->priority < HIGHTASKPRI) {
+        g_statPercpu[cpuId].highTaskSwitch++;
+    }
+
+    if (newTask->taskId != idleTaskId) {
+        g_statPercpu[cpuId].sumPriority += newTask->priority;
+        g_statPercpu[cpuId].prioritySwitch++;
+    }
+
+    return;
+}

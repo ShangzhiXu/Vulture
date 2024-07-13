@@ -1,0 +1,59 @@
+static void draw_series_column(lv_obj_t * chart, const lv_area_t * series_area, const lv_area_t * clip_area)
+{
+    lv_area_t com_area;
+    if(_lv_area_intersect(&com_area, series_area, clip_area) == false) return;
+
+    lv_chart_ext_t * ext = lv_obj_get_ext_attr(chart);
+
+    uint16_t i;
+    lv_area_t col_a;
+    lv_coord_t w = lv_area_get_width(series_area);
+    lv_coord_t h = lv_area_get_height(series_area);
+    int32_t y_tmp;
+    lv_chart_series_t * ser;
+    lv_coord_t col_w = w / ((_lv_ll_get_len(&ext->series_ll) + 1) * ext->point_cnt); /* Suppose + 1 series as separator*/
+    lv_coord_t x_ofs = col_w / 2;                                    /*Shift with a half col.*/
+    lv_style_int_t col_space = lv_obj_get_style_pad_inner(chart, LV_CHART_PART_SERIES);
+
+    lv_draw_rect_dsc_t col_dsc;
+    lv_draw_rect_dsc_init(&col_dsc);
+    lv_obj_init_draw_rect_dsc(chart, LV_CHART_PART_SERIES, &col_dsc);
+    col_dsc.bg_grad_dir = LV_GRAD_DIR_NONE;
+    col_dsc.bg_opa = LV_OPA_COVER;
+
+    /*Make the cols longer with `radius` to clip the rounding from the bottom*/
+    col_a.y2 = series_area->y2 + col_dsc.radius;
+
+    lv_area_t series_mask;
+    bool mask_ret = _lv_area_intersect(&series_mask, series_area, clip_area);
+    if(mask_ret == false) return;
+
+    /*Go through all points*/
+    for(i = 0; i < ext->point_cnt; i++) {
+        lv_coord_t x_act = (int32_t)((int32_t)w * i) / ext->point_cnt;
+        x_act += series_area->x1 + x_ofs;
+
+        /*Draw the current point of all data line*/
+        _LV_LL_READ_BACK(ext->series_ll, ser) {
+            lv_coord_t start_point = ext->update_mode == LV_CHART_UPDATE_MODE_SHIFT ? ser->start_point : 0;
+
+            col_a.x1 = x_act;
+            col_a.x2 = col_a.x1 + col_w - col_space;
+            x_act += col_w;
+
+            if(col_a.x2 < series_mask.x1) continue;
+            if(col_a.x1 > series_mask.x2) break;
+
+            col_dsc.bg_color = ser->color;
+
+            lv_coord_t p_act = (start_point + i) % ext->point_cnt;
+            y_tmp            = (int32_t)((int32_t)ser->points[p_act] - ext->ymin) * h;
+            y_tmp            = y_tmp / (ext->ymax - ext->ymin);
+            col_a.y1         = h - y_tmp + series_area->y1;
+
+            if(ser->points[p_act] != LV_CHART_POINT_DEF) {
+                lv_draw_rect(&col_a, &series_mask, &col_dsc);
+            }
+        }
+    }
+}

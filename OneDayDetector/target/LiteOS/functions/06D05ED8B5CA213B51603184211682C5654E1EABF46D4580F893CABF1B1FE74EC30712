@@ -1,0 +1,21 @@
+osStatus osMutexRelease(osMutexId mutex_id)
+{
+    LosMuxCB *muxCB = (LosMuxCB*)mutex_id;
+    UINT32 ret;
+
+    if (muxCB == NULL) {
+        return osErrorParameter;
+    }
+    if (OS_INT_ACTIVE) {
+        return osErrorISR;
+    }
+
+    ret = LOS_MuxPost(muxCB->muxId);
+    if (ret == LOS_OK) {
+        return osOK;
+    } else if (ret == LOS_ERRNO_MUX_INVALID) {
+        return osErrorParameter;
+    } else {
+        return osErrorResource;
+    }
+}

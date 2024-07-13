@@ -1,0 +1,24 @@
+VOID ArchSecPageEnable(SENCOND_PAGE *page, UINT64 flag)
+{
+    UINT32 intSave;
+    MMU_PARAM para;
+
+    if (page == NULL) {
+        PRINT_ERR("second page table(stPage) can't be NULL\n");
+        return;
+    }
+
+    if (OsMMUFlagCheck(flag) == LOS_NOK) {
+        return;
+    }
+
+    para.startAddr = page->page_addr;
+    para.endAddr = page->page_addr + page->page_length;
+    para.uwFlag = flag;
+    para.stPage = page;
+
+    intSave = LOS_IntLock();
+    CreatPteTable(&para);
+    CreatPmdTable(page->page_descriptor_addr, page->page_addr, (page->page_addr + page->page_length) - 1);
+    LOS_IntRestore(intSave);
+}

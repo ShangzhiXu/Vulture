@@ -1,0 +1,21 @@
+LITE_OS_SEC_TEXT VOID *LOS_MemAlloc(VOID *pool, UINT32 size)
+{
+    VOID *ptr = NULL;
+    UINT32 intSave;
+
+    if ((pool == NULL) || (size == 0)) {
+        return ptr;
+    }
+
+    MEM_LOCK(intSave);
+
+    ptr = OsSlabMemAlloc(pool, size);
+    if (ptr == NULL) {
+        ptr = OsHeapAlloc(pool, size);
+    }
+
+    MEM_UNLOCK(intSave);
+
+    LOS_TRACE(MEM_ALLOC, pool, (UINTPTR)ptr, size);
+    return ptr;
+}

@@ -1,0 +1,21 @@
+VOID OsMpFuncCallHandler(VOID)
+{
+    UINT32 intSave;
+    UINT32 cpuid = ArchCurrCpuid();
+    LOS_DL_LIST *list = NULL;
+    MpCallFunc* mpCallFunc = NULL;
+
+    MP_CALL_LOCK(intSave);
+    while (!LOS_ListEmpty(&g_percpu[cpuid].funcLink)) {
+        list = LOS_DL_LIST_FIRST(&g_percpu[cpuid].funcLink);
+        LOS_ListDelete(list);
+        MP_CALL_UNLOCK(intSave);
+
+        mpCallFunc = LOS_DL_LIST_ENTRY(list, MpCallFunc, node);
+        mpCallFunc->func(mpCallFunc->args);
+        (VOID)LOS_MemFree(m_aucSysMem0, mpCallFunc);
+
+        MP_CALL_LOCK(intSave);
+    }
+    MP_CALL_UNLOCK(intSave);
+}

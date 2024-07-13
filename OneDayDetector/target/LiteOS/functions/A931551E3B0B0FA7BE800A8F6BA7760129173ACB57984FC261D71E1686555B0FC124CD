@@ -1,0 +1,76 @@
+altcp_tls_create_config(int is_server, int have_cert, int have_pkey, int have_ca)
+{
+  size_t sz;
+  int ret;
+  struct altcp_tls_config *conf;
+  mbedtls_x509_crt *mem;
+
+  if (TCP_WND < MBEDTLS_SSL_MAX_CONTENT_LEN) {
+    LWIP_DEBUGF(ALTCP_MBEDTLS_DEBUG|LWIP_DBG_LEVEL_SERIOUS,
+      ("altcp_tls: TCP_WND is smaller than the RX decryption buffer, connection RX might stall!\n"));
+  }
+
+  altcp_mbedtls_mem_init();
+
+  sz = sizeof(struct altcp_tls_config);
+  if (have_cert) {
+    sz += sizeof(mbedtls_x509_crt);
+  }
+  if (have_ca) {
+    sz += sizeof(mbedtls_x509_crt);
+  }
+  if (have_pkey) {
+    sz += sizeof(mbedtls_pk_context);
+  }
+
+  conf = (struct altcp_tls_config *)altcp_mbedtls_alloc_config(sz);
+  if (conf == NULL) {
+    return NULL;
+  }
+  mem = (mbedtls_x509_crt *)(conf + 1);
+  if (have_cert) {
+    conf->cert = mem;
+    mem++;
+  }
+  if (have_ca) {
+    conf->ca = mem;
+    mem++;
+  }
+  if (have_pkey) {
+    conf->pkey = (mbedtls_pk_context *)mem;
+  }
+
+  mbedtls_ssl_config_init(&conf->conf);
+  mbedtls_entropy_init(&conf->entropy);
+  mbedtls_ctr_drbg_init(&conf->ctr_drbg);
+
+  /* Seed the RNG */
+  ret = mbedtls_ctr_drbg_seed(&conf->ctr_drbg, ALTCP_MBEDTLS_RNG_FN, &conf->entropy, ALTCP_MBEDTLS_ENTROPY_PTR, ALTCP_MBEDTLS_ENTROPY_LEN);
+  if (ret != 0) {
+    LWIP_DEBUGF(ALTCP_MBEDTLS_DEBUG, ("mbedtls_ctr_drbg_seed failed: %d\n", ret));
+    altcp_mbedtls_free_config(conf);
+    return NULL;
+  }
+
+  /* Setup ssl context (@todo: what's different for a client here? -> might better be done on listen/connect) */
+  ret = mbedtls_ssl_config_defaults(&conf->conf, is_server ? MBEDTLS_SSL_IS_SERVER : MBEDTLS_SSL_IS_CLIENT,
+                                    MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT);
+  if (ret != 0) {
+    LWIP_DEBUGF(ALTCP_MBEDTLS_DEBUG, ("mbedtls_ssl_config_defaults failed: %d\n", ret));
+    altcp_mbedtls_free_config(conf);
+    return NULL;
+  }
+  mbedtls_ssl_conf_authmode(&conf->conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
+
+  mbedtls_ssl_conf_rng(&conf->conf, mbedtls_ctr_drbg_random, &conf->ctr_drbg);
+#if ALTCP_MBEDTLS_DEBUG != LWIP_DBG_OFF
+  mbedtls_ssl_conf_dbg(&conf->conf, altcp_mbedtls_debug, stdout);
+#endif
+#if defined(MBEDTLS_SSL_CACHE_C) && ALTCP_MBEDTLS_SESSION_CACHE_TIMEOUT_SECONDS
+  mbedtls_ssl_conf_session_cache(&conf->conf, &conf->cache, mbedtls_ssl_cache_get, mbedtls_ssl_cache_set);
+  mbedtls_ssl_cache_set_timeout(&conf->cache, 30);
+  mbedtls_ssl_cache_set_max_entries(&conf->cache, 30);
+#endif
+
+  return conf;
+}

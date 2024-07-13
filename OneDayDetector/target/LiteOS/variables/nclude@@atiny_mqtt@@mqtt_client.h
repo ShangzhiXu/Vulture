@@ -1,0 +1,24 @@
+        mqtt_security_ca_s ca;
+    char *ca_crt;
+    uint32_t ca_len;
+    int (*cmd_ioctl)(mqtt_cmd_e cmd, void *arg, int32_t len); // command io control
+    mqtt_codec_mode_e codec_mode;
+    mqtt_connection_type_e connection_type;
+        mqtt_dynamic_connection_info_s d_info;
+    char *deviceid;
+    mqtt_security_info_s info;
+    char *nodeid;
+    char *password;
+    char *productid;
+        mqtt_security_psk_s psk;
+    uint8_t *psk;
+    uint8_t *psk_id;
+    uint32_t psk_id_len;
+    uint32_t psk_len;
+        mqtt_static_connection_info_s s_info;
+    mqtt_security_type_e security_type;
+    char *server_ip;
+    char *server_port;
+    mqtt_password_sign_type_e sign_type;
+    }u;
+    }u;

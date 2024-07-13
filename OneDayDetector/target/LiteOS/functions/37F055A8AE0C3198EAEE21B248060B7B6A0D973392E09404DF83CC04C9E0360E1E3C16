@@ -1,0 +1,20 @@
+static void lv_label_revert_dots(lv_obj_t * label)
+{
+    lv_label_ext_t * ext = lv_obj_get_ext_attr(label);
+    if(ext->long_mode != LV_LABEL_LONG_DOT) return;
+    if(ext->dot_end == LV_LABEL_DOT_END_INV) return;
+    uint32_t letter_i = ext->dot_end - LV_LABEL_DOT_NUM;
+    uint32_t byte_i   = _lv_txt_encoded_get_byte_id(ext->text, letter_i);
+
+    /*Restore the characters*/
+    uint8_t i      = 0;
+    char * dot_tmp = lv_label_get_dot_tmp(label);
+    while(ext->text[byte_i + i] != '\0') {
+        ext->text[byte_i + i] = dot_tmp[i];
+        i++;
+    }
+    ext->text[byte_i + i] = dot_tmp[i];
+    lv_label_dot_tmp_free(label);
+
+    ext->dot_end = LV_LABEL_DOT_END_INV;
+}

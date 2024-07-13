@@ -1,0 +1,143 @@
+static void draw_y_ticks(lv_obj_t * chart, const lv_area_t * series_area, const lv_area_t * mask, uint8_t which_axis)
+{
+    lv_chart_ext_t * ext = lv_obj_get_ext_attr(chart);
+    lv_chart_axis_cfg_t * y_axis = (which_axis == LV_CHART_AXIS_PRIMARY_Y) ?
+                                   &ext->y_axis : &ext->secondary_y_axis;
+
+    if(y_axis->list_of_values == NULL && y_axis->num_tick_marks == 0)  return;
+
+    uint8_t i;
+    uint8_t num_of_labels;
+    uint8_t num_scale_ticks;
+    int8_t major_tick_len, minor_tick_len;
+    uint8_t iter_dir;
+
+    lv_point_t p1;
+    lv_point_t p2;
+    lv_coord_t x_ofs;
+    lv_chart_label_iterator_t iter;
+    lv_coord_t y_ofs = series_area->y1;
+    lv_coord_t h     = lv_area_get_height(series_area);
+    lv_coord_t w     = lv_area_get_width(series_area);
+    char buf[LV_CHART_AXIS_TICK_LABEL_MAX_LEN + 1]; /* up to N symbols per label + null terminator */
+
+    /* chose correct side of the chart */
+    if(which_axis == LV_CHART_AXIS_PRIMARY_Y)
+        x_ofs = series_area->x1;
+    else
+        x_ofs = series_area->x2;
+
+    /* calculate the size of tick marks */
+    if(y_axis->major_tick_len == LV_CHART_TICK_LENGTH_AUTO)
+        major_tick_len = (int32_t)w * LV_CHART_AXIS_MAJOR_TICK_LEN_COE;
+    else
+        major_tick_len = y_axis->major_tick_len;
+
+    if(y_axis->minor_tick_len == LV_CHART_TICK_LENGTH_AUTO)
+        minor_tick_len = major_tick_len * LV_CHART_AXIS_MINOR_TICK_LEN_COE;
+    else
+        minor_tick_len = y_axis->minor_tick_len;
+
+    /* tick lines on secondary y axis are drawn in other direction*/
+    if(which_axis == LV_CHART_AXIS_SECONDARY_Y) {
+        major_tick_len *= -1;
+        minor_tick_len *= -1;
+    }
+
+    iter_dir = (y_axis->options & LV_CHART_AXIS_INVERSE_LABELS_ORDER) ? LV_CHART_LABEL_ITERATOR_REVERSE :
+               LV_CHART_LABEL_ITERATOR_FORWARD;
+    iter = create_axis_label_iter(y_axis->list_of_values, iter_dir);
+
+    /*determine the number of options */
+    num_of_labels = iter.items_left;
+
+    /* we can't have string labels without ticks step, set to 1 if not specified */
+    if(y_axis->num_tick_marks == 0) y_axis->num_tick_marks = 1;
+
+    /* calculate total number of ticks */
+    if(num_of_labels < 2)
+        num_scale_ticks = y_axis->num_tick_marks;
+    else
+        num_scale_ticks = (y_axis->num_tick_marks * (num_of_labels - 1));
+
+    lv_style_int_t label_dist  = which_axis == LV_CHART_AXIS_PRIMARY_Y ?
+                                 lv_obj_get_style_pad_left(chart, LV_CHART_PART_SERIES_BG)  : lv_obj_get_style_pad_right(chart, LV_CHART_PART_SERIES_BG);
+
+    lv_draw_line_dsc_t line_dsc;
+    lv_draw_line_dsc_init(&line_dsc);
+    lv_obj_init_draw_line_dsc(chart, LV_CHART_PART_BG, &line_dsc);
+
+    lv_draw_label_dsc_t label_dsc;
+    lv_draw_label_dsc_init(&label_dsc);
+    lv_obj_init_draw_label_dsc(chart, LV_CHART_PART_BG, &label_dsc);
+
+    for(i = 0; i < (num_scale_ticks + 1); i++) { /* one extra loop - it may not exist in the list, empty label */
+
+        /* draw a line at moving y position */
+        p2.y = p1.y =
+                   y_ofs + (int32_t)((int32_t)(h - line_dsc.width) * i) / num_scale_ticks;
+
+        if(p2.y - label_dsc.font->line_height > mask->y2) return;
+        if(p2.y + label_dsc.font->line_height < mask->y1) {
+            get_next_axis_label(&iter, buf);
+            continue;
+        }
+
+        /* first point of the tick */
+        p1.x = x_ofs;
+
+        /* move extra pixel out of chart boundary */
+        if(which_axis == LV_CHART_AXIS_PRIMARY_Y)
+            p1.x--;
+        else
+            p1.x++;
+
+        /* second point of the tick */
+        if((num_of_labels != 0) && (i == 0 || i % y_axis->num_tick_marks == 0))
+            p2.x = p1.x - major_tick_len; /* major tick */
+        else
+            p2.x = p1.x - minor_tick_len; /* minor tick */
+
+        if(y_axis->options & LV_CHART_AXIS_INVERSE_LABELS_ORDER) {
+            /*if label order is inversed last tick have number 0*/
+            if(i != 0)
+                lv_draw_line(&p1, &p2, mask, &line_dsc);
+            else if((y_axis->options & LV_CHART_AXIS_DRAW_LAST_TICK) != 0)
+                lv_draw_line(&p1, &p2, mask, &line_dsc);
+        }
+        else {
+            if(i != num_scale_ticks)
+                lv_draw_line(&p1, &p2, mask, &line_dsc);
+            else if((y_axis->options & LV_CHART_AXIS_DRAW_LAST_TICK) != 0)
+                lv_draw_line(&p1, &p2, mask, &line_dsc);
+        }
+
+        /* draw values if available */
+        if(num_of_labels != 0) {
+            /* add text only to major tick */
+            if(is_tick_with_label(i, y_axis)) {
+
+                get_next_axis_label(&iter, buf);
+
+                /* reserve appropriate area */
+                lv_point_t size;
+                _lv_txt_get_size(&size, buf, label_dsc.font, label_dsc.letter_space, label_dsc.line_space,
+                                 LV_COORD_MAX, LV_TXT_FLAG_CENTER);
+
+                /* set the area at some distance of the major tick len left of the tick */
+                lv_area_t a = {.y1 = p2.y - size.y / 2, .y2 = p2.y + size.y / 2};
+
+                if(which_axis == LV_CHART_AXIS_PRIMARY_Y) {
+                    a.x1 = p2.x - size.x - label_dist;
+                    a.x2 = p2.x - label_dist;
+                }
+                else {
+                    a.x1 = p2.x + label_dist;
+                    a.x2 = p2.x + size.x + label_dist;
+                }
+
+                lv_draw_label(&a, mask, &label_dsc, buf, NULL);
+            }
+        }
+    }
+}

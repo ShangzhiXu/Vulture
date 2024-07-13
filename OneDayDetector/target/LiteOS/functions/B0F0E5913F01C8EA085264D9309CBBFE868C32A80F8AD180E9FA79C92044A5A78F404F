@@ -1,0 +1,32 @@
+static void MMC_Write_IT(MMC_HandleTypeDef *hmmc)
+{
+  uint32_t count, data, dataremaining;
+  uint8_t* tmp;
+
+  tmp = hmmc->pTxBuffPtr;
+  dataremaining = hmmc->TxXferSize;
+
+  if (dataremaining > 0U)
+  {
+    /* Write data to SDIO Tx FIFO */
+    for(count = 0U; count < 8U; count++)
+    {
+      data = (uint32_t)(*tmp);
+      tmp++;
+      dataremaining--;
+      data |= ((uint32_t)(*tmp) << 8U);
+      tmp++;
+      dataremaining--;
+      data |= ((uint32_t)(*tmp) << 16U);
+      tmp++;
+      dataremaining--;
+      data |= ((uint32_t)(*tmp) << 24U);
+      tmp++;
+      dataremaining--;
+      (void)SDIO_WriteFIFO(hmmc->Instance, &data);
+    }
+
+    hmmc->pTxBuffPtr = tmp;
+    hmmc->TxXferSize = dataremaining;
+  }
+}

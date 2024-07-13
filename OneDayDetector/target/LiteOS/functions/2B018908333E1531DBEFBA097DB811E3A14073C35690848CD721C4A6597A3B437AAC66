@@ -1,0 +1,51 @@
+lv_obj_t * lv_btn_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+    LV_LOG_TRACE("button create started");
+
+    lv_obj_t * btn;
+
+    btn = lv_cont_create(par, copy);
+    LV_ASSERT_MEM(btn);
+    if(btn == NULL) return NULL;
+
+    if(ancestor_signal == NULL) ancestor_signal = lv_obj_get_signal_cb(btn);
+    if(ancestor_design == NULL) ancestor_design = lv_obj_get_design_cb(btn);
+
+    /*Allocate the extended data*/
+    lv_btn_ext_t * ext = lv_obj_allocate_ext_attr(btn, sizeof(lv_btn_ext_t));
+    LV_ASSERT_MEM(ext);
+    if(ext == NULL) {
+        lv_obj_del(btn);
+        return NULL;
+    }
+
+    ext->checkable = 0;
+
+    lv_obj_set_signal_cb(btn, lv_btn_signal);
+    lv_obj_set_design_cb(btn, lv_btn_design);
+
+    /*If no copy do the basic initialization*/
+    if(copy == NULL) {
+        /*Set layout if the button is not a screen*/
+        if(par) {
+            lv_obj_set_size(btn, LV_DPI, LV_DPI / 3);
+            lv_btn_set_layout(btn, LV_LAYOUT_CENTER);
+        }
+
+        lv_obj_set_click(btn, true); /*Be sure the button is clickable*/
+
+        lv_theme_apply(btn, LV_THEME_BTN);
+    }
+    /*Copy 'copy'*/
+    else {
+        lv_btn_ext_t * copy_ext = lv_obj_get_ext_attr(copy);
+        ext->checkable             = copy_ext->checkable;
+
+        /*Refresh the style with new signal function*/
+        lv_obj_refresh_style(btn, LV_STYLE_PROP_ALL);
+    }
+
+    LV_LOG_INFO("button created");
+
+    return btn;
+}

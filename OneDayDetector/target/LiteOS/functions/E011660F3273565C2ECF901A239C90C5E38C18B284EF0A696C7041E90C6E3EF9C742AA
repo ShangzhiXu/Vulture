@@ -1,0 +1,41 @@
+BOOL OsHeapFree(VOID *pool, VOID *ptr)
+{
+    struct LosHeapNode *node = NULL;
+
+    UINT32 gapSize;
+    BOOL ret = TRUE;
+
+    struct LosHeapManager *heapMan = HEAP_CAST(struct LosHeapManager *, pool);
+    if ((heapMan == NULL) || (ptr == NULL)) {
+        return LOS_NOK;
+    }
+
+    /* find the real ptr through gap size */
+    gapSize = *((UINT32 *)((UINTPTR)ptr - sizeof(UINTPTR)));
+    if (OS_MEM_GET_ALIGN_FLAG(gapSize)) {
+        gapSize = OS_MEM_GET_ALIGN_GAPSIZE(gapSize);
+        ptr = (VOID *)((UINTPTR)ptr - gapSize);
+    }
+
+    if (((UINTPTR)ptr < (UINTPTR)heapMan->head) ||
+        ((UINTPTR)ptr > ((UINTPTR)heapMan->tail + sizeof(struct LosHeapNode)))) {
+        PRINT_ERR("0x%lx out of range!\n", (UINTPTR)ptr);
+        return FALSE;
+    }
+
+    node = ((struct LosHeapNode *)ptr) - 1;
+    /* check if the address is a node of the heap memory list */
+    if ((node->used == 0) || (!((UINTPTR)node == (UINTPTR)heapMan->head) &&
+        (((UINTPTR)node->prev < (UINTPTR)heapMan->head) ||
+        ((UINTPTR)node->prev > ((UINTPTR)heapMan->tail + sizeof(struct LosHeapNode))) ||
+        ((UINTPTR)OsHeapPrvGetNext(heapMan, node->prev) != (UINTPTR)node)))) {
+        ret = FALSE;
+        goto OUT;
+    }
+
+    OsHeapStatDecUsed(heapMan, node);
+    OsHeapDoFree(heapMan, node);
+
+OUT:
+    return ret;
+}

@@ -1,0 +1,32 @@
+pppos_output_append(pppos_pcb *pppos, err_t err, struct pbuf *nb, u8_t c, u8_t accm, u16_t *fcs)
+{
+  if (err != ERR_OK) {
+    return err;
+  }
+
+  /* Make sure there is room for the character and an escape code.
+   * Sure we don't quite fill the buffer if the character doesn't
+   * get escaped but is one character worth complicating this? */
+  if ((PBUF_POOL_BUFSIZE - nb->len) < 2) {
+    u32_t l = pppos->output_cb(pppos->ppp, (u8_t*)nb->payload, nb->len, pppos->ppp->ctx_cb);
+    if (l != nb->len) {
+      return ERR_IF;
+    }
+    nb->len = 0;
+  }
+
+  /* Update FCS before checking for special characters. */
+  if (fcs) {
+    *fcs = PPP_FCS(*fcs, c);
+  }
+
+  /* Copy to output buffer escaping special characters. */
+  if (accm && ESCAPE_P(pppos->out_accm, c)) {
+    *((u8_t*)nb->payload + nb->len++) = PPP_ESCAPE;
+    *((u8_t*)nb->payload + nb->len++) = c ^ PPP_TRANS;
+  } else {
+    *((u8_t*)nb->payload + nb->len++) = c;
+  }
+
+  return ERR_OK;
+}

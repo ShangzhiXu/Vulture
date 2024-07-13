@@ -1,0 +1,54 @@
+HAL_StatusTypeDef HAL_DMA_Init(DMA_HandleTypeDef *hdma)
+{ 
+  uint32_t tmp = 0;
+  
+  /* Check the DMA handle allocation */
+  if(hdma == NULL)
+  {
+    return HAL_ERROR;
+  }
+  
+  /* Check the parameters */
+  assert_param(IS_DMA_ALL_INSTANCE(hdma->Instance));
+  assert_param(IS_DMA_DIRECTION(hdma->Init.Direction));
+  assert_param(IS_DMA_PERIPHERAL_INC_STATE(hdma->Init.PeriphInc));
+  assert_param(IS_DMA_MEMORY_INC_STATE(hdma->Init.MemInc));
+  assert_param(IS_DMA_PERIPHERAL_DATA_SIZE(hdma->Init.PeriphDataAlignment));
+  assert_param(IS_DMA_MEMORY_DATA_SIZE(hdma->Init.MemDataAlignment));
+  assert_param(IS_DMA_MODE(hdma->Init.Mode));
+  assert_param(IS_DMA_PRIORITY(hdma->Init.Priority));
+  
+  if(hdma->State == HAL_DMA_STATE_RESET)
+  {  
+    /* Allocate lock resource and initialize it */
+    hdma->Lock = HAL_UNLOCKED;
+  }
+  
+  /* Change DMA peripheral state */
+  hdma->State = HAL_DMA_STATE_BUSY;
+
+  /* Get the CR register value */
+  tmp = hdma->Instance->CCR;
+  
+  /* Clear PL, MSIZE, PSIZE, MINC, PINC, CIRC, DIR bits */
+  tmp &= ((uint32_t)~(DMA_CCR_PL    | DMA_CCR_MSIZE  | DMA_CCR_PSIZE  | \
+                      DMA_CCR_MINC  | DMA_CCR_PINC   | DMA_CCR_CIRC   | \
+                      DMA_CCR_DIR));
+  
+  /* Prepare the DMA Channel configuration */
+  tmp |=  hdma->Init.Direction        |
+          hdma->Init.PeriphInc           | hdma->Init.MemInc           |
+          hdma->Init.PeriphDataAlignment | hdma->Init.MemDataAlignment |
+          hdma->Init.Mode                | hdma->Init.Priority;
+
+  /* Write to DMA Channel CR register */
+  hdma->Instance->CCR = tmp;  
+  
+  /* Initialise the error code */
+  hdma->ErrorCode = HAL_DMA_ERROR_NONE;
+
+  /* Initialize the DMA state*/
+  hdma->State = HAL_DMA_STATE_READY;
+  
+  return HAL_OK;
+}

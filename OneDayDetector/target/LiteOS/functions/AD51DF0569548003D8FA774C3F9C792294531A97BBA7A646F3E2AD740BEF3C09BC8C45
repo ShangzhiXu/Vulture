@@ -1,0 +1,113 @@
+void _lv_disp_refr_task(lv_task_t * task)
+{
+    LV_LOG_TRACE("lv_refr_task: started");
+
+    uint32_t start = lv_tick_get();
+    uint32_t elaps = 0;
+
+    disp_refr = task->user_data;
+
+#if LV_USE_PERF_MONITOR == 0
+    /* Ensure the task does not run again automatically.
+     * This is done before refreshing in case refreshing invalidates something else.
+     */
+    lv_task_set_prio(task, LV_TASK_PRIO_OFF);
+#endif
+
+    /*Do nothing if there is no active screen*/
+    if(disp_refr->act_scr == NULL) {
+        disp_refr->inv_p = 0;
+        return;
+    }
+
+    lv_refr_join_area();
+
+    lv_refr_areas();
+
+    /*If refresh happened ...*/
+    if(disp_refr->inv_p != 0) {
+        /* In true double buffered mode copy the refreshed areas to the new VDB to keep it up to date.
+         * With set_px_cb we don't know anything about the buffer (even it's size) so skip copying.*/
+        if(lv_disp_is_true_double_buf(disp_refr) && disp_refr->driver.set_px_cb == NULL) {
+            lv_disp_buf_t * vdb = lv_disp_get_buf(disp_refr);
+
+            /*Flush the content of the VDB*/
+            lv_refr_vdb_flush();
+
+            /* With true double buffering the flushing should be only the address change of the
+             * current frame buffer. Wait until the address change is ready and copy the changed
+             * content to the other frame buffer (new active VDB) to keep the buffers synchronized*/
+            while(vdb->flushing)
+                ;
+
+            uint8_t * buf_act = (uint8_t *)vdb->buf_act;
+            uint8_t * buf_ina = (uint8_t *)vdb->buf_act == vdb->buf1 ? vdb->buf2 : vdb->buf1;
+
+            lv_coord_t hres = lv_disp_get_hor_res(disp_refr);
+            uint16_t a;
+            for(a = 0; a < disp_refr->inv_p; a++) {
+                if(disp_refr->inv_area_joined[a] == 0) {
+                    lv_coord_t y;
+                    uint32_t start_offs =
+                        (hres * disp_refr->inv_areas[a].y1 + disp_refr->inv_areas[a].x1) * sizeof(lv_color_t);
+                    uint32_t line_length = lv_area_get_width(&disp_refr->inv_areas[a]) * sizeof(lv_color_t);
+
+                    for(y = disp_refr->inv_areas[a].y1; y <= disp_refr->inv_areas[a].y2; y++) {
+                        _lv_memcpy(buf_act + start_offs, buf_ina + start_offs, line_length);
+                        start_offs += hres * sizeof(lv_color_t);
+                    }
+                }
+            }
+        } /*End of true double buffer handling*/
+
+        /*Clean up*/
+        _lv_memset_00(disp_refr->inv_areas, sizeof(disp_refr->inv_areas));
+        _lv_memset_00(disp_refr->inv_area_joined, sizeof(disp_refr->inv_area_joined));
+        disp_refr->inv_p = 0;
+
+        elaps = lv_tick_elaps(start);
+        /*Call monitor cb if present*/
+        if(disp_refr->driver.monitor_cb) {
+            disp_refr->driver.monitor_cb(&disp_refr->driver, elaps, px_num);
+        }
+    }
+
+    _lv_mem_buf_free_all();
+    _lv_font_clean_up_fmt_txt();
+
+#if LV_USE_PERF_MONITOR && LV_USE_LABEL
+    static lv_obj_t * perf_label = NULL;
+    if(perf_label == NULL) {
+        perf_label = lv_label_create(lv_layer_sys(), NULL);
+        lv_label_set_align(perf_label, LV_LABEL_ALIGN_RIGHT);
+        lv_obj_set_style_local_bg_opa(perf_label, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_OPA_COVER);
+        lv_obj_set_style_local_bg_color(perf_label, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_BLACK);
+        lv_obj_set_style_local_text_color(perf_label, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_WHITE);
+        lv_obj_set_style_local_pad_top(perf_label, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, 3);
+        lv_obj_set_style_local_pad_bottom(perf_label, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, 3);
+        lv_obj_set_style_local_pad_left(perf_label, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, 3);
+        lv_obj_set_style_local_pad_right(perf_label, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, 3);
+        lv_label_set_text(perf_label, "?");
+        lv_obj_align(perf_label, NULL, LV_ALIGN_IN_BOTTOM_RIGHT, 0, 0);
+    }
+
+    static uint32_t perf_last_time = 0;
+    static uint32_t elaps_max = 1;
+    if(lv_tick_elaps(perf_last_time) < 300) {
+        elaps_max = LV_MATH_MAX(elaps, elaps_max);
+    }
+    else {
+        perf_last_time = lv_tick_get();
+        uint32_t fps = 1000 / (elaps_max == 0 ? 1 : elaps_max);
+        elaps_max = 1;
+        uint32_t fps_limit = 1000 / disp_refr->refr_task->period;
+        if(fps > fps_limit) fps = fps_limit;
+
+        uint32_t cpu = 100 - lv_task_get_idle();
+        lv_label_set_text_fmt(perf_label, "%d FPS\n%d%% CPU", fps, cpu);
+        lv_obj_align(perf_label, NULL, LV_ALIGN_IN_BOTTOM_RIGHT, 0, 0);
+    }
+#endif
+
+    LV_LOG_TRACE("lv_refr_task: ready");
+}

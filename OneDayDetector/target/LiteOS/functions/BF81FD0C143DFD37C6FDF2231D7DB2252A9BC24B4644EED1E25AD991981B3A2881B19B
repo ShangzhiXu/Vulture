@@ -1,0 +1,203 @@
+lwip_select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset,
+            struct timeval *timeout)
+{
+  u32_t waitres = 0;
+  int nready;
+  fd_set lreadset, lwriteset, lexceptset;
+  u32_t msectimeout;
+  int i;
+  int maxfdp2;
+#if LWIP_NETCONN_SEM_PER_THREAD
+  int waited = 0;
+#endif
+#if LWIP_NETCONN_FULLDUPLEX
+  fd_set used_sockets;
+#endif
+  SYS_ARCH_DECL_PROTECT(lev);
+
+  LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_select(%d, %p, %p, %p, tvsec=%"S32_F" tvusec=%"S32_F")\n",
+                              maxfdp1, (void *)readset, (void *) writeset, (void *) exceptset,
+                              timeout ? (s32_t)timeout->tv_sec : (s32_t) - 1,
+                              timeout ? (s32_t)timeout->tv_usec : (s32_t) - 1));
+
+  if ((maxfdp1 < 0) || (maxfdp1 > LWIP_SELECT_MAXNFDS)) {
+    set_errno(EINVAL);
+    return -1;
+  }
+
+  lwip_select_inc_sockets_used(maxfdp1, readset, writeset, exceptset, &used_sockets);
+
+  /* Go through each socket in each list to count number of sockets which
+     currently match */
+  nready = lwip_selscan(maxfdp1, readset, writeset, exceptset, &lreadset, &lwriteset, &lexceptset);
+
+  if (nready < 0) {
+    /* one of the sockets in one of the fd_sets was invalid */
+    set_errno(EBADF);
+    lwip_select_dec_sockets_used(maxfdp1, &used_sockets);
+    return -1;
+  } else if (nready > 0) {
+    /* one or more sockets are set, no need to wait */
+    LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_select: nready=%d\n", nready));
+  } else {
+    /* If we don't have any current events, then suspend if we are supposed to */
+    if (timeout && timeout->tv_sec == 0 && timeout->tv_usec == 0) {
+      LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_select: no timeout, returning 0\n"));
+      /* This is OK as the local fdsets are empty and nready is zero,
+         or we would have returned earlier. */
+    } else {
+      /* None ready: add our semaphore to list:
+         We don't actually need any dynamic memory. Our entry on the
+         list is only valid while we are in this function, so it's ok
+         to use local variables (unless we're running in MPU compatible
+         mode). */
+      API_SELECT_CB_VAR_DECLARE(select_cb);
+      API_SELECT_CB_VAR_ALLOC(select_cb, set_errno(ENOMEM); lwip_select_dec_sockets_used(maxfdp1, &used_sockets); return -1);
+      memset(&API_SELECT_CB_VAR_REF(select_cb), 0, sizeof(struct lwip_select_cb));
+
+      API_SELECT_CB_VAR_REF(select_cb).readset = readset;
+      API_SELECT_CB_VAR_REF(select_cb).writeset = writeset;
+      API_SELECT_CB_VAR_REF(select_cb).exceptset = exceptset;
+#if LWIP_NETCONN_SEM_PER_THREAD
+      API_SELECT_CB_VAR_REF(select_cb).sem = LWIP_NETCONN_THREAD_SEM_GET();
+#else /* LWIP_NETCONN_SEM_PER_THREAD */
+      if (sys_sem_new(&API_SELECT_CB_VAR_REF(select_cb).sem, 0) != ERR_OK) {
+        /* failed to create semaphore */
+        set_errno(ENOMEM);
+        lwip_select_dec_sockets_used(maxfdp1, &used_sockets);
+        API_SELECT_CB_VAR_FREE(select_cb);
+        return -1;
+      }
+#endif /* LWIP_NETCONN_SEM_PER_THREAD */
+
+      lwip_link_select_cb(&API_SELECT_CB_VAR_REF(select_cb));
+
+      /* Increase select_waiting for each socket we are interested in */
+      maxfdp2 = maxfdp1;
+      for (i = LWIP_SOCKET_OFFSET; i < maxfdp1; i++) {
+        if ((readset && FD_ISSET(i, readset)) ||
+            (writeset && FD_ISSET(i, writeset)) ||
+            (exceptset && FD_ISSET(i, exceptset))) {
+          struct lwip_sock *sock;
+          SYS_ARCH_PROTECT(lev);
+          sock = tryget_socket_unconn_locked(i);
+          if (sock != NULL) {
+            sock->select_waiting++;
+            if (sock->select_waiting == 0) {
+              /* overflow - too many threads waiting */
+              sock->select_waiting--;
+              nready = -1;
+              maxfdp2 = i;
+              SYS_ARCH_UNPROTECT(lev);
+              done_socket(sock);
+              set_errno(EBUSY);
+              break;
+            }
+            SYS_ARCH_UNPROTECT(lev);
+            done_socket(sock);
+          } else {
+            /* Not a valid socket */
+            nready = -1;
+            maxfdp2 = i;
+            SYS_ARCH_UNPROTECT(lev);
+            set_errno(EBADF);
+            break;
+          }
+        }
+      }
+
+      if (nready >= 0) {
+        /* Call lwip_selscan again: there could have been events between
+           the last scan (without us on the list) and putting us on the list! */
+        nready = lwip_selscan(maxfdp1, readset, writeset, exceptset, &lreadset, &lwriteset, &lexceptset);
+        if (!nready) {
+          /* Still none ready, just wait to be woken */
+          if (timeout == 0) {
+            /* Wait forever */
+            msectimeout = 0;
+          } else {
+            long msecs_long = ((timeout->tv_sec * 1000) + ((timeout->tv_usec + 500) / 1000));
+            if (msecs_long <= 0) {
+              /* Wait 1ms at least (0 means wait forever) */
+              msectimeout = 1;
+            } else {
+              msectimeout = (u32_t)msecs_long;
+            }
+          }
+
+          waitres = sys_arch_sem_wait(SELECT_SEM_PTR(API_SELECT_CB_VAR_REF(select_cb).sem), msectimeout);
+#if LWIP_NETCONN_SEM_PER_THREAD
+          waited = 1;
+#endif
+        }
+      }
+
+      /* Decrease select_waiting for each socket we are interested in */
+      for (i = LWIP_SOCKET_OFFSET; i < maxfdp2; i++) {
+        if ((readset && FD_ISSET(i, readset)) ||
+            (writeset && FD_ISSET(i, writeset)) ||
+            (exceptset && FD_ISSET(i, exceptset))) {
+          struct lwip_sock *sock;
+          SYS_ARCH_PROTECT(lev);
+          sock = tryget_socket_unconn_locked(i);
+          if (sock != NULL) {
+            /* for now, handle select_waiting==0... */
+            LWIP_ASSERT("sock->select_waiting > 0", sock->select_waiting > 0);
+            if (sock->select_waiting > 0) {
+              sock->select_waiting--;
+            }
+            SYS_ARCH_UNPROTECT(lev);
+            done_socket(sock);
+          } else {
+            SYS_ARCH_UNPROTECT(lev);
+            /* Not a valid socket */
+            nready = -1;
+            set_errno(EBADF);
+          }
+        }
+      }
+
+      lwip_unlink_select_cb(&API_SELECT_CB_VAR_REF(select_cb));
+
+#if LWIP_NETCONN_SEM_PER_THREAD
+      if (API_SELECT_CB_VAR_REF(select_cb).sem_signalled && (!waited || (waitres == SYS_ARCH_TIMEOUT))) {
+        /* don't leave the thread-local semaphore signalled */
+        sys_arch_sem_wait(API_SELECT_CB_VAR_REF(select_cb).sem, 1);
+      }
+#else /* LWIP_NETCONN_SEM_PER_THREAD */
+      sys_sem_free(&API_SELECT_CB_VAR_REF(select_cb).sem);
+#endif /* LWIP_NETCONN_SEM_PER_THREAD */
+      API_SELECT_CB_VAR_FREE(select_cb);
+
+      if (nready < 0) {
+        /* This happens when a socket got closed while waiting */
+        lwip_select_dec_sockets_used(maxfdp1, &used_sockets);
+        return -1;
+      }
+
+      if (waitres == SYS_ARCH_TIMEOUT) {
+        /* Timeout */
+        LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_select: timeout expired\n"));
+        /* This is OK as the local fdsets are empty and nready is zero,
+           or we would have returned earlier. */
+      } else {
+        /* See what's set now after waiting */
+        nready = lwip_selscan(maxfdp1, readset, writeset, exceptset, &lreadset, &lwriteset, &lexceptset);
+        LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_select: nready=%d\n", nready));
+      }
+    }
+  }
+
+  lwip_select_dec_sockets_used(maxfdp1, &used_sockets);
+  set_errno(0);
+  if (readset) {
+    *readset = lreadset;
+  }
+  if (writeset) {
+    *writeset = lwriteset;
+  }
+  if (exceptset) {
+    *exceptset = lexceptset;
+  }
+  return nready;
+}

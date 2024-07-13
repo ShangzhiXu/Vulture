@@ -1,0 +1,23 @@
+int32_t nb_connect(const int8_t *host, const int8_t *port, int32_t proto)
+{
+    int ret = 0;
+    static uint16_t localport = NB_STAT_LOCALPORT;
+    const int COAP_SEVER_PORT = 5683;
+
+    if (nb_create_sock_link(localport, &ret) != AT_OK) {
+        return AT_FAILED;
+    }
+
+    localport++;
+    if (localport == COAP_SEVER_PORT || localport == (COAP_SEVER_PORT + 1)) {
+        localport = 5685;
+    }
+
+    strncpy(sockinfo[ret].remoteip, (const char *)host, sizeof(sockinfo[ret].remoteip));
+    sockinfo[ret].remoteip[sizeof(sockinfo[ret].remoteip) - 1] = '\0';
+    sockinfo[ret].remoteport = chartoint((char *)port);
+
+    AT_LOG("ret:%d remoteip:%s port:%d", ret, sockinfo[ret].remoteip, sockinfo[ret].remoteport);
+
+    return ret;
+}

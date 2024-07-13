@@ -1,0 +1,80 @@
+HAL_StatusTypeDef HAL_SD_GetCardStatus(SD_HandleTypeDef *hsd, HAL_SD_CardStatusTypeDef *pStatus)
+{
+  uint32_t tmp = 0;
+  uint32_t sd_status[16];
+  uint32_t errorstate = HAL_SD_ERROR_NONE;
+  
+  errorstate = SD_SendSDStatus(hsd, sd_status);
+  if(errorstate != HAL_OK)
+  {
+    /* Clear all the static flags */
+    __HAL_SD_CLEAR_FLAG(hsd, SDMMC_STATIC_FLAGS);   
+    hsd->ErrorCode |= errorstate;
+    hsd->State = HAL_SD_STATE_READY;
+    return HAL_ERROR;
+  }
+  else
+  {
+    /* Byte 0 */
+    tmp = (sd_status[0] & 0xC0) >> 6;
+    pStatus->DataBusWidth = (uint8_t)tmp;
+    
+    /* Byte 0 */
+    tmp = (sd_status[0] & 0x20) >> 5;
+    pStatus->SecuredMode = (uint8_t)tmp;
+    
+    /* Byte 2 */
+    tmp = (sd_status[0] & 0x00FF0000U) >> 16;
+    pStatus->CardType = (uint16_t)(tmp << 8);
+    
+    /* Byte 3 */
+    tmp = (sd_status[0] & 0xFF000000U) >> 24;
+    pStatus->CardType |= (uint16_t)tmp;
+    
+    /* Byte 4 */
+    tmp = (sd_status[1] & 0xFF);
+    pStatus->ProtectedAreaSize = (uint32_t)(tmp << 24);
+    
+    /* Byte 5 */
+    tmp = (sd_status[1] & 0xFF00) >> 8;
+    pStatus->ProtectedAreaSize |= (uint32_t)(tmp << 16);
+    
+    /* Byte 6 */
+    tmp = (sd_status[1] & 0xFF0000) >> 16;
+    pStatus->ProtectedAreaSize |= (uint32_t)(tmp << 8);
+    
+    /* Byte 7 */
+    tmp = (sd_status[1] & 0xFF000000U) >> 24;
+    pStatus->ProtectedAreaSize |= (uint32_t)tmp;
+    
+    /* Byte 8 */
+    tmp = (sd_status[2] & 0xFF);
+    pStatus->SpeedClass = (uint8_t)tmp;
+    
+    /* Byte 9 */
+    tmp = (sd_status[2] & 0xFF00) >> 8;
+    pStatus->PerformanceMove = (uint8_t)tmp;
+    
+    /* Byte 10 */
+    tmp = (sd_status[2] & 0xF00000) >> 20;
+    pStatus->AllocationUnitSize = (uint8_t)tmp;
+    
+    /* Byte 11 */
+    tmp = (sd_status[2] & 0xFF000000U) >> 24;
+    pStatus->EraseSize = (uint16_t)(tmp << 8);
+    
+    /* Byte 12 */
+    tmp = (sd_status[3] & 0xFF);
+    pStatus->EraseSize |= (uint16_t)tmp;
+    
+    /* Byte 13 */
+    tmp = (sd_status[3] & 0xFC00) >> 10;
+    pStatus->EraseTimeout = (uint8_t)tmp;
+    
+    /* Byte 13 */
+    tmp = (sd_status[3] & 0x0300) >> 8;
+    pStatus->EraseOffset = (uint8_t)tmp;
+  }
+  
+  return HAL_OK;
+}

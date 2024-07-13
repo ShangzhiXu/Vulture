@@ -1,0 +1,32 @@
+tcp_rst(const struct tcp_pcb *pcb, u32_t seqno, u32_t ackno,
+        const ip_addr_t *local_ip, const ip_addr_t *remote_ip,
+        u16_t local_port, u16_t remote_port)
+{
+  struct pbuf *p;
+  u16_t wnd;
+  u8_t optlen;
+
+  LWIP_ASSERT("tcp_rst: invalid local_ip", local_ip != NULL);
+  LWIP_ASSERT("tcp_rst: invalid remote_ip", remote_ip != NULL);
+
+  optlen = LWIP_TCP_OPT_LENGTH_SEGMENT(0, pcb);
+
+#if LWIP_WND_SCALE
+  wnd = PP_HTONS(((TCP_WND >> TCP_RCV_SCALE) & 0xFFFF));
+#else
+  wnd = PP_HTONS(TCP_WND);
+#endif
+
+  p = tcp_output_alloc_header_common(ackno, optlen, 0, lwip_htonl(seqno), local_port,
+    remote_port, TCP_RST | TCP_ACK, wnd);
+  if (p == NULL) {
+    LWIP_DEBUGF(TCP_DEBUG, ("tcp_rst: could not allocate memory for pbuf\n"));
+    return;
+  }
+  tcp_output_fill_options(pcb, p, 0, optlen);
+
+  MIB2_STATS_INC(mib2.tcpoutrsts);
+
+  tcp_output_control_segment(pcb, p, local_ip, remote_ip);
+  LWIP_DEBUGF(TCP_RST_DEBUG, ("tcp_rst: seqno %"U32_F" ackno %"U32_F".\n", seqno, ackno));
+}

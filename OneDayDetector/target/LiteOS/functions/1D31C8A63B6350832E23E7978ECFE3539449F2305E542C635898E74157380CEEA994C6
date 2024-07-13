@@ -1,0 +1,95 @@
+HAL_StatusTypeDef HAL_IRDA_UnRegisterCallback(IRDA_HandleTypeDef *hirda, HAL_IRDA_CallbackIDTypeDef CallbackID)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process locked */
+  __HAL_LOCK(hirda);
+
+  if (HAL_IRDA_STATE_READY == hirda->gState)
+  {
+    switch (CallbackID)
+    {
+      case HAL_IRDA_TX_HALFCOMPLETE_CB_ID :
+        hirda->TxHalfCpltCallback = HAL_IRDA_TxHalfCpltCallback;               /* Legacy weak  TxHalfCpltCallback       */
+        break;
+
+      case HAL_IRDA_TX_COMPLETE_CB_ID :
+        hirda->TxCpltCallback = HAL_IRDA_TxCpltCallback;                       /* Legacy weak TxCpltCallback            */
+        break;
+
+      case HAL_IRDA_RX_HALFCOMPLETE_CB_ID :
+        hirda->RxHalfCpltCallback = HAL_IRDA_RxHalfCpltCallback;               /* Legacy weak RxHalfCpltCallback        */
+        break;
+
+      case HAL_IRDA_RX_COMPLETE_CB_ID :
+        hirda->RxCpltCallback = HAL_IRDA_RxCpltCallback;                       /* Legacy weak RxCpltCallback            */
+        break;
+
+      case HAL_IRDA_ERROR_CB_ID :
+        hirda->ErrorCallback = HAL_IRDA_ErrorCallback;                         /* Legacy weak ErrorCallback             */
+        break;
+
+      case HAL_IRDA_ABORT_COMPLETE_CB_ID :
+        hirda->AbortCpltCallback = HAL_IRDA_AbortCpltCallback;                 /* Legacy weak AbortCpltCallback         */
+        break;
+
+      case HAL_IRDA_ABORT_TRANSMIT_COMPLETE_CB_ID :
+        hirda->AbortTransmitCpltCallback = HAL_IRDA_AbortTransmitCpltCallback; /* Legacy weak AbortTransmitCpltCallback */
+        break;
+
+      case HAL_IRDA_ABORT_RECEIVE_COMPLETE_CB_ID :
+        hirda->AbortReceiveCpltCallback = HAL_IRDA_AbortReceiveCpltCallback;   /* Legacy weak AbortReceiveCpltCallback  */
+        break;
+
+      case HAL_IRDA_MSPINIT_CB_ID :
+        hirda->MspInitCallback = HAL_IRDA_MspInit;                             /* Legacy weak MspInitCallback           */
+        break;
+
+      case HAL_IRDA_MSPDEINIT_CB_ID :
+        hirda->MspDeInitCallback = HAL_IRDA_MspDeInit;                         /* Legacy weak MspDeInitCallback         */
+        break;
+
+      default :
+        /* Update the error code */
+        hirda->ErrorCode |= HAL_IRDA_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if (HAL_IRDA_STATE_RESET == hirda->gState)
+  {
+    switch (CallbackID)
+    {
+      case HAL_IRDA_MSPINIT_CB_ID :
+        hirda->MspInitCallback = HAL_IRDA_MspInit;
+        break;
+
+      case HAL_IRDA_MSPDEINIT_CB_ID :
+        hirda->MspDeInitCallback = HAL_IRDA_MspDeInit;
+        break;
+
+      default :
+        /* Update the error code */
+        hirda->ErrorCode |= HAL_IRDA_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    hirda->ErrorCode |= HAL_IRDA_ERROR_INVALID_CALLBACK;
+
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hirda);
+
+  return status;
+}

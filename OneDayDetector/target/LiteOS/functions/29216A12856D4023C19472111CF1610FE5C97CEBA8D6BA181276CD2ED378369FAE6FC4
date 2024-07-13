@@ -1,0 +1,67 @@
+static int send_msg_resp(int mid, int errcode, int has_more, cJSON *body)
+{
+    cJSON *tmp = NULL;
+    int ret = ATINY_ERR;
+    cJSON *msg = NULL;
+    char *str_msg = NULL;
+
+    msg = cJSON_CreateObject();
+    if (msg == NULL) {
+        ATINY_LOG(LOG_ERR, "cJSON_CreateObject null");
+        goto EXIT;
+    }
+
+    tmp = cJSON_CreateString(MQTT_DEVICE_RSP);
+    if (tmp == NULL) {
+        ATINY_LOG(LOG_ERR, "cJSON_CreateString  null");
+        goto EXIT;
+    }
+    cJSON_AddItemToObject(msg, MQTT_MSG_TYPE, tmp);
+
+    tmp = cJSON_CreateNumber(mid);
+    if (tmp == NULL) {
+        ATINY_LOG(LOG_ERR, "cJSON_CreateNumber null");
+        goto EXIT;
+    }
+    cJSON_AddItemToObject(msg, MQTT_MID, tmp);
+
+    tmp = cJSON_CreateNumber(errcode);
+    if (tmp == NULL) {
+        ATINY_LOG(LOG_ERR, "cJSON_CreateNumber null");
+        goto EXIT;
+    }
+    cJSON_AddItemToObject(msg, MQTT_ERR_CODE, tmp);
+
+    tmp = cJSON_CreateNumber(has_more);
+    if (tmp == NULL) {
+        ATINY_LOG(LOG_ERR, "cJSON_CreateNumber null");
+        goto EXIT;
+    }
+    cJSON_AddItemToObject(msg, MQTT_HAS_MORE, tmp);
+
+    cJSON_AddItemToObject(msg, MQTT_BODY, body);
+    body = NULL;
+
+    str_msg = cJSON_Print(msg);
+    if (str_msg == NULL) {
+        ATINY_LOG(LOG_ERR, "cJSON_CreateNumber null");
+        goto EXIT;
+    }
+
+    ret = atiny_mqtt_data_send(g_phandle, str_msg, strnlen(str_msg, MAX_LEN), MQTT_QOS_LEAST_ONCE);
+    if (str_msg == NULL) {
+        ATINY_LOG(LOG_ERR, "atiny_mqtt_data_send fail ret %d",  ret);
+    }
+
+    ATINY_LOG(LOG_INFO, "send rsp ret %d, rsp: %s", ret, str_msg);
+
+EXIT:
+    cJSON_Delete(msg);
+    if (body != NULL) {
+        cJSON_Delete(body);
+    }
+    if (str_msg != NULL) {
+        atiny_free(str_msg);
+    }
+    return ret;
+}

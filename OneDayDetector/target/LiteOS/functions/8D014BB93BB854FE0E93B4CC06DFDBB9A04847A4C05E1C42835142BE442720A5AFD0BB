@@ -1,0 +1,55 @@
+HAL_StatusTypeDef HAL_FMPSMBUS_Master_Abort_IT(FMPSMBUS_HandleTypeDef *hfmpsmbus, uint16_t DevAddress)
+{
+  if (hfmpsmbus->State == HAL_FMPSMBUS_STATE_READY)
+  {
+    /* Process Locked */
+    __HAL_LOCK(hfmpsmbus);
+
+    /* Keep the same state as previous */
+    /* to perform as well the call of the corresponding end of transfer callback */
+    if (hfmpsmbus->PreviousState == HAL_FMPSMBUS_STATE_MASTER_BUSY_TX)
+    {
+      hfmpsmbus->State = HAL_FMPSMBUS_STATE_MASTER_BUSY_TX;
+    }
+    else if (hfmpsmbus->PreviousState == HAL_FMPSMBUS_STATE_MASTER_BUSY_RX)
+    {
+      hfmpsmbus->State = HAL_FMPSMBUS_STATE_MASTER_BUSY_RX;
+    }
+    else
+    {
+      /* Wrong usage of abort function */
+      /* This function should be used only in case of abort monitored by master device */
+      return HAL_ERROR;
+    }
+    hfmpsmbus->ErrorCode = HAL_FMPSMBUS_ERROR_NONE;
+
+    /* Set NBYTES to 1 to generate a dummy read on FMPSMBUS peripheral */
+    /* Set AUTOEND mode, this will generate a NACK then STOP condition to abort the current transfer */
+    FMPSMBUS_TransferConfig(hfmpsmbus, DevAddress, 1, FMPSMBUS_AUTOEND_MODE, FMPSMBUS_NO_STARTSTOP);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hfmpsmbus);
+
+    /* Note : The FMPSMBUS interrupts must be enabled after unlocking current process
+              to avoid the risk of FMPSMBUS interrupt handle execution before current
+              process unlock */
+    if (hfmpsmbus->State == HAL_FMPSMBUS_STATE_MASTER_BUSY_TX)
+    {
+      FMPSMBUS_Enable_IRQ(hfmpsmbus, FMPSMBUS_IT_TX);
+    }
+    else if (hfmpsmbus->State == HAL_FMPSMBUS_STATE_MASTER_BUSY_RX)
+    {
+      FMPSMBUS_Enable_IRQ(hfmpsmbus, FMPSMBUS_IT_RX);
+    }
+    else
+    {
+      /* Nothing to do */
+    }
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

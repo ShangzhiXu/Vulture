@@ -1,0 +1,82 @@
+static void SPI_DMATransmitReceiveCplt(DMA_HandleTypeDef *hdma)
+{
+  SPI_HandleTypeDef *hspi = (SPI_HandleTypeDef *)(((DMA_HandleTypeDef *)hdma)->Parent); /* Derogation MISRAC2012-Rule-11.5 */
+  uint32_t tickstart;
+
+  /* Init tickstart for timeout management*/
+  tickstart = HAL_GetTick();
+
+  /* DMA Normal Mode */
+  if ((hdma->Instance->CR & DMA_SxCR_CIRC) != DMA_SxCR_CIRC)
+  {
+    /* Disable ERR interrupt */
+    __HAL_SPI_DISABLE_IT(hspi, SPI_IT_ERR);
+
+#if (USE_SPI_CRC != 0U)
+    /* CRC handling */
+    if (hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+    {
+      if ((hspi->Init.DataSize == SPI_DATASIZE_8BIT) && (hspi->Init.CRCLength == SPI_CRC_LENGTH_8BIT))
+      {
+        if (SPI_WaitFifoStateUntilTimeout(hspi, SPI_FLAG_FRLVL, SPI_FRLVL_QUARTER_FULL, SPI_DEFAULT_TIMEOUT,
+                                          tickstart) != HAL_OK)
+        {
+          /* Error on the CRC reception */
+          SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_CRC);
+        }
+        /* Read CRC to Flush DR and RXNE flag */
+        READ_REG(*(__IO uint8_t *)&hspi->Instance->DR);
+      }
+      else
+      {
+        if (SPI_WaitFifoStateUntilTimeout(hspi, SPI_FLAG_FRLVL, SPI_FRLVL_HALF_FULL, SPI_DEFAULT_TIMEOUT, tickstart) != HAL_OK)
+        {
+          /* Error on the CRC reception */
+          SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_CRC);
+        }
+        /* Read CRC to Flush DR and RXNE flag */
+        READ_REG(hspi->Instance->DR);
+      }
+    }
+#endif /* USE_SPI_CRC */
+
+    /* Check the end of the transaction */
+    if (SPI_EndRxTxTransaction(hspi, SPI_DEFAULT_TIMEOUT, tickstart) != HAL_OK)
+    {
+      SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_FLAG);
+    }
+
+    /* Disable Rx/Tx DMA Request */
+    CLEAR_BIT(hspi->Instance->CR2, SPI_CR2_TXDMAEN | SPI_CR2_RXDMAEN);
+
+    hspi->TxXferCount = 0U;
+    hspi->RxXferCount = 0U;
+    hspi->State = HAL_SPI_STATE_READY;
+
+#if (USE_SPI_CRC != 0U)
+    /* Check if CRC error occurred */
+    if (__HAL_SPI_GET_FLAG(hspi, SPI_FLAG_CRCERR))
+    {
+      SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_CRC);
+      __HAL_SPI_CLEAR_CRCERRFLAG(hspi);
+    }
+#endif /* USE_SPI_CRC */
+
+    if (hspi->ErrorCode != HAL_SPI_ERROR_NONE)
+    {
+      /* Call user error callback */
+#if (USE_HAL_SPI_REGISTER_CALLBACKS == 1U)
+      hspi->ErrorCallback(hspi);
+#else
+      HAL_SPI_ErrorCallback(hspi);
+#endif /* USE_HAL_SPI_REGISTER_CALLBACKS */
+      return;
+    }
+  }
+  /* Call user TxRx complete callback */
+#if (USE_HAL_SPI_REGISTER_CALLBACKS == 1U)
+  hspi->TxRxCpltCallback(hspi);
+#else
+  HAL_SPI_TxRxCpltCallback(hspi);
+#endif /* USE_HAL_SPI_REGISTER_CALLBACKS */
+}

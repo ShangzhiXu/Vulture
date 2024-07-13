@@ -1,0 +1,19 @@
+void test_tcp_input(struct pbuf *p, struct netif *inp)
+{
+  struct ip_hdr *iphdr = (struct ip_hdr*)p->payload;
+  /* these lines are a hack, don't use them as an example :-) */
+  ip_addr_copy_from_ip4(*ip_current_dest_addr(), iphdr->dest);
+  ip_addr_copy_from_ip4(*ip_current_src_addr(), iphdr->src);
+  ip_current_netif() = inp;
+  ip_data.current_ip4_header = iphdr;
+
+  /* since adding IPv6, p->payload must point to tcp header, not ip header */
+  pbuf_header(p, -(s16_t)sizeof(struct ip_hdr));
+
+  tcp_input(p, inp);
+
+  ip_addr_set_zero(ip_current_dest_addr());
+  ip_addr_set_zero(ip_current_src_addr());
+  ip_current_netif() = NULL;
+  ip_data.current_ip4_header = NULL;
+}

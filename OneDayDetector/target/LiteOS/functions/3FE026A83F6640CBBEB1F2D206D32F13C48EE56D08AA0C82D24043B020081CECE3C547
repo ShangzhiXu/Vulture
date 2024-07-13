@@ -1,0 +1,31 @@
+HAL_StatusTypeDef HAL_FMPI2C_RegisterAddrCallback(FMPI2C_HandleTypeDef *hfmpi2c, pFMPI2C_AddrCallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    /* Update the error code */
+    hfmpi2c->ErrorCode |= HAL_FMPI2C_ERROR_INVALID_CALLBACK;
+
+    return HAL_ERROR;
+  }
+  /* Process locked */
+  __HAL_LOCK(hfmpi2c);
+
+  if (HAL_FMPI2C_STATE_READY == hfmpi2c->State)
+  {
+    hfmpi2c->AddrCallback = pCallback;
+  }
+  else
+  {
+    /* Update the error code */
+    hfmpi2c->ErrorCode |= HAL_FMPI2C_ERROR_INVALID_CALLBACK;
+
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hfmpi2c);
+  return status;
+}

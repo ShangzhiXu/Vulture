@@ -1,0 +1,48 @@
+tcp_add_sack(struct tcp_pcb *pcb, u32_t left, u32_t right)
+{
+  u8_t i;
+  u8_t unused_idx;
+
+  if ((pcb->flags & TF_SACK) == 0 || !TCP_SEQ_LT(left, right)) {
+    return;
+  }
+
+  /* First, let's remove all SACKs that are no longer needed (because they overlap with the newest one),
+     while moving all other SACKs forward.
+     We run this loop for all entries, until we find the first invalid one.
+     There is no point checking after that. */
+  for (i = unused_idx = 0; (i < LWIP_TCP_MAX_SACK_NUM) && LWIP_TCP_SACK_VALID(pcb, i); ++i) {
+    /* We only want to use SACK at [i] if it doesn't overlap with left:right range.
+       It does not overlap if its right side is before the newly added SACK,
+       or if its left side is after the newly added SACK.
+       NOTE: The equality should not really happen, but it doesn't hurt. */
+    if (TCP_SEQ_LEQ(pcb->rcv_sacks[i].right, left) || TCP_SEQ_LEQ(right, pcb->rcv_sacks[i].left)) {
+      if (unused_idx != i) {
+        /* We don't need to copy if it's already in the right spot */
+        pcb->rcv_sacks[unused_idx] = pcb->rcv_sacks[i];
+      }
+      ++unused_idx;
+    }
+  }
+
+  /* Now 'unused_idx' is the index of the first invalid SACK entry,
+     anywhere between 0 (no valid entries) and LWIP_TCP_MAX_SACK_NUM (all entries are valid).
+     We want to clear this and all following SACKs.
+     However, we will be adding another one in the front (and shifting everything else back).
+     So let's just iterate from the back, and set each entry to the one to the left if it's valid,
+     or to 0 if it is not. */
+  for (i = LWIP_TCP_MAX_SACK_NUM - 1; i > 0; --i) {
+    /* [i] is the index we are setting, and the value should be at index [i-1],
+       or 0 if that index is unused (>= unused_idx). */
+    if (i - 1 >= unused_idx) {
+      /* [i-1] is unused. Let's clear [i]. */
+      pcb->rcv_sacks[i].left = pcb->rcv_sacks[i].right = 0;
+    } else {
+      pcb->rcv_sacks[i] = pcb->rcv_sacks[i - 1];
+    }
+  }
+
+  /* And now we can store the newest SACK */
+  pcb->rcv_sacks[0].left = left;
+  pcb->rcv_sacks[0].right = right;
+}

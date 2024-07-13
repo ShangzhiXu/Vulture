@@ -1,0 +1,15 @@
+mdns_build_service_domain(struct mdns_domain *domain, struct mdns_service *service, int include_name)
+{
+  err_t res;
+  LWIP_UNUSED_ARG(res);
+  memset(domain, 0, sizeof(struct mdns_domain));
+  if (include_name) {
+    res = mdns_domain_add_label(domain, service->name, (u8_t)strlen(service->name));
+    LWIP_ERROR("mdns_build_service_domain: Failed to add label", (res == ERR_OK), return res);
+  }
+  res = mdns_domain_add_label(domain, service->service, (u8_t)strlen(service->service));
+  LWIP_ERROR("mdns_build_service_domain: Failed to add label", (res == ERR_OK), return res);
+  res = mdns_domain_add_label(domain, dnssd_protos[service->proto], (u8_t)strlen(dnssd_protos[service->proto]));
+  LWIP_ERROR("mdns_build_service_domain: Failed to add label", (res == ERR_OK), return res);
+  return mdns_add_dotlocal(domain);
+}

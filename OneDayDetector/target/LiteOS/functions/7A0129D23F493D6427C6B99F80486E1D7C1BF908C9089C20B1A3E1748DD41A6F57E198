@@ -1,0 +1,62 @@
+int lwm2m_decode_TLV(const uint8_t *buffer,
+                     size_t buffer_len,
+                     lwm2m_data_type_t *oType,
+                     uint16_t *oID,
+                     size_t *oDataIndex,
+                     size_t *oDataLen)
+{
+
+    LOG_ARG("buffer_len: %d", buffer_len);
+    ;
+    if (buffer_len < 2) return 0;
+
+    *oDataIndex = 2;
+
+    *oType = prv_getDataType(buffer[0] & _PRV_TLV_TYPE_MASK);
+
+    if ((buffer[0] & 0x20) == 0x20)
+    {
+        // id is 16 bits long
+        if (buffer_len < 3) return 0;
+        *oDataIndex += 1;
+        *oID = (buffer[1] << 8) + buffer[2];
+    }
+    else
+    {
+        // id is 8 bits long
+        *oID = buffer[1];
+    }
+
+    switch (buffer[0] & 0x18)
+    {
+    case 0x00:
+        // no length field
+        *oDataLen = buffer[0] & 0x07;
+        break;
+    case 0x08:
+        // length field is 8 bits long
+        if (buffer_len < *oDataIndex + 1) return 0;
+        *oDataLen = buffer[*oDataIndex];
+        *oDataIndex += 1;
+        break;
+    case 0x10:
+        // length field is 16 bits long
+        if (buffer_len < *oDataIndex + 2) return 0;
+        *oDataLen = (buffer[*oDataIndex] << 8) + buffer[*oDataIndex + 1];
+        *oDataIndex += 2;
+        break;
+    case 0x18:
+        // length field is 24 bits long
+        if (buffer_len < *oDataIndex + 3) return 0;
+        *oDataLen = (buffer[*oDataIndex] << 16) + (buffer[*oDataIndex + 1] << 8) + buffer[*oDataIndex + 2];
+        *oDataIndex += 3;
+        break;
+    default:
+        // can't happen
+        return 0;
+    }
+
+    if (*oDataIndex + *oDataLen > buffer_len) return 0;
+
+    return *oDataIndex + *oDataLen;
+}

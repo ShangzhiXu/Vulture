@@ -1,0 +1,22 @@
+static uint32_t RTC_ReadTimeCounter(RTC_HandleTypeDef* hrtc)
+{
+  uint16_t high1 = 0, high2 = 0, low = 0;
+  uint32_t timecounter = 0;
+
+  high1 = READ_REG(hrtc->Instance->CNTH & RTC_CNTH_RTC_CNT);
+  low   = READ_REG(hrtc->Instance->CNTL & RTC_CNTL_RTC_CNT);
+  high2 = READ_REG(hrtc->Instance->CNTH & RTC_CNTH_RTC_CNT);
+
+  if (high1 != high2)
+  { /* In this case the counter roll over during reading of CNTL and CNTH registers, 
+       read again CNTL register then return the counter value */
+    timecounter = (((uint32_t) high2 << 16 ) | READ_REG(hrtc->Instance->CNTL & RTC_CNTL_RTC_CNT));
+  }
+  else
+  { /* No counter roll over during reading of CNTL and CNTH registers, counter 
+       value is equal to first value of CNTL and CNTH */
+    timecounter = (((uint32_t) high1 << 16 ) | low);
+  }
+
+  return timecounter;
+}

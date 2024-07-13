@@ -1,0 +1,44 @@
+HAL_StatusTypeDef HAL_OSPI_Abort_IT(OSPI_HandleTypeDef *hospi)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Check if the state is in one of the busy or configured states */
+  if (((hospi->State & OSPI_BUSY_STATE_MASK) != 0) || ((hospi->State & OSPI_CFG_STATE_MASK) != 0))
+  {
+    /* Disable all interrupts */
+    __HAL_OSPI_DISABLE_IT(hospi, (HAL_OSPI_IT_TO | HAL_OSPI_IT_SM | HAL_OSPI_IT_FT | HAL_OSPI_IT_TC | HAL_OSPI_IT_TE));
+
+    /* Update state */
+    hospi->State = HAL_OSPI_STATE_ABORT;
+    
+    /* Check if the DMA is enabled */
+    if ((hospi->Instance->CR & OCTOSPI_CR_DMAEN) != 0)
+    {
+      /* Disable the DMA transfer on the OctoSPI side */
+      CLEAR_BIT(hospi->Instance->CR, OCTOSPI_CR_DMAEN);
+      
+      /* Disable the DMA transfer on the DMA side */
+      hospi->hdma->XferAbortCallback = OSPI_DMAAbortCplt;
+      HAL_DMA_Abort_IT(hospi->hdma);
+    }
+    else
+    {
+      /* Clear transfer complete flag */
+      __HAL_OSPI_CLEAR_FLAG(hospi, HAL_OSPI_FLAG_TC);
+      
+      /* Enable the transfer complete interrupts */
+      __HAL_OSPI_ENABLE_IT(hospi, HAL_OSPI_IT_TC);
+
+      /* Perform an abort of the OctoSPI */
+      SET_BIT(hospi->Instance->CR, OCTOSPI_CR_ABORT);
+    }
+  }
+  else
+  {
+    status = HAL_ERROR;
+    hospi->ErrorCode = HAL_OSPI_ERROR_INVALID_SEQUENCE;
+  }
+
+  /* Return function status */
+  return status;
+}

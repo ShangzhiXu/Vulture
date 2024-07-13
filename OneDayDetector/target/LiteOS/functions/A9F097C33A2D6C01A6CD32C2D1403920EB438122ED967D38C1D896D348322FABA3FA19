@@ -1,0 +1,21 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 OsShellSysCmdRegister(VOID)
+{
+    UINT32 i;
+    UINT8 *cmdItemGroup = NULL;
+    UINT32 index = ((UINTPTR)(&g_shellcmdEnd) - (UINTPTR)(&g_shellcmd[0])) / sizeof(CmdItem);
+    CmdItemNode *cmdItem = NULL;
+
+    cmdItemGroup = (UINT8 *)LOS_MemAlloc(m_aucSysMem0, index * sizeof(CmdItemNode));
+    if (cmdItemGroup == NULL) {
+        PRINT_ERR("[%s]System memory allocation failure!\n", __FUNCTION__);
+        return (UINT32)OS_ERROR;
+    }
+
+    for (i = 0; i < index; ++i) {
+        cmdItem = (CmdItemNode *)(cmdItemGroup + i * sizeof(CmdItemNode));
+        cmdItem->cmd = &g_shellcmd[i];
+        OsCmdAscendingInsert(cmdItem);
+    }
+    g_cmdInfo.listNum += index;
+    return LOS_OK;
+}

@@ -1,0 +1,28 @@
+pppoe_send_pado(struct pppoe_softc *sc)
+{
+  struct pbuf *pb;
+  u8_t *p;
+  size_t len;
+
+  /* calc length */
+  len = 0;
+  /* include ac_cookie */
+  len += 2 + 2 + sizeof(sc);
+  /* include hunique */
+  len += 2 + 2 + sc->sc_hunique_len;
+  pb = pbuf_alloc(PBUF_LINK, (u16_t)(PPPOE_HEADERLEN + len), PBUF_RAM);
+  if (!pb) {
+    return ERR_MEM;
+  }
+  LWIP_ASSERT("pb->tot_len == pb->len", pb->tot_len == pb->len);
+  p = (u8_t*)pb->payload;
+  PPPOE_ADD_HEADER(p, PPPOE_CODE_PADO, 0, len);
+  PPPOE_ADD_16(p, PPPOE_TAG_ACCOOKIE);
+  PPPOE_ADD_16(p, sizeof(sc));
+  MEMCPY(p, &sc, sizeof(sc));
+  p += sizeof(sc);
+  PPPOE_ADD_16(p, PPPOE_TAG_HUNIQUE);
+  PPPOE_ADD_16(p, sc->sc_hunique_len);
+  MEMCPY(p, sc->sc_hunique, sc->sc_hunique_len);
+  return pppoe_output(sc, pb);
+}

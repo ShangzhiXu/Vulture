@@ -1,0 +1,198 @@
+HAL_StatusTypeDef HAL_ADC_AnalogWDGConfig(ADC_HandleTypeDef* hadc, ADC_AnalogWDGConfTypeDef* AnalogWDGConfig)
+{
+  HAL_StatusTypeDef tmp_hal_status = HAL_OK;
+  uint32_t tmpAWDHighThresholdShifted = 0U;
+  uint32_t tmpAWDLowThresholdShifted = 0U;
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+  assert_param(IS_ADC_ANALOG_WATCHDOG_NUMBER(AnalogWDGConfig->WatchdogNumber));
+  assert_param(IS_ADC_ANALOG_WATCHDOG_MODE(AnalogWDGConfig->WatchdogMode));
+  assert_param(IS_FUNCTIONAL_STATE(AnalogWDGConfig->ITMode));
+  
+  if((AnalogWDGConfig->WatchdogMode == ADC_ANALOGWATCHDOG_SINGLE_REG)     ||
+     (AnalogWDGConfig->WatchdogMode == ADC_ANALOGWATCHDOG_SINGLE_INJEC)   ||
+     (AnalogWDGConfig->WatchdogMode == ADC_ANALOGWATCHDOG_SINGLE_REGINJEC)  )
+  {
+    assert_param(IS_ADC_CHANNEL(hadc, AnalogWDGConfig->Channel));
+  }
+
+  /* Verify if threshold is within the selected ADC resolution */
+  assert_param(IS_ADC_RANGE(ADC_GET_RESOLUTION(hadc), AnalogWDGConfig->HighThreshold));
+  assert_param(IS_ADC_RANGE(ADC_GET_RESOLUTION(hadc), AnalogWDGConfig->LowThreshold));
+
+  /* Process locked */
+  __HAL_LOCK(hadc);
+  
+  /* Parameters update conditioned to ADC state:                              */
+  /* Parameters that can be updated when ADC is disabled or enabled without   */
+  /* conversion on going on ADC groups regular and injected:                  */
+  /*  - Analog watchdog channels                                              */
+  /*  - Analog watchdog thresholds                                            */
+  if (ADC_IS_CONVERSION_ONGOING_REGULAR_INJECTED(hadc) == RESET)
+  {
+    /* Analog watchdog configuration */
+    if(AnalogWDGConfig->WatchdogNumber == ADC_ANALOGWATCHDOG_1)
+    {
+      /* Configuration of analog watchdog:                                    */
+      /*  - Set the analog watchdog enable mode: one or overall group of      */
+      /*    channels, on groups regular and-or injected.                      */
+      switch(AnalogWDGConfig->WatchdogMode)
+      {
+        case ADC_ANALOGWATCHDOG_SINGLE_REG:
+          LL_ADC_SetAnalogWDMonitChannels(hadc->Instance, LL_ADC_AWD1, __LL_ADC_ANALOGWD_CHANNEL_GROUP(AnalogWDGConfig->Channel, LL_ADC_GROUP_REGULAR));
+          break;
+        
+        case ADC_ANALOGWATCHDOG_SINGLE_INJEC:
+          LL_ADC_SetAnalogWDMonitChannels(hadc->Instance, LL_ADC_AWD1, __LL_ADC_ANALOGWD_CHANNEL_GROUP(AnalogWDGConfig->Channel, LL_ADC_GROUP_INJECTED));
+          break;
+        
+        case ADC_ANALOGWATCHDOG_SINGLE_REGINJEC:
+          LL_ADC_SetAnalogWDMonitChannels(hadc->Instance, LL_ADC_AWD1, __LL_ADC_ANALOGWD_CHANNEL_GROUP(AnalogWDGConfig->Channel, LL_ADC_GROUP_REGULAR_INJECTED));
+          break;
+        
+        case ADC_ANALOGWATCHDOG_ALL_REG:
+          LL_ADC_SetAnalogWDMonitChannels(hadc->Instance, LL_ADC_AWD1, LL_ADC_AWD_ALL_CHANNELS_REG);
+          break;
+        
+        case ADC_ANALOGWATCHDOG_ALL_INJEC:
+          LL_ADC_SetAnalogWDMonitChannels(hadc->Instance, LL_ADC_AWD1, LL_ADC_AWD_ALL_CHANNELS_INJ);
+          break;
+        
+        case ADC_ANALOGWATCHDOG_ALL_REGINJEC:
+          LL_ADC_SetAnalogWDMonitChannels(hadc->Instance, LL_ADC_AWD1, LL_ADC_AWD_ALL_CHANNELS_REG_INJ);
+          break;
+        
+        default: /* ADC_ANALOGWATCHDOG_NONE */
+          LL_ADC_SetAnalogWDMonitChannels(hadc->Instance, LL_ADC_AWD1, LL_ADC_AWD_DISABLE);
+          break;
+      }
+      
+      /* Shift the offset in function of the selected ADC resolution:         */
+      /* Thresholds have to be left-aligned on bit 11, the LSB (right bits)   */
+      /* are set to 0                                                         */ 
+      tmpAWDHighThresholdShifted = ADC_AWD1THRESHOLD_SHIFT_RESOLUTION(hadc, AnalogWDGConfig->HighThreshold);
+      tmpAWDLowThresholdShifted  = ADC_AWD1THRESHOLD_SHIFT_RESOLUTION(hadc, AnalogWDGConfig->LowThreshold);
+      
+      /* Set ADC analog watchdog thresholds value of both thresholds high and low */
+      LL_ADC_ConfigAnalogWDThresholds(hadc->Instance, AnalogWDGConfig->WatchdogNumber, tmpAWDHighThresholdShifted, tmpAWDLowThresholdShifted);
+      
+      /* Update state, clear previous result related to AWD1 */
+      CLEAR_BIT(hadc->State, HAL_ADC_STATE_AWD1);
+      
+      /* Clear flag ADC analog watchdog */
+      /* Note: Flag cleared Clear the ADC Analog watchdog flag to be ready  */
+      /* to use for HAL_ADC_IRQHandler() or HAL_ADC_PollForEvent()          */
+      /* (in case left enabled by previous ADC operations).                 */
+      LL_ADC_ClearFlag_AWD1(hadc->Instance);
+      
+      /* Configure ADC analog watchdog interrupt */
+      if(AnalogWDGConfig->ITMode == ENABLE)
+      {
+        LL_ADC_EnableIT_AWD1(hadc->Instance);
+      }
+      else
+      {
+        LL_ADC_DisableIT_AWD1(hadc->Instance);
+      }
+    }
+    /* Case of ADC_ANALOGWATCHDOG_2 or ADC_ANALOGWATCHDOG_3 */
+    else
+    {
+      switch(AnalogWDGConfig->WatchdogMode)
+      {
+        case ADC_ANALOGWATCHDOG_SINGLE_REG:
+        case ADC_ANALOGWATCHDOG_SINGLE_INJEC:
+        case ADC_ANALOGWATCHDOG_SINGLE_REGINJEC:
+          /* Update AWD by bitfield to keep the possibility to monitor        */
+          /* several channels by successive calls of this function.           */
+          if (AnalogWDGConfig->WatchdogNumber == ADC_ANALOGWATCHDOG_2)
+          {
+            SET_BIT(hadc->Instance->AWD2CR, (1U << __LL_ADC_CHANNEL_TO_DECIMAL_NB(AnalogWDGConfig->Channel)));
+          }
+          else
+          {
+            SET_BIT(hadc->Instance->AWD3CR, (1U << __LL_ADC_CHANNEL_TO_DECIMAL_NB(AnalogWDGConfig->Channel)));
+          }
+          break;
+          
+        case ADC_ANALOGWATCHDOG_ALL_REG:
+        case ADC_ANALOGWATCHDOG_ALL_INJEC:
+        case ADC_ANALOGWATCHDOG_ALL_REGINJEC:
+          LL_ADC_SetAnalogWDMonitChannels(hadc->Instance, AnalogWDGConfig->WatchdogNumber, LL_ADC_AWD_ALL_CHANNELS_REG_INJ);
+          break;
+          
+        default: /* ADC_ANALOGWATCHDOG_NONE */
+          LL_ADC_SetAnalogWDMonitChannels(hadc->Instance, AnalogWDGConfig->WatchdogNumber, LL_ADC_AWD_DISABLE);
+          break;
+      }
+      
+      /* Shift the thresholds in function of the selected ADC resolution      */
+      /* have to be left-aligned on bit 7, the LSB (right bits) are set to 0  */
+      tmpAWDHighThresholdShifted = ADC_AWD23THRESHOLD_SHIFT_RESOLUTION(hadc, AnalogWDGConfig->HighThreshold);
+      tmpAWDLowThresholdShifted  = ADC_AWD23THRESHOLD_SHIFT_RESOLUTION(hadc, AnalogWDGConfig->LowThreshold);
+      
+      /* Set ADC analog watchdog thresholds value of both thresholds high and low */
+      LL_ADC_ConfigAnalogWDThresholds(hadc->Instance, AnalogWDGConfig->WatchdogNumber, tmpAWDHighThresholdShifted, tmpAWDLowThresholdShifted);
+      
+      if (AnalogWDGConfig->WatchdogNumber == ADC_ANALOGWATCHDOG_2)
+      {
+        /* Update state, clear previous result related to AWD2 */
+        CLEAR_BIT(hadc->State, HAL_ADC_STATE_AWD2);
+        
+        /* Clear flag ADC analog watchdog */
+        /* Note: Flag cleared Clear the ADC Analog watchdog flag to be ready  */
+        /* to use for HAL_ADC_IRQHandler() or HAL_ADC_PollForEvent()          */
+        /* (in case left enabled by previous ADC operations).                 */
+        LL_ADC_ClearFlag_AWD2(hadc->Instance);
+        
+        /* Configure ADC analog watchdog interrupt */
+        if(AnalogWDGConfig->ITMode == ENABLE)
+        {
+          LL_ADC_EnableIT_AWD2(hadc->Instance);
+        }
+        else
+        {
+          LL_ADC_DisableIT_AWD2(hadc->Instance);
+        }
+      }
+      /* (AnalogWDGConfig->WatchdogNumber == ADC_ANALOGWATCHDOG_3) */
+      else
+      {
+        /* Update state, clear previous result related to AWD3 */
+        CLEAR_BIT(hadc->State, HAL_ADC_STATE_AWD3);
+        
+        /* Clear flag ADC analog watchdog */
+        /* Note: Flag cleared Clear the ADC Analog watchdog flag to be ready  */
+        /* to use for HAL_ADC_IRQHandler() or HAL_ADC_PollForEvent()          */
+        /* (in case left enabled by previous ADC operations).                 */
+        LL_ADC_ClearFlag_AWD3(hadc->Instance);
+        
+        /* Configure ADC analog watchdog interrupt */
+        if(AnalogWDGConfig->ITMode == ENABLE)
+        {
+          LL_ADC_EnableIT_AWD3(hadc->Instance);
+        }
+        else
+        {
+          LL_ADC_DisableIT_AWD3(hadc->Instance);
+        }
+      }
+    }
+    
+  }
+  /* If a conversion is on going on ADC group regular or injected, no update  */
+  /* could be done on neither of the AWD configuration structure parameters.  */
+  else
+  {
+    /* Update ADC state machine to error */
+    SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_CONFIG);
+    
+    tmp_hal_status = HAL_ERROR;
+  }
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+  
+  /* Return function status */
+  return tmp_hal_status;
+}

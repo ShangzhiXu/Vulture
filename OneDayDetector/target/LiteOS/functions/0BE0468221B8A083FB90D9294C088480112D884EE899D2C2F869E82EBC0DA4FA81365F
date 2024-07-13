@@ -1,0 +1,18 @@
+static int pack_wr_entire_blocks(pack_writer_s *writer, uint32_t block_begin_offset, uint32_t block_size,
+    const uint8_t *buff, uint16_t len, uint16_t *out_len)
+{
+    int ret;
+
+    *out_len = 0;
+
+    for (; len >= block_size;
+        len -= block_size, block_begin_offset += block_size, buff += block_size, *out_len += block_size) {
+        ret = pack_write_data(writer, block_begin_offset, buff, block_size);
+        if (ret != PACK_OK) {
+            PACK_LOG("pack_write_data fail,offset %ld, size %ld, ret %ld", writer->offset, block_size, ret);
+            return ret;
+        }
+    }
+
+    return PACK_OK;
+}

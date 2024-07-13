@@ -1,0 +1,105 @@
+HAL_StatusTypeDef HAL_FMPI2C_RegisterCallback(FMPI2C_HandleTypeDef *hfmpi2c, HAL_FMPI2C_CallbackIDTypeDef CallbackID, pFMPI2C_CallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    /* Update the error code */
+    hfmpi2c->ErrorCode |= HAL_FMPI2C_ERROR_INVALID_CALLBACK;
+
+    return HAL_ERROR;
+  }
+  /* Process locked */
+  __HAL_LOCK(hfmpi2c);
+
+  if (HAL_FMPI2C_STATE_READY == hfmpi2c->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_FMPI2C_MASTER_TX_COMPLETE_CB_ID :
+        hfmpi2c->MasterTxCpltCallback = pCallback;
+        break;
+
+      case HAL_FMPI2C_MASTER_RX_COMPLETE_CB_ID :
+        hfmpi2c->MasterRxCpltCallback = pCallback;
+        break;
+
+      case HAL_FMPI2C_SLAVE_TX_COMPLETE_CB_ID :
+        hfmpi2c->SlaveTxCpltCallback = pCallback;
+        break;
+
+      case HAL_FMPI2C_SLAVE_RX_COMPLETE_CB_ID :
+        hfmpi2c->SlaveRxCpltCallback = pCallback;
+        break;
+
+      case HAL_FMPI2C_LISTEN_COMPLETE_CB_ID :
+        hfmpi2c->ListenCpltCallback = pCallback;
+        break;
+
+      case HAL_FMPI2C_MEM_TX_COMPLETE_CB_ID :
+        hfmpi2c->MemTxCpltCallback = pCallback;
+        break;
+
+      case HAL_FMPI2C_MEM_RX_COMPLETE_CB_ID :
+        hfmpi2c->MemRxCpltCallback = pCallback;
+        break;
+
+      case HAL_FMPI2C_ERROR_CB_ID :
+        hfmpi2c->ErrorCallback = pCallback;
+        break;
+
+      case HAL_FMPI2C_ABORT_CB_ID :
+        hfmpi2c->AbortCpltCallback = pCallback;
+        break;
+
+      case HAL_FMPI2C_MSPINIT_CB_ID :
+        hfmpi2c->MspInitCallback = pCallback;
+        break;
+
+      case HAL_FMPI2C_MSPDEINIT_CB_ID :
+        hfmpi2c->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hfmpi2c->ErrorCode |= HAL_FMPI2C_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if (HAL_FMPI2C_STATE_RESET == hfmpi2c->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_FMPI2C_MSPINIT_CB_ID :
+        hfmpi2c->MspInitCallback = pCallback;
+        break;
+
+      case HAL_FMPI2C_MSPDEINIT_CB_ID :
+        hfmpi2c->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hfmpi2c->ErrorCode |= HAL_FMPI2C_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    hfmpi2c->ErrorCode |= HAL_FMPI2C_ERROR_INVALID_CALLBACK;
+
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hfmpi2c);
+  return status;
+}

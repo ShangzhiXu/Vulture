@@ -1,0 +1,105 @@
+static void ipcp_addci(fsm *f, u_char *ucp, int *lenp) {
+    ppp_pcb *pcb = f->pcb;
+    ipcp_options *go = &pcb->ipcp_gotoptions;
+    int len = *lenp;
+
+#define ADDCIADDRS(opt, neg, val1, val2) \
+    if (neg) { \
+	if (len >= CILEN_ADDRS) { \
+	    u32_t l; \
+	    PUTCHAR(opt, ucp); \
+	    PUTCHAR(CILEN_ADDRS, ucp); \
+	    l = lwip_ntohl(val1); \
+	    PUTLONG(l, ucp); \
+	    l = lwip_ntohl(val2); \
+	    PUTLONG(l, ucp); \
+	    len -= CILEN_ADDRS; \
+	} else \
+	    go->old_addrs = 0; \
+    }
+
+#if VJ_SUPPORT
+#define ADDCIVJ(opt, neg, val, old, maxslotindex, cflag) \
+    if (neg) { \
+	int vjlen = old? CILEN_COMPRESS : CILEN_VJ; \
+	if (len >= vjlen) { \
+	    PUTCHAR(opt, ucp); \
+	    PUTCHAR(vjlen, ucp); \
+	    PUTSHORT(val, ucp); \
+	    if (!old) { \
+		PUTCHAR(maxslotindex, ucp); \
+		PUTCHAR(cflag, ucp); \
+	    } \
+	    len -= vjlen; \
+	} else \
+	    neg = 0; \
+    }
+#endif /* VJ_SUPPORT */
+
+#define ADDCIADDR(opt, neg, val) \
+    if (neg) { \
+	if (len >= CILEN_ADDR) { \
+	    u32_t l; \
+	    PUTCHAR(opt, ucp); \
+	    PUTCHAR(CILEN_ADDR, ucp); \
+	    l = lwip_ntohl(val); \
+	    PUTLONG(l, ucp); \
+	    len -= CILEN_ADDR; \
+	} else \
+	    neg = 0; \
+    }
+
+#if LWIP_DNS
+#define ADDCIDNS(opt, neg, addr) \
+    if (neg) { \
+	if (len >= CILEN_ADDR) { \
+	    u32_t l; \
+	    PUTCHAR(opt, ucp); \
+	    PUTCHAR(CILEN_ADDR, ucp); \
+	    l = lwip_ntohl(addr); \
+	    PUTLONG(l, ucp); \
+	    len -= CILEN_ADDR; \
+	} else \
+	    neg = 0; \
+    }
+#endif /* LWIP_DNS */
+
+#if 0 /* UNUSED - WINS */
+#define ADDCIWINS(opt, addr) \
+    if (addr) { \
+	if (len >= CILEN_ADDR) { \
+	    u32_t l; \
+	    PUTCHAR(opt, ucp); \
+	    PUTCHAR(CILEN_ADDR, ucp); \
+	    l = lwip_ntohl(addr); \
+	    PUTLONG(l, ucp); \
+	    len -= CILEN_ADDR; \
+	} else \
+	    addr = 0; \
+    }
+#endif /* UNUSED - WINS */
+
+    ADDCIADDRS(CI_ADDRS, !go->neg_addr && go->old_addrs, go->ouraddr,
+	       go->hisaddr);
+
+#if VJ_SUPPORT
+    ADDCIVJ(CI_COMPRESSTYPE, go->neg_vj, go->vj_protocol, go->old_vj,
+	    go->maxslotindex, go->cflag);
+#endif /* VJ_SUPPORT */
+
+    ADDCIADDR(CI_ADDR, go->neg_addr, go->ouraddr);
+
+#if LWIP_DNS
+    ADDCIDNS(CI_MS_DNS1, go->req_dns1, go->dnsaddr[0]);
+
+    ADDCIDNS(CI_MS_DNS2, go->req_dns2, go->dnsaddr[1]);
+#endif /* LWIP_DNS */
+
+#if 0 /* UNUSED - WINS */
+    ADDCIWINS(CI_MS_WINS1, go->winsaddr[0]);
+
+    ADDCIWINS(CI_MS_WINS2, go->winsaddr[1]);
+#endif /* UNUSED - WINS */
+    
+    *lenp -= len;
+}

@@ -1,0 +1,58 @@
+HAL_StatusTypeDef HAL_IRDA_Abort(IRDA_HandleTypeDef *hirda)
+{
+  /* Disable TXEIE, TCIE, RXNE, PE and ERR (Frame error, noise error, overrun error) interrupts */
+#if defined(USART_CR1_FIFOEN)
+  CLEAR_BIT(hirda->Instance->CR1, (USART_CR1_RXNEIE_RXFNEIE | USART_CR1_PEIE | USART_CR1_TXEIE_TXFNFIE | USART_CR1_TCIE));
+#else
+  CLEAR_BIT(hirda->Instance->CR1, (USART_CR1_RXNEIE | USART_CR1_PEIE | USART_CR1_TXEIE | USART_CR1_TCIE));
+#endif
+  CLEAR_BIT(hirda->Instance->CR3, USART_CR3_EIE);
+
+  /* Disable the IRDA DMA Tx request if enabled */
+  if (HAL_IS_BIT_SET(hirda->Instance->CR3, USART_CR3_DMAT))
+  {
+    CLEAR_BIT(hirda->Instance->CR3, USART_CR3_DMAT);
+
+    /* Abort the IRDA DMA Tx channel : use blocking DMA Abort API (no callback) */
+    if(hirda->hdmatx != NULL)
+    {
+      /* Set the IRDA DMA Abort callback to Null. 
+         No call back execution at end of DMA abort procedure */
+      hirda->hdmatx->XferAbortCallback = NULL;
+
+      HAL_DMA_Abort(hirda->hdmatx);
+    }
+  }
+
+  /* Disable the IRDA DMA Rx request if enabled */
+  if (HAL_IS_BIT_SET(hirda->Instance->CR3, USART_CR3_DMAR))
+  {
+    CLEAR_BIT(hirda->Instance->CR3, USART_CR3_DMAR);
+
+    /* Abort the IRDA DMA Rx channel : use blocking DMA Abort API (no callback) */
+    if(hirda->hdmarx != NULL)
+    {
+      /* Set the IRDA DMA Abort callback to Null. 
+         No call back execution at end of DMA abort procedure */
+      hirda->hdmarx->XferAbortCallback = NULL;
+
+      HAL_DMA_Abort(hirda->hdmarx);
+    }
+  }
+
+  /* Reset Tx and Rx transfer counters */
+  hirda->TxXferCount = 0; 
+  hirda->RxXferCount = 0; 
+
+  /* Clear the Error flags in the ICR register */
+  __HAL_IRDA_CLEAR_FLAG(hirda, IRDA_CLEAR_OREF | IRDA_CLEAR_NEF | IRDA_CLEAR_PEF | IRDA_CLEAR_FEF);
+
+  /* Restore hirda->gState and hirda->RxState to Ready */
+  hirda->gState  = HAL_IRDA_STATE_READY;
+  hirda->RxState = HAL_IRDA_STATE_READY;
+
+  /* Reset Handle ErrorCode to No Error */
+  hirda->ErrorCode = HAL_IRDA_ERROR_NONE;
+
+  return HAL_OK;
+}

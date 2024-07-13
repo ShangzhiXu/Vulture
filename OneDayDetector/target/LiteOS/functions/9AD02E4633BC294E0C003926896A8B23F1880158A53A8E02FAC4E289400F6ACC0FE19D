@@ -1,0 +1,25 @@
+HAL_StatusTypeDef HAL_LTDC_DisableColorKeying(LTDC_HandleTypeDef *hltdc, uint32_t LayerIdx)
+{
+  /* Check the parameters */
+  assert_param(IS_LTDC_LAYER(LayerIdx));
+
+  /* Process locked */
+  __HAL_LOCK(hltdc);
+
+  /* Change LTDC peripheral state */
+  hltdc->State = HAL_LTDC_STATE_BUSY;
+
+  /* Disable LTDC color keying by setting COLKEN bit */
+  LTDC_LAYER(hltdc, LayerIdx)->CR &= ~(uint32_t)LTDC_LxCR_COLKEN;
+
+  /* Set the Immediate Reload type */
+  hltdc->Instance->SRCR = LTDC_SRCR_IMR;
+
+  /* Change the LTDC state*/
+  hltdc->State = HAL_LTDC_STATE_READY;
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hltdc);
+
+  return HAL_OK;
+}

@@ -1,0 +1,49 @@
+mdns_read_answer(struct mdns_packet *pkt, struct mdns_answer *answer)
+{
+  /* Read questions first */
+  if (pkt->questions_left) {
+    return ERR_VAL;
+  }
+
+  /* Safety check */
+  if (pkt->pbuf->tot_len < pkt->parse_offset) {
+    return ERR_VAL;
+  }
+
+  if (pkt->answers_left) {
+    u16_t copied, field16;
+    u32_t ttl;
+    err_t res;
+    pkt->answers_left--;
+
+    memset(answer, 0, sizeof(struct mdns_answer));
+    res = mdns_read_rr_info(pkt, &answer->info);
+    if (res != ERR_OK) {
+      return res;
+    }
+
+    /* Extract cache_flush flag from class field */
+    answer->cache_flush = answer->info.klass & 0x8000;
+    answer->info.klass &= 0x7FFF;
+
+    copied = pbuf_copy_partial(pkt->pbuf, &ttl, sizeof(ttl), pkt->parse_offset);
+    if (copied != sizeof(ttl)) {
+      return ERR_VAL;
+    }
+    pkt->parse_offset += copied;
+    answer->ttl = lwip_ntohl(ttl);
+
+    copied = pbuf_copy_partial(pkt->pbuf, &field16, sizeof(field16), pkt->parse_offset);
+    if (copied != sizeof(field16)) {
+      return ERR_VAL;
+    }
+    pkt->parse_offset += copied;
+    answer->rd_length = lwip_ntohs(field16);
+
+    answer->rd_offset = pkt->parse_offset;
+    pkt->parse_offset += answer->rd_length;
+
+    return ERR_OK;
+  }
+  return ERR_VAL;
+}

@@ -1,0 +1,55 @@
+UINT32 OsSlabStatisticsGet(const VOID *pool, LosSlabStatus *status)
+{
+    struct LosSlabControlHeader *slabMem = NULL;
+    OsSlabAllocator *slabAlloc = NULL;
+    UINT32 itemSz = 0;
+    UINT32 itemCnt = 0;
+    UINT32 curUsage = 0;
+    UINT32 totalUsage = 0;
+    UINT32 totalMem = 0;
+    UINT32 totalAllocCount = 0;
+    UINT32 totalFreeCount = 0;
+    UINT32 idx;
+#ifdef LOSCFG_KERNEL_MEM_SLAB_AUTO_EXPANSION_MODE
+    OsSlabMemAllocator *bucket = NULL;
+#endif
+
+    if ((status == NULL) || (pool == NULL)) {
+        return LOS_NOK;
+    }
+
+    slabMem = OsSlabCtrlHdrGet(pool);
+
+    for (idx = 0; idx < SLAB_MEM_COUNT; idx++) {
+#ifdef LOSCFG_KERNEL_MEM_SLAB_AUTO_EXPANSION_MODE
+        bucket = slabMem->slabClass[idx].bucket;
+        while (bucket != NULL) {
+            slabAlloc = bucket->slabAlloc;
+
+            OsSlabAllocatorGetSlabInfo(slabAlloc, &itemSz, &itemCnt, &curUsage);
+            totalUsage += (curUsage * itemSz);
+            totalMem += (itemCnt * itemSz);
+
+            bucket = bucket->next;
+        }
+
+        totalAllocCount += slabMem->slabClass[idx].blkUsedCnt;
+        totalFreeCount  += (slabMem->slabClass[idx].blkCnt * slabMem->slabClass[idx].allocatorCnt) -
+                                                slabMem->slabClass[idx].blkUsedCnt;
+#else
+        slabAlloc = slabMem->slabClass[idx].alloc;
+        OsSlabAllocatorGetSlabInfo(slabAlloc, &itemSz, &itemCnt, &curUsage);
+        totalUsage += (curUsage * itemSz);
+        totalMem += (itemCnt * itemSz);
+        totalAllocCount += slabMem->slabClass[idx].blkUsedCnt;
+        totalFreeCount  += slabMem->slabClass[idx].blkCnt - slabMem->slabClass[idx].blkUsedCnt;
+#endif
+    }
+
+    if (totalMem < totalUsage) {
+        return LOS_NOK;
+    }
+
+    OsSlabStatusInit(status, totalMem, totalUsage, totalAllocCount, totalFreeCount);
+    return LOS_OK;
+}

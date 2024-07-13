@@ -1,0 +1,83 @@
+HAL_StatusTypeDef  HAL_JPEG_Decode(JPEG_HandleTypeDef *hjpeg, uint8_t *pDataIn, uint32_t InDataLength,
+                                   uint8_t *pDataOutMCU, uint32_t OutDataLength, uint32_t Timeout)
+{
+  uint32_t tickstart;
+
+  /* Check the parameters */
+  assert_param((InDataLength >= 4UL));
+  assert_param((OutDataLength >= 4UL));
+
+  /* Check In/out buffer allocation and size */
+  if ((hjpeg == NULL) || (pDataIn == NULL) || (pDataOutMCU == NULL))
+  {
+    return HAL_ERROR;
+  }
+
+  /* Process Locked */
+  __HAL_LOCK(hjpeg);
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  if (hjpeg->State == HAL_JPEG_STATE_READY)
+  {
+    /*Change JPEG state*/
+    hjpeg->State = HAL_JPEG_STATE_BUSY_DECODING;
+
+    /*Set the Context to Decode with Polling*/
+    /*Set the Context to Encode with Polling*/
+    hjpeg->Context &= ~(JPEG_CONTEXT_OPERATION_MASK | JPEG_CONTEXT_METHOD_MASK);
+    hjpeg->Context |= (JPEG_CONTEXT_DECODE | JPEG_CONTEXT_POLLING);
+
+    /*Store In/out buffers pointers and size*/
+    hjpeg->pJpegInBuffPtr = pDataIn;
+    hjpeg->pJpegOutBuffPtr = pDataOutMCU;
+    hjpeg->InDataLength = InDataLength - (InDataLength % 4UL);    /*In Data length must be multiple of 4 Bytes (1 word)*/
+    hjpeg->OutDataLength = OutDataLength - (OutDataLength % 4UL); /*Out Data length must be multiple of 4 Bytes (1 word)*/
+
+    /*Reset In/out data counter */
+    hjpeg->JpegInCount = 0;
+    hjpeg->JpegOutCount = 0;
+
+    /*Init decoding process*/
+    JPEG_Init_Process(hjpeg);
+
+    /*JPEG data processing : In/Out FIFO transfer*/
+    while ((JPEG_Process(hjpeg) == JPEG_PROCESS_ONGOING))
+    {
+      if (Timeout != HAL_MAX_DELAY)
+      {
+        if (((HAL_GetTick() - tickstart) > Timeout) || (Timeout == 0UL))
+        {
+
+          /* Update error code */
+          hjpeg->ErrorCode |= HAL_JPEG_ERROR_TIMEOUT;
+
+          /* Process Unlocked */
+          __HAL_UNLOCK(hjpeg);
+
+          /*Change JPEG state*/
+          hjpeg->State = HAL_JPEG_STATE_READY;
+
+          return HAL_TIMEOUT;
+        }
+      }
+    }
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hjpeg);
+
+    /*Change JPEG state*/
+    hjpeg->State = HAL_JPEG_STATE_READY;
+
+  }
+  else
+  {
+    /* Process Unlocked */
+    __HAL_UNLOCK(hjpeg);
+
+    return HAL_BUSY;
+  }
+  /* Return function status */
+  return HAL_OK;
+}

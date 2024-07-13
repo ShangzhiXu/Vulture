@@ -1,0 +1,18 @@
+FRESULT f_findnext (
+	DIR* dp,		/* Pointer to the open directory object */
+	FILINFO* fno	/* Pointer to the file information structure */
+)
+{
+	FRESULT res;
+
+
+	for (;;) {
+		res = f_readdir(dp, fno);		/* Get a directory item */
+		if (res != FR_OK || !fno || !fno->fname[0]) break;	/* Terminate if any error or end of directory */
+		if (pattern_matching(dp->pat, fno->fname, 0, 0)) break;		/* Test for the file name */
+#if FF_USE_LFN && FF_USE_FIND == 2
+		if (pattern_matching(dp->pat, fno->altname, 0, 0)) break;	/* Test for alternative name if exist */
+#endif
+	}
+	return res;
+}

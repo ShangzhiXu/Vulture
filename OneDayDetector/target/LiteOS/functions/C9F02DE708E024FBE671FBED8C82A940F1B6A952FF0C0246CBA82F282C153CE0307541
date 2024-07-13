@@ -1,0 +1,28 @@
+static BOOL OsSlabMemFreeStrollBuckets(VOID *pool, OsSlabBlockNode *slabNode,
+    OsSlabMem *slabClass)
+{
+    struct LosSlabControlHeader *slabMem = OsSlabCtrlHdrGet(pool);
+    OsSlabMem *slabMemClass = slabClass;
+    OsSlabMemAllocator **bucket = &(slabClass->bucket); /* slabMemClass->bucket must not be NULL */
+    OsSlabAllocator *slabAlloc = NULL;
+
+    while (*bucket != NULL) {
+        slabAlloc = (*bucket)->slabAlloc;
+        if (OsSlabAllocatorFree(slabAlloc, slabNode) == TRUE) {
+            /* try to destroy slabAllocator if needed */
+            if ((slabMemClass->allocatorCnt > SLAB_MEM_DFEAULT_BUCKET_CNT) &&
+                (OsSlabAllocatorEmpty(slabAlloc) == TRUE)) {
+                OsSlabMemAllocator *alloc = *bucket;
+                (*bucket) = (*bucket)->next; /* delete node in list */
+                OsSlabAllocatorDestroy(pool, alloc->slabAlloc); /* destory slabAllocator */
+                (VOID)OsSlabAllocatorFree(slabMem->allocatorBucket, alloc);
+
+                slabMemClass->allocatorCnt--;
+            }
+            return TRUE;
+        }
+        bucket = &((*bucket)->next);
+    }
+
+    return FALSE;
+}

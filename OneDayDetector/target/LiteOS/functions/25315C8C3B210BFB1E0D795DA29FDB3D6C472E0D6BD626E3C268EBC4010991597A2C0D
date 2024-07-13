@@ -1,0 +1,124 @@
+HAL_StatusTypeDef HAL_I2S_Init(I2S_HandleTypeDef *hi2s)
+{
+  uint32_t i2sdiv = 2, i2sodd = 0, packetlength = 1;
+  uint32_t tmp = 0, i2sclk = 0;
+  
+  /* Check the I2S handle allocation */
+  if(hi2s == NULL)
+  {
+    return HAL_ERROR;
+  }
+  
+  /* Check the I2S parameters */
+  assert_param(IS_I2S_ALL_INSTANCE(hi2s->Instance));
+  assert_param(IS_I2S_MODE(hi2s->Init.Mode));
+  assert_param(IS_I2S_STANDARD(hi2s->Init.Standard));
+  assert_param(IS_I2S_DATA_FORMAT(hi2s->Init.DataFormat));
+  assert_param(IS_I2S_MCLK_OUTPUT(hi2s->Init.MCLKOutput));
+  assert_param(IS_I2S_AUDIO_FREQ(hi2s->Init.AudioFreq));
+  assert_param(IS_I2S_CPOL(hi2s->Init.CPOL));  
+  
+  if(hi2s->State == HAL_I2S_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hi2s->Lock = HAL_UNLOCKED;
+    
+    /* Init the low level hardware : GPIO, CLOCK, CORTEX...etc */
+    HAL_I2S_MspInit(hi2s);
+  }
+  
+  hi2s->State = HAL_I2S_STATE_BUSY;
+
+  /* If the default value has to be written, reinitialize i2sdiv and i2sodd*/
+  if(hi2s->Init.AudioFreq == I2S_AUDIOFREQ_DEFAULT)
+  {
+    i2sodd = (uint32_t)0;
+    i2sdiv = (uint32_t)2;   
+  }
+  /* If the requested audio frequency is not the default, compute the prescaler */
+  else
+  {
+    /* Check the frame length (For the Prescaler computing) *******************/
+    if(hi2s->Init.DataFormat == I2S_DATAFORMAT_16B)
+    {
+      /* Packet length is 16 bits */
+      packetlength = 1;
+    }
+    else
+    {
+      /* Packet length is 32 bits */
+      packetlength = 2;
+    }
+    
+    if(hi2s->Instance == SPI2)
+    {
+      /* Get the source clock value: based on SPI2 Instance */
+      i2sclk = HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_I2S2);
+    }
+    else if(hi2s->Instance == SPI3)
+    {
+      /* Get the source clock value: based on SPI3 Instance */
+      i2sclk = HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_I2S3);
+    }
+    else
+    {
+      /* Get the source clock value: based on System Clock value */
+      i2sclk = HAL_RCC_GetSysClockFreq();   
+    }
+    if(i2sclk == 0)
+    {
+      return HAL_ERROR;
+    }
+    
+    /* Compute the Real divider depending on the MCLK output state, with a floating point */
+    if(hi2s->Init.MCLKOutput == I2S_MCLKOUTPUT_ENABLE)
+    {
+      /* MCLK output is enabled */
+      tmp = (uint32_t)(((((i2sclk / 256) * 10) / hi2s->Init.AudioFreq)) + 5);
+    }
+    else
+    {
+      /* MCLK output is disabled */
+      tmp = (uint32_t)(((((i2sclk / (32 * packetlength)) *10 ) / hi2s->Init.AudioFreq)) + 5);
+    }
+
+    /* Remove the flatting point */
+    tmp = tmp / 10;  
+
+    /* Check the parity of the divider */
+    i2sodd = (uint32_t)(tmp & (uint32_t)1);
+
+    /* Compute the i2sdiv prescaler */
+    i2sdiv = (uint32_t)((tmp - i2sodd) / 2);
+
+    /* Get the Mask for the Odd bit (SPI_I2SPR[8]) register */
+    i2sodd = (uint32_t) (i2sodd << 8);
+  }
+
+  /* Test if the divider is 1 or 0 or greater than 0xFF */
+  if((i2sdiv < 2) || (i2sdiv > 0xFF))
+  {
+    /* Set the default values */
+    i2sdiv = 2;
+    i2sodd = 0;
+  }
+
+  /*----------------------- SPIx I2SCFGR & I2SPR Configuration ----------------*/
+  /* Clear I2SMOD, I2SE, I2SCFG, PCMSYNC, I2SSTD, CKPOL, DATLEN and CHLEN bits */
+  /* And configure the I2S with the I2S_InitStruct values                      */
+  MODIFY_REG( hi2s->Instance->I2SCFGR, (SPI_I2SCFGR_CHLEN | SPI_I2SCFGR_DATLEN |\
+                                        SPI_I2SCFGR_CKPOL | SPI_I2SCFGR_I2SSTD |\
+                                        SPI_I2SCFGR_PCMSYNC | SPI_I2SCFGR_I2SCFG |\
+                                        SPI_I2SCFGR_I2SE  | SPI_I2SCFGR_I2SMOD),\
+                                       (SPI_I2SCFGR_I2SMOD | hi2s->Init.Mode |\
+                                        hi2s->Init.Standard | hi2s->Init.DataFormat |\
+                                        hi2s->Init.CPOL));
+
+  /* Write to SPIx I2SPR register the computed value */
+  hi2s->Instance->I2SPR = (uint32_t)((uint32_t)i2sdiv | (uint32_t)(i2sodd | (uint32_t)hi2s->Init.MCLKOutput));
+
+  hi2s->ErrorCode = HAL_I2S_ERROR_NONE;
+  hi2s->State= HAL_I2S_STATE_READY;
+
+  return HAL_OK;
+}

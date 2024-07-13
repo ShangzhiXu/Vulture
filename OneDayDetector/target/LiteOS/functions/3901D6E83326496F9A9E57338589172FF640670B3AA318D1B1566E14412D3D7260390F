@@ -1,0 +1,41 @@
+VOID OsArraySort(UINT32 *sortArray, UINT32 start, UINT32 end,
+                 const SortParam *sortParam, OsCompareFunc compareFunc)
+{
+    UINT32 left = start;
+    UINT32 right = end;
+    UINT32 idx = start;
+    UINT32 pivot = sortArray[start];
+
+    while (left < right) {
+        while ((left < right) && (sortArray[right] < sortParam->ctrlBlockCnt) && (pivot < sortParam->ctrlBlockCnt) &&
+               compareFunc(sortParam, sortArray[right], pivot)) {
+            right--;
+        }
+
+        if (left < right) {
+            sortArray[left] = sortArray[right];
+            idx = right;
+            left++;
+        }
+
+        while ((left < right) && (sortArray[left] < sortParam->ctrlBlockCnt) && (pivot < sortParam->ctrlBlockCnt) &&
+               compareFunc(sortParam, pivot, sortArray[left])) {
+            left++;
+        }
+
+        if (left < right) {
+            sortArray[right] = sortArray[left];
+            idx = left;
+            right--;
+        }
+    }
+
+    sortArray[idx] = pivot;
+
+    if (start < idx) {
+        OsArraySort(sortArray, start, idx - 1, sortParam, compareFunc);
+    }
+    if (idx < end) {
+        OsArraySort(sortArray, idx + 1, end, sortParam, compareFunc);
+    }
+}

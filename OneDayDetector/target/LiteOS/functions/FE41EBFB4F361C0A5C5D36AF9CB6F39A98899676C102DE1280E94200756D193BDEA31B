@@ -1,0 +1,132 @@
+HAL_StatusTypeDef HAL_ADC_DeInit(ADC_HandleTypeDef* hadc)
+{
+  HAL_StatusTypeDef tmp_hal_status = HAL_OK;
+  
+  /* Check ADC handle */
+  if(hadc == NULL)
+  {
+     return HAL_ERROR;
+  }
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+  
+  /* Set ADC state */
+  SET_BIT(hadc->State, HAL_ADC_STATE_BUSY_INTERNAL);
+  
+  /* Stop potential conversion on going, on regular and injected groups */
+  /* Disable ADC peripheral */
+  tmp_hal_status = ADC_ConversionStop_Disable(hadc);
+  
+  
+  /* Configuration of ADC parameters if previous preliminary actions are      */ 
+  /* correctly completed.                                                     */
+  if (tmp_hal_status == HAL_OK)
+  {
+    /* ========== Reset ADC registers ========== */
+
+
+
+
+    /* Reset register SR */
+    __HAL_ADC_CLEAR_FLAG(hadc, (ADC_FLAG_AWD | ADC_FLAG_JEOC | ADC_FLAG_EOC |
+                                ADC_FLAG_JSTRT | ADC_FLAG_STRT));
+                         
+    /* Reset register CR1 */
+    CLEAR_BIT(hadc->Instance->CR1, (ADC_CR1_AWDEN   | ADC_CR1_JAWDEN | ADC_CR1_DISCNUM | 
+                                    ADC_CR1_JDISCEN | ADC_CR1_DISCEN | ADC_CR1_JAUTO   | 
+                                    ADC_CR1_AWDSGL  | ADC_CR1_SCAN   | ADC_CR1_JEOCIE  |   
+                                    ADC_CR1_AWDIE   | ADC_CR1_EOCIE  | ADC_CR1_AWDCH    ));
+    
+    /* Reset register CR2 */
+    CLEAR_BIT(hadc->Instance->CR2, (ADC_CR2_TSVREFE | ADC_CR2_SWSTART | ADC_CR2_JSWSTART | 
+                                    ADC_CR2_EXTTRIG | ADC_CR2_EXTSEL  | ADC_CR2_JEXTTRIG |  
+                                    ADC_CR2_JEXTSEL | ADC_CR2_ALIGN   | ADC_CR2_DMA      |        
+                                    ADC_CR2_RSTCAL  | ADC_CR2_CAL     | ADC_CR2_CONT     |          
+                                    ADC_CR2_ADON                                          ));
+    
+    /* Reset register SMPR1 */
+    CLEAR_BIT(hadc->Instance->SMPR1, (ADC_SMPR1_SMP17 | ADC_SMPR1_SMP16 | ADC_SMPR1_SMP15 | 
+                                      ADC_SMPR1_SMP14 | ADC_SMPR1_SMP13 | ADC_SMPR1_SMP12 | 
+                                      ADC_SMPR1_SMP11 | ADC_SMPR1_SMP10                    ));
+    
+    /* Reset register SMPR2 */
+    CLEAR_BIT(hadc->Instance->SMPR2, (ADC_SMPR2_SMP9 | ADC_SMPR2_SMP8 | ADC_SMPR2_SMP7 | 
+                                      ADC_SMPR2_SMP6 | ADC_SMPR2_SMP5 | ADC_SMPR2_SMP4 | 
+                                      ADC_SMPR2_SMP3 | ADC_SMPR2_SMP2 | ADC_SMPR2_SMP1 | 
+                                      ADC_SMPR2_SMP0                                    ));
+
+    /* Reset register JOFR1 */
+    CLEAR_BIT(hadc->Instance->JOFR1, ADC_JOFR1_JOFFSET1);
+    /* Reset register JOFR2 */
+    CLEAR_BIT(hadc->Instance->JOFR2, ADC_JOFR2_JOFFSET2);
+    /* Reset register JOFR3 */
+    CLEAR_BIT(hadc->Instance->JOFR3, ADC_JOFR3_JOFFSET3);
+    /* Reset register JOFR4 */
+    CLEAR_BIT(hadc->Instance->JOFR4, ADC_JOFR4_JOFFSET4);
+    
+    /* Reset register HTR */
+    CLEAR_BIT(hadc->Instance->HTR, ADC_HTR_HT);
+    /* Reset register LTR */
+    CLEAR_BIT(hadc->Instance->LTR, ADC_LTR_LT);
+    
+    /* Reset register SQR1 */
+    CLEAR_BIT(hadc->Instance->SQR1, ADC_SQR1_L    |
+                                    ADC_SQR1_SQ16 | ADC_SQR1_SQ15 | 
+                                    ADC_SQR1_SQ14 | ADC_SQR1_SQ13  );
+    
+    /* Reset register SQR1 */
+    CLEAR_BIT(hadc->Instance->SQR1, ADC_SQR1_L    |
+                                    ADC_SQR1_SQ16 | ADC_SQR1_SQ15 | 
+                                    ADC_SQR1_SQ14 | ADC_SQR1_SQ13  );
+    
+    /* Reset register SQR2 */
+    CLEAR_BIT(hadc->Instance->SQR2, ADC_SQR2_SQ12 | ADC_SQR2_SQ11 | ADC_SQR2_SQ10 | 
+                                    ADC_SQR2_SQ9  | ADC_SQR2_SQ8  | ADC_SQR2_SQ7   );
+    
+    /* Reset register SQR3 */
+    CLEAR_BIT(hadc->Instance->SQR3, ADC_SQR3_SQ6 | ADC_SQR3_SQ5 | ADC_SQR3_SQ4 | 
+                                    ADC_SQR3_SQ3 | ADC_SQR3_SQ2 | ADC_SQR3_SQ1  );
+    
+    /* Reset register JSQR */
+    CLEAR_BIT(hadc->Instance->JSQR, ADC_JSQR_JL |
+                                    ADC_JSQR_JSQ4 | ADC_JSQR_JSQ3 | 
+                                    ADC_JSQR_JSQ2 | ADC_JSQR_JSQ1  );
+    
+    /* Reset register JSQR */
+    CLEAR_BIT(hadc->Instance->JSQR, ADC_JSQR_JL |
+                                    ADC_JSQR_JSQ4 | ADC_JSQR_JSQ3 | 
+                                    ADC_JSQR_JSQ2 | ADC_JSQR_JSQ1  );
+    
+    /* Reset register DR */
+    /* bits in access mode read only, no direct reset applicable*/
+    
+    /* Reset registers JDR1, JDR2, JDR3, JDR4 */
+    /* bits in access mode read only, no direct reset applicable*/
+    
+    /* ========== Hard reset ADC peripheral ========== */
+    /* Performs a global reset of the entire ADC peripheral: ADC state is     */
+    /* forced to a similar state after device power-on.                       */
+    /* If needed, copy-paste and uncomment the following reset code into      */
+    /* function "void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)":              */
+    /*                                                                        */
+    /*  __HAL_RCC_ADC1_FORCE_RESET()                                          */
+    /*  __HAL_RCC_ADC1_RELEASE_RESET()                                        */
+    
+    /* DeInit the low level hardware */
+    HAL_ADC_MspDeInit(hadc);
+    
+    /* Set ADC error code to none */
+    ADC_CLEAR_ERRORCODE(hadc);
+    
+    /* Set ADC state */
+    hadc->State = HAL_ADC_STATE_RESET; 
+  
+  }
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+  
+  /* Return function status */
+  return tmp_hal_status;
+}

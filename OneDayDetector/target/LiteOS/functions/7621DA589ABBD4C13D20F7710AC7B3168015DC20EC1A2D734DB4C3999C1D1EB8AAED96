@@ -1,0 +1,83 @@
+HAL_StatusTypeDef HAL_HCD_UnRegisterCallback(HCD_HandleTypeDef *hhcd, HAL_HCD_CallbackIDTypeDef CallbackID)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process locked */
+  __HAL_LOCK(hhcd);
+
+  /* Setup Legacy weak Callbacks  */
+  if (hhcd->State == HAL_HCD_STATE_READY)
+  {
+    switch (CallbackID)
+    {
+      case HAL_HCD_SOF_CB_ID :
+        hhcd->SOFCallback = HAL_HCD_SOF_Callback;
+        break;
+
+      case HAL_HCD_CONNECT_CB_ID :
+        hhcd->ConnectCallback = HAL_HCD_Connect_Callback;
+        break;
+
+      case HAL_HCD_DISCONNECT_CB_ID :
+        hhcd->DisconnectCallback = HAL_HCD_Disconnect_Callback;
+        break;
+
+      case HAL_HCD_PORT_ENABLED_CB_ID :
+        hhcd->PortEnabledCallback = HAL_HCD_PortEnabled_Callback;
+        break;
+
+      case HAL_HCD_PORT_DISABLED_CB_ID :
+        hhcd->PortDisabledCallback = HAL_HCD_PortDisabled_Callback;
+        break;
+
+      case HAL_HCD_MSPINIT_CB_ID :
+        hhcd->MspInitCallback = HAL_HCD_MspInit;
+        break;
+
+      case HAL_HCD_MSPDEINIT_CB_ID :
+        hhcd->MspDeInitCallback = HAL_HCD_MspDeInit;
+        break;
+
+      default :
+        /* Update the error code */
+        hhcd->ErrorCode |= HAL_HCD_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if (hhcd->State == HAL_HCD_STATE_RESET)
+  {
+    switch (CallbackID)
+    {
+      case HAL_HCD_MSPINIT_CB_ID :
+        hhcd->MspInitCallback = HAL_HCD_MspInit;
+        break;
+
+      case HAL_HCD_MSPDEINIT_CB_ID :
+        hhcd->MspDeInitCallback = HAL_HCD_MspDeInit;
+        break;
+
+      default :
+        /* Update the error code */
+        hhcd->ErrorCode |= HAL_HCD_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    hhcd->ErrorCode |= HAL_HCD_ERROR_INVALID_CALLBACK;
+
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hhcd);
+  return status;
+}

@@ -1,0 +1,57 @@
+static inline uint8_t rle_next(void)
+{
+    uint8_t v = 0;
+    uint8_t ret = 0;
+
+    if(rle_state == RLE_STATE_SINGLE) {
+        ret = get_bits(rle_in, rle_rdp, rle_bpp);
+        if(rle_rdp != 0 && rle_prev_v == ret) {
+            rle_cnt = 0;
+            rle_state = RLE_STATE_REPEATE;
+        }
+
+        rle_prev_v = ret;
+        rle_rdp += rle_bpp;
+    }
+    else if(rle_state == RLE_STATE_REPEATE) {
+        v = get_bits(rle_in, rle_rdp, 1);
+        rle_cnt++;
+        rle_rdp += 1;
+        if(v == 1) {
+            ret = rle_prev_v;
+            if(rle_cnt == 11) {
+                rle_cnt = get_bits(rle_in, rle_rdp, 6);
+                rle_rdp += 6;
+                if(rle_cnt != 0) {
+                    rle_state = RLE_STATE_COUNTER;
+                }
+                else {
+                    ret = get_bits(rle_in, rle_rdp, rle_bpp);
+                    rle_prev_v = ret;
+                    rle_rdp += rle_bpp;
+                    rle_state = RLE_STATE_SINGLE;
+                }
+            }
+        }
+        else {
+            ret = get_bits(rle_in, rle_rdp, rle_bpp);
+            rle_prev_v = ret;
+            rle_rdp += rle_bpp;
+            rle_state = RLE_STATE_SINGLE;
+        }
+
+
+    }
+    else if(rle_state == RLE_STATE_COUNTER) {
+        ret = rle_prev_v;
+        rle_cnt--;
+        if(rle_cnt == 0) {
+            ret = get_bits(rle_in, rle_rdp, rle_bpp);
+            rle_prev_v = ret;
+            rle_rdp += rle_bpp;
+            rle_state = RLE_STATE_SINGLE;
+        }
+    }
+
+    return ret;
+}

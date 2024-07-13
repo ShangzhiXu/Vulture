@@ -1,0 +1,26 @@
+static void SPI_AbortRx_ISR(SPI_HandleTypeDef *hspi)
+{
+  __IO uint32_t count = SPI_DEFAULT_TIMEOUT * (SystemCoreClock / 24U / 1000U);
+
+  /* Wait until TXE flag is set */
+  do
+  {
+    if (count == 0U)
+    {
+      SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_ABORT);
+      break;
+    }
+    count--;
+  } while ((hspi->Instance->SR & SPI_FLAG_TXE) == RESET);
+
+  /* Disable SPI Peripheral */
+  __HAL_SPI_DISABLE(hspi);
+
+  /* Disable TXEIE, RXNEIE and ERRIE(mode fault event, overrun error, TI frame error) interrupts */
+  CLEAR_BIT(hspi->Instance->CR2, (SPI_CR2_TXEIE | SPI_CR2_RXNEIE | SPI_CR2_ERRIE));
+
+  /* Read CRC to flush Data Register */
+  READ_REG(hspi->Instance->DR);
+
+  hspi->State = HAL_SPI_STATE_ABORT;
+}

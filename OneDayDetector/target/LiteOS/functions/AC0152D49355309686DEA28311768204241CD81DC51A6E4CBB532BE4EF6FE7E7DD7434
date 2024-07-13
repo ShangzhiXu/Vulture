@@ -1,0 +1,34 @@
+SECUREC_INLINE int SecDecodeNumber(SecScanSpec *spec)
+{
+    /* Function name cannot add address symbol, causing 546 alarm */
+    static void (*secDecodeNumberHex[SECUREC_DECODE_NUMBER_FUNC_NUM])(SecScanSpec *spec) = {
+        SecDecodeNumberHex, SecDecodeNumber64Hex
+    };
+    static void (*secDecodeNumberOctal[SECUREC_DECODE_NUMBER_FUNC_NUM])(SecScanSpec *spec) = {
+        SecDecodeNumberOctal, SecDecodeNumber64Octal
+    };
+    static void (*secDecodeNumberDecimal[SECUREC_DECODE_NUMBER_FUNC_NUM])(SecScanSpec *spec) = {
+        SecDecodeNumberDecimal, SecDecodeNumber64Decimal
+    };
+    if (spec->convChr == 'x' || spec->convChr == 'p') {
+        if (SecIsXdigit(spec->ch) != 0) {
+            (*secDecodeNumberHex[spec->numberArgType])(spec);
+        } else {
+            return -1;
+        }
+        return 0;
+    }
+    if (SecIsDigit(spec->ch) == 0) {
+        return -1;
+    }
+    if (spec->convChr == 'o') {
+        if (spec->ch < SECUREC_CHAR('8')) { /* Octal maximum limit '8' */
+            (*secDecodeNumberOctal[spec->numberArgType])(spec);
+        } else {
+            return -1;
+        }
+    } else { /* The convChr is 'd' */
+        (*secDecodeNumberDecimal[spec->numberArgType])(spec);
+    }
+    return 0;
+}

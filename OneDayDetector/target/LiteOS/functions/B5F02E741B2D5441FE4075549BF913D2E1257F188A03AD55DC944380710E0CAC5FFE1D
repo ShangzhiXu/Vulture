@@ -1,0 +1,49 @@
+HAL_StatusTypeDef HAL_DCMI_Stop(DCMI_HandleTypeDef* hdcmi)
+{
+  uint32_t tickstart = 0;
+
+  /* Process locked */
+  __HAL_LOCK(hdcmi);
+
+  /* Lock the DCMI peripheral state */
+  hdcmi->State = HAL_DCMI_STATE_BUSY;
+
+  /* Disable Capture */
+  CLEAR_BIT(hdcmi->Instance->CR, DCMI_CR_CAPTURE);    
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  /* Check if the DCMI capture is effectively disabled */
+  while((hdcmi->Instance->CR & DCMI_CR_CAPTURE) != 0)
+  {
+    if((HAL_GetTick() - tickstart ) > DCMI_TIMEOUT_STOP)
+    {      
+      /* Update error code */
+      hdcmi->ErrorCode |= HAL_DCMI_ERROR_TIMEOUT;
+      
+      /* Change DCMI state */
+      hdcmi->State = HAL_DCMI_STATE_READY;
+      
+      /* Process Unlocked */
+      __HAL_UNLOCK(hdcmi);      
+      
+      return HAL_TIMEOUT;
+    }
+  }
+  
+  /* Disable the DMA */
+  HAL_DMA_Abort(hdcmi->DMA_Handle);
+  
+  /* Disable DCMI IP */
+  __HAL_DCMI_DISABLE(hdcmi);
+
+  /* Change DCMI state */
+  hdcmi->State = HAL_DCMI_STATE_READY;
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(hdcmi);
+
+  /* Return function status */
+  return HAL_OK;
+}

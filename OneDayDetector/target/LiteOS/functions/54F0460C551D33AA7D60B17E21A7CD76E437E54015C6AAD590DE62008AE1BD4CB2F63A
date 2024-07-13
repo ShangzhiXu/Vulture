@@ -1,0 +1,21 @@
+STATIC VOID CreatPteTable(const MMU_PARAM *para)
+{
+    UINT64 indexMax;
+    UINT64 indexTemp;
+    UINT64 phy = (para->startAddr >> SHIFT_4K) << SHIFT_4K;
+    UINT64 offset = (para->startAddr - para->stPage->page_addr) >> SHIFT_4K;
+    UINT64 tbl = para->stPage->page_descriptor_addr;
+
+    if (para->endAddr <= para->startAddr) {
+        return;
+    }
+    indexMax = (para->endAddr - 1 - para->startAddr) >> SHIFT_4K;
+    phy |= para->uwFlag;
+
+    for (indexTemp = 0; indexTemp <= indexMax; ++indexTemp, ++offset) {
+        *(UINT64 *)(tbl + (offset * BYTES_PER_ITEM)) = phy | MMU_PTE_L3_DESCRIPTOR_PAGE;
+        phy += PAGE_SIZE;
+    }
+    v8_dma_clean_range(tbl + ((offset - indexTemp) * BYTES_PER_ITEM), tbl + (offset * BYTES_PER_ITEM));
+    __asm__ __volatile__("tlbi    vmalle1");
+}

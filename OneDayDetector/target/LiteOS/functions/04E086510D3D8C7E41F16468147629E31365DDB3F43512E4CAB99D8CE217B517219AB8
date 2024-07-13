@@ -1,0 +1,28 @@
+mqtt_take_request(struct mqtt_request_t **tail, u16_t pkt_id)
+{
+  struct mqtt_request_t *iter = NULL, *prev = NULL;
+  LWIP_ASSERT("mqtt_take_request: tail != NULL", tail != NULL);
+  /* Search all request for pkt_id */
+  for (iter = *tail; iter != NULL; iter = iter->next) {
+    if (iter->pkt_id == pkt_id) {
+      break;
+    }
+    prev = iter;
+  }
+
+  /* If request was found */
+  if (iter != NULL) {
+    /* unchain */
+    if (prev == NULL) {
+      *tail = iter->next;
+    } else {
+      prev->next = iter->next;
+    }
+    /* If exists, add remaining timeout time for the request to next */
+    if (iter->next != NULL) {
+      iter->next->timeout_diff += iter->timeout_diff;
+    }
+    iter->next = NULL;
+  }
+  return iter;
+}

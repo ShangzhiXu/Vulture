@@ -1,0 +1,24 @@
+static void USART_TxISR_8BIT(USART_HandleTypeDef *husart)
+{
+  const HAL_USART_StateTypeDef state = husart->State;
+
+  /* Check that a Tx process is ongoing */
+  if ((state == HAL_USART_STATE_BUSY_TX) ||
+      (state == HAL_USART_STATE_BUSY_TX_RX))
+  {
+    if (husart->TxXferCount == 0U)
+    {
+      /* Disable the USART Transmit data register empty interrupt */
+      __HAL_USART_DISABLE_IT(husart, USART_IT_TXE);
+
+      /* Enable the USART Transmit Complete Interrupt */
+      __HAL_USART_ENABLE_IT(husart, USART_IT_TC);
+    }
+    else
+    {
+      husart->Instance->TDR = (uint8_t)(*husart->pTxBuffPtr & (uint8_t)0xFF);
+      husart->pTxBuffPtr++;
+      husart->TxXferCount--;
+    }
+  }
+}

@@ -1,0 +1,16 @@
+void HAL_SDRAM_IRQHandler(SDRAM_HandleTypeDef *hsdram)
+{
+  /* Check SDRAM interrupt Rising edge flag */
+  if(__FMC_SDRAM_GET_FLAG(hsdram->Instance, FMC_SDRAM_FLAG_REFRESH_IT))
+  {
+    /* SDRAM refresh error interrupt callback */
+#if (USE_HAL_SDRAM_REGISTER_CALLBACKS == 1)
+    hsdram->RefreshErrorCallback(hsdram);
+#else
+    HAL_SDRAM_RefreshErrorCallback(hsdram);
+#endif
+
+    /* Clear SDRAM refresh error interrupt pending bit */
+    __FMC_SDRAM_CLEAR_FLAG(hsdram->Instance, FMC_SDRAM_FLAG_REFRESH_ERROR);
+  }
+}

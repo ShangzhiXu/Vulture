@@ -1,0 +1,7 @@
+#define ROLLNUM(NUM)                    (NUM)
+#define ROLLNUM_ADD(NUM1, NUM2)         NUM1 = (ROLLNUM(NUM1) + ROLLNUM(NUM2))
+#define ROLLNUM_DEC(NUM)                NUM = ((NUM) - 1)
+#define ROLLNUM_SUB(NUM1, NUM2)         NUM1 = (ROLLNUM(NUM1) - ROLLNUM(NUM2))
+#define SET_SORTLIST_VALUE(sortList, value) (((SortLinkList *)(sortList))->idxRollNum = (value))
+#define SORTLINK_CURSOR_UPDATE(CURSOR)
+#define SORTLINK_LISTOBJ_GET(LISTOBJ, SORTLINK)  (LISTOBJ = SORTLINK->sortLink)

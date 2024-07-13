@@ -1,0 +1,36 @@
+HAL_StatusTypeDef HAL_DMA_Abort(DMA_HandleTypeDef *hdma)
+{
+  uint32_t tickstart = 0x00;
+  
+  /* Disable the channel */
+  __HAL_DMA_DISABLE(hdma);
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+  
+  /* Check if the DMA Channel is effectively disabled */
+  while((hdma->Instance->CCR & DMA_CCR_EN) != 0)
+  {
+    /* Check for the Timeout */
+    if((HAL_GetTick() - tickstart) > HAL_TIMEOUT_DMA_ABORT)
+    {
+      /* Update error code */
+      SET_BIT(hdma->ErrorCode, HAL_DMA_ERROR_TIMEOUT);
+
+      /* Change the DMA state */
+      hdma->State = HAL_DMA_STATE_TIMEOUT;
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hdma);
+
+      return HAL_TIMEOUT;
+    }
+  }
+  /* Change the DMA state */
+  hdma->State = HAL_DMA_STATE_READY;
+  
+  /* Process Unlocked */
+  __HAL_UNLOCK(hdma);
+  
+  return HAL_OK;
+}

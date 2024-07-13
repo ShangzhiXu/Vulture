@@ -1,0 +1,95 @@
+static int ramfs_open(struct file *file, const char *path_in_mp, int flags)
+{
+    struct ramfs_element *ramfs_file;
+    struct ramfs_element *walk;
+    int ret = -1;
+
+    /* openning dir like "/romfs/ not support " */
+    if (*path_in_mp == '\0') {
+        VFS_ERRNO_SET(EISDIR);
+        return ret;
+    }
+
+    walk = ramfs_file_find(file->f_mp, path_in_mp, &path_in_mp);
+    if (walk == NULL) {
+        /* errno set by ramfs_file_find */
+        return ret;
+    }
+
+    if ((walk->type == RAMFS_TYPE_DIR) && (*path_in_mp == '\0')) {
+        VFS_ERRNO_SET(EISDIR);
+        return -1;
+    }
+
+    if (*path_in_mp == '\0') { /* file already exist, we found it */
+        ramfs_file = walk;
+
+        if (ramfs_file->type != RAMFS_TYPE_FILE) {
+            VFS_ERRNO_SET(EISDIR);
+            return -1;
+        }
+
+        if ((flags & O_CREAT) && (flags & O_EXCL)) {
+            VFS_ERRNO_SET(EEXIST);
+            return -1;
+        }
+
+        if (flags & O_APPEND) {
+            file->f_offset = ramfs_file->f.size;
+        }
+
+        ramfs_file->refs++;
+
+        file->f_data = (void *)ramfs_file;
+
+        return 0;
+    }
+
+    /*
+     * file not found, ramfs_file holds the most dir matched, path_in_mp holds
+     * the left path not resolved
+     */
+    if ((flags & O_CREAT) == 0) {
+        VFS_ERRNO_SET(ENOENT);
+        return -1;
+    }
+
+    if (walk->type != RAMFS_TYPE_DIR) {
+        /* if here, BUG! */
+        VFS_ERRNO_SET(ENOTDIR);
+        return -1;
+    }
+
+    if (strchr(path_in_mp, '/') != NULL) {
+        VFS_ERRNO_SET(ENOENT); /* parent dir not exist */
+        return -1;
+    }
+
+    if (strlen(path_in_mp) >= LOS_MAX_FILE_NAME_LEN) {
+        VFS_ERRNO_SET(ENAMETOOLONG);
+        return -1;
+    }
+
+    ramfs_file = malloc(sizeof(struct ramfs_element));
+    if (ramfs_file == NULL) {
+        PRINT_ERR("fail to malloc memory in RAMFS, <malloc.c> is needed,"
+            "make sure it is added\n");
+        VFS_ERRNO_SET(ENOMEM);
+        return -1;
+    }
+
+    strcpy(ramfs_file->name, path_in_mp); /* length of path_in_mp is already verified */
+
+    ramfs_file->refs = 1;
+
+    ramfs_file->type = RAMFS_TYPE_FILE;
+    ramfs_file->sibling = walk->d.child;
+    walk->d.child = ramfs_file;
+    ramfs_file->f.content = NULL;
+    ramfs_file->f.size = 0;
+    ramfs_file->parent = walk;
+
+    file->f_data = (void *)ramfs_file;
+
+    return 0;
+}

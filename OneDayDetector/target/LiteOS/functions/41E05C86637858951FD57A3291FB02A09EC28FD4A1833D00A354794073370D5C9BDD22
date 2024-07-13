@@ -1,0 +1,39 @@
+HAL_StatusTypeDef HAL_FLASHEx_ConfigLVEPin(uint32_t ConfigLVE)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process Locked */
+  __HAL_LOCK(&pFlash);
+
+  /* Check the parameters */
+  assert_param(IS_FLASH_LVE_PIN(ConfigLVE));
+
+  /* Wait for last operation to be completed */
+  status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+
+  if (status == HAL_OK)
+  {
+    /* Check that the voltage scaling is range 2 */
+    if (HAL_PWREx_GetVoltageRange() == PWR_REGULATOR_VOLTAGE_SCALE2)
+    {
+      /* Configure the LVEN bit */
+      MODIFY_REG(FLASH->CFGR, FLASH_CFGR_LVEN, ConfigLVE);
+ 
+      /* Check that the bit has been correctly configured */
+      if (READ_BIT(FLASH->CFGR, FLASH_CFGR_LVEN) != ConfigLVE)
+      {
+        status = HAL_ERROR;
+      }
+    }
+    else
+    {
+      /* Not allow to force Flash LVE pin if not in voltage range 2 */
+      status = HAL_ERROR;
+    }
+  }
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(&pFlash);
+
+  return status;
+}

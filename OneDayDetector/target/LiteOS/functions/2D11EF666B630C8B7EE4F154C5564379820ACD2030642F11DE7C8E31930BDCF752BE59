@@ -1,0 +1,65 @@
+static void SPI_AbortTx_ISR(SPI_HandleTypeDef *hspi)
+{
+  __IO uint32_t count;
+
+  count = SPI_DEFAULT_TIMEOUT * (SystemCoreClock / 24U / 1000U);
+
+  /* Disable TXEIE interrupt */
+  CLEAR_BIT(hspi->Instance->CR2, (SPI_CR2_TXEIE));
+
+  /* Check TXEIE is disabled */
+  do
+  {
+    if (count == 0U)
+    {
+      SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_ABORT);
+      break;
+    }
+    count--;
+  } while (HAL_IS_BIT_SET(hspi->Instance->CR2, SPI_CR2_TXEIE));
+
+  if (SPI_EndRxTxTransaction(hspi, SPI_DEFAULT_TIMEOUT, HAL_GetTick()) != HAL_OK)
+  {
+    hspi->ErrorCode = HAL_SPI_ERROR_ABORT;
+  }
+
+  /* Disable SPI Peripheral */
+  __HAL_SPI_DISABLE(hspi);
+
+  /* Empty the FRLVL fifo */
+  if (SPI_WaitFifoStateUntilTimeout(hspi, SPI_FLAG_FRLVL, SPI_FRLVL_EMPTY, SPI_DEFAULT_TIMEOUT, HAL_GetTick()) != HAL_OK)
+  {
+    hspi->ErrorCode = HAL_SPI_ERROR_ABORT;
+  }
+
+  /* Check case of Full-Duplex Mode and disable directly RXNEIE interrupt */
+  if (HAL_IS_BIT_SET(hspi->Instance->CR2, SPI_CR2_RXNEIE))
+  {
+    /* Disable RXNEIE interrupt */
+    CLEAR_BIT(hspi->Instance->CR2, (SPI_CR2_RXNEIE));
+
+    /* Check RXNEIE is disabled */
+    do
+    {
+      if (count == 0U)
+      {
+        SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_ABORT);
+        break;
+      }
+      count--;
+    } while (HAL_IS_BIT_SET(hspi->Instance->CR2, SPI_CR2_RXNEIE));
+
+    /* Control the BSY flag */
+    if (SPI_WaitFlagStateUntilTimeout(hspi, SPI_FLAG_BSY, RESET, SPI_DEFAULT_TIMEOUT, HAL_GetTick()) != HAL_OK)
+    {
+      hspi->ErrorCode = HAL_SPI_ERROR_ABORT;
+    }
+
+    /* Empty the FRLVL fifo */
+    if (SPI_WaitFifoStateUntilTimeout(hspi, SPI_FLAG_FRLVL, SPI_FRLVL_EMPTY, SPI_DEFAULT_TIMEOUT, HAL_GetTick()) != HAL_OK)
+    {
+      hspi->ErrorCode = HAL_SPI_ERROR_ABORT;
+    }
+  }
+  hspi->State = HAL_SPI_STATE_ABORT;
+}

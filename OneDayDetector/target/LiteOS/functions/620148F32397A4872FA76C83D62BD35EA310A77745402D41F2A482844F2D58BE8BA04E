@@ -1,0 +1,62 @@
+HAL_StatusTypeDef HAL_IRDA_Transmit(IRDA_HandleTypeDef *hirda, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+{
+  uint16_t* tmp;
+  uint32_t tickstart = 0;
+
+  /* Check that a Tx process is not already ongoing */
+  if(hirda->gState == HAL_IRDA_STATE_READY)
+  {
+    if((pData == NULL) || (Size == 0))
+    {
+      return  HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hirda);
+
+    hirda->ErrorCode = HAL_IRDA_ERROR_NONE;
+    hirda->gState = HAL_IRDA_STATE_BUSY_TX;
+
+    /* Init tickstart for timeout managment*/
+    tickstart = HAL_GetTick();
+
+    hirda->TxXferSize = Size;
+    hirda->TxXferCount = Size;
+    while(hirda->TxXferCount > 0)
+    {
+      hirda->TxXferCount--;
+
+      if(IRDA_WaitOnFlagUntilTimeout(hirda, IRDA_FLAG_TXE, RESET, tickstart, Timeout) != HAL_OK)
+      {
+        return HAL_TIMEOUT;
+      }
+      if ((hirda->Init.WordLength == IRDA_WORDLENGTH_9B) && (hirda->Init.Parity == IRDA_PARITY_NONE))
+      {
+        tmp = (uint16_t*) pData;
+        hirda->Instance->TDR = (*tmp & (uint16_t)0x01FF);
+        pData += 2;
+      }
+      else
+      {
+        hirda->Instance->TDR = (*pData++ & (uint8_t)0xFF);
+      }
+    }
+
+    if(IRDA_WaitOnFlagUntilTimeout(hirda, IRDA_FLAG_TC, RESET, tickstart, Timeout) != HAL_OK)
+    {
+      return HAL_TIMEOUT;
+    }
+
+    /* At end of Tx process, restore hirda->gState to Ready */
+    hirda->gState = HAL_IRDA_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hirda);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

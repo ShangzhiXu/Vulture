@@ -1,0 +1,29 @@
+HAL_StatusTypeDef HAL_QSPI_SetFlashID(QSPI_HandleTypeDef *hqspi, uint32_t FlashID)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Check the parameter */
+  assert_param(IS_QSPI_FLASH_ID(FlashID));
+
+  /* Process locked */
+  __HAL_LOCK(hqspi);
+
+  if(hqspi->State == HAL_QSPI_STATE_READY)
+  {
+    /* Synchronize init structure with new FlashID value */
+    hqspi->Init.FlashID = FlashID;
+
+    /* Configure QSPI FlashID */
+    MODIFY_REG(hqspi->Instance->CR, QUADSPI_CR_FSEL, FlashID);
+  }
+  else
+  {
+    status = HAL_BUSY;
+  }
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hqspi);
+
+  /* Return function status */
+  return status;
+}

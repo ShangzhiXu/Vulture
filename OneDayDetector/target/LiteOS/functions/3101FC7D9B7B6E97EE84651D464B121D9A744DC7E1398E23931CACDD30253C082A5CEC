@@ -1,0 +1,42 @@
+void HAL_RCCEx_EnableLSCO(uint32_t LSCOSource)
+{
+  GPIO_InitTypeDef GPIO_InitStruct;
+  FlagStatus       pwrclkchanged = RESET;
+  FlagStatus       backupchanged = RESET;
+
+  /* Check the parameters */
+  assert_param(IS_RCC_LSCOSOURCE(LSCOSource));
+
+  /* LSCO Pin Clock Enable */
+  __LSCO_CLK_ENABLE();
+
+  /* Configue the LSCO pin in analog mode */
+  GPIO_InitStruct.Pin = LSCO_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(LSCO_GPIO_PORT, &GPIO_InitStruct);
+
+  /* Update LSCOSEL clock source in Backup Domain control register */
+  if(__HAL_RCC_PWR_IS_CLK_DISABLED())
+  {
+    __HAL_RCC_PWR_CLK_ENABLE();
+    pwrclkchanged = SET;
+  }
+  if(HAL_IS_BIT_CLR(PWR->CR1, PWR_CR1_DBP))
+  {
+    HAL_PWR_EnableBkUpAccess();
+    backupchanged = SET;
+  }
+
+  MODIFY_REG(RCC->BDCR, RCC_BDCR_LSCOSEL | RCC_BDCR_LSCOEN, LSCOSource | RCC_BDCR_LSCOEN);
+
+  if(backupchanged == SET)
+  {
+    HAL_PWR_DisableBkUpAccess();
+  }
+  if(pwrclkchanged == SET)
+  {
+    __HAL_RCC_PWR_CLK_DISABLE();
+  }
+}

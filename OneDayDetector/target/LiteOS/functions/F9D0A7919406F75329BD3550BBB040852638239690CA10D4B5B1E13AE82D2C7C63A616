@@ -1,0 +1,15 @@
+UINT32 HalIrqSetPriority(UINT32 hwiNum, UINT8 priority)
+{
+    UINT32 intSave;
+
+    if ((hwiNum > OS_USER_HWI_MAX) || (hwiNum < OS_USER_HWI_MIN)) {
+        return LOS_NOK;
+    }
+
+    hwiNum -= OS_SYS_VECTOR_CNT;
+    intSave = LOS_IntLock();
+    NVIC_SetPriority((IRQn_Type)hwiNum, priority);
+    LOS_IntRestore(intSave);
+
+    return LOS_OK;
+}

@@ -1,0 +1,22 @@
+HAL_StatusTypeDef  HAL_DCMI_ConfigSyncUnmask(DCMI_HandleTypeDef *hdcmi, DCMI_SyncUnmaskTypeDef *SyncUnmask)
+{
+  /* Process Locked */
+  __HAL_LOCK(hdcmi);
+
+  /* Lock the DCMI peripheral state */
+  hdcmi->State = HAL_DCMI_STATE_BUSY;
+
+  /* Write DCMI embedded synchronization unmask register */
+    hdcmi->Instance->ESUR = (((uint32_t)SyncUnmask->FrameStartUnmask) |\
+                             ((uint32_t)SyncUnmask->LineStartUnmask << DCMI_POSITION_ESUR_LSU)|\
+                             ((uint32_t)SyncUnmask->LineEndUnmask << DCMI_POSITION_ESUR_LEU)|\
+                             ((uint32_t)SyncUnmask->FrameEndUnmask << DCMI_POSITION_ESUR_FEU));
+
+  /* Change the DCMI state*/
+  hdcmi->State = HAL_DCMI_STATE_READY;
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(hdcmi);
+
+  return HAL_OK;  
+}

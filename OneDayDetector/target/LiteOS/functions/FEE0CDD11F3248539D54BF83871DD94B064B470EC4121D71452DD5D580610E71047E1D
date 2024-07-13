@@ -1,0 +1,29 @@
+HAL_StatusTypeDef HAL_SMARTCARD_AbortTransmit(SMARTCARD_HandleTypeDef *hsc)
+{
+  /* Disable TXEIE and TCIE interrupts */
+  CLEAR_BIT(hsc->Instance->CR1, (USART_CR1_TXEIE | USART_CR1_TCIE));
+
+  /* Disable the SMARTCARD DMA Tx request if enabled */
+  if(HAL_IS_BIT_SET(hsc->Instance->CR3, USART_CR3_DMAT))
+  {
+    CLEAR_BIT(hsc->Instance->CR3, USART_CR3_DMAT);
+
+    /* Abort the SMARTCARD DMA Tx channel : use blocking DMA Abort API (no callback) */
+    if(hsc->hdmatx != NULL)
+    {
+      /* Set the SMARTCARD DMA Abort callback to Null.
+         No call back execution at end of DMA abort procedure */
+      hsc->hdmatx->XferAbortCallback = NULL;
+
+      HAL_DMA_Abort(hsc->hdmatx);
+    }
+  }
+
+  /* Reset Tx transfer counter */
+  hsc->TxXferCount = 0x00U;
+
+  /* Restore hsc->gState to Ready */
+  hsc->gState = HAL_SMARTCARD_STATE_READY;
+
+  return HAL_OK;
+}

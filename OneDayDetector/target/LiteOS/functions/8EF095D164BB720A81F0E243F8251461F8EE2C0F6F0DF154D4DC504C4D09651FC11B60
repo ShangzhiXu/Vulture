@@ -1,0 +1,32 @@
+static int nb_create_sock_link(int portnum, int *link_id)
+{
+    int ret = 0;
+    int sock;
+
+    sock = nb_create_sock(portnum, UDP_PROTO);
+    if (sock < 0) {
+        AT_LOG("sock num exceeded,ret is %d", sock);
+        return AT_FAILED;
+    }
+
+    ret = nb_alloc_sock(sock);
+    if (ret >= MAX_SOCK_NUM) {
+        AT_LOG("sock num exceeded,socket is %d", sock);
+        goto CLOSE_SOCk;
+    }
+
+    if (LOS_QueueCreate("dataQueue", 16, &at.linkid[ret].qid, 0, sizeof(QUEUE_BUFF)) != LOS_OK) {
+        AT_LOG("init dataQueue failed, ret is %d!", ret);
+        goto CLOSE_SOCk;
+    }
+
+    *link_id = ret;
+    sockinfo[ret].socket = sock;
+    sockinfo[ret].used_flag = true;
+    return AT_OK;
+
+CLOSE_SOCk:
+    nb_close_sock(sock);
+
+    return AT_FAILED;
+}

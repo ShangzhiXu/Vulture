@@ -1,0 +1,33 @@
+HAL_StatusTypeDef HAL_IRDA_DMAPause(IRDA_HandleTypeDef *hirda)
+{
+  /* Process Locked */
+  __HAL_LOCK(hirda);
+  
+  if(hirda->State == HAL_IRDA_STATE_BUSY_TX)
+  {
+    /* Disable the IRDA DMA Tx request */
+    CLEAR_BIT(hirda->Instance->CR3, USART_CR3_DMAT);
+  }
+  else if(hirda->State == HAL_IRDA_STATE_BUSY_RX)
+  {
+    /* Disable the IRDA DMA Rx request */
+    CLEAR_BIT(hirda->Instance->CR3, USART_CR3_DMAR);
+  }
+  else if (hirda->State == HAL_IRDA_STATE_BUSY_TX_RX)
+  {
+    /* Disable the IRDA DMA Tx & Rx requests */
+    CLEAR_BIT(hirda->Instance->CR3, (USART_CR3_DMAT | USART_CR3_DMAR));
+  }
+  else
+  {
+    /* Process Unlocked */
+    __HAL_UNLOCK(hirda);
+  
+    return HAL_ERROR; 
+  }
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(hirda);
+  
+  return HAL_OK; 
+}

@@ -1,0 +1,39 @@
+int dst_inquire(int year, struct tm *start, struct tm *end)
+{
+    INT64 dstStart, dstEnd;
+
+    if (LOCK(lock)) {
+        return -1;
+    }
+
+    if (!g_isDstWork) {
+        (void)UNLOCK(lock);
+        return -1;
+    }
+
+    if ((start == NULL) || (end == NULL)) {
+        (void)UNLOCK(lock);
+        return -1;
+    }
+
+    dstStart = DstConfigDecode(year, g_strDstStart);
+    dstEnd = DstConfigDecode(year, g_strDstEnd);
+    if ((dstStart == -1) || (dstEnd == -1)) {
+        (void)UNLOCK(lock);
+        return -1;
+    }
+
+    dstStart += timezone;
+    dstEnd += timezone;
+#ifdef LOSCFG_AARCH64
+    if ((gmtime_r(&dstStart, start) == NULL) || (gmtime_r(&dstEnd, end) == NULL)) {
+#else
+    if ((gmtime64_r(&dstStart, start) == NULL) || (gmtime64_r(&dstEnd, end) == NULL)) {
+#endif
+        (void)UNLOCK(lock);
+        return -1;
+    }
+
+    (void)UNLOCK(lock);
+    return 0;
+}

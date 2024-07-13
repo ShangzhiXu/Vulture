@@ -1,0 +1,18 @@
+void lv_obj_move_foreground(lv_obj_t * obj)
+{
+    LV_ASSERT_OBJ(obj, LV_OBJX_NAME);
+
+    lv_obj_t * parent = lv_obj_get_parent(obj);
+
+    /*Do nothing of already in the foreground*/
+    if(_lv_ll_get_head(&parent->child_ll) == obj) return;
+
+    lv_obj_invalidate(parent);
+
+    _lv_ll_chg_list(&parent->child_ll, &parent->child_ll, obj, true);
+
+    /*Notify the new parent about the child*/
+    parent->signal_cb(parent, LV_SIGNAL_CHILD_CHG, obj);
+
+    lv_obj_invalidate(parent);
+}

@@ -1,0 +1,101 @@
+HAL_StatusTypeDef HAL_TIM_IC_Start_DMA(TIM_HandleTypeDef *htim, uint32_t Channel, uint32_t *pData, uint16_t Length)
+{
+  /* Check the parameters */
+  assert_param(IS_TIM_CCX_INSTANCE(htim->Instance, Channel));
+  assert_param(IS_TIM_DMA_CC_INSTANCE(htim->Instance));
+
+  if((htim->State == HAL_TIM_STATE_BUSY))
+  {
+     return HAL_BUSY;
+  }
+  else if((htim->State == HAL_TIM_STATE_READY))
+  {
+    if((pData == 0 ) && (Length > 0))
+    {
+      return HAL_ERROR;
+    }
+    else
+    {
+      htim->State = HAL_TIM_STATE_BUSY;
+    }
+  }
+
+  switch (Channel)
+  {
+    case TIM_CHANNEL_1:
+    {
+      /* Set the DMA Period elapsed callback */
+      htim->hdma[TIM_DMA_ID_CC1]->XferCpltCallback = TIM_DMACaptureCplt;
+
+      /* Set the DMA error callback */
+      htim->hdma[TIM_DMA_ID_CC1]->XferErrorCallback = TIM_DMAError ;
+
+      /* Enable the DMA channel */
+      HAL_DMA_Start_IT(htim->hdma[TIM_DMA_ID_CC1], (uint32_t)&htim->Instance->CCR1, (uint32_t)pData, Length);
+
+      /* Enable the TIM Capture/Compare 1 DMA request */
+      __HAL_TIM_ENABLE_DMA(htim, TIM_DMA_CC1);
+    }
+    break;
+
+    case TIM_CHANNEL_2:
+    {
+      /* Set the DMA Period elapsed callback */
+      htim->hdma[TIM_DMA_ID_CC2]->XferCpltCallback = TIM_DMACaptureCplt;
+
+      /* Set the DMA error callback */
+      htim->hdma[TIM_DMA_ID_CC2]->XferErrorCallback = TIM_DMAError ;
+
+      /* Enable the DMA channel */
+      HAL_DMA_Start_IT(htim->hdma[TIM_DMA_ID_CC2], (uint32_t)&htim->Instance->CCR2, (uint32_t)pData, Length);
+
+      /* Enable the TIM Capture/Compare 2  DMA request */
+      __HAL_TIM_ENABLE_DMA(htim, TIM_DMA_CC2);
+    }
+    break;
+
+    case TIM_CHANNEL_3:
+    {
+      /* Set the DMA Period elapsed callback */
+      htim->hdma[TIM_DMA_ID_CC3]->XferCpltCallback = TIM_DMACaptureCplt;
+
+      /* Set the DMA error callback */
+      htim->hdma[TIM_DMA_ID_CC3]->XferErrorCallback = TIM_DMAError ;
+
+      /* Enable the DMA channel */
+      HAL_DMA_Start_IT(htim->hdma[TIM_DMA_ID_CC3], (uint32_t)&htim->Instance->CCR3, (uint32_t)pData, Length);
+
+      /* Enable the TIM Capture/Compare 3  DMA request */
+      __HAL_TIM_ENABLE_DMA(htim, TIM_DMA_CC3);
+    }
+    break;
+
+    case TIM_CHANNEL_4:
+    {
+      /* Set the DMA Period elapsed callback */
+      htim->hdma[TIM_DMA_ID_CC4]->XferCpltCallback = TIM_DMACaptureCplt;
+
+      /* Set the DMA error callback */
+      htim->hdma[TIM_DMA_ID_CC4]->XferErrorCallback = TIM_DMAError ;
+
+      /* Enable the DMA channel */
+      HAL_DMA_Start_IT(htim->hdma[TIM_DMA_ID_CC4], (uint32_t)&htim->Instance->CCR4, (uint32_t)pData, Length);
+
+      /* Enable the TIM Capture/Compare 4  DMA request */
+      __HAL_TIM_ENABLE_DMA(htim, TIM_DMA_CC4);
+    }
+    break;
+
+    default:
+    break;
+  }
+
+  /* Enable the Input Capture channel */
+  TIM_CCxChannelCmd(htim->Instance, Channel, TIM_CCx_ENABLE);
+
+  /* Enable the Peripheral */
+  __HAL_TIM_ENABLE(htim);
+
+  /* Return function status */
+  return HAL_OK;
+}

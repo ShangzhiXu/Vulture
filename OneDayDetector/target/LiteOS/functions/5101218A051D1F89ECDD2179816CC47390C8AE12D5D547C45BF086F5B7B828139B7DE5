@@ -1,0 +1,40 @@
+static void parse_array_should_parse_arrays_with_multiple_elements(void)
+{
+    assert_parse_array("[1\t,\n2, 3]");
+    assert_has_child(item);
+    TEST_ASSERT_NOT_NULL(item->child->next);
+    TEST_ASSERT_NOT_NULL(item->child->next->next);
+    TEST_ASSERT_NULL(item->child->next->next->next);
+    assert_has_type(item->child, cJSON_Number);
+    assert_has_type(item->child->next, cJSON_Number);
+    assert_has_type(item->child->next->next, cJSON_Number);
+    reset(item);
+
+    {
+        size_t i = 0;
+        cJSON *node = NULL;
+        int expected_types[7] =
+        {
+            cJSON_Number,
+            cJSON_NULL,
+            cJSON_True,
+            cJSON_False,
+            cJSON_Array,
+            cJSON_String,
+            cJSON_Object
+        };
+        assert_parse_array("[1, null, true, false, [], \"hello\", {}]");
+
+        node = item->child;
+        for (
+                i = 0;
+                (i < (sizeof(expected_types)/sizeof(int)))
+                && (node != NULL);
+                (void)i++, node = node->next)
+        {
+            TEST_ASSERT_BITS(0xFF, expected_types[i], node->type);
+        }
+        TEST_ASSERT_EQUAL_INT(i, 7);
+        reset(item);
+    }
+}

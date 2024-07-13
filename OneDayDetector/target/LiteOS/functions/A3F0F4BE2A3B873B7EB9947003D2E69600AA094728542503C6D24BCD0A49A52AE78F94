@@ -1,0 +1,58 @@
+int mbedtls_aria_crypt_cfb128( mbedtls_aria_context *ctx,
+                               int mode,
+                               size_t length,
+                               size_t *iv_off,
+                               unsigned char iv[MBEDTLS_ARIA_BLOCKSIZE],
+                               const unsigned char *input,
+                               unsigned char *output )
+{
+    unsigned char c;
+    size_t n;
+
+    ARIA_VALIDATE_RET( ctx != NULL );
+    ARIA_VALIDATE_RET( mode == MBEDTLS_ARIA_ENCRYPT ||
+                       mode == MBEDTLS_ARIA_DECRYPT );
+    ARIA_VALIDATE_RET( length == 0 || input  != NULL );
+    ARIA_VALIDATE_RET( length == 0 || output != NULL );
+    ARIA_VALIDATE_RET( iv != NULL );
+    ARIA_VALIDATE_RET( iv_off != NULL );
+
+    n = *iv_off;
+
+    /* An overly large value of n can lead to an unlimited
+     * buffer overflow. Therefore, guard against this
+     * outside of parameter validation. */
+    if( n >= MBEDTLS_ARIA_BLOCKSIZE )
+        return( MBEDTLS_ERR_ARIA_BAD_INPUT_DATA );
+
+    if( mode == MBEDTLS_ARIA_DECRYPT )
+    {
+        while( length-- )
+        {
+            if( n == 0 )
+                mbedtls_aria_crypt_ecb( ctx, iv, iv );
+
+            c = *input++;
+            *output++ = c ^ iv[n];
+            iv[n] = c;
+
+            n = ( n + 1 ) & 0x0F;
+        }
+    }
+    else
+    {
+        while( length-- )
+        {
+            if( n == 0 )
+                mbedtls_aria_crypt_ecb( ctx, iv, iv );
+
+            iv[n] = *output++ = (unsigned char)( iv[n] ^ *input++ );
+
+            n = ( n + 1 ) & 0x0F;
+        }
+    }
+
+    *iv_off = n;
+
+    return( 0 );
+}

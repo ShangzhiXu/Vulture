@@ -1,0 +1,38 @@
+void HAL_PWR_ConfigPVD(PWR_PVDTypeDef *sConfigPVD)
+{
+  /* Check the parameters */
+  assert_param(IS_PWR_PVD_LEVEL(sConfigPVD->PVDLevel));
+  assert_param(IS_PWR_PVD_MODE(sConfigPVD->Mode));
+  
+  /* Set PLS[7:5] bits according to PVDLevel value */
+  MODIFY_REG(PWR->CR1, PWR_CR1_PLS, sConfigPVD->PVDLevel);
+  
+  /* Clear any previous config. Keep it clear if no event or IT mode is selected */
+  __HAL_PWR_PVD_EXTI_DISABLE_EVENT();
+  __HAL_PWR_PVD_EXTI_DISABLE_IT();
+  __HAL_PWR_PVD_EXTI_DISABLE_RISING_EDGE();
+  __HAL_PWR_PVD_EXTI_DISABLE_FALLING_EDGE(); 
+
+  /* Configure interrupt mode */
+  if((sConfigPVD->Mode & PVD_MODE_IT) == PVD_MODE_IT)
+  {
+    __HAL_PWR_PVD_EXTI_ENABLE_IT();
+  }
+  
+  /* Configure event mode */
+  if((sConfigPVD->Mode & PVD_MODE_EVT) == PVD_MODE_EVT)
+  {
+    __HAL_PWR_PVD_EXTI_ENABLE_EVENT();
+  }
+  
+  /* Configure the edge */
+  if((sConfigPVD->Mode & PVD_RISING_EDGE) == PVD_RISING_EDGE)
+  {
+    __HAL_PWR_PVD_EXTI_ENABLE_RISING_EDGE();
+  }
+  
+  if((sConfigPVD->Mode & PVD_FALLING_EDGE) == PVD_FALLING_EDGE)
+  {
+    __HAL_PWR_PVD_EXTI_ENABLE_FALLING_EDGE();
+  }
+}

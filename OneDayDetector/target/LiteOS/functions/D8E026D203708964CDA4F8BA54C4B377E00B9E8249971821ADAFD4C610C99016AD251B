@@ -1,0 +1,16 @@
+static uint8_t prv_delete(uint16_t id, lwm2m_object_t *objectP)
+{
+    plat_instance_t *targetP = NULL;
+    lwm2m_uri_t uri;
+
+    objectP->instanceList = lwm2m_list_remove(objectP->instanceList, id, (lwm2m_list_t **)&targetP);
+    if (targetP == NULL) {
+        return COAP_404_NOT_FOUND;
+    }
+
+    get_resource_uri(objectP->objID, targetP->shortID, BINARY_APP_DATA_RES_ID, &uri);
+    (void)atiny_rm_rpt_uri(&uri);
+    lwm2m_free(targetP);
+
+    return COAP_202_DELETED;
+}

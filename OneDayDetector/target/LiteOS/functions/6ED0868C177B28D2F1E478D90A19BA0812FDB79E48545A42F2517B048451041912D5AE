@@ -1,0 +1,20 @@
+HAL_StatusTypeDef HAL_PWREx_DisableLowPowerRunMode(void)
+{
+  uint32_t wait_loop_index = 0;
+  
+  /* Clear LPR bit */
+  CLEAR_BIT(PWR->CR1, PWR_CR1_LPR); 
+
+  /* Wait until REGLPF is reset */
+  wait_loop_index = (PWR_FLAG_SETTING_DELAY_US * (SystemCoreClock / 1000000));
+  while ((wait_loop_index != 0) && (HAL_IS_BIT_SET(PWR->SR2, PWR_SR2_REGLPF)))
+  {
+    wait_loop_index--;
+  }
+  if (HAL_IS_BIT_SET(PWR->SR2, PWR_SR2_REGLPF))
+  {
+    return HAL_TIMEOUT;
+  }
+  
+  return HAL_OK;
+}

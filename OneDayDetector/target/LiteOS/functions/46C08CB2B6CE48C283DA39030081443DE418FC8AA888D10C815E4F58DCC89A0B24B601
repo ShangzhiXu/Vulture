@@ -1,0 +1,22 @@
+SECUREC_INLINE int SecFormatContainN(const char *format)
+{
+    const char *fmt = format;
+    while (*fmt != '\0') {
+        ++fmt;
+        /* Skip normal char */
+        if (*(fmt - 1) != '%') {
+            continue;
+        }
+        /* Meet %% */
+        if (*fmt == '%') {
+            ++fmt; /* Point to  the character after the %. Correct handling %%xx */
+            continue;
+        }
+        /* Now parse %..., fmt point to the character after the % */
+        fmt = SecSkipKnownFlags(fmt);
+        if (*fmt == 'n') {
+            return 1;
+        }
+    }
+    return 0;
+}

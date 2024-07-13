@@ -1,0 +1,57 @@
+static void fsm_sconfreq(fsm *f, int retransmit) {
+    ppp_pcb *pcb = f->pcb;
+    struct pbuf *p;
+    u_char *outp;
+    int cilen;
+
+    if( f->state != PPP_FSM_REQSENT && f->state != PPP_FSM_ACKRCVD && f->state != PPP_FSM_ACKSENT ){
+	/* Not currently negotiating - reset options */
+	if( f->callbacks->resetci )
+	    (*f->callbacks->resetci)(f);
+	f->nakloops = 0;
+	f->rnakloops = 0;
+    }
+
+    if( !retransmit ){
+	/* New request - reset retransmission counter, use new ID */
+	f->retransmits = pcb->settings.fsm_max_conf_req_transmits;
+	f->reqid = ++f->id;
+    }
+
+    f->seen_ack = 0;
+
+    /*
+     * Make up the request packet
+     */
+    if( f->callbacks->cilen && f->callbacks->addci ){
+	cilen = (*f->callbacks->cilen)(f);
+	if( cilen > pcb->peer_mru - HEADERLEN )
+	    cilen = pcb->peer_mru - HEADERLEN;
+    } else
+	cilen = 0;
+
+    p = pbuf_alloc(PBUF_RAW, (u16_t)(cilen + HEADERLEN + PPP_HDRLEN), PPP_CTRL_PBUF_TYPE);
+    if(NULL == p)
+        return;
+    if(p->tot_len != p->len) {
+        pbuf_free(p);
+        return;
+    }
+
+    /* send the request to our peer */
+    outp = (u_char*)p->payload;
+    MAKEHEADER(outp, f->protocol);
+    PUTCHAR(CONFREQ, outp);
+    PUTCHAR(f->reqid, outp);
+    PUTSHORT(cilen + HEADERLEN, outp);
+    if (cilen != 0) {
+	(*f->callbacks->addci)(f, outp, &cilen);
+	LWIP_ASSERT("cilen == p->len - HEADERLEN - PPP_HDRLEN", cilen == p->len - HEADERLEN - PPP_HDRLEN);
+    }
+
+    ppp_write(pcb, p);
+
+    /* start the retransmit timer */
+    --f->retransmits;
+    TIMEOUT(fsm_timeout, f, pcb->settings.fsm_timeout_time);
+}

@@ -1,0 +1,41 @@
+HAL_StatusTypeDef HAL_IRDA_Transmit_IT(IRDA_HandleTypeDef *hirda, uint8_t *pData, uint16_t Size)
+{
+  uint32_t tmp_state = 0;
+  
+  tmp_state = hirda->State;
+  if((tmp_state == HAL_IRDA_STATE_READY) || (tmp_state == HAL_IRDA_STATE_BUSY_RX))
+  {
+    if((pData == NULL) || (Size == 0))
+    {
+      return HAL_ERROR;
+    }
+    /* Process Locked */
+    __HAL_LOCK(hirda);
+    
+    hirda->pTxBuffPtr = pData;
+    hirda->TxXferSize = Size;
+    hirda->TxXferCount = Size;
+
+    hirda->ErrorCode = HAL_IRDA_ERROR_NONE;
+    if(hirda->State == HAL_IRDA_STATE_BUSY_RX) 
+    {
+      hirda->State = HAL_IRDA_STATE_BUSY_TX_RX;
+    }
+    else
+    {
+      hirda->State = HAL_IRDA_STATE_BUSY_TX;
+    }
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hirda);
+
+    /* Enable the IRDA Transmit Data Register Empty Interrupt */
+    __HAL_IRDA_ENABLE_IT(hirda, IRDA_IT_TXE);
+    
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

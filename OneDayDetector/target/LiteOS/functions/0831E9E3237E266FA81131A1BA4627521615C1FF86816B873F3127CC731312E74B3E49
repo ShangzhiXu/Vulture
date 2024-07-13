@@ -1,0 +1,99 @@
+void HAL_I2C_EV_IRQHandler(I2C_HandleTypeDef *hi2c)
+{
+  uint32_t tmp1 = 0, tmp2 = 0, tmp3 = 0, tmp4 = 0;
+  /* Master or Memory mode selected */
+  if((hi2c->Mode == HAL_I2C_MODE_MASTER) || \
+     (hi2c->Mode == HAL_I2C_MODE_MEM))
+  {
+    /* I2C in mode Transmitter -----------------------------------------------*/
+    if(__HAL_I2C_GET_FLAG(hi2c, I2C_FLAG_TRA) == SET)
+    {
+      tmp1 = __HAL_I2C_GET_FLAG(hi2c, I2C_FLAG_TXE);
+      tmp2 = __HAL_I2C_GET_IT_SOURCE(hi2c, I2C_IT_BUF);
+      tmp3 = __HAL_I2C_GET_FLAG(hi2c, I2C_FLAG_BTF);
+      tmp4 = __HAL_I2C_GET_IT_SOURCE(hi2c, I2C_IT_EVT);
+      /* TXE set and BTF reset -----------------------------------------------*/
+      if((tmp1 == SET) && (tmp2 == SET) && (tmp3 == RESET))
+      {
+        I2C_MasterTransmit_TXE(hi2c);
+      }
+      /* BTF set -------------------------------------------------------------*/
+      else if((tmp3 == SET) && (tmp4 == SET))
+      {
+        I2C_MasterTransmit_BTF(hi2c);
+      }
+    }
+    /* I2C in mode Receiver --------------------------------------------------*/
+    else
+    {
+      tmp1 = __HAL_I2C_GET_FLAG(hi2c, I2C_FLAG_RXNE);
+      tmp2 = __HAL_I2C_GET_IT_SOURCE(hi2c, I2C_IT_BUF);
+      tmp3 = __HAL_I2C_GET_FLAG(hi2c, I2C_FLAG_BTF);
+      tmp4 = __HAL_I2C_GET_IT_SOURCE(hi2c, I2C_IT_EVT);
+      /* RXNE set and BTF reset -----------------------------------------------*/
+      if((tmp1 == SET) && (tmp2 == SET) && (tmp3 == RESET))
+      {
+        I2C_MasterReceive_RXNE(hi2c);
+      }
+      /* BTF set -------------------------------------------------------------*/
+      else if((tmp3 == SET) && (tmp4 == SET))
+      {
+        I2C_MasterReceive_BTF(hi2c);
+      }
+    }
+  }
+  /* Slave mode selected */
+  else
+  {
+    tmp1 = __HAL_I2C_GET_FLAG(hi2c, I2C_FLAG_ADDR);
+    tmp2 = __HAL_I2C_GET_IT_SOURCE(hi2c, (I2C_IT_EVT));
+    tmp3 = __HAL_I2C_GET_FLAG(hi2c, I2C_FLAG_STOPF);
+    tmp4 = __HAL_I2C_GET_FLAG(hi2c, I2C_FLAG_TRA);
+    /* ADDR set --------------------------------------------------------------*/
+    if((tmp1 == SET) && (tmp2 == SET))
+    {
+      I2C_Slave_ADDR(hi2c);
+    }
+    /* STOPF set --------------------------------------------------------------*/
+    else if((tmp3 == SET) && (tmp2 == SET))
+    {
+      I2C_Slave_STOPF(hi2c);
+    }
+    /* I2C in mode Transmitter -----------------------------------------------*/
+    else if(tmp4 == SET)
+    {
+      tmp1 = __HAL_I2C_GET_FLAG(hi2c, I2C_FLAG_TXE);
+      tmp2 = __HAL_I2C_GET_IT_SOURCE(hi2c, I2C_IT_BUF);
+      tmp3 = __HAL_I2C_GET_FLAG(hi2c, I2C_FLAG_BTF);
+      tmp4 = __HAL_I2C_GET_IT_SOURCE(hi2c, I2C_IT_EVT);
+      /* TXE set and BTF reset -----------------------------------------------*/
+      if((tmp1 == SET) && (tmp2 == SET) && (tmp3 == RESET))
+      {
+        I2C_SlaveTransmit_TXE(hi2c);
+      }
+      /* BTF set -------------------------------------------------------------*/
+      else if((tmp3 == SET) && (tmp4 == SET))
+      {
+        I2C_SlaveTransmit_BTF(hi2c);
+      }
+    }
+    /* I2C in mode Receiver --------------------------------------------------*/
+    else
+    {
+      tmp1 = __HAL_I2C_GET_FLAG(hi2c, I2C_FLAG_RXNE);
+      tmp2 = __HAL_I2C_GET_IT_SOURCE(hi2c, I2C_IT_BUF);
+      tmp3 = __HAL_I2C_GET_FLAG(hi2c, I2C_FLAG_BTF);
+      tmp4 = __HAL_I2C_GET_IT_SOURCE(hi2c, I2C_IT_EVT);
+      /* RXNE set and BTF reset ----------------------------------------------*/
+      if((tmp1 == SET) && (tmp2 == SET) && (tmp3 == RESET))
+      {
+        I2C_SlaveReceive_RXNE(hi2c);
+      }
+      /* BTF set -------------------------------------------------------------*/
+      else if((tmp3 == SET) && (tmp4 == SET))
+      {
+        I2C_SlaveReceive_BTF(hi2c);
+      }
+    }
+  }
+}

@@ -1,0 +1,29 @@
+HAL_StatusTypeDef HAL_CAN_DeInit(CAN_HandleTypeDef *hcan)
+{
+  /* Check CAN handle */
+  if (hcan == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_CAN_ALL_INSTANCE(hcan->Instance));
+
+  /* Stop the CAN module */
+  HAL_CAN_Stop(hcan);
+
+  /* DeInit the low level hardware: CLOCK, NVIC */
+  HAL_CAN_MspDeInit(hcan);
+
+  /* Reset the CAN peripheral */
+  SET_BIT(hcan->Instance->MCR, CAN_MCR_RESET);
+
+  /* Reset the CAN ErrorCode */
+  hcan->ErrorCode = HAL_CAN_ERROR_NONE;
+
+  /* Change CAN state */
+  hcan->State = HAL_CAN_STATE_RESET;
+
+  /* Return function status */
+  return HAL_OK;
+}

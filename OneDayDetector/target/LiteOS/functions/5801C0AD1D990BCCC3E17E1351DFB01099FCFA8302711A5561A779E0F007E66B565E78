@@ -1,0 +1,54 @@
+http_write(struct altcp_pcb *pcb, const void *ptr, u16_t *length, u8_t apiflags)
+{
+  u16_t len, max_len;
+  err_t err;
+  LWIP_ASSERT("length != NULL", length != NULL);
+  len = *length;
+  if (len == 0) {
+    return ERR_OK;
+  }
+  /* We cannot send more data than space available in the send buffer. */
+  max_len = altcp_sndbuf(pcb);
+  if (max_len < len) {
+    len = max_len;
+  }
+#ifdef HTTPD_MAX_WRITE_LEN
+  /* Additional limitation: e.g. don't enqueue more than 2*mss at once */
+  max_len = HTTPD_MAX_WRITE_LEN(pcb);
+  if (len > max_len) {
+    len = max_len;
+  }
+#endif /* HTTPD_MAX_WRITE_LEN */
+  do {
+    LWIP_DEBUGF(HTTPD_DEBUG | LWIP_DBG_TRACE, ("Trying to send %d bytes\n", len));
+    err = altcp_write(pcb, ptr, len, apiflags);
+    if (err == ERR_MEM) {
+      if ((altcp_sndbuf(pcb) == 0) ||
+          (altcp_sndqueuelen(pcb) >= TCP_SND_QUEUELEN)) {
+        /* no need to try smaller sizes */
+        len = 1;
+      } else {
+        len /= 2;
+      }
+      LWIP_DEBUGF(HTTPD_DEBUG | LWIP_DBG_TRACE,
+                  ("Send failed, trying less (%d bytes)\n", len));
+    }
+  } while ((err == ERR_MEM) && (len > 1));
+
+  if (err == ERR_OK) {
+    LWIP_DEBUGF(HTTPD_DEBUG | LWIP_DBG_TRACE, ("Sent %d bytes\n", len));
+    *length = len;
+  } else {
+    LWIP_DEBUGF(HTTPD_DEBUG | LWIP_DBG_TRACE, ("Send failed with err %d (\"%s\")\n", err, lwip_strerr(err)));
+    *length = 0;
+  }
+
+#if LWIP_HTTPD_SUPPORT_11_KEEPALIVE
+  /* ensure nagle is normally enabled (only disabled for persistent connections
+     when all data has been enqueued but the connection stays open for the next
+     request */
+  altcp_nagle_enable(pcb);
+#endif
+
+  return err;
+}

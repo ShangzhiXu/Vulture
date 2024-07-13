@@ -1,0 +1,39 @@
+snmp_asn1_enc_oid(struct snmp_pbuf_stream *pbuf_stream, const u32_t *oid, u16_t oid_len)
+{
+  if (oid_len > 1) {
+    /* write compressed first two sub id's */
+    u32_t compressed_byte = ((oid[0] * 40) + oid[1]);
+    PBUF_OP_EXEC(snmp_pbuf_stream_write(pbuf_stream, (u8_t)compressed_byte));
+    oid_len -= 2;
+    oid += 2;
+  } else {
+    /* @bug:  allow empty varbinds for symmetry (we must decode them for getnext), allow partial compression?? */
+    /* ident_len <= 1, at least we need zeroDotZero (0.0) (ident_len == 2) */
+    return ERR_ARG;
+  }
+
+  while (oid_len > 0) {
+    u32_t sub_id;
+    u8_t shift, tail;
+
+    oid_len--;
+    sub_id = *oid;
+    tail = 0;
+    shift = 28;
+    while (shift > 0) {
+      u8_t code;
+
+      code = (u8_t)(sub_id >> shift);
+      if ((code != 0) || (tail != 0)) {
+        tail = 1;
+        PBUF_OP_EXEC(snmp_pbuf_stream_write(pbuf_stream, code | 0x80));
+      }
+      shift -= 7;
+    }
+    PBUF_OP_EXEC(snmp_pbuf_stream_write(pbuf_stream, (u8_t)sub_id & 0x7F));
+
+    /* proceed to next sub-identifier */
+    oid++;
+  }
+  return ERR_OK;
+}

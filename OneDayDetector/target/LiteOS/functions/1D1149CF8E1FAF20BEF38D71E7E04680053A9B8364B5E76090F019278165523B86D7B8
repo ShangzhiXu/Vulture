@@ -1,0 +1,72 @@
+int mbedtls_ccm_self_test( int verbose )
+{
+    mbedtls_ccm_context ctx;
+    /*
+     * Some hardware accelerators require the input and output buffers
+     * would be in RAM, because the flash is not accessible.
+     * Use buffers on the stack to hold the test vectors data.
+     */
+    unsigned char plaintext[CCM_SELFTEST_PT_MAX_LEN];
+    unsigned char ciphertext[CCM_SELFTEST_CT_MAX_LEN];
+    size_t i;
+    int ret;
+
+    mbedtls_ccm_init( &ctx );
+
+    if( mbedtls_ccm_setkey( &ctx, MBEDTLS_CIPHER_ID_AES, key, 8 * sizeof key ) != 0 )
+    {
+        if( verbose != 0 )
+            mbedtls_printf( "  CCM: setup failed" );
+
+        return( 1 );
+    }
+
+    for( i = 0; i < NB_TESTS; i++ )
+    {
+        if( verbose != 0 )
+            mbedtls_printf( "  CCM-AES #%u: ", (unsigned int) i + 1 );
+
+        memset( plaintext, 0, CCM_SELFTEST_PT_MAX_LEN );
+        memset( ciphertext, 0, CCM_SELFTEST_CT_MAX_LEN );
+        memcpy( plaintext, msg, msg_len[i] );
+
+        ret = mbedtls_ccm_encrypt_and_tag( &ctx, msg_len[i],
+                                           iv, iv_len[i], ad, add_len[i],
+                                           plaintext, ciphertext,
+                                           ciphertext + msg_len[i], tag_len[i] );
+
+        if( ret != 0 ||
+            memcmp( ciphertext, res[i], msg_len[i] + tag_len[i] ) != 0 )
+        {
+            if( verbose != 0 )
+                mbedtls_printf( "failed\n" );
+
+            return( 1 );
+        }
+        memset( plaintext, 0, CCM_SELFTEST_PT_MAX_LEN );
+
+        ret = mbedtls_ccm_auth_decrypt( &ctx, msg_len[i],
+                                        iv, iv_len[i], ad, add_len[i],
+                                        ciphertext, plaintext,
+                                        ciphertext + msg_len[i], tag_len[i] );
+
+        if( ret != 0 ||
+            memcmp( plaintext, msg, msg_len[i] ) != 0 )
+        {
+            if( verbose != 0 )
+                mbedtls_printf( "failed\n" );
+
+            return( 1 );
+        }
+
+        if( verbose != 0 )
+            mbedtls_printf( "passed\n" );
+    }
+
+    mbedtls_ccm_free( &ctx );
+
+    if( verbose != 0 )
+        mbedtls_printf( "\n" );
+
+    return( 0 );
+}

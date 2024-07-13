@@ -1,0 +1,104 @@
+static void FMPI2C_ITError(FMPI2C_HandleTypeDef *hfmpi2c, uint32_t ErrorCode)
+{
+  HAL_FMPI2C_StateTypeDef tmpstate = hfmpi2c->State;
+  uint32_t tmppreviousstate;
+
+  /* Reset handle parameters */
+  hfmpi2c->Mode          = HAL_FMPI2C_MODE_NONE;
+  hfmpi2c->XferOptions   = FMPI2C_NO_OPTION_FRAME;
+  hfmpi2c->XferCount     = 0U;
+
+  /* Set new error code */
+  hfmpi2c->ErrorCode |= ErrorCode;
+
+  /* Disable Interrupts */
+  if ((tmpstate == HAL_FMPI2C_STATE_LISTEN)         ||
+      (tmpstate == HAL_FMPI2C_STATE_BUSY_TX_LISTEN) ||
+      (tmpstate == HAL_FMPI2C_STATE_BUSY_RX_LISTEN))
+  {
+    /* Disable all interrupts, except interrupts related to LISTEN state */
+    FMPI2C_Disable_IRQ(hfmpi2c, FMPI2C_XFER_RX_IT | FMPI2C_XFER_TX_IT);
+
+    /* keep HAL_FMPI2C_STATE_LISTEN if set */
+    hfmpi2c->State         = HAL_FMPI2C_STATE_LISTEN;
+    hfmpi2c->XferISR       = FMPI2C_Slave_ISR_IT;
+  }
+  else
+  {
+    /* Disable all interrupts */
+    FMPI2C_Disable_IRQ(hfmpi2c, FMPI2C_XFER_LISTEN_IT | FMPI2C_XFER_RX_IT | FMPI2C_XFER_TX_IT);
+
+    /* If state is an abort treatment on goind, don't change state */
+    /* This change will be do later */
+    if (hfmpi2c->State != HAL_FMPI2C_STATE_ABORT)
+    {
+      /* Set HAL_FMPI2C_STATE_READY */
+      hfmpi2c->State         = HAL_FMPI2C_STATE_READY;
+    }
+    hfmpi2c->XferISR       = NULL;
+  }
+
+  /* Abort DMA TX transfer if any */
+  tmppreviousstate = hfmpi2c->PreviousState;
+  if ((hfmpi2c->hdmatx != NULL) && ((tmppreviousstate == FMPI2C_STATE_MASTER_BUSY_TX) || (tmppreviousstate == FMPI2C_STATE_SLAVE_BUSY_TX)))
+  {
+    if ((hfmpi2c->Instance->CR1 & FMPI2C_CR1_TXDMAEN) == FMPI2C_CR1_TXDMAEN)
+    {
+      hfmpi2c->Instance->CR1 &= ~FMPI2C_CR1_TXDMAEN;
+    }
+
+    if (HAL_DMA_GetState(hfmpi2c->hdmatx) != HAL_DMA_STATE_READY)
+    {
+      /* Set the FMPI2C DMA Abort callback :
+       will lead to call HAL_FMPI2C_ErrorCallback() at end of DMA abort procedure */
+      hfmpi2c->hdmatx->XferAbortCallback = FMPI2C_DMAAbort;
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hfmpi2c);
+
+      /* Abort DMA TX */
+      if (HAL_DMA_Abort_IT(hfmpi2c->hdmatx) != HAL_OK)
+      {
+        /* Call Directly XferAbortCallback function in case of error */
+        hfmpi2c->hdmatx->XferAbortCallback(hfmpi2c->hdmatx);
+      }
+    }
+    else
+    {
+      FMPI2C_TreatErrorCallback(hfmpi2c);
+    }
+  }
+  /* Abort DMA RX transfer if any */
+  else if ((hfmpi2c->hdmarx != NULL) && ((tmppreviousstate == FMPI2C_STATE_MASTER_BUSY_RX) || (tmppreviousstate == FMPI2C_STATE_SLAVE_BUSY_RX)))
+  {
+    if ((hfmpi2c->Instance->CR1 & FMPI2C_CR1_RXDMAEN) == FMPI2C_CR1_RXDMAEN)
+    {
+      hfmpi2c->Instance->CR1 &= ~FMPI2C_CR1_RXDMAEN;
+    }
+
+    if (HAL_DMA_GetState(hfmpi2c->hdmarx) != HAL_DMA_STATE_READY)
+    {
+      /* Set the FMPI2C DMA Abort callback :
+        will lead to call HAL_FMPI2C_ErrorCallback() at end of DMA abort procedure */
+      hfmpi2c->hdmarx->XferAbortCallback = FMPI2C_DMAAbort;
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hfmpi2c);
+
+      /* Abort DMA RX */
+      if (HAL_DMA_Abort_IT(hfmpi2c->hdmarx) != HAL_OK)
+      {
+        /* Call Directly hfmpi2c->hdmarx->XferAbortCallback function in case of error */
+        hfmpi2c->hdmarx->XferAbortCallback(hfmpi2c->hdmarx);
+      }
+    }
+    else
+    {
+      FMPI2C_TreatErrorCallback(hfmpi2c);
+    }
+  }
+  else
+  {
+    FMPI2C_TreatErrorCallback(hfmpi2c);
+  }
+}

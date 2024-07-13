@@ -1,0 +1,45 @@
+HAL_StatusTypeDef HAL_SMARTCARD_AbortTransmit(SMARTCARD_HandleTypeDef *hsmartcard)
+{
+#if defined(USART_CR1_FIFOEN)
+  /* Disable TCIE, TXEIE and TXFTIE interrupts */
+  CLEAR_BIT(hsmartcard->Instance->CR1, (USART_CR1_TXEIE_TXFNFIE | USART_CR1_TCIE));
+  CLEAR_BIT(hsmartcard->Instance->CR3, USART_CR3_TXFTIE);
+#else
+  /* Disable TXEIE and TCIE interrupts */
+  CLEAR_BIT(hsmartcard->Instance->CR1, (USART_CR1_TXEIE | USART_CR1_TCIE));
+#endif
+
+  /* Check if a receive process is ongoing or not. If not disable ERR IT */
+  if(hsmartcard->RxState == HAL_SMARTCARD_STATE_READY)
+  {
+    /* Disable the SMARTCARD Error Interrupt: (Frame error) */
+    CLEAR_BIT(hsmartcard->Instance->CR3, USART_CR3_EIE);
+  }
+
+  /* Disable the SMARTCARD DMA Tx request if enabled */
+  if (HAL_IS_BIT_SET(hsmartcard->Instance->CR3, USART_CR3_DMAT))
+  {
+    CLEAR_BIT(hsmartcard->Instance->CR3, USART_CR3_DMAT);
+
+    /* Abort the SMARTCARD DMA Tx channel : use blocking DMA Abort API (no callback) */
+    if(hsmartcard->hdmatx != NULL)
+    {
+      /* Set the SMARTCARD DMA Abort callback to Null. 
+         No call back execution at end of DMA abort procedure */
+      hsmartcard->hdmatx->XferAbortCallback = NULL;
+
+      HAL_DMA_Abort(hsmartcard->hdmatx);
+    }
+  }
+
+  /* Reset Tx transfer counter */
+  hsmartcard->TxXferCount = 0; 
+
+  /* Clear the Error flags in the ICR register */
+  __HAL_SMARTCARD_CLEAR_FLAG(hsmartcard, SMARTCARD_CLEAR_FEF);
+
+  /* Restore hsmartcard->gState to Ready */
+  hsmartcard->gState = HAL_SMARTCARD_STATE_READY;
+
+  return HAL_OK;
+}

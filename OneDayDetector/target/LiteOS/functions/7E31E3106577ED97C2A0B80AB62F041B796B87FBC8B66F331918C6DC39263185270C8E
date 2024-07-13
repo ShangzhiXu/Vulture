@@ -1,0 +1,66 @@
+static void SAI_AUDIO_IN_MspInit(SAI_HandleTypeDef *hsai, void *Params)
+{
+  static DMA_HandleTypeDef hdma_sai_rx;
+  GPIO_InitTypeDef  gpio_init_structure;  
+
+  /* Enable SAI clock */
+  AUDIO_IN_SAIx_CLK_ENABLE();
+  
+  /* Enable SD GPIO clock */
+  AUDIO_IN_SAIx_SD_ENABLE();
+  /* CODEC_SAI pin configuration: SD pin */
+  gpio_init_structure.Pin = AUDIO_IN_SAIx_SD_PIN;
+  gpio_init_structure.Mode = GPIO_MODE_AF_PP;
+  gpio_init_structure.Pull = GPIO_NOPULL;
+  gpio_init_structure.Speed = GPIO_SPEED_FAST;
+  gpio_init_structure.Alternate = AUDIO_IN_SAIx_AF;
+  HAL_GPIO_Init(AUDIO_IN_SAIx_SD_GPIO_PORT, &gpio_init_structure);
+
+  /* Enable Audio INT GPIO clock */
+  AUDIO_IN_INT_GPIO_ENABLE();
+  /* Audio INT pin configuration: input */
+  gpio_init_structure.Pin = AUDIO_IN_INT_GPIO_PIN;
+  gpio_init_structure.Mode = GPIO_MODE_INPUT;
+  gpio_init_structure.Pull = GPIO_NOPULL;
+  gpio_init_structure.Speed = GPIO_SPEED_FAST;
+  HAL_GPIO_Init(AUDIO_IN_INT_GPIO_PORT, &gpio_init_structure);
+
+  /* Enable the DMA clock */
+  AUDIO_IN_SAIx_DMAx_CLK_ENABLE();
+    
+  if(hsai->Instance == AUDIO_IN_SAIx)
+  {
+    /* Configure the hdma_sai_rx handle parameters */
+    hdma_sai_rx.Init.Channel             = AUDIO_IN_SAIx_DMAx_CHANNEL;
+    hdma_sai_rx.Init.Direction           = DMA_PERIPH_TO_MEMORY;
+    hdma_sai_rx.Init.PeriphInc           = DMA_PINC_DISABLE;
+    hdma_sai_rx.Init.MemInc              = DMA_MINC_ENABLE;
+    hdma_sai_rx.Init.PeriphDataAlignment = AUDIO_IN_SAIx_DMAx_PERIPH_DATA_SIZE;
+    hdma_sai_rx.Init.MemDataAlignment    = AUDIO_IN_SAIx_DMAx_MEM_DATA_SIZE;
+    hdma_sai_rx.Init.Mode                = DMA_CIRCULAR;
+    hdma_sai_rx.Init.Priority            = DMA_PRIORITY_HIGH;
+    hdma_sai_rx.Init.FIFOMode            = DMA_FIFOMODE_DISABLE;
+    hdma_sai_rx.Init.FIFOThreshold       = DMA_FIFO_THRESHOLD_FULL;
+    hdma_sai_rx.Init.MemBurst            = DMA_MBURST_SINGLE;
+    hdma_sai_rx.Init.PeriphBurst         = DMA_MBURST_SINGLE;
+    
+    hdma_sai_rx.Instance = AUDIO_IN_SAIx_DMAx_STREAM;
+    
+    /* Associate the DMA handle */
+    __HAL_LINKDMA(hsai, hdmarx, hdma_sai_rx);
+    
+    /* Deinitialize the Stream for new transfer */
+    HAL_DMA_DeInit(&hdma_sai_rx);
+    
+    /* Configure the DMA Stream */
+    HAL_DMA_Init(&hdma_sai_rx);
+  }
+  
+  /* SAI DMA IRQ Channel configuration */
+  HAL_NVIC_SetPriority(AUDIO_IN_SAIx_DMAx_IRQ, AUDIO_IN_IRQ_PREPRIO, 0);
+  HAL_NVIC_EnableIRQ(AUDIO_IN_SAIx_DMAx_IRQ);
+
+  /* Audio INT IRQ Channel configuration */
+  HAL_NVIC_SetPriority(AUDIO_IN_INT_IRQ, AUDIO_IN_IRQ_PREPRIO, 0);
+  HAL_NVIC_EnableIRQ(AUDIO_IN_INT_IRQ);
+}

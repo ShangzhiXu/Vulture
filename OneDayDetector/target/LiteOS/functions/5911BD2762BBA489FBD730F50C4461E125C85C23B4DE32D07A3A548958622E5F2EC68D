@@ -1,0 +1,64 @@
+VOID *OsHeapAlloc(VOID *pool, UINT32 size)
+{
+    struct LosHeapNode *node = NULL;
+    struct LosHeapNode *next = NULL;
+    struct LosHeapNode *best = NULL;
+    VOID *ptr = NULL;
+    UINT32 alignSize = ALIGNE(size);
+
+    struct LosHeapManager *heapMan = HEAP_CAST(struct LosHeapManager *, pool);
+    if ((heapMan == NULL) || (size > MALLOC_MAXSIZE)) {
+        return NULL;
+    }
+
+    if (OsHeapIntegrityCheck(heapMan) != LOS_OK) {
+        return NULL;
+    }
+
+    node = heapMan->tail;
+    while (node != NULL) {
+        if ((node->used == 0) && (node->size >= alignSize) &&
+            ((best == NULL) || (best->size > node->size))) {
+            best = node;
+            if (best->size == alignSize) {
+                goto SIZE_MATCH;
+            }
+        }
+        node = node->prev;
+    }
+
+    /* alloc failed */
+    if (best == NULL) {
+        PRINT_ERR("there's not enough whole to alloc 0x%x Bytes!\n", alignSize);
+        goto OUT;
+    }
+
+    if ((best->size - alignSize) > sizeof(struct LosHeapNode)) {
+        /* hole divide into 2 */
+        node = (struct LosHeapNode*)(UINTPTR)(best->data + alignSize);
+
+        node->used = 0;
+        node->size = best->size - alignSize - sizeof(struct LosHeapNode);
+        node->prev = best;
+
+        if (best != heapMan->tail) {
+            next = OsHeapPrvGetNext(heapMan, node);
+            if (next != NULL) {
+                next->prev = node;
+            }
+        } else {
+            heapMan->tail = node;
+        }
+
+        best->size = alignSize;
+    }
+
+SIZE_MATCH:
+    best->align = 0;
+    best->used = 1;
+    ptr = best->data;
+
+    OsHeapStatAddUsed(heapMan, best);
+OUT:
+    return ptr;
+}

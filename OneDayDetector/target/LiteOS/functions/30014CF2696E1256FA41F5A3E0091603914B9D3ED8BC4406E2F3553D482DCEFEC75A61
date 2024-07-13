@@ -1,0 +1,53 @@
+UINT32 OsShellCmdWatch(UINT32 argc, const CHAR **argv)
+{
+    WatchCB *watchItem = NULL;
+    UINT32 argoff = 0;
+    UINT32 ret;
+    INT32 err;
+
+    if (argc == 0) {
+        OsWatchCmdUsage();
+        return OS_ERROR;
+    }
+
+    if ((argc == 1) && (strcmp(argv[0], "--over") == 0)) {
+        ret = OsWatchOverFunc();
+        return ret;
+    }
+
+    if (g_watchCmd != NULL) {
+        PRINTK("Please turn off previous watch before to start a new watch.\n");
+        return OS_ERROR;
+    }
+
+    watchItem = (WatchCB *)malloc(sizeof(WatchCB));
+    if (watchItem == NULL) {
+        PRINTK("Malloc error!\n");
+        return OS_ERROR;
+    }
+    (VOID)memset_s(watchItem, sizeof(WatchCB), 0, sizeof(WatchCB));
+    watchItem->title = TRUE;
+    watchItem->count = WATCH_COUNT_MAX;
+    watchItem->interval = g_tickPerSecond;
+
+    err = OsWatchOptionParsed(argc, &argoff, argv, watchItem);
+    if (err != 0) {
+        goto WATCH_ERROR;
+    }
+
+    err = OsWatchCmdSplice(argc, argoff, argv, watchItem);
+    if (err != 0) {
+        goto WATCH_ERROR;
+    }
+
+    ret = OsWatchTaskCreate(watchItem);
+    if (ret != 0) {
+        goto WATCH_ERROR;
+    }
+
+    return LOS_OK;
+
+WATCH_ERROR:
+    free(watchItem);
+    return OS_ERROR;
+}

@@ -1,0 +1,17 @@
+LITE_OS_SEC_TEXT_MINOR const VOID *OsMemFindNodeCtrl(const VOID *pool, const VOID *ptr)
+{
+    const VOID *head = ptr;
+
+    if (ptr == NULL) {
+        return NULL;
+    }
+
+    head = (const VOID *)OS_MEM_ALIGN(head, OS_MEM_ALIGN_SIZE);
+    while (!OS_MEM_MAGIC_VALID(((LosMemDynNode *)head)->selfNode.freeNodeInfo.pstPrev)) {
+        head = (const VOID *)((UINT8 *)head - sizeof(CHAR *));
+        if (head <= pool) {
+            return NULL;
+        }
+    }
+    return head;
+}

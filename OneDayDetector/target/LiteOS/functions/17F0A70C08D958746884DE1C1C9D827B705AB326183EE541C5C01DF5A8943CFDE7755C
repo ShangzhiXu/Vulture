@@ -1,0 +1,21 @@
+void eth_rx_irq()
+{
+  dma_descriptor*   dma_desc = get_RX_DMA_descriptor_from_ethernet();
+  my_custom_pbuf_t* my_pbuf  = (my_custom_pbuf_t*)LWIP_MEMPOOL_ALLOC(RX_POOL);
+
+  my_pbuf->p.custom_free_function = my_pbuf_free_custom;
+  my_pbuf->dma_descriptor         = dma_desc;
+
+  invalidate_cpu_cache(dma_desc->rx_data, dma_desc->rx_length);
+  
+  struct pbuf* p = pbuf_alloced_custom(PBUF_RAW,
+     dma_desc->rx_length,
+     PBUF_REF,
+     &my_pbuf->p,
+     dma_desc->rx_data,
+     dma_desc->max_buffer_size);
+
+  if(netif->input(p, netif) != ERR_OK) {
+    pbuf_free(p);
+  }
+}

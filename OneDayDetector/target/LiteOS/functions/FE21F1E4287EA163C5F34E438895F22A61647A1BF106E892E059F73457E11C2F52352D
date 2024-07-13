@@ -1,0 +1,65 @@
+recv_udp(void *arg, struct udp_pcb *pcb, struct pbuf *p,
+         const ip_addr_t *addr, u16_t port)
+{
+  struct netbuf *buf;
+  struct netconn *conn;
+  u16_t len;
+#if LWIP_SO_RCVBUF
+  int recv_avail;
+#endif /* LWIP_SO_RCVBUF */
+
+  LWIP_UNUSED_ARG(pcb); /* only used for asserts... */
+  LWIP_ASSERT("recv_udp must have a pcb argument", pcb != NULL);
+  LWIP_ASSERT("recv_udp must have an argument", arg != NULL);
+  conn = (struct netconn *)arg;
+
+  if (conn == NULL) {
+    pbuf_free(p);
+    return;
+  }
+
+  LWIP_ASSERT("recv_udp: recv for wrong pcb!", conn->pcb.udp == pcb);
+
+#if LWIP_SO_RCVBUF
+  SYS_ARCH_GET(conn->recv_avail, recv_avail);
+  if (!NETCONN_MBOX_VALID(conn, &conn->recvmbox) ||
+      ((recv_avail + (int)(p->tot_len)) > conn->recv_bufsize)) {
+#else  /* LWIP_SO_RCVBUF */
+  if (!NETCONN_MBOX_VALID(conn, &conn->recvmbox)) {
+#endif /* LWIP_SO_RCVBUF */
+    pbuf_free(p);
+    return;
+  }
+
+  buf = (struct netbuf *)memp_malloc(MEMP_NETBUF);
+  if (buf == NULL) {
+    pbuf_free(p);
+    return;
+  } else {
+    buf->p = p;
+    buf->ptr = p;
+    ip_addr_set(&buf->addr, addr);
+    buf->port = port;
+#if LWIP_NETBUF_RECVINFO
+    if (conn->flags & NETCONN_FLAG_PKTINFO) {
+      /* get the UDP header - always in the first pbuf, ensured by udp_input */
+      const struct udp_hdr *udphdr = (const struct udp_hdr *)ip_next_header_ptr();
+      buf->flags = NETBUF_FLAG_DESTADDR;
+      ip_addr_set(&buf->toaddr, ip_current_dest_addr());
+      buf->toport_chksum = udphdr->dest;
+    }
+#endif /* LWIP_NETBUF_RECVINFO */
+  }
+
+  len = p->tot_len;
+  if (sys_mbox_trypost(&conn->recvmbox, buf) != ERR_OK) {
+    netbuf_delete(buf);
+    return;
+  } else {
+#if LWIP_SO_RCVBUF
+    SYS_ARCH_INC(conn->recv_avail, len);
+#endif /* LWIP_SO_RCVBUF */
+    /* Register event with callback */
+    API_EVENT(conn, NETCONN_EVT_RCVPLUS, len);
+  }
+}

@@ -1,0 +1,39 @@
+ip_AddrTable_get_cell_value_core(struct netif *netif, const u32_t *column, union snmp_variant_value *value, u32_t *value_len)
+{
+  LWIP_UNUSED_ARG(value_len);
+
+  switch (*column) {
+    case 1: /* ipAdEntAddr */
+      value->u32 = netif_ip4_addr(netif)->addr;
+      break;
+    case 2: /* ipAdEntIfIndex */
+      value->u32 = netif_to_num(netif);
+      break;
+    case 3: /* ipAdEntNetMask */
+      value->u32 = netif_ip4_netmask(netif)->addr;
+      break;
+    case 4: /* ipAdEntBcastAddr */
+      /* lwIP oddity, there's no broadcast
+         address in the netif we can rely on */
+      value->u32 = IPADDR_BROADCAST & 1;
+      break;
+    case 5: /* ipAdEntReasmMaxSize */
+#if IP_REASSEMBLY
+      /* @todo The theoretical maximum is IP_REASS_MAX_PBUFS * size of the pbufs,
+       * but only if receiving one fragmented packet at a time.
+       * The current solution is to calculate for 2 simultaneous packets...
+       */
+      value->u32 = (IP_HLEN + ((IP_REASS_MAX_PBUFS / 2) *
+                               (PBUF_POOL_BUFSIZE - PBUF_LINK_ENCAPSULATION_HLEN - PBUF_LINK_HLEN - IP_HLEN)));
+#else
+      /** @todo returning MTU would be a bad thing and
+          returning a wild guess like '576' isn't good either */
+      value->u32 = 0;
+#endif
+      break;
+    default:
+      return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  return SNMP_ERR_NOERROR;
+}

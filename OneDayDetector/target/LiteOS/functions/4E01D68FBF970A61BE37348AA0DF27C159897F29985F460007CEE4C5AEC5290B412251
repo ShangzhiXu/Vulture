@@ -1,0 +1,24 @@
+LITE_OS_SEC_TEXT_MINOR STATIC VOID OsShellCmdSectionInfo(INT32 argc, const CHAR *argv[])
+{
+    size_t textLen = &__text_end - &__text_start;
+    size_t dataLen = &__ram_data_end - &__ram_data_start;
+    size_t rodataLen = &__rodata_end - &__rodata_start;
+    size_t bssLen = &__bss_end - &__bss_start;
+
+#ifdef LOSCFG_KERNEL_SCATTER
+    textLen += &__fast_text_end - &__fast_text_start;
+    dataLen += &__fast_data_end - &__fast_data_start;
+    rodataLen += &__fast_rodata_end - &__fast_rodata_start;
+#endif
+
+    PRINTK("\r\n        text         data          rodata        bss\n");
+    if ((argc == 1) && (strcmp(argv[0], "-k") == 0)) {
+        PRINTK("Mem:    %-9lu    %-10lu    %-10lu    %-10lu\n", textLen / MEM_SIZE_1K, dataLen / MEM_SIZE_1K,
+               rodataLen / MEM_SIZE_1K, bssLen / MEM_SIZE_1K);
+    } else if ((argc == 1) && (strcmp(argv[0], "-m") == 0)) {
+        PRINTK("Mem:    %-9lu    %-10lu    %-10lu    %-10lu\n", textLen / MEM_SIZE_1M, dataLen / MEM_SIZE_1M,
+               rodataLen / MEM_SIZE_1M, bssLen / MEM_SIZE_1M);
+    } else {
+        PRINTK("Mem:    %-9lu    %-10lu    %-10lu    %-10lu\n", textLen, dataLen, rodataLen, bssLen);
+    }
+}

@@ -1,0 +1,132 @@
+static void HASH_DMAXferCplt(DMA_HandleTypeDef *hdma)
+{
+  HASH_HandleTypeDef* hhash = ( HASH_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+  uint32_t inputaddr;
+  uint32_t buffersize;
+  HAL_StatusTypeDef status ;
+  
+  if (hhash->State != HAL_HASH_STATE_SUSPENDED)
+  {
+    
+    /* Disable the DMA transfer */
+    CLEAR_BIT(HASH->CR, HASH_CR_DMAE);
+    
+    if (READ_BIT(HASH->CR, HASH_CR_MODE) == 0U)
+    {
+      /* If no HMAC processing, input data transfer is now over */
+      
+      /* Change the HASH state to ready */
+      hhash->State = HAL_HASH_STATE_READY;
+      
+      /* Call Input data transfer complete call back */
+#if (USE_HAL_HASH_REGISTER_CALLBACKS == 1)
+      hhash->InCpltCallback(hhash);
+#else
+      HAL_HASH_InCpltCallback(hhash);
+#endif /* USE_HAL_HASH_REGISTER_CALLBACKS */
+      
+    }
+    else
+    {
+      /* HMAC processing: depending on the current HMAC step and whether or
+      not multi-buffer processing is on-going, the next step is initiated
+      and MDMAT bit is set.  */
+      
+      
+      if (hhash->Phase == HAL_HASH_PHASE_HMAC_STEP_3)
+      {
+        /* This is the end of HMAC processing */
+        
+        /* Change the HASH state to ready */
+        hhash->State = HAL_HASH_STATE_READY;
+        
+        /* Call Input data transfer complete call back
+        (note that the last DMA transfer was that of the key
+        for the outer HASH operation). */
+#if (USE_HAL_HASH_REGISTER_CALLBACKS == 1)
+        hhash->InCpltCallback(hhash);
+#else
+        HAL_HASH_InCpltCallback(hhash);
+#endif /* USE_HAL_HASH_REGISTER_CALLBACKS */
+        
+        return;
+      }
+      else if (hhash->Phase == HAL_HASH_PHASE_HMAC_STEP_1)
+      {
+        inputaddr = (uint32_t)hhash->pHashMsgBuffPtr;     /* DMA transfer start address */
+        buffersize = hhash->HashBuffSize;                 /* DMA transfer size (in bytes) */
+        hhash->Phase = HAL_HASH_PHASE_HMAC_STEP_2;        /* Move phase from Step 1 to Step 2 */
+        
+        /* In case of suspension request, save the new starting parameters */
+        hhash->HashInCount = hhash->HashBuffSize;         /* Initial DMA transfer size (in bytes) */
+        hhash->pHashInBuffPtr  = hhash->pHashMsgBuffPtr ; /* DMA transfer start address           */
+        
+        hhash->NbWordsAlreadyPushed = 0U;                  /* Reset number of words already pushed */
+        /* Check whether or not digest calculation must be disabled (in case of multi-buffer HMAC processing) */
+        if (hhash->DigestCalculationDisable != RESET)
+        {
+          /* Digest calculation is disabled: Step 2 must start with MDMAT bit set,
+          no digest calculation will be triggered at the end of the input buffer feeding to the IP */
+          __HAL_HASH_SET_MDMAT();
+        }
+      }
+      else  /*case (hhash->Phase == HAL_HASH_PHASE_HMAC_STEP_2)*/
+      {
+        if (hhash->DigestCalculationDisable != RESET)
+        {
+          /* No automatic move to Step 3 as a new message buffer will be fed to the IP
+          (case of multi-buffer HMAC processing):
+          DCAL must not be set.
+          Phase remains in Step 2, MDMAT remains set at this point.
+          Change the HASH state to ready and call Input data transfer complete call back. */
+          hhash->State = HAL_HASH_STATE_READY;
+#if (USE_HAL_HASH_REGISTER_CALLBACKS == 1)
+          hhash->InCpltCallback(hhash);
+#else
+          HAL_HASH_InCpltCallback(hhash);
+#endif /* USE_HAL_HASH_REGISTER_CALLBACKS */
+          return ;
+        }
+        else
+        {
+          /* Digest calculation is not disabled (case of single buffer input or last buffer
+          of multi-buffer HMAC processing) */
+          inputaddr = (uint32_t)hhash->Init.pKey;       /* DMA transfer start address */
+          buffersize = hhash->Init.KeySize;             /* DMA transfer size (in bytes) */
+          hhash->Phase = HAL_HASH_PHASE_HMAC_STEP_3;    /* Move phase from Step 2 to Step 3 */
+          /* In case of suspension request, save the new starting parameters */
+          hhash->HashInCount = hhash->Init.KeySize;     /* Initial size for second DMA transfer (input data) */
+          hhash->pHashInBuffPtr  = hhash->Init.pKey ;   /* address passed to DMA, now entering data message */
+          
+          hhash->NbWordsAlreadyPushed = 0U;              /* Reset number of words already pushed */
+        }
+      }
+   
+    /* Configure the Number of valid bits in last word of the message */
+    __HAL_HASH_SET_NBVALIDBITS(buffersize);
+
+      /* Set the HASH DMA transfert completion call back */
+      hhash->hdmain->XferCpltCallback = HASH_DMAXferCplt;
+     
+      /* Enable the DMA In DMA Stream */
+    status = HAL_DMA_Start_IT(hhash->hdmain, inputaddr, (uint32_t)&HASH->DIN, (((buffersize %4U)!=0U) ? ((buffersize+(4U-(buffersize %4U)))/4U):(buffersize/4U)));
+
+    /* Enable DMA requests */
+    SET_BIT(HASH->CR, HASH_CR_DMAE);
+    
+          /* Return function status */
+      if (status != HAL_OK)
+      {
+        /* Update DAC state machine to error */
+        hhash->State = HAL_HASH_STATE_ERROR;      
+      }
+      else
+      {
+        /* Change DAC state */
+        hhash->State = HAL_HASH_STATE_READY;
+      }     
+  }
+  }
+
+  return;
+}

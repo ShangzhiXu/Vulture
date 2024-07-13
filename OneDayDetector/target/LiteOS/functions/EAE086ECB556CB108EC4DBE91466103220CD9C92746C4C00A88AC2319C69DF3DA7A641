@@ -1,0 +1,29 @@
+static off_t fatfs_op_lseek(struct file *file, off_t off, int whence)
+{
+    FIL *fp = (FIL *)file->f_data;
+
+    POINTER_ASSERT(fp);
+    switch (whence) {
+        case 0: // SEEK_SET
+            break;
+        case 1: // SEEK_CUR
+            off += f_tell(fp);
+            break;
+        case 2: // SEEK_END
+            off += f_size(fp);
+            break;
+        default:
+            ret_to_errno(FR_INVALID_PARAMETER);
+            return -1;
+    }
+
+    if (off < 0) {
+        return ret_to_errno(FR_INVALID_PARAMETER);
+    }
+
+    FRESULT res = f_lseek(fp, off);
+    if (res == FR_OK) {
+        return off;
+    } else
+        return ret_to_errno(res);
+}

@@ -1,0 +1,17 @@
+raw_disconnect(struct raw_pcb *pcb)
+{
+  LWIP_ASSERT_CORE_LOCKED();
+  /* reset remote address association */
+#if LWIP_IPV4 && LWIP_IPV6
+  if (IP_IS_ANY_TYPE_VAL(pcb->local_ip)) {
+    ip_addr_copy(pcb->remote_ip, *IP_ANY_TYPE);
+  } else {
+#endif
+    ip_addr_set_any(IP_IS_V6_VAL(pcb->remote_ip), &pcb->remote_ip);
+#if LWIP_IPV4 && LWIP_IPV6
+  }
+#endif
+  pcb->netif_idx = NETIF_NO_INDEX;
+  /* mark PCB as unconnected */
+  raw_clear_flags(pcb, RAW_FLAGS_CONNECTED);
+}

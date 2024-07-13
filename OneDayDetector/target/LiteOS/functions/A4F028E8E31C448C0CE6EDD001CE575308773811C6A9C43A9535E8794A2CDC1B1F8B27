@@ -1,0 +1,28 @@
+STATIC UINT32 DoPthreadCancel(_pthread_data *data)
+{
+    UINT32 ret = LOS_OK;
+    LOS_TaskLock();
+    data->canceled = 0;
+    if ((data->task->taskStatus == 0) || (LOS_TaskSuspend(data->task->taskId) != ENOERR)) {
+        ret = LOS_NOK;
+        goto OUT;
+    }
+    if (data->task->threadJoin != NULL) {
+        if (LOS_SemPost(((LosSemCB *)(data->joiner))->semId) != ENOERR) {
+            ret = LOS_NOK;
+            goto OUT;
+        }
+        data->task->threadJoin = NULL;
+        pthread_canceled_dummy_var = (UINTPTR)PTHREAD_CANCELED;
+        data->task->threadJoinRetval = (VOID *)pthread_canceled_dummy_var;
+    } else if (data->state && !(data->task->taskStatus & OS_TASK_STATUS_UNUSED)) {
+        data->state = PTHREAD_STATE_EXITED;
+        g_pthreadsExited++;
+        PthreadReap();
+    } else {
+        ret = LOS_NOK;
+    }
+OUT:
+    LOS_TaskUnlock();
+    return ret;
+}

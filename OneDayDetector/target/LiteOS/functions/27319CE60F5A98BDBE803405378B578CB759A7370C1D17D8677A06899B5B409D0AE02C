@@ -1,0 +1,112 @@
+HAL_StatusTypeDef HAL_HASH_DMAFeed_ProcessSuspend(HASH_HandleTypeDef *hhash)
+{
+  uint32_t tmp_remaining_DMATransferSize_inWords;
+  uint32_t tmp_initial_DMATransferSize_inWords;
+  uint32_t tmp_words_already_pushed;
+
+  if (hhash->State == HAL_HASH_STATE_READY)
+  {
+    return HAL_ERROR;
+  }
+  else
+  {
+
+   /* Make sure there is enough time to suspend the processing */
+    tmp_remaining_DMATransferSize_inWords = ((DMA_Stream_TypeDef *)hhash->hdmain->Instance)->NDTR;
+
+    if (tmp_remaining_DMATransferSize_inWords <= HASH_DMA_SUSPENSION_WORDS_LIMIT)
+    {
+      /* No suspension attempted since almost to the end of the transferred data. */
+      /* Best option for user code is to wrap up low priority message hashing     */
+      return HAL_ERROR;
+    }
+
+    /* Wait for DMAS to be reset */
+    if (HASH_WaitOnFlagUntilTimeout(hhash, HASH_FLAG_BUSY, SET, HASH_TIMEOUTVALUE) != HAL_OK)
+    {
+       return HAL_TIMEOUT;
+    }
+
+    if (__HAL_HASH_GET_FLAG(HASH_FLAG_DCIS) != RESET)
+    {
+      return HAL_ERROR;
+    }
+
+    /* Wait for DMAS to be set */
+    if (HASH_WaitOnFlagUntilTimeout(hhash, HASH_FLAG_BUSY, RESET, HASH_TIMEOUTVALUE) != HAL_OK)
+    {
+       return HAL_TIMEOUT;
+    }
+
+    /* Disable DMA channel */
+    if (HAL_DMA_Abort(hhash->hdmain) ==HAL_OK)
+    {
+      /*
+      Note that the Abort function will
+      - Clear the transfer error flags
+      - Unlock
+      - Set the State
+      */
+    }
+
+    /* Clear DMAE bit */
+    CLEAR_BIT(HASH->CR,HASH_CR_DMAE);
+
+    if (HASH_WaitOnFlagUntilTimeout(hhash, HASH_FLAG_BUSY, SET, HASH_TIMEOUTVALUE) != HAL_OK)
+    {
+      return HAL_TIMEOUT;
+    }
+
+    if (__HAL_HASH_GET_FLAG(HASH_FLAG_DCIS) != RESET)
+    {
+      return HAL_ERROR;
+    }
+
+    /* At this point, DMA interface is disabled and no transfer is on-going */
+    /* Retrieve from the DMA handle how many words remain to be written */
+    tmp_remaining_DMATransferSize_inWords = ((DMA_Stream_TypeDef *)hhash->hdmain->Instance)->NDTR;
+
+    if (tmp_remaining_DMATransferSize_inWords == 0U)
+    {
+      /* All the DMA transfer is actually done. Suspension occurred at the very end
+         of the transfer. Either the digest computation is about to start (HASH case)
+         or processing is about to move from one step to another (HMAC case).
+         In both cases, the processing can't be suspended at this point. It is
+         safer to
+         - retrieve the low priority block digest before starting the high
+           priority block processing (HASH case)
+         - re-attempt a new suspension (HMAC case)
+         */
+      return HAL_ERROR;
+    }
+    else
+    {
+
+      /* Compute how many words were supposed to be transferred by DMA */
+      tmp_initial_DMATransferSize_inWords = (((hhash->HashInCount%4U)!=0U) ?  ((hhash->HashInCount+3U)/4U): (hhash->HashInCount/4U));
+
+      /* If discrepancy between the number of words reported by DMA IP and the numbers of words entered as reported
+        by HASH IP, correct it */
+      /* tmp_words_already_pushed reflects the number of words that were already pushed before
+         the start of DMA transfer (multi-buffer processing case) */
+      tmp_words_already_pushed = hhash->NbWordsAlreadyPushed;
+      if (((tmp_words_already_pushed + tmp_initial_DMATransferSize_inWords - tmp_remaining_DMATransferSize_inWords) %16U)  != HASH_NBW_PUSHED())
+      {
+        tmp_remaining_DMATransferSize_inWords--; /* one less word to be transferred again */
+      }
+
+      /* Accordingly, update the input pointer that points at the next word to be transferred to the IP by DMA */
+      hhash->pHashInBuffPtr +=  4U * (tmp_initial_DMATransferSize_inWords - tmp_remaining_DMATransferSize_inWords) ;
+
+      /* And store in HashInCount the remaining size to transfer (in bytes) */
+      hhash->HashInCount = 4U * tmp_remaining_DMATransferSize_inWords;
+
+    }
+
+    /* Set State as suspended */
+    hhash->State = HAL_HASH_STATE_SUSPENDED;
+
+    return HAL_OK;
+
+  }
+}

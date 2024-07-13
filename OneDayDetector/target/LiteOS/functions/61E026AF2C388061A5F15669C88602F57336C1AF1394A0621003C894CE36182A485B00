@@ -1,0 +1,22 @@
+int MQTTDisconnect(MQTTClient* c)
+{
+    int rc = FAILURE;
+    Timer timer;     // we might wait for incomplete incoming publishes to complete
+    int len = 0;
+
+#if defined(MQTT_TASK)
+	MutexLock(&c->mutex);
+#endif
+    TimerInit(&timer);
+    TimerCountdownMS(&timer, c->command_timeout_ms);
+
+	  len = MQTTSerialize_disconnect(c->buf, c->buf_size);
+    if (len > 0)
+        rc = sendPacket(c, len, &timer);            // send the disconnect packet
+    MQTTCloseSession(c);
+
+#if defined(MQTT_TASK)
+	  MutexUnlock(&c->mutex);
+#endif
+    return rc;
+}

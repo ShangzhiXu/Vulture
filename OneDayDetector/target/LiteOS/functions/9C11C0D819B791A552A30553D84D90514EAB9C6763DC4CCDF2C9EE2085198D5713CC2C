@@ -1,0 +1,58 @@
+slipif_init(struct netif *netif)
+{
+  struct slipif_priv *priv;
+  u8_t sio_num;
+
+  LWIP_ASSERT("slipif needs an input callback", netif->input != NULL);
+
+  /* netif->state contains serial port number */
+  sio_num = LWIP_PTR_NUMERIC_CAST(u8_t, netif->state);
+
+  LWIP_DEBUGF(SLIP_DEBUG, ("slipif_init: netif->num=%"U16_F"\n", (u16_t)sio_num));
+
+  /* Allocate private data */
+  priv = (struct slipif_priv *)mem_malloc(sizeof(struct slipif_priv));
+  if (!priv) {
+    return ERR_MEM;
+  }
+
+  netif->name[0] = 's';
+  netif->name[1] = 'l';
+#if LWIP_IPV4
+  netif->output = slipif_output_v4;
+#endif /* LWIP_IPV4 */
+#if LWIP_IPV6
+  netif->output_ip6 = slipif_output_v6;
+#endif /* LWIP_IPV6 */
+  netif->mtu = SLIP_MAX_SIZE;
+
+  /* Try to open the serial port. */
+  priv->sd = sio_open(sio_num);
+  if (!priv->sd) {
+    /* Opening the serial port failed. */
+    mem_free(priv);
+    return ERR_IF;
+  }
+
+  /* Initialize private data */
+  priv->p = NULL;
+  priv->q = NULL;
+  priv->state = SLIP_RECV_NORMAL;
+  priv->i = 0;
+  priv->recved = 0;
+#if SLIP_RX_FROM_ISR
+  priv->rxpackets = NULL;
+#endif
+
+  netif->state = priv;
+
+  /* initialize the snmp variables and counters inside the struct netif */
+  MIB2_INIT_NETIF(netif, snmp_ifType_slip, SLIP_SIO_SPEED(priv->sd));
+
+#if SLIP_USE_RX_THREAD
+  /* Create a thread to poll the serial line. */
+  sys_thread_new(SLIPIF_THREAD_NAME, slipif_loop_thread, netif,
+                 SLIPIF_THREAD_STACKSIZE, SLIPIF_THREAD_PRIO);
+#endif /* SLIP_USE_RX_THREAD */
+  return ERR_OK;
+}

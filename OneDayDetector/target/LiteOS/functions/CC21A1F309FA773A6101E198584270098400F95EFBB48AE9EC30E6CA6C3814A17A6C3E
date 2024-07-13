@@ -1,0 +1,73 @@
+uint32_t LL_RCC_GetUARTClockFreq(uint32_t UARTxSource)
+{
+  uint32_t uart_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_UART_CLKSOURCE(UARTxSource));
+
+#if defined(RCC_CCIPR_UART4SEL)
+  if (UARTxSource == LL_RCC_UART4_CLKSOURCE)
+  {
+    /* UART4CLK clock frequency */
+    switch (LL_RCC_GetUARTClockSource(UARTxSource))
+    {
+      case LL_RCC_UART4_CLKSOURCE_SYSCLK: /* UART4 Clock is System Clock */
+        uart_frequency = RCC_GetSystemClockFreq();
+        break;
+
+      case LL_RCC_UART4_CLKSOURCE_HSI:    /* UART4 Clock is HSI Osc. */
+        if (LL_RCC_HSI_IsReady())
+        {
+          uart_frequency = HSI_VALUE;
+        }
+        break;
+
+      case LL_RCC_UART4_CLKSOURCE_LSE:    /* UART4 Clock is LSE Osc. */
+        if (LL_RCC_LSE_IsReady())
+        {
+          uart_frequency = LSE_VALUE;
+        }
+        break;
+
+      case LL_RCC_UART4_CLKSOURCE_PCLK1:  /* UART4 Clock is PCLK1 */
+      default:
+        uart_frequency = RCC_GetPCLK1ClockFreq(RCC_GetHCLKClockFreq(RCC_GetSystemClockFreq()));
+        break;
+    }
+  }
+#endif /* RCC_CCIPR_UART4SEL */
+
+#if defined(RCC_CCIPR_UART5SEL)
+  if (UARTxSource == LL_RCC_UART5_CLKSOURCE)
+  {
+    /* UART5CLK clock frequency */
+    switch (LL_RCC_GetUARTClockSource(UARTxSource))
+    {
+      case LL_RCC_UART5_CLKSOURCE_SYSCLK: /* UART5 Clock is System Clock */
+        uart_frequency = RCC_GetSystemClockFreq();
+        break;
+
+      case LL_RCC_UART5_CLKSOURCE_HSI:    /* UART5 Clock is HSI Osc. */
+        if (LL_RCC_HSI_IsReady())
+        {
+          uart_frequency = HSI_VALUE;
+        }
+        break;
+
+      case LL_RCC_UART5_CLKSOURCE_LSE:    /* UART5 Clock is LSE Osc. */
+        if (LL_RCC_LSE_IsReady())
+        {
+          uart_frequency = LSE_VALUE;
+        }
+        break;
+
+      case LL_RCC_UART5_CLKSOURCE_PCLK1:  /* UART5 Clock is PCLK1 */
+      default:
+        uart_frequency = RCC_GetPCLK1ClockFreq(RCC_GetHCLKClockFreq(RCC_GetSystemClockFreq()));
+        break;
+    }
+  }
+#endif /* RCC_CCIPR_UART5SEL */
+
+  return uart_frequency;
+}

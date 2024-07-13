@@ -1,0 +1,81 @@
+ErrorStatus LL_LPUART_Init(USART_TypeDef *LPUARTx, LL_LPUART_InitTypeDef *LPUART_InitStruct)
+{
+  ErrorStatus status = ERROR;
+  uint32_t periphclk = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check the parameters */
+  assert_param(IS_LPUART_INSTANCE(LPUARTx));
+#if defined(USART_PRESC_PRESCALER)
+  assert_param(IS_LL_LPUART_PRESCALER(LPUART_InitStruct->PrescalerValue));
+#endif
+  assert_param(IS_LL_LPUART_BAUDRATE(LPUART_InitStruct->BaudRate));
+  assert_param(IS_LL_LPUART_DATAWIDTH(LPUART_InitStruct->DataWidth));
+  assert_param(IS_LL_LPUART_STOPBITS(LPUART_InitStruct->StopBits));
+  assert_param(IS_LL_LPUART_PARITY(LPUART_InitStruct->Parity));
+  assert_param(IS_LL_LPUART_DIRECTION(LPUART_InitStruct->TransferDirection));
+  assert_param(IS_LL_LPUART_HWCONTROL(LPUART_InitStruct->HardwareFlowControl));
+
+  /* LPUART needs to be in disabled state, in order to be able to configure some bits in
+     CRx registers. Otherwise (LPUART not in Disabled state) => return ERROR */
+  if (LL_LPUART_IsEnabled(LPUARTx) == 0U)
+  {
+    /*---------------------------- LPUART CR1 Configuration -----------------------
+     * Configure LPUARTx CR1 (LPUART Word Length, Parity and Transfer Direction bits) with parameters:
+     * - DataWidth:          USART_CR1_M bits according to LPUART_InitStruct->DataWidth value
+     * - Parity:             USART_CR1_PCE, USART_CR1_PS bits according to LPUART_InitStruct->Parity value
+     * - TransferDirection:  USART_CR1_TE, USART_CR1_RE bits according to LPUART_InitStruct->TransferDirection value
+     */
+    MODIFY_REG(LPUARTx->CR1,
+               (USART_CR1_M | USART_CR1_PCE | USART_CR1_PS | USART_CR1_TE | USART_CR1_RE),
+               (LPUART_InitStruct->DataWidth | LPUART_InitStruct->Parity | LPUART_InitStruct->TransferDirection));
+
+    /*---------------------------- LPUART CR2 Configuration -----------------------
+     * Configure LPUARTx CR2 (Stop bits) with parameters:
+     * - Stop Bits:          USART_CR2_STOP bits according to LPUART_InitStruct->StopBits value.
+     */
+    LL_LPUART_SetStopBitsLength(LPUARTx, LPUART_InitStruct->StopBits);
+
+    /*---------------------------- LPUART CR3 Configuration -----------------------
+     * Configure LPUARTx CR3 (Hardware Flow Control) with parameters:
+     * - HardwareFlowControl: USART_CR3_RTSE, USART_CR3_CTSE bits according to LPUART_InitStruct->HardwareFlowControl value.
+     */
+    LL_LPUART_SetHWFlowCtrl(LPUARTx, LPUART_InitStruct->HardwareFlowControl);
+
+    /*---------------------------- LPUART BRR Configuration -----------------------
+     * Retrieve Clock frequency used for LPUART Peripheral
+     */
+    periphclk = LL_RCC_GetLPUARTClockFreq(LL_RCC_LPUART1_CLKSOURCE);
+
+    /* Configure the LPUART Baud Rate :
+#if defined(USART_PRESC_PRESCALER)
+       - prescaler value is required
+#endif
+       - valid baud rate value (different from 0) is required
+       - Peripheral clock as returned by RCC service, should be valid (different from 0).
+    */
+    if ((periphclk != LL_RCC_PERIPH_FREQUENCY_NO)
+        && (LPUART_InitStruct->BaudRate != 0U))
+    {
+      status = SUCCESS;
+      LL_LPUART_SetBaudRate(LPUARTx,
+                            periphclk,
+#if defined(USART_PRESC_PRESCALER)
+                            LPUART_InitStruct->PrescalerValue,
+#endif
+                            LPUART_InitStruct->BaudRate);
+
+      /* Check BRR is greater than or equal to 0x300 */
+      assert_param(IS_LL_LPUART_BRR(LPUARTx->BRR));
+    }
+#if defined(USART_PRESC_PRESCALER)
+
+    /*---------------------------- LPUART PRESC Configuration -----------------------
+     * Configure LPUARTx PRESC (Prescaler) with parameters:
+     * - PrescalerValue: LPUART_PRESC_PRESCALER bits according to LPUART_InitStruct->PrescalerValue value.
+     */
+    LL_LPUART_SetPrescaler(LPUARTx, LPUART_InitStruct->PrescalerValue);
+#endif
+  }
+
+  return (status);
+}

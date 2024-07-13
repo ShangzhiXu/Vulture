@@ -1,0 +1,24 @@
+bridgeif_fdb_age_one_second(void *fdb_ptr)
+{
+  int i;
+  bridgeif_dfdb_t *fdb;
+  BRIDGEIF_DECL_PROTECT(lev);
+
+  fdb = (bridgeif_dfdb_t *)fdb_ptr;
+  BRIDGEIF_READ_PROTECT(lev);
+
+  for (i = 0; i < fdb->max_fdb_entries; i++) {
+    bridgeif_dfdb_entry_t *e = &fdb->fdb[i];
+    if (e->used && e->ts) {
+      BRIDGEIF_WRITE_PROTECT(lev);
+      /* check again when protected */
+      if (e->used && e->ts) {
+        if (--e->ts == 0) {
+          e->used = 0;
+        }
+      }
+      BRIDGEIF_WRITE_UNPROTECT(lev);
+    }
+  }
+  BRIDGEIF_READ_UNPROTECT(lev);
+}

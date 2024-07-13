@@ -1,0 +1,40 @@
+static int pk_group_id_from_group( const mbedtls_ecp_group *grp, mbedtls_ecp_group_id *grp_id )
+{
+    int ret = 0;
+    mbedtls_ecp_group ref;
+    const mbedtls_ecp_group_id *id;
+
+    mbedtls_ecp_group_init( &ref );
+
+    for( id = mbedtls_ecp_grp_id_list(); *id != MBEDTLS_ECP_DP_NONE; id++ )
+    {
+        /* Load the group associated to that id */
+        mbedtls_ecp_group_free( &ref );
+        MBEDTLS_MPI_CHK( mbedtls_ecp_group_load( &ref, *id ) );
+
+        /* Compare to the group we were given, starting with easy tests */
+        if( grp->pbits == ref.pbits && grp->nbits == ref.nbits &&
+            mbedtls_mpi_cmp_mpi( &grp->P, &ref.P ) == 0 &&
+            mbedtls_mpi_cmp_mpi( &grp->A, &ref.A ) == 0 &&
+            mbedtls_mpi_cmp_mpi( &grp->B, &ref.B ) == 0 &&
+            mbedtls_mpi_cmp_mpi( &grp->N, &ref.N ) == 0 &&
+            mbedtls_mpi_cmp_mpi( &grp->G.X, &ref.G.X ) == 0 &&
+            mbedtls_mpi_cmp_mpi( &grp->G.Z, &ref.G.Z ) == 0 &&
+            /* For Y we may only know the parity bit, so compare only that */
+            mbedtls_mpi_get_bit( &grp->G.Y, 0 ) == mbedtls_mpi_get_bit( &ref.G.Y, 0 ) )
+        {
+            break;
+        }
+
+    }
+
+cleanup:
+    mbedtls_ecp_group_free( &ref );
+
+    *grp_id = *id;
+
+    if( ret == 0 && *id == MBEDTLS_ECP_DP_NONE )
+        ret = MBEDTLS_ERR_ECP_FEATURE_UNAVAILABLE;
+
+    return( ret );
+}

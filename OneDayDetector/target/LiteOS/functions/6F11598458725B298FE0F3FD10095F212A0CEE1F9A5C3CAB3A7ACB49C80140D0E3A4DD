@@ -1,0 +1,47 @@
+static void fsm_timeout(void *arg) {
+    fsm *f = (fsm *) arg;
+    ppp_pcb *pcb = f->pcb;
+
+    switch (f->state) {
+    case PPP_FSM_CLOSING:
+    case PPP_FSM_STOPPING:
+	if( f->retransmits <= 0 ){
+	    /*
+	     * We've waited for an ack long enough.  Peer probably heard us.
+	     */
+	    f->state = (f->state == PPP_FSM_CLOSING)? PPP_FSM_CLOSED: PPP_FSM_STOPPED;
+	    if( f->callbacks->finished )
+		(*f->callbacks->finished)(f);
+	} else {
+	    /* Send Terminate-Request */
+	    fsm_sdata(f, TERMREQ, f->reqid = ++f->id,
+		      (const u_char *) f->term_reason, f->term_reason_len);
+	    TIMEOUT(fsm_timeout, f, pcb->settings.fsm_timeout_time);
+	    --f->retransmits;
+	}
+	break;
+
+    case PPP_FSM_REQSENT:
+    case PPP_FSM_ACKRCVD:
+    case PPP_FSM_ACKSENT:
+	if (f->retransmits <= 0) {
+	    ppp_warn("%s: timeout sending Config-Requests", PROTO_NAME(f));
+	    f->state = PPP_FSM_STOPPED;
+	    if( (f->flags & OPT_PASSIVE) == 0 && f->callbacks->finished )
+		(*f->callbacks->finished)(f);
+
+	} else {
+	    /* Retransmit the configure-request */
+	    if (f->callbacks->retransmit)
+		(*f->callbacks->retransmit)(f);
+	    fsm_sconfreq(f, 1);		/* Re-send Configure-Request */
+	    if( f->state == PPP_FSM_ACKRCVD )
+		f->state = PPP_FSM_REQSENT;
+	}
+	break;
+
+    default:
+	FSMDEBUG(("%s: Timeout event in state %d!", PROTO_NAME(f), f->state));
+	/* no break */
+    }
+}

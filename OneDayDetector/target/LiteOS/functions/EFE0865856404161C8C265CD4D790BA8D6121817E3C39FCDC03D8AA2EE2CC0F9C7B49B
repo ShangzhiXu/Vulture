@@ -1,0 +1,24 @@
+mld6_delayed_report(struct mld_group *group, u16_t maxresp_in)
+{
+  /* Convert maxresp from milliseconds to tmr ticks */
+  u16_t maxresp = maxresp_in / MLD6_TMR_INTERVAL;
+  if (maxresp == 0) {
+    maxresp = 1;
+  }
+
+#ifdef LWIP_RAND
+  /* Randomize maxresp. (if LWIP_RAND is supported) */
+  maxresp = (u16_t)(LWIP_RAND() % maxresp);
+  if (maxresp == 0) {
+    maxresp = 1;
+  }
+#endif /* LWIP_RAND */
+
+  /* Apply timer value if no report has been scheduled already. */
+  if ((group->group_state == MLD6_GROUP_IDLE_MEMBER) ||
+     ((group->group_state == MLD6_GROUP_DELAYING_MEMBER) &&
+      ((group->timer == 0) || (maxresp < group->timer)))) {
+    group->timer = maxresp;
+    group->group_state = MLD6_GROUP_DELAYING_MEMBER;
+  }
+}

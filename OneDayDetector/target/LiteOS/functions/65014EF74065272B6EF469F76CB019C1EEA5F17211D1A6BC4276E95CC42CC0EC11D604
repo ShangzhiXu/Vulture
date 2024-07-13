@@ -1,0 +1,34 @@
+LITE_OS_SEC_TEXT_INIT STATIC UINT32 OsSemCreate(UINT16 count, UINT8 type, UINT32 *semHandle)
+{
+    UINT32 intSave;
+    LosSemCB *semCreated = NULL;
+    LOS_DL_LIST *unusedSem = NULL;
+
+    if (semHandle == NULL) {
+        return LOS_ERRNO_SEM_PTR_NULL;
+    }
+
+    SCHEDULER_LOCK(intSave);
+
+    if (LOS_ListEmpty(&g_unusedSemList)) {
+        SCHEDULER_UNLOCK(intSave);
+        OsSemInfoGetFullDataHook();
+        OS_RETURN_ERROR(LOS_ERRNO_SEM_ALL_BUSY);
+    }
+
+    unusedSem = LOS_DL_LIST_FIRST(&g_unusedSemList);
+    LOS_ListDelete(unusedSem);
+    semCreated = GET_SEM_LIST(unusedSem);
+    semCreated->semStat = OS_SEM_USED;
+    semCreated->semType = type;
+    semCreated->semCount = count;
+    LOS_ListInit(&semCreated->semList);
+    *semHandle = semCreated->semId;
+
+    OsSemDbgUpdateHook(semCreated->semId, OsCurrTaskGet()->taskEntry, count);
+
+    SCHEDULER_UNLOCK(intSave);
+
+    LOS_TRACE(SEM_CREATE, semCreated->semId, type, count);
+    return LOS_OK;
+}

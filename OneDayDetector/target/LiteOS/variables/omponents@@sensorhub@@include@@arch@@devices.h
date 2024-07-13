@@ -1,0 +1,14 @@
+    INT32 (*Read)(struct DeviceType *dev, IoBuf *io);
+    INT32 (*Resume)(UINT8 *ptr);
+    INT32 (*Suspend)(UINT8 *ptr);
+    INT32 (*Write)(struct DeviceType *dev, IoBuf *io);
+    struct LOS_DL_LIST attachList;
+    struct DevOp       *devOps;
+    struct DeviceType  *device;
+    UINT8              flag;
+    struct LOS_DL_LIST list;
+    struct LOS_DL_LIST list;
+    struct PowerManage pm;
+    struct PmOp        *pmOps;
+    VOID               *priv;
+    UINT8              reserved[DEVICE_TYPE_RESERVED_LENGTH];

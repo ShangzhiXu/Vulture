@@ -1,0 +1,22 @@
+void HAL_EXTI_IRQHandler(EXTI_HandleTypeDef *hexti)
+{
+  uint32_t regval;
+  uint32_t maskline;
+
+  /* Compute line mask */
+  maskline = (1uL << (hexti->Line & EXTI_PIN_MASK));
+
+  /* Get pending bit  */
+  regval = (EXTI->PR & maskline);
+  if (regval != 0x00u)
+  {
+    /* Clear pending bit */
+    EXTI->PR = maskline;
+
+    /* Call callback */
+    if (hexti->PendingCallback != NULL)
+    {
+      hexti->PendingCallback();
+    }
+  }
+}

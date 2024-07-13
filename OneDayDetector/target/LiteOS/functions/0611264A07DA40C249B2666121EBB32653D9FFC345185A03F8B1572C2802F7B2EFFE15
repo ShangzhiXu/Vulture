@@ -1,0 +1,65 @@
+void HAL_PCDEx_BCD_VBUSDetect(PCD_HandleTypeDef *hpcd)
+{
+  USB_OTG_GlobalTypeDef *USBx = hpcd->Instance;  
+  uint32_t tickstart = HAL_GetTick();
+  
+  /* Start BCD When device is connected */
+  if (USBx_DEVICE->DCTL & USB_OTG_DCTL_SDIS)
+  { 
+    /* Enable DCD : Data Contact Detect */
+    USBx->GCCFG |= USB_OTG_GCCFG_DCDEN;
+    
+    /* Wait Detect flag or a timeout is happen*/
+    while ((USBx->GCCFG & USB_OTG_GCCFG_DCDET) == 0)
+    {
+      /* Check for the Timeout */
+      if((HAL_GetTick() - tickstart ) > 1000)
+      {
+        HAL_PCDEx_BCD_Callback(hpcd, PCD_BCD_ERROR);
+        return;
+      }
+    }
+    
+    /* Right response got */
+    HAL_Delay(100); 
+    
+    /* Check Detect flag*/
+    if (USBx->GCCFG & USB_OTG_GCCFG_DCDET)
+    {
+      HAL_PCDEx_BCD_Callback(hpcd, PCD_BCD_CONTACT_DETECTION);
+    }
+    
+    /*Primary detection: checks if connected to Standard Downstream Port  
+    (without charging capability) */
+    USBx->GCCFG &=~ USB_OTG_GCCFG_DCDEN;
+    USBx->GCCFG |=  USB_OTG_GCCFG_PDEN;
+    HAL_Delay(100); 
+    
+    if (!(USBx->GCCFG & USB_OTG_GCCFG_PDET))
+    {
+      /* Case of Standard Downstream Port */
+      HAL_PCDEx_BCD_Callback(hpcd, PCD_BCD_STD_DOWNSTREAM_PORT);
+    }
+    else  
+    {
+      /* start secondary detection to check connection to Charging Downstream 
+      Port or Dedicated Charging Port */
+      USBx->GCCFG &=~ USB_OTG_GCCFG_PDEN;
+      USBx->GCCFG |=  USB_OTG_GCCFG_SDEN;
+      HAL_Delay(100); 
+      
+      if ((USBx->GCCFG) & USB_OTG_GCCFG_SDET)
+      { 
+        /* case Dedicated Charging Port  */
+        HAL_PCDEx_BCD_Callback(hpcd, PCD_BCD_DEDICATED_CHARGING_PORT);
+      }
+      else
+      {
+        /* case Charging Downstream Port  */
+        HAL_PCDEx_BCD_Callback(hpcd, PCD_BCD_CHARGING_DOWNSTREAM_PORT);
+      }
+    }
+    /* Battery Charging capability discovery finished */
+    HAL_PCDEx_BCD_Callback(hpcd, PCD_BCD_DISCOVERY_COMPLETED);
+  }
+}

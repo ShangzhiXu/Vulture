@@ -1,0 +1,62 @@
+mppe_init(ppp_pcb *pcb, ppp_mppe_state *state, u8_t options)
+{
+#if PPP_DEBUG
+	const u8_t *debugstr = (const u8_t*)"mppe_comp_init";
+	if (&pcb->mppe_decomp == state) {
+	    debugstr = (const u8_t*)"mppe_decomp_init";
+	}
+#endif /* PPP_DEBUG */
+
+	/* Save keys. */
+	MEMCPY(state->session_key, state->master_key, sizeof(state->master_key));
+
+	if (options & MPPE_OPT_128)
+		state->keylen = 16;
+	else if (options & MPPE_OPT_40)
+		state->keylen = 8;
+	else {
+		PPPDEBUG(LOG_DEBUG, ("%s[%d]: unknown key length\n", debugstr,
+			pcb->netif->num));
+		lcp_close(pcb, "MPPE required but peer negotiation failed");
+		return;
+	}
+	if (options & MPPE_OPT_STATEFUL)
+		state->stateful = 1;
+
+	/* Generate the initial session key. */
+	mppe_rekey(state, 1);
+
+#if PPP_DEBUG
+	{
+		int i;
+		char mkey[sizeof(state->master_key) * 2 + 1];
+		char skey[sizeof(state->session_key) * 2 + 1];
+
+		PPPDEBUG(LOG_DEBUG, ("%s[%d]: initialized with %d-bit %s mode\n",
+		       debugstr, pcb->netif->num, (state->keylen == 16) ? 128 : 40,
+		       (state->stateful) ? "stateful" : "stateless"));
+
+		for (i = 0; i < (int)sizeof(state->master_key); i++)
+			sprintf(mkey + i * 2, "%02x", state->master_key[i]);
+		for (i = 0; i < (int)sizeof(state->session_key); i++)
+			sprintf(skey + i * 2, "%02x", state->session_key[i]);
+		PPPDEBUG(LOG_DEBUG,
+		       ("%s[%d]: keys: master: %s initial session: %s\n",
+		       debugstr, pcb->netif->num, mkey, skey));
+	}
+#endif /* PPP_DEBUG */
+
+	/*
+	 * Initialize the coherency count.  The initial value is not specified
+	 * in RFC 3078, but we can make a reasonable assumption that it will
+	 * start at 0.  Setting it to the max here makes the comp/decomp code
+	 * do the right thing (determined through experiment).
+	 */
+	state->ccount = MPPE_CCOUNT_SPACE - 1;
+
+	/*
+	 * Note that even though we have initialized the key table, we don't
+	 * set the FLUSHED bit.  This is contrary to RFC 3078, sec. 3.1.
+	 */
+	state->bits = MPPE_BIT_ENCRYPTED;
+}

@@ -1,0 +1,38 @@
+STATIC UINT32 CalcBranchInstr(UINT32 instrAddr, UINT32 targetAddr)
+{
+    INT32 distance = (INT32)(targetAddr - instrAddr);
+    if (distance == 0) {
+        PRINT_ERR("patch addr should not be same as buggy addr\r\n");
+        return NOP_INSTR;
+    }
+
+    if (distance > BL_DISTANCE_MAX) {
+        PRINT_ERR("the bl instr should whitin 16M\r\n");
+        return NOP_INSTR;
+    }
+
+    if ((distance + BL_DISTANCE_MAX) < 0) {
+        PRINT_ERR("the bl instr should whitin -16M\r\n");
+        return NOP_INSTR;
+    }
+
+    UINT32 offset = (UINT32)(distance - REMAP_UNIT_SIZE);
+    PRINT_DEBUG("instr_addr:%x, target_addr:%x\r\n", instrAddr, targetAddr);
+
+    UINT16 offset10Upper = ((offset) >> 12) & 0x03FF; // get upper 10 bits [21:12]
+    UINT16 offset11Lower = ((offset) >> 1)  & 0x07FF; // get lower 11 bits [11:1]
+
+    UINT8 s  = (offset >> S_POS) & 0x1;       // get bit 24
+    UINT8 i1 = (offset >> (S_POS - 1)) & 0x1; // get bit 23
+    UINT8 i2 = (offset >> (S_POS - 2)) & 0x1; // get bit 22
+
+    UINT8 j1 = 0x01 & ((~i1) ^ s);
+    UINT8 j2 = 0x01 & ((~i2) ^ s);
+
+    // upper instruction : [15:11]opcode1 0x1e [10]S [9:0] imm upper 10 bits
+    UINT32 upperBlInstr =  ((0x1E << 11) | (s << 10) | offset10Upper);
+    // lower instruction : [15:14]opcode2 0x2  [13]J1 [12]opcode3 [11]J2 [10:0] imm lower 11 bits
+    UINT32 lowerBlInstr =  ((0x02 << 14) | (j1 << 13) | (0x01 << 12) | (j2 << 11) | offset11Lower);
+
+    return ((upperBlInstr << SHIFT_BITS) | lowerBlInstr); // assembling 32bit instruction
+}

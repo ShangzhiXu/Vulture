@@ -1,0 +1,49 @@
+uint16_t _lv_txt_get_next_line(const char * txt, const lv_font_t * font,
+                               lv_coord_t letter_space, lv_coord_t max_width, lv_txt_flag_t flag)
+{
+    if(txt == NULL) return 0;
+    if(font == NULL) return 0;
+
+    /* If max_width doesn't mater simply find the new line character
+     * without thinking about word wrapping*/
+    if((flag & LV_TXT_FLAG_EXPAND) || (flag & LV_TXT_FLAG_FIT)) {
+        uint32_t i;
+        for(i = 0; txt[i] != '\n' && txt[i] != '\r' && txt[i] != '\0'; i++) {
+            /*Just find the new line chars or string ends by incrementing `i`*/
+        }
+        if(txt[i] != '\0') i++;    /*To go beyond `\n`*/
+        return i;
+    }
+
+    if(flag & LV_TXT_FLAG_EXPAND) max_width = LV_COORD_MAX;
+    lv_txt_cmd_state_t cmd_state = LV_TXT_CMD_STATE_WAIT;
+    uint32_t i = 0;                                        /* Iterating index into txt */
+
+    while(txt[i] != '\0' && max_width > 0) {
+        uint32_t word_w = 0;
+        uint32_t advance = lv_txt_get_next_word(&txt[i], font, letter_space, max_width, flag, &word_w, &cmd_state, i == 0);
+        max_width -= word_w;
+
+        if(advance == 0) {
+            if(i == 0) _lv_txt_encoded_next(txt, &i); // prevent inf loops
+            break;
+        }
+
+        i += advance;
+
+        if(txt[0] == '\n' || txt[0] == '\r') break;
+
+        if(txt[i] == '\n' || txt[i] == '\r') {
+            i++;  /* Include the following newline in the current line */
+            break;
+        }
+
+    }
+
+    /* Always step at least one to avoid infinite loops */
+    if(i == 0) {
+        _lv_txt_encoded_next(txt, &i);
+    }
+
+    return i;
+}

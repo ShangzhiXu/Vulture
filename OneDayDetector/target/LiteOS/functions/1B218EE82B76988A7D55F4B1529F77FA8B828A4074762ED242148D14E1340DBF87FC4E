@@ -1,0 +1,79 @@
+HAL_StatusTypeDef HAL_QSPI_Receive(QSPI_HandleTypeDef *hqspi, uint8_t *pData, uint32_t Timeout)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t tickstart = HAL_GetTick();
+  uint32_t addr_reg = READ_REG(hqspi->Instance->AR);
+  __IO uint32_t *data_reg = &hqspi->Instance->DR;
+
+  /* Process locked */
+  __HAL_LOCK(hqspi);
+  
+  if(hqspi->State == HAL_QSPI_STATE_READY)
+  {
+    hqspi->ErrorCode = HAL_QSPI_ERROR_NONE;
+    if(pData != NULL )
+    {
+      /* Update state */
+      hqspi->State = HAL_QSPI_STATE_BUSY_INDIRECT_RX;
+    
+      /* Configure counters and size of the handle */
+      hqspi->RxXferCount = READ_REG(hqspi->Instance->DLR) + 1;
+      hqspi->RxXferSize = READ_REG(hqspi->Instance->DLR) + 1;
+      hqspi->pRxBuffPtr = pData;
+
+      /* Configure QSPI: CCR register with functional as indirect read */
+      MODIFY_REG(hqspi->Instance->CCR, QUADSPI_CCR_FMODE, QSPI_FUNCTIONAL_MODE_INDIRECT_READ);
+
+      /* Start the transfer by re-writing the address in AR register */
+      WRITE_REG(hqspi->Instance->AR, addr_reg);
+      
+      while(hqspi->RxXferCount > 0)
+      {
+        /* Wait until FT or TC flag is set to read received data */
+        status = QSPI_WaitFlagStateUntilTimeout(hqspi, (QSPI_FLAG_FT | QSPI_FLAG_TC), SET, tickstart, Timeout);
+
+        if  (status != HAL_OK)
+        { 
+          break;
+        }
+
+        *hqspi->pRxBuffPtr++ = *(__IO uint8_t *)data_reg;
+        hqspi->RxXferCount--;
+      }
+    
+      if (status == HAL_OK)
+      {
+        /* Wait until TC flag is set to go back in idle state */
+        status = QSPI_WaitFlagStateUntilTimeout(hqspi, QSPI_FLAG_TC, SET, tickstart, Timeout);
+
+        if  (status == HAL_OK)
+        {
+          /* Clear Transfer Complete bit */
+          __HAL_QSPI_CLEAR_FLAG(hqspi, QSPI_FLAG_TC);
+          
+#if defined(QSPI1_V1_0)
+         /* Workaround - Extra data written in the FIFO at the end of a read transfer */
+         status = HAL_QSPI_Abort(hqspi);
+#endif /* QSPI_V1_0 */  
+        }
+      }
+
+      /* Update QSPI state */
+      hqspi->State = HAL_QSPI_STATE_READY;    
+    }
+    else
+    {
+      hqspi->ErrorCode |= HAL_QSPI_ERROR_INVALID_PARAM;
+      status = HAL_ERROR;
+    }
+  }
+  else
+  {
+    status = HAL_BUSY;
+  }
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hqspi);
+
+  return status;
+}

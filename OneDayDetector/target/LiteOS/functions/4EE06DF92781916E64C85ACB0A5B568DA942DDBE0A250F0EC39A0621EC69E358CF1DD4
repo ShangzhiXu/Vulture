@@ -1,0 +1,20 @@
+SECUREC_INLINE int SecInputFloatSign(SecFileStream *stream, SecScanSpec *spec, SecFloatSpec *floatSpec)
+{
+    if (!SECUREC_FILED_WIDTH_ENOUGH(spec)) {
+        return 0;
+    }
+    spec->ch = SecGetChar(stream, &(spec->charCount));
+    if (spec->ch == SECUREC_CHAR('+') || spec->ch == SECUREC_CHAR('-')) {
+        SECUREC_FILED_WIDTH_DEC(spec); /* Make sure the count after un get char is correct */
+        if (spec->ch == SECUREC_CHAR('-')) {
+            floatSpec->floatStr[floatSpec->floatStrUsedLen] = SECUREC_CHAR('-');
+            ++floatSpec->floatStrUsedLen;
+            if (SecExtendFloatLen(floatSpec) != 0) {
+                return -1;
+            }
+        }
+    } else {
+        SecUnGetChar(spec->ch, stream, &(spec->charCount));
+    }
+    return 0;
+}

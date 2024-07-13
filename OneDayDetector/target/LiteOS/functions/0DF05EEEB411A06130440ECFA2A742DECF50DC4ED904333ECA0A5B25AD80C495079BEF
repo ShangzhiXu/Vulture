@@ -1,0 +1,21 @@
+SECUREC_INLINE int SecDecodeSizeI(SecFormatAttr *attr, const SecChar **format)
+{
+#ifdef SECUREC_ON_64BITS
+    attr->flags |= SECUREC_FLAG_I64;    /* %I  to  INT64 */
+#endif
+    if ((**format == SECUREC_CHAR('6')) && (*((*format) + 1) == SECUREC_CHAR('4'))) {
+        (*format) += 2; /* Add 2 to skip I64 */
+        attr->flags |= SECUREC_FLAG_I64;    /* %I64  to  INT64 */
+    } else if ((**format == SECUREC_CHAR('3')) && (*((*format) + 1) == SECUREC_CHAR('2'))) {
+        (*format) += 2; /* Add 2 to skip I32 */
+        attr->flags &= ~SECUREC_FLAG_I64;   /* %I64  to  INT32 */
+    } else if ((**format == SECUREC_CHAR('d')) || (**format == SECUREC_CHAR('i')) ||
+        (**format == SECUREC_CHAR('o')) || (**format == SECUREC_CHAR('u')) ||
+        (**format == SECUREC_CHAR('x')) || (**format == SECUREC_CHAR('X'))) {
+        /* Do nothing */
+    } else {
+        /* Compatibility  code for "%I" just print I */
+        return -1;
+    }
+    return 0;
+}

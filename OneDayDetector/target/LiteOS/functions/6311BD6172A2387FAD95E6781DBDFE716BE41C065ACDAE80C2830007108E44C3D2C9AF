@@ -1,0 +1,42 @@
+static void chacha20_block( const uint32_t initial_state[16],
+                            unsigned char keystream[64] )
+{
+    uint32_t working_state[16];
+    size_t i;
+
+    memcpy( working_state,
+            initial_state,
+            CHACHA20_BLOCK_SIZE_BYTES );
+
+    for( i = 0U; i < 10U; i++ )
+        chacha20_inner_block( working_state );
+
+    working_state[ 0] += initial_state[ 0];
+    working_state[ 1] += initial_state[ 1];
+    working_state[ 2] += initial_state[ 2];
+    working_state[ 3] += initial_state[ 3];
+    working_state[ 4] += initial_state[ 4];
+    working_state[ 5] += initial_state[ 5];
+    working_state[ 6] += initial_state[ 6];
+    working_state[ 7] += initial_state[ 7];
+    working_state[ 8] += initial_state[ 8];
+    working_state[ 9] += initial_state[ 9];
+    working_state[10] += initial_state[10];
+    working_state[11] += initial_state[11];
+    working_state[12] += initial_state[12];
+    working_state[13] += initial_state[13];
+    working_state[14] += initial_state[14];
+    working_state[15] += initial_state[15];
+
+    for( i = 0U; i < 16; i++ )
+    {
+        size_t offset = i * 4U;
+
+        keystream[offset     ] = (unsigned char)( working_state[i]       );
+        keystream[offset + 1U] = (unsigned char)( working_state[i] >>  8 );
+        keystream[offset + 2U] = (unsigned char)( working_state[i] >> 16 );
+        keystream[offset + 3U] = (unsigned char)( working_state[i] >> 24 );
+    }
+
+    mbedtls_platform_zeroize( working_state, sizeof( working_state ) );
+}

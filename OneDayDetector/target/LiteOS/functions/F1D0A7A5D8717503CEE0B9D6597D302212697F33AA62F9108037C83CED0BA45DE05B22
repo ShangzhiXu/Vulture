@@ -1,0 +1,19 @@
+sock_inc_used(struct lwip_sock *sock)
+{
+  int ret;
+  SYS_ARCH_DECL_PROTECT(lev);
+
+  LWIP_ASSERT("sock != NULL", sock != NULL);
+
+  SYS_ARCH_PROTECT(lev);
+  if (sock->fd_free_pending) {
+    /* prevent new usage of this socket if free is pending */
+    ret = 0;
+  } else {
+    ++sock->fd_used;
+    ret = 1;
+    LWIP_ASSERT("sock->fd_used != 0", sock->fd_used != 0);
+  }
+  SYS_ARCH_UNPROTECT(lev);
+  return ret;
+}

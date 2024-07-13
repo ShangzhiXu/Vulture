@@ -1,0 +1,26 @@
+HAL_StatusTypeDef FSMC_PCCARD_AttributeSpace_Timing_Init(FSMC_PCCARD_TypeDef *Device, FSMC_NAND_PCC_TimingTypeDef *Timing)
+{
+  uint32_t tmpr = 0U;
+
+  /* Check the parameters */  
+  assert_param(IS_FSMC_SETUP_TIME(Timing->SetupTime));
+  assert_param(IS_FSMC_WAIT_TIME(Timing->WaitSetupTime));
+  assert_param(IS_FSMC_HOLD_TIME(Timing->HoldSetupTime));
+  assert_param(IS_FSMC_HIZ_TIME(Timing->HiZSetupTime));
+
+  /* Get PCCARD timing parameters */
+  tmpr = Device->PATT4;
+
+  /* Clear ATTSETx, ATTWAITx, ATTHOLDx and ATTHIZx bits */
+  tmpr &= ((uint32_t)~(FSMC_PATT4_ATTSET4  | FSMC_PATT4_ATTWAIT4 | FSMC_PATT4_ATTHOLD4 | \
+                       FSMC_PATT4_ATTHIZ4));
+  
+  /* Set PCCARD timing parameters */
+  tmpr |= (uint32_t)(Timing->SetupTime                 |\
+                   ((Timing->WaitSetupTime) << 8U)     |\
+                   ((Timing->HoldSetupTime) << 16U)    |\
+                   ((Timing->HiZSetupTime) << 24U));
+  Device->PATT4 = tmpr; 
+                                        
+  return HAL_OK;
+}

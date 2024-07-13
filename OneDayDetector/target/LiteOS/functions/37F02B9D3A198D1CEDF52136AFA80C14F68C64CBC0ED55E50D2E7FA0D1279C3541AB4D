@@ -1,0 +1,25 @@
+autoip_handle_arp_conflict(struct netif *netif)
+{
+  struct autoip *autoip = netif_autoip_data(netif);
+
+  /* RFC3927, 2.5 "Conflict Detection and Defense" allows two options where
+     a) means retreat on the first conflict and
+     b) allows to keep an already configured address when having only one
+        conflict in 10 seconds
+     We use option b) since it helps to improve the chance that one of the two
+     conflicting hosts may be able to retain its address. */
+
+  if (autoip->lastconflict > 0) {
+    /* retreat, there was a conflicting ARP in the last DEFEND_INTERVAL seconds */
+    LWIP_DEBUGF(AUTOIP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE,
+                ("autoip_handle_arp_conflict(): we are defending, but in DEFEND_INTERVAL, retreating\n"));
+
+    /* Active TCP sessions are aborted when removing the ip addresss */
+    autoip_restart(netif);
+  } else {
+    LWIP_DEBUGF(AUTOIP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE,
+                ("autoip_handle_arp_conflict(): we are defend, send ARP Announce\n"));
+    autoip_arp_announce(netif);
+    autoip->lastconflict = DEFEND_INTERVAL * AUTOIP_TICKS_PER_SECOND;
+  }
+}

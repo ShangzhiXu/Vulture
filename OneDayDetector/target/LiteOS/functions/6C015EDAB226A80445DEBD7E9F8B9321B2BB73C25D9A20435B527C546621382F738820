@@ -1,0 +1,52 @@
+lv_res_t lv_event_send_func(lv_event_cb_t event_xcb, lv_obj_t * obj, lv_event_t event, const void * data)
+{
+    if(obj != NULL) {
+        LV_ASSERT_OBJ(obj, LV_OBJX_NAME);
+    }
+
+    /* Build a simple linked list from the objects used in the events
+     * It's important to know if an this object was deleted by a nested event
+     * called from this `even_cb`. */
+    lv_event_temp_data_t event_temp_data;
+    event_temp_data.obj     = obj;
+    event_temp_data.deleted = false;
+    event_temp_data.prev    = NULL;
+
+    if(event_temp_data_head) {
+        event_temp_data.prev = event_temp_data_head;
+    }
+    event_temp_data_head = &event_temp_data;
+
+    const void * event_act_data_save = event_act_data;
+    event_act_data                   = data;
+
+    /*Call the input device's feedback callback if set*/
+    lv_indev_t * indev_act = lv_indev_get_act();
+    if(indev_act) {
+        if(indev_act->driver.feedback_cb) indev_act->driver.feedback_cb(&indev_act->driver, event);
+    }
+
+    /*Call the event callback itself*/
+    if(event_xcb) event_xcb(obj, event);
+
+    /*Restore the event data*/
+    event_act_data = event_act_data_save;
+
+    /*Remove this element from the list*/
+    event_temp_data_head = event_temp_data_head->prev;
+
+    if(event_temp_data.deleted) {
+        return LV_RES_INV;
+    }
+
+    if(obj) {
+        if(obj->parent_event && obj->parent) {
+            lv_res_t res = lv_event_send(obj->parent, event, data);
+            if(res != LV_RES_OK) {
+                return LV_RES_INV;
+            }
+        }
+    }
+
+    return LV_RES_OK;
+}

@@ -1,0 +1,121 @@
+HAL_StatusTypeDef HASH_Start(HASH_HandleTypeDef *hhash, uint8_t *pInBuffer, uint32_t Size, uint8_t* pOutBuffer, uint32_t Timeout, uint32_t Algorithm)
+{
+  uint8_t *pInBuffer_tmp;  /* input data address, input parameter of HASH_WriteData()         */
+  uint32_t Size_tmp; /* input data size (in bytes), input parameter of HASH_WriteData() */
+  HAL_HASH_StateTypeDef State_tmp = hhash->State;
+
+
+  /* Initiate HASH processing in case of start or resumption */
+if((State_tmp == HAL_HASH_STATE_READY) || (State_tmp == HAL_HASH_STATE_SUSPENDED))
+  {
+    /* Check input parameters */
+    if ((pInBuffer == NULL) || (pOutBuffer == NULL))
+    {
+      hhash->State = HAL_HASH_STATE_READY;
+      return  HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hhash);
+
+    /* Check if initialization phase has not been already performed */
+    if(hhash->Phase == HAL_HASH_PHASE_READY)
+    {
+      /* Change the HASH state */
+      hhash->State = HAL_HASH_STATE_BUSY;
+
+      /* Select the HASH algorithm, clear HMAC mode and long key selection bit, reset the HASH processor core */
+      MODIFY_REG(HASH->CR, HASH_CR_LKEY|HASH_CR_ALGO|HASH_CR_MODE|HASH_CR_INIT, Algorithm | HASH_CR_INIT);
+
+      /* Configure the number of valid bits in last word of the message */
+      __HAL_HASH_SET_NBVALIDBITS(Size);
+
+      /* pInBuffer_tmp and Size_tmp are initialized to be used afterwards as
+      input parameters of HASH_WriteData() */
+      pInBuffer_tmp = pInBuffer;   /* pInBuffer_tmp is set to the input data address */
+      Size_tmp = Size;             /* Size_tmp contains the input data size in bytes */
+
+      /* Set the phase */
+      hhash->Phase = HAL_HASH_PHASE_PROCESS;
+    }
+    else if (hhash->Phase == HAL_HASH_PHASE_PROCESS)
+    {
+      /* if the Peripheral has already been initialized, two cases are possible */
+
+      /* Process resumption time ... */
+      if (hhash->State == HAL_HASH_STATE_SUSPENDED)
+      {
+        /* Since this is resumption, pInBuffer_tmp and Size_tmp are not set
+        to the API input parameters but to those saved beforehand by HASH_WriteData()
+        when the processing was suspended */
+        pInBuffer_tmp = hhash->pHashInBuffPtr;
+        Size_tmp = hhash->HashInCount;
+      }
+      /* ... or multi-buffer HASH processing end */
+      else
+      {
+        /* pInBuffer_tmp and Size_tmp are initialized to be used afterwards as
+        input parameters of HASH_WriteData() */
+        pInBuffer_tmp = pInBuffer;
+        Size_tmp = Size;
+        /* Configure the number of valid bits in last word of the message */
+        __HAL_HASH_SET_NBVALIDBITS(Size);
+      }
+      /* Change the HASH state */
+      hhash->State = HAL_HASH_STATE_BUSY;
+    }
+    else
+    {
+      /* Phase error */
+      hhash->State = HAL_HASH_STATE_READY;
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hhash);
+
+      /* Return function status */
+      return HAL_ERROR;
+    }
+
+
+    /* Write input buffer in Data register */
+    hhash->Status = HASH_WriteData(hhash, pInBuffer_tmp, Size_tmp);
+    if (hhash->Status != HAL_OK)
+    {
+      return hhash->Status;
+    }
+
+    /* If the process has not been suspended, carry on to digest calculation */
+    if (hhash->State != HAL_HASH_STATE_SUSPENDED)
+    {
+      /* Start the Digest calculation */
+      __HAL_HASH_START_DIGEST();
+
+      /* Wait for DCIS flag to be set */
+      if (HASH_WaitOnFlagUntilTimeout(hhash, HASH_FLAG_DCIS, RESET, Timeout) != HAL_OK)
+      {
+        return HAL_TIMEOUT;
+      }
+
+      /* Read the message digest */
+      HASH_GetDigest(pOutBuffer, HASH_DIGEST_LENGTH());
+
+      /* Change the HASH state */
+      hhash->State = HAL_HASH_STATE_READY;
+
+      /* Reset HASH state machine */
+      hhash->Phase = HAL_HASH_PHASE_READY;
+
+    }
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hhash);
+
+    /* Return function status */
+    return HAL_OK;
+
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

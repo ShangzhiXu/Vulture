@@ -1,0 +1,41 @@
+static HAL_StatusTypeDef IRDA_Transmit_IT(IRDA_HandleTypeDef *hirda)
+{
+  uint16_t *tmp;
+
+  /* Check that a Tx process is ongoing */
+  if (hirda->gState == HAL_IRDA_STATE_BUSY_TX)
+  {
+    if (hirda->Init.WordLength == IRDA_WORDLENGTH_9B)
+    {
+      tmp = (uint16_t *) hirda->pTxBuffPtr;
+      hirda->Instance->DR = (uint16_t)(*tmp & (uint16_t)0x01FF);
+      if (hirda->Init.Parity == IRDA_PARITY_NONE)
+      {
+        hirda->pTxBuffPtr += 2U;
+      }
+      else
+      {
+        hirda->pTxBuffPtr += 1U;
+      }
+    }
+    else
+    {
+      hirda->Instance->DR = (uint8_t)(*hirda->pTxBuffPtr++ & (uint8_t)0x00FF);
+    }
+
+    if (--hirda->TxXferCount == 0U)
+    {
+      /* Disable the IRDA Transmit Data Register Empty Interrupt */
+      CLEAR_BIT(hirda->Instance->CR1, USART_CR1_TXEIE);
+
+      /* Enable the IRDA Transmit Complete Interrupt */
+      SET_BIT(hirda->Instance->CR1, USART_CR1_TCIE);
+    }
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

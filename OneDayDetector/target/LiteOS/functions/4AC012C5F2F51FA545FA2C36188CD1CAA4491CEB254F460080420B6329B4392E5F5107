@@ -1,0 +1,18 @@
+static int kifs_close(struct file *file)
+{
+    struct kifs_node *node = (struct kifs_node *)file->f_data;
+
+    if (node == NULL) {
+        return -1;
+    }
+
+    if (node->attr & KIFS_ATTR_B) {
+        return 0;
+    }
+
+    if (node->kiops->close == NULL) {
+        return 0;   /* if close is NULL, means the file do not need it! */
+    }
+
+    return node->kiops->close(node->arg);
+}

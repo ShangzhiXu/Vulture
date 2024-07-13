@@ -1,0 +1,18 @@
+SECUREC_INLINE void SecU64Div10(SecUnsignedInt64 divisor, SecUnsignedInt64 *quotient, SecUnsignedInt32 *residue)
+{
+    SecUnsignedInt64 mask = 0xffffffffULL; /* Use 0xffffffffULL as 32 bit mask */
+    SecUnsignedInt64 magicHi = 0xccccccccULL; /* Fast divide 10 magic numbers high 32bit 0xccccccccULL */
+    SecUnsignedInt64 magicLow = 0xcccccccdULL; /* Fast divide 10 magic numbers low 32bit  0xcccccccdULL */
+    SecUnsignedInt64 divisorHi = (SecUnsignedInt64)(SecU64Shr32(divisor)); /* High 32 bit use  */
+    SecUnsignedInt64 divisorLow = (SecUnsignedInt64)(divisor & mask); /* Low 32 bit mask */
+    SecUnsignedInt64 factorHi = divisorHi * magicHi;
+    SecUnsignedInt64 factorLow1 = divisorHi * magicLow;
+    SecUnsignedInt64 factorLow2 = divisorLow * magicHi;
+    SecUnsignedInt64 factorLow3 = divisorLow * magicLow;
+    SecUnsignedInt64 carry = (factorLow1 & mask) + (factorLow2 & mask) + SecU64Shr32(factorLow3);
+    SecUnsignedInt64 resultHi64 = factorHi + SecU64Shr32(factorLow1) + SecU64Shr32(factorLow2) + SecU64Shr32(carry);
+
+    *quotient = resultHi64 >> 3U; /* Fast divide 10 magic numbers 3 */
+    *residue = (SecUnsignedInt32)(divisor - ((*quotient) * 10)); /* Quotient mul 10 */
+    return;
+}

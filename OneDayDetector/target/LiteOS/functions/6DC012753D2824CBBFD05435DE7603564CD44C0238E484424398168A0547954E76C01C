@@ -1,0 +1,21 @@
+void HAL_EXTI_IRQHandler(EXTI_HandleTypeDef *hexti)
+{
+  __IO uint32_t *regaddr;
+  uint32_t regval;
+
+  /* Get pending bit  */
+  regaddr = (&EXTI->PR);
+  regval = (*regaddr & hexti->Line);
+
+  if (regval != 0x00u)
+  {
+    /* Clear pending bit */
+    *regaddr = hexti->Line;
+
+    /* Call callback */
+    if (hexti->PendingCallback != NULL)
+    {
+      hexti->PendingCallback();
+    }
+  }
+}

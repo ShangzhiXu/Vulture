@@ -1,0 +1,21 @@
+osStatus_t osThreadTerminate(osThreadId_t thread_id)
+{
+    LosTaskCB *taskCB = (LosTaskCB *)thread_id;
+    UINT32 ret;
+
+    if (taskCB == NULL) {
+        return osErrorParameter;
+    }
+    if (OS_INT_ACTIVE) {
+        return osErrorISR;
+    }
+
+    ret = LOS_TaskDelete(taskCB->taskId);
+    if (ret == LOS_OK) {
+        return osOK;
+    } else if (ret == LOS_ERRNO_TSK_ID_INVALID) {
+        return osErrorParameter;
+    } else {
+        return osErrorResource;
+    }
+}

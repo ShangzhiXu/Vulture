@@ -1,0 +1,88 @@
+HAL_StatusTypeDef HAL_SAI_Receive(SAI_HandleTypeDef *hsai, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+{
+  uint32_t tickstart = HAL_GetTick();
+
+  if((pData == NULL ) || (Size == 0))
+  {
+    return  HAL_ERROR;
+  }
+
+  if(hsai->State == HAL_SAI_STATE_READY)
+  {
+    /* Process Locked */
+    __HAL_LOCK(hsai);
+
+    hsai->pBuffPtr = pData;
+    hsai->XferSize = Size;
+    hsai->XferCount = Size;
+    hsai->State = HAL_SAI_STATE_BUSY_RX;
+    hsai->ErrorCode = HAL_SAI_ERROR_NONE;
+
+    /* Check if the SAI is already enabled */
+    if((hsai->Instance->CR1 & SAI_xCR1_SAIEN) == RESET)
+    {
+      /* Enable SAI peripheral */
+      __HAL_SAI_ENABLE(hsai);
+    }
+
+    /* Receive data */
+    while(hsai->XferCount > 0U)
+    {
+      if((hsai->Instance->SR & SAI_xSR_FLVL) != SAI_FIFOSTATUS_EMPTY)
+      {
+        if((hsai->Init.DataSize == SAI_DATASIZE_8) && (hsai->Init.CompandingMode == SAI_NOCOMPANDING))
+        {
+          (*hsai->pBuffPtr++) = hsai->Instance->DR;
+        }
+        else if(hsai->Init.DataSize <= SAI_DATASIZE_16)
+        {
+          *((uint16_t*)hsai->pBuffPtr) = hsai->Instance->DR;
+          hsai->pBuffPtr+= 2U;
+        }
+        else
+        {
+          *((uint32_t*)hsai->pBuffPtr) = hsai->Instance->DR;
+          hsai->pBuffPtr+= 4U;
+        }
+        hsai->XferCount--;
+      }
+      else
+      {
+        /* Check for the Timeout */
+        if((Timeout != HAL_MAX_DELAY) && ((Timeout == 0U)||((HAL_GetTick() - tickstart ) > Timeout)))
+        {
+          /* Update error code */
+          hsai->ErrorCode |= HAL_SAI_ERROR_TIMEOUT;
+
+          /* Clear all the flags */
+          hsai->Instance->CLRFR = 0xFFFFFFFFU;
+
+          /* Disable SAI peripheral */
+          SAI_Disable(hsai);
+
+          /* Flush the fifo */
+          SET_BIT(hsai->Instance->CR2, SAI_xCR2_FFLUSH);
+
+          /* Change the SAI state */
+          hsai->State = HAL_SAI_STATE_READY;
+
+          /* Process Unlocked */
+          __HAL_UNLOCK(hsai);
+
+          return HAL_ERROR;
+        }
+      }
+    }
+
+    hsai->State = HAL_SAI_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hsai);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

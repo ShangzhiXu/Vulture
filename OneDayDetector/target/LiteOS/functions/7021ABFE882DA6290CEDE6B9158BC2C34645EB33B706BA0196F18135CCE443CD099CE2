@@ -1,0 +1,48 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 LOS_QueueInfoGet(UINT32 queueId, QUEUE_INFO_S *queueInfo)
+{
+    UINT32 intSave;
+    UINT32 ret = LOS_OK;
+    LosQueueCB *queueCB = NULL;
+    LosTaskCB *tskCB = NULL;
+
+    if (queueInfo == NULL) {
+        return LOS_ERRNO_QUEUE_PTR_NULL;
+    }
+
+    if (GET_QUEUE_INDEX(queueId) >= LOSCFG_BASE_IPC_QUEUE_LIMIT) {
+        return LOS_ERRNO_QUEUE_INVALID;
+    }
+
+    (VOID)memset_s((VOID *)queueInfo, sizeof(QUEUE_INFO_S), 0, sizeof(QUEUE_INFO_S));
+
+    SCHEDULER_LOCK(intSave);
+    queueCB = (LosQueueCB *)GET_QUEUE_HANDLE(queueId);
+    if ((queueCB->queueId != queueId) || (queueCB->queueState == OS_QUEUE_UNUSED)) {
+        ret = LOS_ERRNO_QUEUE_NOT_CREATE;
+        goto QUEUE_END;
+    }
+
+    queueInfo->uwQueueID = queueId;
+    queueInfo->usQueueLen = queueCB->queueLen;
+    queueInfo->usQueueSize = queueCB->queueSize;
+    queueInfo->usQueueHead = queueCB->queueHead;
+    queueInfo->usQueueTail = queueCB->queueTail;
+    queueInfo->usReadableCnt = queueCB->readWriteableCnt[OS_QUEUE_READ];
+    queueInfo->usWritableCnt = queueCB->readWriteableCnt[OS_QUEUE_WRITE];
+
+    LOS_DL_LIST_FOR_EACH_ENTRY(tskCB, &queueCB->readWriteList[OS_QUEUE_READ], LosTaskCB, pendList) {
+        queueInfo->uwWaitReadTask |= (1ULL << tskCB->taskId);
+    }
+
+    LOS_DL_LIST_FOR_EACH_ENTRY(tskCB, &queueCB->readWriteList[OS_QUEUE_WRITE], LosTaskCB, pendList) {
+        queueInfo->uwWaitWriteTask |= (1ULL << tskCB->taskId);
+    }
+
+    LOS_DL_LIST_FOR_EACH_ENTRY(tskCB, &queueCB->memList, LosTaskCB, pendList) {
+        queueInfo->uwWaitMemTask |= (1ULL << tskCB->taskId);
+    }
+
+QUEUE_END:
+    SCHEDULER_UNLOCK(intSave);
+    return ret;
+}

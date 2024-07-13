@@ -1,0 +1,15 @@
+START_TEST(readname_short_buf)
+{
+  static const u8_t data[] = { 0x05, 'm', 'u', 'l', 't', 'i', 0x04, 'c', 'a' };
+  struct pbuf *p;
+  struct mdns_domain domain;
+  u16_t offset;
+  LWIP_UNUSED_ARG(_i);
+
+  p = pbuf_alloc(PBUF_RAW, sizeof(data), PBUF_ROM);
+  fail_if(p == NULL);
+  p->payload = (void *)(size_t)data;
+  offset = mdns_readname(p, 0, &domain);
+  pbuf_free(p);
+  fail_unless(offset == MDNS_READNAME_ERROR);
+}

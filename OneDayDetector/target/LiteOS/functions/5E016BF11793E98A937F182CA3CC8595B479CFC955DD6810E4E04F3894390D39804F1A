@@ -1,0 +1,40 @@
+UINT32 Example_SndRcvEvent(VOID)
+{
+    UINT32 ret;
+    TSK_INIT_PARAM_S stTask1;
+
+    printf("Kernel event demo begin.\n");
+    /* event init */
+    ret = LOS_EventInit(&g_exampleEvent);
+    if (ret != LOS_OK) {
+        printf("Init event failed.\n");
+        return LOS_NOK;
+    }
+
+    /* create task */
+    memset(&stTask1, 0, sizeof(TSK_INIT_PARAM_S));
+    stTask1.pfnTaskEntry = (TSK_ENTRY_FUNC)Example_Event;
+    stTask1.pcName       = "EventTsk1";
+    stTask1.uwStackSize  = LOSCFG_BASE_CORE_TSK_DEFAULT_STACK_SIZE;
+    stTask1.usTaskPrio   = 5;
+    ret = LOS_TaskCreate(&g_demoTaskId, &stTask1);
+    if (ret != LOS_OK) {
+        printf("Create task failed.\n");
+        return LOS_NOK;
+    }
+
+    /* write event */
+    printf("Example_SndRcvEvent write event.\n");
+    ret = LOS_EventWrite(&g_exampleEvent, EVENT_WAIT);
+    if (ret != LOS_OK) {
+        printf("Write Event failed.\n");
+        return LOS_NOK;
+    }
+
+    /* clear event flag */
+    printf("EventMask : %d\n", g_exampleEvent.uwEventID);
+    LOS_EventClear(&g_exampleEvent, ~g_exampleEvent.uwEventID);
+    printf("EventMask : %d\n", g_exampleEvent.uwEventID);
+
+    return LOS_OK;
+}

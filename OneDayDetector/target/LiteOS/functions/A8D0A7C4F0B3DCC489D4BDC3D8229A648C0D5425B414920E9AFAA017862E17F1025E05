@@ -1,0 +1,27 @@
+int __cxa_atexit(void (*func)(void *), void *arg, void *dso)
+{
+	LOCK(lock);
+
+	/* Defer initialization of head so it can be in BSS */
+	if (!head) head = &builtin;
+
+	/* If the current function list is full, add a new one */
+	if (slot==COUNT) {
+		struct fl *new_fl = calloc(sizeof(struct fl), 1);
+		if (!new_fl) {
+			UNLOCK(lock);
+			return -1;
+		}
+		new_fl->next = head;
+		head = new_fl;
+		slot = 0;
+	}
+
+	/* Append function to the list. */
+	head->f[slot] = func;
+	head->a[slot] = arg;
+	slot++;
+
+	UNLOCK(lock);
+	return 0;
+}

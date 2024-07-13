@@ -1,0 +1,286 @@
+static int eap_printpkt(const u_char *inp, int inlen, void (*printer) (void *, const char *, ...), void *arg) {
+	int code, id, len, rtype, vallen;
+	const u_char *pstart;
+	u32_t uval;
+
+	if (inlen < EAP_HEADERLEN)
+		return (0);
+	pstart = inp;
+	GETCHAR(code, inp);
+	GETCHAR(id, inp);
+	GETSHORT(len, inp);
+	if (len < EAP_HEADERLEN || len > inlen)
+		return (0);
+
+	if (code >= 1 && code <= (int)LWIP_ARRAYSIZE(eap_codenames))
+		printer(arg, " %s", eap_codenames[code-1]);
+	else
+		printer(arg, " code=0x%x", code);
+	printer(arg, " id=0x%x", id);
+	len -= EAP_HEADERLEN;
+	switch (code) {
+	case EAP_REQUEST:
+		if (len < 1) {
+			printer(arg, " <missing type>");
+			break;
+		}
+		GETCHAR(rtype, inp);
+		len--;
+		if (rtype >= 1 && rtype <= (int)LWIP_ARRAYSIZE(eap_typenames))
+			printer(arg, " %s", eap_typenames[rtype-1]);
+		else
+			printer(arg, " type=0x%x", rtype);
+		switch (rtype) {
+		case EAPT_IDENTITY:
+		case EAPT_NOTIFICATION:
+			if (len > 0) {
+				printer(arg, " <Message ");
+				ppp_print_string(inp, len, printer, arg);
+				printer(arg, ">");
+				INCPTR(len, inp);
+				len = 0;
+			} else {
+				printer(arg, " <No message>");
+			}
+			break;
+
+		case EAPT_MD5CHAP:
+			if (len <= 0)
+				break;
+			GETCHAR(vallen, inp);
+			len--;
+			if (vallen > len)
+				goto truncated;
+			printer(arg, " <Value%.*B>", vallen, inp);
+			INCPTR(vallen, inp);
+			len -= vallen;
+			if (len > 0) {
+				printer(arg, " <Name ");
+				ppp_print_string(inp, len, printer, arg);
+				printer(arg, ">");
+				INCPTR(len, inp);
+				len = 0;
+			} else {
+				printer(arg, " <No name>");
+			}
+			break;
+
+		case EAPT_SRP:
+			if (len < 3)
+				goto truncated;
+			GETCHAR(vallen, inp);
+			len--;
+			printer(arg, "-%d", vallen);
+			switch (vallen) {
+			case EAPSRP_CHALLENGE:
+				GETCHAR(vallen, inp);
+				len--;
+				if (vallen >= len)
+					goto truncated;
+				if (vallen > 0) {
+					printer(arg, " <Name ");
+					ppp_print_string(inp, vallen, printer,
+					    arg);
+					printer(arg, ">");
+				} else {
+					printer(arg, " <No name>");
+				}
+				INCPTR(vallen, inp);
+				len -= vallen;
+				GETCHAR(vallen, inp);
+				len--;
+				if (vallen >= len)
+					goto truncated;
+				printer(arg, " <s%.*B>", vallen, inp);
+				INCPTR(vallen, inp);
+				len -= vallen;
+				GETCHAR(vallen, inp);
+				len--;
+				if (vallen > len)
+					goto truncated;
+				if (vallen == 0) {
+					printer(arg, " <Default g=2>");
+				} else {
+					printer(arg, " <g%.*B>", vallen, inp);
+				}
+				INCPTR(vallen, inp);
+				len -= vallen;
+				if (len == 0) {
+					printer(arg, " <Default N>");
+				} else {
+					printer(arg, " <N%.*B>", len, inp);
+					INCPTR(len, inp);
+					len = 0;
+				}
+				break;
+
+			case EAPSRP_SKEY:
+				printer(arg, " <B%.*B>", len, inp);
+				INCPTR(len, inp);
+				len = 0;
+				break;
+
+			case EAPSRP_SVALIDATOR:
+				if (len < (int)sizeof (u32_t))
+					break;
+				GETLONG(uval, inp);
+				len -= sizeof (u32_t);
+				if (uval & SRPVAL_EBIT) {
+					printer(arg, " E");
+					uval &= ~SRPVAL_EBIT;
+				}
+				if (uval != 0) {
+					printer(arg, " f<%X>", uval);
+				}
+				if ((vallen = len) > SHA_DIGESTSIZE)
+					vallen = SHA_DIGESTSIZE;
+				printer(arg, " <M2%.*B%s>", len, inp,
+				    len < SHA_DIGESTSIZE ? "?" : "");
+				INCPTR(vallen, inp);
+				len -= vallen;
+				if (len > 0) {
+					printer(arg, " <PN%.*B>", len, inp);
+					INCPTR(len, inp);
+					len = 0;
+				}
+				break;
+
+			case EAPSRP_LWRECHALLENGE:
+				printer(arg, " <Challenge%.*B>", len, inp);
+				INCPTR(len, inp);
+				len = 0;
+				break;
+			default:
+				break;
+			}
+			break;
+		default:
+			break;
+		}
+		break;
+
+	case EAP_RESPONSE:
+		if (len < 1)
+			break;
+		GETCHAR(rtype, inp);
+		len--;
+		if (rtype >= 1 && rtype <= (int)LWIP_ARRAYSIZE(eap_typenames))
+			printer(arg, " %s", eap_typenames[rtype-1]);
+		else
+			printer(arg, " type=0x%x", rtype);
+		switch (rtype) {
+		case EAPT_IDENTITY:
+			if (len > 0) {
+				printer(arg, " <Name ");
+				ppp_print_string(inp, len, printer, arg);
+				printer(arg, ">");
+				INCPTR(len, inp);
+				len = 0;
+			}
+			break;
+
+		case EAPT_NAK:
+			if (len <= 0) {
+				printer(arg, " <missing hint>");
+				break;
+			}
+			GETCHAR(rtype, inp);
+			len--;
+			printer(arg, " <Suggested-type %02X", rtype);
+			if (rtype >= 1 && rtype < (int)LWIP_ARRAYSIZE(eap_typenames))
+				printer(arg, " (%s)", eap_typenames[rtype-1]);
+			printer(arg, ">");
+			break;
+
+		case EAPT_MD5CHAP:
+			if (len <= 0) {
+				printer(arg, " <missing length>");
+				break;
+			}
+			GETCHAR(vallen, inp);
+			len--;
+			if (vallen > len)
+				goto truncated;
+			printer(arg, " <Value%.*B>", vallen, inp);
+			INCPTR(vallen, inp);
+			len -= vallen;
+			if (len > 0) {
+				printer(arg, " <Name ");
+				ppp_print_string(inp, len, printer, arg);
+				printer(arg, ">");
+				INCPTR(len, inp);
+				len = 0;
+			} else {
+				printer(arg, " <No name>");
+			}
+			break;
+
+		case EAPT_SRP:
+			if (len < 1)
+				goto truncated;
+			GETCHAR(vallen, inp);
+			len--;
+			printer(arg, "-%d", vallen);
+			switch (vallen) {
+			case EAPSRP_CKEY:
+				printer(arg, " <A%.*B>", len, inp);
+				INCPTR(len, inp);
+				len = 0;
+				break;
+
+			case EAPSRP_CVALIDATOR:
+				if (len < (int)sizeof (u32_t))
+					break;
+				GETLONG(uval, inp);
+				len -= sizeof (u32_t);
+				if (uval & SRPVAL_EBIT) {
+					printer(arg, " E");
+					uval &= ~SRPVAL_EBIT;
+				}
+				if (uval != 0) {
+					printer(arg, " f<%X>", uval);
+				}
+				printer(arg, " <M1%.*B%s>", len, inp,
+				    len == SHA_DIGESTSIZE ? "" : "?");
+				INCPTR(len, inp);
+				len = 0;
+				break;
+
+			case EAPSRP_ACK:
+				break;
+
+			case EAPSRP_LWRECHALLENGE:
+				printer(arg, " <Response%.*B%s>", len, inp,
+				    len == SHA_DIGESTSIZE ? "" : "?");
+				if ((vallen = len) > SHA_DIGESTSIZE)
+					vallen = SHA_DIGESTSIZE;
+				INCPTR(vallen, inp);
+				len -= vallen;
+				break;
+			default:
+				break;
+			}
+			break;
+		default:
+			break;
+		}
+		break;
+
+	case EAP_SUCCESS:	/* No payload expected for these! */
+	case EAP_FAILURE:
+	default:
+		break;
+
+	truncated:
+		printer(arg, " <truncated>");
+		break;
+	}
+
+	if (len > 8)
+		printer(arg, "%8B...", inp);
+	else if (len > 0)
+		printer(arg, "%.*B", len, inp);
+	INCPTR(len, inp);
+
+	return (inp - pstart);
+}

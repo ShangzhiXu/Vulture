@@ -1,0 +1,41 @@
+static uint32_t SD_WideBus_Disable(SD_HandleTypeDef *hsd)
+{
+  uint32_t scr[2] = {0, 0};
+  uint32_t errorstate = HAL_SD_ERROR_NONE;
+  
+  if((SDMMC_GetResponse(hsd->Instance, SDMMC_RESP1) & SDMMC_CARD_LOCKED) == SDMMC_CARD_LOCKED)
+  {
+    return HAL_SD_ERROR_LOCK_UNLOCK_FAILED;
+  }
+  
+  /* Get SCR Register */
+  errorstate = SD_FindSCR(hsd, scr);
+  if(errorstate != HAL_OK)
+  {
+    return errorstate;
+  }
+  
+  /* If requested card supports 1 bit mode operation */
+  if((scr[1] & SDMMC_SINGLE_BUS_SUPPORT) != SDMMC_ALLZERO)
+  {
+    /* Send CMD55 APP_CMD with argument as card's RCA */
+    errorstate = SDMMC_CmdAppCommand(hsd->Instance, (uint32_t)(hsd->SdCard.RelCardAdd << 16));
+    if(errorstate != HAL_OK)
+    {
+      return errorstate;
+    }
+    
+    /* Send ACMD6 APP_CMD with argument as 0 for single bus mode */
+    errorstate = SDMMC_CmdBusWidth(hsd->Instance, 0);
+    if(errorstate != HAL_OK)
+    {
+      return errorstate;
+    }
+    
+    return HAL_SD_ERROR_NONE;
+  }
+  else
+  {
+    return HAL_SD_ERROR_REQUEST_NOT_APPLICABLE;
+  }
+}

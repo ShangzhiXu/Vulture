@@ -1,0 +1,48 @@
+static s32_t spiffs_populate_ix_map_v(
+    spiffs *fs,
+    spiffs_obj_id obj_id,
+    spiffs_block_ix bix,
+    int ix_entry,
+    const void *user_const_p,
+    void *user_var_p)
+{
+    (void)user_const_p;
+    s32_t res;
+    spiffs_ix_map_populate_state *state = (spiffs_ix_map_populate_state *)user_var_p;
+    spiffs_page_ix pix = SPIFFS_OBJ_LOOKUP_ENTRY_TO_PIX(fs, bix, ix_entry);
+
+    // load header to check it
+    spiffs_page_object_ix *objix = (spiffs_page_object_ix *)fs->work;
+    res = _spiffs_rd(fs, SPIFFS_OP_T_OBJ_LU2 | SPIFFS_OP_C_READ,
+                     0, SPIFFS_PAGE_TO_PADDR(fs, pix), sizeof(spiffs_page_object_ix), (u8_t *)objix);
+    SPIFFS_CHECK_RES(res);
+    SPIFFS_VALIDATE_OBJIX(objix->p_hdr, obj_id, objix->p_hdr.span_ix);
+
+    // check if hdr is ok, and if objix range overlap with ix map range
+    if ((objix->p_hdr.flags & (SPIFFS_PH_FLAG_DELET | SPIFFS_PH_FLAG_FINAL | SPIFFS_PH_FLAG_IXDELE)) ==
+            (SPIFFS_PH_FLAG_DELET | SPIFFS_PH_FLAG_IXDELE) &&
+            objix->p_hdr.span_ix >= state->map_objix_start_spix &&
+            objix->p_hdr.span_ix <= state->map_objix_end_spix)
+    {
+        // ok, load rest of object index
+        res = _spiffs_rd(fs, SPIFFS_OP_T_OBJ_LU2 | SPIFFS_OP_C_READ,
+                         0, SPIFFS_PAGE_TO_PADDR(fs, pix) + sizeof(spiffs_page_object_ix),
+                         SPIFFS_CFG_LOG_PAGE_SZ(fs) - sizeof(spiffs_page_object_ix),
+                         (u8_t *)objix + sizeof(spiffs_page_object_ix));
+        SPIFFS_CHECK_RES(res);
+
+        spiffs_update_ix_map(fs, state->fd, objix->p_hdr.span_ix, objix);
+
+        state->remaining_objix_pages_to_visit--;
+        SPIFFS_DBG("map "_SPIPRIid" ("_SPIPRIsp"--"_SPIPRIsp") remaining objix pages "_SPIPRIi"\n",
+                   state->fd->obj_id,
+                   state->fd->ix_map->start_spix, state->fd->ix_map->end_spix,
+                   state->remaining_objix_pages_to_visit);
+    }
+
+    if (res == SPIFFS_OK)
+    {
+        res = state->remaining_objix_pages_to_visit ? SPIFFS_VIS_COUNTINUE : SPIFFS_VIS_END;
+    }
+    return res;
+}

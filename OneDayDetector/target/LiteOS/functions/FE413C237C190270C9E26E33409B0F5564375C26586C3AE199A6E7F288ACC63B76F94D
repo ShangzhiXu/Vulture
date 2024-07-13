@@ -1,0 +1,155 @@
+static int prv_parseItem(uint8_t *buffer,
+                         size_t bufferLen,
+                         _record_t *recordP)
+{
+    size_t index;
+
+    memset(recordP->ids, 0xFF, 4 * sizeof(uint16_t));
+    recordP->type = _TYPE_UNSET;
+    recordP->value = NULL;
+    recordP->valueLen = 0;
+
+    index = 0;
+    do
+    {
+        int tokenStart;
+        int tokenLen;
+        int valueStart;
+        int valueLen;
+        int next;
+
+        next = prv_split(buffer + index, bufferLen - index, &tokenStart, &tokenLen, &valueStart, &valueLen);
+        if (next < 0) return -1;
+
+        switch (tokenLen)
+        {
+        case 1:
+        {
+            switch (buffer[index + tokenStart])
+            {
+            case 'n':
+            {
+                int i;
+                int j;
+
+                if (recordP->ids[0] != LWM2M_MAX_ID) return -1;
+
+                // Check for " around URI
+                if (valueLen < 3
+                        || buffer[index + valueStart] != '"'
+                        || buffer[index + valueStart + valueLen - 1] != '"')
+                {
+                    return -1;
+                }
+                // Ignore starting /
+                if (buffer[index + valueStart + 1] == '/')
+                {
+                    if (valueLen < 4)
+                    {
+                        return -1;
+                    }
+                    valueStart += 1;
+                    valueLen -= 1;
+                }
+                i = 0;
+                j = 0;
+                do
+                {
+                    uint32_t readId;
+
+                    readId = 0;
+                    i++;
+                    while (i < valueLen - 1 && buffer[index + valueStart + i] != '/')
+                    {
+                        if (buffer[index + valueStart + i] < '0'
+                                || buffer[index + valueStart + i] > '9')
+                        {
+                            return -1;
+                        }
+                        readId *= 10;
+                        readId += buffer[index + valueStart + i] - '0';
+                        if (readId > LWM2M_MAX_ID) return -1;
+                        i++;
+                    }
+                    recordP->ids[j] = readId;
+                    j++;
+                }
+                while (i < valueLen - 1 && j < 4 && buffer[index + valueStart + i] == '/');
+                if (i < valueLen - 1 ) return -1;
+            }
+            break;
+
+            case 'v':
+                if (recordP->type != _TYPE_UNSET) return -1;
+                recordP->type = _TYPE_FLOAT;
+                recordP->value = buffer + index + valueStart;
+                recordP->valueLen = valueLen;
+                break;
+
+            case 't':
+                // TODO: support time
+                break;
+
+            default:
+                return -1;
+            }
+        }
+        break;
+
+        case 2:
+        {
+            // "bv", "ov", or "sv"
+            if (buffer[index + tokenStart + 1] != 'v') return -1;
+            switch (buffer[index + tokenStart])
+            {
+            case 'b':
+                if (recordP->type != _TYPE_UNSET) return -1;
+                if (0 == lwm2m_strncmp(JSON_TRUE_STRING, (char *)buffer + index + valueStart, valueLen))
+                {
+                    recordP->type = _TYPE_TRUE;
+                }
+                else if (0 == lwm2m_strncmp(JSON_FALSE_STRING, (char *)buffer + index + valueStart, valueLen))
+                {
+                    recordP->type = _TYPE_FALSE;
+                }
+                else
+                {
+                    return -1;
+                }
+                break;
+
+            case 'o':
+                if (recordP->type != _TYPE_UNSET) return -1;
+                // TODO: support object link
+                break;
+
+            case 's':
+                if (recordP->type != _TYPE_UNSET) return -1;
+                // Check for " around value
+                if (valueLen < 2
+                        || buffer[index + valueStart] != '"'
+                        || buffer[index + valueStart + valueLen - 1] != '"')
+                {
+                    return -1;
+                }
+                recordP->type = _TYPE_STRING;
+                recordP->value = buffer + index + valueStart + 1;
+                recordP->valueLen = valueLen - 2;
+                break;
+
+            default:
+                return -1;
+            }
+        }
+        break;
+
+        default:
+            return -1;
+        }
+
+        index += next + 1;
+    }
+    while (index < bufferLen);
+
+    return 0;
+}

@@ -1,0 +1,51 @@
+HAL_StatusTypeDef HAL_NOR_Read_CFI(NOR_HandleTypeDef *hnor, NOR_CFITypeDef *pNOR_CFI)
+{
+  uint32_t deviceaddress = 0;
+  
+  /* Process Locked */
+  __HAL_LOCK(hnor);
+  
+  /* Check the NOR controller state */
+  if(hnor->State == HAL_NOR_STATE_BUSY)
+  {
+     return HAL_BUSY;
+  }
+  
+  /* Select the NOR device address */
+  if (hnor->Init.NSBank == FMC_NORSRAM_BANK1)
+  {
+    deviceaddress = NOR_MEMORY_ADRESS1;
+  }
+  else if (hnor->Init.NSBank == FMC_NORSRAM_BANK2)
+  {
+    deviceaddress = NOR_MEMORY_ADRESS2;
+  }
+  else if (hnor->Init.NSBank == FMC_NORSRAM_BANK3)
+  {
+    deviceaddress = NOR_MEMORY_ADRESS3;
+  }
+  else /* FMC_NORSRAM_BANK4 */
+  {
+    deviceaddress = NOR_MEMORY_ADRESS4;
+  }  
+    
+  /* Update the NOR controller state */
+  hnor->State = HAL_NOR_STATE_BUSY;
+  
+  /* Send read CFI query command */
+  NOR_WRITE(NOR_ADDR_SHIFT(deviceaddress, uwNORMemoryDataWidth, NOR_CMD_ADDRESS_FIRST_CFI), NOR_CMD_DATA_CFI);
+
+  /* read the NOR CFI information */
+  pNOR_CFI->CFI_1 = *(__IO uint16_t *) NOR_ADDR_SHIFT(deviceaddress, uwNORMemoryDataWidth, CFI1_ADDRESS);
+  pNOR_CFI->CFI_2 = *(__IO uint16_t *) NOR_ADDR_SHIFT(deviceaddress, uwNORMemoryDataWidth, CFI2_ADDRESS);
+  pNOR_CFI->CFI_3 = *(__IO uint16_t *) NOR_ADDR_SHIFT(deviceaddress, uwNORMemoryDataWidth, CFI3_ADDRESS);
+  pNOR_CFI->CFI_4 = *(__IO uint16_t *) NOR_ADDR_SHIFT(deviceaddress, uwNORMemoryDataWidth, CFI4_ADDRESS);
+
+  /* Check the NOR controller state */
+  hnor->State = HAL_NOR_STATE_READY;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hnor);
+  
+  return HAL_OK;
+}

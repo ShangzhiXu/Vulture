@@ -1,0 +1,25 @@
+LITE_OS_SEC_TEXT_MINOR VOID IrqEntryV7M(VOID)
+{
+    UINT32 hwiIndex;
+
+#ifdef LOSCFG_KERNEL_RUNSTOP
+    SCB->SCR &= (UINT32)~((UINT32)SCB_SCR_SLEEPDEEP_Msk);
+#endif
+
+    hwiIndex = __get_IPSR();
+    g_curIrqNum = hwiIndex;
+    OsIntHandle(hwiIndex, &g_hwiForm[hwiIndex]);
+
+#ifdef LOSCFG_KERNEL_RUNSTOP
+    if (g_srStateFlag == SENSORHUB_SLEEP) {
+        DisableWakeUpTimer();
+        LOS_SystemWakeup(hwiIndex);
+        g_srStateFlag = SENSORHUB_CLODBOOT;
+        OsSRRestoreRegister();
+    }
+#endif
+
+    if (OsTaskProcSignal() != 0) {
+        OsSchedPreempt();
+    }
+}

@@ -1,0 +1,76 @@
+HAL_StatusTypeDef HAL_SMARTCARD_AbortReceive_IT(SMARTCARD_HandleTypeDef *hsmartcard)
+{
+#if defined(USART_CR1_FIFOEN)
+  /* Disable RTOIE, EOBIE, RXNE, PE, RXFT and  ERR (Frame error, noise error, overrun error) interrupts */
+  CLEAR_BIT(hsmartcard->Instance->CR1, (USART_CR1_RXNEIE_RXFNEIE | USART_CR1_PEIE | USART_CR1_RTOIE | USART_CR1_EOBIE));
+  CLEAR_BIT(hsmartcard->Instance->CR3, (USART_CR3_EIE | USART_CR3_RXFTIE));
+#else
+  /* Disable RTOIE, EOBIE, RXNE, PE and ERR (Frame error, noise error, overrun error) interrupts */
+  CLEAR_BIT(hsmartcard->Instance->CR1, (USART_CR1_RXNEIE | USART_CR1_PEIE | USART_CR1_RTOIE | USART_CR1_EOBIE));
+  CLEAR_BIT(hsmartcard->Instance->CR3, USART_CR3_EIE);
+#endif
+  
+  /* Check if a Transmit process is ongoing or not. If not disable ERR IT */
+  if(hsmartcard->gState == HAL_SMARTCARD_STATE_READY)
+  {
+    /* Disable the SMARTCARD Error Interrupt: (Frame error) */
+    CLEAR_BIT(hsmartcard->Instance->CR3, USART_CR3_EIE);
+  }
+  
+  /* Disable the SMARTCARD DMA Rx request if enabled */
+  if (HAL_IS_BIT_SET(hsmartcard->Instance->CR3, USART_CR3_DMAR))
+  {
+    CLEAR_BIT(hsmartcard->Instance->CR3, USART_CR3_DMAR);
+    
+    /* Abort the SMARTCARD DMA Rx channel : use non blocking DMA Abort API (callback) */
+    if(hsmartcard->hdmarx != NULL)
+    {
+      /* Set the SMARTCARD DMA Abort callback : 
+      will lead to call HAL_SMARTCARD_AbortCpltCallback() at end of DMA abort procedure */
+      hsmartcard->hdmarx->XferAbortCallback = SMARTCARD_DMARxOnlyAbortCallback;
+      
+      /* Abort DMA RX */
+      if(HAL_DMA_Abort_IT(hsmartcard->hdmarx) != HAL_OK)
+      {
+        /* Call Directly hsmartcard->hdmarx->XferAbortCallback function in case of error */
+        hsmartcard->hdmarx->XferAbortCallback(hsmartcard->hdmarx);
+      }
+    }
+    else
+    {
+      /* Reset Rx transfer counter */
+      hsmartcard->RxXferCount = 0; 
+      
+      /* Clear RxISR function pointer */
+      hsmartcard->RxISR = NULL;
+      
+      /* Clear the Error flags in the ICR register */
+      __HAL_SMARTCARD_CLEAR_FLAG(hsmartcard, SMARTCARD_CLEAR_OREF | SMARTCARD_CLEAR_NEF | SMARTCARD_CLEAR_PEF | SMARTCARD_CLEAR_FEF | SMARTCARD_CLEAR_RTOF | SMARTCARD_CLEAR_EOBF);
+      
+      /* Restore hsmartcard->RxState to Ready */
+      hsmartcard->RxState = HAL_SMARTCARD_STATE_READY;
+      
+      /* As no DMA to be aborted, call directly user Abort complete callback */
+      HAL_SMARTCARD_AbortReceiveCpltCallback(hsmartcard);
+    }
+  }
+  else
+  {
+    /* Reset Rx transfer counter */
+    hsmartcard->RxXferCount = 0; 
+    
+    /* Clear RxISR function pointer */
+    hsmartcard->RxISR = NULL;
+    
+    /* Clear the Error flags in the ICR register */
+    __HAL_SMARTCARD_CLEAR_FLAG(hsmartcard, SMARTCARD_CLEAR_OREF | SMARTCARD_CLEAR_NEF | SMARTCARD_CLEAR_PEF | SMARTCARD_CLEAR_FEF | SMARTCARD_CLEAR_RTOF | SMARTCARD_CLEAR_EOBF);
+    
+    /* Restore hsmartcard->RxState to Ready */
+    hsmartcard->RxState = HAL_SMARTCARD_STATE_READY;
+    
+    /* As no DMA to be aborted, call directly user Abort complete callback */
+    HAL_SMARTCARD_AbortReceiveCpltCallback(hsmartcard);
+  }
+  
+  return HAL_OK;
+}

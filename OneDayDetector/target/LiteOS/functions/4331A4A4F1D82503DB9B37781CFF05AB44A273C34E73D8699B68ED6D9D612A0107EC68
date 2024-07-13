@@ -1,0 +1,69 @@
+void lv_textarea_set_text(lv_obj_t * ta, const char * txt)
+{
+    LV_ASSERT_OBJ(ta, LV_OBJX_NAME);
+    LV_ASSERT_NULL(txt);
+
+    lv_textarea_ext_t * ext = lv_obj_get_ext_attr(ta);
+
+    /*Clear the existing selection*/
+    lv_textarea_clear_selection(ta);
+
+    /*Add the character one-by-one if not all characters are accepted or there is character limit.*/
+    if(lv_textarea_get_accepted_chars(ta) || lv_textarea_get_max_length(ta)) {
+        lv_label_set_text(ext->label, "");
+        lv_textarea_set_cursor_pos(ta, LV_TEXTAREA_CURSOR_LAST);
+        if(ext->pwd_mode != 0) {
+            ext->pwd_tmp[0] = '\0'; /*Clear the password too*/
+        }
+        uint32_t i = 0;
+        while(txt[i] != '\0') {
+            uint32_t c = _lv_txt_encoded_next(txt, &i);
+            lv_textarea_add_char(ta, _lv_txt_unicode_to_encoded(c));
+        }
+    }
+    else {
+        lv_label_set_text(ext->label, txt);
+        lv_textarea_set_cursor_pos(ta, LV_TEXTAREA_CURSOR_LAST);
+    }
+
+
+    /*If the textarea is empty, invalidate it to hide the placeholder*/
+    if(ext->placeholder_txt) {
+        const char * txt_act = lv_label_get_text(ext->label);
+        if(txt_act[0] == '\0') lv_obj_invalidate(ta);
+    }
+
+    /*Don't let 'width == 0' because the cursor will not be visible*/
+    if(lv_obj_get_width(ext->label) == 0) {
+        lv_style_int_t border_width = lv_obj_get_style_border_width(ta, LV_TEXTAREA_PART_CURSOR);
+        lv_obj_set_width(ext->label, border_width == 0 ? 1 : border_width);
+    }
+
+    if(ext->pwd_mode != 0) {
+        ext->pwd_tmp = lv_mem_realloc(ext->pwd_tmp, strlen(txt) + 1);
+        LV_ASSERT_MEM(ext->pwd_tmp);
+        if(ext->pwd_tmp == NULL) return;
+        strcpy(ext->pwd_tmp, txt);
+
+#if LV_USE_ANIMATION
+        /*Auto hide characters*/
+        lv_anim_path_t path;
+        lv_anim_path_init(&path);
+        lv_anim_path_set_cb(&path, lv_anim_path_step);
+
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, ta);
+        lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)pwd_char_hider_anim);
+        lv_anim_set_time(&a, ext->pwd_show_time);
+        lv_anim_set_values(&a, 0, 1);
+        lv_anim_set_path(&a, &path);
+        lv_anim_set_ready_cb(&a, pwd_char_hider_anim_ready);
+        lv_anim_start(&a);
+#else
+        pwd_char_hider(ta);
+#endif
+    }
+
+    lv_event_send(ta, LV_EVENT_VALUE_CHANGED, NULL);
+}

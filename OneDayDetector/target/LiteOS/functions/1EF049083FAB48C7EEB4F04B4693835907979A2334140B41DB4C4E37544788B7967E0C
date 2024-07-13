@@ -1,0 +1,42 @@
+static void SPI_DMATransmitCplt(DMA_HandleTypeDef *hdma)
+{
+  SPI_HandleTypeDef* hspi = ( SPI_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+
+  /* DMA Normal Mode */
+  if((hdma->Instance->CCR & DMA_CIRCULAR) == 0)
+  {
+    /* Wait until TXE flag is set to send data */
+    if(SPI_WaitOnFlagUntilTimeout(hspi, SPI_FLAG_TXE, RESET, SPI_TIMEOUT_VALUE) != HAL_OK)
+    {
+      SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_FLAG);
+    }
+
+    /* Disable Tx DMA Request */
+    CLEAR_BIT(hspi->Instance->CR2, SPI_CR2_TXDMAEN);
+
+    /* Wait until Busy flag is reset before disabling SPI */
+    if(SPI_WaitOnFlagUntilTimeout(hspi, SPI_FLAG_BSY, SET, SPI_TIMEOUT_VALUE) != HAL_OK)
+    {
+      SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_FLAG);
+    }
+
+    hspi->TxXferCount = 0;
+    hspi->State = HAL_SPI_STATE_READY;
+  }
+
+  /* Clear OVERUN flag in 2 Lines communication mode because received is not read */
+  if(hspi->Init.Direction == SPI_DIRECTION_2LINES)
+  {
+    __HAL_SPI_CLEAR_OVRFLAG(hspi);
+  }
+
+  /* Check if Errors has been detected during transfer */
+  if(hspi->ErrorCode != HAL_SPI_ERROR_NONE)
+  {
+    HAL_SPI_ErrorCallback(hspi);
+  }
+  else
+  {
+    HAL_SPI_TxCpltCallback(hspi);
+  }
+}

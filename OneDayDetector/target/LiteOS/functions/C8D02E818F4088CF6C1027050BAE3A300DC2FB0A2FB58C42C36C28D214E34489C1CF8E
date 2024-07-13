@@ -1,0 +1,16 @@
+HAL_SD_CardStateTypeDef HAL_SD_GetCardState(SD_HandleTypeDef *hsd)
+{
+  HAL_SD_CardStateTypeDef cardstate =  HAL_SD_CARD_TRANSFER;
+  uint32_t errorstate = HAL_SD_ERROR_NONE;
+  uint32_t resp1 = 0;
+  
+  errorstate = SD_SendStatus(hsd, &resp1);
+  if(errorstate != HAL_OK)
+  {
+    hsd->ErrorCode |= errorstate;
+  }
+
+  cardstate = (HAL_SD_CardStateTypeDef)((resp1 >> 9) & 0x0F);
+  
+  return cardstate;
+}

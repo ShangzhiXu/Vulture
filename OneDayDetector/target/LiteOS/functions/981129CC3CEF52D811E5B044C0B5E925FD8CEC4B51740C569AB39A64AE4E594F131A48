@@ -1,0 +1,65 @@
+http_send(struct altcp_pcb *pcb, struct http_state *hs)
+{
+  u8_t data_to_send = HTTP_NO_DATA_TO_SEND;
+
+  LWIP_DEBUGF(HTTPD_DEBUG | LWIP_DBG_TRACE, ("http_send: pcb=%p hs=%p left=%d\n", (void *)pcb,
+              (void *)hs, hs != NULL ? (int)hs->left : 0));
+
+#if LWIP_HTTPD_SUPPORT_POST && LWIP_HTTPD_POST_MANUAL_WND
+  if (hs->unrecved_bytes != 0) {
+    return 0;
+  }
+#endif /* LWIP_HTTPD_SUPPORT_POST && LWIP_HTTPD_POST_MANUAL_WND */
+
+  /* If we were passed a NULL state structure pointer, ignore the call. */
+  if (hs == NULL) {
+    return 0;
+  }
+
+#if LWIP_HTTPD_FS_ASYNC_READ
+  /* Check if we are allowed to read from this file.
+     (e.g. SSI might want to delay sending until data is available) */
+  if (!fs_is_file_ready(hs->handle, http_continue, hs)) {
+    return 0;
+  }
+#endif /* LWIP_HTTPD_FS_ASYNC_READ */
+
+#if LWIP_HTTPD_DYNAMIC_HEADERS
+  /* Do we have any more header data to send for this file? */
+  if (hs->hdr_index < NUM_FILE_HDR_STRINGS) {
+    data_to_send = http_send_headers(pcb, hs);
+    if ((data_to_send == HTTP_DATA_TO_SEND_FREED) ||
+        ((data_to_send != HTTP_DATA_TO_SEND_CONTINUE) &&
+         (hs->hdr_index < NUM_FILE_HDR_STRINGS))) {
+      return data_to_send;
+    }
+  }
+#endif /* LWIP_HTTPD_DYNAMIC_HEADERS */
+
+  /* Have we run out of file data to send? If so, we need to read the next
+   * block from the file. */
+  if (hs->left == 0) {
+    if (!http_check_eof(pcb, hs)) {
+      return 0;
+    }
+  }
+
+#if LWIP_HTTPD_SSI
+  if (hs->ssi) {
+    data_to_send = http_send_data_ssi(pcb, hs);
+  } else
+#endif /* LWIP_HTTPD_SSI */
+  {
+    data_to_send = http_send_data_nonssi(pcb, hs);
+  }
+
+  if ((hs->left == 0) && (fs_bytes_left(hs->handle) <= 0)) {
+    /* We reached the end of the file so this request is done.
+     * This adds the FIN flag right into the last data segment. */
+    LWIP_DEBUGF(HTTPD_DEBUG, ("End of file.\n"));
+    http_eof(pcb, hs);
+    return 0;
+  }
+  LWIP_DEBUGF(HTTPD_DEBUG | LWIP_DBG_TRACE, ("send_data end.\n"));
+  return data_to_send;
+}

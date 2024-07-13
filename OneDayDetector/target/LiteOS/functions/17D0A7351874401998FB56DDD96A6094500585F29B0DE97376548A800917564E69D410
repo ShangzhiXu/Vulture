@@ -1,0 +1,14 @@
+STATIC VOID OsDeepSleepResume(VOID)
+{
+    DEEPOPS_CALL_FUNC_VOID(resumeFromReset);
+    LOS_AtomicSet(&g_pmMgr.resumeSleepCores, OS_MP_CPU_ALL);
+
+#ifdef LOSCFG_KERNEL_CPUP
+    OsSetCpuCycle(0);
+#endif
+
+#if (LOSCFG_KERNEL_SMP == YES)
+    release_secondary_cores();
+#endif
+    OsSRRestoreRegister();
+}

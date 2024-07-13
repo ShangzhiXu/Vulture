@@ -1,0 +1,78 @@
+HAL_StatusTypeDef HAL_JPEG_RegisterCallback(JPEG_HandleTypeDef *hjpeg, HAL_JPEG_CallbackIDTypeDef CallbackID,
+                                            pJPEG_CallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    /* Update the error code */
+    hjpeg->ErrorCode |= HAL_JPEG_ERROR_INVALID_CALLBACK;
+    return HAL_ERROR;
+  }
+  /* Process locked */
+  __HAL_LOCK(hjpeg);
+
+  if (HAL_JPEG_STATE_READY == hjpeg->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_JPEG_ENCODE_CPLT_CB_ID :
+        hjpeg->EncodeCpltCallback = pCallback;
+        break;
+
+      case HAL_JPEG_DECODE_CPLT_CB_ID :
+        hjpeg->DecodeCpltCallback = pCallback;
+        break;
+
+      case HAL_JPEG_ERROR_CB_ID :
+        hjpeg->ErrorCallback = pCallback;
+        break;
+
+      case HAL_JPEG_MSPINIT_CB_ID :
+        hjpeg->MspInitCallback = pCallback;
+        break;
+
+      case HAL_JPEG_MSPDEINIT_CB_ID :
+        hjpeg->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hjpeg->ErrorCode |= HAL_JPEG_ERROR_INVALID_CALLBACK;
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if (HAL_JPEG_STATE_RESET == hjpeg->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_JPEG_MSPINIT_CB_ID :
+        hjpeg->MspInitCallback = pCallback;
+        break;
+
+      case HAL_JPEG_MSPDEINIT_CB_ID :
+        hjpeg->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hjpeg->ErrorCode |= HAL_JPEG_ERROR_INVALID_CALLBACK;
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    hjpeg->ErrorCode |= HAL_JPEG_ERROR_INVALID_CALLBACK;
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hjpeg);
+  return status;
+}

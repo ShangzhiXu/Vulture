@@ -1,0 +1,23 @@
+sntp_retry(void *arg)
+{
+  LWIP_UNUSED_ARG(arg);
+
+  LWIP_DEBUGF(SNTP_DEBUG_STATE, ("sntp_retry: Next request will be sent in %"U32_F" ms\n",
+                                 sntp_retry_timeout));
+
+  /* set up a timer to send a retry and increase the retry delay */
+  sys_timeout(sntp_retry_timeout, sntp_request, NULL);
+
+#if SNTP_RETRY_TIMEOUT_EXP
+  {
+    u32_t new_retry_timeout;
+    /* increase the timeout for next retry */
+    new_retry_timeout = sntp_retry_timeout << 1;
+    /* limit to maximum timeout and prevent overflow */
+    if ((new_retry_timeout <= SNTP_RETRY_TIMEOUT_MAX) &&
+        (new_retry_timeout > sntp_retry_timeout)) {
+      sntp_retry_timeout = new_retry_timeout;
+    }
+  }
+#endif /* SNTP_RETRY_TIMEOUT_EXP */
+}

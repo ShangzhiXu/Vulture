@@ -1,0 +1,24 @@
+static ErrorStatus IC4Config(TIM_TypeDef *TIMx, LL_TIM_IC_InitTypeDef *TIM_ICInitStruct)
+{
+  /* Check the parameters */
+  assert_param(IS_TIM_CC4_INSTANCE(TIMx));
+  assert_param(IS_LL_TIM_IC_POLARITY(TIM_ICInitStruct->ICPolarity));
+  assert_param(IS_LL_TIM_ACTIVEINPUT(TIM_ICInitStruct->ICActiveInput));
+  assert_param(IS_LL_TIM_ICPSC(TIM_ICInitStruct->ICPrescaler));
+  assert_param(IS_LL_TIM_IC_FILTER(TIM_ICInitStruct->ICFilter));
+
+  /* Disable the Channel 4: Reset the CC4E Bit */
+  TIMx->CCER &= (uint32_t)~TIM_CCER_CC4E;
+
+  /* Select the Input and set the filter and the prescaler value */
+  MODIFY_REG(TIMx->CCMR2,
+             (TIM_CCMR2_CC4S | TIM_CCMR2_IC4F | TIM_CCMR2_IC4PSC),
+             (TIM_ICInitStruct->ICActiveInput | TIM_ICInitStruct->ICFilter | TIM_ICInitStruct->ICPrescaler) >> 8U);
+
+  /* Select the Polarity and set the CC2E Bit */
+  MODIFY_REG(TIMx->CCER,
+             (TIM_CCER_CC4P | TIM_CCER_CC4NP),
+             ((TIM_ICInitStruct->ICPolarity << 12U) | TIM_CCER_CC4E));
+
+  return SUCCESS;
+}

@@ -1,0 +1,15 @@
+void udp_netif_ip_addr_changed(const ip_addr_t *old_addr, const ip_addr_t *new_addr)
+{
+  struct udp_pcb *upcb;
+
+  if (!ip_addr_isany(old_addr) && !ip_addr_isany(new_addr)) {
+    for (upcb = udp_pcbs; upcb != NULL; upcb = upcb->next) {
+      /* PCB bound to current local interface address? */
+      if (ip_addr_cmp(&upcb->local_ip, old_addr)) {
+        /* The PCB is bound to the old ipaddr and
+         * is set to bound to the new one instead */
+        ip_addr_copy(upcb->local_ip, *new_addr);
+      }
+    }
+  }
+}

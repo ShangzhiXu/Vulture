@@ -1,0 +1,31 @@
+static void IRDA_DMAError(DMA_HandleTypeDef *hdma)
+{
+  uint32_t dmarequest = 0x00U;
+  IRDA_HandleTypeDef *hirda = (IRDA_HandleTypeDef *)((DMA_HandleTypeDef *)hdma)->Parent;
+
+  /* Stop IRDA DMA Tx request if ongoing */
+  dmarequest = HAL_IS_BIT_SET(hirda->Instance->CR3, USART_CR3_DMAT);
+  if ((hirda->gState == HAL_IRDA_STATE_BUSY_TX) && dmarequest)
+  {
+    hirda->TxXferCount = 0U;
+    IRDA_EndTxTransfer(hirda);
+  }
+
+  /* Stop IRDA DMA Rx request if ongoing */
+  dmarequest = HAL_IS_BIT_SET(hirda->Instance->CR3, USART_CR3_DMAR);
+  if ((hirda->RxState == HAL_IRDA_STATE_BUSY_RX) && dmarequest)
+  {
+    hirda->RxXferCount = 0U;
+    IRDA_EndRxTransfer(hirda);
+  }
+
+  hirda->ErrorCode |= HAL_IRDA_ERROR_DMA;
+
+#if (USE_HAL_IRDA_REGISTER_CALLBACKS == 1)
+  /* Call registered user error callback */
+  hirda->ErrorCallback(hirda);
+#else
+  /* Call legacy weak user error callback */
+  HAL_IRDA_ErrorCallback(hirda);
+#endif /* USE_HAL_IRDA_REGISTER_CALLBACK */
+}

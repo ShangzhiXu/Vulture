@@ -1,0 +1,15 @@
+static void LcpEchoCheck(fsm *f) {
+    ppp_pcb *pcb = f->pcb;
+
+    LcpSendEchoRequest (f);
+    if (f->state != PPP_FSM_OPENED)
+	return;
+
+    /*
+     * Start the timer for the next interval.
+     */
+    if (pcb->lcp_echo_timer_running)
+	ppp_warn("assertion lcp_echo_timer_running==0 failed");
+    TIMEOUT (LcpEchoTimeout, f, pcb->settings.lcp_echo_interval);
+    pcb->lcp_echo_timer_running = 1;
+}

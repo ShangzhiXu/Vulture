@@ -1,0 +1,26 @@
+static int decodePacket(MQTTClient* c, int* value, int timeout)
+{
+    unsigned char i;
+    int multiplier = 1;
+    int len = 0;
+    const int MAX_NO_OF_REMAINING_LENGTH_BYTES = 4;
+
+    *value = 0;
+    do
+    {
+        int rc = MQTTPACKET_READ_ERROR;
+
+        if (++len > MAX_NO_OF_REMAINING_LENGTH_BYTES)
+        {
+            rc = MQTTPACKET_READ_ERROR; /* bad data */
+            goto exit;
+        }
+        rc = c->ipstack->mqttread(c->ipstack, &i, 1, timeout);
+        if (rc != 1)
+            goto exit;
+        *value += (i & 127) * multiplier;
+        multiplier *= 128;
+    } while ((i & 128) != 0);
+exit:
+    return len;
+}

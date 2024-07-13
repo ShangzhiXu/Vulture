@@ -1,0 +1,63 @@
+HAL_StatusTypeDef HAL_SMARTCARD_AbortReceive_IT(SMARTCARD_HandleTypeDef *hsc)
+{
+  /* Disable RXNE, PE and ERR (Frame error, noise error, overrun error) interrupts */
+  CLEAR_BIT(hsc->Instance->CR1, (USART_CR1_RXNEIE | USART_CR1_PEIE));
+  CLEAR_BIT(hsc->Instance->CR3, USART_CR3_EIE);
+
+  /* Disable the SMARTCARD DMA Rx request if enabled */
+  if(HAL_IS_BIT_SET(hsc->Instance->CR3, USART_CR3_DMAR))
+  {
+    CLEAR_BIT(hsc->Instance->CR3, USART_CR3_DMAR);
+
+    /* Abort the SMARTCARD DMA Rx channel : use blocking DMA Abort API (no callback) */
+    if(hsc->hdmarx != NULL)
+    {
+      /* Set the SMARTCARD DMA Abort callback :
+         will lead to call HAL_SMARTCARD_AbortCpltCallback() at end of DMA abort procedure */
+      hsc->hdmarx->XferAbortCallback = SMARTCARD_DMARxOnlyAbortCallback;
+
+      /* Abort DMA RX */
+      if(HAL_DMA_Abort_IT(hsc->hdmarx) != HAL_OK)
+      {
+        /* Call Directly hsc->hdmarx->XferAbortCallback function in case of error */
+        hsc->hdmarx->XferAbortCallback(hsc->hdmarx);
+      }
+    }
+    else
+    {
+      /* Reset Rx transfer counter */
+      hsc->RxXferCount = 0x00U;
+
+      /* Restore hsc->RxState to Ready */
+      hsc->RxState = HAL_SMARTCARD_STATE_READY;
+
+      /* As no DMA to be aborted, call directly user Abort complete callback */
+#if (USE_HAL_SMARTCARD_REGISTER_CALLBACKS == 1)
+      /* Call registered Abort Receive Complete Callback */
+      hsc->AbortReceiveCpltCallback(hsc);
+#else
+      /* Call legacy weak Abort Receive Complete Callback */
+      HAL_SMARTCARD_AbortReceiveCpltCallback(hsc);
+#endif /* USE_HAL_SMARTCARD_REGISTER_CALLBACK */
+    }
+  }
+  else
+  {
+    /* Reset Rx transfer counter */
+    hsc->RxXferCount = 0x00U;
+
+    /* Restore hsc->RxState to Ready */
+    hsc->RxState = HAL_SMARTCARD_STATE_READY;
+
+    /* As no DMA to be aborted, call directly user Abort complete callback */
+#if (USE_HAL_SMARTCARD_REGISTER_CALLBACKS == 1)
+    /* Call registered Abort Receive Complete Callback */
+    hsc->AbortReceiveCpltCallback(hsc);
+#else
+    /* Call legacy weak Abort Receive Complete Callback */
+    HAL_SMARTCARD_AbortReceiveCpltCallback(hsc);
+#endif /* USE_HAL_SMARTCARD_REGISTER_CALLBACK */
+  }
+
+  return HAL_OK;
+}

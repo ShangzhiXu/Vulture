@@ -1,0 +1,16 @@
+STATIC VOID UserButtonIrqConfig(VOID)
+{
+    UINT32 ret;
+    GPIO_InitTypeDef GPIO_InitStructure;
+    GPIO_InitStructure.Mode = GPIO_MODE_IT_FALLING;
+    GPIO_InitStructure.Pull = GPIO_PULLUP;
+    GPIO_InitStructure.Pin = GPIO_PIN_13;
+    HAL_GPIO_Init(GPIOC, &GPIO_InitStructure);
+    HAL_NVIC_SetPriority(EXTI4_15_IRQn, OS_EXC_NMI_M0, 0);
+    HAL_NVIC_EnableIRQ(EXTI4_15_IRQn);
+    /* EXTI4_15_IRQn + 16 */
+    ret = LOS_HwiCreate(EXTI4_15_IRQn + OS_SYS_VECTOR_CNT_M0, OS_EXC_NMI_M0, 0, ButtonIrqHandle, NULL);
+    if (ret != LOS_OK) {
+        printf("%s, %d Create Hwi Failed\n", __FILE__, __LINE__);
+    }
+}

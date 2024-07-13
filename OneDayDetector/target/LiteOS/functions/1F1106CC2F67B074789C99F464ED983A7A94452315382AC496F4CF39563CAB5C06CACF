@@ -1,0 +1,32 @@
+pppoe_output(struct pppoe_softc *sc, struct pbuf *pb)
+{
+  struct eth_hdr *ethhdr;
+  u16_t etype;
+  err_t res;
+
+  /* make room for Ethernet header - should not fail */
+  if (pbuf_add_header(pb, sizeof(struct eth_hdr)) != 0) {
+    /* bail out */
+    PPPDEBUG(LOG_ERR, ("pppoe: %c%c%"U16_F": pppoe_output: could not allocate room for Ethernet header\n", sc->sc_ethif->name[0], sc->sc_ethif->name[1], sc->sc_ethif->num));
+    LINK_STATS_INC(link.lenerr);
+    pbuf_free(pb);
+    return ERR_BUF;
+  }
+  ethhdr = (struct eth_hdr *)pb->payload;
+  etype = sc->sc_state == PPPOE_STATE_SESSION ? ETHTYPE_PPPOE : ETHTYPE_PPPOEDISC;
+  ethhdr->type = lwip_htons(etype);
+  MEMCPY(&ethhdr->dest.addr, &sc->sc_dest.addr, sizeof(ethhdr->dest.addr));
+  MEMCPY(&ethhdr->src.addr, &sc->sc_ethif->hwaddr, sizeof(ethhdr->src.addr));
+
+  PPPDEBUG(LOG_DEBUG, ("pppoe: %c%c%"U16_F" (%x) state=%d, session=0x%x output -> %02"X16_F":%02"X16_F":%02"X16_F":%02"X16_F":%02"X16_F":%02"X16_F", len=%d\n",
+      sc->sc_ethif->name[0], sc->sc_ethif->name[1], sc->sc_ethif->num, etype,
+      sc->sc_state, sc->sc_session,
+      sc->sc_dest.addr[0], sc->sc_dest.addr[1], sc->sc_dest.addr[2], sc->sc_dest.addr[3], sc->sc_dest.addr[4], sc->sc_dest.addr[5],
+      pb->tot_len));
+
+  res = sc->sc_ethif->linkoutput(sc->sc_ethif, pb);
+
+  pbuf_free(pb);
+
+  return res;
+}

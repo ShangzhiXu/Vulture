@@ -1,0 +1,20 @@
+static int los_mqtt_tls_read(mbedtls_ssl_context *ssl, unsigned char *buffer, int len, int timeout_ms)
+{
+    int ret;
+
+    if ((ssl == NULL) || (buffer == NULL)) {
+        ATINY_LOG(LOG_FATAL, "invalid params.");
+        return -1;
+    }
+
+    mbedtls_ssl_conf_read_timeout((mbedtls_ssl_config*)ssl->conf, timeout_ms);
+
+    ret = mbedtls_ssl_read(ssl, buffer, len);
+    if ((ret == MBEDTLS_ERR_SSL_WANT_READ)
+            || (ret == MBEDTLS_ERR_SSL_WANT_WRITE)
+            || (ret == MBEDTLS_ERR_SSL_TIMEOUT)) {
+        ret = 0;
+    }
+
+    return ret;
+}

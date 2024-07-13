@@ -1,0 +1,47 @@
+STATIC INT32 DstGetDayOfMonth(INT32 year, INT32 month, INT32 mweek, INT32 wday)
+{
+#define FIRST_DAY 4   /* the first day of 1970.1.1 is Thursday. */
+    INT32 firstWeekDay; /* First week day in this month of the specified year. */
+    INT32 firstMdayOfTargetWday; /* First target month day in this month of the specified year. */
+    INT32 targetMdayOfTargetWday; /* The target month day specified by user. */
+    struct tm time = {0};
+    INT64 seconds, days;
+
+    time.tm_year = year;
+    time.tm_mon = month;
+    time.tm_mday = 1;
+    /* 14: Hour-value range is [0,23] */
+    time.tm_hour = 14;
+    time.tm_isdst = 0;
+#ifdef LOSCFG_AARCH64
+    seconds = mktime(&time);
+#else
+    seconds = mktime64(&time);
+#endif
+    if (seconds == -1) {
+        return -1;
+    }
+    days = seconds / SECSPERDAY;
+    if (days < 0) {
+        days = -days;
+        firstWeekDay = DAYSPERWEEK - (days - (DAYSPERWEEK - FIRST_DAY)) % DAYSPERWEEK;
+    } else {
+        if (days > FIRST_DAY) {
+            firstWeekDay = 1 + (days - FIRST_DAY) % DAYSPERWEEK;
+        } else {
+            firstWeekDay = FIRST_DAY;
+        }
+    }
+
+    firstMdayOfTargetWday = 1 + (DAYSPERWEEK + wday - firstWeekDay) % DAYSPERWEEK;
+    /*
+     * Users may use 5th weekday to represent the last week of this month
+     * for example "Oct-5th-Fri", but there does not exist the 5th Friday in October, so the last monweek is 4th.
+     */
+    targetMdayOfTargetWday = firstMdayOfTargetWday + (mweek - 1) * DAYSPERWEEK;
+    if (targetMdayOfTargetWday > g_monLengths[(INT32)isleap(year + TM_YEAR_BASE)][month]) {
+        targetMdayOfTargetWday -= 7;
+    }
+
+    return targetMdayOfTargetWday;
+}

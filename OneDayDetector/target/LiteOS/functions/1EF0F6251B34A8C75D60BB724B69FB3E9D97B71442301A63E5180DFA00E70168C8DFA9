@@ -1,0 +1,26 @@
+static void SD_DMAError(DMA_HandleTypeDef *hdma)   
+{
+  SD_HandleTypeDef* hsd = (SD_HandleTypeDef* )(hdma->Parent);
+  HAL_SD_CardStateTypedef CardState;
+  
+  if((hsd->hdmarx->ErrorCode == HAL_DMA_ERROR_TE) || (hsd->hdmatx->ErrorCode == HAL_DMA_ERROR_TE))
+  {
+    /* Clear All flags */
+    __HAL_SD_CLEAR_FLAG(hsd, SDMMC_STATIC_FLAGS);
+    
+    /* Disable All interrupts */
+    __HAL_SD_DISABLE_IT(hsd, SDMMC_IT_DATAEND | SDMMC_IT_DCRCFAIL | SDMMC_IT_DTIMEOUT|\
+      SDMMC_IT_TXUNDERR| SDMMC_IT_RXOVERR);
+    
+    hsd->ErrorCode |= HAL_SD_ERROR_DMA;
+    CardState = HAL_SD_GetCardState(hsd);
+    if((CardState == HAL_SD_CARD_RECEIVING) || (CardState == HAL_SD_CARD_SENDING))
+    {
+      hsd->ErrorCode |= SDMMC_CmdStopTransfer(hsd->Instance);
+    }
+    
+    hsd->State= HAL_SD_STATE_READY;
+  }
+
+  HAL_SD_ErrorCallback(hsd);
+}

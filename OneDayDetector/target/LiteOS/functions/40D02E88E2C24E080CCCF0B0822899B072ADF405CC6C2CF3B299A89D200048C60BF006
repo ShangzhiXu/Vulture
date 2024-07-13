@@ -1,0 +1,18 @@
+void ccp_resetrequest(ppp_pcb *pcb) {
+    fsm *f = &pcb->ccp_fsm;
+
+    if (f->state != PPP_FSM_OPENED)
+	return;
+
+    /*
+     * Send a reset-request to reset the peer's compressor.
+     * We don't do that if we are still waiting for an
+     * acknowledgement to a previous reset-request.
+     */
+    if (!(pcb->ccp_localstate & RACK_PENDING)) {
+	fsm_sdata(f, CCP_RESETREQ, f->reqid = ++f->id, NULL, 0);
+	TIMEOUT(ccp_rack_timeout, f, RACKTIMEOUT);
+	pcb->ccp_localstate |= RACK_PENDING;
+    } else
+	pcb->ccp_localstate |= RREQ_REPEAT;
+}

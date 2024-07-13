@@ -1,0 +1,83 @@
+HAL_StatusTypeDef HAL_MultiProcessor_Init(UART_HandleTypeDef *huart, uint8_t Address, uint32_t WakeUpMethod)
+{
+  /* Check the UART handle allocation */
+  if (huart == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the wake up method parameter */
+  assert_param(IS_UART_WAKEUPMETHOD(WakeUpMethod));
+
+  if (huart->gState == HAL_UART_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    huart->Lock = HAL_UNLOCKED;
+
+#if (USE_HAL_UART_REGISTER_CALLBACKS == 1)
+    UART_InitCallbacksToDefault(huart);
+
+    if (huart->MspInitCallback == NULL)
+    {
+      huart->MspInitCallback = HAL_UART_MspInit;
+    }
+
+    /* Init the low level hardware */
+    huart->MspInitCallback(huart);
+#else
+    /* Init the low level hardware : GPIO, CLOCK */
+    HAL_UART_MspInit(huart);
+#endif /* (USE_HAL_UART_REGISTER_CALLBACKS) */
+  }
+
+  huart->gState = HAL_UART_STATE_BUSY;
+
+  __HAL_UART_DISABLE(huart);
+
+  /* Set the UART Communication parameters */
+  if (UART_SetConfig(huart) == HAL_ERROR)
+  {
+    return HAL_ERROR;
+  }
+
+  if (huart->AdvancedInit.AdvFeatureInit != UART_ADVFEATURE_NO_INIT)
+  {
+    UART_AdvFeatureConfig(huart);
+  }
+
+  /* In multiprocessor mode, the following bits must be kept cleared:
+  - LINEN (if LIN is supported) and CLKEN bits in the USART_CR2 register,
+  - SCEN (if Smartcard is supported), HDSEL and IREN (if IrDA is supported) bits in the USART_CR3 register. */
+#if defined (USART_CR2_LINEN)
+  CLEAR_BIT(huart->Instance->CR2, (USART_CR2_LINEN | USART_CR2_CLKEN));
+#else
+  CLEAR_BIT(huart->Instance->CR2, USART_CR2_CLKEN);
+#endif /* USART_CR2_LINEN */
+#if defined (USART_CR3_SCEN)
+#if defined (USART_CR3_IREN)
+  CLEAR_BIT(huart->Instance->CR3, (USART_CR3_SCEN | USART_CR3_HDSEL | USART_CR3_IREN));
+#else
+  CLEAR_BIT(huart->Instance->CR3, (USART_CR3_SCEN | USART_CR3_HDSEL));
+#endif /* USART_CR3_IREN */
+#else
+#if defined (USART_CR3_IREN)
+  CLEAR_BIT(huart->Instance->CR3, (USART_CR3_HDSEL | USART_CR3_IREN));
+#else
+  CLEAR_BIT(huart->Instance->CR3, USART_CR3_HDSEL);
+#endif /* USART_CR3_IREN */
+#endif /* USART_CR3_SCEN */
+
+  if (WakeUpMethod == UART_WAKEUPMETHOD_ADDRESSMARK)
+  {
+    /* If address mark wake up method is chosen, set the USART address node */
+    MODIFY_REG(huart->Instance->CR2, USART_CR2_ADD, ((uint32_t)Address << UART_CR2_ADDRESS_LSB_POS));
+  }
+
+  /* Set the wake up method by setting the WAKE bit in the CR1 register */
+  MODIFY_REG(huart->Instance->CR1, USART_CR1_WAKE, WakeUpMethod);
+
+  __HAL_UART_ENABLE(huart);
+
+  /* TEACK and/or REACK to check before moving huart->gState and huart->RxState to Ready */
+  return (UART_CheckIdleState(huart));
+}

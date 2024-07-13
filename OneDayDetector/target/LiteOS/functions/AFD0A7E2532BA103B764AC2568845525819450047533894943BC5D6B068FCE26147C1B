@@ -1,0 +1,24 @@
+static void SPI_2linesRxISR_8BITCRC(struct __SPI_HandleTypeDef *hspi)
+{
+  __IO uint8_t tmpreg = 0U;
+
+  /* Read data register to flush CRC */
+  tmpreg = *((__IO uint8_t *)&hspi->Instance->DR);
+
+  /* To avoid GCC warning */
+  UNUSED(tmpreg);
+
+  hspi->CRCSize--;
+
+  /* Check end of the reception */
+  if (hspi->CRCSize == 0U)
+  {
+    /* Disable RXNE and ERR interrupt */
+    __HAL_SPI_DISABLE_IT(hspi, (SPI_IT_RXNE | SPI_IT_ERR));
+
+    if (hspi->TxXferCount == 0U)
+    {
+      SPI_CloseRxTx_ISR(hspi);
+    }
+  }
+}

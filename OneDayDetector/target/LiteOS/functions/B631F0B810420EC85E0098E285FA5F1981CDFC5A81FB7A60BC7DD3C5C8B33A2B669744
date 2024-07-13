@@ -1,0 +1,125 @@
+static int ipcp_printpkt(const u_char *p, int plen,
+		void (*printer) (void *, const char *, ...), void *arg) {
+    int code, id, len, olen;
+    const u_char *pstart, *optend;
+#if VJ_SUPPORT
+    u_short cishort;
+#endif /* VJ_SUPPORT */
+    u32_t cilong;
+
+    if (plen < HEADERLEN)
+	return 0;
+    pstart = p;
+    GETCHAR(code, p);
+    GETCHAR(id, p);
+    GETSHORT(len, p);
+    if (len < HEADERLEN || len > plen)
+	return 0;
+
+    if (code >= 1 && code <= (int)LWIP_ARRAYSIZE(ipcp_codenames))
+	printer(arg, " %s", ipcp_codenames[code-1]);
+    else
+	printer(arg, " code=0x%x", code);
+    printer(arg, " id=0x%x", id);
+    len -= HEADERLEN;
+    switch (code) {
+    case CONFREQ:
+    case CONFACK:
+    case CONFNAK:
+    case CONFREJ:
+	/* print option list */
+	while (len >= 2) {
+	    GETCHAR(code, p);
+	    GETCHAR(olen, p);
+	    p -= 2;
+	    if (olen < 2 || olen > len) {
+		break;
+	    }
+	    printer(arg, " <");
+	    len -= olen;
+	    optend = p + olen;
+	    switch (code) {
+	    case CI_ADDRS:
+		if (olen == CILEN_ADDRS) {
+		    p += 2;
+		    GETLONG(cilong, p);
+		    printer(arg, "addrs %I", lwip_htonl(cilong));
+		    GETLONG(cilong, p);
+		    printer(arg, " %I", lwip_htonl(cilong));
+		}
+		break;
+#if VJ_SUPPORT
+	    case CI_COMPRESSTYPE:
+		if (olen >= CILEN_COMPRESS) {
+		    p += 2;
+		    GETSHORT(cishort, p);
+		    printer(arg, "compress ");
+		    switch (cishort) {
+		    case IPCP_VJ_COMP:
+			printer(arg, "VJ");
+			break;
+		    case IPCP_VJ_COMP_OLD:
+			printer(arg, "old-VJ");
+			break;
+		    default:
+			printer(arg, "0x%x", cishort);
+		    }
+		}
+		break;
+#endif /* VJ_SUPPORT */
+	    case CI_ADDR:
+		if (olen == CILEN_ADDR) {
+		    p += 2;
+		    GETLONG(cilong, p);
+		    printer(arg, "addr %I", lwip_htonl(cilong));
+		}
+		break;
+#if LWIP_DNS
+	    case CI_MS_DNS1:
+	    case CI_MS_DNS2:
+	        p += 2;
+		GETLONG(cilong, p);
+		printer(arg, "ms-dns%d %I", (code == CI_MS_DNS1? 1: 2),
+			htonl(cilong));
+		break;
+#endif /* LWIP_DNS */
+#if 0 /* UNUSED - WINS */
+	    case CI_MS_WINS1:
+	    case CI_MS_WINS2:
+	        p += 2;
+		GETLONG(cilong, p);
+		printer(arg, "ms-wins %I", lwip_htonl(cilong));
+		break;
+#endif /* UNUSED - WINS */
+	    default:
+		break;
+	    }
+	    while (p < optend) {
+		GETCHAR(code, p);
+		printer(arg, " %.2x", code);
+	    }
+	    printer(arg, ">");
+	}
+	break;
+
+    case TERMACK:
+    case TERMREQ:
+	if (len > 0 && *p >= ' ' && *p < 0x7f) {
+	    printer(arg, " ");
+	    ppp_print_string(p, len, printer, arg);
+	    p += len;
+	    len = 0;
+	}
+	break;
+    default:
+	break;
+    }
+
+    /* print the rest of the bytes in the packet */
+    for (; len > 0; --len) {
+	GETCHAR(code, p);
+	printer(arg, " %.2x", code);
+    }
+
+    return p - pstart;
+}

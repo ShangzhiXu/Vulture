@@ -1,0 +1,40 @@
+int mbedtls_ssl_ticket_setup( mbedtls_ssl_ticket_context *ctx,
+    int (*f_rng)(void *, unsigned char *, size_t), void *p_rng,
+    mbedtls_cipher_type_t cipher,
+    uint32_t lifetime )
+{
+    int ret;
+    const mbedtls_cipher_info_t *cipher_info;
+
+    ctx->f_rng = f_rng;
+    ctx->p_rng = p_rng;
+
+    ctx->ticket_lifetime = lifetime;
+
+    cipher_info = mbedtls_cipher_info_from_type( cipher);
+    if( cipher_info == NULL )
+        return( MBEDTLS_ERR_SSL_BAD_INPUT_DATA );
+
+    if( cipher_info->mode != MBEDTLS_MODE_GCM &&
+        cipher_info->mode != MBEDTLS_MODE_CCM )
+    {
+        return( MBEDTLS_ERR_SSL_BAD_INPUT_DATA );
+    }
+
+    if( cipher_info->key_bitlen > 8 * MAX_KEY_BYTES )
+        return( MBEDTLS_ERR_SSL_BAD_INPUT_DATA );
+
+    if( ( ret = mbedtls_cipher_setup( &ctx->keys[0].ctx, cipher_info ) ) != 0 ||
+        ( ret = mbedtls_cipher_setup( &ctx->keys[1].ctx, cipher_info ) ) != 0 )
+    {
+        return( ret );
+    }
+
+    if( ( ret = ssl_ticket_gen_key( ctx, 0 ) ) != 0 ||
+        ( ret = ssl_ticket_gen_key( ctx, 1 ) ) != 0 )
+    {
+        return( ret );
+    }
+
+    return( 0 );
+}

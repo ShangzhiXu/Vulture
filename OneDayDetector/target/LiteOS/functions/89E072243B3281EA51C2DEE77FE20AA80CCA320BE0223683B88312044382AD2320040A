@@ -1,0 +1,17 @@
+netconn_mark_mbox_invalid(struct netconn *conn)
+{
+  int i, num_waiting;
+  void *msg = LWIP_CONST_CAST(void *, &netconn_deleted);
+
+  /* Prevent new calls/threads from reading from the mbox */
+  conn->flags |= NETCONN_FLAG_MBOXINVALID;
+
+  SYS_ARCH_LOCKED(num_waiting = conn->mbox_threads_waiting);
+  for (i = 0; i < num_waiting; i++) {
+    if (sys_mbox_valid_val(conn->recvmbox)) {
+      sys_mbox_trypost(&conn->recvmbox, msg);
+    } else {
+      sys_mbox_trypost(&conn->acceptmbox, msg);
+    }
+  }
+}

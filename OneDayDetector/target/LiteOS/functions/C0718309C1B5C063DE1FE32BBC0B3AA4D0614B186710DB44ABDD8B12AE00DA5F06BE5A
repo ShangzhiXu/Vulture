@@ -1,0 +1,164 @@
+s32_t SPIFFS_write(spiffs *fs, spiffs_file fh, void *buf, s32_t len)
+{
+    SPIFFS_API_DBG("%s "_SPIPRIfd " "_SPIPRIi "\n", __func__, fh, len);
+#if SPIFFS_READ_ONLY
+    (void)fs;
+    (void)fh;
+    (void)buf;
+    (void)len;
+    return SPIFFS_ERR_RO_NOT_IMPL;
+#else
+    SPIFFS_API_CHECK_CFG(fs);
+    SPIFFS_API_CHECK_MOUNT(fs);
+    SPIFFS_LOCK(fs);
+
+    spiffs_fd *fd;
+    s32_t res;
+    u32_t offset;
+
+    fh = SPIFFS_FH_UNOFFS(fs, fh);
+    res = spiffs_fd_get(fs, fh, &fd);
+    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+
+    if ((fd->flags & SPIFFS_O_WRONLY) == 0)
+    {
+        res = SPIFFS_ERR_NOT_WRITABLE;
+        SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+    }
+
+    if ((fd->flags & SPIFFS_O_APPEND))
+    {
+        fd->fdoffset = fd->size == SPIFFS_UNDEFINED_LEN ? 0 : fd->size;
+    }
+    offset = fd->fdoffset;
+
+#if SPIFFS_CACHE_WR
+    if (fd->cache_page == 0)
+    {
+        // see if object id is associated with cache already
+        fd->cache_page = spiffs_cache_page_get_by_fd(fs, fd);
+    }
+#endif
+    if (fd->flags & SPIFFS_O_APPEND)
+    {
+        if (fd->size == SPIFFS_UNDEFINED_LEN)
+        {
+            offset = 0;
+        }
+        else
+        {
+            offset = fd->size;
+        }
+#if SPIFFS_CACHE_WR
+        if (fd->cache_page)
+        {
+            offset = MAX(offset, fd->cache_page->offset + fd->cache_page->size);
+        }
+#endif
+    }
+
+#if SPIFFS_CACHE_WR
+    if ((fd->flags & SPIFFS_O_DIRECT) == 0)
+    {
+        if (len < (s32_t)SPIFFS_CFG_LOG_PAGE_SZ(fs))
+        {
+            // small write, try to cache it
+            u8_t alloc_cpage = 1;
+            if (fd->cache_page)
+            {
+                // have a cached page for this fd already, check cache page boundaries
+                if (offset < fd->cache_page->offset || // writing before cache
+                        offset > fd->cache_page->offset + fd->cache_page->size || // writing after cache
+                        offset + len > fd->cache_page->offset + SPIFFS_CFG_LOG_PAGE_SZ(fs)) // writing beyond cache page
+                {
+                    // boundary violation, write back cache first and allocate new
+                    SPIFFS_CACHE_DBG("CACHE_WR_DUMP: dumping cache page "_SPIPRIi" for fd "_SPIPRIfd":"_SPIPRIid", boundary viol, offs:"_SPIPRIi" size:"_SPIPRIi"\n",
+                                     fd->cache_page->ix, fd->file_nbr, fd->obj_id, fd->cache_page->offset, fd->cache_page->size);
+                    res = spiffs_hydro_write(fs, fd,
+                                             spiffs_get_cache_page(fs, spiffs_get_cache(fs), fd->cache_page->ix),
+                                             fd->cache_page->offset, fd->cache_page->size);
+                    spiffs_cache_fd_release(fs, fd->cache_page);
+                    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+                }
+                else
+                {
+                    // writing within cache
+                    alloc_cpage = 0;
+                }
+            }
+
+            if (alloc_cpage)
+            {
+                fd->cache_page = spiffs_cache_page_allocate_by_fd(fs, fd);
+                if (fd->cache_page)
+                {
+                    fd->cache_page->offset = offset;
+                    fd->cache_page->size = 0;
+                    SPIFFS_CACHE_DBG("CACHE_WR_ALLO: allocating cache page "_SPIPRIi" for fd "_SPIPRIfd":"_SPIPRIid"\n",
+                                     fd->cache_page->ix, fd->file_nbr, fd->obj_id);
+                }
+            }
+
+            if (fd->cache_page)
+            {
+                u32_t offset_in_cpage = offset - fd->cache_page->offset;
+                SPIFFS_CACHE_DBG("CACHE_WR_WRITE: storing to cache page "_SPIPRIi" for fd "_SPIPRIfd":"_SPIPRIid", offs "_SPIPRIi":"_SPIPRIi" len "_SPIPRIi"\n",
+                                 fd->cache_page->ix, fd->file_nbr, fd->obj_id,
+                                 offset, offset_in_cpage, len);
+                spiffs_cache *cache = spiffs_get_cache(fs);
+                u8_t *cpage_data = spiffs_get_cache_page(fs, cache, fd->cache_page->ix);
+#ifdef _SPIFFS_TEST
+                {
+                    intptr_t __a1 = (u8_t *)&cpage_data[offset_in_cpage] - (u8_t *)cache;
+                    intptr_t __a2 = (u8_t *)&cpage_data[offset_in_cpage] + len - (u8_t *)cache;
+                    intptr_t __b = sizeof(spiffs_cache) + cache->cpage_count * (sizeof(spiffs_cache_page) + SPIFFS_CFG_LOG_PAGE_SZ(fs));
+                    if (__a1 > __b || __a2 > __b)
+                    {
+                        printf("FATAL OOB: CACHE_WR: memcpy to cache buffer ixs:%4ld..%4ld of %4ld\n", __a1, __a2, __b);
+                        ERREXIT();
+                    }
+                }
+#endif
+                _SPIFFS_MEMCPY(&cpage_data[offset_in_cpage], buf, len);
+                fd->cache_page->size = MAX(fd->cache_page->size, offset_in_cpage + len);
+                fd->fdoffset += len;
+                SPIFFS_UNLOCK(fs);
+                return len;
+            }
+            else
+            {
+                res = spiffs_hydro_write(fs, fd, buf, offset, len);
+                SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+                fd->fdoffset += len;
+                SPIFFS_UNLOCK(fs);
+                return res;
+            }
+        }
+        else
+        {
+            // big write, no need to cache it - but first check if there is a cached write already
+            if (fd->cache_page)
+            {
+                // write back cache first
+                SPIFFS_CACHE_DBG("CACHE_WR_DUMP: dumping cache page "_SPIPRIi" for fd "_SPIPRIfd":"_SPIPRIid", big write, offs:"_SPIPRIi" size:"_SPIPRIi"\n",
+                                 fd->cache_page->ix, fd->file_nbr, fd->obj_id, fd->cache_page->offset, fd->cache_page->size);
+                res = spiffs_hydro_write(fs, fd,
+                                         spiffs_get_cache_page(fs, spiffs_get_cache(fs), fd->cache_page->ix),
+                                         fd->cache_page->offset, fd->cache_page->size);
+                spiffs_cache_fd_release(fs, fd->cache_page);
+                SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+                // data written below
+            }
+        }
+    }
+#endif
+
+    res = spiffs_hydro_write(fs, fd, buf, offset, len);
+    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+    fd->fdoffset += len;
+
+    SPIFFS_UNLOCK(fs);
+
+    return res;
+#endif // SPIFFS_READ_ONLY
+}

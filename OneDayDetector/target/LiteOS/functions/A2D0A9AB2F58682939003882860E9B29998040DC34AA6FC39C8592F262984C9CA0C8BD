@@ -1,0 +1,24 @@
+HAL_StatusTypeDef HAL_SRAM_Read_32b(SRAM_HandleTypeDef *hsram, uint32_t *pAddress, uint32_t *pDstBuffer, uint32_t BufferSize)
+{
+  /* Process Locked */
+  __HAL_LOCK(hsram);
+  
+  /* Update the SRAM controller state */
+  hsram->State = HAL_SRAM_STATE_BUSY;  
+  
+  /* Read data from memory */
+  for(; BufferSize != 0U; BufferSize--)
+  {
+    *pDstBuffer = *(__IO uint32_t *)pAddress;
+    pDstBuffer++;
+    pAddress++;
+  }
+  
+  /* Update the SRAM controller state */
+  hsram->State = HAL_SRAM_STATE_READY;    
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hsram); 
+    
+  return HAL_OK;  
+}

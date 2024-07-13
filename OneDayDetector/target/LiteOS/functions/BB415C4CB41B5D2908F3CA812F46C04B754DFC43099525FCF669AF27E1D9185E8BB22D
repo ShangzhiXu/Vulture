@@ -1,0 +1,170 @@
+ip6_route(const ip6_addr_t *src, const ip6_addr_t *dest)
+{
+#if LWIP_SINGLE_NETIF
+  LWIP_UNUSED_ARG(src);
+  LWIP_UNUSED_ARG(dest);
+#else /* LWIP_SINGLE_NETIF */
+  struct netif *netif;
+  s8_t i;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  /* If single netif configuration, fast return. */
+  if ((netif_list != NULL) && (netif_list->next == NULL)) {
+    if (!netif_is_up(netif_list) || !netif_is_link_up(netif_list) ||
+        (ip6_addr_has_zone(dest) && !ip6_addr_test_zone(dest, netif_list))) {
+      return NULL;
+    }
+    return netif_list;
+  }
+
+#if LWIP_IPV6_SCOPES
+  /* Special processing for zoned destination addresses. This includes link-
+   * local unicast addresses and interface/link-local multicast addresses. Use
+   * the zone to find a matching netif. If the address is not zoned, then there
+   * is technically no "wrong" netif to choose, and we leave routing to other
+   * rules; in most cases this should be the scoped-source rule below. */
+  if (ip6_addr_has_zone(dest)) {
+    IP6_ADDR_ZONECHECK(dest);
+    /* Find a netif based on the zone. For custom mappings, one zone may map
+     * to multiple netifs, so find one that can actually send a packet. */
+    NETIF_FOREACH(netif) {
+      if (ip6_addr_test_zone(dest, netif) &&
+          netif_is_up(netif) && netif_is_link_up(netif)) {
+        return netif;
+      }
+    }
+    /* No matching netif found. Do no try to route to a different netif,
+     * as that would be a zone violation, resulting in any packets sent to
+     * that netif being dropped on output. */
+    return NULL;
+  }
+#endif /* LWIP_IPV6_SCOPES */
+
+  /* Special processing for scoped source and destination addresses. If we get
+   * here, the destination address does not have a zone, so either way we need
+   * to look at the source address, which may or may not have a zone. If it
+   * does, the zone is restrictive: there is (typically) only one matching
+   * netif for it, and we should avoid routing to any other netif as that would
+   * result in guaranteed zone violations. For scoped source addresses that do
+   * not have a zone, use (only) a netif that has that source address locally
+   * assigned. This case also applies to the loopback source address, which has
+   * an implied link-local scope. If only the destination address is scoped
+   * (but, again, not zoned), we still want to use only the source address to
+   * determine its zone because that's most likely what the user/application
+   * wants, regardless of whether the source address is scoped. Finally, some
+   * of this story also applies if scoping is disabled altogether. */
+#if LWIP_IPV6_SCOPES
+  if (ip6_addr_has_scope(dest, IP6_UNKNOWN) ||
+      ip6_addr_has_scope(src, IP6_UNICAST) ||
+#else /* LWIP_IPV6_SCOPES */
+  if (ip6_addr_islinklocal(dest) || ip6_addr_ismulticast_iflocal(dest) ||
+      ip6_addr_ismulticast_linklocal(dest) || ip6_addr_islinklocal(src) ||
+#endif /* LWIP_IPV6_SCOPES */
+      ip6_addr_isloopback(src)) {
+#if LWIP_IPV6_SCOPES
+    if (ip6_addr_has_zone(src)) {
+      /* Find a netif matching the source zone (relatively cheap). */
+      NETIF_FOREACH(netif) {
+        if (netif_is_up(netif) && netif_is_link_up(netif) &&
+            ip6_addr_test_zone(src, netif)) {
+          return netif;
+        }
+      }
+    } else
+#endif /* LWIP_IPV6_SCOPES */
+    {
+      /* Find a netif matching the source address (relatively expensive). */
+      NETIF_FOREACH(netif) {
+        if (!netif_is_up(netif) || !netif_is_link_up(netif)) {
+          continue;
+        }
+        for (i = 0; i < LWIP_IPV6_NUM_ADDRESSES; i++) {
+          if (ip6_addr_isvalid(netif_ip6_addr_state(netif, i)) &&
+              ip6_addr_cmp_zoneless(src, netif_ip6_addr(netif, i))) {
+            return netif;
+          }
+        }
+      }
+    }
+    /* Again, do not use any other netif in this case, as that could result in
+     * zone boundary violations. */
+    return NULL;
+  }
+
+  /* We come here only if neither source nor destination is scoped. */
+  IP6_ADDR_ZONECHECK(src);
+
+#ifdef LWIP_HOOK_IP6_ROUTE
+  netif = LWIP_HOOK_IP6_ROUTE(src, dest);
+  if (netif != NULL) {
+    return netif;
+  }
+#endif
+
+  /* See if the destination subnet matches a configured address. In accordance
+   * with RFC 5942, dynamically configured addresses do not have an implied
+   * local subnet, and thus should be considered /128 assignments. However, as
+   * such, the destination address may still match a local address, and so we
+   * still need to check for exact matches here. By (lwIP) policy, statically
+   * configured addresses do always have an implied local /64 subnet. */
+  NETIF_FOREACH(netif) {
+    if (!netif_is_up(netif) || !netif_is_link_up(netif)) {
+      continue;
+    }
+    for (i = 0; i < LWIP_IPV6_NUM_ADDRESSES; i++) {
+      if (ip6_addr_isvalid(netif_ip6_addr_state(netif, i)) &&
+          ip6_addr_netcmp(dest, netif_ip6_addr(netif, i)) &&
+          (netif_ip6_addr_isstatic(netif, i) ||
+          ip6_addr_nethostcmp(dest, netif_ip6_addr(netif, i)))) {
+        return netif;
+      }
+    }
+  }
+
+  /* Get the netif for a suitable router-announced route. */
+  netif = nd6_find_route(dest);
+  if (netif != NULL) {
+    return netif;
+  }
+
+  /* Try with the netif that matches the source address. Given the earlier rule
+   * for scoped source addresses, this applies to unscoped addresses only. */
+  if (!ip6_addr_isany(src)) {
+    NETIF_FOREACH(netif) {
+      if (!netif_is_up(netif) || !netif_is_link_up(netif)) {
+        continue;
+      }
+      for (i = 0; i < LWIP_IPV6_NUM_ADDRESSES; i++) {
+        if (ip6_addr_isvalid(netif_ip6_addr_state(netif, i)) &&
+            ip6_addr_cmp(src, netif_ip6_addr(netif, i))) {
+          return netif;
+        }
+      }
+    }
+  }
+
+#if LWIP_NETIF_LOOPBACK && !LWIP_HAVE_LOOPIF
+  /* loopif is disabled, loopback traffic is passed through any netif */
+  if (ip6_addr_isloopback(dest)) {
+    /* don't check for link on loopback traffic */
+    if (netif_default != NULL && netif_is_up(netif_default)) {
+      return netif_default;
+    }
+    /* default netif is not up, just use any netif for loopback traffic */
+    NETIF_FOREACH(netif) {
+      if (netif_is_up(netif)) {
+        return netif;
+      }
+    }
+    return NULL;
+  }
+#endif /* LWIP_NETIF_LOOPBACK && !LWIP_HAVE_LOOPIF */
+#endif /* !LWIP_SINGLE_NETIF */
+
+  /* no matching netif found, use default netif, if up */
+  if ((netif_default == NULL) || !netif_is_up(netif_default) || !netif_is_link_up(netif_default)) {
+    return NULL;
+  }
+  return netif_default;
+}

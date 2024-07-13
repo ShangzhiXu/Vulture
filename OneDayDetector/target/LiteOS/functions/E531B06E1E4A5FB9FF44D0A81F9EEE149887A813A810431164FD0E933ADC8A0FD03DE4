@@ -1,0 +1,84 @@
+static int ecp_normalize_jac_many( const mbedtls_ecp_group *grp,
+                                   mbedtls_ecp_point *T[], size_t T_size )
+{
+    int ret;
+    size_t i;
+    mbedtls_mpi *c, u, Zi, ZZi;
+
+    if( T_size < 2 )
+        return( ecp_normalize_jac( grp, *T ) );
+
+#if defined(MBEDTLS_ECP_NORMALIZE_JAC_MANY_ALT)
+    if( mbedtls_internal_ecp_grp_capable( grp ) )
+        return( mbedtls_internal_ecp_normalize_jac_many( grp, T, T_size ) );
+#endif
+
+    if( ( c = mbedtls_calloc( T_size, sizeof( mbedtls_mpi ) ) ) == NULL )
+        return( MBEDTLS_ERR_ECP_ALLOC_FAILED );
+
+    for( i = 0; i < T_size; i++ )
+        mbedtls_mpi_init( &c[i] );
+
+    mbedtls_mpi_init( &u ); mbedtls_mpi_init( &Zi ); mbedtls_mpi_init( &ZZi );
+
+    /*
+     * c[i] = Z_0 * ... * Z_i
+     */
+    MBEDTLS_MPI_CHK( mbedtls_mpi_copy( &c[0], &T[0]->Z ) );
+    for( i = 1; i < T_size; i++ )
+    {
+        MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( &c[i], &c[i-1], &T[i]->Z ) );
+        MOD_MUL( c[i] );
+    }
+
+    /*
+     * u = 1 / (Z_0 * ... * Z_n) mod P
+     */
+    MBEDTLS_MPI_CHK( mbedtls_mpi_inv_mod( &u, &c[T_size-1], &grp->P ) );
+
+    for( i = T_size - 1; ; i-- )
+    {
+        /*
+         * Zi = 1 / Z_i mod p
+         * u = 1 / (Z_0 * ... * Z_i) mod P
+         */
+        if( i == 0 ) {
+            MBEDTLS_MPI_CHK( mbedtls_mpi_copy( &Zi, &u ) );
+        }
+        else
+        {
+            MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( &Zi, &u, &c[i-1]  ) ); MOD_MUL( Zi );
+            MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( &u,  &u, &T[i]->Z ) ); MOD_MUL( u );
+        }
+
+        /*
+         * proceed as in normalize()
+         */
+        MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( &ZZi,     &Zi,      &Zi  ) ); MOD_MUL( ZZi );
+        MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( &T[i]->X, &T[i]->X, &ZZi ) ); MOD_MUL( T[i]->X );
+        MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( &T[i]->Y, &T[i]->Y, &ZZi ) ); MOD_MUL( T[i]->Y );
+        MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( &T[i]->Y, &T[i]->Y, &Zi  ) ); MOD_MUL( T[i]->Y );
+
+        /*
+         * Post-precessing: reclaim some memory by shrinking coordinates
+         * - not storing Z (always 1)
+         * - shrinking other coordinates, but still keeping the same number of
+         *   limbs as P, as otherwise it will too likely be regrown too fast.
+         */
+        MBEDTLS_MPI_CHK( mbedtls_mpi_shrink( &T[i]->X, grp->P.n ) );
+        MBEDTLS_MPI_CHK( mbedtls_mpi_shrink( &T[i]->Y, grp->P.n ) );
+        mbedtls_mpi_free( &T[i]->Z );
+
+        if( i == 0 )
+            break;
+    }
+
+cleanup:
+
+    mbedtls_mpi_free( &u ); mbedtls_mpi_free( &Zi ); mbedtls_mpi_free( &ZZi );
+    for( i = 0; i < T_size; i++ )
+        mbedtls_mpi_free( &c[i] );
+    mbedtls_free( c );
+
+    return( ret );
+}

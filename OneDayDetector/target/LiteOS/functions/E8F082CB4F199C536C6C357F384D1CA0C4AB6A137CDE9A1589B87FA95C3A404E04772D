@@ -1,0 +1,26 @@
+void HAL_HASH_ContextSaving(HASH_HandleTypeDef *hhash, uint8_t* pMemBuffer)
+{
+  uint32_t mem_ptr = (uint32_t)pMemBuffer;
+  uint32_t csr_ptr = (uint32_t)HASH->CSR;
+  uint32_t i = 0;
+
+  /* Prevent unused argument(s) compilation warning */
+  UNUSED(hhash);  
+  
+  /* Save IMR register content */
+  *(uint32_t*)(mem_ptr) = READ_BIT(HASH->IMR,HASH_IT_DINI|HASH_IT_DCI);
+  mem_ptr+=4;   
+  /* Save STR register content */
+  *(uint32_t*)(mem_ptr) = READ_BIT(HASH->STR,HASH_STR_NBLW);
+  mem_ptr+=4;
+  /* Save CR register content */ 
+  *(uint32_t*)(mem_ptr) = READ_BIT(HASH->CR,HASH_CR_DMAE|HASH_CR_DATATYPE|HASH_CR_MODE|HASH_CR_ALGO|HASH_CR_LKEY|HASH_CR_MDMAT);
+  mem_ptr+=4;        
+  /* By default, save all CSRs registers */
+  for (i = HASH_NUMBER_OF_CSR_REGISTERS; i >0; i--)
+  {
+    *(uint32_t*)(mem_ptr) = *(uint32_t*)(csr_ptr);
+    mem_ptr+=4;
+    csr_ptr+=4;
+  } 
+}

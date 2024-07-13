@@ -1,0 +1,55 @@
+int mbedtls_mpi_add_abs( mbedtls_mpi *X, const mbedtls_mpi *A, const mbedtls_mpi *B )
+{
+    int ret;
+    size_t i, j;
+    mbedtls_mpi_uint *o, *p, c, tmp;
+    MPI_VALIDATE_RET( X != NULL );
+    MPI_VALIDATE_RET( A != NULL );
+    MPI_VALIDATE_RET( B != NULL );
+
+    if( X == B )
+    {
+        const mbedtls_mpi *T = A; A = X; B = T;
+    }
+
+    if( X != A )
+        MBEDTLS_MPI_CHK( mbedtls_mpi_copy( X, A ) );
+
+    /*
+     * X should always be positive as a result of unsigned additions.
+     */
+    X->s = 1;
+
+    for( j = B->n; j > 0; j-- )
+        if( B->p[j - 1] != 0 )
+            break;
+
+    MBEDTLS_MPI_CHK( mbedtls_mpi_grow( X, j ) );
+
+    o = B->p; p = X->p; c = 0;
+
+    /*
+     * tmp is used because it might happen that p == o
+     */
+    for( i = 0; i < j; i++, o++, p++ )
+    {
+        tmp= *o;
+        *p +=  c; c  = ( *p <  c );
+        *p += tmp; c += ( *p < tmp );
+    }
+
+    while( c != 0 )
+    {
+        if( i >= X->n )
+        {
+            MBEDTLS_MPI_CHK( mbedtls_mpi_grow( X, i + 1 ) );
+            p = X->p + i;
+        }
+
+        *p += c; c = ( *p < c ); i++; p++;
+    }
+
+cleanup:
+
+    return( ret );
+}

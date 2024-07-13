@@ -1,0 +1,153 @@
+static int ssl_get_next_record( mbedtls_ssl_context *ssl )
+{
+    int ret;
+
+#if defined(MBEDTLS_SSL_PROTO_DTLS)
+    /* We might have buffered a future record; if so,
+     * and if the epoch matches now, load it.
+     * On success, this call will set ssl->in_left to
+     * the length of the buffered record, so that
+     * the calls to ssl_fetch_input() below will
+     * essentially be no-ops. */
+    ret = ssl_load_buffered_record( ssl );
+    if( ret != 0 )
+        return( ret );
+#endif /* MBEDTLS_SSL_PROTO_DTLS */
+
+    if( ( ret = mbedtls_ssl_fetch_input( ssl, mbedtls_ssl_hdr_len( ssl ) ) ) != 0 )
+    {
+        MBEDTLS_SSL_DEBUG_RET( 1, "mbedtls_ssl_fetch_input", ret );
+        return( ret );
+    }
+
+    if( ( ret = ssl_parse_record_header( ssl ) ) != 0 )
+    {
+#if defined(MBEDTLS_SSL_PROTO_DTLS)
+        if( ssl->conf->transport == MBEDTLS_SSL_TRANSPORT_DATAGRAM &&
+            ret != MBEDTLS_ERR_SSL_CLIENT_RECONNECT )
+        {
+            if( ret == MBEDTLS_ERR_SSL_EARLY_MESSAGE )
+            {
+                ret = ssl_buffer_future_record( ssl );
+                if( ret != 0 )
+                    return( ret );
+
+                /* Fall through to handling of unexpected records */
+                ret = MBEDTLS_ERR_SSL_UNEXPECTED_RECORD;
+            }
+
+            if( ret == MBEDTLS_ERR_SSL_UNEXPECTED_RECORD )
+            {
+                /* Skip unexpected record (but not whole datagram) */
+                ssl->next_record_offset = ssl->in_msglen
+                                        + mbedtls_ssl_hdr_len( ssl );
+
+                MBEDTLS_SSL_DEBUG_MSG( 1, ( "discarding unexpected record "
+                                            "(header)" ) );
+            }
+            else
+            {
+                /* Skip invalid record and the rest of the datagram */
+                ssl->next_record_offset = 0;
+                ssl->in_left = 0;
+
+                MBEDTLS_SSL_DEBUG_MSG( 1, ( "discarding invalid record "
+                                            "(header)" ) );
+            }
+
+            /* Get next record */
+            return( MBEDTLS_ERR_SSL_CONTINUE_PROCESSING );
+        }
+#endif
+        return( ret );
+    }
+
+    /*
+     * Read and optionally decrypt the message contents
+     */
+    if( ( ret = mbedtls_ssl_fetch_input( ssl,
+                                 mbedtls_ssl_hdr_len( ssl ) + ssl->in_msglen ) ) != 0 )
+    {
+        MBEDTLS_SSL_DEBUG_RET( 1, "mbedtls_ssl_fetch_input", ret );
+        return( ret );
+    }
+
+    /* Done reading this record, get ready for the next one */
+#if defined(MBEDTLS_SSL_PROTO_DTLS)
+    if( ssl->conf->transport == MBEDTLS_SSL_TRANSPORT_DATAGRAM )
+    {
+        ssl->next_record_offset = ssl->in_msglen + mbedtls_ssl_hdr_len( ssl );
+        if( ssl->next_record_offset < ssl->in_left )
+        {
+            MBEDTLS_SSL_DEBUG_MSG( 3, ( "more than one record within datagram" ) );
+        }
+    }
+    else
+#endif
+        ssl->in_left = 0;
+
+    if( ( ret = ssl_prepare_record_content( ssl ) ) != 0 )
+    {
+#if defined(MBEDTLS_SSL_PROTO_DTLS)
+        if( ssl->conf->transport == MBEDTLS_SSL_TRANSPORT_DATAGRAM )
+        {
+            /* Silently discard invalid records */
+            if( ret == MBEDTLS_ERR_SSL_INVALID_RECORD ||
+                ret == MBEDTLS_ERR_SSL_INVALID_MAC )
+            {
+                /* Except when waiting for Finished as a bad mac here
+                 * probably means something went wrong in the handshake
+                 * (eg wrong psk used, mitm downgrade attempt, etc.) */
+                if( ssl->state == MBEDTLS_SSL_CLIENT_FINISHED ||
+                    ssl->state == MBEDTLS_SSL_SERVER_FINISHED )
+                {
+#if defined(MBEDTLS_SSL_ALL_ALERT_MESSAGES)
+                    if( ret == MBEDTLS_ERR_SSL_INVALID_MAC )
+                    {
+                        mbedtls_ssl_send_alert_message( ssl,
+                                MBEDTLS_SSL_ALERT_LEVEL_FATAL,
+                                MBEDTLS_SSL_ALERT_MSG_BAD_RECORD_MAC );
+                    }
+#endif
+                    return( ret );
+                }
+
+#if defined(MBEDTLS_SSL_DTLS_BADMAC_LIMIT)
+                if( ssl->conf->badmac_limit != 0 &&
+                    ++ssl->badmac_seen >= ssl->conf->badmac_limit )
+                {
+                    MBEDTLS_SSL_DEBUG_MSG( 1, ( "too many records with bad MAC" ) );
+                    return( MBEDTLS_ERR_SSL_INVALID_MAC );
+                }
+#endif
+
+                /* As above, invalid records cause
+                 * dismissal of the whole datagram. */
+
+                ssl->next_record_offset = 0;
+                ssl->in_left = 0;
+
+                MBEDTLS_SSL_DEBUG_MSG( 1, ( "discarding invalid record (mac)" ) );
+                return( MBEDTLS_ERR_SSL_CONTINUE_PROCESSING );
+            }
+
+            return( ret );
+        }
+        else
+#endif
+        {
+            /* Error out (and send alert) on invalid records */
+#if defined(MBEDTLS_SSL_ALL_ALERT_MESSAGES)
+            if( ret == MBEDTLS_ERR_SSL_INVALID_MAC )
+            {
+                mbedtls_ssl_send_alert_message( ssl,
+                        MBEDTLS_SSL_ALERT_LEVEL_FATAL,
+                        MBEDTLS_SSL_ALERT_MSG_BAD_RECORD_MAC );
+            }
+#endif
+            return( ret );
+        }
+    }
+
+    return( 0 );
+}

@@ -1,0 +1,46 @@
+static uint32_t MMC_PowerON(MMC_HandleTypeDef *hmmc)
+{
+  __IO uint32_t count = 0U;
+  uint32_t response = 0U, validvoltage = 0U;
+  uint32_t errorstate;
+
+  /* CMD0: GO_IDLE_STATE */
+  errorstate = SDMMC_CmdGoIdleState(hmmc->Instance);
+  if(errorstate != HAL_MMC_ERROR_NONE)
+  {
+    return errorstate;
+  }
+
+  while(validvoltage == 0U)
+  {
+    if(count++ == SDMMC_MAX_VOLT_TRIAL)
+    {
+      return HAL_MMC_ERROR_INVALID_VOLTRANGE;
+    }
+
+    /* SEND CMD1 APP_CMD with MMC_HIGH_VOLTAGE_RANGE(0xC0FF8000) as argument */
+    errorstate = SDMMC_CmdOpCondition(hmmc->Instance, eMMC_HIGH_VOLTAGE_RANGE);
+    if(errorstate != HAL_MMC_ERROR_NONE)
+    {
+      return HAL_MMC_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    /* Get command response */
+    response = SDIO_GetResponse(hmmc->Instance, SDIO_RESP1);
+
+    /* Get operating voltage*/
+    validvoltage = (((response >> 31U) == 1U) ? 1U : 0U);
+  }
+
+  /* When power routine is finished and command returns valid voltage */
+  if (((response & (0xFF000000U)) >> 24U) == 0xC0U)
+  {
+    hmmc->MmcCard.CardType = MMC_HIGH_CAPACITY_CARD;
+  }
+  else
+  {
+    hmmc->MmcCard.CardType = MMC_LOW_CAPACITY_CARD;
+  }
+
+  return HAL_MMC_ERROR_NONE;
+}

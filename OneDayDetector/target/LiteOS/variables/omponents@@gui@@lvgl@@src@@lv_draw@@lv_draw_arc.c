@@ -1,0 +1,11 @@
+    lv_coord_t center_x;
+    lv_coord_t center_y;
+    const lv_area_t * clip_area;
+    const lv_area_t * draw_area;
+    lv_draw_rect_dsc_t * draw_dsc;
+    uint16_t end_angle;
+    uint16_t end_quarter;
+    lv_coord_t radius;
+    uint16_t start_angle;
+    uint16_t start_quarter;
+    lv_coord_t width;

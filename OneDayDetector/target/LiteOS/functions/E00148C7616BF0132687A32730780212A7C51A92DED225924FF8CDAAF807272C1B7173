@@ -1,0 +1,45 @@
+HAL_StatusTypeDef HAL_FLASHEx_Erase_IT(FLASH_EraseInitTypeDef *pEraseInit)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process Locked */
+  __HAL_LOCK(&pFlash);
+
+  /* Check the parameters */
+  assert_param(IS_FLASH_TYPEERASE(pEraseInit->TypeErase));
+
+  /* Enable End of FLASH Operation interrupt */
+  __HAL_FLASH_ENABLE_IT(FLASH_IT_EOP);
+  
+  /* Enable Error source interrupt */
+  __HAL_FLASH_ENABLE_IT(FLASH_IT_ERR);
+  
+  /* Clear pending flags (if any) */  
+  __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP    | FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR |\
+                         FLASH_FLAG_PGAERR | FLASH_FLAG_PGPERR| FLASH_FLAG_PGSERR);  
+  
+  if(pEraseInit->TypeErase == FLASH_TYPEERASE_MASSERASE)
+  {
+    /*Mass erase to be done*/
+    pFlash.ProcedureOnGoing = FLASH_PROC_MASSERASE;
+    pFlash.Bank = pEraseInit->Banks;
+    FLASH_MassErase((uint8_t) pEraseInit->VoltageRange, pEraseInit->Banks);
+  }
+  else
+  {
+    /* Erase by sector to be done*/
+
+    /* Check the parameters */
+    assert_param(IS_FLASH_NBSECTORS(pEraseInit->NbSectors + pEraseInit->Sector));
+
+    pFlash.ProcedureOnGoing = FLASH_PROC_SECTERASE;
+    pFlash.NbSectorsToErase = pEraseInit->NbSectors;
+    pFlash.Sector = pEraseInit->Sector;
+    pFlash.VoltageForErase = (uint8_t)pEraseInit->VoltageRange;
+
+    /*Erase 1st sector and wait for IT*/
+    FLASH_Erase_Sector(pEraseInit->Sector, pEraseInit->VoltageRange);
+  }
+
+  return status;
+}

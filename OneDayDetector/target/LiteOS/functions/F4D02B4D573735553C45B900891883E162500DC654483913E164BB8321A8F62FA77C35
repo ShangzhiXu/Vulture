@@ -1,0 +1,25 @@
+HAL_StatusTypeDef HAL_MultiProcessorEx_AddressLength_Set(UART_HandleTypeDef *huart, uint32_t AddressLength)
+{
+  /* Check the UART handle allocation */
+  if (huart == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the address length parameter */
+  assert_param(IS_UART_ADDRESSLENGTH_DETECT(AddressLength));
+
+  huart->gState = HAL_UART_STATE_BUSY;
+
+  /* Disable the Peripheral */
+  __HAL_UART_DISABLE(huart);
+
+  /* Set the address length */
+  MODIFY_REG(huart->Instance->CR2, USART_CR2_ADDM7, AddressLength);
+
+  /* Enable the Peripheral */
+  __HAL_UART_ENABLE(huart);
+
+  /* TEACK and/or REACK to check before moving huart->gState to Ready */
+  return (UART_CheckIdleState(huart));
+}

@@ -1,0 +1,43 @@
+slipif_output(struct netif *netif, struct pbuf *p)
+{
+  struct slipif_priv *priv;
+  struct pbuf *q;
+  u16_t i;
+  u8_t c;
+
+  LWIP_ASSERT("netif != NULL", (netif != NULL));
+  LWIP_ASSERT("netif->state != NULL", (netif->state != NULL));
+  LWIP_ASSERT("p != NULL", (p != NULL));
+
+  LWIP_DEBUGF(SLIP_DEBUG, ("slipif_output: sending %"U16_F" bytes\n", p->tot_len));
+  priv = (struct slipif_priv *)netif->state;
+
+  /* Send pbuf out on the serial I/O device. */
+  /* Start with packet delimiter. */
+  sio_send(SLIP_END, priv->sd);
+
+  for (q = p; q != NULL; q = q->next) {
+    for (i = 0; i < q->len; i++) {
+      c = ((u8_t *)q->payload)[i];
+      switch (c) {
+        case SLIP_END:
+          /* need to escape this byte (0xC0 -> 0xDB, 0xDC) */
+          sio_send(SLIP_ESC, priv->sd);
+          sio_send(SLIP_ESC_END, priv->sd);
+          break;
+        case SLIP_ESC:
+          /* need to escape this byte (0xDB -> 0xDB, 0xDD) */
+          sio_send(SLIP_ESC, priv->sd);
+          sio_send(SLIP_ESC_ESC, priv->sd);
+          break;
+        default:
+          /* normal byte - no need for escaping */
+          sio_send(c, priv->sd);
+          break;
+      }
+    }
+  }
+  /* End with packet delimiter. */
+  sio_send(SLIP_END, priv->sd);
+  return ERR_OK;
+}

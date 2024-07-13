@@ -1,0 +1,52 @@
+ErrorStatus LL_USART_ClockInit(USART_TypeDef *USARTx, LL_USART_ClockInitTypeDef *USART_ClockInitStruct)
+{
+  ErrorStatus status = SUCCESS;
+
+  /* Check USART Instance and Clock signal output parameters */
+  assert_param(IS_UART_INSTANCE(USARTx));
+  assert_param(IS_LL_USART_CLOCKOUTPUT(USART_ClockInitStruct->ClockOutput));
+
+  /* USART needs to be in disabled state, in order to be able to configure some bits in
+     CRx registers */
+  if (LL_USART_IsEnabled(USARTx) == 0U)
+  {
+    /*---------------------------- USART CR2 Configuration -----------------------*/
+    /* If Clock signal has to be output */
+    if (USART_ClockInitStruct->ClockOutput == LL_USART_CLOCK_DISABLE)
+    {
+      /* Deactivate Clock signal delivery :
+       * - Disable Clock Output:        USART_CR2_CLKEN cleared
+       */
+      LL_USART_DisableSCLKOutput(USARTx);
+    }
+    else
+    {
+      /* Ensure USART instance is USART capable */
+      assert_param(IS_USART_INSTANCE(USARTx));
+
+      /* Check clock related parameters */
+      assert_param(IS_LL_USART_CLOCKPOLARITY(USART_ClockInitStruct->ClockPolarity));
+      assert_param(IS_LL_USART_CLOCKPHASE(USART_ClockInitStruct->ClockPhase));
+      assert_param(IS_LL_USART_LASTBITCLKOUTPUT(USART_ClockInitStruct->LastBitClockPulse));
+
+      /*---------------------------- USART CR2 Configuration -----------------------
+       * Configure USARTx CR2 (Clock signal related bits) with parameters:
+       * - Enable Clock Output:         USART_CR2_CLKEN set
+       * - Clock Polarity:              USART_CR2_CPOL bit according to USART_ClockInitStruct->ClockPolarity value
+       * - Clock Phase:                 USART_CR2_CPHA bit according to USART_ClockInitStruct->ClockPhase value
+       * - Last Bit Clock Pulse Output: USART_CR2_LBCL bit according to USART_ClockInitStruct->LastBitClockPulse value.
+       */
+      MODIFY_REG(USARTx->CR2,
+                 USART_CR2_CLKEN | USART_CR2_CPHA | USART_CR2_CPOL | USART_CR2_LBCL,
+                 USART_CR2_CLKEN | USART_ClockInitStruct->ClockPolarity |
+                 USART_ClockInitStruct->ClockPhase | USART_ClockInitStruct->LastBitClockPulse);
+    }
+  }
+  /* Else (USART not in Disabled state => return ERROR */
+  else
+  {
+    status = ERROR;
+  }
+
+  return (status);
+}

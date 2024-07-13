@@ -1,0 +1,50 @@
+static int verify_chain( void )
+{
+    memory_header *prv = heap.first, *cur;
+
+    if( prv == NULL || verify_header( prv ) != 0 )
+    {
+#if defined(MBEDTLS_MEMORY_DEBUG)
+        mbedtls_fprintf( stderr, "FATAL: verification of first header "
+                                  "failed\n" );
+#endif
+        return( 1 );
+    }
+
+    if( heap.first->prev != NULL )
+    {
+#if defined(MBEDTLS_MEMORY_DEBUG)
+        mbedtls_fprintf( stderr, "FATAL: verification failed: "
+                                  "first->prev != NULL\n" );
+#endif
+        return( 1 );
+    }
+
+    cur = heap.first->next;
+
+    while( cur != NULL )
+    {
+        if( verify_header( cur ) != 0 )
+        {
+#if defined(MBEDTLS_MEMORY_DEBUG)
+            mbedtls_fprintf( stderr, "FATAL: verification of header "
+                                      "failed\n" );
+#endif
+            return( 1 );
+        }
+
+        if( cur->prev != prv )
+        {
+#if defined(MBEDTLS_MEMORY_DEBUG)
+            mbedtls_fprintf( stderr, "FATAL: verification failed: "
+                                      "cur->prev != prv\n" );
+#endif
+            return( 1 );
+        }
+
+        prv = cur;
+        cur = cur->next;
+    }
+
+    return( 0 );
+}

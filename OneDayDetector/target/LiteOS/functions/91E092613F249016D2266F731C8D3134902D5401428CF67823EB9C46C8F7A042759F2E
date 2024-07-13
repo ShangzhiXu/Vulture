@@ -1,0 +1,19 @@
+static void chap_md5_make_response(ppp_pcb *pcb, unsigned char *response, int id, const char *our_name,
+		       const unsigned char *challenge, const char *secret, int secret_len,
+		       unsigned char *private_) {
+	lwip_md5_context ctx;
+	unsigned char idbyte = id;
+	int challenge_len = *challenge++;
+	LWIP_UNUSED_ARG(our_name);
+	LWIP_UNUSED_ARG(private_);
+	LWIP_UNUSED_ARG(pcb);
+
+	lwip_md5_init(&ctx);
+	lwip_md5_starts(&ctx);
+	lwip_md5_update(&ctx, &idbyte, 1);
+	lwip_md5_update(&ctx, (const u_char *)secret, secret_len);
+	lwip_md5_update(&ctx, challenge, challenge_len);
+	lwip_md5_finish(&ctx, &response[1]);
+	lwip_md5_free(&ctx);
+	response[0] = MD5_HASH_SIZE;
+}

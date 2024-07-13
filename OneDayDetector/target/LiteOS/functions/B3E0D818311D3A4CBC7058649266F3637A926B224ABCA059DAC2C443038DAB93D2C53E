@@ -1,0 +1,22 @@
+int mbedtls_chacha20_starts( mbedtls_chacha20_context* ctx,
+                             const unsigned char nonce[12],
+                             uint32_t counter )
+{
+    CHACHA20_VALIDATE_RET( ctx != NULL );
+    CHACHA20_VALIDATE_RET( nonce != NULL );
+
+    /* Counter */
+    ctx->state[12] = counter;
+
+    /* Nonce */
+    ctx->state[13] = BYTES_TO_U32_LE( nonce, 0 );
+    ctx->state[14] = BYTES_TO_U32_LE( nonce, 4 );
+    ctx->state[15] = BYTES_TO_U32_LE( nonce, 8 );
+
+    mbedtls_platform_zeroize( ctx->keystream8, sizeof( ctx->keystream8 ) );
+
+    /* Initially, there's no keystream bytes available */
+    ctx->keystream_bytes_used = CHACHA20_BLOCK_SIZE_BYTES;
+
+    return( 0 );
+}

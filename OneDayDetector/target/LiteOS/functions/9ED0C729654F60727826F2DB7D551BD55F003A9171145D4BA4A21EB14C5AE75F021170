@@ -1,0 +1,13 @@
+errno_t memcpy_s(void *dest, size_t destMax, const void *src, size_t count)
+{
+    if (SECUREC_MEMCPY_PARAM_OK(dest, destMax, src, count)) {
+#if SECUREC_MEMCOPY_WITH_PERFORMANCE
+        SECUREC_MEMCPY_OPT(dest, src, count);
+#else
+        SECUREC_MEMCPY_WARP_OPT(dest, src, count);
+#endif
+        return EOK;
+    }
+    /* Meet some runtime violation, return error code */
+    return SecMemcpyError(dest, destMax, src, count);
+}

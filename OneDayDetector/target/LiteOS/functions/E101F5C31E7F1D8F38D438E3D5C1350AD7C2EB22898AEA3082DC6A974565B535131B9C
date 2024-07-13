@@ -1,0 +1,51 @@
+STATIC INT32 OsTabMatchCmd(CHAR *cmdKey, UINT32 *len)
+{
+    INT32 count = 0;
+    INT32 ret;
+    CmdItemNode *cmdItemGuard = NULL;
+    CmdItemNode *curCmdItem = NULL;
+    CHAR *cmdMajor = cmdKey;
+
+    while (*cmdMajor == SPACE) { /* cut left space */
+        cmdMajor++;
+    }
+
+    if (LOS_ListEmpty(&g_cmdInfo.cmdList.list)) {
+        return (INT32)OS_ERROR;
+    }
+
+    LOS_DL_LIST_FOR_EACH_ENTRY(curCmdItem, &g_cmdInfo.cmdList.list, CmdItemNode, list) {
+        if (strncmp(cmdMajor, curCmdItem->cmd->cmdKey, strlen(cmdMajor)) > 0) {
+            continue;
+        }
+
+        if (strncmp(cmdMajor, curCmdItem->cmd->cmdKey, strlen(cmdMajor)) != 0) {
+            break;
+        }
+
+        if (count == 0) {
+            cmdItemGuard = curCmdItem;
+        }
+        ++count;
+    }
+
+    if (cmdItemGuard == NULL) {
+        return 0;
+    }
+
+    if (count == 1) {
+        OsCompleteStr(cmdItemGuard->cmd->cmdKey, cmdMajor, cmdKey, len);
+    }
+
+    ret = count;
+    if (count > 1) {
+        PRINTK("\n");
+        while (count--) {
+            PRINTK("%s  ", cmdItemGuard->cmd->cmdKey);
+            cmdItemGuard = LOS_DL_LIST_ENTRY(cmdItemGuard->list.pstNext, CmdItemNode, list);
+        }
+        PRINTK("\n");
+    }
+
+    return ret;
+}

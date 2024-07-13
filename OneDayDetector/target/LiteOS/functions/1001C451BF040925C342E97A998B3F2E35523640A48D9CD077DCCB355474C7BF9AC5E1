@@ -1,0 +1,64 @@
+int lwm2m_data_decode_int(const lwm2m_data_t *dataP,
+                          int64_t *valueP)
+{
+    int result;
+
+    LOG("Entering");
+    switch (dataP->type)
+    {
+    case LWM2M_TYPE_INTEGER:
+        *valueP = dataP->value.asInteger;
+        result = 1;
+        break;
+
+    case LWM2M_TYPE_STRING:
+        result = utils_textToInt(dataP->value.asBuffer.buffer, dataP->value.asBuffer.length, valueP);
+        break;
+
+    case LWM2M_TYPE_OPAQUE:
+        switch (dataP->value.asBuffer.length)
+        {
+        case 1:
+            *valueP = (int8_t)dataP->value.asBuffer.buffer[0];
+            result = 1;
+            break;
+
+        case 2:
+        {
+            int16_t value;
+
+            utils_copyValue(&value, dataP->value.asBuffer.buffer, dataP->value.asBuffer.length);
+
+            *valueP = value;
+            result = 1;
+            break;
+        }
+
+        case 4:
+        {
+            int32_t value;
+
+            utils_copyValue(&value, dataP->value.asBuffer.buffer, dataP->value.asBuffer.length);
+
+            *valueP = value;
+            result = 1;
+            break;
+        }
+
+        case 8:
+            utils_copyValue(valueP, dataP->value.asBuffer.buffer, dataP->value.asBuffer.length);
+            result = 1;
+            break;
+
+        default:
+            result = 0;
+        }
+        break;
+
+    default:
+        return 0;
+    }
+    LOG_ARG("result: %d, value: %" PRId64, result, *valueP);
+
+    return result;
+}

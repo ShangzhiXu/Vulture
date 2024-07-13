@@ -1,0 +1,27 @@
+static HAL_StatusTypeDef SMARTCARD_Transmit_IT(SMARTCARD_HandleTypeDef *hsc)
+{
+  uint16_t* tmp;
+
+  /* Check that a Tx process is ongoing */
+  if(hsc->gState == HAL_SMARTCARD_STATE_BUSY_TX)
+  {
+    tmp = (uint16_t*) hsc->pTxBuffPtr;
+    hsc->Instance->DR = (uint16_t)(*tmp & (uint16_t)0x01FF);
+    hsc->pTxBuffPtr += 1U;
+
+    if(--hsc->TxXferCount == 0U)
+    {
+      /* Disable the SMARTCARD Transmit data register empty Interrupt */
+      CLEAR_BIT(hsc->Instance->CR1, USART_CR1_TXEIE);
+
+      /* Enable the SMARTCARD Transmit Complete Interrupt */
+      SET_BIT(hsc->Instance->CR1, USART_CR1_TCIE);
+    }
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

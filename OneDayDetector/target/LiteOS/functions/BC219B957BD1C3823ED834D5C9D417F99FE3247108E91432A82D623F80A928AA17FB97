@@ -1,0 +1,50 @@
+LITE_OS_SEC_TEXT_MINOR VOID OsShellStatisticsStop(VOID)
+{
+    LosTaskCB *taskCB = NULL;
+    UINT32 loop;
+    UINT32 cpuId = 0;
+    UINT64 statisticsStopTime;
+    UINT64 statisticsPastTime;
+    UINT64 runtime;
+    UINT32 intSave;
+
+    SCHEDULER_LOCK(intSave);
+
+    if (g_statisticsStartFlag != TRUE) {
+        PRINT_WARN("Please set mp static start\n");
+        SCHEDULER_UNLOCK(intSave);
+        return;
+    }
+
+    g_statisticsStartFlag = FALSE;
+    statisticsStopTime = LOS_CurrNanosec();
+    statisticsPastTime = statisticsStopTime - g_statisticsStartTime;
+
+    for (loop = 0; loop < g_taskMaxNum; loop++) {
+        taskCB = (((LosTaskCB *)g_taskCBArray) + loop);
+        if (taskCB->taskStatus & OS_TASK_STATUS_RUNNING) {
+#ifdef LOSCFG_KERNEL_SMP
+            cpuId = taskCB->currCpu;
+#endif
+            if (cpuId == (UINT32)(OS_TASK_INVALID_CPUID)) {
+                continue;
+            }
+            if (!strcmp(taskCB->taskName, "IdleCore000")) {
+                runtime = statisticsStopTime - g_statPercpu[cpuId].idleStarttime;
+                g_statPercpu[cpuId].idleRuntime += runtime;
+                g_statPercpu[cpuId].idleStarttime = 0;
+            }
+            if (taskCB->priority < HIGHTASKPRI) {
+                runtime = statisticsStopTime - g_statPercpu[cpuId].highTaskStarttime;
+                g_statPercpu[cpuId].highTaskRuntime += runtime;
+                g_statPercpu[cpuId].highTaskStarttime = 0;
+            }
+        }
+    }
+    SCHEDULER_UNLOCK(intSave);
+    OsStatisticsShow(statisticsPastTime);
+
+    (VOID)memset_s(g_statPercpu, sizeof(g_statPercpu), 0, sizeof(g_statPercpu));
+    g_statisticsStartTime = 0;
+    return;
+}

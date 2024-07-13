@@ -1,0 +1,57 @@
+HAL_StatusTypeDef HAL_NAND_RegisterCallback (NAND_HandleTypeDef *hnand, HAL_NAND_CallbackIDTypeDef CallbackId, pNAND_CallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if(pCallback == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Process locked */
+  __HAL_LOCK(hnand);
+
+  if(hnand->State == HAL_NAND_STATE_READY)
+  {
+    switch (CallbackId)
+    {
+    case HAL_NAND_MSP_INIT_CB_ID :
+      hnand->MspInitCallback = pCallback;
+      break;
+    case HAL_NAND_MSP_DEINIT_CB_ID :
+      hnand->MspDeInitCallback = pCallback;
+      break;
+    case HAL_NAND_IT_CB_ID :
+      hnand->ItCallback = pCallback;
+      break;
+    default :
+      /* update return status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else if(hnand->State == HAL_NAND_STATE_RESET)
+  {
+    switch (CallbackId)
+    {
+    case HAL_NAND_MSP_INIT_CB_ID :
+      hnand->MspInitCallback = pCallback;
+      break;
+    case HAL_NAND_MSP_DEINIT_CB_ID :
+      hnand->MspDeInitCallback = pCallback;
+      break;
+    default :
+      /* update return status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else
+  {
+    /* update return status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hnand);
+  return status;
+}

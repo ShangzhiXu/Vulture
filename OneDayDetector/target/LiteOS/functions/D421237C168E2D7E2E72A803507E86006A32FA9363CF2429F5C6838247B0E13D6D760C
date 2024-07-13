@@ -1,0 +1,41 @@
+INT32 ArchMemNoAccessSet(UINTPTR startaddr, size_t length)
+{
+    UINTPTR ttbBase = FIRST_PAGE_DESCRIPTOR_ADDR;
+    UINTPTR endAddr = startaddr + length;
+    UINT32 base;
+
+    if (startaddr >= endAddr) {
+        PRINT_ERR("The Input param invalid ,length equal 0 or the configuration scope overflow."
+                  "startaddr:0x%x, length:0x%x\n",
+                  startaddr, length);
+        return -1;
+    }
+
+    if ((startaddr >= SYS_MEM_BASE) && (startaddr <= g_sys_mem_addr_end)) {
+        PRINT_ERR("The no access permission area should not contain os system mem,startaddr:0x%x\n", startaddr);
+        return -1;
+    }
+    if ((endAddr >= SYS_MEM_BASE) && (endAddr <= g_sys_mem_addr_end)) {
+        PRINT_ERR("The no access permission area should not contain os system mem,endAddr:0x%x\n", endAddr);
+        return -1;
+    }
+    if (((startaddr & (MMU_1M - 1)) != 0) || ((length & (MMU_1M - 1)) != 0)) {
+        PRINT_ERR("The start address or the length is not aligned as 1M, startaddr:0x%x, length:0x%x\n", startaddr,
+                  length);
+        return -1;
+    }
+
+    DisableAPCheck();
+    base = startaddr >> SHIFT_1M;
+#ifdef LOSCFG_ARCH_ARM926
+    X_MMU_SECTION(base, base, length >> SHIFT_1M, 0, 0, 0, D_NA);
+#elif defined(LOSCFG_ARCH_CORTEX_A7) || defined(LOSCFG_ARCH_CORTEX_A17) || defined(LOSCFG_ARCH_CORTEX_A53_AARCH32)
+    X_MMU_SECTION(base, base, length >> SHIFT_1M, 0, 0, 0, 0, D_NA);
+#endif
+    dma_cache_clean(ttbBase + ((startaddr >> SHIFT_1M) * BYTES_PER_ITEM),
+                    ttbBase + ((endAddr >> SHIFT_1M) * BYTES_PER_ITEM));
+
+    CleanTLB();
+    EnableAPCheck();
+    return 0;
+}

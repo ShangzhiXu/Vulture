@@ -1,0 +1,21 @@
+SECUREC_INLINE int SecInputFloatExponent(SecFileStream *stream, SecScanSpec *spec, SecFloatSpec *floatSpec)
+{
+    /* Now get exponent part */
+    if (spec->numberState == SECUREC_NUMBER_STATE_STARTED && SECUREC_FILED_WIDTH_ENOUGH(spec)) {
+        spec->ch = SecGetChar(stream, &(spec->charCount));
+        if (spec->ch != SECUREC_CHAR('e') && spec->ch != SECUREC_CHAR('E')) {
+            SecUnGetChar(spec->ch, stream, &(spec->charCount));
+            return 0;
+        }
+        SECUREC_FILED_WIDTH_DEC(spec); /* Must be behind un get char, otherwise the logic is incorrect */
+        floatSpec->floatStr[floatSpec->floatStrUsedLen] = SECUREC_CHAR('e');
+        ++floatSpec->floatStrUsedLen;
+        if (SecExtendFloatLen(floatSpec) != 0) {
+            return -1;
+        }
+        if (SecInputFloatE(stream, spec, floatSpec) != 0) {
+            return -1;
+        }
+    }
+    return 0;
+}

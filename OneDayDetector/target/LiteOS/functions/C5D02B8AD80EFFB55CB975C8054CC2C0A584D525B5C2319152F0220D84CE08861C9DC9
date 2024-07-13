@@ -1,0 +1,17 @@
+UINT32 OsShellCmdQueueCntGet(VOID)
+{
+    UINT32 loop;
+    UINT32 queueCnt = 0;
+    UINT32 intSave;
+    LosQueueCB *queueCB = NULL;
+
+    intSave = LOS_IntLock();
+    queueCB = g_allQueue;
+    for (loop = 0; loop < LOSCFG_BASE_IPC_QUEUE_LIMIT; loop++, queueCB++) {
+        if (queueCB->queueState == OS_QUEUE_INUSED) {
+            queueCnt++;
+        }
+    }
+    LOS_IntRestore(intSave);
+    return queueCnt;
+}

@@ -1,0 +1,19 @@
+static void expect_set(
+        const char* const function, const char* const parameter,
+        const char* const file, const int line,
+        const LargestIntegralType values[], const size_t number_of_values,
+        const CheckParameterValue check_function, const int count) {
+    CheckIntegerSet * const check_integer_set =
+        malloc(sizeof(*check_integer_set) +
+               (sizeof(values[0]) * number_of_values));
+    LargestIntegralType * const set = (LargestIntegralType*)(
+        check_integer_set + 1);
+    declare_initialize_value_pointer_pointer(check_data, check_integer_set);
+    assert_true(values);
+    assert_true(number_of_values);
+    memcpy(set, values, number_of_values * sizeof(values[0]));
+    check_integer_set->set = set;
+    _expect_check(
+        function, parameter, file, line, check_function,
+        check_data.value, &check_integer_set->event, count);
+}

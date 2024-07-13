@@ -1,0 +1,42 @@
+HAL_StatusTypeDef HASH_Finish(HASH_HandleTypeDef *hhash, uint8_t* pOutBuffer, uint32_t Timeout)
+{
+
+  if(hhash->State == HAL_HASH_STATE_READY)
+  {
+    /* Check parameter */
+    if (pOutBuffer == NULL)
+    {
+      return  HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hhash);
+
+    /* Change the HASH state to busy */
+    hhash->State = HAL_HASH_STATE_BUSY;
+
+    /* Wait for DCIS flag to be set */
+    if (HASH_WaitOnFlagUntilTimeout(hhash, HASH_FLAG_DCIS, RESET, Timeout) != HAL_OK)
+    {
+      return HAL_TIMEOUT;
+    }
+
+    /* Read the message digest */
+    HASH_GetDigest(pOutBuffer, HASH_DIGEST_LENGTH());
+
+    /* Change the HASH state to ready */
+    hhash->State = HAL_HASH_STATE_READY;
+
+    /* Process UnLock */
+    __HAL_UNLOCK(hhash);
+
+    /* Return function status */
+    return HAL_OK;
+
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+
+}

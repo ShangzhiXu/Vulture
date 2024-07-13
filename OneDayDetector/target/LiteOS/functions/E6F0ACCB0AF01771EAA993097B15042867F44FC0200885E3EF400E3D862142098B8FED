@@ -1,0 +1,27 @@
+VOID OsTraceHook(UINT32 eventType, UINTPTR identity, const UINTPTR *params, UINT16 paramCount)
+{
+    if ((eventType == TASK_CREATE) || (eventType == TASK_PRIOSET)) {
+        OsTraceObjAdd(eventType, identity); /* handle important obj info, these can not be filtered */
+    }
+
+    if ((g_enableTrace == TRUE) && (eventType & g_traceMask)) {
+        UINTPTR id = identity;
+        if (TRACE_GET_MODE_FLAG(eventType) == TRACE_HWI_FLAG) {
+            if (OsTraceHwiFilter(identity)) {
+                return;
+            }
+        } else if (TRACE_GET_MODE_FLAG(eventType) == TRACE_TASK_FLAG) {
+            id = OsTraceGetMaskTid(identity);
+        } else if (eventType == MEM_INFO_REQ) {
+            LOS_MEM_POOL_STATUS status;
+            LOS_MemInfoGet((VOID *)identity, &status);
+            LOS_TRACE(MEM_INFO, identity, status.uwTotalUsedSize, status.uwTotalFreeSize);
+            return;
+        }
+
+        TraceEventFrame frame;
+        OsTraceSetFrame(&frame, eventType, id, params, paramCount);
+
+        OsTraceWriteOrSendEvent(&frame);
+    }
+}

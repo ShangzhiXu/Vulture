@@ -1,0 +1,55 @@
+static int prv_check_time_offset(char *buffer, int length)
+{
+    int min_index;
+
+    if ((length != 3) && (length != 5) && (length != 6)) {
+        return 0;
+    }
+    if ((buffer[0] != '-') && (buffer[0] != '+')) {
+        return 0;
+    }
+    switch (buffer[1]) {
+    case '0': {
+        if ((buffer[2] < '0') || (buffer[2] > '9')) {
+            return 0;
+        }
+        break;
+    }
+    case '1': {
+        if ((buffer[2] < '0') || (buffer[2] > '2')) {
+            return 0;
+        }
+        break;
+    }
+    default:
+        return 0;
+    }
+
+    switch (length) {
+    case 3: {
+        return 1;
+    }
+    case 5: {
+        min_index = 3;
+        break;
+    }
+    case 6: {
+        if (buffer[3] != ':') {
+            return 0;
+        }
+        min_index = 4;
+        break;
+    }
+    default:
+        // never happen
+        return 0;
+    }
+    if ((buffer[min_index] < '0') || (buffer[min_index] > '5')) {
+        return 0;
+    }
+    if ((buffer[min_index + 1] < '0') || (buffer[min_index + 1] > '9')) {
+        return 0;
+    }
+
+    return 1;
+}

@@ -1,0 +1,60 @@
+HAL_StatusTypeDef HAL_SDRAM_UnRegisterCallback (SDRAM_HandleTypeDef *hsdram, HAL_SDRAM_CallbackIDTypeDef CallbackId)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  HAL_SDRAM_StateTypeDef state;
+  
+  /* Process locked */
+  __HAL_LOCK(hsdram);
+
+  state = hsdram->State;
+  if((state == HAL_SDRAM_STATE_READY) || (state == HAL_SDRAM_STATE_WRITE_PROTECTED))
+  {
+    switch (CallbackId)
+    {
+    case HAL_SDRAM_MSP_INIT_CB_ID :
+      hsdram->MspInitCallback = HAL_SDRAM_MspInit;
+      break;
+    case HAL_SDRAM_MSP_DEINIT_CB_ID :
+      hsdram->MspDeInitCallback = HAL_SDRAM_MspDeInit;
+      break;
+    case HAL_SDRAM_REFRESH_ERR_CB_ID :
+      hsdram->RefreshErrorCallback = HAL_SDRAM_RefreshErrorCallback;
+      break;
+    case HAL_SDRAM_DMA_XFER_CPLT_CB_ID :
+      hsdram->DmaXferCpltCallback = HAL_SDRAM_DMA_XferCpltCallback;
+      break;
+    case HAL_SDRAM_DMA_XFER_ERR_CB_ID :
+      hsdram->DmaXferErrorCallback = HAL_SDRAM_DMA_XferErrorCallback;
+      break;
+    default :
+      /* update return status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else if(hsdram->State == HAL_SDRAM_STATE_RESET)
+  {
+    switch (CallbackId)
+    {
+    case HAL_SDRAM_MSP_INIT_CB_ID :
+      hsdram->MspInitCallback = HAL_SDRAM_MspInit;
+      break;
+    case HAL_SDRAM_MSP_DEINIT_CB_ID :
+      hsdram->MspDeInitCallback = HAL_SDRAM_MspDeInit;
+      break;
+    default :
+      /* update return status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else
+  {
+    /* update return status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hsdram);
+  return status;
+}

@@ -1,0 +1,91 @@
+__weak void BSP_SDRAM_MspInit(SDRAM_HandleTypeDef  *hsdram, void *Params)
+{  
+  static DMA_HandleTypeDef dma_handle;
+  GPIO_InitTypeDef gpio_init_structure;
+  
+  /* Enable FMC clock */
+  __HAL_RCC_FMC_CLK_ENABLE();
+  
+  /* Enable chosen DMAx clock */
+  __DMAx_CLK_ENABLE();
+
+  /* Enable GPIOs clock */
+  __HAL_RCC_GPIOD_CLK_ENABLE();
+  __HAL_RCC_GPIOE_CLK_ENABLE();
+  __HAL_RCC_GPIOF_CLK_ENABLE();
+  __HAL_RCC_GPIOG_CLK_ENABLE();
+  __HAL_RCC_GPIOH_CLK_ENABLE();
+  __HAL_RCC_GPIOI_CLK_ENABLE();
+  
+  /* Common GPIO configuration */
+  gpio_init_structure.Mode      = GPIO_MODE_AF_PP;
+  gpio_init_structure.Pull      = GPIO_PULLUP;
+  gpio_init_structure.Speed     = GPIO_SPEED_HIGH;
+  gpio_init_structure.Alternate = GPIO_AF12_FMC;
+  
+  /* GPIOD configuration */
+  gpio_init_structure.Pin   = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_8| GPIO_PIN_9 | GPIO_PIN_10 |\
+                              GPIO_PIN_14 | GPIO_PIN_15;
+ 
+   
+  HAL_GPIO_Init(GPIOD, &gpio_init_structure);
+
+  /* GPIOE configuration */  
+  gpio_init_structure.Pin   = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_7| GPIO_PIN_8 | GPIO_PIN_9 |\
+                              GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 |\
+                              GPIO_PIN_15;
+      
+  HAL_GPIO_Init(GPIOE, &gpio_init_structure);
+  
+  /* GPIOF configuration */  
+  gpio_init_structure.Pin   = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2| GPIO_PIN_3 | GPIO_PIN_4 |\
+                              GPIO_PIN_5 | GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 |\
+                              GPIO_PIN_15;
+    
+  HAL_GPIO_Init(GPIOF, &gpio_init_structure);
+  
+  /* GPIOG configuration */  
+  gpio_init_structure.Pin   = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_4|\
+                              GPIO_PIN_5 | GPIO_PIN_8 | GPIO_PIN_15;
+  HAL_GPIO_Init(GPIOG, &gpio_init_structure);
+
+  /* GPIOH configuration */  
+  gpio_init_structure.Pin   = GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_5 | GPIO_PIN_8 | GPIO_PIN_9 |\
+                              GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 |\
+                              GPIO_PIN_15;
+  HAL_GPIO_Init(GPIOH, &gpio_init_structure); 
+  
+  /* GPIOI configuration */  
+  gpio_init_structure.Pin   = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 |\
+                              GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7 | GPIO_PIN_9 | GPIO_PIN_10;
+  HAL_GPIO_Init(GPIOI, &gpio_init_structure);  
+  
+  /* Configure common DMA parameters */
+  dma_handle.Init.Channel             = SDRAM_DMAx_CHANNEL;
+  dma_handle.Init.Direction           = DMA_MEMORY_TO_MEMORY;
+  dma_handle.Init.PeriphInc           = DMA_PINC_ENABLE;
+  dma_handle.Init.MemInc              = DMA_MINC_ENABLE;
+  dma_handle.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
+  dma_handle.Init.MemDataAlignment    = DMA_MDATAALIGN_WORD;
+  dma_handle.Init.Mode                = DMA_NORMAL;
+  dma_handle.Init.Priority            = DMA_PRIORITY_HIGH;
+  dma_handle.Init.FIFOMode            = DMA_FIFOMODE_DISABLE;         
+  dma_handle.Init.FIFOThreshold       = DMA_FIFO_THRESHOLD_FULL;
+  dma_handle.Init.MemBurst            = DMA_MBURST_SINGLE;
+  dma_handle.Init.PeriphBurst         = DMA_PBURST_SINGLE; 
+  
+  dma_handle.Instance = SDRAM_DMAx_STREAM;
+  
+   /* Associate the DMA handle */
+  __HAL_LINKDMA(hsdram, hdma, dma_handle);
+  
+  /* Deinitialize the stream for new transfer */
+  HAL_DMA_DeInit(&dma_handle);
+  
+  /* Configure the DMA stream */
+  HAL_DMA_Init(&dma_handle); 
+  
+  /* NVIC configuration for DMA transfer complete interrupt */
+  HAL_NVIC_SetPriority(SDRAM_DMAx_IRQn, 0x0F, 0);
+  HAL_NVIC_EnableIRQ(SDRAM_DMAx_IRQn);
+}

@@ -1,0 +1,16 @@
+void conn_s_updateTxStatistic(lwm2m_object_t *objectP, uint16_t txDataByte, bool smsBased)
+{
+    conn_s_data_t *myData = (conn_s_data_t *) (objectP->userData);
+    if (myData->collectDataStarted) {
+        myData->txDataByte += txDataByte;
+        myData->messageCount++;
+        myData->avrMessageSize = (myData->txDataByte + myData->rxDataByte) /
+                                  myData->messageCount;
+        if (txDataByte > myData->maxMessageSize) {
+            myData->maxMessageSize = txDataByte;
+        }
+        if (smsBased) {
+            myData->smsTxCounter++;
+        }
+    }
+}

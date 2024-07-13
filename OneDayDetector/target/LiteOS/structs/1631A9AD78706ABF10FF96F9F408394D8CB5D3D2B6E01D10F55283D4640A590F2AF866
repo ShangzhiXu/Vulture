@@ -1,0 +1,109 @@
+struct ppp_pcb_s {
+  ppp_settings settings;
+  const struct link_callbacks *link_cb;
+  void *link_ctx_cb;
+  void (*link_status_cb)(ppp_pcb *pcb, int err_code, void *ctx);  /* Status change callback */
+#if PPP_NOTIFY_PHASE
+  void (*notify_phase_cb)(ppp_pcb *pcb, u8_t phase, void *ctx);   /* Notify phase callback */
+#endif /* PPP_NOTIFY_PHASE */
+  void *ctx_cb;                  /* Callbacks optional pointer */
+  struct netif *netif;           /* PPP interface */
+  u8_t phase;                    /* where the link is at */
+  u8_t err_code;                 /* Code indicating why interface is down. */
+
+  /* flags */
+#if PPP_IPV4_SUPPORT
+  unsigned int ask_for_local           :1; /* request our address from peer */
+  unsigned int ipcp_is_open            :1; /* haven't called np_finished() */
+  unsigned int ipcp_is_up              :1; /* have called ipcp_up() */
+  unsigned int if4_up                  :1; /* True when the IPv4 interface is up. */
+#if 0 /* UNUSED - PROXY ARP */
+  unsigned int proxy_arp_set           :1; /* Have created proxy arp entry */
+#endif /* UNUSED - PROXY ARP */
+#endif /* PPP_IPV4_SUPPORT */
+#if PPP_IPV6_SUPPORT
+  unsigned int ipv6cp_is_up            :1; /* have called ip6cp_up() */
+  unsigned int if6_up                  :1; /* True when the IPv6 interface is up. */
+#endif /* PPP_IPV6_SUPPORT */
+  unsigned int lcp_echo_timer_running  :1; /* set if a timer is running */
+#if VJ_SUPPORT
+  unsigned int vj_enabled              :1; /* Flag indicating VJ compression enabled. */
+#endif /* VJ_SUPPORT */
+#if CCP_SUPPORT
+  unsigned int ccp_all_rejected        :1; /* we rejected all peer's options */
+#endif /* CCP_SUPPORT */
+#if MPPE_SUPPORT
+  unsigned int mppe_keys_set           :1; /* Have the MPPE keys been set? */
+#endif /* MPPE_SUPPORT */
+
+#if PPP_AUTH_SUPPORT
+  /* auth data */
+#if PPP_SERVER && defined(HAVE_MULTILINK)
+  char peer_authname[MAXNAMELEN + 1]; /* The name by which the peer authenticated itself to us. */
+#endif /* PPP_SERVER && defined(HAVE_MULTILINK) */
+  u16_t auth_pending;        /* Records which authentication operations haven't completed yet. */
+  u16_t auth_done;           /* Records which authentication operations have been completed. */
+
+#if PAP_SUPPORT
+  upap_state upap;           /* PAP data */
+#endif /* PAP_SUPPORT */
+
+#if CHAP_SUPPORT
+  chap_client_state chap_client;  /* CHAP client data */
+#if PPP_SERVER
+  chap_server_state chap_server;  /* CHAP server data */
+#endif /* PPP_SERVER */
+#endif /* CHAP_SUPPORT */
+
+#if EAP_SUPPORT
+  eap_state eap;            /* EAP data */
+#endif /* EAP_SUPPORT */
+#endif /* PPP_AUTH_SUPPORT */
+
+  fsm lcp_fsm;                   /* LCP fsm structure */
+  lcp_options lcp_wantoptions;   /* Options that we want to request */
+  lcp_options lcp_gotoptions;    /* Options that peer ack'd */
+  lcp_options lcp_allowoptions;  /* Options we allow peer to request */
+  lcp_options lcp_hisoptions;    /* Options that we ack'd */
+  u16_t peer_mru;                /* currently negotiated peer MRU */
+  u8_t lcp_echos_pending;        /* Number of outstanding echo msgs */
+  u8_t lcp_echo_number;          /* ID number of next echo frame */
+
+  u8_t num_np_open;              /* Number of network protocols which we have opened. */
+  u8_t num_np_up;                /* Number of network protocols which have come up. */
+
+#if VJ_SUPPORT
+  struct vjcompress vj_comp;     /* Van Jacobson compression header. */
+#endif /* VJ_SUPPORT */
+
+#if CCP_SUPPORT
+  fsm ccp_fsm;                   /* CCP fsm structure */
+  ccp_options ccp_wantoptions;   /* what to request the peer to use */
+  ccp_options ccp_gotoptions;    /* what the peer agreed to do */
+  ccp_options ccp_allowoptions;  /* what we'll agree to do */
+  ccp_options ccp_hisoptions;    /* what we agreed to do */
+  u8_t ccp_localstate;           /* Local state (mainly for handling reset-reqs and reset-acks). */
+  u8_t ccp_receive_method;       /* Method chosen on receive path */
+  u8_t ccp_transmit_method;      /* Method chosen on transmit path */
+#if MPPE_SUPPORT
+  ppp_mppe_state mppe_comp;      /* MPPE "compressor" structure */
+  ppp_mppe_state mppe_decomp;    /* MPPE "decompressor" structure */
+#endif /* MPPE_SUPPORT */
+#endif /* CCP_SUPPORT */
+
+#if PPP_IPV4_SUPPORT
+  fsm ipcp_fsm;                   /* IPCP fsm structure */
+  ipcp_options ipcp_wantoptions;  /* Options that we want to request */
+  ipcp_options ipcp_gotoptions;   /* Options that peer ack'd */
+  ipcp_options ipcp_allowoptions; /* Options we allow peer to request */
+  ipcp_options ipcp_hisoptions;   /* Options that we ack'd */
+#endif /* PPP_IPV4_SUPPORT */
+
+#if PPP_IPV6_SUPPORT
+  fsm ipv6cp_fsm;                     /* IPV6CP fsm structure */
+  ipv6cp_options ipv6cp_wantoptions;  /* Options that we want to request */
+  ipv6cp_options ipv6cp_gotoptions;   /* Options that peer ack'd */
+  ipv6cp_options ipv6cp_allowoptions; /* Options we allow peer to request */
+  ipv6cp_options ipv6cp_hisoptions;   /* Options that we ack'd */
+#endif /* PPP_IPV6_SUPPORT */
+};

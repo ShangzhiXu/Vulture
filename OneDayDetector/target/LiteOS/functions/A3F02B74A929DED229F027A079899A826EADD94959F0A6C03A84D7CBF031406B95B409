@@ -1,0 +1,57 @@
+static void ipcp_init(ppp_pcb *pcb) {
+    fsm *f = &pcb->ipcp_fsm;
+
+    ipcp_options *wo = &pcb->ipcp_wantoptions;
+    ipcp_options *ao = &pcb->ipcp_allowoptions;
+
+    f->pcb = pcb;
+    f->protocol = PPP_IPCP;
+    f->callbacks = &ipcp_callbacks;
+    fsm_init(f);
+
+    /*
+     * Some 3G modems use repeated IPCP NAKs as a way of stalling
+     * until they can contact a server on the network, so we increase
+     * the default number of NAKs we accept before we start treating
+     * them as rejects.
+     */
+    f->maxnakloops = 100;
+
+#if 0 /* Not necessary, everything is cleared in ppp_new() */
+    memset(wo, 0, sizeof(*wo));
+    memset(ao, 0, sizeof(*ao));
+#endif /* 0 */
+
+    wo->neg_addr = wo->old_addrs = 1;
+#if VJ_SUPPORT
+    wo->neg_vj = 1;
+    wo->vj_protocol = IPCP_VJ_COMP;
+    wo->maxslotindex = MAX_STATES - 1; /* really max index */
+    wo->cflag = 1;
+#endif /* VJ_SUPPORT */
+
+#if 0 /* UNUSED */
+    /* wanting default route by default */
+    wo->default_route = 1;
+#endif /* UNUSED */
+
+    ao->neg_addr = ao->old_addrs = 1;
+#if VJ_SUPPORT
+    /* max slots and slot-id compression are currently hardwired in */
+    /* ppp_if.c to 16 and 1, this needs to be changed (among other */
+    /* things) gmc */
+
+    ao->neg_vj = 1;
+    ao->maxslotindex = MAX_STATES - 1;
+    ao->cflag = 1;
+#endif /* #if VJ_SUPPORT */
+
+#if 0 /* UNUSED */
+    /*
+     * XXX These control whether the user may use the proxyarp
+     * and defaultroute options.
+     */
+    ao->proxy_arp = 1;
+    ao->default_route = 1;
+#endif /* UNUSED */
+}

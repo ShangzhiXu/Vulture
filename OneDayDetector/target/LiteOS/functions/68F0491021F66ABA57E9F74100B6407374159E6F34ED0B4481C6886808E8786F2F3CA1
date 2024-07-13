@@ -1,0 +1,44 @@
+static int ramfs_rename(struct mount_point *mp, const char *path_in_mp_old, const char *path_in_mp_new)
+{
+    struct ramfs_element *ramfs_file_old;
+    struct ramfs_element *ramfs_file_new;
+
+    ramfs_file_old = ramfs_file_find(mp, path_in_mp_old, &path_in_mp_old);
+
+    if ((ramfs_file_old == NULL) || (*path_in_mp_old != '\0')) {
+        VFS_ERRNO_SET(ENOENT);
+        return -1;
+    }
+
+    ramfs_file_new = ramfs_file_find(mp, path_in_mp_new, &path_in_mp_new);
+
+    /*
+     * ramfs_file_new == NULL means at least parent dir not found
+     * *path_in_mp_new == '\0' means file already exist
+    */
+    if ((ramfs_file_new == NULL) || (*path_in_mp_new == '\0')) {
+        VFS_ERRNO_SET(ENOENT);
+        return -1;
+    }
+
+    /* must in the same dir */
+    if (strchr(path_in_mp_new, '/') != NULL) {
+        VFS_ERRNO_SET(EISDIR);
+        return -1;
+    }
+
+    /* must in the same dir */
+    if (ramfs_file_new != ramfs_file_old->parent) {
+        VFS_ERRNO_SET(EISDIR);
+        return -1;
+    }
+
+    if (strlen(path_in_mp_new) >= LOS_MAX_FILE_NAME_LEN) {
+        VFS_ERRNO_SET(ENAMETOOLONG);
+        return -1;
+    }
+
+    strcpy(ramfs_file_old->name, path_in_mp_new);
+
+    return 0;
+}

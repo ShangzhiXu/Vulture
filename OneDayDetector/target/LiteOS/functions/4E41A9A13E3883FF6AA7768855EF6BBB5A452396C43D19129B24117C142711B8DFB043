@@ -1,0 +1,91 @@
+static void FMPSMBUS_ITErrorHandler(struct __FMPSMBUS_HandleTypeDef *hfmpsmbus)
+{
+  uint32_t itflags   = READ_REG(hfmpsmbus->Instance->ISR);
+  uint32_t itsources = READ_REG(hfmpsmbus->Instance->CR1);
+  uint32_t tmpstate;
+  uint32_t tmperror;
+
+  /* FMPSMBUS Bus error interrupt occurred ------------------------------------*/
+  if (((itflags & FMPSMBUS_FLAG_BERR) == FMPSMBUS_FLAG_BERR) && ((itsources & FMPSMBUS_IT_ERRI) == FMPSMBUS_IT_ERRI))
+  {
+    hfmpsmbus->ErrorCode |= HAL_FMPSMBUS_ERROR_BERR;
+
+    /* Clear BERR flag */
+    __HAL_FMPSMBUS_CLEAR_FLAG(hfmpsmbus, FMPSMBUS_FLAG_BERR);
+  }
+
+  /* FMPSMBUS Over-Run/Under-Run interrupt occurred ----------------------------------------*/
+  if (((itflags & FMPSMBUS_FLAG_OVR) == FMPSMBUS_FLAG_OVR) && ((itsources & FMPSMBUS_IT_ERRI) == FMPSMBUS_IT_ERRI))
+  {
+    hfmpsmbus->ErrorCode |= HAL_FMPSMBUS_ERROR_OVR;
+
+    /* Clear OVR flag */
+    __HAL_FMPSMBUS_CLEAR_FLAG(hfmpsmbus, FMPSMBUS_FLAG_OVR);
+  }
+
+  /* FMPSMBUS Arbitration Loss error interrupt occurred ------------------------------------*/
+  if (((itflags & FMPSMBUS_FLAG_ARLO) == FMPSMBUS_FLAG_ARLO) && ((itsources & FMPSMBUS_IT_ERRI) == FMPSMBUS_IT_ERRI))
+  {
+    hfmpsmbus->ErrorCode |= HAL_FMPSMBUS_ERROR_ARLO;
+
+    /* Clear ARLO flag */
+    __HAL_FMPSMBUS_CLEAR_FLAG(hfmpsmbus, FMPSMBUS_FLAG_ARLO);
+  }
+
+  /* FMPSMBUS Timeout error interrupt occurred ---------------------------------------------*/
+  if (((itflags & FMPSMBUS_FLAG_TIMEOUT) == FMPSMBUS_FLAG_TIMEOUT) && ((itsources & FMPSMBUS_IT_ERRI) == FMPSMBUS_IT_ERRI))
+  {
+    hfmpsmbus->ErrorCode |= HAL_FMPSMBUS_ERROR_BUSTIMEOUT;
+
+    /* Clear TIMEOUT flag */
+    __HAL_FMPSMBUS_CLEAR_FLAG(hfmpsmbus, FMPSMBUS_FLAG_TIMEOUT);
+  }
+
+  /* FMPSMBUS Alert error interrupt occurred -----------------------------------------------*/
+  if (((itflags & FMPSMBUS_FLAG_ALERT) == FMPSMBUS_FLAG_ALERT) && ((itsources & FMPSMBUS_IT_ERRI) == FMPSMBUS_IT_ERRI))
+  {
+    hfmpsmbus->ErrorCode |= HAL_FMPSMBUS_ERROR_ALERT;
+
+    /* Clear ALERT flag */
+    __HAL_FMPSMBUS_CLEAR_FLAG(hfmpsmbus, FMPSMBUS_FLAG_ALERT);
+  }
+
+  /* FMPSMBUS Packet Error Check error interrupt occurred ----------------------------------*/
+  if (((itflags & FMPSMBUS_FLAG_PECERR) == FMPSMBUS_FLAG_PECERR) && ((itsources & FMPSMBUS_IT_ERRI) == FMPSMBUS_IT_ERRI))
+  {
+    hfmpsmbus->ErrorCode |= HAL_FMPSMBUS_ERROR_PECERR;
+
+    /* Clear PEC error flag */
+    __HAL_FMPSMBUS_CLEAR_FLAG(hfmpsmbus, FMPSMBUS_FLAG_PECERR);
+  }
+
+  /* Store current volatile hfmpsmbus->State, misra rule */
+  tmperror = hfmpsmbus->ErrorCode;
+
+  /* Call the Error Callback in case of Error detected */
+  if ((tmperror != HAL_FMPSMBUS_ERROR_NONE) && (tmperror != HAL_FMPSMBUS_ERROR_ACKF))
+  {
+    /* Do not Reset the HAL state in case of ALERT error */
+    if ((tmperror & HAL_FMPSMBUS_ERROR_ALERT) != HAL_FMPSMBUS_ERROR_ALERT)
+    {
+      /* Store current volatile hfmpsmbus->State, misra rule */
+      tmpstate = hfmpsmbus->State;
+
+      if (((tmpstate & HAL_FMPSMBUS_STATE_SLAVE_BUSY_TX) == HAL_FMPSMBUS_STATE_SLAVE_BUSY_TX)
+          || ((tmpstate & HAL_FMPSMBUS_STATE_SLAVE_BUSY_RX) == HAL_FMPSMBUS_STATE_SLAVE_BUSY_RX))
+      {
+        /* Reset only HAL_FMPSMBUS_STATE_SLAVE_BUSY_XX */
+        /* keep HAL_FMPSMBUS_STATE_LISTEN if set */
+        hfmpsmbus->PreviousState = HAL_FMPSMBUS_STATE_READY;
+        hfmpsmbus->State = HAL_FMPSMBUS_STATE_LISTEN;
+      }
+    }
+
+    /* Call the Error callback to inform upper layer */
+#if (USE_HAL_FMPSMBUS_REGISTER_CALLBACKS == 1)
+    hfmpsmbus->ErrorCallback(hfmpsmbus);
+#else
+    HAL_FMPSMBUS_ErrorCallback(hfmpsmbus);
+#endif /* USE_HAL_FMPSMBUS_REGISTER_CALLBACKS */
+  }
+}

@@ -1,0 +1,102 @@
+HAL_StatusTypeDef HAL_FMPI2C_Init(FMPI2C_HandleTypeDef *hfmpi2c)
+{
+  /* Check the FMPI2C handle allocation */
+  if (hfmpi2c == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_FMPI2C_ALL_INSTANCE(hfmpi2c->Instance));
+  assert_param(IS_FMPI2C_OWN_ADDRESS1(hfmpi2c->Init.OwnAddress1));
+  assert_param(IS_FMPI2C_ADDRESSING_MODE(hfmpi2c->Init.AddressingMode));
+  assert_param(IS_FMPI2C_DUAL_ADDRESS(hfmpi2c->Init.DualAddressMode));
+  assert_param(IS_FMPI2C_OWN_ADDRESS2(hfmpi2c->Init.OwnAddress2));
+  assert_param(IS_FMPI2C_OWN_ADDRESS2_MASK(hfmpi2c->Init.OwnAddress2Masks));
+  assert_param(IS_FMPI2C_GENERAL_CALL(hfmpi2c->Init.GeneralCallMode));
+  assert_param(IS_FMPI2C_NO_STRETCH(hfmpi2c->Init.NoStretchMode));
+
+  if (hfmpi2c->State == HAL_FMPI2C_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hfmpi2c->Lock = HAL_UNLOCKED;
+
+#if (USE_HAL_FMPI2C_REGISTER_CALLBACKS == 1)
+    /* Init the FMPI2C Callback settings */
+    hfmpi2c->MasterTxCpltCallback = HAL_FMPI2C_MasterTxCpltCallback; /* Legacy weak MasterTxCpltCallback */
+    hfmpi2c->MasterRxCpltCallback = HAL_FMPI2C_MasterRxCpltCallback; /* Legacy weak MasterRxCpltCallback */
+    hfmpi2c->SlaveTxCpltCallback  = HAL_FMPI2C_SlaveTxCpltCallback;  /* Legacy weak SlaveTxCpltCallback  */
+    hfmpi2c->SlaveRxCpltCallback  = HAL_FMPI2C_SlaveRxCpltCallback;  /* Legacy weak SlaveRxCpltCallback  */
+    hfmpi2c->ListenCpltCallback   = HAL_FMPI2C_ListenCpltCallback;   /* Legacy weak ListenCpltCallback   */
+    hfmpi2c->MemTxCpltCallback    = HAL_FMPI2C_MemTxCpltCallback;    /* Legacy weak MemTxCpltCallback    */
+    hfmpi2c->MemRxCpltCallback    = HAL_FMPI2C_MemRxCpltCallback;    /* Legacy weak MemRxCpltCallback    */
+    hfmpi2c->ErrorCallback        = HAL_FMPI2C_ErrorCallback;        /* Legacy weak ErrorCallback        */
+    hfmpi2c->AbortCpltCallback    = HAL_FMPI2C_AbortCpltCallback;    /* Legacy weak AbortCpltCallback    */
+    hfmpi2c->AddrCallback         = HAL_FMPI2C_AddrCallback;         /* Legacy weak AddrCallback         */
+
+    if (hfmpi2c->MspInitCallback == NULL)
+    {
+      hfmpi2c->MspInitCallback = HAL_FMPI2C_MspInit; /* Legacy weak MspInit  */
+    }
+
+    /* Init the low level hardware : GPIO, CLOCK, CORTEX...etc */
+    hfmpi2c->MspInitCallback(hfmpi2c);
+#else
+    /* Init the low level hardware : GPIO, CLOCK, CORTEX...etc */
+    HAL_FMPI2C_MspInit(hfmpi2c);
+#endif /* USE_HAL_FMPI2C_REGISTER_CALLBACKS */
+  }
+
+  hfmpi2c->State = HAL_FMPI2C_STATE_BUSY;
+
+  /* Disable the selected FMPI2C peripheral */
+  __HAL_FMPI2C_DISABLE(hfmpi2c);
+
+  /*---------------------------- FMPI2Cx TIMINGR Configuration ------------------*/
+  /* Configure FMPI2Cx: Frequency range */
+  hfmpi2c->Instance->TIMINGR = hfmpi2c->Init.Timing & TIMING_CLEAR_MASK;
+
+  /*---------------------------- FMPI2Cx OAR1 Configuration ---------------------*/
+  /* Disable Own Address1 before set the Own Address1 configuration */
+  hfmpi2c->Instance->OAR1 &= ~FMPI2C_OAR1_OA1EN;
+
+  /* Configure FMPI2Cx: Own Address1 and ack own address1 mode */
+  if (hfmpi2c->Init.AddressingMode == FMPI2C_ADDRESSINGMODE_7BIT)
+  {
+    hfmpi2c->Instance->OAR1 = (FMPI2C_OAR1_OA1EN | hfmpi2c->Init.OwnAddress1);
+  }
+  else /* FMPI2C_ADDRESSINGMODE_10BIT */
+  {
+    hfmpi2c->Instance->OAR1 = (FMPI2C_OAR1_OA1EN | FMPI2C_OAR1_OA1MODE | hfmpi2c->Init.OwnAddress1);
+  }
+
+  /*---------------------------- FMPI2Cx CR2 Configuration ----------------------*/
+  /* Configure FMPI2Cx: Addressing Master mode */
+  if (hfmpi2c->Init.AddressingMode == FMPI2C_ADDRESSINGMODE_10BIT)
+  {
+    hfmpi2c->Instance->CR2 = (FMPI2C_CR2_ADD10);
+  }
+  /* Enable the AUTOEND by default, and enable NACK (should be disable only during Slave process */
+  hfmpi2c->Instance->CR2 |= (FMPI2C_CR2_AUTOEND | FMPI2C_CR2_NACK);
+
+  /*---------------------------- FMPI2Cx OAR2 Configuration ---------------------*/
+  /* Disable Own Address2 before set the Own Address2 configuration */
+  hfmpi2c->Instance->OAR2 &= ~FMPI2C_DUALADDRESS_ENABLE;
+
+  /* Configure FMPI2Cx: Dual mode and Own Address2 */
+  hfmpi2c->Instance->OAR2 = (hfmpi2c->Init.DualAddressMode | hfmpi2c->Init.OwnAddress2 | (hfmpi2c->Init.OwnAddress2Masks << 8));
+
+  /*---------------------------- FMPI2Cx CR1 Configuration ----------------------*/
+  /* Configure FMPI2Cx: Generalcall and NoStretch mode */
+  hfmpi2c->Instance->CR1 = (hfmpi2c->Init.GeneralCallMode | hfmpi2c->Init.NoStretchMode);
+
+  /* Enable the selected FMPI2C peripheral */
+  __HAL_FMPI2C_ENABLE(hfmpi2c);
+
+  hfmpi2c->ErrorCode = HAL_FMPI2C_ERROR_NONE;
+  hfmpi2c->State = HAL_FMPI2C_STATE_READY;
+  hfmpi2c->PreviousState = FMPI2C_STATE_NONE;
+  hfmpi2c->Mode = HAL_FMPI2C_MODE_NONE;
+
+  return HAL_OK;
+}

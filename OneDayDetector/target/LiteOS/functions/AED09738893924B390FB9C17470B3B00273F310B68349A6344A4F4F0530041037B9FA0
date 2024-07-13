@@ -1,0 +1,15 @@
+static void check_pkt(struct pbuf *p, u32_t pos, const u8_t *mem, u32_t len)
+{
+  u8_t *data;
+
+  fail_if((pos + len) > p->tot_len);
+  while (pos > p->len && p->next) {
+    pos -= p->len;
+    p = p->next;
+  }
+  fail_if(p == NULL);
+  fail_unless(pos + len <= p->len); /* All data we seek within same pbuf */
+
+  data = (u8_t*)p->payload;
+  fail_if(memcmp(&data[pos], mem, len), "data at pos %d, len %d in packet %d did not match", pos, len, txpacket);
+}

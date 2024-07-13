@@ -1,0 +1,69 @@
+HAL_StatusTypeDef USB_CoreInit(USB_OTG_GlobalTypeDef *USBx, USB_OTG_CfgTypeDef cfg)
+{
+  HAL_StatusTypeDef ret;
+
+  if (cfg.phy_itface == USB_OTG_ULPI_PHY)
+  {
+    USBx->GCCFG &= ~(USB_OTG_GCCFG_PWRDWN);
+
+    /* Init The ULPI Interface */
+    USBx->GUSBCFG &= ~(USB_OTG_GUSBCFG_TSDPS | USB_OTG_GUSBCFG_ULPIFSLS | USB_OTG_GUSBCFG_PHYSEL);
+
+    /* Select vbus source */
+    USBx->GUSBCFG &= ~(USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
+    if (cfg.use_external_vbus == 1U)
+    {
+      USBx->GUSBCFG |= USB_OTG_GUSBCFG_ULPIEVBUSD;
+    }
+    /* Reset after a PHY select  */
+    ret = USB_CoreReset(USBx);
+  }
+#ifdef USB_HS_PHYC
+  else if (cfg.phy_itface == USB_OTG_HS_EMBEDDED_PHY)
+  {
+    USBx->GCCFG &= ~(USB_OTG_GCCFG_PWRDWN);
+
+    /* Init The UTMI Interface */
+    USBx->GUSBCFG &= ~(USB_OTG_GUSBCFG_TSDPS | USB_OTG_GUSBCFG_ULPIFSLS | USB_OTG_GUSBCFG_PHYSEL);
+
+    /* Select vbus source */
+    USBx->GUSBCFG &= ~(USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
+
+    /* Select UTMI Interace */
+    USBx->GUSBCFG &= ~ USB_OTG_GUSBCFG_ULPI_UTMI_SEL;
+    USBx->GCCFG |= USB_OTG_GCCFG_PHYHSEN;
+
+    /* Enables control of a High Speed USB PHY */
+    if (USB_HS_PHYCInit(USBx) != HAL_OK)
+    {
+      return HAL_ERROR;
+    }
+
+    if (cfg.use_external_vbus == 1U)
+    {
+      USBx->GUSBCFG |= USB_OTG_GUSBCFG_ULPIEVBUSD;
+    }
+    /* Reset after a PHY select  */
+    ret = USB_CoreReset(USBx);
+  }
+#endif
+  else /* FS interface (embedded Phy) */
+  {
+    /* Select FS Embedded PHY */
+    USBx->GUSBCFG |= USB_OTG_GUSBCFG_PHYSEL;
+
+    /* Reset after a PHY select and set Host mode */
+    ret = USB_CoreReset(USBx);
+
+    /* Activate the USB Transceiver */
+    USBx->GCCFG |= USB_OTG_GCCFG_PWRDWN;
+  }
+
+  if (cfg.dma_enable == 1U)
+  {
+    USBx->GAHBCFG |= USB_OTG_GAHBCFG_HBSTLEN_2;
+    USBx->GAHBCFG |= USB_OTG_GAHBCFG_DMAEN;
+  }
+
+  return ret;
+}

@@ -1,0 +1,5 @@
+#define HAL_READ_UINT32(addr, data)     READ_UINT32(data, addr)
+#define HAL_READ_UINT8(addr, data)      READ_UINT8(data, addr)
+#define HAL_WRITE_UINT32(addr, data)    WRITE_UINT32(data, addr)
+#define HAL_WRITE_UINT8(addr, data)     WRITE_UINT8(data, addr)
+#define IO_ADDRESS(x)                   (x)

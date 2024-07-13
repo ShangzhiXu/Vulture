@@ -1,0 +1,79 @@
+static int cmac_test_subkeys( int verbose,
+                              const char* testname,
+                              const unsigned char* key,
+                              int keybits,
+                              const unsigned char* subkeys,
+                              mbedtls_cipher_type_t cipher_type,
+                              int block_size,
+                              int num_tests )
+{
+    int i, ret = 0;
+    mbedtls_cipher_context_t ctx;
+    const mbedtls_cipher_info_t *cipher_info;
+    unsigned char K1[MBEDTLS_CIPHER_BLKSIZE_MAX];
+    unsigned char K2[MBEDTLS_CIPHER_BLKSIZE_MAX];
+
+    cipher_info = mbedtls_cipher_info_from_type( cipher_type );
+    if( cipher_info == NULL )
+    {
+        /* Failing at this point must be due to a build issue */
+        return( MBEDTLS_ERR_CIPHER_FEATURE_UNAVAILABLE );
+    }
+
+    for( i = 0; i < num_tests; i++ )
+    {
+        if( verbose != 0 )
+            mbedtls_printf( "  %s CMAC subkey #%u: ", testname, i + 1 );
+
+        mbedtls_cipher_init( &ctx );
+
+        if( ( ret = mbedtls_cipher_setup( &ctx, cipher_info ) ) != 0 )
+        {
+            if( verbose != 0 )
+                mbedtls_printf( "test execution failed\n" );
+
+            goto cleanup;
+        }
+
+        if( ( ret = mbedtls_cipher_setkey( &ctx, key, keybits,
+                                       MBEDTLS_ENCRYPT ) ) != 0 )
+        {
+            if( verbose != 0 )
+                mbedtls_printf( "test execution failed\n" );
+
+            goto cleanup;
+        }
+
+        ret = cmac_generate_subkeys( &ctx, K1, K2 );
+        if( ret != 0 )
+        {
+           if( verbose != 0 )
+                mbedtls_printf( "failed\n" );
+
+            goto cleanup;
+        }
+
+        if( ( ret = memcmp( K1, subkeys, block_size ) ) != 0  ||
+            ( ret = memcmp( K2, &subkeys[block_size], block_size ) ) != 0 )
+        {
+            if( verbose != 0 )
+                mbedtls_printf( "failed\n" );
+
+            goto cleanup;
+        }
+
+        if( verbose != 0 )
+            mbedtls_printf( "passed\n" );
+
+        mbedtls_cipher_free( &ctx );
+    }
+
+    ret = 0;
+    goto exit;
+
+cleanup:
+    mbedtls_cipher_free( &ctx );
+
+exit:
+    return( ret );
+}

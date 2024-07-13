@@ -1,0 +1,19 @@
+httpc_get_internal_dns(httpc_state_t* req, const char* server_name)
+{
+  err_t err;
+  LWIP_ASSERT("req != NULL", req != NULL);
+
+#if LWIP_DNS
+  err = dns_gethostbyname(server_name, &req->remote_addr, httpc_dns_found, req);
+#else
+  err = ipaddr_aton(server_name, &req->remote_addr) ? ERR_OK : ERR_ARG;
+#endif
+
+  if (err == ERR_OK) {
+    /* cached or IP-string */
+    err = httpc_get_internal_addr(req, &req->remote_addr);
+  } else if (err == ERR_INPROGRESS) {
+    return ERR_OK;
+  }
+  return err;
+}

@@ -1,0 +1,21 @@
+static uint32_t MMC_SendStatus(MMC_HandleTypeDef *hmmc, uint32_t *pCardStatus)
+{
+  uint32_t errorstate = HAL_MMC_ERROR_NONE;
+  
+  if(pCardStatus == NULL)
+  {
+    return HAL_MMC_ERROR_PARAM;
+  }
+  
+  /* Send Status command */
+  errorstate = SDMMC_CmdSendStatus(hmmc->Instance, (uint32_t)(hmmc->MmcCard.RelCardAdd << 16));
+  if(errorstate != HAL_OK)
+  {
+    return errorstate;
+  }
+  
+  /* Get MMC card status */
+  *pCardStatus = SDMMC_GetResponse(hmmc->Instance, SDMMC_RESP1);
+  
+  return HAL_MMC_ERROR_NONE;
+}

@@ -1,0 +1,56 @@
+int mbedtls_chachapoly_finish( mbedtls_chachapoly_context *ctx,
+                               unsigned char mac[16] )
+{
+    int ret;
+    unsigned char len_block[16];
+    CHACHAPOLY_VALIDATE_RET( ctx != NULL );
+    CHACHAPOLY_VALIDATE_RET( mac != NULL );
+
+    if( ctx->state == CHACHAPOLY_STATE_INIT )
+    {
+        return( MBEDTLS_ERR_CHACHAPOLY_BAD_STATE );
+    }
+
+    if( ctx->state == CHACHAPOLY_STATE_AAD )
+    {
+        ret = chachapoly_pad_aad( ctx );
+        if( ret != 0 )
+            return( ret );
+    }
+    else if( ctx->state == CHACHAPOLY_STATE_CIPHERTEXT )
+    {
+        ret = chachapoly_pad_ciphertext( ctx );
+        if( ret != 0 )
+            return( ret );
+    }
+
+    ctx->state = CHACHAPOLY_STATE_FINISHED;
+
+    /* The lengths of the AAD and ciphertext are processed by
+     * Poly1305 as the final 128-bit block, encoded as little-endian integers.
+     */
+    len_block[ 0] = (unsigned char)( ctx->aad_len       );
+    len_block[ 1] = (unsigned char)( ctx->aad_len >>  8 );
+    len_block[ 2] = (unsigned char)( ctx->aad_len >> 16 );
+    len_block[ 3] = (unsigned char)( ctx->aad_len >> 24 );
+    len_block[ 4] = (unsigned char)( ctx->aad_len >> 32 );
+    len_block[ 5] = (unsigned char)( ctx->aad_len >> 40 );
+    len_block[ 6] = (unsigned char)( ctx->aad_len >> 48 );
+    len_block[ 7] = (unsigned char)( ctx->aad_len >> 56 );
+    len_block[ 8] = (unsigned char)( ctx->ciphertext_len       );
+    len_block[ 9] = (unsigned char)( ctx->ciphertext_len >>  8 );
+    len_block[10] = (unsigned char)( ctx->ciphertext_len >> 16 );
+    len_block[11] = (unsigned char)( ctx->ciphertext_len >> 24 );
+    len_block[12] = (unsigned char)( ctx->ciphertext_len >> 32 );
+    len_block[13] = (unsigned char)( ctx->ciphertext_len >> 40 );
+    len_block[14] = (unsigned char)( ctx->ciphertext_len >> 48 );
+    len_block[15] = (unsigned char)( ctx->ciphertext_len >> 56 );
+
+    ret = mbedtls_poly1305_update( &ctx->poly1305_ctx, len_block, 16U );
+    if( ret != 0 )
+        return( ret );
+
+    ret = mbedtls_poly1305_finish( &ctx->poly1305_ctx, mac );
+
+    return( ret );
+}

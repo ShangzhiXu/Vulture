@@ -1,0 +1,21 @@
+lwip_socket_register_mld6_membership(int s, unsigned int if_idx, const ip6_addr_t *multi_addr)
+{
+  struct lwip_sock *sock = get_socket(s);
+  int i;
+
+  if (!sock) {
+    return 0;
+  }
+
+  for (i = 0; i < LWIP_SOCKET_MAX_MEMBERSHIPS; i++) {
+    if (socket_ipv6_multicast_memberships[i].sock == NULL) {
+      socket_ipv6_multicast_memberships[i].sock   = sock;
+      socket_ipv6_multicast_memberships[i].if_idx = (u8_t)if_idx;
+      ip6_addr_copy(socket_ipv6_multicast_memberships[i].multi_addr, *multi_addr);
+      done_socket(sock);
+      return 1;
+    }
+  }
+  done_socket(sock);
+  return 0;
+}

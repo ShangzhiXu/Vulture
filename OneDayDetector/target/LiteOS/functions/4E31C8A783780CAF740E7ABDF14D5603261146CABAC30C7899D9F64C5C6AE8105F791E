@@ -1,0 +1,110 @@
+static HAL_StatusTypeDef TIM_SlaveTimer_SetConfig(TIM_HandleTypeDef *htim,
+                                                  TIM_SlaveConfigTypeDef *sSlaveConfig)
+{
+  uint32_t tmpsmcr;
+  uint32_t tmpccmr1;
+  uint32_t tmpccer;
+
+  /* Get the TIMx SMCR register value */
+  tmpsmcr = htim->Instance->SMCR;
+
+  /* Reset the Trigger Selection Bits */
+  tmpsmcr &= ~TIM_SMCR_TS;
+  /* Set the Input Trigger source */
+  tmpsmcr |= sSlaveConfig->InputTrigger;
+
+  /* Reset the slave mode Bits */
+  tmpsmcr &= ~TIM_SMCR_SMS;
+  /* Set the slave mode */
+  tmpsmcr |= sSlaveConfig->SlaveMode;
+
+  /* Write to TIMx SMCR */
+  htim->Instance->SMCR = tmpsmcr;
+
+  /* Configure the trigger prescaler, filter, and polarity */
+  switch (sSlaveConfig->InputTrigger)
+  {
+    case TIM_TS_ETRF:
+    {
+      /* Check the parameters */
+      assert_param(IS_TIM_CLOCKSOURCE_ETRMODE1_INSTANCE(htim->Instance));
+      assert_param(IS_TIM_TRIGGERPRESCALER(sSlaveConfig->TriggerPrescaler));
+      assert_param(IS_TIM_TRIGGERPOLARITY(sSlaveConfig->TriggerPolarity));
+      assert_param(IS_TIM_TRIGGERFILTER(sSlaveConfig->TriggerFilter));
+      /* Configure the ETR Trigger source */
+      TIM_ETR_SetConfig(htim->Instance,
+                        sSlaveConfig->TriggerPrescaler,
+                        sSlaveConfig->TriggerPolarity,
+                        sSlaveConfig->TriggerFilter);
+      break;
+    }
+
+    case TIM_TS_TI1F_ED:
+    {
+      /* Check the parameters */
+      assert_param(IS_TIM_CC1_INSTANCE(htim->Instance));
+      assert_param(IS_TIM_TRIGGERFILTER(sSlaveConfig->TriggerFilter));
+
+      if(sSlaveConfig->SlaveMode == TIM_SLAVEMODE_GATED)
+      {
+        return HAL_ERROR;
+      }
+
+      /* Disable the Channel 1: Reset the CC1E Bit */
+      tmpccer = htim->Instance->CCER;
+      htim->Instance->CCER &= ~TIM_CCER_CC1E;
+      tmpccmr1 = htim->Instance->CCMR1;
+
+      /* Set the filter */
+      tmpccmr1 &= ~TIM_CCMR1_IC1F;
+      tmpccmr1 |= ((sSlaveConfig->TriggerFilter) << 4U);
+
+      /* Write to TIMx CCMR1 and CCER registers */
+      htim->Instance->CCMR1 = tmpccmr1;
+      htim->Instance->CCER = tmpccer;
+      break;
+    }
+
+    case TIM_TS_TI1FP1:
+    {
+      /* Check the parameters */
+      assert_param(IS_TIM_CC1_INSTANCE(htim->Instance));
+      assert_param(IS_TIM_TRIGGERPOLARITY(sSlaveConfig->TriggerPolarity));
+      assert_param(IS_TIM_TRIGGERFILTER(sSlaveConfig->TriggerFilter));
+
+      /* Configure TI1 Filter and Polarity */
+      TIM_TI1_ConfigInputStage(htim->Instance,
+                               sSlaveConfig->TriggerPolarity,
+                               sSlaveConfig->TriggerFilter);
+      break;
+    }
+
+    case TIM_TS_TI2FP2:
+    {
+      /* Check the parameters */
+      assert_param(IS_TIM_CC2_INSTANCE(htim->Instance));
+      assert_param(IS_TIM_TRIGGERPOLARITY(sSlaveConfig->TriggerPolarity));
+      assert_param(IS_TIM_TRIGGERFILTER(sSlaveConfig->TriggerFilter));
+
+      /* Configure TI2 Filter and Polarity */
+      TIM_TI2_ConfigInputStage(htim->Instance,
+                               sSlaveConfig->TriggerPolarity,
+                               sSlaveConfig->TriggerFilter);
+      break;
+    }
+
+    case TIM_TS_ITR0:
+    case TIM_TS_ITR1:
+    case TIM_TS_ITR2:
+    case TIM_TS_ITR3:
+    {
+      /* Check the parameter */
+      assert_param(IS_TIM_CC2_INSTANCE(htim->Instance));
+      break;
+    }
+
+    default:
+      break;
+  }
+  return HAL_OK;
+}

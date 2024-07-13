@@ -1,0 +1,84 @@
+HAL_StatusTypeDef HAL_FMPSMBUS_Slave_Transmit_IT(FMPSMBUS_HandleTypeDef *hfmpsmbus, uint8_t *pData, uint16_t Size, uint32_t XferOptions)
+{
+  /* Check the parameters */
+  assert_param(IS_FMPSMBUS_TRANSFER_OPTIONS_REQUEST(XferOptions));
+
+  if ((hfmpsmbus->State & HAL_FMPSMBUS_STATE_LISTEN) == HAL_FMPSMBUS_STATE_LISTEN)
+  {
+    if ((pData == NULL) || (Size == 0UL))
+    {
+      hfmpsmbus->ErrorCode = HAL_FMPSMBUS_ERROR_INVALID_PARAM;
+      return HAL_ERROR;
+    }
+
+    /* Disable Interrupts, to prevent preemption during treatment in case of multicall */
+    FMPSMBUS_Disable_IRQ(hfmpsmbus, FMPSMBUS_IT_ADDR | FMPSMBUS_IT_TX);
+
+    /* Process Locked */
+    __HAL_LOCK(hfmpsmbus);
+
+    hfmpsmbus->State = (HAL_FMPSMBUS_STATE_SLAVE_BUSY_TX | HAL_FMPSMBUS_STATE_LISTEN);
+    hfmpsmbus->ErrorCode = HAL_FMPSMBUS_ERROR_NONE;
+
+    /* Set SBC bit to manage Acknowledge at each bit */
+    hfmpsmbus->Instance->CR1 |= FMPI2C_CR1_SBC;
+
+    /* Enable Address Acknowledge */
+    hfmpsmbus->Instance->CR2 &= ~FMPI2C_CR2_NACK;
+
+    /* Prepare transfer parameters */
+    hfmpsmbus->pBuffPtr = pData;
+    hfmpsmbus->XferCount = Size;
+    hfmpsmbus->XferOptions = XferOptions;
+
+    /* Convert OTHER_xxx XferOptions if any */
+    FMPSMBUS_ConvertOtherXferOptions(hfmpsmbus);
+
+    if (Size > MAX_NBYTE_SIZE)
+    {
+      hfmpsmbus->XferSize = MAX_NBYTE_SIZE;
+    }
+    else
+    {
+      hfmpsmbus->XferSize = Size;
+    }
+
+    /* Set NBYTES to write and reload if size > MAX_NBYTE_SIZE and generate RESTART */
+    if ((hfmpsmbus->XferSize < hfmpsmbus->XferCount) && (hfmpsmbus->XferSize == MAX_NBYTE_SIZE))
+    {
+      FMPSMBUS_TransferConfig(hfmpsmbus, 0, (uint8_t)hfmpsmbus->XferSize, FMPSMBUS_RELOAD_MODE | (hfmpsmbus->XferOptions & FMPSMBUS_SENDPEC_MODE), FMPSMBUS_NO_STARTSTOP);
+    }
+    else
+    {
+      /* Set NBYTE to transmit */
+      FMPSMBUS_TransferConfig(hfmpsmbus, 0, (uint8_t)hfmpsmbus->XferSize, hfmpsmbus->XferOptions, FMPSMBUS_NO_STARTSTOP);
+
+      /* If PEC mode is enable, size to transmit should be Size-1 byte, corresponding to PEC byte */
+      /* PEC byte is automatically sent by HW block, no need to manage it in Transmit process */
+      if (FMPSMBUS_GET_PEC_MODE(hfmpsmbus) != 0UL)
+      {
+        hfmpsmbus->XferSize--;
+        hfmpsmbus->XferCount--;
+      }
+    }
+
+    /* Clear ADDR flag after prepare the transfer parameters */
+    /* This action will generate an acknowledge to the HOST */
+    __HAL_FMPSMBUS_CLEAR_FLAG(hfmpsmbus, FMPSMBUS_FLAG_ADDR);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hfmpsmbus);
+
+    /* Note : The FMPSMBUS interrupts must be enabled after unlocking current process
+              to avoid the risk of FMPSMBUS interrupt handle execution before current
+              process unlock */
+    /* REnable ADDR interrupt */
+    FMPSMBUS_Enable_IRQ(hfmpsmbus, FMPSMBUS_IT_TX | FMPSMBUS_IT_ADDR);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

@@ -1,0 +1,53 @@
+LITE_OS_SEC_TEXT_INIT UINT32 LOS_TaskResume(UINT32 taskId)
+{
+    UINT32 intSave;
+    LosTaskCB *taskCB = NULL;
+    UINT16 tempStatus;
+    UINT32 errRet;
+    BOOL needSched = FALSE;
+
+    if (OS_TASK_ID_CHECK_INVALID(taskId)) {
+        return LOS_ERRNO_TSK_ID_INVALID;
+    }
+
+    taskCB = OS_TCB_FROM_TID(taskId);
+
+    SCHEDULER_LOCK(intSave);
+
+    /* clear pending signal */
+    taskCB->signal &= ~SIGNAL_SUSPEND;
+
+    tempStatus = taskCB->taskStatus;
+
+    if (tempStatus & OS_TASK_STATUS_UNUSED) {
+        errRet = LOS_ERRNO_TSK_NOT_CREATED;
+        OS_GOTO_ERREND();
+    } else if (!(tempStatus & OS_TASK_STATUS_SUSPEND)) {
+        errRet = LOS_ERRNO_TSK_NOT_SUSPENDED;
+        OS_GOTO_ERREND();
+    }
+
+    taskCB->taskStatus &= ~OS_TASK_STATUS_SUSPEND;
+    if (!(taskCB->taskStatus & OS_CHECK_TASK_BLOCK)) {
+        taskCB->taskStatus |= OS_TASK_STATUS_READY;
+        OsPriQueueEnqueue(&taskCB->pendList, taskCB->priority);
+        if (OS_SCHEDULER_ACTIVE) {
+            needSched = TRUE;
+        }
+    }
+
+    SCHEDULER_UNLOCK(intSave);
+
+    LOS_TRACE(TASK_RESUME, taskCB->taskId, taskCB->taskStatus, taskCB->priority);
+
+    if (needSched) {
+        LOS_MpSchedule(OS_MP_CPU_ALL);
+        LOS_Schedule();
+    }
+
+    return LOS_OK;
+
+LOS_ERREND:
+    SCHEDULER_UNLOCK(intSave);
+    return errRet;
+}

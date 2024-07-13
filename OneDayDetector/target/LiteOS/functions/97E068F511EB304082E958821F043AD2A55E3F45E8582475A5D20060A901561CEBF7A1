@@ -1,0 +1,42 @@
+long double __tanl(long double x, long double y, int odd) {
+	long double z, r, v, w, s, a, t;
+	int big, sign;
+
+	big = fabsl(x) >= 0.67434;
+	if (big) {
+		sign = 0;
+		if (x < 0) {
+			sign = 1;
+			x = -x;
+			y = -y;
+		}
+		x = (pio4 - x) + (pio4lo - y);
+		y = 0.0;
+	}
+	z = x * x;
+	w = z * z;
+	r = RPOLY(w);
+	v = z * VPOLY(w);
+	s = z * x;
+	r = y + z * (s * (r + v) + y) + T3 * s;
+	w = x + r;
+	if (big) {
+		s = 1 - 2*odd;
+		v = s - 2.0 * (x + (r - w * w / (w + s)));
+		return sign ? -v : v;
+	}
+	if (!odd)
+		return w;
+	/*
+	 * if allow error up to 2 ulp, simply return
+	 * -1.0 / (x+r) here
+	 */
+	/* compute -1.0 / (x+r) accurately */
+	z = w;
+	z = z + 0x1p32 - 0x1p32;
+	v = r - (z - x);        /* z+v = r+x */
+	t = a = -1.0 / w;       /* a = -1.0/w */
+	t = t + 0x1p32 - 0x1p32;
+	s = 1.0 + t * z;
+	return t + a * (s + t * v);
+}

@@ -1,0 +1,46 @@
+BOOL CheckWithinDstPeriod(const struct tm * const tm, INT64 seconds)
+{
+    INT64 dstStart, dstEnd;
+    struct tm time = {0};
+
+    if (LOCK(lock)) {
+        return FALSE;
+    }
+    if (g_isDstWork == FALSE) {
+        (void)UNLOCK(lock);
+        return FALSE;
+    }
+
+    (void)UNLOCK(lock);
+    /* represent a local time. */
+    if (tm != NULL) {
+        (void)memcpy_s(&time, sizeof(struct tm), tm, sizeof(struct tm));
+        time.tm_isdst = 0;
+        /* the input-param of seconds is unused in this case. */
+#ifdef LOSCFG_AARCH64
+        seconds = mktime(&time);
+#else
+        seconds = mktime64(&time);
+#endif
+        if (seconds == -1) {
+            return FALSE;
+        }
+    } else {
+        /* represent a standard time, not care TZ. */
+#ifdef LOSCFG_AARCH64
+        if (gmtime_r(&seconds, &time) == NULL) {
+#else
+        if (gmtime64_r(&seconds, &time) == NULL) {
+#endif
+            return FALSE;
+        }
+    }
+
+    dstStart = DstConfigDecode(time.tm_year, g_strDstStart);
+    dstEnd = DstConfigDecode(time.tm_year, g_strDstEnd);
+    if ((dstStart == -1) || (dstEnd == -1)) {
+        return FALSE;
+    }
+
+    return CheckDstPeriodInner(tm, seconds, dstStart, dstEnd);
+}

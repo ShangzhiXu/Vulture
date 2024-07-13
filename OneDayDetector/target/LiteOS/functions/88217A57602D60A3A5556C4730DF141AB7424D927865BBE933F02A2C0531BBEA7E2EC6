@@ -1,0 +1,59 @@
+static int mqtt_parse_secret_topic(mqtt_client_s *handle, const char *payload, uint32_t len)
+{
+    /* should parse json, log ? */
+    cJSON *msg_type;
+    cJSON *deviceid;
+    cJSON *secret;
+    cJSON *root = NULL;
+    int ret = ATINY_ERR;
+
+    root = cJSON_Parse(payload);
+    if (root == NULL) {
+        ATINY_LOG(LOG_ERR, "err secret notify, len %d, msg %s", len, payload);
+        goto EXIT;
+    }
+
+    msg_type = cJSON_GetObjectItem(root, MQTT_MSG_TYPE);
+    if ((msg_type == NULL) || (msg_type->valuestring == NULL)
+        || (strncmp(msg_type->valuestring, "cloudSendSecret", STRING_MAX_LEN + 1) != 0)) {
+        ATINY_LOG(LOG_ERR, "msg_type not right");
+        goto EXIT;
+    }
+
+    deviceid = cJSON_GetObjectItem(root, "deviceid");
+    if ((deviceid == NULL) || (deviceid->valuestring == NULL)
+        || (!IS_VALID_NAME_LEN(deviceid->valuestring))) {
+        ATINY_LOG(LOG_ERR, "deviceid not right");
+        goto EXIT;
+    }
+
+    secret = cJSON_GetObjectItem(root, "secret");
+    if ((secret == NULL) || (secret->valuestring == NULL)
+        || (!IS_VALID_NAME_LEN(secret->valuestring))) {
+        ATINY_LOG(LOG_ERR, "secret not right");
+        goto EXIT;
+    }
+
+    handle->dynamic_info.has_device_id = false;
+    TRY_FREE_MEM(handle->dynamic_info.save_info.deviceid);
+    handle->dynamic_info.save_info.deviceid = atiny_strdup(deviceid->valuestring);
+    if (handle->dynamic_info.save_info.deviceid == NULL) {
+        ATINY_LOG(LOG_INFO, "atiny_strdup null");
+        goto EXIT;
+    }
+    TRY_FREE_MEM(handle->dynamic_info.got_password);
+    handle->dynamic_info.got_password = atiny_strdup(secret->valuestring);
+    if (handle->dynamic_info.got_password == NULL) {
+        ATINY_LOG(LOG_INFO, "atiny_strdup null");
+        goto EXIT;
+    }
+    handle->dynamic_info.has_device_id = true;
+    handle->dynamic_info.connection_update_flag = true;
+    ret = ATINY_OK;
+    ATINY_LOG(LOG_INFO, "get secret info right");
+EXIT:
+    if (root) {
+        cJSON_Delete(root);
+    }
+    return ret;
+}

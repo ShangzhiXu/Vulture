@@ -1,0 +1,77 @@
+HAL_StatusTypeDef HAL_I2S_Receive(I2S_HandleTypeDef *hi2s, uint16_t *pData, uint16_t Size, uint32_t Timeout)
+{
+  if((pData == NULL ) || (Size == 0)) 
+  {
+    return  HAL_ERROR;
+  }
+  
+  /* Process Locked */
+  __HAL_LOCK(hi2s);
+  
+  if(hi2s->State == HAL_I2S_STATE_READY)
+  { 
+    if(((hi2s->Instance->I2SCFGR & (SPI_I2SCFGR_DATLEN | SPI_I2SCFGR_CHLEN)) == I2S_DATAFORMAT_24B)||\
+      ((hi2s->Instance->I2SCFGR & (SPI_I2SCFGR_DATLEN | SPI_I2SCFGR_CHLEN)) == I2S_DATAFORMAT_32B))
+    {
+      hi2s->RxXferSize = (Size << 1);
+      hi2s->RxXferCount = (Size << 1);
+    }
+    else
+    {
+      hi2s->RxXferSize = Size;
+      hi2s->RxXferCount = Size;
+    }
+        
+    /* Set state and reset error code */
+    hi2s->ErrorCode = HAL_I2S_ERROR_NONE;
+    hi2s->State = HAL_I2S_STATE_BUSY_RX;
+    hi2s->pRxBuffPtr = pData;
+    
+    /* Check if the I2S is already enabled */ 
+    if((hi2s->Instance->I2SCFGR & SPI_I2SCFGR_I2SE) != SPI_I2SCFGR_I2SE)
+    {
+      /* Enable I2S peripheral */
+      __HAL_I2S_ENABLE(hi2s);
+    }
+     
+    /* Receive data */
+    while(hi2s->RxXferCount > 0)
+    {
+      /* Wait until RXNE flag is reset */
+      if (I2S_WaitFlagStateUntilTimeout(hi2s, I2S_FLAG_RXNE, RESET, Timeout) != HAL_OK)
+      {
+        return HAL_TIMEOUT;
+      }
+      
+      (*hi2s->pRxBuffPtr++) = hi2s->Instance->DR;
+      hi2s->RxXferCount--;
+
+      /* Check if an overrun occurs */
+      if(__HAL_I2S_GET_FLAG(hi2s, I2S_FLAG_OVR) == SET) 
+      {
+        /* Set the I2S State ready */
+        hi2s->State = HAL_I2S_STATE_READY; 
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(hi2s);
+
+        /* Set the error code and execute error callback*/
+        hi2s->ErrorCode |= HAL_I2S_ERROR_OVR;
+        return HAL_ERROR;
+      }
+    }
+    
+    hi2s->State = HAL_I2S_STATE_READY; 
+    
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2s);
+    
+    return HAL_OK;
+  }
+  else
+  {
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2s);
+    return HAL_BUSY;
+  }
+}

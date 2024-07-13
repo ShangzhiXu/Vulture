@@ -1,0 +1,45 @@
+HAL_StatusTypeDef FMC_NORSRAM_Timing_Init(FMC_NORSRAM_TypeDef *Device, FMC_NORSRAM_TimingTypeDef *Timing, uint32_t Bank)
+{
+  uint32_t tmpr = 0;
+  
+  /* Check the parameters */
+  assert_param(IS_FMC_NORSRAM_DEVICE(Device));
+  assert_param(IS_FMC_ADDRESS_SETUP_TIME(Timing->AddressSetupTime));
+  assert_param(IS_FMC_ADDRESS_HOLD_TIME(Timing->AddressHoldTime));
+  assert_param(IS_FMC_DATASETUP_TIME(Timing->DataSetupTime));
+  assert_param(IS_FMC_TURNAROUND_TIME(Timing->BusTurnAroundDuration));
+  assert_param(IS_FMC_CLK_DIV(Timing->CLKDivision));
+  assert_param(IS_FMC_DATA_LATENCY(Timing->DataLatency));
+  assert_param(IS_FMC_ACCESS_MODE(Timing->AccessMode));
+  assert_param(IS_FMC_NORSRAM_BANK(Bank));
+  
+  /* Get the BTCR register value */
+  tmpr = Device->BTCR[Bank + 1];
+
+  /* Clear ADDSET, ADDHLD, DATAST, BUSTURN, CLKDIV, DATLAT and ACCMOD bits */
+  tmpr &= ((uint32_t)~(FMC_BTR1_ADDSET  | FMC_BTR1_ADDHLD | FMC_BTR1_DATAST | \
+                       FMC_BTR1_BUSTURN | FMC_BTR1_CLKDIV | FMC_BTR1_DATLAT | \
+                       FMC_BTR1_ACCMOD));
+  
+  /* Set FMC_NORSRAM device timing parameters */  
+  tmpr |= (uint32_t)(Timing->AddressSetupTime                  |\
+                   ((Timing->AddressHoldTime) << 4)          |\
+                   ((Timing->DataSetupTime) << 8)            |\
+                   ((Timing->BusTurnAroundDuration) << 16)   |\
+                   (((Timing->CLKDivision)-1) << 20)         |\
+                   (((Timing->DataLatency)-2) << 24)         |\
+                    (Timing->AccessMode)
+                    );
+  
+  Device->BTCR[Bank + 1] = tmpr;
+  
+  /* Configure Clock division value (in NORSRAM bank 1) when continuous clock is enabled */
+  if(HAL_IS_BIT_SET(Device->BTCR[FMC_NORSRAM_BANK1], FMC_BCR1_CCLKEN))
+  {
+    tmpr = (uint32_t)(Device->BTCR[FMC_NORSRAM_BANK1 + 1] & ~(((uint32_t)0x0F) << 20)); 
+    tmpr |= (uint32_t)(((Timing->CLKDivision)-1) << 20);
+    Device->BTCR[FMC_NORSRAM_BANK1 + 1] = tmpr;
+  }  
+  
+  return HAL_OK;   
+}

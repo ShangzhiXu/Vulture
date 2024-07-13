@@ -1,0 +1,38 @@
+static void DFSDM_InjConvStop(DFSDM_Filter_HandleTypeDef* hdfsdm_filter)
+{
+  /* Disable DFSDM filter */
+  hdfsdm_filter->Instance->FLTCR1 &= ~(DFSDM_FLTCR1_DFEN);
+
+  /* If injected trigger was synchronous, reset JSYNC bit in DFSDM_FLTCR1 register */
+  if(hdfsdm_filter->InjectedTrigger == DFSDM_FILTER_SYNC_TRIGGER)
+  {
+    hdfsdm_filter->Instance->FLTCR1 &= ~(DFSDM_FLTCR1_JSYNC);
+  }
+  else if(hdfsdm_filter->InjectedTrigger == DFSDM_FILTER_EXT_TRIGGER)
+  {
+    /* Reset JEXTEN[1:0] bits in DFSDM_FLTCR1 register */
+    hdfsdm_filter->Instance->FLTCR1 &= ~(DFSDM_FLTCR1_JEXTEN);
+  }
+
+  else
+  {
+    /* Nothing to do */
+  }
+  /* Enable DFSDM filter */
+  hdfsdm_filter->Instance->FLTCR1 |= DFSDM_FLTCR1_DFEN;
+  
+  /* If regular conversion was in progress, restart it */
+  if((hdfsdm_filter->State == HAL_DFSDM_FILTER_STATE_REG_INJ) && \
+     (hdfsdm_filter->RegularTrigger == DFSDM_FILTER_SW_TRIGGER))
+  {
+    hdfsdm_filter->Instance->FLTCR1 |= DFSDM_FLTCR1_RSWSTART;
+  }
+
+  /* Update remaining injected conversions */
+  hdfsdm_filter->InjConvRemaining = (hdfsdm_filter->InjectedScanMode == ENABLE) ? \
+                                     hdfsdm_filter->InjectedChannelsNbr : 1U;
+
+  /* Update DFSDM filter state */
+  hdfsdm_filter->State = (hdfsdm_filter->State == HAL_DFSDM_FILTER_STATE_INJ) ? \
+                          HAL_DFSDM_FILTER_STATE_READY : HAL_DFSDM_FILTER_STATE_REG;
+}

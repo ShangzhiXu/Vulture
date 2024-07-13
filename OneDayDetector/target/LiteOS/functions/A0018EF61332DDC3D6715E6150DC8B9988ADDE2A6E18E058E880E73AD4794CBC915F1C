@@ -1,0 +1,47 @@
+UINT32 Example_MutexLock(VOID)
+{
+    UINT32 ret;
+    TSK_INIT_PARAM_S stTask1;
+    TSK_INIT_PARAM_S stTask2;
+
+    /* create mux */
+    printf("Kernel mutex demo begin.\n");
+    LOS_MuxCreate(&g_demoMux01);
+
+    /* lock task schedue */
+    LOS_TaskLock();
+
+    /* create task1 */
+    memset(&stTask1, 0, sizeof(TSK_INIT_PARAM_S));
+    stTask1.pfnTaskEntry = (TSK_ENTRY_FUNC)Example_MutexTask1;
+    stTask1.pcName       = "MutexTsk1";
+    stTask1.uwStackSize  = LOSCFG_BASE_CORE_TSK_DEFAULT_STACK_SIZE;
+    stTask1.usTaskPrio   = 5;
+    ret = LOS_TaskCreate(&g_demoTaskId01, &stTask1);
+    if (ret != LOS_OK) {
+        printf("Create task1 failed.\n");
+        return LOS_NOK;
+    }
+
+    /* create task2 */
+    memset(&stTask2, 0, sizeof(TSK_INIT_PARAM_S));
+    stTask2.pfnTaskEntry = (TSK_ENTRY_FUNC)Example_MutexTask2;
+    stTask2.pcName       = "MutexTsk2";
+    stTask2.uwStackSize  = LOSCFG_BASE_CORE_TSK_DEFAULT_STACK_SIZE;
+    stTask2.usTaskPrio   = 4;
+    ret = LOS_TaskCreate(&g_demoTaskId02, &stTask2);
+    if (ret != LOS_OK) {
+        printf("Create task2 failed.\n");
+        return LOS_NOK;
+    }
+
+    /* unlock task schedue */
+    LOS_TaskUnlock();
+    /* task delay 300 ticks */
+    LOS_TaskDelay(300);
+
+    /* delete mux */
+    LOS_MuxDelete(g_demoMux01);
+
+    return LOS_OK;
+}

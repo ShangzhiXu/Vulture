@@ -1,0 +1,43 @@
+static void SMARTCARD_RxISR(SMARTCARD_HandleTypeDef *hsmartcard)
+{
+  /* Check that a Rx process is ongoing */
+  if (hsmartcard->RxState == HAL_SMARTCARD_STATE_BUSY_RX)
+  {
+    *hsmartcard->pRxBuffPtr = (uint8_t)(hsmartcard->Instance->RDR & (uint8_t)0xFF);
+    hsmartcard->pRxBuffPtr++;
+
+    hsmartcard->RxXferCount--;
+    if (hsmartcard->RxXferCount == 0U)
+    {
+      CLEAR_BIT(hsmartcard->Instance->CR1, USART_CR1_RXNEIE);
+
+      /* Check if a transmit process is ongoing or not. If not disable ERR IT */
+      if (hsmartcard->gState == HAL_SMARTCARD_STATE_READY)
+      {
+        /* Disable the SMARTCARD Error Interrupt: (Frame error, noise error, overrun error) */
+        CLEAR_BIT(hsmartcard->Instance->CR3, USART_CR3_EIE);
+      }
+
+      /* Disable the SMARTCARD Parity Error Interrupt */
+      CLEAR_BIT(hsmartcard->Instance->CR1, USART_CR1_PEIE);
+
+      hsmartcard->RxState = HAL_SMARTCARD_STATE_READY;
+
+      /* Clear RxISR function pointer */
+      hsmartcard->RxISR = NULL;
+
+#if (USE_HAL_SMARTCARD_REGISTER_CALLBACKS == 1)
+      /* Call registered Rx complete callback */
+      hsmartcard->RxCpltCallback(hsmartcard);
+#else
+      /* Call legacy weak Rx complete callback */
+      HAL_SMARTCARD_RxCpltCallback(hsmartcard);
+#endif /* USE_HAL_SMARTCARD_REGISTER_CALLBACK */
+    }
+  }
+  else
+  {
+    /* Clear RXNE interrupt flag */
+    __HAL_SMARTCARD_SEND_REQ(hsmartcard, SMARTCARD_RXDATA_FLUSH_REQUEST);
+  }
+}

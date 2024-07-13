@@ -1,0 +1,35 @@
+LITE_OS_SEC_TEXT_INIT UINT32 LOS_HwiCreate(HWI_HANDLE_T hwiNum,
+                                           HWI_PRIOR_T hwiPrio,
+                                           HWI_MODE_T hwiMode,
+                                           HWI_PROC_FUNC hwiHandler,
+                                           HWI_IRQ_PARAM_S *irqParam)
+{
+    UINT32 ret;
+    HwiHandleInfo *hwiForm = NULL;
+
+    if (hwiHandler == NULL) {
+        return OS_ERRNO_HWI_PROC_FUNC_NULL;
+    }
+
+    hwiForm = g_hwiOps->getHandleForm(hwiNum);
+    if (hwiForm == NULL) {
+        return OS_ERRNO_HWI_NUM_INVALID;
+    }
+    LOS_TRACE(HWI_CREATE, hwiNum, hwiPrio, hwiMode, (UINTPTR)hwiHandler);
+
+#ifdef LOSCFG_NO_SHARED_IRQ
+    ret = OsHwiCreateNoShared(hwiForm, hwiMode, hwiHandler, irqParam);
+#else
+    ret = OsHwiCreateShared(hwiForm, hwiMode, hwiHandler, irqParam);
+    LOS_TRACE(HWI_CREATE_SHARE, hwiNum, (UINTPTR)(irqParam != NULL ? irqParam->pDevId : NULL), ret);
+#endif
+    /* priority will be changed if setIrqPriority implemented,
+     * but interrupt preemption only allowed when LOSCFG_ARCH_INTERRUPT_PREEMPTION enable */
+    if ((ret == LOS_OK) && (g_hwiOps->setIrqPriority != NULL)) {
+        if (!HWI_PRI_VALID(hwiPrio)) {
+            return OS_ERRNO_HWI_PRIO_INVALID;
+        }
+        ret = g_hwiOps->setIrqPriority(hwiNum, hwiPrio);
+    }
+    return ret;
+}

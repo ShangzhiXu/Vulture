@@ -1,0 +1,62 @@
+static void ccp_addci(fsm *f, u_char *p, int *lenp) {
+    ppp_pcb *pcb = f->pcb;
+    ccp_options *go = &pcb->ccp_gotoptions;
+    u_char *p0 = p;
+
+    /*
+     * Add the compression types that we can receive, in decreasing
+     * preference order.
+     */
+#if MPPE_SUPPORT
+    if (go->mppe) {
+	p[0] = CI_MPPE;
+	p[1] = CILEN_MPPE;
+	MPPE_OPTS_TO_CI(go->mppe, &p[2]);
+	mppe_init(pcb, &pcb->mppe_decomp, go->mppe);
+	p += CILEN_MPPE;
+    }
+#endif /* MPPE_SUPPORT */
+#if DEFLATE_SUPPORT
+    if (go->deflate) {
+	if (go->deflate_correct) {
+	    p[0] = CI_DEFLATE;
+	    p[1] = CILEN_DEFLATE;
+	    p[2] = DEFLATE_MAKE_OPT(go->deflate_size);
+	    p[3] = DEFLATE_CHK_SEQUENCE;
+	    p += CILEN_DEFLATE;
+	}
+	if (go->deflate_draft) {
+	    p[0] = CI_DEFLATE_DRAFT;
+	    p[1] = CILEN_DEFLATE;
+	    p[2] = p[2 - CILEN_DEFLATE];
+	    p[3] = DEFLATE_CHK_SEQUENCE;
+	    p += CILEN_DEFLATE;
+	}
+    }
+#endif /* DEFLATE_SUPPORT */
+#if BSDCOMPRESS_SUPPORT
+    if (go->bsd_compress) {
+	p[0] = CI_BSD_COMPRESS;
+	p[1] = CILEN_BSD_COMPRESS;
+	p[2] = BSD_MAKE_OPT(BSD_CURRENT_VERSION, go->bsd_bits);
+	p += CILEN_BSD_COMPRESS;
+    }
+#endif /* BSDCOMPRESS_SUPPORT */
+#if PREDICTOR_SUPPORT
+    /* XXX Should Predictor 2 be preferable to Predictor 1? */
+    if (go->predictor_1) {
+	p[0] = CI_PREDICTOR_1;
+	p[1] = CILEN_PREDICTOR_1;
+	p += CILEN_PREDICTOR_1;
+    }
+    if (go->predictor_2) {
+	p[0] = CI_PREDICTOR_2;
+	p[1] = CILEN_PREDICTOR_2;
+	p += CILEN_PREDICTOR_2;
+    }
+#endif /* PREDICTOR_SUPPORT */
+
+    go->method = (p > p0)? p0[0]: 0;
+
+    *lenp = p - p0;
+}

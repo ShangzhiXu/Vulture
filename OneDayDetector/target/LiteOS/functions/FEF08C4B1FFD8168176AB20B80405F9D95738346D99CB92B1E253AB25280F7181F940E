@@ -1,0 +1,29 @@
+void handle_command(command_desc_t *commandArray,
+                    char *buffer)
+{
+    command_desc_t *cmdP;
+    int length;
+
+    // find end of command name
+    length = 0;
+    while ((buffer[length] != 0) && (!isspace(buffer[length] & 0xFF))) {
+        length++;
+    }
+
+    cmdP = prv_find_command(commandArray, buffer, length);
+    if (cmdP != NULL) {
+        while ((buffer[length] != 0) && (isspace(buffer[length] & 0xFF))) {
+            length++;
+        }
+        cmdP->callback(buffer + length, cmdP->userData);
+    } else {
+        if (!strncmp(buffer, HELP_COMMAND, length)) {
+            while (buffer[length] != 0 && isspace(buffer[length] & 0xFF)) {
+                length++;
+            }
+            prv_displayHelp(commandArray, buffer + length);
+        } else {
+            fprintf(stdout, UNKNOWN_CMD_MSG"\r\n");
+        }
+    }
+}

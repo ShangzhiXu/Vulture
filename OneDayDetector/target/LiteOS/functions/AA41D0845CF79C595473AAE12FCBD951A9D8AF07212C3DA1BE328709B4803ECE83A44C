@@ -1,0 +1,116 @@
+tcp_connect(struct tcp_pcb *pcb, const ip_addr_t *ipaddr, u16_t port,
+            tcp_connected_fn connected)
+{
+  struct netif *netif = NULL;
+  err_t ret;
+  u32_t iss;
+  u16_t old_local_port;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  LWIP_ERROR("tcp_connect: invalid pcb", pcb != NULL, return ERR_ARG);
+  LWIP_ERROR("tcp_connect: invalid ipaddr", ipaddr != NULL, return ERR_ARG);
+
+  LWIP_ERROR("tcp_connect: can only connect from state CLOSED", pcb->state == CLOSED, return ERR_ISCONN);
+
+  LWIP_DEBUGF(TCP_DEBUG, ("tcp_connect to port %"U16_F"\n", port));
+  ip_addr_set(&pcb->remote_ip, ipaddr);
+  pcb->remote_port = port;
+
+  if (pcb->netif_idx != NETIF_NO_INDEX) {
+    netif = netif_get_by_index(pcb->netif_idx);
+  } else {
+    /* check if we have a route to the remote host */
+    netif = ip_route(&pcb->local_ip, &pcb->remote_ip);
+  }
+  if (netif == NULL) {
+    /* Don't even try to send a SYN packet if we have no route since that will fail. */
+    return ERR_RTE;
+  }
+
+  /* check if local IP has been assigned to pcb, if not, get one */
+  if (ip_addr_isany(&pcb->local_ip)) {
+    const ip_addr_t *local_ip = ip_netif_get_local_ip(netif, ipaddr);
+    if (local_ip == NULL) {
+      return ERR_RTE;
+    }
+    ip_addr_copy(pcb->local_ip, *local_ip);
+  }
+
+#if LWIP_IPV6 && LWIP_IPV6_SCOPES
+  /* If the given IP address should have a zone but doesn't, assign one now.
+   * Given that we already have the target netif, this is easy and cheap. */
+  if (IP_IS_V6(&pcb->remote_ip) &&
+      ip6_addr_lacks_zone(ip_2_ip6(&pcb->remote_ip), IP6_UNICAST)) {
+    ip6_addr_assign_zone(ip_2_ip6(&pcb->remote_ip), IP6_UNICAST, netif);
+  }
+#endif /* LWIP_IPV6 && LWIP_IPV6_SCOPES */
+
+  old_local_port = pcb->local_port;
+  if (pcb->local_port == 0) {
+    pcb->local_port = tcp_new_port();
+    if (pcb->local_port == 0) {
+      return ERR_BUF;
+    }
+  } else {
+#if SO_REUSE
+    if (ip_get_option(pcb, SOF_REUSEADDR)) {
+      /* Since SOF_REUSEADDR allows reusing a local address, we have to make sure
+         now that the 5-tuple is unique. */
+      struct tcp_pcb *cpcb;
+      int i;
+      /* Don't check listen- and bound-PCBs, check active- and TIME-WAIT PCBs. */
+      for (i = 2; i < NUM_TCP_PCB_LISTS; i++) {
+        for (cpcb = *tcp_pcb_lists[i]; cpcb != NULL; cpcb = cpcb->next) {
+          if ((cpcb->local_port == pcb->local_port) &&
+              (cpcb->remote_port == port) &&
+              ip_addr_cmp(&cpcb->local_ip, &pcb->local_ip) &&
+              ip_addr_cmp(&cpcb->remote_ip, ipaddr)) {
+            /* linux returns EISCONN here, but ERR_USE should be OK for us */
+            return ERR_USE;
+          }
+        }
+      }
+    }
+#endif /* SO_REUSE */
+  }
+
+  iss = tcp_next_iss(pcb);
+  pcb->rcv_nxt = 0;
+  pcb->snd_nxt = iss;
+  pcb->lastack = iss - 1;
+  pcb->snd_wl2 = iss - 1;
+  pcb->snd_lbb = iss - 1;
+  /* Start with a window that does not need scaling. When window scaling is
+     enabled and used, the window is enlarged when both sides agree on scaling. */
+  pcb->rcv_wnd = pcb->rcv_ann_wnd = TCPWND_MIN16(TCP_WND);
+  pcb->rcv_ann_right_edge = pcb->rcv_nxt;
+  pcb->snd_wnd = TCP_WND;
+  /* As initial send MSS, we use TCP_MSS but limit it to 536.
+     The send MSS is updated when an MSS option is received. */
+  pcb->mss = INITIAL_MSS;
+#if TCP_CALCULATE_EFF_SEND_MSS
+  pcb->mss = tcp_eff_send_mss_netif(pcb->mss, netif, &pcb->remote_ip);
+#endif /* TCP_CALCULATE_EFF_SEND_MSS */
+  pcb->cwnd = 1;
+#if LWIP_CALLBACK_API
+  pcb->connected = connected;
+#else /* LWIP_CALLBACK_API */
+  LWIP_UNUSED_ARG(connected);
+#endif /* LWIP_CALLBACK_API */
+
+  /* Send a SYN together with the MSS option. */
+  ret = tcp_enqueue_flags(pcb, TCP_SYN);
+  if (ret == ERR_OK) {
+    /* SYN segment was enqueued, changed the pcbs state now */
+    pcb->state = SYN_SENT;
+    if (old_local_port != 0) {
+      TCP_RMV(&tcp_bound_pcbs, pcb);
+    }
+    TCP_REG_ACTIVE(pcb);
+    MIB2_STATS_INC(mib2.tcpactiveopens);
+
+    tcp_output(pcb);
+  }
+  return ret;
+}

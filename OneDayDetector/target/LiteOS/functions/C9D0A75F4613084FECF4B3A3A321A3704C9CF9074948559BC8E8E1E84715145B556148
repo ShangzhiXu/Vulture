@@ -1,0 +1,18 @@
+void HAL_COMP_IRQHandler(COMP_HandleTypeDef *hcomp)
+{
+  uint32_t extiline = COMP_GET_EXTI_LINE(hcomp->Instance);
+  
+  /* Check COMP Exti flag */
+  if(READ_BIT(EXTI->PR, extiline) != RESET)
+  {
+    /* Clear COMP Exti pending bit */
+    WRITE_REG(EXTI->PR, extiline);
+
+    /* COMP trigger callback */
+#if (USE_HAL_COMP_REGISTER_CALLBACKS == 1)
+    hcomp->TriggerCallback(hcomp);
+#else
+    HAL_COMP_TriggerCallback(hcomp);
+#endif /* USE_HAL_COMP_REGISTER_CALLBACKS */  
+  }
+}

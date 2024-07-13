@@ -1,0 +1,31 @@
+HAL_StatusTypeDef HAL_PCCARD_Reset(PCCARD_HandleTypeDef *hpccard)
+{
+  /* Process Locked */
+  __HAL_LOCK(hpccard);  
+  
+  /* Check the PCCARD controller state */
+  if(hpccard->State == HAL_PCCARD_STATE_BUSY)
+  {
+     return HAL_BUSY;
+  }
+
+  /* Provide an SW reset and Read and verify the:
+   - CF Configuration Option Register at address 0x98000200 --> 0x80
+   - Card Configuration and Status Register at address 0x98000202 --> 0x00
+   - Pin Replacement Register  at address 0x98000204 --> 0x0C
+   - Socket and Copy Register at address 0x98000206 --> 0x00
+  */
+
+  /* Check the PCCARD controller state */
+  hpccard->State = HAL_PCCARD_STATE_BUSY;
+  
+  *(__IO uint8_t *)(PCCARD_ATTRIBUTE_SPACE_ADDRESS | ATA_CARD_CONFIGURATION) = 0x01;
+    
+  /* Check the PCCARD controller state */
+  hpccard->State = HAL_PCCARD_STATE_READY;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hpccard);  
+  
+  return HAL_OK;
+}

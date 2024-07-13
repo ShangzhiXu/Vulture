@@ -1,0 +1,18 @@
+static int pk_restart_setup( mbedtls_pk_restart_ctx *ctx,
+                             const mbedtls_pk_info_t *info )
+{
+    /* Don't do anything if already set up or invalid */
+    if( ctx == NULL || ctx->pk_info != NULL )
+        return( 0 );
+
+    /* Should never happen when we're called */
+    if( info->rs_alloc_func == NULL || info->rs_free_func == NULL )
+        return( MBEDTLS_ERR_PK_BAD_INPUT_DATA );
+
+    if( ( ctx->rs_ctx = info->rs_alloc_func() ) == NULL )
+        return( MBEDTLS_ERR_PK_ALLOC_FAILED );
+
+    ctx->pk_info = info;
+
+    return( 0 );
+}

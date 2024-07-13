@@ -1,0 +1,25 @@
+HAL_StatusTypeDef HAL_DFSDM_FilterExdStart(DFSDM_Filter_HandleTypeDef *hdfsdm_filter,
+                                           uint32_t                    Channel)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Check parameters */
+  assert_param(IS_DFSDM_FILTER_ALL_INSTANCE(hdfsdm_filter->Instance));
+  assert_param(IS_DFSDM_INJECTED_CHANNEL(Channel));
+  
+  /* Check DFSDM filter state */
+  if((hdfsdm_filter->State == HAL_DFSDM_FILTER_STATE_RESET) || \
+     (hdfsdm_filter->State == HAL_DFSDM_FILTER_STATE_ERROR))
+  {
+    /* Return error status */
+    status = HAL_ERROR;
+  }
+  else
+  {
+    /* Set channels for extreme detector */
+    hdfsdm_filter->Instance->FLTCR2 &= ~(DFSDM_FLTCR2_EXCH);
+    hdfsdm_filter->Instance->FLTCR2 |= ((Channel & DFSDM_LSB_MASK) << DFSDM_FLTCR2_EXCH_Pos);
+  }
+  /* Return function status */
+  return status;
+}

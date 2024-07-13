@@ -1,0 +1,4 @@
+    CHAR *buf;             /**< Control block array total buffer */
+    size_t ctrlBlockCnt;  /**< Number of control blocks */
+    size_t ctrlBlockSize; /**< Single control block size */
+    UINT32 sortElemOff;    /**< The offset of the member to be compared in the control block */

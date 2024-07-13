@@ -1,0 +1,14 @@
+LITE_OS_SEC_TEXT_MINOR VOID OsMemstatTaskUsedDec(Memstat *stat, UINT32 usedSize, UINT32 taskId)
+{
+    UINT32 record = MIN_TASK_ID(taskId, TASK_NUM - 1);
+    TaskMemUsedInfo *taskMemstats = stat->taskMemstats;
+
+    if (taskMemstats[record].memUsed < usedSize) {
+        PRINT_INFO("mem used of current task '%s':0x%x, decrease size:0x%x\n",
+                   OsCurrTaskGet()->taskName, taskMemstats[record].memUsed, usedSize);
+        return;
+    }
+
+    taskMemstats[record].memUsed -= usedSize;
+    stat->memTotalUsed -= usedSize;
+}

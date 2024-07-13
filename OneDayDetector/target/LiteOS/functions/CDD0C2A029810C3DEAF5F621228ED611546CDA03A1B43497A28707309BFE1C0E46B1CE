@@ -1,0 +1,17 @@
+httpc_get_internal_addr(httpc_state_t* req, const ip_addr_t *ipaddr)
+{
+  err_t err;
+  LWIP_ASSERT("req != NULL", req != NULL);
+
+  if (&req->remote_addr != ipaddr) {
+    /* fill in remote addr if called externally */
+    req->remote_addr = *ipaddr;
+  }
+
+  err = altcp_connect(req->pcb, &req->remote_addr, req->remote_port, httpc_tcp_connected);
+  if (err == ERR_OK) {
+    return ERR_OK;
+  }
+  LWIP_DEBUGF(HTTPC_DEBUG_WARN_STATE, ("tcp_connect failed: %d\n", (int)err));
+  return err;
+}

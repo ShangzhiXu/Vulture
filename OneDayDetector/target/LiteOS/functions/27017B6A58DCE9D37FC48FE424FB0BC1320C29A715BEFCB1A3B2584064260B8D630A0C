@@ -1,0 +1,41 @@
+STATIC UINT32 OsDmesgChangeSize(UINT32 size)
+{
+    VOID *temp = NULL;
+    INT32 copyLen;
+    CHAR *newString = NULL;
+    UINT32 intSave;
+
+    if (size == 0) {
+        return LOS_NOK;
+    }
+
+    newString = (CHAR *)malloc(size + sizeof(DmesgInfo));
+    if (newString == NULL) {
+        return LOS_NOK;
+    }
+
+    LOS_SpinLockSave(&g_dmesgSpin, &intSave);
+    temp = g_dmesgInfo;
+
+    copyLen = OsCopyToNew(newString, size + sizeof(DmesgInfo));
+    if (copyLen < 0) {
+        LOS_SpinUnlockRestore(&g_dmesgSpin, intSave);
+        free(newString);
+        return LOS_NOK;
+    }
+
+    g_logBufSize = size;
+    g_dmesgInfo = (DmesgInfo *)newString;
+    g_dmesgInfo->logBuf = (CHAR *)newString + sizeof(DmesgInfo);
+    g_dmesgInfo->logSize = copyLen;
+    g_dmesgInfo->logTail = ((copyLen == g_logBufSize) ? 0 : copyLen);
+    g_dmesgInfo->logHead = 0;
+
+    if (temp == g_mallocAddr) {
+        free(temp);
+    }
+    g_mallocAddr = newString;
+    LOS_SpinUnlockRestore(&g_dmesgSpin, intSave);
+
+    return LOS_OK;
+}

@@ -1,0 +1,56 @@
+void UnityAssertEqualMemory(UNITY_INTERNAL_PTR expected,
+                            UNITY_INTERNAL_PTR actual,
+                            const UNITY_UINT32 length,
+                            const UNITY_UINT32 num_elements,
+                            const char* msg,
+                            const UNITY_LINE_TYPE lineNumber,
+                            const UNITY_FLAGS_T flags)
+{
+    UNITY_PTR_ATTRIBUTE const unsigned char* ptr_exp = (UNITY_PTR_ATTRIBUTE const unsigned char*)expected;
+    UNITY_PTR_ATTRIBUTE const unsigned char* ptr_act = (UNITY_PTR_ATTRIBUTE const unsigned char*)actual;
+    UNITY_UINT32 elements = num_elements;
+    UNITY_UINT32 bytes;
+
+    RETURN_IF_FAIL_OR_IGNORE;
+
+    if ((elements == 0) || (length == 0))
+    {
+        UnityPrintPointlessAndBail();
+    }
+
+    if (expected == actual) return; /* Both are NULL or same pointer */
+    if (UnityIsOneArrayNull(expected, actual, lineNumber, msg))
+        UNITY_FAIL_AND_BAIL;
+
+    while (elements--)
+    {
+        bytes = length;
+        while (bytes--)
+        {
+            if (*ptr_exp != *ptr_act)
+            {
+                UnityTestResultsFailBegin(lineNumber);
+                UnityPrint(UnityStrMemory);
+                if (num_elements > 1)
+                {
+                    UnityPrint(UnityStrElement);
+                    UnityPrintNumberUnsigned(num_elements - elements - 1);
+                }
+                UnityPrint(UnityStrByte);
+                UnityPrintNumberUnsigned(length - bytes - 1);
+                UnityPrint(UnityStrExpected);
+                UnityPrintNumberByStyle(*ptr_exp, UNITY_DISPLAY_STYLE_HEX8);
+                UnityPrint(UnityStrWas);
+                UnityPrintNumberByStyle(*ptr_act, UNITY_DISPLAY_STYLE_HEX8);
+                UnityAddMsgIfSpecified(msg);
+                UNITY_FAIL_AND_BAIL;
+            }
+            ptr_exp++;
+            ptr_act++;
+        }
+        if (flags == UNITY_ARRAY_TO_VAL)
+        {
+            ptr_exp = (UNITY_PTR_ATTRIBUTE const unsigned char*)expected;
+        }
+    }
+}

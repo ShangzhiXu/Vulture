@@ -1,0 +1,25 @@
+mdns_init_outpacket(struct mdns_outpacket *out, struct mdns_packet *in)
+{
+  memset(out, 0, sizeof(struct mdns_outpacket));
+  out->cache_flush = 1;
+  out->netif = in->netif;
+
+  /* Copy source IP/port to use when responding unicast, or to choose
+   * which pcb to use for multicast (IPv4/IPv6)
+   */
+  SMEMCPY(&out->dest_addr, &in->source_addr, sizeof(ip_addr_t));
+  out->dest_port = in->source_port;
+
+  if (in->source_port != LWIP_IANA_PORT_MDNS) {
+    out->unicast_reply = 1;
+    out->cache_flush = 0;
+    if (in->questions == 1) {
+      out->legacy_query = 1;
+      out->tx_id = in->tx_id;
+    }
+  }
+
+  if (in->recv_unicast) {
+    out->unicast_reply = 1;
+  }
+}

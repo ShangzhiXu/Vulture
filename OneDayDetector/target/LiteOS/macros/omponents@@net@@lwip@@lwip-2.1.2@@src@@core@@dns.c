@@ -1,0 +1,15 @@
+#define DNS_PORT_ALLOWED(port) ((port) >= 1024)
+#define DNS_RAND_TXID() (++dns_txid)
+#define LWIP_DNS_ADDRTYPE_ARG(x) , x
+#define LWIP_DNS_ADDRTYPE_ARG(x)
+#define LWIP_DNS_ADDRTYPE_ARG_OR_ZERO(x) x
+#define LWIP_DNS_ADDRTYPE_ARG_OR_ZERO(x) 0
+#define LWIP_DNS_ADDRTYPE_IS_IPV6(t) (((t) == LWIP_DNS_ADDRTYPE_IPV6_IPV4) || ((t) == LWIP_DNS_ADDRTYPE_IPV6))
+#define LWIP_DNS_ADDRTYPE_IS_IPV6(t) 1
+#define LWIP_DNS_ADDRTYPE_IS_IPV6(t) 0
+#define LWIP_DNS_ADDRTYPE_MATCH_IP(t, ip) (IP_IS_V6_VAL(ip) ? LWIP_DNS_ADDRTYPE_IS_IPV6(t) : (!LWIP_DNS_ADDRTYPE_IS_IPV6(t)))
+#define LWIP_DNS_ADDRTYPE_MATCH_IP(t, ip) 1
+#define LWIP_DNS_ISMDNS_ARG(x) , x
+#define LWIP_DNS_ISMDNS_ARG(x)
+#define LWIP_DNS_SET_ADDRTYPE(x, y) do { x = y; } while(0)
+#define LWIP_DNS_SET_ADDRTYPE(x, y)

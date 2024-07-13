@@ -1,0 +1,11 @@
+  int64_t axis_;
+  int64_t in_offset_[SQUEEZE_OFFSET_MAX_SIZE];
+  const int *in_shape_;
+  int input_dim_;
+  int64_t offset_[SQUEEZE_OFFSET_MAX_SIZE];
+  int offset_size_;
+  OpParameter op_parameter_;
+  const int *out_shape_;
+  SqueezeQuantArg quant_arg;
+  int thread_count_;
+  int thread_id_;

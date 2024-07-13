@@ -1,0 +1,17 @@
+lv_state_t lv_obj_get_state(const lv_obj_t * obj, uint8_t part)
+{
+    LV_ASSERT_OBJ(obj, LV_OBJX_NAME);
+
+    if(part < _LV_OBJ_PART_REAL_LAST) return ((lv_obj_t *)obj)->state;
+
+    /*If a real part is asked, then use the object's signal to get its state.
+     * A real object can be in different state then the main part
+     * and only the object itseld knows who to get it's state. */
+    lv_get_state_info_t info;
+    info.part = part;
+    info.result = LV_STATE_DEFAULT;
+    lv_signal_send((lv_obj_t *)obj, LV_SIGNAL_GET_STATE_DSC, &info);
+
+    return info.result;
+
+}

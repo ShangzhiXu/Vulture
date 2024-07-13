@@ -1,0 +1,66 @@
+HAL_StatusTypeDef HAL_DMA_Start_IT(DMA_HandleTypeDef *hdma, uint32_t SrcAddress, uint32_t DstAddress, uint32_t DataLength)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Check the parameters */
+  assert_param(IS_DMA_BUFFER_SIZE(DataLength));
+
+  /* Process locked */
+  __HAL_LOCK(hdma);
+
+  if(HAL_DMA_STATE_READY == hdma->State)
+  {
+    /* Change DMA peripheral state */
+    hdma->State = HAL_DMA_STATE_BUSY;
+    hdma->ErrorCode = HAL_DMA_ERROR_NONE;
+
+    /* Disable the peripheral */
+    __HAL_DMA_DISABLE(hdma);
+
+    /* Configure the source, destination address and the data length & clear flags*/
+    DMA_SetConfig(hdma, SrcAddress, DstAddress, DataLength);
+
+    /* Enable the transfer complete interrupt */
+    /* Enable the transfer Error interrupt */
+    if(NULL != hdma->XferHalfCpltCallback )
+    {
+      /* Enable the Half transfer complete interrupt as well */
+      __HAL_DMA_ENABLE_IT(hdma, (DMA_IT_TC | DMA_IT_HT | DMA_IT_TE));
+    }
+    else
+    {
+      __HAL_DMA_DISABLE_IT(hdma, DMA_IT_HT);
+      __HAL_DMA_ENABLE_IT(hdma, (DMA_IT_TC | DMA_IT_TE));
+    }
+
+#ifdef DMAMUX1
+
+    /* Check if DMAMUX Synchronization is enabled*/
+    if((hdma->DMAmuxChannel->CCR & DMAMUX_CxCR_SE) != 0U)
+    {
+      /* Enable DMAMUX sync overrun IT*/
+      hdma->DMAmuxChannel->CCR |= DMAMUX_CxCR_SOIE;
+    }
+
+    if(hdma->DMAmuxRequestGen != 0U)
+    {
+      /* if using DMAMUX request generator, enable the DMAMUX request generator overrun IT*/
+      /* enable the request gen overrun IT*/
+      hdma->DMAmuxRequestGen->RGCR |= DMAMUX_RGxCR_OIE;
+    }
+
+#endif /* DMAMUX1 */
+
+    /* Enable the Peripheral */
+    __HAL_DMA_ENABLE(hdma);
+  }
+  else
+  {
+    /* Process Unlocked */
+    __HAL_UNLOCK(hdma);
+
+    /* Remain BUSY */
+    status = HAL_BUSY;
+  }
+  return status;
+}

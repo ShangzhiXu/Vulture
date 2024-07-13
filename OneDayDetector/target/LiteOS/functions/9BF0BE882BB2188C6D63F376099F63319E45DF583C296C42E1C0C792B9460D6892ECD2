@@ -1,0 +1,40 @@
+HAL_StatusTypeDef HAL_SDRAM_RegisterDmaCallback(SDRAM_HandleTypeDef *hsdram, HAL_SDRAM_CallbackIDTypeDef CallbackId, pSDRAM_DmaCallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  HAL_SDRAM_StateTypeDef state;
+  
+  if(pCallback == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Process locked */
+  __HAL_LOCK(hsdram);
+
+  state = hsdram->State;
+  if((state == HAL_SDRAM_STATE_READY) || (state == HAL_SDRAM_STATE_WRITE_PROTECTED))
+  {
+    switch (CallbackId)
+    {
+    case HAL_SDRAM_DMA_XFER_CPLT_CB_ID :
+      hsdram->DmaXferCpltCallback = pCallback;
+      break;
+    case HAL_SDRAM_DMA_XFER_ERR_CB_ID :
+      hsdram->DmaXferErrorCallback = pCallback;
+      break;
+    default :
+      /* update return status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else
+  {
+    /* update return status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hsdram);
+  return status;
+}

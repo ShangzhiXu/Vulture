@@ -1,0 +1,34 @@
+int los_closedir(struct dir *dir)
+{
+    struct mount_point *mp;
+    int ret = -1;
+
+    if (dir == NULL) {
+        VFS_ERRNO_SET(EBADF);
+        return -1;
+    }
+
+    mp = dir->d_mp;
+
+    if (LOS_MuxPend(mp->m_mutex, LOS_WAIT_FOREVER) != LOS_OK) {
+        VFS_ERRNO_SET(EAGAIN);
+        return -1;
+    }
+
+    if (dir->d_mp->m_fs->fs_fops->closedir != NULL) {
+        ret = dir->d_mp->m_fs->fs_fops->closedir(dir);
+    } else {
+        VFS_ERRNO_SET(ENOTSUP);
+    }
+
+    if (ret == 0) {
+        free(dir);
+        mp->m_refs--;
+    } else {
+        VFS_ERRNO_SET(EBADF);
+    }
+
+    LOS_MuxPost(mp->m_mutex);
+
+    return ret;
+}

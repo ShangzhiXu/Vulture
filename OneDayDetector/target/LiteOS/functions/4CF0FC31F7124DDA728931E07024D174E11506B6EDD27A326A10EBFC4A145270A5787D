@@ -1,0 +1,30 @@
+__STATIC_INLINE void LL_USART_SetBaudRate(USART_TypeDef *USARTx, uint32_t PeriphClk, uint32_t PrescalerValue, uint32_t OverSampling,
+                                          uint32_t BaudRate)
+#else
+__STATIC_INLINE void LL_USART_SetBaudRate(USART_TypeDef *USARTx, uint32_t PeriphClk, uint32_t OverSampling,
+                                          uint32_t BaudRate)
+#endif
+{
+  register uint32_t usartdiv = 0x0U;
+  register uint32_t brrtemp = 0x0U;
+
+  if (OverSampling == LL_USART_OVERSAMPLING_8)
+  {
+#if defined(USART_PRESC_PRESCALER)
+    usartdiv = (uint16_t)(__LL_USART_DIV_SAMPLING8(PeriphClk, PrescalerValue, BaudRate));
+#else
+    usartdiv = (uint16_t)(__LL_USART_DIV_SAMPLING8(PeriphClk, BaudRate));
+#endif
+    brrtemp = usartdiv & 0xFFF0U;
+    brrtemp |= (uint16_t)((usartdiv & (uint16_t)0x000FU) >> 1U);
+    USARTx->BRR = brrtemp;
+  }
+  else
+  {
+#if defined(USART_PRESC_PRESCALER)
+    USARTx->BRR = (uint16_t)(__LL_USART_DIV_SAMPLING16(PeriphClk, PrescalerValue, BaudRate));
+#else
+    USARTx->BRR = (uint16_t)(__LL_USART_DIV_SAMPLING16(PeriphClk, BaudRate));
+#endif
+  }
+}

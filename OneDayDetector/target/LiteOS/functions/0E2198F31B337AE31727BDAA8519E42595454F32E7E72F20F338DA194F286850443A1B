@@ -1,0 +1,67 @@
+static HAL_StatusTypeDef IRDA_SetConfig(IRDA_HandleTypeDef *hirda)
+{
+  uint32_t tmpreg;
+  IRDA_ClockSourceTypeDef clocksource;
+  HAL_StatusTypeDef ret = HAL_OK;
+  uint32_t pclk;
+
+  /* Check the communication parameters */
+  assert_param(IS_IRDA_BAUDRATE(hirda->Init.BaudRate));
+  assert_param(IS_IRDA_WORD_LENGTH(hirda->Init.WordLength));
+  assert_param(IS_IRDA_PARITY(hirda->Init.Parity));
+  assert_param(IS_IRDA_TX_RX_MODE(hirda->Init.Mode));
+  assert_param(IS_IRDA_PRESCALER(hirda->Init.Prescaler));
+  assert_param(IS_IRDA_POWERMODE(hirda->Init.PowerMode));
+
+  /*-------------------------- USART CR1 Configuration -----------------------*/
+  /* Configure the IRDA Word Length, Parity and transfer Mode:
+     Set the M bits according to hirda->Init.WordLength value
+     Set PCE and PS bits according to hirda->Init.Parity value
+     Set TE and RE bits according to hirda->Init.Mode value */
+  tmpreg = (uint32_t)hirda->Init.WordLength | hirda->Init.Parity | hirda->Init.Mode ;
+
+  MODIFY_REG(hirda->Instance->CR1, IRDA_CR1_FIELDS, tmpreg);
+
+  /*-------------------------- USART CR3 Configuration -----------------------*/
+  MODIFY_REG(hirda->Instance->CR3, USART_CR3_IRLP, hirda->Init.PowerMode);
+
+
+  /*-------------------------- USART GTPR Configuration ----------------------*/
+  MODIFY_REG(hirda->Instance->GTPR, (uint16_t)USART_GTPR_PSC, (uint16_t)hirda->Init.Prescaler);
+
+  /*-------------------------- USART BRR Configuration -----------------------*/
+  IRDA_GETCLOCKSOURCE(hirda, clocksource);
+  tmpreg =   0U;
+  switch (clocksource)
+  {
+    case IRDA_CLOCKSOURCE_PCLK1:
+      pclk = HAL_RCC_GetPCLK1Freq();
+      tmpreg = (uint16_t)(IRDA_DIV_SAMPLING16(pclk, hirda->Init.BaudRate));
+      break;
+    case IRDA_CLOCKSOURCE_HSI:
+      tmpreg = (uint16_t)(IRDA_DIV_SAMPLING16(HSI_VALUE, hirda->Init.BaudRate));
+      break;
+    case IRDA_CLOCKSOURCE_SYSCLK:
+      pclk = HAL_RCC_GetSysClockFreq();
+      tmpreg = (uint16_t)(IRDA_DIV_SAMPLING16(pclk, hirda->Init.BaudRate));
+      break;
+    case IRDA_CLOCKSOURCE_LSE:
+      tmpreg = (uint16_t)(IRDA_DIV_SAMPLING16((uint32_t)LSE_VALUE, hirda->Init.BaudRate));
+      break;
+    default:
+      ret = HAL_ERROR;
+      break;
+  }
+
+  /* USARTDIV must be greater than or equal to 0d16 */
+  if ((tmpreg >= USART_BRR_MIN) && (tmpreg <= USART_BRR_MAX))
+  {
+    hirda->Instance->BRR = tmpreg;
+  }
+  else
+  {
+    ret = HAL_ERROR;
+  }
+
+  return ret;
+}

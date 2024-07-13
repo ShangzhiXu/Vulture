@@ -1,0 +1,53 @@
+UINT32 Example_TskCaseEntry(VOID)
+{
+    UINT32 ret;
+    TSK_INIT_PARAM_S stInitParam;
+
+    /* lock task shcedue */
+    printf("\nKernel task demo begin.\n");
+    LOS_TaskLock();
+
+    printf("LOS_TaskLock() ok.\n");
+
+    stInitParam.pfnTaskEntry = (TSK_ENTRY_FUNC)Example_TaskHi;
+    stInitParam.usTaskPrio = TSK_PRIOR_HI;
+    stInitParam.pcName = "HIGH_NAME";
+    stInitParam.uwStackSize = LOSCFG_BASE_CORE_TSK_DEFAULT_STACK_SIZE;
+    /* create high prio task */
+    ret = LOS_TaskCreate(&g_demoTaskHiId, &stInitParam);
+    if (ret != LOS_OK) {
+        LOS_TaskUnlock();
+
+        printf("Example_TaskHi failed.\n");
+        return LOS_NOK;
+    }
+
+    printf("Create Example_TaskHi ok.\n");
+
+    stInitParam.pfnTaskEntry = (TSK_ENTRY_FUNC)Example_TaskLo;
+    stInitParam.usTaskPrio = TSK_PRIOR_LO;
+    stInitParam.pcName = "LOW_NAME";
+    stInitParam.uwStackSize = LOSCFG_BASE_CORE_TSK_DEFAULT_STACK_SIZE;
+    /* create low prio task */
+    ret = LOS_TaskCreate(&g_demoTaskLoId, &stInitParam);
+    if (ret != LOS_OK) {
+        /* delete high prio task */
+        if (LOS_OK != LOS_TaskDelete(g_demoTaskHiId)) {
+            printf("Delete TaskHi failed.\n");
+        }
+
+        LOS_TaskUnlock();
+
+        printf("Create Example_TaskLo failed.\n");
+
+        return LOS_NOK;
+    }
+
+    printf("Create Example_TaskLo ok.\n");
+
+    /* unlock task schedue */
+    LOS_TaskUnlock();
+    LOS_TaskDelay(40);
+    
+    return ret;
+}

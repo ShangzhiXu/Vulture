@@ -1,0 +1,21 @@
+SECUREC_INLINE void SecDecodeTypeSchar(SecFormatAttr *attr)
+{
+    if (attr->text.str == NULL) {
+        /*
+         * Literal string to print null ptr, define it as array rather than const text area
+         * To avoid gcc warning with pointing const text with variable
+         */
+        static char strNullString[SECUREC_NULL_STRING_SIZE] = "(null)";
+        attr->text.str = strNullString;
+    }
+    if (attr->precision == -1) {
+        /* Precision NOT assigned */
+        /* The strlen performance is high when the string length is greater than 32 */
+        attr->textLen = (int)strlen(attr->text.str);
+    } else {
+        /* Precision assigned */
+        size_t textLen;
+        SECUREC_CALC_STR_LEN(attr->text.str, (size_t)(unsigned int)attr->precision, &textLen);
+        attr->textLen = (int)textLen;
+    }
+}

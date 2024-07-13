@@ -1,0 +1,24 @@
+UINT32 ipv6_tasks(VOID)
+{
+    UINT32 ret = LOS_OK;
+    TSK_INIT_PARAM_S task_init_param;
+
+    memset(&task_init_param, 0, sizeof(TSK_INIT_PARAM_S));
+    task_init_param.usTaskPrio = IPV6_TASK_PRIORITY;
+    task_init_param.pcName = "ipv6_task";
+
+#ifdef LOSCFG_DEMOS_IPV6_TCP_CLIENT
+    extern VOID ipv6_tcp_test(VOID);
+    task_init_param.pfnTaskEntry = (TSK_ENTRY_FUNC)ipv6_tcp_test;
+#else
+    extern VOID ipv6_udp_test(VOID);
+    task_init_param.pfnTaskEntry = (TSK_ENTRY_FUNC)ipv6_udp_test;
+#endif
+
+    task_init_param.uwStackSize = 0x1000;
+    ret = LOS_TaskCreate(&g_ipv6_Handle, &task_init_param);
+    if (ret != LOS_OK) {
+        return ret;
+    }
+    return ret;
+}

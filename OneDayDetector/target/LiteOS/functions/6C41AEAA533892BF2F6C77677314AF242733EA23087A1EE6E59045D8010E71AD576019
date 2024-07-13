@@ -1,0 +1,140 @@
+void HAL_I2SEx_FullDuplex_IRQHandler(I2S_HandleTypeDef *hi2s)
+{
+  __IO uint32_t i2ssr     = hi2s->Instance->SR;
+  __IO uint32_t i2sextsr  = I2SxEXT(hi2s->Instance)->SR;
+  __IO uint32_t i2scr2    = hi2s->Instance->CR2;
+  __IO uint32_t i2sextcr2 = I2SxEXT(hi2s->Instance)->CR2;
+
+  /* Check if the I2S_MODE_MASTER_TX or I2S_MODE_SLAVE_TX Mode is selected */
+  if ((hi2s->Init.Mode == I2S_MODE_MASTER_TX) || (hi2s->Init.Mode == I2S_MODE_SLAVE_TX))
+  {
+    /* I2S in mode Transmitter -------------------------------------------------*/
+    if (((i2ssr & I2S_FLAG_TXE) == I2S_FLAG_TXE) && ((i2scr2 & I2S_IT_TXE) != RESET))
+    {
+      /* When the I2S mode is configured as I2S_MODE_MASTER_TX or I2S_MODE_SLAVE_TX,
+      the I2S TXE interrupt will be generated to manage the full-duplex transmit phase. */
+      I2SEx_TxISR_I2S(hi2s);
+    }
+
+    /* I2Sext in mode Receiver -----------------------------------------------*/
+    if (((i2sextsr & I2S_FLAG_RXNE) == I2S_FLAG_RXNE) && ((i2sextcr2 & I2S_IT_RXNE) != RESET))
+    {
+      /* When the I2S mode is configured as I2S_MODE_MASTER_TX or I2S_MODE_SLAVE_TX,
+      the I2Sext RXNE interrupt will be generated to manage the full-duplex receive phase. */
+      I2SEx_RxISR_I2SExt(hi2s);
+    }
+
+    /* I2Sext Overrun error interrupt occurred --------------------------------*/
+    if (((i2sextsr & I2S_FLAG_OVR) == I2S_FLAG_OVR) && ((i2sextcr2 & I2S_IT_ERR) != RESET))
+    {
+      /* Disable RXNE and ERR interrupt */
+      __HAL_I2SEXT_DISABLE_IT(hi2s, (I2S_IT_RXNE | I2S_IT_ERR));
+
+      /* Disable TXE and ERR interrupt */
+      __HAL_I2S_DISABLE_IT(hi2s, (I2S_IT_TXE | I2S_IT_ERR));
+
+      /* Clear Overrun flag */
+      __HAL_I2S_CLEAR_OVRFLAG(hi2s);
+
+      /* Set the I2S State ready */
+      hi2s->State = HAL_I2S_STATE_READY;
+
+      /* Set the error code and execute error callback*/
+      SET_BIT(hi2s->ErrorCode, HAL_I2S_ERROR_OVR);
+      /* Call user error callback */
+#if (USE_HAL_I2S_REGISTER_CALLBACKS == 1U)
+      hi2s->ErrorCallback(hi2s);
+#else
+      HAL_I2S_ErrorCallback(hi2s);
+#endif /* USE_HAL_I2S_REGISTER_CALLBACKS */
+    }
+
+    /* I2S Underrun error interrupt occurred ----------------------------------*/
+    if (((i2ssr & I2S_FLAG_UDR) == I2S_FLAG_UDR) && ((i2scr2 & I2S_IT_ERR) != RESET))
+    {
+      /* Disable TXE and ERR interrupt */
+      __HAL_I2S_DISABLE_IT(hi2s, (I2S_IT_TXE | I2S_IT_ERR));
+
+      /* Disable RXNE and ERR interrupt */
+      __HAL_I2SEXT_DISABLE_IT(hi2s, (I2S_IT_RXNE | I2S_IT_ERR));
+
+      /* Clear underrun flag */
+      __HAL_I2S_CLEAR_UDRFLAG(hi2s);
+
+      /* Set the I2S State ready */
+      hi2s->State = HAL_I2S_STATE_READY;
+
+      /* Set the error code and execute error callback*/
+      SET_BIT(hi2s->ErrorCode, HAL_I2S_ERROR_UDR);
+      /* Call user error callback */
+#if (USE_HAL_I2S_REGISTER_CALLBACKS == 1U)
+      hi2s->ErrorCallback(hi2s);
+#else
+      HAL_I2S_ErrorCallback(hi2s);
+#endif /* USE_HAL_I2S_REGISTER_CALLBACKS */
+    }
+  }
+  /* The I2S_MODE_MASTER_RX or I2S_MODE_SLAVE_RX Mode is selected */
+  else
+  {
+    /* I2Sext in mode Transmitter ----------------------------------------------*/
+    if (((i2sextsr & I2S_FLAG_TXE) == I2S_FLAG_TXE) && ((i2sextcr2 & I2S_IT_TXE) != RESET))
+    {
+      /* When the I2S mode is configured as I2S_MODE_MASTER_RX or I2S_MODE_SLAVE_RX,
+      the I2Sext TXE interrupt will be generated to manage the full-duplex transmit phase. */
+      I2SEx_TxISR_I2SExt(hi2s);
+    }
+
+    /* I2S in mode Receiver --------------------------------------------------*/
+    if (((i2ssr & I2S_FLAG_RXNE) == I2S_FLAG_RXNE) && ((i2scr2 & I2S_IT_RXNE) != RESET))
+    {
+      /* When the I2S mode is configured as I2S_MODE_MASTER_RX or I2S_MODE_SLAVE_RX,
+      the I2S RXNE interrupt will be generated to manage the full-duplex receive phase. */
+      I2SEx_RxISR_I2S(hi2s);
+    }
+
+    /* I2S Overrun error interrupt occurred -------------------------------------*/
+    if (((i2ssr & I2S_FLAG_OVR) == I2S_FLAG_OVR) && ((i2scr2 & I2S_IT_ERR) != RESET))
+    {
+      /* Disable RXNE and ERR interrupt */
+      __HAL_I2S_DISABLE_IT(hi2s, (I2S_IT_RXNE | I2S_IT_ERR));
+
+      /* Disable TXE and ERR interrupt */
+      __HAL_I2SEXT_DISABLE_IT(hi2s, (I2S_IT_TXE | I2S_IT_ERR));
+
+      /* Set the I2S State ready */
+      hi2s->State = HAL_I2S_STATE_READY;
+
+      /* Set the error code and execute error callback*/
+      SET_BIT(hi2s->ErrorCode, HAL_I2S_ERROR_OVR);
+      /* Call user error callback */
+#if (USE_HAL_I2S_REGISTER_CALLBACKS == 1U)
+      hi2s->ErrorCallback(hi2s);
+#else
+      HAL_I2S_ErrorCallback(hi2s);
+#endif /* USE_HAL_I2S_REGISTER_CALLBACKS */
+    }
+
+    /* I2Sext Underrun error interrupt occurred -------------------------------*/
+    if (((i2sextsr & I2S_FLAG_UDR) == I2S_FLAG_UDR) && ((i2sextcr2 & I2S_IT_ERR) != RESET))
+    {
+      /* Disable TXE and ERR interrupt */
+      __HAL_I2SEXT_DISABLE_IT(hi2s, (I2S_IT_TXE | I2S_IT_ERR));
+
+      /* Disable RXNE and ERR interrupt */
+      __HAL_I2S_DISABLE_IT(hi2s, (I2S_IT_RXNE | I2S_IT_ERR));
+
+      /* Set the I2S State ready */
+      hi2s->State = HAL_I2S_STATE_READY;
+
+      /* Set the error code and execute error callback*/
+      SET_BIT(hi2s->ErrorCode, HAL_I2S_ERROR_UDR);
+      /* Call user error callback */
+#if (USE_HAL_I2S_REGISTER_CALLBACKS == 1U)
+      hi2s->ErrorCallback(hi2s);
+#else
+      HAL_I2S_ErrorCallback(hi2s);
+#endif /* USE_HAL_I2S_REGISTER_CALLBACKS */
+    }
+  }
+}

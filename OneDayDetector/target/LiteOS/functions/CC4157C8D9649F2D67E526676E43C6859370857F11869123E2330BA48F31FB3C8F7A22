@@ -1,0 +1,142 @@
+static void get_options( int argc, char *argv[] )
+{
+    int i;
+    char *p, *q;
+
+    opt.server_addr    = DFL_SERVER_ADDR;
+    opt.server_port    = DFL_SERVER_PORT;
+    opt.listen_addr    = DFL_LISTEN_ADDR;
+    opt.listen_port    = DFL_LISTEN_PORT;
+    opt.pack           = DFL_PACK;
+    /* Other members default to 0 */
+
+    opt.delay_cli_cnt = 0;
+    opt.delay_srv_cnt = 0;
+    memset( opt.delay_cli, 0, sizeof( opt.delay_cli ) );
+    memset( opt.delay_srv, 0, sizeof( opt.delay_srv ) );
+
+    for( i = 1; i < argc; i++ )
+    {
+        p = argv[i];
+        if( ( q = strchr( p, '=' ) ) == NULL )
+            exit_usage( p, NULL );
+        *q++ = '\0';
+
+        if( strcmp( p, "server_addr" ) == 0 )
+            opt.server_addr = q;
+        else if( strcmp( p, "server_port" ) == 0 )
+            opt.server_port = q;
+        else if( strcmp( p, "listen_addr" ) == 0 )
+            opt.listen_addr = q;
+        else if( strcmp( p, "listen_port" ) == 0 )
+            opt.listen_port = q;
+        else if( strcmp( p, "duplicate" ) == 0 )
+        {
+            opt.duplicate = atoi( q );
+            if( opt.duplicate < 0 || opt.duplicate > 20 )
+                exit_usage( p, q );
+        }
+        else if( strcmp( p, "delay" ) == 0 )
+        {
+            opt.delay = atoi( q );
+            if( opt.delay < 0 || opt.delay > 20 || opt.delay == 1 )
+                exit_usage( p, q );
+        }
+        else if( strcmp( p, "delay_ccs" ) == 0 )
+        {
+            opt.delay_ccs = atoi( q );
+            if( opt.delay_ccs < 0 || opt.delay_ccs > 1 )
+                exit_usage( p, q );
+        }
+        else if( strcmp( p, "delay_cli" ) == 0 ||
+                 strcmp( p, "delay_srv" ) == 0 )
+        {
+            uint8_t *delay_cnt;
+            char **delay_list;
+            size_t len;
+            char *buf;
+
+            if( strcmp( p, "delay_cli" ) == 0 )
+            {
+                delay_cnt  = &opt.delay_cli_cnt;
+                delay_list = opt.delay_cli;
+            }
+            else
+            {
+                delay_cnt  = &opt.delay_srv_cnt;
+                delay_list = opt.delay_srv;
+            }
+
+            if( *delay_cnt == MAX_DELAYED_HS )
+            {
+                mbedtls_printf( " too many uses of %s: only %d allowed\n",
+                                p, MAX_DELAYED_HS );
+                exit_usage( p, NULL );
+            }
+
+            len = strlen( q );
+            buf = mbedtls_calloc( 1, len + 1 );
+            if( buf == NULL )
+            {
+                mbedtls_printf( " Allocation failure\n" );
+                exit( 1 );
+            }
+            memcpy( buf, q, len + 1 );
+
+            delay_list[ (*delay_cnt)++ ] = buf;
+        }
+        else if( strcmp( p, "drop" ) == 0 )
+        {
+            opt.drop = atoi( q );
+            if( opt.drop < 0 || opt.drop > 20 || opt.drop == 1 )
+                exit_usage( p, q );
+        }
+        else if( strcmp( p, "pack" ) == 0 )
+        {
+#if defined(MBEDTLS_TIMING_C)
+            opt.pack = (unsigned) atoi( q );
+#else
+            mbedtls_printf( " option pack only defined if MBEDTLS_TIMING_C is enabled\n" );
+            exit( 1 );
+#endif
+        }
+        else if( strcmp( p, "mtu" ) == 0 )
+        {
+            opt.mtu = atoi( q );
+            if( opt.mtu < 0 || opt.mtu > MAX_MSG_SIZE )
+                exit_usage( p, q );
+        }
+        else if( strcmp( p, "bad_ad" ) == 0 )
+        {
+            opt.bad_ad = atoi( q );
+            if( opt.bad_ad < 0 || opt.bad_ad > 1 )
+                exit_usage( p, q );
+        }
+        else if( strcmp( p, "protect_hvr" ) == 0 )
+        {
+            opt.protect_hvr = atoi( q );
+            if( opt.protect_hvr < 0 || opt.protect_hvr > 1 )
+                exit_usage( p, q );
+        }
+        else if( strcmp( p, "protect_len" ) == 0 )
+        {
+            opt.protect_len = atoi( q );
+            if( opt.protect_len < 0 )
+                exit_usage( p, q );
+        }
+        else if( strcmp( p, "inject_clihlo" ) == 0 )
+        {
+            opt.inject_clihlo = atoi( q );
+            if( opt.inject_clihlo < 0 || opt.inject_clihlo > 1 )
+                exit_usage( p, q );
+        }
+        else if( strcmp( p, "seed" ) == 0 )
+        {
+            opt.seed = atoi( q );
+            if( opt.seed == 0 )
+                exit_usage( p, q );
+        }
+        else
+            exit_usage( p, NULL );
+    }
+}

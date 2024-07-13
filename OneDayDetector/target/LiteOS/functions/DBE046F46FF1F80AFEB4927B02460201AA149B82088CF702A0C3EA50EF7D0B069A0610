@@ -1,0 +1,18 @@
+int cloud_cmd_matching(int8_t *buf, int32_t len)
+{
+    int ret = 0;
+    char *cmp = NULL;
+    int i;
+
+    for (i = 0; i < at_oob.oob_num; i++) {
+        ret = at_oob.oob[i].cmd_match((const char *)buf, at_oob.oob[i].featurestr, at_oob.oob[i].len);
+        if (ret == 0) {
+            cmp += at_oob.oob[i].len;
+            if (at_oob.oob[i].callback != NULL) {
+                (void)at_oob.oob[i].callback(at_oob.oob[i].arg, (int8_t *)buf, (int32_t)len);
+            }
+            return len;
+        }
+    }
+    return 0;
+}

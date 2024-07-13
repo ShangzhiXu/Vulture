@@ -1,0 +1,82 @@
+static void refr_cursor_area(lv_obj_t * ta)
+{
+    lv_textarea_ext_t * ext = lv_obj_get_ext_attr(ta);
+
+    const lv_font_t * font = lv_obj_get_style_text_font(ta, LV_TEXTAREA_PART_BG);
+    lv_style_int_t line_space = lv_obj_get_style_text_line_space(ta, LV_TEXTAREA_PART_BG);
+
+    uint16_t cur_pos = lv_textarea_get_cursor_pos(ta);
+    const char * txt = lv_label_get_text(ext->label);
+
+    uint32_t byte_pos;
+    byte_pos = _lv_txt_encoded_get_byte_id(txt, cur_pos);
+
+    uint32_t letter = _lv_txt_encoded_next(&txt[byte_pos], NULL);
+
+    lv_coord_t letter_h = lv_font_get_line_height(font);
+
+    /*Set letter_w (set not 0 on non printable but valid chars)*/
+    lv_coord_t letter_w;
+    if(letter == '\0' || letter == '\n' || letter == '\r') {
+        letter_w = lv_font_get_glyph_width(font, ' ', '\0');
+    }
+    else {
+        /*`letter_next` parameter is '\0' to ignore kerning*/
+        letter_w = lv_font_get_glyph_width(font, letter, '\0');
+    }
+
+    lv_point_t letter_pos;
+    lv_label_get_letter_pos(ext->label, cur_pos, &letter_pos);
+
+    /*If the cursor is out of the text (most right) draw it to the next line*/
+    if(letter_pos.x + ext->label->coords.x1 + letter_w > ext->label->coords.x2 && ext->one_line == 0 &&
+       lv_label_get_align(ext->label) != LV_LABEL_ALIGN_RIGHT) {
+        letter_pos.x = 0;
+        letter_pos.y += letter_h + line_space;
+
+        if(letter != '\0') {
+            byte_pos += _lv_txt_encoded_size(&txt[byte_pos]);
+            letter = _lv_txt_encoded_next(&txt[byte_pos], NULL);
+        }
+
+        if(letter == '\0' || letter == '\n' || letter == '\r') {
+            letter_w = lv_font_get_glyph_width(font, ' ', '\0');
+        }
+        else {
+            letter_w = lv_font_get_glyph_width(font, letter, '\0');
+        }
+    }
+
+    /*Save the byte position. It is required to draw `LV_CURSOR_BLOCK`*/
+    ext->cursor.txt_byte_pos = byte_pos;
+
+    /*Calculate the cursor according to its type*/
+    lv_style_int_t top = lv_obj_get_style_pad_top(ta, LV_TEXTAREA_PART_CURSOR);
+    lv_style_int_t bottom = lv_obj_get_style_pad_bottom(ta, LV_TEXTAREA_PART_CURSOR);
+    lv_style_int_t left = lv_obj_get_style_pad_left(ta, LV_TEXTAREA_PART_CURSOR);
+    lv_style_int_t right = lv_obj_get_style_pad_right(ta, LV_TEXTAREA_PART_CURSOR);
+
+    lv_area_t cur_area;
+    cur_area.x1 = letter_pos.x - left;
+    cur_area.y1 = letter_pos.y - top;
+    cur_area.x2 = letter_pos.x + right + letter_w;
+    cur_area.y2 = letter_pos.y + bottom + letter_h;
+
+    /*Save the new area*/
+    lv_area_t area_tmp;
+    lv_area_copy(&area_tmp, &ext->cursor.area);
+    area_tmp.x1 += ext->label->coords.x1;
+    area_tmp.y1 += ext->label->coords.y1;
+    area_tmp.x2 += ext->label->coords.x1;
+    area_tmp.y2 += ext->label->coords.y1;
+    lv_obj_invalidate_area(ta, &area_tmp);
+
+    lv_area_copy(&ext->cursor.area, &cur_area);
+
+    lv_area_copy(&area_tmp, &ext->cursor.area);
+    area_tmp.x1 += ext->label->coords.x1;
+    area_tmp.y1 += ext->label->coords.y1;
+    area_tmp.x2 += ext->label->coords.x1;
+    area_tmp.y2 += ext->label->coords.y1;
+    lv_obj_invalidate_area(ta, &area_tmp);
+}

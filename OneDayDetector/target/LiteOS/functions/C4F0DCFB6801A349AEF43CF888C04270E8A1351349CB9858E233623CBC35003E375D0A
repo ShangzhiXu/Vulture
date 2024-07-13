@@ -1,0 +1,31 @@
+LITE_OS_SEC_TEXT UINT32 LOS_TaskDelay(UINT32 tick)
+{
+    UINT32 intSave;
+    LosTaskCB *runTask = NULL;
+
+    if (OS_INT_ACTIVE) {
+        return LOS_ERRNO_TSK_DELAY_IN_INT;
+    }
+
+    runTask = OsCurrTaskGet();
+    if (runTask->taskFlags & OS_TASK_FLAG_SYSTEM) {
+        OsBackTrace();
+        return LOS_ERRNO_TSK_OPERATE_SYSTEM_TASK;
+    }
+
+    if (!OsPreemptable()) {
+        return LOS_ERRNO_TSK_DELAY_IN_LOCK;
+    }
+
+    if (tick == 0) {
+        return LOS_TaskYield();
+    } else {
+        SCHEDULER_LOCK(intSave);
+        OsTaskAdd2TimerList(runTask, tick);
+        runTask->taskStatus |= OS_TASK_STATUS_DELAY;
+        OsSchedResched();
+        SCHEDULER_UNLOCK(intSave);
+    }
+
+    return LOS_OK;
+}

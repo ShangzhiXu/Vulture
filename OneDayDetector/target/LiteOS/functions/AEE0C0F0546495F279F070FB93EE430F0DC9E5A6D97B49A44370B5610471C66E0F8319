@@ -1,0 +1,24 @@
+UINT32 OsPriQueueSize(UINT32 priority)
+{
+    UINT32 itemCnt = 0;
+    LOS_DL_LIST *curNode = NULL;
+#ifdef LOSCFG_KERNEL_SMP
+    LosTaskCB *task = NULL;
+    UINT32 cpuId = ArchCurrCpuid();
+#endif
+
+    LOS_ASSERT(ArchIntLocked());
+    LOS_ASSERT(LOS_SpinHeld(&g_taskSpin));
+
+    LOS_DL_LIST_FOR_EACH(curNode, &g_priQueueList[priority]) {
+#ifdef LOSCFG_KERNEL_SMP
+        task = OS_TCB_FROM_PENDLIST(curNode);
+        if (!(task->cpuAffiMask & (1U << cpuId))) {
+            continue;
+        }
+#endif
+        ++itemCnt;
+    }
+
+    return itemCnt;
+}

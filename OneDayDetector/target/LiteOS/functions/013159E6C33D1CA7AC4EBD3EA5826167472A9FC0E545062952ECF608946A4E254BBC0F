@@ -1,0 +1,100 @@
+HAL_StatusTypeDef HAL_TIM_OnePulse_ConfigChannel(TIM_HandleTypeDef *htim,  TIM_OnePulse_InitTypeDef *sConfig,
+                                                 uint32_t OutputChannel,  uint32_t InputChannel)
+{
+  TIM_OC_InitTypeDef temp1;
+
+  /* Check the parameters */
+  assert_param(IS_TIM_OPM_CHANNELS(OutputChannel));
+  assert_param(IS_TIM_OPM_CHANNELS(InputChannel));
+
+  if (OutputChannel != InputChannel)
+  {
+    /* Process Locked */
+    __HAL_LOCK(htim);
+
+    htim->State = HAL_TIM_STATE_BUSY;
+
+    /* Extract the Output compare configuration from sConfig structure */
+    temp1.OCMode = sConfig->OCMode;
+    temp1.Pulse = sConfig->Pulse;
+    temp1.OCPolarity = sConfig->OCPolarity;
+    temp1.OCNPolarity = sConfig->OCNPolarity;
+    temp1.OCIdleState = sConfig->OCIdleState;
+    temp1.OCNIdleState = sConfig->OCNIdleState;
+
+    switch (OutputChannel)
+    {
+      case TIM_CHANNEL_1:
+      {
+        assert_param(IS_TIM_CC1_INSTANCE(htim->Instance));
+
+        TIM_OC1_SetConfig(htim->Instance, &temp1);
+        break;
+      }
+      case TIM_CHANNEL_2:
+      {
+        assert_param(IS_TIM_CC2_INSTANCE(htim->Instance));
+
+        TIM_OC2_SetConfig(htim->Instance, &temp1);
+        break;
+      }
+      default:
+        break;
+    }
+
+    switch (InputChannel)
+    {
+      case TIM_CHANNEL_1:
+      {
+        assert_param(IS_TIM_CC1_INSTANCE(htim->Instance));
+
+        TIM_TI1_SetConfig(htim->Instance, sConfig->ICPolarity,
+                          sConfig->ICSelection, sConfig->ICFilter);
+
+        /* Reset the IC1PSC Bits */
+        htim->Instance->CCMR1 &= ~TIM_CCMR1_IC1PSC;
+
+        /* Select the Trigger source */
+        htim->Instance->SMCR &= ~TIM_SMCR_TS;
+        htim->Instance->SMCR |= TIM_TS_TI1FP1;
+
+        /* Select the Slave Mode */
+        htim->Instance->SMCR &= ~TIM_SMCR_SMS;
+        htim->Instance->SMCR |= TIM_SLAVEMODE_TRIGGER;
+        break;
+      }
+      case TIM_CHANNEL_2:
+      {
+        assert_param(IS_TIM_CC2_INSTANCE(htim->Instance));
+
+        TIM_TI2_SetConfig(htim->Instance, sConfig->ICPolarity,
+                          sConfig->ICSelection, sConfig->ICFilter);
+
+        /* Reset the IC2PSC Bits */
+        htim->Instance->CCMR1 &= ~TIM_CCMR1_IC2PSC;
+
+        /* Select the Trigger source */
+        htim->Instance->SMCR &= ~TIM_SMCR_TS;
+        htim->Instance->SMCR |= TIM_TS_TI2FP2;
+
+        /* Select the Slave Mode */
+        htim->Instance->SMCR &= ~TIM_SMCR_SMS;
+        htim->Instance->SMCR |= TIM_SLAVEMODE_TRIGGER;
+        break;
+      }
+
+      default:
+        break;
+    }
+
+    htim->State = HAL_TIM_STATE_READY;
+
+    __HAL_UNLOCK(htim);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_ERROR;
+  }
+}

@@ -1,0 +1,59 @@
+static lv_res_t tabview_scrl_signal(lv_obj_t * tabview_scrl, lv_signal_t sign, void * param)
+{
+    lv_res_t res;
+
+    /* Include the ancient signal function */
+    res = ancestor_scrl_signal(tabview_scrl, sign, param);
+    if(res != LV_RES_OK) return res;
+    if(sign == LV_SIGNAL_GET_TYPE) return lv_obj_handle_get_type_signal(param, "");
+
+    lv_obj_t * cont    = lv_obj_get_parent(tabview_scrl);
+    lv_obj_t * tabview = lv_obj_get_parent(cont);
+
+    if(sign == LV_SIGNAL_DRAG_THROW_BEGIN) {
+        lv_tabview_ext_t * ext = lv_obj_get_ext_attr(tabview);
+
+        lv_indev_t * indev = lv_indev_get_act();
+        lv_point_t point_act;
+        lv_indev_get_point(indev, &point_act);
+        lv_point_t vect;
+        lv_indev_get_vect(indev, &vect);
+        lv_coord_t x_predict = 0;
+
+        while(vect.x != 0) {
+            x_predict += vect.x;
+            vect.x = vect.x * (100 - LV_INDEV_DEF_DRAG_THROW) / 100;
+        }
+
+        res = lv_indev_finish_drag(indev);
+        if(res != LV_RES_OK) return res;
+        lv_obj_t * tab_page = lv_tabview_get_tab(tabview, ext->tab_cur);
+        if(tab_page == NULL) return LV_RES_OK;
+        lv_coord_t page_x1  = tab_page->coords.x1 - tabview->coords.x1 + x_predict;
+        lv_coord_t page_x2  = page_x1 + lv_obj_get_width(tabview);
+        lv_coord_t treshold = lv_obj_get_width(tabview) / 2;
+
+        lv_bidi_dir_t base_dir = lv_obj_get_base_dir(tabview);
+        int16_t tab_cur = ext->tab_cur;
+        if(page_x1 > treshold) {
+            if(base_dir != LV_BIDI_DIR_RTL) tab_cur--;
+            else tab_cur ++;
+        }
+        else if(page_x2 < treshold) {
+            if(base_dir != LV_BIDI_DIR_RTL) tab_cur++;
+            else tab_cur --;
+        }
+
+        if(tab_cur > ext->tab_cnt - 1) tab_cur = ext->tab_cnt - 1;
+        if(tab_cur < 0) tab_cur = 0;
+
+        uint32_t id_prev = lv_tabview_get_tab_act(tabview);
+        lv_tabview_set_tab_act(tabview, tab_cur, LV_ANIM_ON);
+        uint32_t id_new = lv_tabview_get_tab_act(tabview);
+
+        if(id_prev != id_new) res = lv_event_send(tabview, LV_EVENT_VALUE_CHANGED, &id_prev);
+        if(res != LV_RES_OK) return res;
+
+    }
+    return res;
+}

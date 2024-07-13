@@ -1,0 +1,38 @@
+STATIC UINT32 MpuCheckParame(const MPU_REGION_INFO *mpuInfo)
+{
+    UINT64 capacity;
+
+    if (mpuInfo == NULL) {
+        return LOS_ERRNO_MPU_PTR_NULL;
+    }
+
+    /* Judge whether the chip with MPU */
+    if (MPU->TYPE == 0) {
+        return LOS_ERRNO_MPU_NOT_CONFIGURED;
+    }
+
+    /* Number exceeds the maximum value supported by MPU */
+    if (mpuInfo->number > (MPU_MAX_SUPPORT - 1)) {
+        return LOS_ERRNO_MPU_INVALID_NUMBER;
+    }
+
+    /* Selected number region has been enabled */
+    if (g_regionNumBeUsed[mpuInfo->number]) {
+        return LOS_ERRNO_MPU_REGION_IS_ENABLED;
+    }
+
+    if ((mpuInfo->regionSize < MPU_REGION_SIZE_32B) || (mpuInfo->regionSize > MPU_REGION_SIZE_4GB)) {
+        return LOS_ERRNO_MPU_INVALID_CAPACITY;
+    }
+
+    capacity = MpuGetRegionCapacity(mpuInfo->regionSize);
+    if ((mpuInfo->baseAddress % capacity) != 0) {
+        return LOS_ERRNO_MPU_INVALID_BASE_ADDRESS;
+    }
+
+    if (mpuInfo->accessPermission > MPU_DEFS_RASR_AP_RO) {
+        return LOS_ERRNO_MPU_REGION_INVALID_ACCESS;
+    }
+
+    return LOS_OK;
+}

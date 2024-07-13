@@ -1,0 +1,32 @@
+STATIC INT32 OsDateSetTime(const CHAR *timeStr)
+{
+    struct tm tm = {0};
+    struct timeval64 nowTime = {0};
+    struct timeval64 setTime = {0};
+
+    if (gettimeofday64(&nowTime, NULL)) {
+        PRINTK("settime failed...\n");
+        return DATE_ERR;
+    }
+
+    setTime.tv_usec = nowTime.tv_usec;
+    OsCopyTm(&tm, localtime64(&nowTime.tv_sec));
+
+    if (OsStrToTm(timeStr, &tm)) {
+        OsCmdUsageDate(DATE_ERR_INFO);
+        return DATE_ERR;
+    }
+
+    setTime.tv_sec = mktime64(&tm);
+    if (setTime.tv_sec == -1) {
+        PRINTK("mktime failed...\n");
+        return DATE_ERR;
+    }
+
+    if (settimeofday64(&setTime, NULL)) {
+        PRINTK("settime failed...\n");
+        return DATE_ERR;
+    }
+
+    return DATE_OK;
+}

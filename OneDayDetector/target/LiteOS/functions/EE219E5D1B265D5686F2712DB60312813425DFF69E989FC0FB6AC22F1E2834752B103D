@@ -1,0 +1,109 @@
+HAL_StatusTypeDef HAL_RCC_DeInit(void)
+{
+  uint32_t tickstart = 0;
+
+  /* Set MSION bit */
+  SET_BIT(RCC->CR, RCC_CR_MSION);
+
+  /* Insure MSIRDY bit is set before writing default MSIRANGE value */
+  /* Get start tick */
+  tickstart = HAL_GetTick();
+
+  /* Wait till MSI is ready */
+  while(READ_BIT(RCC->CR, RCC_CR_MSIRDY) == RESET)
+  {
+    if((HAL_GetTick() - tickstart) > MSI_TIMEOUT_VALUE)
+    {
+      return HAL_TIMEOUT;
+    }
+  }
+
+  /* Set MSIRANGE default value */
+  MODIFY_REG(RCC->CR, RCC_CR_MSIRANGE, RCC_MSIRANGE_6);
+
+  /* Reset CFGR register (MSI is selected as system clock source) */
+  CLEAR_REG(RCC->CFGR);
+
+  /* Update the SystemCoreClock global variable for MSI as system clock source */
+  SystemCoreClock = MSI_VALUE;
+
+  /* Configure the source of time base considering new system clock settings  */
+  if(HAL_InitTick(TICK_INT_PRIORITY) != HAL_OK)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Insure MSI selected as system clock source */
+  /* Get start tick */
+  tickstart = HAL_GetTick();
+
+  /* Wait till system clock source is ready */
+  while(READ_BIT(RCC->CFGR, RCC_CFGR_SWS) != RCC_CFGR_SWS_MSI)
+  {
+    if((HAL_GetTick() - tickstart) > CLOCKSWITCH_TIMEOUT_VALUE)
+    {
+      return HAL_TIMEOUT;
+    }
+  }
+
+  /* Reset HSION, HSIKERON, HSIASFS, HSEON, HSECSSON, PLLON, PLLSAIxON bits */
+#if defined(RCC_PLLSAI2_SUPPORT)
+
+  CLEAR_BIT(RCC->CR, RCC_CR_HSEON | RCC_CR_HSION | RCC_CR_HSIKERON| RCC_CR_HSIASFS | RCC_CR_PLLON | RCC_CR_PLLSAI1ON | RCC_CR_PLLSAI2ON);
+
+#else
+
+  CLEAR_BIT(RCC->CR, RCC_CR_HSEON | RCC_CR_HSION | RCC_CR_HSIKERON| RCC_CR_HSIASFS | RCC_CR_PLLON | RCC_CR_PLLSAI1ON);
+
+#endif /* RCC_PLLSAI2_SUPPORT */
+
+  /* Insure PLLRDY, PLLSAI1RDY and PLLSAI2RDY (if present) are reset */
+  /* Get start tick */
+  tickstart = HAL_GetTick();
+
+#if defined(RCC_PLLSAI2_SUPPORT)
+
+  while(READ_BIT(RCC->CR, RCC_CR_PLLRDY | RCC_CR_PLLSAI1RDY | RCC_CR_PLLSAI2RDY) != 0U)
+
+#else
+
+  while(READ_BIT(RCC->CR, RCC_CR_PLLRDY | RCC_CR_PLLSAI1RDY) != 0U)
+
+#endif
+  {
+    if((HAL_GetTick() - tickstart) > PLL_TIMEOUT_VALUE)
+    {
+      return HAL_TIMEOUT;
+    }
+  }
+
+  /* Reset PLLCFGR register */
+  CLEAR_REG(RCC->PLLCFGR);
+  SET_BIT(RCC->PLLCFGR, RCC_PLLCFGR_PLLN_4 );
+
+  /* Reset PLLSAI1CFGR register */
+  CLEAR_REG(RCC->PLLSAI1CFGR);
+  SET_BIT(RCC->PLLSAI1CFGR,  RCC_PLLSAI1CFGR_PLLSAI1N_4 );
+
+#if defined(RCC_PLLSAI2_SUPPORT)
+
+  /* Reset PLLSAI2CFGR register */
+  CLEAR_REG(RCC->PLLSAI2CFGR);
+  SET_BIT(RCC->PLLSAI2CFGR,  RCC_PLLSAI2CFGR_PLLSAI2N_4 );
+
+#endif /* RCC_PLLSAI2_SUPPORT */
+
+  /* Reset HSEBYP bit */
+  CLEAR_BIT(RCC->CR, RCC_CR_HSEBYP);
+
+  /* Disable all interrupts */
+  CLEAR_REG(RCC->CIER);
+
+  /* Clear all interrupt flags */
+  WRITE_REG(RCC->CICR, 0xFFFFFFFFU);
+
+  /* Clear all reset flags */
+  SET_BIT(RCC->CSR, RCC_CSR_RMVF);
+
+  return HAL_OK;
+}

@@ -1,0 +1,42 @@
+STATIC VOID *OsMemReallocSlab(VOID *pool, VOID *ptr, BOOL *isSlabMem, UINT32 size)
+{
+    errno_t rc;
+    UINT32 blkSz;
+    VOID *newPtr = NULL;
+    VOID *freePtr = ptr;
+
+    blkSz = OsSlabMemCheck(pool, ptr);
+    if (blkSz == (UINT32)-1) {
+        *isSlabMem = FALSE;
+        return NULL;
+    }
+    *isSlabMem = TRUE;
+
+    if (size <= blkSz) {
+        return ptr;
+    }
+
+    /* Unlock the memory spin, to allow the memory alloc API to be called */
+    LOS_SpinUnlock(&g_memSpin);
+
+    if (newPtr == NULL) {
+        newPtr = LOS_MemAlloc(pool, size);
+    }
+
+    if (newPtr != NULL) {
+        rc = memcpy_s(newPtr, size, ptr, blkSz);
+        if (rc != EOK) {
+            PRINT_ERR("%s[%d] memcpy_s failed, error type = %d\n", __FUNCTION__, __LINE__, rc);
+            freePtr = newPtr;
+            newPtr = NULL;
+        }
+        if (LOS_MemFree((VOID *)pool, freePtr) != LOS_OK) {
+            PRINT_ERR("%s, %d\n", __FUNCTION__, __LINE__);
+        }
+    }
+
+    /* Reacquire the spin */
+    LOS_SpinLock(&g_memSpin);
+
+    return newPtr;
+}

@@ -1,0 +1,65 @@
+HAL_StatusTypeDef HAL_RCCEx_EnablePLL2(RCC_PLL2InitTypeDef  *PLL2Init)
+{
+  uint32_t tickstart = 0;
+
+  /* This bit can not be cleared if the PLL2 clock is used indirectly as system 
+    clock (i.e. it is used as PLL clock entry that is used as system clock). */
+  if((__HAL_RCC_GET_PLL_OSCSOURCE() == RCC_PLLSOURCE_HSE) && \
+        (__HAL_RCC_GET_SYSCLK_SOURCE() == RCC_SYSCLKSOURCE_STATUS_PLLCLK) && \
+        ((READ_BIT(RCC->CFGR2,RCC_CFGR2_PREDIV1SRC)) == RCC_CFGR2_PREDIV1SRC_PLL2))
+  {
+    return HAL_ERROR;
+  }
+  else
+  {
+    /* Check the parameters */
+    assert_param(IS_RCC_PLL2_MUL(PLL2Init->PLL2MUL));
+    assert_param(IS_RCC_HSE_PREDIV2(PLL2Init->HSEPrediv2Value));
+
+    /* Prediv2 can be written only when the PLLI2S is disabled. */
+    /* Return an error only if new value is different from the programmed value */
+    if (HAL_IS_BIT_SET(RCC->CR,RCC_CR_PLL3ON) && \
+      (__HAL_RCC_HSE_GET_PREDIV2() != PLL2Init->HSEPrediv2Value))
+    {
+      return HAL_ERROR;
+    }
+
+    /* Disable the main PLL2. */
+    __HAL_RCC_PLL2_DISABLE();
+    
+    /* Get Start Tick*/
+    tickstart = HAL_GetTick();
+    
+    /* Wait till PLL2 is disabled */
+    while(__HAL_RCC_GET_FLAG(RCC_FLAG_PLL2RDY) != RESET)
+    {
+      if((HAL_GetTick() - tickstart ) > PLL2_TIMEOUT_VALUE)
+      {
+        return HAL_TIMEOUT;
+      }
+    }
+    
+    /* Configure the HSE prediv2 factor --------------------------------*/
+    __HAL_RCC_HSE_PREDIV2_CONFIG(PLL2Init->HSEPrediv2Value);
+
+    /* Configure the main PLL2 multiplication factors. */
+    __HAL_RCC_PLL2_CONFIG(PLL2Init->PLL2MUL);
+    
+    /* Enable the main PLL2. */
+    __HAL_RCC_PLL2_ENABLE();
+    
+    /* Get Start Tick*/
+    tickstart = HAL_GetTick();
+    
+    /* Wait till PLL2 is ready */
+    while(__HAL_RCC_GET_FLAG(RCC_FLAG_PLL2RDY)  == RESET)
+    {
+      if((HAL_GetTick() - tickstart ) > PLL2_TIMEOUT_VALUE)
+      {
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+
+  return HAL_OK;
+}

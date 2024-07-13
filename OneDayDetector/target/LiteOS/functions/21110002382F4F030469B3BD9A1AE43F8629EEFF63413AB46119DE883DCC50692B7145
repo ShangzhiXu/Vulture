@@ -1,0 +1,32 @@
+HAL_StatusTypeDef SDMMC_Init(SDMMC_TypeDef *SDMMCx, SDMMC_InitTypeDef Init)
+{
+  /* Check the parameters */
+  assert_param(IS_SDMMC_ALL_INSTANCE(SDMMCx));
+  assert_param(IS_SDMMC_CLOCK_EDGE(Init.ClockEdge)); 
+#if !defined(STM32L4R5xx) && !defined(STM32L4R7xx) && !defined(STM32L4R9xx) && !defined(STM32L4S5xx) && !defined(STM32L4S7xx) && !defined(STM32L4S9xx)
+  assert_param(IS_SDMMC_CLOCK_BYPASS(Init.ClockBypass));
+#endif /* !STM32L4R5xx && !STM32L4R7xx && !STM32L4R9xx && !STM32L4S5xx && !STM32L4S7xx && !STM32L4S9xx */
+  assert_param(IS_SDMMC_CLOCK_POWER_SAVE(Init.ClockPowerSave));
+  assert_param(IS_SDMMC_BUS_WIDE(Init.BusWide));
+  assert_param(IS_SDMMC_HARDWARE_FLOW_CONTROL(Init.HardwareFlowControl));
+  assert_param(IS_SDMMC_CLKDIV(Init.ClockDiv));
+  
+  /* Set SDMMC configuration parameters */
+  /* Write to SDMMC CLKCR */
+#if defined(STM32L4R5xx) || defined(STM32L4R7xx) || defined(STM32L4R9xx) || defined(STM32L4S5xx) || defined(STM32L4S7xx) || defined(STM32L4S9xx)
+  MODIFY_REG(SDMMCx->CLKCR, CLKCR_CLEAR_MASK, Init.ClockEdge           |\
+                                              Init.ClockPowerSave      |\
+                                              Init.BusWide             |\
+                                              Init.HardwareFlowControl |\
+                                              Init.ClockDiv);  
+#else
+  MODIFY_REG(SDMMCx->CLKCR, CLKCR_CLEAR_MASK, Init.ClockEdge           |\
+                                              Init.ClockBypass         |\
+                                              Init.ClockPowerSave      |\
+                                              Init.BusWide             |\
+                                              Init.HardwareFlowControl |\
+                                              Init.ClockDiv);  
+#endif /* STM32L4R5xx || STM32L4R7xx || STM32L4R9xx || STM32L4S5xx || STM32L4S7xx || STM32L4S9xx */
+
+  return HAL_OK;
+}

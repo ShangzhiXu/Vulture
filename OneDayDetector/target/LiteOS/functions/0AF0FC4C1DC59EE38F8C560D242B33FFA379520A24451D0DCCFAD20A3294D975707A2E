@@ -1,0 +1,32 @@
+HAL_StatusTypeDef HAL_RTC_GetAlarm(RTC_HandleTypeDef *hrtc, RTC_AlarmTypeDef *sAlarm, uint32_t Alarm, uint32_t Format)
+{
+  uint32_t counter_alarm = 0;
+
+  /* Check input parameters */
+  if((hrtc == NULL) || (sAlarm == NULL))
+  {
+     return HAL_ERROR;
+  }
+  
+  /* Check the parameters */
+  assert_param(IS_RTC_FORMAT(Format));
+  assert_param(IS_RTC_ALARM(Alarm));
+  
+  /* Read Alarm counter in RTC registers */
+  counter_alarm = RTC_ReadAlarmCounter(hrtc);
+
+  /* Fill the structure with the read parameters */
+  /* Set hours in a day range (between 0 to 24)*/
+  sAlarm->AlarmTime.Hours   = (uint32_t)((counter_alarm / 3600) % 24);
+  sAlarm->AlarmTime.Minutes = (uint32_t)((counter_alarm % 3600) / 60);
+  sAlarm->AlarmTime.Seconds = (uint32_t)((counter_alarm % 3600) % 60);
+  
+  if(Format != RTC_FORMAT_BIN)
+  {
+    sAlarm->AlarmTime.Hours   = RTC_ByteToBcd2(sAlarm->AlarmTime.Hours);
+    sAlarm->AlarmTime.Minutes = RTC_ByteToBcd2(sAlarm->AlarmTime.Minutes);
+    sAlarm->AlarmTime.Seconds = RTC_ByteToBcd2(sAlarm->AlarmTime.Seconds);
+  }  
+  
+  return HAL_OK;
+}

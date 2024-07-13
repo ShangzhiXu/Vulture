@@ -1,0 +1,18 @@
+VOID OsMemTaskClear(UINT32 taskId)
+{
+    LosMemPoolInfo *pool = NULL;
+    Memstat *stat = NULL;
+
+#ifndef LOSCFG_MEM_MUL_POOL
+    pool = (LosMemPoolInfo *)OS_SYS_MEM_ADDR;
+    stat = &(pool->stat);
+    OsMemstatTaskClear(stat, taskId);
+#else
+    pool = (LosMemPoolInfo *)OsMemMulPoolHeadGet();
+    while (pool != NULL) {
+        stat = &(pool->stat);
+        OsMemstatTaskClear(stat, taskId);
+        pool = pool->nextPool;
+    }
+#endif
+}

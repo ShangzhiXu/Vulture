@@ -1,0 +1,36 @@
+dhcp6_information_request(struct netif *netif, struct dhcp6 *dhcp6)
+{
+  const u16_t requested_options[] = {DHCP6_OPTION_DNS_SERVERS, DHCP6_OPTION_DOMAIN_LIST, DHCP6_OPTION_SNTP_SERVERS};
+  u16_t msecs;
+  struct pbuf *p_out;
+  u16_t options_out_len;
+  LWIP_DEBUGF(DHCP6_DEBUG | LWIP_DBG_TRACE, ("dhcp6_information_request()\n"));
+  /* create and initialize the DHCP message header */
+  p_out = dhcp6_create_msg(netif, dhcp6, DHCP6_INFOREQUEST, 4 + sizeof(requested_options), &options_out_len);
+  if (p_out != NULL) {
+    err_t err;
+    struct dhcp6_msg *msg_out = (struct dhcp6_msg *)p_out->payload;
+    u8_t *options = (u8_t *)(msg_out + 1);
+    LWIP_DEBUGF(DHCP6_DEBUG | LWIP_DBG_TRACE, ("dhcp6_information_request: making request\n"));
+
+    options_out_len = dhcp6_option_optionrequest(options_out_len, options, requested_options,
+      LWIP_ARRAYSIZE(requested_options), p_out->len);
+    LWIP_HOOK_DHCP6_APPEND_OPTIONS(netif, dhcp6, DHCP6_STATE_REQUESTING_CONFIG, msg_out,
+      DHCP6_INFOREQUEST, options_out_len, p_out->len);
+    dhcp6_msg_finalize(options_out_len, p_out);
+
+    err = udp_sendto_if(dhcp6_pcb, p_out, &dhcp6_All_DHCP6_Relay_Agents_and_Servers, DHCP6_SERVER_PORT, netif);
+    pbuf_free(p_out);
+    LWIP_DEBUGF(DHCP6_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("dhcp6_information_request: INFOREQUESTING -> %d\n", (int)err));
+    LWIP_UNUSED_ARG(err);
+  } else {
+    LWIP_DEBUGF(DHCP6_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_LEVEL_SERIOUS, ("dhcp6_information_request: could not allocate DHCP6 request\n"));
+  }
+  dhcp6_set_state(dhcp6, DHCP6_STATE_REQUESTING_CONFIG, "dhcp6_information_request");
+  if (dhcp6->tries < 255) {
+    dhcp6->tries++;
+  }
+  msecs = (u16_t)((dhcp6->tries < 6 ? 1 << dhcp6->tries : 60) * 1000);
+  dhcp6->request_timeout = (u16_t)((msecs + DHCP6_TIMER_MSECS - 1) / DHCP6_TIMER_MSECS);
+  LWIP_DEBUGF(DHCP6_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("dhcp6_information_request(): set request timeout %"U16_F" msecs\n", msecs));
+}

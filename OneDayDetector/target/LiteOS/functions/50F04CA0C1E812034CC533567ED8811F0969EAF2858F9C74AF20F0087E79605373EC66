@@ -1,0 +1,48 @@
+void lv_obj_set_pos(lv_obj_t * obj, lv_coord_t x, lv_coord_t y)
+{
+    LV_ASSERT_OBJ(obj, LV_OBJX_NAME);
+
+    /*Convert x and y to absolute coordinates*/
+    lv_obj_t * par = obj->parent;
+
+    if(par == NULL) {
+        LV_LOG_WARN("lv_obj_set_pos: not changing position of screen object");
+        return;
+    }
+
+    x = x + par->coords.x1;
+    y = y + par->coords.y1;
+
+    /*Calculate and set the movement*/
+    lv_point_t diff;
+    diff.x = x - obj->coords.x1;
+    diff.y = y - obj->coords.y1;
+
+    /* Do nothing if the position is not changed */
+    /* It is very important else recursive positioning can
+     * occur without position change*/
+    if(diff.x == 0 && diff.y == 0) return;
+
+    /*Invalidate the original area*/
+    lv_obj_invalidate(obj);
+
+    /*Save the original coordinates*/
+    lv_area_t ori;
+    lv_obj_get_coords(obj, &ori);
+
+    obj->coords.x1 += diff.x;
+    obj->coords.y1 += diff.y;
+    obj->coords.x2 += diff.x;
+    obj->coords.y2 += diff.y;
+
+    refresh_children_position(obj, diff.x, diff.y);
+
+    /*Inform the object about its new coordinates*/
+    obj->signal_cb(obj, LV_SIGNAL_COORD_CHG, &ori);
+
+    /*Send a signal to the parent too*/
+    par->signal_cb(par, LV_SIGNAL_CHILD_CHG, obj);
+
+    /*Invalidate the new area*/
+    lv_obj_invalidate(obj);
+}

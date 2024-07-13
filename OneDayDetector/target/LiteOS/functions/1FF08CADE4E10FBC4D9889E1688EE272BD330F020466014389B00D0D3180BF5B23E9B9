@@ -1,0 +1,24 @@
+snmp_next_oid_check(struct snmp_next_oid_state *state, const u32_t *oid, u8_t oid_len, void *reference)
+{
+  /* do not overwrite a fail result */
+  if (state->status != SNMP_NEXT_OID_STATUS_BUF_TO_SMALL) {
+    /* check passed OID is located behind start offset */
+    if (snmp_oid_compare(oid, oid_len, state->start_oid, state->start_oid_len) > 0) {
+      /* check if new oid is located closer to start oid than current closest oid */
+      if ((state->status == SNMP_NEXT_OID_STATUS_NO_MATCH) ||
+          (snmp_oid_compare(oid, oid_len, state->next_oid, state->next_oid_len) < 0)) {
+        if (oid_len <= state->next_oid_max_len) {
+          MEMCPY(state->next_oid, oid, oid_len * sizeof(u32_t));
+          state->next_oid_len = oid_len;
+          state->status       = SNMP_NEXT_OID_STATUS_SUCCESS;
+          state->reference    = reference;
+          return 1;
+        } else {
+          state->status = SNMP_NEXT_OID_STATUS_BUF_TO_SMALL;
+        }
+      }
+    }
+  }
+
+  return 0;
+}

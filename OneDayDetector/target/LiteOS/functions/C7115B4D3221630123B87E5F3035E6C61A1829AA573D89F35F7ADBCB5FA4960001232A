@@ -1,0 +1,42 @@
+int adjtime(const struct timeval *delta, struct timeval *oldDelta)
+{
+    UINT32 intSave;
+    LOS_SpinLockSave(&g_timeSpin, &intSave);
+    /* return the amount of time remaining from any previous adjustment that has not yet been completed. */
+    if (oldDelta != NULL) {
+        if (g_adjDirection == 1) {
+            oldDelta->tv_sec = g_adjTimeLeft / OS_SYS_NS_PER_SECOND;
+            oldDelta->tv_usec = (g_adjTimeLeft % OS_SYS_NS_PER_SECOND) / OS_SYS_NS_PER_US;
+        } else {
+            oldDelta->tv_sec = -(g_adjTimeLeft / OS_SYS_NS_PER_SECOND);
+            oldDelta->tv_usec = -((g_adjTimeLeft % OS_SYS_NS_PER_SECOND) / OS_SYS_NS_PER_US);
+        }
+    }
+
+    if ((delta == NULL) || ((delta->tv_sec == 0) && (delta->tv_usec == 0))) {
+        LOS_SpinUnlockRestore(&g_timeSpin, intSave);
+        return 0;
+    }
+
+    if ((delta->tv_usec > OS_SYS_US_PER_SECOND) || (delta->tv_usec < -OS_SYS_US_PER_SECOND)) {
+        LOS_SpinUnlockRestore(&g_timeSpin, intSave);
+        TIME_RETURN(EINVAL);
+    }
+
+    if ((delta->tv_sec < TV_SEC_MIN) ||
+        (delta->tv_sec > TV_SEC_MAX)) {
+        LOS_SpinUnlockRestore(&g_timeSpin, intSave);
+        TIME_RETURN(EINVAL);
+    }
+
+    g_adjTimeLeft = ((INT64)delta->tv_sec * OS_SYS_NS_PER_SECOND) + (delta->tv_usec * OS_SYS_NS_PER_US);
+    if (g_adjTimeLeft > 0) {
+        g_adjDirection = 1;
+    } else {
+        g_adjDirection = 0;
+        g_adjTimeLeft = -g_adjTimeLeft;
+    }
+
+    LOS_SpinUnlockRestore(&g_timeSpin, intSave);
+    return 0;
+}

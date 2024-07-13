@@ -1,0 +1,78 @@
+HAL_StatusTypeDef HAL_IRDA_Receive(IRDA_HandleTypeDef *hirda, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+{
+  uint8_t  *pdata8bits;
+  uint16_t *pdata16bits;
+  uint16_t uhMask;
+  uint32_t tickstart;
+
+  /* Check that a Rx process is not already ongoing */
+  if (hirda->RxState == HAL_IRDA_STATE_READY)
+  {
+    if ((pData == NULL) || (Size == 0U))
+    {
+      return  HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hirda);
+
+    hirda->ErrorCode = HAL_IRDA_ERROR_NONE;
+    hirda->RxState = HAL_IRDA_STATE_BUSY_RX;
+
+    /* Init tickstart for timeout managment*/
+    tickstart = HAL_GetTick();
+
+    hirda->RxXferSize = Size;
+    hirda->RxXferCount = Size;
+
+    /* Computation of the mask to apply to RDR register
+       of the UART associated to the IRDA */
+    IRDA_MASK_COMPUTATION(hirda);
+    uhMask = hirda->Mask;
+
+    /* In case of 9bits/No Parity transfer, pRxData needs to be handled as a uint16_t pointer */
+    if ((hirda->Init.WordLength == IRDA_WORDLENGTH_9B) && (hirda->Init.Parity == IRDA_PARITY_NONE))
+    {
+      pdata8bits  = NULL;
+      pdata16bits = (uint16_t *) pData; /* Derogation R.11.3 */
+    }
+    else
+    {
+      pdata8bits  = pData;
+      pdata16bits = NULL;
+    }
+
+    /* Check data remaining to be received */
+    while (hirda->RxXferCount > 0U)
+    {
+      hirda->RxXferCount--;
+
+      if (IRDA_WaitOnFlagUntilTimeout(hirda, IRDA_FLAG_RXNE, RESET, tickstart, Timeout) != HAL_OK)
+      {
+        return HAL_TIMEOUT;
+      }
+      if (pdata8bits == NULL)
+      {
+        *pdata16bits = (uint16_t)(hirda->Instance->RDR & uhMask);
+        pdata16bits++;
+      }
+      else
+      {
+        *pdata8bits = (uint8_t)(hirda->Instance->RDR & (uint8_t)uhMask);
+        pdata8bits++;
+      }
+    }
+
+    /* At end of Rx process, restore hirda->RxState to Ready */
+    hirda->RxState = HAL_IRDA_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hirda);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

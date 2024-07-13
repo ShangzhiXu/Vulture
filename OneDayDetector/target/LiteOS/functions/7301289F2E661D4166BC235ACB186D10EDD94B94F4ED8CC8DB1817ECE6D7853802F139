@@ -1,0 +1,34 @@
+STATIC UINT32 FpbRedirectLiteral(UINT32 originalLiteralAddr, UINT32 targetLiteral)
+{
+    UINT8  regIndex;
+    UINT32 ret;
+    UINT32 literalAddr = originalLiteralAddr | 0x01UL;
+    UINT32 literalReg1Value = FPB->comp[LITERAL_REG1_INDEX];
+    UINT32 literalReg2Value = FPB->comp[LITERAL_REG2_INDEX];
+
+    if ((originalLiteralAddr < ROM_BASE) || (originalLiteralAddr >= ROM_END)) {
+        return FPB_TARGET_ADDR_ERR;
+    }
+
+    if ((literalReg1Value == literalAddr) || (literalReg2Value == literalAddr)) {
+        return FPB_COMP_REPEAT_ERR;
+    }
+
+    if (((literalReg1Value & 0x1) != 0) && ((literalReg2Value & 0x1) != 0)) {
+        return FPB_NO_FREE_COMP_ERR;
+    }
+
+    if ((literalReg1Value & 0x1) == 0) {
+        regIndex = LITERAL_REG1_INDEX;
+    } else {
+        regIndex = LITERAL_REG2_INDEX;
+    }
+
+    ret = FpbComparatorRegConfig(regIndex, originalLiteralAddr);
+    if (ret != FPB_SUCCESS) {
+        return ret;
+    }
+
+    *((UINT32 *)(UINTPTR)(REMAP_TABLE_ADDR + (regIndex * REMAP_UNIT_SIZE))) = targetLiteral;
+    return FPB_SUCCESS;
+}

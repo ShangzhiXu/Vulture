@@ -1,0 +1,31 @@
+void lv_list_down(const lv_obj_t * list)
+{
+    LV_ASSERT_OBJ(list, LV_OBJX_NAME);
+
+    /*Search the first list element which 'y' coordinate is above the parent
+     * and position the list to show this element on the top*/
+    lv_obj_t * scrl = lv_page_get_scrllable(list);
+    lv_obj_t * e;
+    e = lv_list_get_prev_btn(list, NULL);
+    while(e != NULL) {
+        if(e->coords.y1 < list->coords.y1) {
+            lv_coord_t new_y = -lv_obj_get_y(e);
+            if(lv_list_get_anim_time(list) == 0) {
+                lv_obj_set_y(scrl, new_y);
+            }
+            else {
+#if LV_USE_ANIMATION
+                lv_anim_t a;
+                lv_anim_init(&a);
+                lv_anim_set_var(&a, scrl);
+                lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_y);
+                lv_anim_set_values(&a, lv_obj_get_y(scrl), new_y);
+                lv_anim_set_time(&a, LV_LIST_DEF_ANIM_TIME);
+                lv_anim_start(&a);
+#endif
+            }
+            break;
+        }
+        e = lv_list_get_prev_btn(list, e);
+    }
+}

@@ -1,0 +1,31 @@
+ip_set_test(struct snmp_node_instance *instance, u16_t len, void *value)
+{
+  snmp_err_t ret = SNMP_ERR_WRONGVALUE;
+  s32_t *sint_ptr = (s32_t *)value;
+
+  LWIP_UNUSED_ARG(len);
+  switch (instance->node->oid) {
+    case 1: /* ipForwarding */
+#if IP_FORWARD
+      /* forwarding */
+      if (*sint_ptr == 1)
+#else
+      /* not-forwarding */
+      if (*sint_ptr == 2)
+#endif
+      {
+        ret = SNMP_ERR_NOERROR;
+      }
+      break;
+    case 2: /* ipDefaultTTL */
+      if (*sint_ptr == IP_DEFAULT_TTL) {
+        ret = SNMP_ERR_NOERROR;
+      }
+      break;
+    default:
+      LWIP_DEBUGF(SNMP_MIB_DEBUG, ("ip_set_test(): unknown id: %"S32_F"\n", instance->node->oid));
+      break;
+  }
+
+  return ret;
+}

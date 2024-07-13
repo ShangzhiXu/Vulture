@@ -1,0 +1,49 @@
+void agent_tiny_mqtt_entry(void)
+{
+    UINT32 ret;
+    mqtt_param_s atiny_params;
+    mqtt_device_info_s device_info;
+    if (g_demo_param.init != NULL) {
+        g_demo_param.init();
+    }
+    atiny_params.server_ip = DEFAULT_SERVER_IPV4;
+    atiny_params.server_port = DEFAULT_SERVER_PORT;
+#ifdef LOSCFG_COMPONENTS_SECURITY_MBEDTLS
+#if (MQTT_DEMO_USE_PSK == 1)
+    atiny_params.info.security_type = MQTT_SECURITY_TYPE_PSK;
+    atiny_params.info.u.psk.psk_id = (unsigned char *)AGENT_TINY_DEMO_PSK_ID;
+    atiny_params.info.u.psk.psk_id_len = strlen(AGENT_TINY_DEMO_PSK_ID);
+    atiny_params.info.u.psk.psk = g_demo_psk;
+    atiny_params.info.u.psk.psk_len = AGENT_TINY_DEMO_PSK_LEN;
+#elif (MQTT_DEMO_USE_CERT == 1)
+    atiny_params.info.security_type = MQTT_SECURITY_TYPE_CA;
+    atiny_params.info.u.ca.ca_crt = g_mqtt_ca_crt;
+    atiny_params.info.u.ca.ca_len = sizeof(g_mqtt_ca_crt);
+#else
+    atiny_params.info.security_type = MQTT_SECURITY_TYPE_NONE;
+#endif /* MQTT_DEMO_USE_PSK */
+#else
+    atiny_params.info.security_type = MQTT_SECURITY_TYPE_NONE;
+#endif /* LOSCFG_COMPONENTS_SECURITY_MBEDTLS */
+    atiny_params.cmd_ioctl = demo_cmd_ioctl;
+    if (atiny_mqtt_init(&atiny_params, &g_phandle) != ATINY_OK) {
+        return;
+    }
+    ret = creat_report_task();
+    if (ret != LOS_OK) {
+        return;
+    }
+    device_info.codec_mode = MQTT_CODEC_MODE_JSON;
+    device_info.sign_type = MQTT_SIGN_TYPE_HMACSHA256_NO_CHECK_TIME;
+    device_info.password = AGENT_TINY_DEMO_PASSWORD;
+#ifndef MQTT_DEMO_CONNECT_DYNAMIC
+    device_info.connection_type = MQTT_STATIC_CONNECT;
+    device_info.u.s_info.deviceid = AGENT_TINY_DEMO_DEVICEID;
+#else
+    device_info.connection_type = MQTT_DYNAMIC_CONNECT;
+    device_info.u.d_info.productid = AGENT_TINY_DEMO_PRODUCTID;
+    device_info.u.d_info.nodeid = AGENT_TINY_DEMO_NODEID;
+#endif
+    (void)atiny_mqtt_bind(&device_info, g_phandle);
+    return;
+}

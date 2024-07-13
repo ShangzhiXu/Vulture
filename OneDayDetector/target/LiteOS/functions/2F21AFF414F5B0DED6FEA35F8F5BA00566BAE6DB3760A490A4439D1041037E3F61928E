@@ -1,0 +1,83 @@
+lwip_pollscan(struct pollfd *fds, nfds_t nfds, enum lwip_pollscan_opts opts)
+{
+  int nready = 0;
+  nfds_t fdi;
+  struct lwip_sock *sock;
+  SYS_ARCH_DECL_PROTECT(lev);
+
+  /* Go through each struct pollfd in the array. */
+  for (fdi = 0; fdi < nfds; fdi++) {
+    if ((opts & LWIP_POLLSCAN_CLEAR) != 0) {
+      fds[fdi].revents = 0;
+    }
+
+    /* Negative fd means the caller wants us to ignore this struct.
+       POLLNVAL means we already detected that the fd is invalid;
+       if another thread has since opened a new socket with that fd,
+       we must not use that socket. */
+    if (fds[fdi].fd >= 0 && (fds[fdi].revents & POLLNVAL) == 0) {
+      /* First get the socket's status (protected)... */
+      SYS_ARCH_PROTECT(lev);
+      sock = tryget_socket_unconn_locked(fds[fdi].fd);
+      if (sock != NULL) {
+        void* lastdata = sock->lastdata.pbuf;
+        s16_t rcvevent = sock->rcvevent;
+        u16_t sendevent = sock->sendevent;
+        u16_t errevent = sock->errevent;
+
+        if ((opts & LWIP_POLLSCAN_INC_WAIT) != 0) {
+          sock->select_waiting++;
+          if (sock->select_waiting == 0) {
+            /* overflow - too many threads waiting */
+            sock->select_waiting--;
+            nready = -1;
+            SYS_ARCH_UNPROTECT(lev);
+            done_socket(sock);
+            break;
+          }
+        } else if ((opts & LWIP_POLLSCAN_DEC_WAIT) != 0) {
+          /* for now, handle select_waiting==0... */
+          LWIP_ASSERT("sock->select_waiting > 0", sock->select_waiting > 0);
+          if (sock->select_waiting > 0) {
+            sock->select_waiting--;
+          }
+        }
+        SYS_ARCH_UNPROTECT(lev);
+        done_socket(sock);
+
+        /* ... then examine it: */
+        /* See if netconn of this socket is ready for read */
+        if ((fds[fdi].events & POLLIN) != 0 && ((lastdata != NULL) || (rcvevent > 0))) {
+          fds[fdi].revents |= POLLIN;
+          LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_pollscan: fd=%d ready for reading\n", fds[fdi].fd));
+        }
+        /* See if netconn of this socket is ready for write */
+        if ((fds[fdi].events & POLLOUT) != 0 && (sendevent != 0)) {
+          fds[fdi].revents |= POLLOUT;
+          LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_pollscan: fd=%d ready for writing\n", fds[fdi].fd));
+        }
+        /* See if netconn of this socket had an error */
+        if (errevent != 0) {
+          /* POLLERR is output only. */
+          fds[fdi].revents |= POLLERR;
+          LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_pollscan: fd=%d ready for exception\n", fds[fdi].fd));
+        }
+      } else {
+        /* Not a valid socket */
+        SYS_ARCH_UNPROTECT(lev);
+        /* POLLNVAL is output only. */
+        fds[fdi].revents |= POLLNVAL;
+        return -1;
+      }
+    }
+
+    /* Will return the number of structures that have events,
+       not the number of events. */
+    if (fds[fdi].revents != 0) {
+      nready++;
+    }
+  }
+
+  LWIP_ASSERT("nready >= 0", nready >= 0);
+  return nready;
+}

@@ -1,0 +1,18 @@
+static void SecDecodeNumber64Decimal(SecScanSpec *spec)
+{
+#if (defined(SECUREC_COMPATIBLE_LINUX_FORMAT) && !(defined(SECUREC_ON_UNIX)))
+    if (spec->number64 > SECUREC_MAX_64BITS_VALUE_DIV_TEN) {
+        spec->beyondMax = 1;
+    }
+#endif
+    spec->number64 = SECUREC_MUL_TEN(spec->number64);
+#if (defined(SECUREC_COMPATIBLE_LINUX_FORMAT) && !(defined(SECUREC_ON_UNIX)))
+    if (spec->number64 == SECUREC_MAX_64BITS_VALUE_CUT_LAST_DIGIT) {
+        SecUnsignedInt64 number64As = (SecUnsignedInt64)SECUREC_MAX_64BITS_VALUE - spec->number64;
+        if (number64As < (SecUnsignedInt64)((SecUnsignedInt)spec->ch - SECUREC_CHAR('0'))) {
+            spec->beyondMax = 1;
+        }
+    }
+#endif
+    spec->number64 += (SecUnsignedInt64)((SecUnsignedInt)spec->ch - SECUREC_CHAR('0'));
+}

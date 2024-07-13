@@ -1,0 +1,37 @@
+int vsnprintf_s(char *strDest, size_t destMax, size_t count, const char *format, va_list argList)
+{
+    int retVal;
+
+    if (SECUREC_VSNPRINTF_PARAM_ERROR(format, strDest, destMax, count, SECUREC_STRING_MAX_LEN)) {
+        SECUREC_VSPRINTF_CLEAR_DEST(strDest, destMax, SECUREC_STRING_MAX_LEN);
+        SECUREC_ERROR_INVALID_PARAMTER("vsnprintf_s");
+        return -1;
+    }
+
+    if (destMax > count) {
+        retVal = SecVsnprintfImpl(strDest, count + 1, format, argList);
+        if (retVal == SECUREC_PRINTF_TRUNCATE) {  /* To keep dest buffer not destroyed 2014.2.18 */
+            /* The string has been truncated, return  -1 */
+            return -1;          /* To skip error handler,  return strlen(strDest) or -1 */
+        }
+    } else {
+        retVal = SecVsnprintfImpl(strDest, destMax, format, argList);
+#ifdef SECUREC_COMPATIBLE_WIN_FORMAT
+        if (retVal == SECUREC_PRINTF_TRUNCATE && count == (size_t)(-1)) {
+            return -1;
+        }
+#endif
+    }
+
+    if (retVal < 0) {
+        strDest[0] = '\0';      /* Empty the dest strDest */
+        if (retVal == SECUREC_PRINTF_TRUNCATE) {
+            /* Buffer too small */
+            SECUREC_ERROR_INVALID_RANGE("vsnprintf_s");
+        }
+        SECUREC_ERROR_INVALID_PARAMTER("vsnprintf_s");
+        return -1;
+    }
+
+    return retVal;
+}

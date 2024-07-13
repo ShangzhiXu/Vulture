@@ -1,0 +1,81 @@
+int mbedtls_x509_string_to_names( mbedtls_asn1_named_data **head, const char *name )
+{
+    int ret = 0;
+    const char *s = name, *c = s;
+    const char *end = s + strlen( s );
+    const char *oid = NULL;
+    const x509_attr_descriptor_t* attr_descr = NULL;
+    int in_tag = 1;
+    char data[MBEDTLS_X509_MAX_DN_NAME_SIZE];
+    char *d = data;
+
+    /* Clear existing chain if present */
+    mbedtls_asn1_free_named_data_list( head );
+
+    while( c <= end )
+    {
+        if( in_tag && *c == '=' )
+        {
+            if( ( attr_descr = x509_attr_descr_from_name( s, c - s ) ) == NULL )
+            {
+                ret = MBEDTLS_ERR_X509_UNKNOWN_OID;
+                goto exit;
+            }
+
+            oid = attr_descr->oid;
+            s = c + 1;
+            in_tag = 0;
+            d = data;
+        }
+
+        if( !in_tag && *c == '\\' && c != end )
+        {
+            c++;
+
+            /* Check for valid escaped characters */
+            if( c == end || *c != ',' )
+            {
+                ret = MBEDTLS_ERR_X509_INVALID_NAME;
+                goto exit;
+            }
+        }
+        else if( !in_tag && ( *c == ',' || c == end ) )
+        {
+            mbedtls_asn1_named_data* cur =
+                mbedtls_asn1_store_named_data( head, oid, strlen( oid ),
+                                               (unsigned char *) data,
+                                               d - data );
+
+            if(cur == NULL )
+            {
+                return( MBEDTLS_ERR_X509_ALLOC_FAILED );
+            }
+
+            // set tagType
+            cur->val.tag = attr_descr->default_tag;
+
+            while( c < end && *(c + 1) == ' ' )
+                c++;
+
+            s = c + 1;
+            in_tag = 1;
+        }
+
+        if( !in_tag && s != c + 1 )
+        {
+            *(d++) = *c;
+
+            if( d - data == MBEDTLS_X509_MAX_DN_NAME_SIZE )
+            {
+                ret = MBEDTLS_ERR_X509_INVALID_NAME;
+                goto exit;
+            }
+        }
+
+        c++;
+    }
+
+exit:
+
+    return( ret );
+}

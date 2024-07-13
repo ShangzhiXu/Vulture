@@ -1,0 +1,50 @@
+HAL_StatusTypeDef HAL_CEC_Transmit_IT(CEC_HandleTypeDef *hcec, uint8_t InitiatorAddress, uint8_t DestinationAddress,
+                                      uint8_t *pData, uint32_t Size)
+{
+  /* if the IP isn't already busy and if there is no previous transmission
+     already pending due to arbitration lost */
+  if (hcec->gState == HAL_CEC_STATE_READY)
+  {
+    if ((pData == NULL) && (Size > 0U))
+    {
+      return  HAL_ERROR;
+    }
+
+    assert_param(IS_CEC_ADDRESS(DestinationAddress));
+    assert_param(IS_CEC_ADDRESS(InitiatorAddress));
+    assert_param(IS_CEC_MSGSIZE(Size));
+
+    /* Process Locked */
+    __HAL_LOCK(hcec);
+    hcec->pTxBuffPtr = pData;
+    hcec->gState = HAL_CEC_STATE_BUSY_TX;
+    hcec->ErrorCode = HAL_CEC_ERROR_NONE;
+
+    /* initialize the number of bytes to send,
+      * 0 means only one header is sent (ping operation) */
+    hcec->TxXferCount = (uint16_t)Size;
+
+    /* in case of no payload (Size = 0), sender is only pinging the system;
+       Set TX End of Message (TXEOM) bit, must be set before writing data to TXDR */
+    if (Size == 0U)
+    {
+      __HAL_CEC_LAST_BYTE_TX_SET(hcec);
+    }
+
+    /* send header block */
+    hcec->Instance->TXDR = (uint32_t)(((uint32_t)InitiatorAddress << CEC_INITIATOR_LSB_POS) | DestinationAddress);
+
+    /* Set TX Start of Message  (TXSOM) bit */
+    __HAL_CEC_FIRST_BYTE_TX_SET(hcec);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hcec);
+
+    return HAL_OK;
+
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

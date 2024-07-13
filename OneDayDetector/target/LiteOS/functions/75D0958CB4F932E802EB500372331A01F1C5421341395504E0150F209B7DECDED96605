@@ -1,0 +1,12 @@
+smtp_tcp_recv(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t err)
+{
+  LWIP_UNUSED_ARG(err);
+  if (p != NULL) {
+    altcp_recved(pcb, p->tot_len);
+    smtp_process(arg, pcb, p);
+  } else {
+    LWIP_DEBUGF(SMTP_DEBUG_WARN_STATE, ("smtp_tcp_recv: connection closed by remote host\n"));
+    smtp_close((struct smtp_session*)arg, pcb, SMTP_RESULT_ERR_CLOSED, 0, err);
+  }
+  return ERR_OK;
+}

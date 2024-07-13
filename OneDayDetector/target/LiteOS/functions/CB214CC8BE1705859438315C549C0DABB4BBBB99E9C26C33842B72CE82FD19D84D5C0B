@@ -1,0 +1,97 @@
+HAL_StatusTypeDef HAL_DMA_DeInit(DMA_HandleTypeDef *hdma)
+{
+
+  /* Check the DMA handle allocation */
+  if (NULL == hdma )
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_DMA_ALL_INSTANCE(hdma->Instance));
+
+  /* Disable the selected DMA Channelx */
+  __HAL_DMA_DISABLE(hdma);
+
+  /* Compute the channel index */
+  if ((uint32_t)(hdma->Instance) < (uint32_t)(DMA2_Channel1))
+  {
+    /* DMA1 */
+    hdma->ChannelIndex = (((uint32_t)hdma->Instance - (uint32_t)DMA1_Channel1) / ((uint32_t)DMA1_Channel2 - (uint32_t)DMA1_Channel1)) << 2;
+    hdma->DmaBaseAddress = DMA1;
+  }
+  else
+  {
+    /* DMA2 */
+    hdma->ChannelIndex = (((uint32_t)hdma->Instance - (uint32_t)DMA2_Channel1) / ((uint32_t)DMA2_Channel2 - (uint32_t)DMA2_Channel1)) << 2;
+    hdma->DmaBaseAddress = DMA2;
+  }
+
+  /* Reset DMA Channel control register */
+  hdma->Instance->CCR  = 0;
+
+  /* Clear all flags */
+  hdma->DmaBaseAddress->IFCR = (DMA_ISR_GIF1 << (hdma->ChannelIndex));
+
+#if !defined (DMAMUX1)
+
+  /* Reset DMA channel selection register */
+  if (DMA1 == hdma->DmaBaseAddress)
+  {
+    /* DMA1 */
+    DMA1_CSELR->CSELR &= ~(DMA_CSELR_C1S << (hdma->ChannelIndex));
+  }
+  else
+  {
+    /* DMA2 */
+    DMA2_CSELR->CSELR &= ~(DMA_CSELR_C1S << (hdma->ChannelIndex));
+  }
+#endif /* STM32L431xx || STM32L432xx || STM32L433xx || STM32L442xx || STM32L443xx */
+       /* STM32L471xx || STM32L475xx || STM32L476xx || STM32L442xx || STM32L486xx */
+       /* STM32L496xx || STM32L4A6xx                                              */
+
+#if defined(DMAMUX1)
+
+  /* Initialize parameters for DMAMUX channel :
+     DMAmuxChannel, DMAmuxChannelStatus and DMAmuxChannelStatusMask */
+
+  DMA_CalcDMAMUXChannelBaseAndMask(hdma);
+
+  /* Reset the DMAMUX channel that corresponds to the DMA channel */
+  hdma->DMAmuxChannel->CCR = 0;
+
+  /* Clear the DMAMUX synchro overrun flag */
+  hdma->DMAmuxChannelStatus->CFR = hdma->DMAmuxChannelStatusMask;
+
+  /* Reset Request generator parameters if any */
+  if(((hdma->Init.Request >  0) && (hdma->Init.Request <= DMA_REQUEST_GENERATOR3)))
+  {
+    /* Initialize parameters for DMAMUX request generator :
+       DMAmuxRequestGen, DMAmuxRequestGenStatus and DMAmuxRequestGenStatusMask
+    */
+    DMA_CalcDMAMUXRequestGenBaseAndMask(hdma);
+
+    /* Reset the DMAMUX request generator register*/
+    hdma->DMAmuxRequestGen->RGCR = 0U;
+
+    /* Clear the DMAMUX request generator overrun flag */
+    hdma->DMAmuxRequestGenStatus->RGCFR = hdma->DMAmuxRequestGenStatusMask;
+  }
+  
+  hdma->DMAmuxRequestGen = 0U;
+  hdma->DMAmuxRequestGenStatus = 0U;
+  hdma->DMAmuxRequestGenStatusMask = 0U;
+
+#endif /* DMAMUX1 */
+
+  /* Initialise the error code */
+  hdma->ErrorCode = HAL_DMA_ERROR_NONE;
+
+  /* Initialize the DMA state */
+  hdma->State = HAL_DMA_STATE_RESET;
+
+  /* Release Lock */
+  __HAL_UNLOCK(hdma);
+
+  return HAL_OK;
+}

@@ -1,0 +1,17 @@
+HAL_StatusTypeDef USB_FlushTxFifo (USB_OTG_GlobalTypeDef *USBx, uint32_t num )
+{
+  uint32_t count = 0;
+  
+  USBx->GRSTCTL = ( USB_OTG_GRSTCTL_TXFFLSH |(uint32_t)( num << 6)); 
+  
+  do
+  {
+    if (++count > 200000)
+    {
+      return HAL_TIMEOUT;
+    }
+  }
+  while ((USBx->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH) == USB_OTG_GRSTCTL_TXFFLSH);
+  
+  return HAL_OK;
+}

@@ -1,0 +1,39 @@
+static HAL_StatusTypeDef USART_CheckIdleState(USART_HandleTypeDef *husart)
+{
+  uint32_t tickstart;
+
+  /* Initialize the USART ErrorCode */
+  husart->ErrorCode = HAL_USART_ERROR_NONE;
+
+  /* Init tickstart for timeout managment*/
+  tickstart = HAL_GetTick();
+
+  /* Check if the Transmitter is enabled */
+  if ((husart->Instance->CR1 & USART_CR1_TE) == USART_CR1_TE)
+  {
+    /* Wait until TEACK flag is set */
+    if (USART_WaitOnFlagUntilTimeout(husart, USART_ISR_TEACK, RESET, tickstart, USART_TEACK_REACK_TIMEOUT) != HAL_OK)
+    {
+      /* Timeout occurred */
+      return HAL_TIMEOUT;
+    }
+  }
+  /* Check if the Receiver is enabled */
+  if ((husart->Instance->CR1 & USART_CR1_RE) == USART_CR1_RE)
+  {
+    /* Wait until REACK flag is set */
+    if (USART_WaitOnFlagUntilTimeout(husart, USART_ISR_REACK, RESET, tickstart, USART_TEACK_REACK_TIMEOUT) != HAL_OK)
+    {
+      /* Timeout occurred */
+      return HAL_TIMEOUT;
+    }
+  }
+
+  /* Initialize the USART state*/
+  husart->State = HAL_USART_STATE_READY;
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(husart);
+
+  return HAL_OK;
+}

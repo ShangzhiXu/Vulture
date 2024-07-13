@@ -1,0 +1,48 @@
+static HAL_StatusTypeDef I2S_WaitFlagStateUntilTimeout(I2S_HandleTypeDef *hi2s, uint32_t Flag, uint32_t Status, uint32_t Timeout)
+{
+  uint32_t tickstart = 0;
+  
+  /* Get tick */
+  tickstart = HAL_GetTick();
+  
+  /* Wait until flag is set */
+  if(Status == RESET)
+  {
+    while(__HAL_I2S_GET_FLAG(hi2s, Flag) == RESET)
+    {
+      if(Timeout != HAL_MAX_DELAY)
+      {
+        if((Timeout == 0)||((HAL_GetTick() - tickstart ) > Timeout))
+        {
+          /* Set the I2S State ready */
+          hi2s->State= HAL_I2S_STATE_READY;
+
+          /* Process Unlocked */
+          __HAL_UNLOCK(hi2s);
+
+          return HAL_TIMEOUT;
+        }
+      }
+    }
+  }
+  else
+  {
+    while(__HAL_I2S_GET_FLAG(hi2s, Flag) != RESET)
+    {
+      if(Timeout != HAL_MAX_DELAY)
+      {
+        if((Timeout == 0)||((HAL_GetTick() - tickstart ) > Timeout))
+        {
+          /* Set the I2S State ready */
+          hi2s->State= HAL_I2S_STATE_READY;
+
+          /* Process Unlocked */
+          __HAL_UNLOCK(hi2s);
+
+          return HAL_TIMEOUT;
+        }
+      }
+    }
+  }
+  return HAL_OK;
+}

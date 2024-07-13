@@ -1,0 +1,25 @@
+UINT32 ArchBackTraceGet(UINTPTR fp, UINTPTR *callChain, UINT32 maxDepth)
+{
+    UINTPTR tmpFp;
+    UINTPTR backLr;
+    UINTPTR backFp = fp;
+    UINT32 count = 0;
+
+    while ((backFp > OS_SYS_FUNC_ADDR_START) && (backFp < OS_SYS_FUNC_ADDR_END)) {
+        tmpFp = backFp;
+        backFp = *((UINTPTR *)(tmpFp));
+        backLr = *((UINTPTR *)(tmpFp + sizeof(CHAR *)));
+
+        if (callChain == NULL) {
+            PrintExcInfo("traceback %u -- lr = 0x%llx    fp = 0x%llx\n", count, backLr, backFp);
+        } else {
+            callChain[count] = backLr;
+        }
+
+        count++;
+        if (count == maxDepth) {
+            break;
+        }
+    }
+    return count;
+}

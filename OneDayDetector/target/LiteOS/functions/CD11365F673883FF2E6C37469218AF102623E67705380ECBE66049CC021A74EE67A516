@@ -1,0 +1,67 @@
+static void I2S_IRQHandler(I2S_HandleTypeDef *hi2s)
+{
+  __IO uint32_t i2ssr = hi2s->Instance->SR;
+
+  if (hi2s->State == HAL_I2S_STATE_BUSY_RX)
+  {
+    /* I2S in mode Receiver ------------------------------------------------*/
+    if (((i2ssr & I2S_FLAG_RXNE) == I2S_FLAG_RXNE) && (__HAL_I2S_GET_IT_SOURCE(hi2s, I2S_IT_RXNE) != RESET))
+    {
+      I2S_Receive_IT(hi2s);
+    }
+
+    /* I2S Overrun error interrupt occurred -------------------------------------*/
+    if (((i2ssr & I2S_FLAG_OVR) == I2S_FLAG_OVR) && (__HAL_I2S_GET_IT_SOURCE(hi2s, I2S_IT_ERR) != RESET))
+    {
+      /* Disable RXNE and ERR interrupt */
+      __HAL_I2S_DISABLE_IT(hi2s, (I2S_IT_RXNE | I2S_IT_ERR));
+
+      /* Clear Overrun flag */
+      __HAL_I2S_CLEAR_OVRFLAG(hi2s);
+
+      /* Set the I2S State ready */
+      hi2s->State = HAL_I2S_STATE_READY;
+
+
+      /* Set the error code and execute error callback*/
+      SET_BIT(hi2s->ErrorCode, HAL_I2S_ERROR_OVR);
+      /* Call user error callback */
+#if (USE_HAL_I2S_REGISTER_CALLBACKS == 1U)
+      hi2s->ErrorCallback(hi2s);
+#else
+      HAL_I2S_ErrorCallback(hi2s);
+#endif /* USE_HAL_I2S_REGISTER_CALLBACKS */
+    }
+  }
+
+  if (hi2s->State == HAL_I2S_STATE_BUSY_TX)
+  {
+    /* I2S in mode Transmitter -----------------------------------------------*/
+    if (((i2ssr & I2S_FLAG_TXE) == I2S_FLAG_TXE) && (__HAL_I2S_GET_IT_SOURCE(hi2s, I2S_IT_TXE) != RESET))
+    {
+      I2S_Transmit_IT(hi2s);
+    }
+
+    /* I2S Underrun error interrupt occurred --------------------------------*/
+    if (((i2ssr & I2S_FLAG_UDR) == I2S_FLAG_UDR) && (__HAL_I2S_GET_IT_SOURCE(hi2s, I2S_IT_ERR) != RESET))
+    {
+      /* Disable TXE and ERR interrupt */
+      __HAL_I2S_DISABLE_IT(hi2s, (I2S_IT_TXE | I2S_IT_ERR));
+
+      /* Clear Underrun flag */
+      __HAL_I2S_CLEAR_UDRFLAG(hi2s);
+
+      /* Set the I2S State ready */
+      hi2s->State = HAL_I2S_STATE_READY;
+
+      /* Set the error code and execute error callback*/
+      SET_BIT(hi2s->ErrorCode, HAL_I2S_ERROR_UDR);
+      /* Call user error callback */
+#if (USE_HAL_I2S_REGISTER_CALLBACKS == 1U)
+      hi2s->ErrorCallback(hi2s);
+#else
+      HAL_I2S_ErrorCallback(hi2s);
+#endif /* USE_HAL_I2S_REGISTER_CALLBACKS */
+    }
+  }
+}

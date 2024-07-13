@@ -1,0 +1,28 @@
+uint32_t LL_RCC_GetSDMMCKernelClockFreq(uint32_t SDMMCxSource)
+{
+  uint32_t sdmmc_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_SDMMC_KERNELCLKSOURCE(SDMMCxSource));
+
+  /* SDMMC1CLK kernel clock frequency */
+  switch (LL_RCC_GetSDMMCKernelClockSource(SDMMCxSource))
+  {
+    case LL_RCC_SDMMC1_KERNELCLKSOURCE_48CLK:      /* 48MHz clock from internal multiplexor used as SDMMC1 clock source */
+      sdmmc_frequency = LL_RCC_GetSDMMCClockFreq(LL_RCC_SDMMC1_CLKSOURCE);
+      break;
+
+    case LL_RCC_SDMMC1_KERNELCLKSOURCE_PLLP:        /* PLL "P" output (PLLSAI3CLK) clock used as SDMMC1 clock source */
+      if (LL_RCC_PLL_IsReady())
+      {
+        sdmmc_frequency = RCC_PLL_GetFreqDomain_SAI();
+      }
+      break;
+
+    default:
+      sdmmc_frequency = LL_RCC_PERIPH_FREQUENCY_NA;
+      break;
+  }
+
+  return sdmmc_frequency;
+}

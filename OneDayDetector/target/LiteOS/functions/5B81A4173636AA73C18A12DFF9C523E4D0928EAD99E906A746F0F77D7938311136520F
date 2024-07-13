@@ -1,0 +1,131 @@
+void HAL_RCCEx_GetPeriphCLKConfig(RCC_PeriphCLKInitTypeDef  *PeriphClkInit)
+{
+  uint32_t tempreg = 0;
+
+  /* Set all possible values for the extended clock type parameter------------*/
+#if defined (STM32F765xx) || defined (STM32F767xx) || defined (STM32F769xx) || defined (STM32F777xx) || defined (STM32F779xx)
+  PeriphClkInit->PeriphClockSelection = RCC_PERIPHCLK_I2S      | RCC_PERIPHCLK_LPTIM1   |\
+                                        RCC_PERIPHCLK_SAI1     | RCC_PERIPHCLK_SAI2     |\
+                                        RCC_PERIPHCLK_TIM      | RCC_PERIPHCLK_RTC      |\
+                                        RCC_PERIPHCLK_CEC      | RCC_PERIPHCLK_I2C4     |\
+                                        RCC_PERIPHCLK_I2C1     | RCC_PERIPHCLK_I2C2     |\
+                                        RCC_PERIPHCLK_I2C3     | RCC_PERIPHCLK_USART1   |\
+                                        RCC_PERIPHCLK_USART2   | RCC_PERIPHCLK_USART3   |\
+                                        RCC_PERIPHCLK_UART4    | RCC_PERIPHCLK_UART5    |\
+                                        RCC_PERIPHCLK_USART6   | RCC_PERIPHCLK_UART7    |\
+                                        RCC_PERIPHCLK_UART8    | RCC_PERIPHCLK_SDMMC1   |\
+                                        RCC_PERIPHCLK_CLK48    | RCC_PERIPHCLK_SDMMC2   |\
+                                        RCC_PERIPHCLK_DFSDM1   | RCC_PERIPHCLK_DFSDM1_AUDIO;
+#else
+  PeriphClkInit->PeriphClockSelection = RCC_PERIPHCLK_I2S      | RCC_PERIPHCLK_LPTIM1   |\
+                                        RCC_PERIPHCLK_SAI1     | RCC_PERIPHCLK_SAI2     |\
+                                        RCC_PERIPHCLK_TIM      | RCC_PERIPHCLK_RTC      |\
+                                        RCC_PERIPHCLK_CEC      | RCC_PERIPHCLK_I2C4     |\
+                                        RCC_PERIPHCLK_I2C1     | RCC_PERIPHCLK_I2C2     |\
+                                        RCC_PERIPHCLK_I2C3     | RCC_PERIPHCLK_USART1   |\
+                                        RCC_PERIPHCLK_USART2   | RCC_PERIPHCLK_USART3   |\
+                                        RCC_PERIPHCLK_UART4    | RCC_PERIPHCLK_UART5    |\
+                                        RCC_PERIPHCLK_USART6   | RCC_PERIPHCLK_UART7    |\
+                                        RCC_PERIPHCLK_UART8    | RCC_PERIPHCLK_SDMMC1   |\
+                                        RCC_PERIPHCLK_CLK48;
+#endif /* STM32F767xx || STM32F769xx || STM32F777xx || STM32F779xx */
+
+  /* Get the PLLI2S Clock configuration -----------------------------------------------*/
+  PeriphClkInit->PLLI2S.PLLI2SN = (uint32_t)((RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SN) >> RCC_PLLI2SCFGR_PLLI2SN_Pos);
+  PeriphClkInit->PLLI2S.PLLI2SP = (uint32_t)((RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SP) >> RCC_PLLI2SCFGR_PLLI2SP_Pos);
+  PeriphClkInit->PLLI2S.PLLI2SQ = (uint32_t)((RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SQ) >> RCC_PLLI2SCFGR_PLLI2SQ_Pos);
+  PeriphClkInit->PLLI2S.PLLI2SR = (uint32_t)((RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SR) >> RCC_PLLI2SCFGR_PLLI2SR_Pos);
+
+  /* Get the PLLSAI Clock configuration -----------------------------------------------*/
+  PeriphClkInit->PLLSAI.PLLSAIN = (uint32_t)((RCC->PLLSAICFGR & RCC_PLLSAICFGR_PLLSAIN) >> RCC_PLLSAICFGR_PLLSAIN_Pos);
+  PeriphClkInit->PLLSAI.PLLSAIP = (uint32_t)((RCC->PLLSAICFGR & RCC_PLLSAICFGR_PLLSAIP) >> RCC_PLLSAICFGR_PLLSAIP_Pos);
+  PeriphClkInit->PLLSAI.PLLSAIQ = (uint32_t)((RCC->PLLSAICFGR & RCC_PLLSAICFGR_PLLSAIQ) >> RCC_PLLSAICFGR_PLLSAIQ_Pos);
+  PeriphClkInit->PLLSAI.PLLSAIR = (uint32_t)((RCC->PLLSAICFGR & RCC_PLLSAICFGR_PLLSAIR) >> RCC_PLLSAICFGR_PLLSAIR_Pos);
+
+  /* Get the PLLSAI/PLLI2S division factors -------------------------------------------*/
+  PeriphClkInit->PLLI2SDivQ = (uint32_t)((RCC->DCKCFGR1 & RCC_DCKCFGR1_PLLI2SDIVQ) >> RCC_DCKCFGR1_PLLI2SDIVQ_Pos);
+  PeriphClkInit->PLLSAIDivQ = (uint32_t)((RCC->DCKCFGR1 & RCC_DCKCFGR1_PLLSAIDIVQ) >> RCC_DCKCFGR1_PLLSAIDIVQ_Pos);
+  PeriphClkInit->PLLSAIDivR = (uint32_t)((RCC->DCKCFGR1 & RCC_DCKCFGR1_PLLSAIDIVR) >> RCC_DCKCFGR1_PLLSAIDIVR_Pos);
+
+  /* Get the SAI1 clock configuration ----------------------------------------------*/
+  PeriphClkInit->Sai1ClockSelection = __HAL_RCC_GET_SAI1_SOURCE();
+
+  /* Get the SAI2 clock configuration ----------------------------------------------*/
+  PeriphClkInit->Sai2ClockSelection = __HAL_RCC_GET_SAI2_SOURCE();
+
+  /* Get the I2S clock configuration ------------------------------------------*/
+  PeriphClkInit->I2sClockSelection = __HAL_RCC_GET_I2SCLKSOURCE();
+
+  /* Get the I2C1 clock configuration ------------------------------------------*/
+  PeriphClkInit->I2c1ClockSelection = __HAL_RCC_GET_I2C1_SOURCE();
+
+  /* Get the I2C2 clock configuration ------------------------------------------*/
+  PeriphClkInit->I2c2ClockSelection = __HAL_RCC_GET_I2C2_SOURCE();
+
+  /* Get the I2C3 clock configuration ------------------------------------------*/
+  PeriphClkInit->I2c3ClockSelection = __HAL_RCC_GET_I2C3_SOURCE();
+
+  /* Get the I2C4 clock configuration ------------------------------------------*/
+  PeriphClkInit->I2c4ClockSelection = __HAL_RCC_GET_I2C4_SOURCE();
+
+  /* Get the USART1 clock configuration ------------------------------------------*/
+  PeriphClkInit->Usart1ClockSelection = __HAL_RCC_GET_USART1_SOURCE();
+
+  /* Get the USART2 clock configuration ------------------------------------------*/
+  PeriphClkInit->Usart2ClockSelection = __HAL_RCC_GET_USART2_SOURCE();
+
+  /* Get the USART3 clock configuration ------------------------------------------*/
+  PeriphClkInit->Usart3ClockSelection = __HAL_RCC_GET_USART3_SOURCE();
+
+  /* Get the UART4 clock configuration ------------------------------------------*/
+  PeriphClkInit->Uart4ClockSelection = __HAL_RCC_GET_UART4_SOURCE();
+
+  /* Get the UART5 clock configuration ------------------------------------------*/
+  PeriphClkInit->Uart5ClockSelection = __HAL_RCC_GET_UART5_SOURCE();
+
+  /* Get the USART6 clock configuration ------------------------------------------*/
+  PeriphClkInit->Usart6ClockSelection = __HAL_RCC_GET_USART6_SOURCE();
+
+  /* Get the UART7 clock configuration ------------------------------------------*/
+  PeriphClkInit->Uart7ClockSelection = __HAL_RCC_GET_UART7_SOURCE();
+
+  /* Get the UART8 clock configuration ------------------------------------------*/
+  PeriphClkInit->Uart8ClockSelection = __HAL_RCC_GET_UART8_SOURCE();
+
+  /* Get the LPTIM1 clock configuration ------------------------------------------*/
+  PeriphClkInit->Lptim1ClockSelection = __HAL_RCC_GET_LPTIM1_SOURCE();
+
+  /* Get the CEC clock configuration -----------------------------------------------*/
+  PeriphClkInit->CecClockSelection = __HAL_RCC_GET_CEC_SOURCE();
+
+  /* Get the CK48 clock configuration -----------------------------------------------*/
+  PeriphClkInit->Clk48ClockSelection = __HAL_RCC_GET_CLK48_SOURCE();
+
+  /* Get the SDMMC1 clock configuration -----------------------------------------------*/
+  PeriphClkInit->Sdmmc1ClockSelection = __HAL_RCC_GET_SDMMC1_SOURCE();
+
+#if defined (STM32F765xx) || defined (STM32F767xx) || defined (STM32F769xx) || defined (STM32F777xx) || defined (STM32F779xx)
+  /* Get the SDMMC2 clock configuration -----------------------------------------------*/
+  PeriphClkInit->Sdmmc2ClockSelection = __HAL_RCC_GET_SDMMC2_SOURCE();
+
+  /* Get the DFSDM clock configuration -----------------------------------------------*/
+  PeriphClkInit->Dfsdm1ClockSelection = __HAL_RCC_GET_DFSDM1_SOURCE();
+
+  /* Get the DFSDM AUDIO clock configuration -----------------------------------------------*/
+  PeriphClkInit->Dfsdm1AudioClockSelection = __HAL_RCC_GET_DFSDM1AUDIO_SOURCE();
+#endif /* STM32F767xx || STM32F769xx || STM32F777xx || STM32F779xx */
+
+  /* Get the RTC Clock configuration -----------------------------------------------*/
+  tempreg = (RCC->CFGR & RCC_CFGR_RTCPRE);
+  PeriphClkInit->RTCClockSelection = (uint32_t)((tempreg) | (RCC->BDCR & RCC_BDCR_RTCSEL));
+
+  /* Get the TIM Prescaler configuration --------------------------------------------*/
+  if ((RCC->DCKCFGR1 & RCC_DCKCFGR1_TIMPRE) == RESET)
+  {
+    PeriphClkInit->TIMPresSelection = RCC_TIMPRES_DESACTIVATED;
+  }
+  else
+  {
+    PeriphClkInit->TIMPresSelection = RCC_TIMPRES_ACTIVATED;
+  }
+}

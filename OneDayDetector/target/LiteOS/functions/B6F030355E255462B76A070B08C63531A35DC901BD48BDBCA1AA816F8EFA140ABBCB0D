@@ -1,0 +1,22 @@
+static void ChallengeHash(const u_char PeerChallenge[16], const u_char *rchallenge,
+	      const char *username, u_char Challenge[8]) {
+    lwip_sha1_context	sha1Context;
+    u_char	sha1Hash[SHA1_SIGNATURE_SIZE];
+    const char	*user;
+
+    /* remove domain from "domain\username" */
+    if ((user = strrchr(username, '\\')) != NULL)
+	++user;
+    else
+	user = username;
+
+    lwip_sha1_init(&sha1Context);
+    lwip_sha1_starts(&sha1Context);
+    lwip_sha1_update(&sha1Context, PeerChallenge, 16);
+    lwip_sha1_update(&sha1Context, rchallenge, 16);
+    lwip_sha1_update(&sha1Context, (const unsigned char*)user, strlen(user));
+    lwip_sha1_finish(&sha1Context, sha1Hash);
+    lwip_sha1_free(&sha1Context);
+
+    MEMCPY(Challenge, sha1Hash, 8);
+}

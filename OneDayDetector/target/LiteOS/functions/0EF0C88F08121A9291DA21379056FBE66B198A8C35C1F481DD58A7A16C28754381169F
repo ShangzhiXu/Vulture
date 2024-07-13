@@ -1,0 +1,28 @@
+HAL_StatusTypeDef FMC_PCCARD_IOSpace_Timing_Init(FMC_PCCARD_TypeDef *Device, FMC_NAND_PCC_TimingTypeDef *Timing)
+{
+  uint32_t tmpr = 0;
+  
+  /* Check the parameters */  
+  assert_param(IS_FMC_PCCARD_DEVICE(Device));
+  assert_param(IS_FMC_SETUP_TIME(Timing->SetupTime));
+  assert_param(IS_FMC_WAIT_TIME(Timing->WaitSetupTime));
+  assert_param(IS_FMC_HOLD_TIME(Timing->HoldSetupTime));
+  assert_param(IS_FMC_HIZ_TIME(Timing->HiZSetupTime));
+
+  /* Get FMC_PCCARD device timing parameters */
+  tmpr = Device->PIO4;
+
+  /* Clear IOSET4, IOWAIT4, IOHOLD4 and IOHIZ4 bits */
+  tmpr &= ((uint32_t)~(FMC_PIO4_IOSET4  | FMC_PIO4_IOWAIT4 | FMC_PIO4_IOHOLD4 | \
+                       FMC_PIO4_IOHIZ4));
+  
+  /* Set FMC_PCCARD device timing parameters */
+  tmpr |= (uint32_t)(Timing->SetupTime                   |\
+                     ((Timing->WaitSetupTime) << 8U)     |\
+                     ((Timing->HoldSetupTime) << 16U)    |\
+                     ((Timing->HiZSetupTime) << 24U));   
+  
+  Device->PIO4 = tmpr;
+ 
+  return HAL_OK;
+}

@@ -1,0 +1,38 @@
+static int write_private_key( mbedtls_pk_context *key, const char *output_file )
+{
+    int ret;
+    FILE *f;
+    unsigned char output_buf[16000];
+    unsigned char *c = output_buf;
+    size_t len = 0;
+
+    memset(output_buf, 0, 16000);
+    if( opt.format == FORMAT_PEM )
+    {
+        if( ( ret = mbedtls_pk_write_key_pem( key, output_buf, 16000 ) ) != 0 )
+            return( ret );
+
+        len = strlen( (char *) output_buf );
+    }
+    else
+    {
+        if( ( ret = mbedtls_pk_write_key_der( key, output_buf, 16000 ) ) < 0 )
+            return( ret );
+
+        len = ret;
+        c = output_buf + sizeof(output_buf) - len;
+    }
+
+    if( ( f = fopen( output_file, "wb" ) ) == NULL )
+        return( -1 );
+
+    if( fwrite( c, 1, len, f ) != len )
+    {
+        fclose( f );
+        return( -1 );
+    }
+
+    fclose( f );
+
+    return( 0 );
+}

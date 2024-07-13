@@ -1,0 +1,103 @@
+HAL_StatusTypeDef HAL_SPI_Transmit_DMA(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t Size)
+{
+  HAL_StatusTypeDef errorcode = HAL_OK;
+
+  /* Check tx dma handle */
+  assert_param(IS_SPI_DMA_HANDLE(hspi->hdmatx));
+
+  /* Check Direction parameter */
+  assert_param(IS_SPI_DIRECTION_2LINES_OR_1LINE(hspi->Init.Direction));
+
+  /* Process Locked */
+  __HAL_LOCK(hspi);
+
+  if (hspi->State != HAL_SPI_STATE_READY)
+  {
+    errorcode = HAL_BUSY;
+    goto error;
+  }
+
+  if ((pData == NULL) || (Size == 0U))
+  {
+    errorcode = HAL_ERROR;
+    goto error;
+  }
+
+  /* Set the transaction information */
+  hspi->State       = HAL_SPI_STATE_BUSY_TX;
+  hspi->ErrorCode   = HAL_SPI_ERROR_NONE;
+  hspi->pTxBuffPtr  = (uint8_t *)pData;
+  hspi->TxXferSize  = Size;
+  hspi->TxXferCount = Size;
+
+  /* Init field not used in handle to zero */
+  hspi->pRxBuffPtr  = (uint8_t *)NULL;
+  hspi->TxISR       = NULL;
+  hspi->RxISR       = NULL;
+  hspi->RxXferSize  = 0U;
+  hspi->RxXferCount = 0U;
+
+  /* Configure communication direction : 1Line */
+  if (hspi->Init.Direction == SPI_DIRECTION_1LINE)
+  {
+    SPI_1LINE_TX(hspi);
+  }
+
+#if (USE_SPI_CRC != 0U)
+  /* Reset CRC Calculation */
+  if (hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+  {
+    SPI_RESET_CRC(hspi);
+  }
+#endif /* USE_SPI_CRC */
+
+  /* Set the SPI TxDMA Half transfer complete callback */
+  hspi->hdmatx->XferHalfCpltCallback = SPI_DMAHalfTransmitCplt;
+
+  /* Set the SPI TxDMA transfer complete callback */
+  hspi->hdmatx->XferCpltCallback = SPI_DMATransmitCplt;
+
+  /* Set the DMA error callback */
+  hspi->hdmatx->XferErrorCallback = SPI_DMAError;
+
+  /* Set the DMA AbortCpltCallback */
+  hspi->hdmatx->XferAbortCallback = NULL;
+
+  CLEAR_BIT(hspi->Instance->CR2, SPI_CR2_LDMATX);
+  /* Packing mode is enabled only if the DMA setting is HALWORD */
+  if ((hspi->Init.DataSize <= SPI_DATASIZE_8BIT) && (hspi->hdmatx->Init.MemDataAlignment == DMA_MDATAALIGN_HALFWORD))
+  {
+    /* Check the even/odd of the data size + crc if enabled */
+    if ((hspi->TxXferCount & 0x1U) == 0U)
+    {
+      CLEAR_BIT(hspi->Instance->CR2, SPI_CR2_LDMATX);
+      hspi->TxXferCount = (hspi->TxXferCount >> 1U);
+    }
+    else
+    {
+      SET_BIT(hspi->Instance->CR2, SPI_CR2_LDMATX);
+      hspi->TxXferCount = (hspi->TxXferCount >> 1U) + 1U;
+    }
+  }
+
+  /* Enable the Tx DMA Stream/Channel */
+  HAL_DMA_Start_IT(hspi->hdmatx, (uint32_t)hspi->pTxBuffPtr, (uint32_t)&hspi->Instance->DR, hspi->TxXferCount);
+
+  /* Check if the SPI is already enabled */
+  if ((hspi->Instance->CR1 & SPI_CR1_SPE) != SPI_CR1_SPE)
+  {
+    /* Enable SPI peripheral */
+    __HAL_SPI_ENABLE(hspi);
+  }
+
+  /* Enable the SPI Error Interrupt Bit */
+  __HAL_SPI_ENABLE_IT(hspi, (SPI_IT_ERR));
+
+  /* Enable Tx DMA Request */
+  SET_BIT(hspi->Instance->CR2, SPI_CR2_TXDMAEN);
+
+error :
+  /* Process Unlocked */
+  __HAL_UNLOCK(hspi);
+  return errorcode;
+}

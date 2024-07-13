@@ -1,0 +1,46 @@
+static void GenerateAuthenticatorResponse(const u_char PasswordHashHash[MD4_SIGNATURE_SIZE],
+			      u_char NTResponse[24], const u_char PeerChallenge[16],
+			      const u_char *rchallenge, const char *username,
+			      u_char authResponse[MS_AUTH_RESPONSE_LENGTH+1]) {
+    /*
+     * "Magic" constants used in response generation, from RFC 2759.
+     */
+    static const u_char Magic1[39] = /* "Magic server to client signing constant" */
+	{ 0x4D, 0x61, 0x67, 0x69, 0x63, 0x20, 0x73, 0x65, 0x72, 0x76,
+	  0x65, 0x72, 0x20, 0x74, 0x6F, 0x20, 0x63, 0x6C, 0x69, 0x65,
+	  0x6E, 0x74, 0x20, 0x73, 0x69, 0x67, 0x6E, 0x69, 0x6E, 0x67,
+	  0x20, 0x63, 0x6F, 0x6E, 0x73, 0x74, 0x61, 0x6E, 0x74 };
+    static const u_char Magic2[41] = /* "Pad to make it do more than one iteration" */
+	{ 0x50, 0x61, 0x64, 0x20, 0x74, 0x6F, 0x20, 0x6D, 0x61, 0x6B,
+	  0x65, 0x20, 0x69, 0x74, 0x20, 0x64, 0x6F, 0x20, 0x6D, 0x6F,
+	  0x72, 0x65, 0x20, 0x74, 0x68, 0x61, 0x6E, 0x20, 0x6F, 0x6E,
+	  0x65, 0x20, 0x69, 0x74, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6F,
+	  0x6E };
+
+    int		i;
+    lwip_sha1_context	sha1Context;
+    u_char	Digest[SHA1_SIGNATURE_SIZE];
+    u_char	Challenge[8];
+
+    lwip_sha1_init(&sha1Context);
+    lwip_sha1_starts(&sha1Context);
+    lwip_sha1_update(&sha1Context, PasswordHashHash, MD4_SIGNATURE_SIZE);
+    lwip_sha1_update(&sha1Context, NTResponse, 24);
+    lwip_sha1_update(&sha1Context, Magic1, sizeof(Magic1));
+    lwip_sha1_finish(&sha1Context, Digest);
+    lwip_sha1_free(&sha1Context);
+
+    ChallengeHash(PeerChallenge, rchallenge, username, Challenge);
+
+    lwip_sha1_init(&sha1Context);
+    lwip_sha1_starts(&sha1Context);
+    lwip_sha1_update(&sha1Context, Digest, sizeof(Digest));
+    lwip_sha1_update(&sha1Context, Challenge, sizeof(Challenge));
+    lwip_sha1_update(&sha1Context, Magic2, sizeof(Magic2));
+    lwip_sha1_finish(&sha1Context, Digest);
+    lwip_sha1_free(&sha1Context);
+
+    /* Convert to ASCII hex string. */
+    for (i = 0; i < LWIP_MAX((MS_AUTH_RESPONSE_LENGTH / 2), (int)sizeof(Digest)); i++)
+	sprintf((char *)&authResponse[i * 2], "%02X", Digest[i]);
+}

@@ -1,0 +1,54 @@
+int mq_timedsend(mqd_t personal, const char *msg, size_t msgLen,
+                 unsigned int msgPrio, const struct timespec *absTimeout)
+{
+    UINT32 mqueueId, err;
+    UINT64 absTicks;
+    struct mqarray *mqueueCB = NULL;
+    struct mqpersonal *privateMqPersonal = NULL;
+
+    if (!MqParamCheck(personal, msg, msgLen)) {
+        goto ERROUT;
+    }
+
+    if (msgPrio > (MQ_PRIO_MAX - 1)) {
+        errno = EINVAL;
+        goto ERROUT;
+    }
+
+    (VOID)pthread_mutex_lock(&g_mqueueMutex);
+    privateMqPersonal = (struct mqpersonal *)personal;
+    if (privateMqPersonal->mq_status != MQ_USE_MAGIC) {
+        errno = EBADF;
+        goto ERROUT_UNLOCK;
+    }
+
+    mqueueCB = privateMqPersonal->mq_posixdes;
+    if (msgLen > (size_t)(mqueueCB->mqcb->queueSize - sizeof(UINT32))) {
+        errno = EMSGSIZE;
+        goto ERROUT_UNLOCK;
+    }
+
+    if ((((UINT32)privateMqPersonal->mq_flags & (UINT32)O_WRONLY) != (UINT32)O_WRONLY) &&
+        (((UINT32)privateMqPersonal->mq_flags & (UINT32)O_RDWR) != (UINT32)O_RDWR)) {
+        errno = EBADF;
+        goto ERROUT_UNLOCK;
+    }
+
+    if (ConvertTimeout(privateMqPersonal->mq_flags, absTimeout, &absTicks) == -1) {
+        goto ERROUT_UNLOCK;
+    }
+    mqueueId = mqueueCB->mq_id;
+    (VOID)pthread_mutex_unlock(&g_mqueueMutex);
+
+    err = LOS_QueueWriteCopy(mqueueId, (VOID *)msg, (UINT32)msgLen, (UINT32)absTicks);
+    if (map_errno(err) != ENOERR) {
+        goto ERROUT;
+    }
+
+    return 0;
+
+ERROUT_UNLOCK:
+    (VOID)pthread_mutex_unlock(&g_mqueueMutex);
+ERROUT:
+    return -1;
+}

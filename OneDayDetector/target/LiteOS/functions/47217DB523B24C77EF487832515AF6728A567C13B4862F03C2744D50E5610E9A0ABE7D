@@ -1,0 +1,64 @@
+HAL_StatusTypeDef HAL_OSPI_AutoPolling_IT(OSPI_HandleTypeDef *hospi, OSPI_AutoPollingTypeDef *cfg)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t tickstart = HAL_GetTick();
+  uint32_t addr_reg = hospi->Instance->AR;
+  uint32_t ir_reg = hospi->Instance->IR;
+
+  /* Check the parameters of the autopolling configuration structure */
+  assert_param(IS_OSPI_MATCH_MODE       (cfg->MatchMode));
+  assert_param(IS_OSPI_AUTOMATIC_STOP   (cfg->AutomaticStop));
+  assert_param(IS_OSPI_INTERVAL         (cfg->Interval));
+  assert_param(IS_OSPI_STATUS_BYTES_SIZE(hospi->Instance->DLR+1));
+
+  /* Check the state */
+  if (hospi->State == HAL_OSPI_STATE_CMD_CFG)
+  {
+    /* Wait till busy flag is reset */
+    status = OSPI_WaitFlagStateUntilTimeout(hospi, HAL_OSPI_FLAG_BUSY, RESET, tickstart, hospi->Timeout);
+    
+    if (status == HAL_OK)
+    {
+      /* Configure registers */
+      WRITE_REG (hospi->Instance->PSMAR, cfg->Match);
+      WRITE_REG (hospi->Instance->PSMKR, cfg->Mask);
+      WRITE_REG (hospi->Instance->PIR,   cfg->Interval);
+      MODIFY_REG(hospi->Instance->CR,    (OCTOSPI_CR_PMM | OCTOSPI_CR_APMS | OCTOSPI_CR_FMODE), 
+                 (cfg->MatchMode | cfg->AutomaticStop | OSPI_FUNCTIONAL_MODE_AUTO_POLLING));
+
+      /* Clear flags related to interrupt */
+      __HAL_OSPI_CLEAR_FLAG(hospi, HAL_OSPI_FLAG_TE | HAL_OSPI_FLAG_SM);
+
+      /* Update state */
+      hospi->State = HAL_OSPI_STATE_BUSY_AUTO_POLLING;
+      
+      /* Enable the status match and transfer error interrupts */
+      __HAL_OSPI_ENABLE_IT(hospi, HAL_OSPI_IT_SM | HAL_OSPI_IT_TE);
+
+      /* Trig the transfer by re-writing address or instruction register */
+      if (hospi->Init.MemoryType == HAL_OSPI_MEMTYPE_HYPERBUS)
+      {
+        WRITE_REG(hospi->Instance->AR, addr_reg);
+      }
+      else
+      {
+        if (READ_BIT(hospi->Instance->CCR, OCTOSPI_CCR_ADMODE) != HAL_OSPI_ADDRESS_NONE)
+        {
+          WRITE_REG(hospi->Instance->AR, addr_reg);
+        }
+        else
+        {
+          WRITE_REG(hospi->Instance->IR, ir_reg);
+        }
+      }
+    }
+  }
+  else
+  {
+    status = HAL_ERROR;
+    hospi->ErrorCode = HAL_OSPI_ERROR_INVALID_SEQUENCE;
+  }
+
+  /* Return function status */
+  return status;  
+}

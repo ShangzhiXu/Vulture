@@ -1,0 +1,173 @@
+HAL_StatusTypeDef HAL_SD_ReadBlocks(SD_HandleTypeDef *hsd, uint8_t *pData, uint32_t BlockAdd, uint32_t NumberOfBlocks, uint32_t Timeout)
+{
+  SDMMC_DataInitTypeDef config;
+  uint32_t errorstate = HAL_SD_ERROR_NONE;
+  uint32_t tickstart = HAL_GetTick();
+  uint32_t count = 0, *tempbuff = (uint32_t *)pData;
+  
+  if(NULL == pData)
+  {
+    hsd->ErrorCode |= HAL_SD_ERROR_PARAM;
+    return HAL_ERROR;
+  }
+ 
+  if(hsd->State == HAL_SD_STATE_READY)
+  {
+    hsd->ErrorCode = HAL_DMA_ERROR_NONE;
+    
+    if((BlockAdd + NumberOfBlocks) > (hsd->SdCard.LogBlockNbr))
+    {
+      hsd->ErrorCode |= HAL_SD_ERROR_ADDR_OUT_OF_RANGE;
+      return HAL_ERROR;
+    }
+    
+    hsd->State = HAL_SD_STATE_BUSY;
+    
+    /* Initialize data control register */
+    hsd->Instance->DCTRL = 0;
+    
+    if(hsd->SdCard.CardType != CARD_SDHC_SDXC)
+    {
+      BlockAdd *= 512;
+    }
+      
+    /* Set Block Size for Card */
+    errorstate = SDMMC_CmdBlockLength(hsd->Instance, BLOCKSIZE);
+    if(errorstate != HAL_SD_ERROR_NONE)
+    {
+      /* Clear all the static flags */
+      __HAL_SD_CLEAR_FLAG(hsd, SDMMC_STATIC_FLAGS);      
+      hsd->ErrorCode |= errorstate;
+      hsd->State = HAL_SD_STATE_READY;
+      return HAL_ERROR;
+    }
+    
+    /* Configure the SD DPSM (Data Path State Machine) */
+    config.DataTimeOut   = SDMMC_DATATIMEOUT;
+    config.DataLength    = NumberOfBlocks * BLOCKSIZE;
+    config.DataBlockSize = SDMMC_DATABLOCK_SIZE_512B;
+    config.TransferDir   = SDMMC_TRANSFER_DIR_TO_SDMMC;
+    config.TransferMode  = SDMMC_TRANSFER_MODE_BLOCK;
+    config.DPSM          = SDMMC_DPSM_ENABLE;
+    SDMMC_ConfigData(hsd->Instance, &config);
+    
+    /* Read block(s) in polling mode */
+    if(NumberOfBlocks > 1)
+    {
+      hsd->Context = SD_CONTEXT_READ_MULTIPLE_BLOCK;
+      
+      /* Read Multi Block command */ 
+      errorstate = SDMMC_CmdReadMultiBlock(hsd->Instance, BlockAdd);
+    }
+    else
+    {
+      hsd->Context = SD_CONTEXT_READ_SINGLE_BLOCK;
+      
+      /* Read Single Block command */
+      errorstate = SDMMC_CmdReadSingleBlock(hsd->Instance, BlockAdd);
+    }
+    if(errorstate != HAL_SD_ERROR_NONE)
+    {
+      /* Clear all the static flags */
+      __HAL_SD_CLEAR_FLAG(hsd, SDMMC_STATIC_FLAGS);
+      hsd->ErrorCode |= errorstate;
+      hsd->State = HAL_SD_STATE_READY;
+      return HAL_ERROR;
+    }
+      
+    /* Poll on SDMMC flags */
+    while(!__HAL_SD_GET_FLAG(hsd, SDMMC_FLAG_RXOVERR | SDMMC_FLAG_DCRCFAIL | SDMMC_FLAG_DTIMEOUT | SDMMC_FLAG_DATAEND))
+    {
+      if(__HAL_SD_GET_FLAG(hsd, SDMMC_FLAG_RXFIFOHF))
+      {
+        /* Read data from SDMMC Rx FIFO */
+        for(count = 0U; count < 8U; count++)
+        {
+          *(tempbuff + count) = SDMMC_ReadFIFO(hsd->Instance);
+        }
+        tempbuff += 8U;
+      }
+      
+      if((Timeout == 0U)||((HAL_GetTick()-tickstart) >=  Timeout))
+      {
+        /* Clear all the static flags */
+        __HAL_SD_CLEAR_FLAG(hsd, SDMMC_STATIC_FLAGS);
+        hsd->ErrorCode |= HAL_SD_ERROR_TIMEOUT;
+        hsd->State= HAL_SD_STATE_READY;
+        return HAL_TIMEOUT;
+      }
+    }
+    
+    /* Send stop transmission command in case of multiblock read */
+    if(__HAL_SD_GET_FLAG(hsd, SDMMC_FLAG_DATAEND) && (NumberOfBlocks > 1U))
+    {    
+      if(hsd->SdCard.CardType != CARD_SECURED)
+      {
+        /* Send stop transmission command */
+        errorstate = SDMMC_CmdStopTransfer(hsd->Instance);
+        if(errorstate != HAL_SD_ERROR_NONE)
+        {
+          /* Clear all the static flags */
+          __HAL_SD_CLEAR_FLAG(hsd, SDMMC_STATIC_FLAGS);
+          hsd->ErrorCode |= errorstate;
+          hsd->State = HAL_SD_STATE_READY;
+          return HAL_ERROR;
+        }
+      }
+    }
+    
+    /* Get error state */
+    if(__HAL_SD_GET_FLAG(hsd, SDMMC_FLAG_DTIMEOUT))
+    {
+      /* Clear all the static flags */
+      __HAL_SD_CLEAR_FLAG(hsd, SDMMC_STATIC_FLAGS);
+      hsd->ErrorCode |= HAL_SD_ERROR_DATA_TIMEOUT;
+      hsd->State = HAL_SD_STATE_READY;
+      return HAL_ERROR;
+    }
+    else if(__HAL_SD_GET_FLAG(hsd, SDMMC_FLAG_DCRCFAIL))
+    {
+      /* Clear all the static flags */
+      __HAL_SD_CLEAR_FLAG(hsd, SDMMC_STATIC_FLAGS);
+      hsd->ErrorCode |= HAL_SD_ERROR_DATA_CRC_FAIL;
+      hsd->State = HAL_SD_STATE_READY;
+      return HAL_ERROR;
+    }
+    else if(__HAL_SD_GET_FLAG(hsd, SDMMC_FLAG_RXOVERR))
+    {
+      /* Clear all the static flags */
+      __HAL_SD_CLEAR_FLAG(hsd, SDMMC_STATIC_FLAGS);
+      hsd->ErrorCode |= HAL_SD_ERROR_RX_OVERRUN;
+      hsd->State = HAL_SD_STATE_READY;
+      return HAL_ERROR;
+    }
+    
+    /* Empty FIFO if there is still any data */
+    while ((__HAL_SD_GET_FLAG(hsd, SDMMC_FLAG_RXDAVL)))
+    {
+      *tempbuff = SDMMC_ReadFIFO(hsd->Instance);
+      tempbuff++;
+      
+      if((Timeout == 0U)||((HAL_GetTick()-tickstart) >=  Timeout))
+      {
+        /* Clear all the static flags */
+        __HAL_SD_CLEAR_FLAG(hsd, SDMMC_STATIC_FLAGS);        
+        hsd->ErrorCode |= HAL_SD_ERROR_TIMEOUT;
+        hsd->State= HAL_SD_STATE_READY;
+        return HAL_ERROR;
+      }
+    }
+    
+    /* Clear all the static flags */
+    __HAL_SD_CLEAR_FLAG(hsd, SDMMC_STATIC_FLAGS);
+    
+    hsd->State = HAL_SD_STATE_READY;
+    
+    return HAL_OK;
+  }
+  else
+  {
+    hsd->ErrorCode |= HAL_SD_ERROR_BUSY;
+    return HAL_ERROR;
+  }
+}

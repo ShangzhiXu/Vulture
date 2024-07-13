@@ -1,0 +1,37 @@
+LITE_OS_SEC_TEXT_MINOR INT32 SensorConfigNotify(const PktParameterReq *pkt, UINT8 resp)
+{
+    SmMail  smMail;
+    errno_t rc;
+    UINT32  ret;
+
+    if ((pkt == NULL) || (pkt->hd.tag >= TAG_END) || (pkt->hd.tag < TAG_BEGIN)) {
+        return LOS_NOK;
+    }
+
+    ret = LOS_SemPend(g_sensorManagerSem, LOS_WAIT_FOREVER);
+    if (ret != LOS_OK) {
+        PRINT_ERR("Sensor Manager Sem pend fail, ret %u\n", ret);
+        return LOS_NOK;
+    }
+
+    rc = memcpy_s(g_configBuffer, sizeof(g_configBuffer), pkt->para, pkt->hd.length);
+    if (rc != EOK) {
+        PRINT_ERR("g_configBuffer copy error\n");
+        LOS_SemPost(g_sensorManagerSem);
+        return LOS_NOK;
+    }
+
+    smMail.event       = SM_EVENT_CONFIG;
+    smMail.config.cmd  = pkt->hd.cmd;
+    smMail.config.id   = pkt->hd.tranId;
+    smMail.config.resp = resp;
+    smMail.config.tag  = pkt->hd.tag;
+
+    ret = LOS_QueueWriteCopy(g_sensorManagerQueue, (VOID *)&smMail, SM_MAILS_TYPE_SIZE, 0);
+    if (ret != LOS_OK) {
+        PRINT_ERR("sensor config notify write queue fail, ret %u\n", ret);
+        LOS_SemPost(g_sensorManagerSem);
+        return LOS_NOK;
+    }
+    return LOS_OK;
+}

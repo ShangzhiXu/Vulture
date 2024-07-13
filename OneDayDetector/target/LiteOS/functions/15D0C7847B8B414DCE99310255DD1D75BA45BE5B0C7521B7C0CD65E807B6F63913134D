@@ -1,0 +1,19 @@
+int SecVsnprintfImpl(char *string, size_t count, const char *format, va_list argList)
+{
+    int retVal;
+    if (SecFormatContainN(format) != 0) {
+        string[0] = '\0';
+        return -1;
+    }
+    retVal = vsnprintf(string, count, format, argList);
+    if (retVal >= (int)count) { /* The size_t to int is ok, count max is SECUREC_STRING_MAX_LEN */
+        /* The buffer was too small; we return truncation */
+        string[count - 1] = '\0';
+        return SECUREC_PRINTF_TRUNCATE;
+    }
+    if (retVal < 0) {
+        string[0] = '\0'; /* Empty the dest strDest */
+        return -1;
+    }
+    return retVal;
+}

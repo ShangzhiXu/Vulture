@@ -1,0 +1,29 @@
+__weak void BSP_SD_MspDeInit(SD_HandleTypeDef *hsd, void *Params)
+{
+    static DMA_HandleTypeDef dma_rx_handle;
+    static DMA_HandleTypeDef dma_tx_handle;
+
+    /* Disable NVIC for DMA transfer complete interrupts */
+    HAL_NVIC_DisableIRQ(SD_DMAx_Rx_IRQn);
+    HAL_NVIC_DisableIRQ(SD_DMAx_Tx_IRQn);
+
+    /* Deinitialize the stream for new transfer */
+    dma_rx_handle.Instance = SD_DMAx_Rx_STREAM;
+    HAL_DMA_DeInit(&dma_rx_handle);
+
+    /* Deinitialize the stream for new transfer */
+    dma_tx_handle.Instance = SD_DMAx_Tx_STREAM;
+    HAL_DMA_DeInit(&dma_tx_handle);
+
+    /* Disable NVIC for SDIO interrupts */
+    HAL_NVIC_DisableIRQ(SDIO_IRQn);
+
+    /* DeInit GPIO pins can be done in the application
+       (by surcharging this __weak function) */
+
+    /* Disable SDIO clock */
+    __HAL_RCC_SDIO_CLK_DISABLE();
+
+    /* GPOI pins clock and DMA cloks can be shut down in the applic
+       by surcgarging this __weak function */
+}

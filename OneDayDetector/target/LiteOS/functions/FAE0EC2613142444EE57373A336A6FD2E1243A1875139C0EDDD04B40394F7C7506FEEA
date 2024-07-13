@@ -1,0 +1,26 @@
+HAL_StatusTypeDef HAL_DCMI_ConfigCrop(DCMI_HandleTypeDef *hdcmi, uint32_t X0, uint32_t Y0, uint32_t XSize, uint32_t YSize)
+{
+  /* Process Locked */
+  __HAL_LOCK(hdcmi);
+
+  /* Lock the DCMI peripheral state */
+  hdcmi->State = HAL_DCMI_STATE_BUSY;
+
+  /* Check the parameters */
+  assert_param(IS_DCMI_WINDOW_COORDINATE(X0));
+  assert_param(IS_DCMI_WINDOW_COORDINATE(YSize));
+  assert_param(IS_DCMI_WINDOW_COORDINATE(XSize));
+  assert_param(IS_DCMI_WINDOW_HEIGHT(Y0));
+
+  /* Configure CROP */
+  hdcmi->Instance->CWSIZER = (XSize | (YSize << DCMI_POSITION_CWSIZE_VLINE));
+  hdcmi->Instance->CWSTRTR = (X0 | (Y0 << DCMI_POSITION_CWSTRT_VST));
+
+  /* Initialize the DCMI state*/
+  hdcmi->State  = HAL_DCMI_STATE_READY;
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(hdcmi);
+
+  return HAL_OK;
+}

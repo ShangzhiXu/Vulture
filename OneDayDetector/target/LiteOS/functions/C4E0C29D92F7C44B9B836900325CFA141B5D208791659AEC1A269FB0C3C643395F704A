@@ -1,0 +1,14 @@
+dhcp_handle_nak(struct netif *netif)
+{
+  struct dhcp *dhcp = netif_dhcp_data(netif);
+
+  LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE, ("dhcp_handle_nak(netif=%p) %c%c%"U16_F"\n",
+              (void *)netif, netif->name[0], netif->name[1], (u16_t)netif->num));
+  /* Change to a defined state - set this before assigning the address
+     to ensure the callback can use dhcp_supplied_address() */
+  dhcp_set_state(dhcp, DHCP_STATE_BACKING_OFF);
+  /* remove IP address from interface (must no longer be used, as per RFC2131) */
+  netif_set_addr(netif, IP4_ADDR_ANY4, IP4_ADDR_ANY4, IP4_ADDR_ANY4);
+  /* We can immediately restart discovery */
+  dhcp_discover(netif);
+}

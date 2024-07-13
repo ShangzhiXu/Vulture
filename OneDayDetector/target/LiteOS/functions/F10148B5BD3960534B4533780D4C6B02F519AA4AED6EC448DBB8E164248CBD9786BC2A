@@ -1,0 +1,50 @@
+ErrorStatus LL_ADC_REG_Init(ADC_TypeDef *ADCx, LL_ADC_REG_InitTypeDef *ADC_REG_InitStruct)
+{
+  ErrorStatus status = SUCCESS;
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(ADCx));
+  assert_param(IS_LL_ADC_REG_TRIG_SOURCE(ADC_REG_InitStruct->TriggerSource));
+  assert_param(IS_LL_ADC_REG_SEQ_SCAN_DISCONT_MODE(ADC_REG_InitStruct->SequencerDiscont));
+  assert_param(IS_LL_ADC_REG_CONTINUOUS_MODE(ADC_REG_InitStruct->ContinuousMode));
+  assert_param(IS_LL_ADC_REG_DMA_TRANSFER(ADC_REG_InitStruct->DMATransfer));
+  assert_param(IS_LL_ADC_REG_OVR_DATA_BEHAVIOR(ADC_REG_InitStruct->Overrun));
+  
+  /* Note: Hardware constraint (refer to description of this function):       */
+  /*       ADC instance must be disabled.                                     */
+  if(LL_ADC_IsEnabled(ADCx) == 0U)
+  {
+    /* Configuration of ADC hierarchical scope:                               */
+    /*  - ADC group regular                                                   */
+    /*    - Set ADC group regular trigger source                              */
+    /*    - Set ADC group regular sequencer discontinuous mode                */
+    /*    - Set ADC group regular continuous mode                             */
+    /*    - Set ADC group regular conversion data transfer: no transfer or    */
+    /*      transfer by DMA, and DMA requests mode                            */
+    /*    - Set ADC group regular overrun behavior                            */
+    /* Note: On this STM32 serie, ADC trigger edge is set to value 0x0 by     */
+    /*       setting of trigger source to SW start.                           */
+    MODIFY_REG(ADCx->CFGR1,
+                 ADC_CFGR1_EXTSEL
+               | ADC_CFGR1_EXTEN
+               | ADC_CFGR1_DISCEN
+               | ADC_CFGR1_CONT
+               | ADC_CFGR1_DMAEN
+               | ADC_CFGR1_DMACFG
+               | ADC_CFGR1_OVRMOD
+              ,
+                 ADC_REG_InitStruct->TriggerSource
+               | ADC_REG_InitStruct->SequencerDiscont
+               | ADC_REG_InitStruct->ContinuousMode
+               | ADC_REG_InitStruct->DMATransfer
+               | ADC_REG_InitStruct->Overrun
+              );
+
+  }
+  else
+  {
+    /* Initialization error: ADC instance is not disabled. */
+    status = ERROR;
+  }
+  return status;
+}

@@ -1,0 +1,39 @@
+HAL_StatusTypeDef FSMC_NAND_Init(FSMC_NAND_TypeDef *Device, FSMC_NAND_InitTypeDef *Init)
+{
+  /* Check the parameters */
+  assert_param(IS_FSMC_NAND_DEVICE(Device));
+  assert_param(IS_FSMC_NAND_BANK(Init->NandBank));
+  assert_param(IS_FSMC_WAIT_FEATURE(Init->Waitfeature));
+  assert_param(IS_FSMC_NAND_MEMORY_WIDTH(Init->MemoryDataWidth));
+  assert_param(IS_FSMC_ECC_STATE(Init->EccComputation));
+  assert_param(IS_FSMC_ECCPAGE_SIZE(Init->ECCPageSize));
+  assert_param(IS_FSMC_TCLR_TIME(Init->TCLRSetupTime));
+  assert_param(IS_FSMC_TAR_TIME(Init->TARSetupTime));
+
+  /* Set NAND device control parameters */
+  if (Init->NandBank == FSMC_NAND_BANK2)
+  {
+    /* NAND bank 2 registers configuration */
+    MODIFY_REG(Device->PCR2, PCR_CLEAR_MASK, (Init->Waitfeature                  | \
+                                              FSMC_PCR_MEMORY_TYPE_NAND                                     | \
+                                              Init->MemoryDataWidth                                         | \
+                                              Init->EccComputation                                          | \
+                                              Init->ECCPageSize                                             | \
+                                              ((Init->TCLRSetupTime) << POSITION_VAL(FSMC_PCRx_TCLR))       | \
+                                              ((Init->TARSetupTime) << POSITION_VAL(FSMC_PCRx_TAR))));
+  }
+  else
+  {
+    /* NAND bank 3 registers configuration */
+    MODIFY_REG(Device->PCR3, PCR_CLEAR_MASK, (Init->Waitfeature                  | \
+                                              FSMC_PCR_MEMORY_TYPE_NAND                                     | \
+                                              Init->MemoryDataWidth                                         | \
+                                              Init->EccComputation                                          | \
+                                              Init->ECCPageSize                                             | \
+                                              ((Init->TCLRSetupTime) << POSITION_VAL(FSMC_PCRx_TCLR))       | \
+                                              ((Init->TARSetupTime) << POSITION_VAL(FSMC_PCRx_TAR))));
+  }
+
+  return HAL_OK;
+
+}

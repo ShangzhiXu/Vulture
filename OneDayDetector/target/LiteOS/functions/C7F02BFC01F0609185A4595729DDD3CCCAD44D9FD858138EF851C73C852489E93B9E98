@@ -1,0 +1,27 @@
+SECUREC_INLINE void SecUnGetCharImpl(SecInt ch, SecFileStream *stream)
+{
+    if ((stream->flag & SECUREC_MEM_STR_FLAG) != 0) {
+        SECUREC_UN_GET_CHAR(stream);
+        return;
+    }
+#if SECUREC_ENABLE_SCANF_FILE
+    if ((stream->flag & SECUREC_LOAD_FILE_TO_MEM_FLAG) != 0) {
+        SECUREC_UN_GET_CHAR(stream);
+        if (stream->fileRealRead > 0) {
+            stream->fileRealRead -= sizeof(SecChar);
+        }
+        return;
+    }
+    if ((stream->flag & SECUREC_PIPE_STREAM_FLAG) != 0) {
+#if SECUREC_USE_STD_UNGETC
+        (void)SECUREC_UN_GETC(ch, stream->pf);
+#else
+        stream->lastChar = (unsigned int)ch;
+        stream->fUnGet = 1;
+#endif
+        return;
+    }
+#else
+    (void)ch; /* To clear e438 last value assigned not used , the compiler will optimize this code */
+#endif
+}

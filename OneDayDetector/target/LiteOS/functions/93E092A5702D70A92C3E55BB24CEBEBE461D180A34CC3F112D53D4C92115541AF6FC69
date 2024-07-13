@@ -1,0 +1,35 @@
+int mbedtls_internal_md2_process( mbedtls_md2_context *ctx )
+{
+    int i, j;
+    unsigned char t = 0;
+
+    for( i = 0; i < 16; i++ )
+    {
+        ctx->state[i + 16] = ctx->buffer[i];
+        ctx->state[i + 32] =
+            (unsigned char)( ctx->buffer[i] ^ ctx->state[i]);
+    }
+
+    for( i = 0; i < 18; i++ )
+    {
+        for( j = 0; j < 48; j++ )
+        {
+            ctx->state[j] = (unsigned char)
+               ( ctx->state[j] ^ PI_SUBST[t] );
+            t  = ctx->state[j];
+        }
+
+        t = (unsigned char)( t + i );
+    }
+
+    t = ctx->cksum[15];
+
+    for( i = 0; i < 16; i++ )
+    {
+        ctx->cksum[i] = (unsigned char)
+           ( ctx->cksum[i] ^ PI_SUBST[ctx->buffer[i] ^ t] );
+        t  = ctx->cksum[i];
+    }
+
+    return( 0 );
+}

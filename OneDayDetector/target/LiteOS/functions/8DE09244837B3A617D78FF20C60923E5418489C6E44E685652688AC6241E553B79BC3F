@@ -1,0 +1,32 @@
+HAL_StatusTypeDef HAL_UARTEx_DisableFifoMode(UART_HandleTypeDef *huart)
+{
+  uint32_t tmpcr1 = 0;
+
+  /* Check parameters */
+  assert_param(IS_UART_FIFO_INSTANCE(huart->Instance));
+
+  /* Process Locked */
+  __HAL_LOCK(huart);
+  
+  huart->gState = HAL_UART_STATE_BUSY;
+  
+  /* Save actual UART configuration */
+  tmpcr1 = READ_REG(huart->Instance->CR1);
+  
+  /* Disable UART */
+  __HAL_UART_DISABLE(huart);
+  
+  /* Enable FIFO mode */
+  CLEAR_BIT(tmpcr1, USART_CR1_FIFOEN);
+  huart->FifoMode = UART_FIFOMODE_DISABLE;
+  
+  /* Restore UART configuration */
+  WRITE_REG(huart->Instance->CR1, tmpcr1);
+  
+  huart->gState = HAL_UART_STATE_READY;
+  
+  /* Process Unlocked */
+  __HAL_UNLOCK(huart);
+ 
+  return HAL_OK;
+}

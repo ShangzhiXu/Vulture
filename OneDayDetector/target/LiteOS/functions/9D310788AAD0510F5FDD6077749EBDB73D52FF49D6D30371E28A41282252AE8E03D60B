@@ -1,0 +1,143 @@
+uint32_t BSP_EEPROM_WriteBuffer(uint8_t *pBuffer, uint16_t WriteAddr, uint16_t NumByteToWrite)
+{
+  uint16_t numofpage = 0, numofsingle = 0, count = 0;
+  uint16_t addr = 0;
+  uint8_t  dataindex = 0;
+  uint32_t status = EEPROM_OK;
+
+  addr = WriteAddr % EEPROM_PAGESIZE;
+  count = EEPROM_PAGESIZE - addr;
+  numofpage =  NumByteToWrite / EEPROM_PAGESIZE;
+  numofsingle = NumByteToWrite % EEPROM_PAGESIZE;
+ 
+  /* If WriteAddr is EEPROM_PAGESIZE aligned */
+  if(addr == 0) 
+  {
+    /* If NumByteToWrite < EEPROM_PAGESIZE */
+    if(numofpage == 0) 
+    {
+      /* Store the number of data to be written */
+      dataindex = numofsingle;
+      /* Start writing data */
+      status = BSP_EEPROM_WritePage(pBuffer, WriteAddr, (uint8_t*)(&dataindex));
+      if(status != EEPROM_OK)
+      {
+        return status;
+      }
+    }
+    /* If NumByteToWrite > EEPROM_PAGESIZE */
+    else  
+    {
+      while(numofpage--)
+      {
+        /* Store the number of data to be written */
+        dataindex = EEPROM_PAGESIZE;        
+        status = BSP_EEPROM_WritePage(pBuffer, WriteAddr, (uint8_t*)(&dataindex));
+        if(status != EEPROM_OK)
+        {
+          return status;
+        }
+        
+        WriteAddr +=  EEPROM_PAGESIZE;
+        pBuffer += EEPROM_PAGESIZE;
+      }
+      
+      if(numofsingle!=0)
+      {
+        /* Store the number of data to be written */
+        dataindex = numofsingle;          
+        status = BSP_EEPROM_WritePage(pBuffer, WriteAddr, (uint8_t*)(&dataindex));
+        if(status != EEPROM_OK)
+        {
+          return status;
+        }
+      }
+    }
+  }
+  /* If WriteAddr is not EEPROM_PAGESIZE aligned */
+  else 
+  {
+    /* If NumByteToWrite < EEPROM_PAGESIZE */
+    if(numofpage== 0) 
+    {
+      /* If the number of data to be written is more than the remaining space 
+      in the current page: */
+      if(NumByteToWrite > count)
+      {
+        /* Store the number of data to be written */
+        dataindex = count;        
+        /* Write the data contained in same page */
+        status = BSP_EEPROM_WritePage(pBuffer, WriteAddr, (uint8_t*)(&dataindex));
+        if(status != EEPROM_OK)
+        {
+          return status;
+        }
+        
+        /* Store the number of data to be written */
+        dataindex = (NumByteToWrite - count);          
+        /* Write the remaining data in the following page */
+        status = BSP_EEPROM_WritePage((uint8_t*)(pBuffer + count), (WriteAddr + count), (uint8_t*)(&dataindex));
+        if(status != EEPROM_OK)
+        {
+          return status;
+        }
+      }      
+      else      
+      {
+        /* Store the number of data to be written */
+        dataindex = numofsingle;         
+        status = BSP_EEPROM_WritePage(pBuffer, WriteAddr, (uint8_t*)(&dataindex));
+        if(status != EEPROM_OK)
+        {
+          return status;
+        }
+      }     
+    }
+    /* If NumByteToWrite > EEPROM_PAGESIZE */
+    else
+    {
+      NumByteToWrite -= count;
+      numofpage =  NumByteToWrite / EEPROM_PAGESIZE;
+      numofsingle = NumByteToWrite % EEPROM_PAGESIZE;
+      
+      if(count != 0)
+      {  
+        /* Store the number of data to be written */
+        dataindex = count;         
+        status = BSP_EEPROM_WritePage(pBuffer, WriteAddr, (uint8_t*)(&dataindex));
+        if(status != EEPROM_OK)
+        {
+          return status;
+        }
+        WriteAddr += count;
+        pBuffer += count;
+      } 
+      
+      while(numofpage--)
+      {
+        /* Store the number of data to be written */
+        dataindex = EEPROM_PAGESIZE;          
+        status = BSP_EEPROM_WritePage(pBuffer, WriteAddr, (uint8_t*)(&dataindex));
+        if(status != EEPROM_OK)
+        {
+          return status;
+        }
+        WriteAddr +=  EEPROM_PAGESIZE;
+        pBuffer += EEPROM_PAGESIZE;  
+      }
+      if(numofsingle != 0)
+      {
+        /* Store the number of data to be written */
+        dataindex = numofsingle;           
+        status = BSP_EEPROM_WritePage(pBuffer, WriteAddr, (uint8_t*)(&dataindex));
+        if(status != EEPROM_OK)
+        {
+          return status;
+        }
+      }
+    }
+  }  
+                                   
+  /* If all operations OK, return EEPROM_OK (0) */
+  return EEPROM_OK;
+}

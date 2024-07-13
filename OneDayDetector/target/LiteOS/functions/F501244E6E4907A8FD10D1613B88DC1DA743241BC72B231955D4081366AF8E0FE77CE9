@@ -1,0 +1,47 @@
+static int ecp_mod_p448( mbedtls_mpi *N )
+{
+    int ret;
+    size_t i;
+    mbedtls_mpi M, Q;
+    mbedtls_mpi_uint Mp[P448_WIDTH + 1], Qp[P448_WIDTH];
+
+    if( N->n <= P448_WIDTH )
+        return( 0 );
+
+    /* M = A1 */
+    M.s = 1;
+    M.n = N->n - ( P448_WIDTH );
+    if( M.n > P448_WIDTH )
+        /* Shouldn't be called with N larger than 2^896! */
+        return( MBEDTLS_ERR_ECP_BAD_INPUT_DATA );
+    M.p = Mp;
+    memset( Mp, 0, sizeof( Mp ) );
+    memcpy( Mp, N->p + P448_WIDTH, M.n * sizeof( mbedtls_mpi_uint ) );
+
+    /* N = A0 */
+    for( i = P448_WIDTH; i < N->n; i++ )
+        N->p[i] = 0;
+
+    /* N += A1 */
+    MBEDTLS_MPI_CHK( mbedtls_mpi_add_mpi( N, N, &M ) );
+
+    /* Q = B1, N += B1 */
+    Q = M;
+    Q.p = Qp;
+    memcpy( Qp, Mp, sizeof( Qp ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_shift_r( &Q, 224 ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_add_mpi( N, N, &Q ) );
+
+    /* M = (B0 + B1) * 2^224, N += M */
+    if( sizeof( mbedtls_mpi_uint ) > 4 )
+        Mp[P224_WIDTH_MIN] &= ( (mbedtls_mpi_uint)-1 ) >> ( P224_UNUSED_BITS );
+    for( i = P224_WIDTH_MAX; i < M.n; ++i )
+        Mp[i] = 0;
+    MBEDTLS_MPI_CHK( mbedtls_mpi_add_mpi( &M, &M, &Q ) );
+    M.n = P448_WIDTH + 1; /* Make room for shifted carry bit from the addition */
+    MBEDTLS_MPI_CHK( mbedtls_mpi_shift_l( &M, 224 ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_add_mpi( N, N, &M ) );
+
+cleanup:
+    return( ret );
+}

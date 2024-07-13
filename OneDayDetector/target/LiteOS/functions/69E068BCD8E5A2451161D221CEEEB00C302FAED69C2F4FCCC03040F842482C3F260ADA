@@ -1,0 +1,17 @@
+netconn_send(struct netconn *conn, struct netbuf *buf)
+{
+  API_MSG_VAR_DECLARE(msg);
+  err_t err;
+
+  LWIP_ERROR("netconn_send: invalid conn",  (conn != NULL), return ERR_ARG;);
+
+  LWIP_DEBUGF(API_LIB_DEBUG, ("netconn_send: sending %"U16_F" bytes\n", buf->p->tot_len));
+
+  API_MSG_VAR_ALLOC(msg);
+  API_MSG_VAR_REF(msg).conn = conn;
+  API_MSG_VAR_REF(msg).msg.b = buf;
+  err = netconn_apimsg(lwip_netconn_do_send, &API_MSG_VAR_REF(msg));
+  API_MSG_VAR_FREE(msg);
+
+  return err;
+}

@@ -1,0 +1,177 @@
+HAL_StatusTypeDef HAL_CAN_Init(CAN_HandleTypeDef *hcan)
+{
+  uint32_t tickstart;
+
+  /* Check CAN handle */
+  if (hcan == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_CAN_ALL_INSTANCE(hcan->Instance));
+  assert_param(IS_FUNCTIONAL_STATE(hcan->Init.TimeTriggeredMode));
+  assert_param(IS_FUNCTIONAL_STATE(hcan->Init.AutoBusOff));
+  assert_param(IS_FUNCTIONAL_STATE(hcan->Init.AutoWakeUp));
+  assert_param(IS_FUNCTIONAL_STATE(hcan->Init.AutoRetransmission));
+  assert_param(IS_FUNCTIONAL_STATE(hcan->Init.ReceiveFifoLocked));
+  assert_param(IS_FUNCTIONAL_STATE(hcan->Init.TransmitFifoPriority));
+  assert_param(IS_CAN_MODE(hcan->Init.Mode));
+  assert_param(IS_CAN_SJW(hcan->Init.SyncJumpWidth));
+  assert_param(IS_CAN_BS1(hcan->Init.TimeSeg1));
+  assert_param(IS_CAN_BS2(hcan->Init.TimeSeg2));
+  assert_param(IS_CAN_PRESCALER(hcan->Init.Prescaler));
+
+#if USE_HAL_CAN_REGISTER_CALLBACKS == 1
+  if (hcan->State == HAL_CAN_STATE_RESET)
+  {
+    /* Reset callbacks to legacy functions */
+    hcan->RxFifo0MsgPendingCallback  =  HAL_CAN_RxFifo0MsgPendingCallback;  /* Legacy weak RxFifo0MsgPendingCallback  */
+    hcan->RxFifo0FullCallback        =  HAL_CAN_RxFifo0FullCallback;        /* Legacy weak RxFifo0FullCallback        */
+    hcan->RxFifo1MsgPendingCallback  =  HAL_CAN_RxFifo1MsgPendingCallback;  /* Legacy weak RxFifo1MsgPendingCallback  */
+    hcan->RxFifo1FullCallback        =  HAL_CAN_RxFifo1FullCallback;        /* Legacy weak RxFifo1FullCallback        */
+    hcan->TxMailbox0CompleteCallback =  HAL_CAN_TxMailbox0CompleteCallback; /* Legacy weak TxMailbox0CompleteCallback */
+    hcan->TxMailbox1CompleteCallback =  HAL_CAN_TxMailbox1CompleteCallback; /* Legacy weak TxMailbox1CompleteCallback */
+    hcan->TxMailbox2CompleteCallback =  HAL_CAN_TxMailbox2CompleteCallback; /* Legacy weak TxMailbox2CompleteCallback */
+    hcan->TxMailbox0AbortCallback    =  HAL_CAN_TxMailbox0AbortCallback;    /* Legacy weak TxMailbox0AbortCallback    */
+    hcan->TxMailbox1AbortCallback    =  HAL_CAN_TxMailbox1AbortCallback;    /* Legacy weak TxMailbox1AbortCallback    */
+    hcan->TxMailbox2AbortCallback    =  HAL_CAN_TxMailbox2AbortCallback;    /* Legacy weak TxMailbox2AbortCallback    */
+    hcan->SleepCallback              =  HAL_CAN_SleepCallback;              /* Legacy weak SleepCallback              */
+    hcan->WakeUpFromRxMsgCallback    =  HAL_CAN_WakeUpFromRxMsgCallback;    /* Legacy weak WakeUpFromRxMsgCallback    */
+    hcan->ErrorCallback              =  HAL_CAN_ErrorCallback;              /* Legacy weak ErrorCallback              */
+
+    if (hcan->MspInitCallback == NULL)
+    {
+      hcan->MspInitCallback = HAL_CAN_MspInit; /* Legacy weak MspInit */
+    }
+
+    /* Init the low level hardware: CLOCK, NVIC */
+    hcan->MspInitCallback(hcan);
+  }
+
+#else
+  if (hcan->State == HAL_CAN_STATE_RESET)
+  {
+    /* Init the low level hardware: CLOCK, NVIC */
+    HAL_CAN_MspInit(hcan);
+  }
+#endif /* (USE_HAL_CAN_REGISTER_CALLBACKS) */
+
+  /* Exit from sleep mode */
+  CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_SLEEP);
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  /* Check Sleep mode leave acknowledge */
+  while ((hcan->Instance->MSR & CAN_MSR_SLAK) != 0U)
+  {
+    if ((HAL_GetTick() - tickstart) > CAN_TIMEOUT_VALUE)
+    {
+      /* Update error code */
+      hcan->ErrorCode |= HAL_CAN_ERROR_TIMEOUT;
+
+      /* Change CAN state */
+      hcan->State = HAL_CAN_STATE_ERROR;
+
+      return HAL_ERROR;
+    }
+  }
+
+  /* Request initialisation */
+  SET_BIT(hcan->Instance->MCR, CAN_MCR_INRQ);
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  /* Wait initialisation acknowledge */
+  while ((hcan->Instance->MSR & CAN_MSR_INAK) == 0U)
+  {
+    if ((HAL_GetTick() - tickstart) > CAN_TIMEOUT_VALUE)
+    {
+      /* Update error code */
+      hcan->ErrorCode |= HAL_CAN_ERROR_TIMEOUT;
+
+      /* Change CAN state */
+      hcan->State = HAL_CAN_STATE_ERROR;
+
+      return HAL_ERROR;
+    }
+  }
+
+  /* Set the time triggered communication mode */
+  if (hcan->Init.TimeTriggeredMode == ENABLE)
+  {
+    SET_BIT(hcan->Instance->MCR, CAN_MCR_TTCM);
+  }
+  else
+  {
+    CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_TTCM);
+  }
+
+  /* Set the automatic bus-off management */
+  if (hcan->Init.AutoBusOff == ENABLE)
+  {
+    SET_BIT(hcan->Instance->MCR, CAN_MCR_ABOM);
+  }
+  else
+  {
+    CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_ABOM);
+  }
+
+  /* Set the automatic wake-up mode */
+  if (hcan->Init.AutoWakeUp == ENABLE)
+  {
+    SET_BIT(hcan->Instance->MCR, CAN_MCR_AWUM);
+  }
+  else
+  {
+    CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_AWUM);
+  }
+
+  /* Set the automatic retransmission */
+  if (hcan->Init.AutoRetransmission == ENABLE)
+  {
+    CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_NART);
+  }
+  else
+  {
+    SET_BIT(hcan->Instance->MCR, CAN_MCR_NART);
+  }
+
+  /* Set the receive FIFO locked mode */
+  if (hcan->Init.ReceiveFifoLocked == ENABLE)
+  {
+    SET_BIT(hcan->Instance->MCR, CAN_MCR_RFLM);
+  }
+  else
+  {
+    CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_RFLM);
+  }
+
+  /* Set the transmit FIFO priority */
+  if (hcan->Init.TransmitFifoPriority == ENABLE)
+  {
+    SET_BIT(hcan->Instance->MCR, CAN_MCR_TXFP);
+  }
+  else
+  {
+    CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_TXFP);
+  }
+
+  /* Set the bit timing register */
+  WRITE_REG(hcan->Instance->BTR, (uint32_t)(hcan->Init.Mode           |
+                                            hcan->Init.SyncJumpWidth  |
+                                            hcan->Init.TimeSeg1       |
+                                            hcan->Init.TimeSeg2       |
+                                            (hcan->Init.Prescaler - 1U)));
+
+  /* Initialize the error code */
+  hcan->ErrorCode = HAL_CAN_ERROR_NONE;
+
+  /* Initialize the CAN state */
+  hcan->State = HAL_CAN_STATE_READY;
+
+  /* Return function status */
+  return HAL_OK;
+}

@@ -1,0 +1,42 @@
+double acos(double x)
+{
+	double z,w,s,c,df;
+	uint32_t hx,ix;
+
+	GET_HIGH_WORD(hx, x);
+	ix = hx & 0x7fffffff;
+	/* |x| >= 1 or nan */
+	if (ix >= 0x3ff00000) {
+		uint32_t lx;
+
+		GET_LOW_WORD(lx,x);
+		if (((ix-0x3ff00000) | lx) == 0) {
+			/* acos(1)=0, acos(-1)=pi */
+			if (hx >> 31)
+				return 2*pio2_hi + 0x1p-120f;
+			return 0;
+		}
+		return 0/(x-x);
+	}
+	/* |x| < 0.5 */
+	if (ix < 0x3fe00000) {
+		if (ix <= 0x3c600000)  /* |x| < 2**-57 */
+			return pio2_hi + 0x1p-120f;
+		return pio2_hi - (x - (pio2_lo-x*R(x*x)));
+	}
+	/* x < -0.5 */
+	if (hx >> 31) {
+		z = (1.0+x)*0.5;
+		s = sqrt(z);
+		w = R(z)*s-pio2_lo;
+		return 2*(pio2_hi - (s+w));
+	}
+	/* x > 0.5 */
+	z = (1.0-x)*0.5;
+	s = sqrt(z);
+	df = s;
+	SET_LOW_WORD(df,0);
+	c = (z-df*df)/(s+df);
+	w = R(z)*s+c;
+	return 2*(df+w);
+}

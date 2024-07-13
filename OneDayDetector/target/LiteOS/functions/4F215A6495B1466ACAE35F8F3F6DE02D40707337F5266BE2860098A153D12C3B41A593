@@ -1,0 +1,74 @@
+err_tcp(void *arg, err_t err)
+{
+  struct netconn *conn;
+  enum netconn_state old_state;
+  void *mbox_msg;
+  SYS_ARCH_DECL_PROTECT(lev);
+
+  conn = (struct netconn *)arg;
+  LWIP_ASSERT("conn != NULL", (conn != NULL));
+
+  SYS_ARCH_PROTECT(lev);
+
+  /* when err is called, the pcb is deallocated, so delete the reference */
+  conn->pcb.tcp = NULL;
+  /* store pending error */
+  conn->pending_err = err;
+  /* prevent application threads from blocking on 'recvmbox'/'acceptmbox' */
+  conn->flags |= NETCONN_FLAG_MBOXCLOSED;
+
+  /* reset conn->state now before waking up other threads */
+  old_state = conn->state;
+  conn->state = NETCONN_NONE;
+
+  SYS_ARCH_UNPROTECT(lev);
+
+  /* Notify the user layer about a connection error. Used to signal select. */
+  API_EVENT(conn, NETCONN_EVT_ERROR, 0);
+  /* Try to release selects pending on 'read' or 'write', too.
+     They will get an error if they actually try to read or write. */
+  API_EVENT(conn, NETCONN_EVT_RCVPLUS, 0);
+  API_EVENT(conn, NETCONN_EVT_SENDPLUS, 0);
+
+  mbox_msg = lwip_netconn_err_to_msg(err);
+  /* pass error message to recvmbox to wake up pending recv */
+  if (NETCONN_MBOX_VALID(conn, &conn->recvmbox)) {
+    /* use trypost to prevent deadlock */
+    sys_mbox_trypost(&conn->recvmbox, mbox_msg);
+  }
+  /* pass error message to acceptmbox to wake up pending accept */
+  if (NETCONN_MBOX_VALID(conn, &conn->acceptmbox)) {
+    /* use trypost to preven deadlock */
+    sys_mbox_trypost(&conn->acceptmbox, mbox_msg);
+  }
+
+  if ((old_state == NETCONN_WRITE) || (old_state == NETCONN_CLOSE) ||
+      (old_state == NETCONN_CONNECT)) {
+    /* calling lwip_netconn_do_writemore/lwip_netconn_do_close_internal is not necessary
+       since the pcb has already been deleted! */
+    int was_nonblocking_connect = IN_NONBLOCKING_CONNECT(conn);
+    SET_NONBLOCKING_CONNECT(conn, 0);
+
+    if (!was_nonblocking_connect) {
+      sys_sem_t *op_completed_sem;
+      /* set error return code */
+      LWIP_ASSERT("conn->current_msg != NULL", conn->current_msg != NULL);
+      if (old_state == NETCONN_CLOSE) {
+        /* let close succeed: the connection is closed after all... */
+        conn->current_msg->err = ERR_OK;
+      } else {
+        /* Write and connect fail */
+        conn->current_msg->err = err;
+      }
+      op_completed_sem = LWIP_API_MSG_SEM(conn->current_msg);
+      LWIP_ASSERT("inavlid op_completed_sem", sys_sem_valid(op_completed_sem));
+      conn->current_msg = NULL;
+      /* wake up the waiting task */
+      sys_sem_signal(op_completed_sem);
+    } else {
+      /* @todo: test what happens for error on nonblocking connect */
+    }
+  } else {
+    LWIP_ASSERT("conn->current_msg == NULL", conn->current_msg == NULL);
+  }
+}

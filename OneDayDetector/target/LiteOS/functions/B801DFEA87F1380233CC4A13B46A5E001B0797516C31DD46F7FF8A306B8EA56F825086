@@ -1,0 +1,48 @@
+uint8_t BSP_AUDIO_IN_Record(uint16_t* pbuf, uint32_t size)
+{  
+  if (AudioIn_Device == INPUT_DEVICE_DIGITAL_MIC)
+  {
+    hAudioIn.pRecBuf = pbuf;
+    hAudioIn.RecSize = size;
+    /* Reset Application Buffer Trigger */
+    AppBuffTrigger = 0;
+    AppBuffHalf = 0;
+    
+    if(AudioIn_ChannelNumber > 2)
+    {
+      /* Call the Media layer start function for buttom right channel */
+      if(HAL_OK != HAL_DFSDM_FilterRegularStart_DMA(&hAudioInButtomRightFilter, pScratchBuff[2], ScratchSize))
+      {
+        return AUDIO_ERROR;
+      } 
+      
+      /* Call the Media layer start function for buttom left channel */
+      if(HAL_OK != HAL_DFSDM_FilterRegularStart_DMA(&hAudioInButtomLeftFilter, pScratchBuff[3], ScratchSize))
+      {
+        return AUDIO_ERROR;
+      }
+    }
+
+    /* Call the Media layer start function for top right channel */
+    if(HAL_OK != HAL_DFSDM_FilterRegularStart_DMA(&hAudioInTopRightFilter, pScratchBuff[0], ScratchSize))
+    {
+      return AUDIO_ERROR;
+    }
+    
+    /* Call the Media layer start function for top left channel */
+    if(HAL_OK != HAL_DFSDM_FilterRegularStart_DMA(&hAudioInTopLeftFilter, pScratchBuff[1], ScratchSize))
+    {
+      return AUDIO_ERROR;
+    }
+  }
+  else
+  {
+    /* Start the process receive DMA */
+    if(HAL_OK !=HAL_SAI_Receive_DMA(&haudio_in_sai, (uint8_t*)pbuf, size))
+    {
+      return AUDIO_ERROR;
+    }
+  }
+  /* Return AUDIO_OK when all operations are correctly done */
+  return AUDIO_OK;  
+}

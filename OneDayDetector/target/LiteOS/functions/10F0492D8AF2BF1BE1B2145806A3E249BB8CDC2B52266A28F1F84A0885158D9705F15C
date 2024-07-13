@@ -1,0 +1,46 @@
+tcp_rexmit_rto_prepare(struct tcp_pcb *pcb)
+{
+  struct tcp_seg *seg;
+
+  LWIP_ASSERT("tcp_rexmit_rto_prepare: invalid pcb", pcb != NULL);
+
+  if (pcb->unacked == NULL) {
+    return ERR_VAL;
+  }
+
+  /* Move all unacked segments to the head of the unsent queue.
+     However, give up if any of the unsent pbufs are still referenced by the
+     netif driver due to deferred transmission. No point loading the link further
+     if it is struggling to flush its buffered writes. */
+  for (seg = pcb->unacked; seg->next != NULL; seg = seg->next) {
+    if (tcp_output_segment_busy(seg)) {
+      LWIP_DEBUGF(TCP_RTO_DEBUG, ("tcp_rexmit_rto: segment busy\n"));
+      return ERR_VAL;
+    }
+  }
+  if (tcp_output_segment_busy(seg)) {
+    LWIP_DEBUGF(TCP_RTO_DEBUG, ("tcp_rexmit_rto: segment busy\n"));
+    return ERR_VAL;
+  }
+  /* concatenate unsent queue after unacked queue */
+  seg->next = pcb->unsent;
+#if TCP_OVERSIZE_DBGCHECK
+  /* if last unsent changed, we need to update unsent_oversize */
+  if (pcb->unsent == NULL) {
+    pcb->unsent_oversize = seg->oversize_left;
+  }
+#endif /* TCP_OVERSIZE_DBGCHECK */
+  /* unsent queue is the concatenated queue (of unacked, unsent) */
+  pcb->unsent = pcb->unacked;
+  /* unacked queue is now empty */
+  pcb->unacked = NULL;
+
+  /* Mark RTO in-progress */
+  tcp_set_flags(pcb, TF_RTO);
+  /* Record the next byte following retransmit */
+  pcb->rto_end = lwip_ntohl(seg->tcphdr->seqno) + TCP_TCPLEN(seg);
+  /* Don't take any RTT measurements after retransmitting. */
+  pcb->rttest = 0;
+
+  return ERR_OK;
+}

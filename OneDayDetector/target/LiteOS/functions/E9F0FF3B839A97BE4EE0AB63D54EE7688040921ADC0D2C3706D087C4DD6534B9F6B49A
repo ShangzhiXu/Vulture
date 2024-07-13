@@ -1,0 +1,46 @@
+static void USART_EndTransmit_IT(USART_HandleTypeDef *husart)
+{
+  /* Disable the USART Transmit Complete Interrupt */
+  __HAL_USART_DISABLE_IT(husart, USART_IT_TC);
+
+  /* Disable the USART Error Interrupt: (Frame error, noise error, overrun error) */
+  __HAL_USART_DISABLE_IT(husart, USART_IT_ERR);
+
+  /* Clear TxISR function pointer */
+  husart->TxISR = NULL;
+
+  if (husart->State == HAL_USART_STATE_BUSY_TX)
+  {
+    /* Clear overrun flag and discard the received data */
+    __HAL_USART_CLEAR_OREFLAG(husart);
+    __HAL_USART_SEND_REQ(husart, USART_RXDATA_FLUSH_REQUEST);
+
+    /* Tx process is completed, restore husart->State to Ready */
+    husart->State = HAL_USART_STATE_READY;
+
+#if (USE_HAL_USART_REGISTER_CALLBACKS == 1)
+    /* Call registered Tx Complete Callback */
+    husart->TxCpltCallback(husart);
+#else
+    /* Call legacy weak Tx Complete Callback */
+    HAL_USART_TxCpltCallback(husart);
+#endif /* USE_HAL_USART_REGISTER_CALLBACKS */
+  }
+  else if (husart->RxXferCount == 0U)
+  {
+    /* TxRx process is completed, restore husart->State to Ready */
+    husart->State = HAL_USART_STATE_READY;
+
+#if (USE_HAL_USART_REGISTER_CALLBACKS == 1)
+    /* Call registered Tx Rx Complete Callback */
+    husart->TxRxCpltCallback(husart);
+#else
+    /* Call legacy weak Tx Rx Complete Callback */
+    HAL_USART_TxRxCpltCallback(husart);
+#endif /* USE_HAL_USART_REGISTER_CALLBACKS */
+  }
+  else
+  {
+    /* Nothing to do */
+  }
+}

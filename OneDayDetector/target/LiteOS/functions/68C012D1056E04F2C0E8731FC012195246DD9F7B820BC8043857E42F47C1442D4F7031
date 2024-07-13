@@ -1,0 +1,12 @@
+static inline void __futexwait(volatile void *addr, int val, int priv)
+{
+#ifdef __LITEOS__
+	(void)addr;
+	(void)val;
+	(void)priv;
+#else
+	if (priv) priv = FUTEX_PRIVATE;
+	__syscall(SYS_futex, addr, FUTEX_WAIT|priv, val, 0) != -ENOSYS ||
+	__syscall(SYS_futex, addr, FUTEX_WAIT, val, 0);
+#endif
+}

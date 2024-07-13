@@ -1,0 +1,55 @@
+void settimezone(const char *buff)
+{
+#define STANDARD_TZ_LEN 15
+#define MIN_BUF_LEN     (OPERATE_OFF + 1)
+    INT32 hour;
+    INT32 minute;
+    INT32 second;
+    size_t buffLen;
+    CHAR standardString[STANDARD_TZ_LEN] = {0};
+
+    if (buff == NULL) {
+        goto ERROR;
+    }
+
+    buffLen = strlen(buff);
+    if (buffLen < MIN_BUF_LEN) {
+        goto ERROR;
+    }
+
+    (VOID)memset_s(standardString, STANDARD_TZ_LEN, '#', STANDARD_TZ_LEN);
+    if (memcpy_s(standardString, STANDARD_TZ_LEN, buff, buffLen) != EOK) {
+        goto ERROR;
+    }
+
+    if (!TimezoneFormat(standardString, STANDARD_TZ_LEN)) {
+        goto ERROR;
+    }
+
+    hour = StringToDigital(standardString[HOUR_HIGH_OFF], standardString[HOUR_LOW_OFF]);
+    minute = StringToDigital(standardString[MIN_HIGH_OFF], standardString[MIN_LOW_OFF]);
+    second = StringToDigital(standardString[SEC_HIGH_OFF], standardString[SEC_LOW_OFF]);
+    /* [-12:00:00, +14:00:00] limits */
+    if (((minute > 59) || (second > 59)) ||
+        ((standardString[OPERATE_OFF] == '-') && ((hour > 12) || ((hour == 12) && ((minute != 0) || (second != 0))))) ||
+        ((standardString[OPERATE_OFF] == '+') && ((hour > 14) || ((hour == 14) && ((minute != 0) || (second != 0)))))) {
+        goto ERROR;
+    }
+
+    if (LOCK(lock)) {
+        goto ERROR;
+    }
+
+    /* 1h: 3600s, 1min: 60s */
+    timezone = hour * 3600 + minute * 60 + second;
+    if (standardString[OPERATE_OFF] == '-') {
+        timezone = -timezone;
+    }
+
+    (void)UNLOCK(lock);
+
+    return;
+
+ERROR:
+    PRINT_ERR("TZ file data error\n");
+}

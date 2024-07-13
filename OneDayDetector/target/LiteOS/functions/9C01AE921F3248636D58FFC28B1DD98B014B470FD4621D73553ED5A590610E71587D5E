@@ -1,0 +1,51 @@
+HAL_StatusTypeDef HAL_SMARTCARD_Abort(SMARTCARD_HandleTypeDef *hsc)
+{
+  /* Disable TXEIE, TCIE, RXNE, PE and ERR (Frame error, noise error, overrun error) interrupts */
+  CLEAR_BIT(hsc->Instance->CR1, (USART_CR1_RXNEIE | USART_CR1_PEIE | USART_CR1_TXEIE | USART_CR1_TCIE));
+  CLEAR_BIT(hsc->Instance->CR3, USART_CR3_EIE);
+
+  /* Disable the SMARTCARD DMA Tx request if enabled */
+  if(HAL_IS_BIT_SET(hsc->Instance->CR3, USART_CR3_DMAT))
+  {
+    CLEAR_BIT(hsc->Instance->CR3, USART_CR3_DMAT);
+
+    /* Abort the SMARTCARD DMA Tx channel : use blocking DMA Abort API (no callback) */
+    if(hsc->hdmatx != NULL)
+    {
+      /* Set the SMARTCARD DMA Abort callback to Null.
+         No call back execution at end of DMA abort procedure */
+      hsc->hdmatx->XferAbortCallback = NULL;
+
+      HAL_DMA_Abort(hsc->hdmatx);
+    }
+  }
+
+  /* Disable the SMARTCARD DMA Rx request if enabled */
+  if(HAL_IS_BIT_SET(hsc->Instance->CR3, USART_CR3_DMAR))
+  {
+    CLEAR_BIT(hsc->Instance->CR3, USART_CR3_DMAR);
+
+    /* Abort the SMARTCARD DMA Rx channel : use blocking DMA Abort API (no callback) */
+    if(hsc->hdmarx != NULL)
+    {
+      /* Set the SMARTCARD DMA Abort callback to Null.
+         No call back execution at end of DMA abort procedure */
+      hsc->hdmarx->XferAbortCallback = NULL;
+
+      HAL_DMA_Abort(hsc->hdmarx);
+    }
+  }
+
+  /* Reset Tx and Rx transfer counters */
+  hsc->TxXferCount = 0x00U;
+  hsc->RxXferCount = 0x00U;
+
+  /* Reset ErrorCode */
+  hsc->ErrorCode = HAL_SMARTCARD_ERROR_NONE;
+
+  /* Restore hsc->RxState and hsc->gState to Ready */
+  hsc->RxState = HAL_SMARTCARD_STATE_READY;
+  hsc->gState = HAL_SMARTCARD_STATE_READY;
+
+  return HAL_OK;
+}

@@ -1,0 +1,30 @@
+int mbedtls_mpi_is_prime_ext( const mbedtls_mpi *X, int rounds,
+                              int (*f_rng)(void *, unsigned char *, size_t),
+                              void *p_rng )
+{
+    int ret;
+    mbedtls_mpi XX;
+    MPI_VALIDATE_RET( X     != NULL );
+    MPI_VALIDATE_RET( f_rng != NULL );
+
+    XX.s = 1;
+    XX.n = X->n;
+    XX.p = X->p;
+
+    if( mbedtls_mpi_cmp_int( &XX, 0 ) == 0 ||
+        mbedtls_mpi_cmp_int( &XX, 1 ) == 0 )
+        return( MBEDTLS_ERR_MPI_NOT_ACCEPTABLE );
+
+    if( mbedtls_mpi_cmp_int( &XX, 2 ) == 0 )
+        return( 0 );
+
+    if( ( ret = mpi_check_small_factors( &XX ) ) != 0 )
+    {
+        if( ret == 1 )
+            return( 0 );
+
+        return( ret );
+    }
+
+    return( mpi_miller_rabin( &XX, rounds, f_rng, p_rng ) );
+}

@@ -1,0 +1,80 @@
+HAL_StatusTypeDef HAL_DSI_RegisterCallback(DSI_HandleTypeDef *hdsi, HAL_DSI_CallbackIDTypeDef CallbackID,
+                                           pDSI_CallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    /* Update the error code */
+    hdsi->ErrorCode |= HAL_DSI_ERROR_INVALID_CALLBACK;
+
+    return HAL_ERROR;
+  }
+  /* Process locked */
+  __HAL_LOCK(hdsi);
+
+  if (hdsi->State == HAL_DSI_STATE_READY)
+  {
+    switch (CallbackID)
+    {
+      case HAL_DSI_TEARING_EFFECT_CB_ID :
+        hdsi->TearingEffectCallback = pCallback;
+        break;
+
+      case HAL_DSI_ENDOF_REFRESH_CB_ID :
+        hdsi->EndOfRefreshCallback = pCallback;
+        break;
+
+      case HAL_DSI_ERROR_CB_ID :
+        hdsi->ErrorCallback = pCallback;
+        break;
+
+      case HAL_DSI_MSPINIT_CB_ID :
+        hdsi->MspInitCallback = pCallback;
+        break;
+
+      case HAL_DSI_MSPDEINIT_CB_ID :
+        hdsi->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hdsi->ErrorCode |= HAL_DSI_ERROR_INVALID_CALLBACK;
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if (hdsi->State == HAL_DSI_STATE_RESET)
+  {
+    switch (CallbackID)
+    {
+      case HAL_DSI_MSPINIT_CB_ID :
+        hdsi->MspInitCallback = pCallback;
+        break;
+
+      case HAL_DSI_MSPDEINIT_CB_ID :
+        hdsi->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hdsi->ErrorCode |= HAL_DSI_ERROR_INVALID_CALLBACK;
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    hdsi->ErrorCode |= HAL_DSI_ERROR_INVALID_CALLBACK;
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hdsi);
+
+  return status;
+}

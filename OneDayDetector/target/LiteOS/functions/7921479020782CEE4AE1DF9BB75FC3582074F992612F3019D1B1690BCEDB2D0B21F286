@@ -1,0 +1,50 @@
+lwiperf_tx_start_impl(const ip_addr_t *remote_ip, u16_t remote_port, lwiperf_settings_t *settings, lwiperf_report_fn report_fn,
+                      void *report_arg, lwiperf_state_base_t *related_master_state, lwiperf_state_tcp_t **new_conn)
+{
+  err_t err;
+  lwiperf_state_tcp_t *client_conn;
+  struct tcp_pcb *newpcb;
+  ip_addr_t remote_addr;
+
+  LWIP_ASSERT("remote_ip != NULL", remote_ip != NULL);
+  LWIP_ASSERT("remote_ip != NULL", settings != NULL);
+  LWIP_ASSERT("new_conn != NULL", new_conn != NULL);
+  *new_conn = NULL;
+
+  client_conn = (lwiperf_state_tcp_t *)LWIPERF_ALLOC(lwiperf_state_tcp_t);
+  if (client_conn == NULL) {
+    return ERR_MEM;
+  }
+  newpcb = tcp_new_ip_type(IP_GET_TYPE(remote_ip));
+  if (newpcb == NULL) {
+    LWIPERF_FREE(lwiperf_state_tcp_t, client_conn);
+    return ERR_MEM;
+  }
+  memset(client_conn, 0, sizeof(lwiperf_state_tcp_t));
+  client_conn->base.tcp = 1;
+  client_conn->base.related_master_state = related_master_state;
+  client_conn->conn_pcb = newpcb;
+  client_conn->time_started = sys_now(); /* @todo: set this again on 'connected' */
+  client_conn->report_fn = report_fn;
+  client_conn->report_arg = report_arg;
+  client_conn->next_num = 4; /* initial nr is '4' since the header has 24 byte */
+  client_conn->bytes_transferred = 0;
+  memcpy(&client_conn->settings, settings, sizeof(*settings));
+  client_conn->have_settings_buf = 1;
+
+  tcp_arg(newpcb, client_conn);
+  tcp_sent(newpcb, lwiperf_tcp_client_sent);
+  tcp_poll(newpcb, lwiperf_tcp_poll, 2U);
+  tcp_err(newpcb, lwiperf_tcp_err);
+
+  ip_addr_copy(remote_addr, *remote_ip);
+
+  err = tcp_connect(newpcb, &remote_addr, remote_port, lwiperf_tcp_client_connected);
+  if (err != ERR_OK) {
+    lwiperf_tcp_close(client_conn, LWIPERF_TCP_ABORTED_LOCAL);
+    return err;
+  }
+  lwiperf_list_add(&client_conn->base);
+  *new_conn = client_conn;
+  return ERR_OK;
+}

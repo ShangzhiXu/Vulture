@@ -1,0 +1,78 @@
+int send_packet( const packet *p, const char *why )
+{
+    int ret;
+    mbedtls_net_context *dst = p->dst;
+
+    /* save initial ClientHello? */
+    if( opt.inject_clihlo != 0 &&
+        inject_clihlo_state == ICH_INIT &&
+        strcmp( p->type, "ClientHello" ) == 0 )
+    {
+        memcpy( &initial_clihlo, p, sizeof( packet ) );
+        inject_clihlo_state = ICH_CACHED;
+    }
+
+    /* insert corrupted ApplicationData record? */
+    if( opt.bad_ad &&
+        strcmp( p->type, "ApplicationData" ) == 0 )
+    {
+        unsigned char buf[MAX_MSG_SIZE];
+        memcpy( buf, p->buf, p->len );
+
+        if( p->len <= 13 )
+        {
+            mbedtls_printf( "  ! can't corrupt empty AD record" );
+        }
+        else
+        {
+            ++buf[13];
+            print_packet( p, "corrupted" );
+        }
+
+        if( ( ret = dispatch_data( dst, buf, p->len ) ) <= 0 )
+        {
+            mbedtls_printf( "  ! dispatch returned %d\n", ret );
+            return( ret );
+        }
+    }
+
+    print_packet( p, why );
+    if( ( ret = dispatch_data( dst, p->buf, p->len ) ) <= 0 )
+    {
+        mbedtls_printf( "  ! dispatch returned %d\n", ret );
+        return( ret );
+    }
+
+    /* Don't duplicate Application Data, only handshake covered */
+    if( opt.duplicate != 0 &&
+        strcmp( p->type, "ApplicationData" ) != 0 &&
+        rand() % opt.duplicate == 0 )
+    {
+        print_packet( p, "duplicated" );
+
+        if( ( ret = dispatch_data( dst, p->buf, p->len ) ) <= 0 )
+        {
+            mbedtls_printf( "  ! dispatch returned %d\n", ret );
+            return( ret );
+        }
+    }
+
+    /* Inject ClientHello after first ApplicationData */
+    if( opt.inject_clihlo != 0 &&
+        inject_clihlo_state == ICH_CACHED &&
+        strcmp( p->type, "ApplicationData" ) == 0 )
+    {
+        print_packet( &initial_clihlo, "injected" );
+
+        if( ( ret = dispatch_data( dst, initial_clihlo.buf,
+                                        initial_clihlo.len ) ) <= 0 )
+        {
+            mbedtls_printf( "  ! dispatch returned %d\n", ret );
+            return( ret );
+        }
+
+        inject_clihlo_state = ICH_INJECTED;
+    }
+
+    return( 0 );
+}

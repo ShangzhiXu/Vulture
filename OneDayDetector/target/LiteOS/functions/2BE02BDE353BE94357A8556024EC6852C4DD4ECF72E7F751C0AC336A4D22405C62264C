@@ -1,0 +1,22 @@
+int board_jump2app(void)
+{
+    jump_func jump;
+    uint32_t pc = *(__IO uint32_t *)(OTA_DEFAULT_IMAGE_ADDR + 4);
+    uint32_t stack = *(__IO uint32_t *)(OTA_DEFAULT_IMAGE_ADDR);
+
+    if ((pc & OTA_PC_MASK) == OTA_FLASH_BASE) {
+        if ((stack & OTA_STACK_MASK) == OTA_MEMORY_BASE) {
+            jump = (jump_func)pc;
+            set_msp(stack);
+            jump();
+        } else {
+            OTA_LOG("stack value(%lx) of the image is ilegal", stack);
+            return OTA_ERRNO_ILEGAL_STACK;
+        }
+    } else {
+        OTA_LOG("PC value(%lx) of the image is ilegal", pc);
+        return OTA_ERRNO_ILEGAL_PC;
+    }
+
+    return OTA_ERRNO_OK;
+}

@@ -1,0 +1,18 @@
+sys_mbox_post(sys_mbox_t *q, void *msg)
+{
+  LWIP_ASSERT("q != SYS_MBOX_NULL", q != SYS_MBOX_NULL);
+  LWIP_ASSERT("q->sem == q", q->sem == q);
+  LWIP_ASSERT("q->q_mem != NULL", q->q_mem != NULL);
+  LWIP_ASSERT("q->used >= 0", q->used >= 0);
+  LWIP_ASSERT("q->size > 0", q->size > 0);
+
+  LWIP_ASSERT("mbox already full", q->used < q->size);
+
+  q->q_mem[q->head] = msg;
+  q->head++;
+  if (q->head >= (unsigned int)q->size) {
+    q->head = 0;
+  }
+  LWIP_ASSERT("mbox is full!", q->head != q->tail);
+  q->used++;
+}

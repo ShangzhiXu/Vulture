@@ -1,0 +1,29 @@
+static int chachapoly_crypt_and_tag( mbedtls_chachapoly_context *ctx,
+                                     mbedtls_chachapoly_mode_t mode,
+                                     size_t length,
+                                     const unsigned char nonce[12],
+                                     const unsigned char *aad,
+                                     size_t aad_len,
+                                     const unsigned char *input,
+                                     unsigned char *output,
+                                     unsigned char tag[16] )
+{
+    int ret;
+
+    ret = mbedtls_chachapoly_starts( ctx, nonce, mode );
+    if( ret != 0 )
+        goto cleanup;
+
+    ret = mbedtls_chachapoly_update_aad( ctx, aad, aad_len );
+    if( ret != 0 )
+        goto cleanup;
+
+    ret = mbedtls_chachapoly_update( ctx, length, input, output );
+    if( ret != 0 )
+        goto cleanup;
+
+    ret = mbedtls_chachapoly_finish( ctx, tag );
+
+cleanup:
+    return( ret );
+}

@@ -1,0 +1,27 @@
+static void test_file_rename_exception(void **state)
+{
+    int fd;
+    int ret;
+
+    fd = los_open(file_name, O_CREAT | O_RDWR | O_TRUNC);
+    assert_in_range(fd, 0, LOS_MAX_FILES);
+
+    ret = los_close(fd);
+    assert_int_equal(ret, 0);
+
+    ret = los_rename(file_name, file_name);
+    if (fs_type == TEST_FS_SPIFFS)
+    {
+        assert_int_not_equal(ret, 0);
+    }
+    else
+    {
+        assert_int_equal(ret, 0);
+    }
+
+    ret = los_rename(file_name, NULL);
+    assert_int_equal(ret, -1);
+
+    ret = los_rename(NULL, NULL);
+    assert_int_equal(ret, -1);
+}

@@ -1,0 +1,86 @@
+HAL_StatusTypeDef HAL_FMPSMBUS_UnRegisterCallback(FMPSMBUS_HandleTypeDef *hfmpsmbus, HAL_FMPSMBUS_CallbackIDTypeDef CallbackID)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process locked */
+  __HAL_LOCK(hfmpsmbus);
+
+  if (HAL_FMPSMBUS_STATE_READY == hfmpsmbus->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_FMPSMBUS_MASTER_TX_COMPLETE_CB_ID :
+        hfmpsmbus->MasterTxCpltCallback = HAL_FMPSMBUS_MasterTxCpltCallback; /* Legacy weak MasterTxCpltCallback */
+        break;
+
+      case HAL_FMPSMBUS_MASTER_RX_COMPLETE_CB_ID :
+        hfmpsmbus->MasterRxCpltCallback = HAL_FMPSMBUS_MasterRxCpltCallback; /* Legacy weak MasterRxCpltCallback */
+        break;
+
+      case HAL_FMPSMBUS_SLAVE_TX_COMPLETE_CB_ID :
+        hfmpsmbus->SlaveTxCpltCallback = HAL_FMPSMBUS_SlaveTxCpltCallback;   /* Legacy weak SlaveTxCpltCallback  */
+        break;
+
+      case HAL_FMPSMBUS_SLAVE_RX_COMPLETE_CB_ID :
+        hfmpsmbus->SlaveRxCpltCallback = HAL_FMPSMBUS_SlaveRxCpltCallback;   /* Legacy weak SlaveRxCpltCallback  */
+        break;
+
+      case HAL_FMPSMBUS_LISTEN_COMPLETE_CB_ID :
+        hfmpsmbus->ListenCpltCallback = HAL_FMPSMBUS_ListenCpltCallback;     /* Legacy weak ListenCpltCallback   */
+        break;
+
+      case HAL_FMPSMBUS_ERROR_CB_ID :
+        hfmpsmbus->ErrorCallback = HAL_FMPSMBUS_ErrorCallback;               /* Legacy weak ErrorCallback        */
+        break;
+
+      case HAL_FMPSMBUS_MSPINIT_CB_ID :
+        hfmpsmbus->MspInitCallback = HAL_FMPSMBUS_MspInit;                   /* Legacy weak MspInit              */
+        break;
+
+      case HAL_FMPSMBUS_MSPDEINIT_CB_ID :
+        hfmpsmbus->MspDeInitCallback = HAL_FMPSMBUS_MspDeInit;               /* Legacy weak MspDeInit            */
+        break;
+
+      default :
+        /* Update the error code */
+        hfmpsmbus->ErrorCode |= HAL_FMPSMBUS_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if (HAL_FMPSMBUS_STATE_RESET == hfmpsmbus->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_FMPSMBUS_MSPINIT_CB_ID :
+        hfmpsmbus->MspInitCallback = HAL_FMPSMBUS_MspInit;                   /* Legacy weak MspInit              */
+        break;
+
+      case HAL_FMPSMBUS_MSPDEINIT_CB_ID :
+        hfmpsmbus->MspDeInitCallback = HAL_FMPSMBUS_MspDeInit;               /* Legacy weak MspDeInit            */
+        break;
+
+      default :
+        /* Update the error code */
+        hfmpsmbus->ErrorCode |= HAL_FMPSMBUS_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    hfmpsmbus->ErrorCode |= HAL_FMPSMBUS_ERROR_INVALID_CALLBACK;
+
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hfmpsmbus);
+  return status;
+}

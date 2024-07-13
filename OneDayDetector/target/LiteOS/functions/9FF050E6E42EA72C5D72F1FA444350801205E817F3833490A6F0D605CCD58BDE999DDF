@@ -1,0 +1,36 @@
+STATIC UINT16 osMessageQueueGetAttr(osMessageQueueId_t mq_id, QueueAttribute attr)
+{
+    LosQueueCB *queueCB = (LosQueueCB *)mq_id;
+    UINT32 intSave;
+    UINT16 attrVal = 0;
+
+    if (queueCB == NULL) {
+        return 0;
+    }
+
+    intSave = LOS_IntLock();
+    if (queueCB->queueState == OS_QUEUE_UNUSED) {
+        LOS_IntRestore(intSave);
+        return 0;
+    }
+
+    switch (attr) {
+        case ATTR_CAPACITY:
+            attrVal = queueCB->queueLen;
+            break;
+        case ATTR_MSGSIZE:
+            attrVal = queueCB->queueSize - sizeof(UINT32);
+            break;
+        case ATTR_COUNT:
+            attrVal = queueCB->readWriteableCnt[OS_QUEUE_READ];
+            break;
+        case ATTR_SPACE:
+            attrVal = queueCB->readWriteableCnt[OS_QUEUE_WRITE];
+            break;
+        default:
+            break;
+    }
+    LOS_IntRestore(intSave);
+
+    return attrVal;
+}

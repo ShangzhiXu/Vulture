@@ -1,0 +1,19 @@
+lowpan6_get_address_mode_mc(const ip6_addr_t *ip6addr)
+{
+  if ((ip6addr->addr[0] == PP_HTONL(0xff020000)) &&
+      (ip6addr->addr[1] == 0) &&
+      (ip6addr->addr[2] == 0) &&
+      ((ip6addr->addr[3]  & PP_HTONL(0xffffff00)) == 0)) {
+    return 3;
+  } else if (((ip6addr->addr[0] & PP_HTONL(0xff00ffff)) == PP_HTONL(0xff000000)) &&
+             (ip6addr->addr[1] == 0)) {
+    if ((ip6addr->addr[2] == 0) &&
+        ((ip6addr->addr[3]  & PP_HTONL(0xff000000)) == 0)) {
+      return 2;
+    } else if ((ip6addr->addr[2]  & PP_HTONL(0xffffff00)) == 0) {
+      return 1;
+    }
+  }
+
+  return 0;
+}

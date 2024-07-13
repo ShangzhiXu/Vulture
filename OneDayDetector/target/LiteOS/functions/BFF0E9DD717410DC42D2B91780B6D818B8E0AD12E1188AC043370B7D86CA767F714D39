@@ -1,0 +1,26 @@
+void httpd_post_data_recved(void *connection, u16_t recved_len)
+{
+  struct http_state *hs = (struct http_state *)connection;
+  if (hs != NULL) {
+    if (hs->no_auto_wnd) {
+      u16_t len = recved_len;
+      if (hs->unrecved_bytes >= recved_len) {
+        hs->unrecved_bytes -= recved_len;
+      } else {
+        LWIP_DEBUGF(HTTPD_DEBUG | LWIP_DBG_LEVEL_WARNING, ("httpd_post_data_recved: recved_len too big\n"));
+        len = (u16_t)hs->unrecved_bytes;
+        hs->unrecved_bytes = 0;
+      }
+      if (hs->pcb != NULL) {
+        if (len != 0) {
+          altcp_recved(hs->pcb, len);
+        }
+        if ((hs->post_content_len_left == 0) && (hs->unrecved_bytes == 0)) {
+          /* finished handling POST */
+          http_handle_post_finished(hs);
+          http_send(hs->pcb, hs);
+        }
+      }
+    }
+  }
+}

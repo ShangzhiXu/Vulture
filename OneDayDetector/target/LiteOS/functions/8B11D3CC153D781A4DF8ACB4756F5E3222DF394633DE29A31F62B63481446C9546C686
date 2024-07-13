@@ -1,0 +1,56 @@
+void _lv_indev_read_task(lv_task_t * task)
+{
+    LV_LOG_TRACE("indev read task started");
+
+    lv_indev_data_t data;
+
+    indev_act = task->user_data;
+
+    /*Read and process all indevs*/
+    if(indev_act->driver.disp == NULL) return; /*Not assigned to any displays*/
+
+    /*Handle reset query before processing the point*/
+    indev_proc_reset_query_handler(indev_act);
+
+    if(indev_act->proc.disabled) return;
+    bool more_to_read;
+    do {
+        /*Read the data*/
+        more_to_read = _lv_indev_read(indev_act, &data);
+
+        /*The active object might deleted even in the read function*/
+        indev_proc_reset_query_handler(indev_act);
+        indev_obj_act = NULL;
+
+        indev_act->proc.state = data.state;
+
+        /*Save the last activity time*/
+        if(indev_act->proc.state == LV_INDEV_STATE_PR) {
+            indev_act->driver.disp->last_activity_time = lv_tick_get();
+        }
+        else if(indev_act->driver.type == LV_INDEV_TYPE_ENCODER && data.enc_diff) {
+            indev_act->driver.disp->last_activity_time = lv_tick_get();
+        }
+
+        if(indev_act->driver.type == LV_INDEV_TYPE_POINTER) {
+            indev_pointer_proc(indev_act, &data);
+        }
+        else if(indev_act->driver.type == LV_INDEV_TYPE_KEYPAD) {
+            indev_keypad_proc(indev_act, &data);
+        }
+        else if(indev_act->driver.type == LV_INDEV_TYPE_ENCODER) {
+            indev_encoder_proc(indev_act, &data);
+        }
+        else if(indev_act->driver.type == LV_INDEV_TYPE_BUTTON) {
+            indev_button_proc(indev_act, &data);
+        }
+        /*Handle reset query if it happened in during processing*/
+        indev_proc_reset_query_handler(indev_act);
+    } while(more_to_read);
+
+    /*End of indev processing, so no act indev*/
+    indev_act     = NULL;
+    indev_obj_act = NULL;
+
+    LV_LOG_TRACE("indev read task finished");
+}

@@ -1,0 +1,14 @@
+static void upap_protrej(ppp_pcb *pcb) {
+
+    if (pcb->upap.us_clientstate == UPAPCS_AUTHREQ) {
+	ppp_error("PAP authentication failed due to protocol-reject");
+	auth_withpeer_fail(pcb, PPP_PAP);
+    }
+#if PPP_SERVER
+    if (pcb->upap.us_serverstate == UPAPSS_LISTEN) {
+	ppp_error("PAP authentication of peer failed (protocol-reject)");
+	auth_peer_fail(pcb, PPP_PAP);
+    }
+#endif /* PPP_SERVER */
+    upap_lowerdown(pcb);
+}

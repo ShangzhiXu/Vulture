@@ -1,0 +1,20 @@
+LITE_OS_SEC_TEXT_INIT UINT32 OsSortLinkInit(SortLinkAttribute *sortLinkHeader)
+{
+    UINT32 size;
+    LOS_DL_LIST *listObject = NULL;
+    UINT32 index;
+
+    size = sizeof(LOS_DL_LIST) << OS_TSK_SORTLINK_LOGLEN;
+    listObject = (LOS_DL_LIST *)LOS_MemAlloc(m_aucSysMem0, size); /* system resident resource */
+    if (listObject == NULL) {
+        return LOS_NOK;
+    }
+
+    (VOID)memset_s(listObject, size, 0, size);
+    sortLinkHeader->sortLink = listObject;
+    sortLinkHeader->cursor = 0;
+    for (index = 0; index < OS_TSK_SORTLINK_LEN; index++, listObject++) {
+        LOS_ListInit(listObject);
+    }
+    return LOS_OK;
+}

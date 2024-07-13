@@ -1,0 +1,82 @@
+HAL_StatusTypeDef HAL_OSPI_Command_IT(OSPI_HandleTypeDef *hospi, OSPI_RegularCmdTypeDef *cmd)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t tickstart = HAL_GetTick();
+  
+  /* Check the parameters of the command structure */
+  assert_param(IS_OSPI_OPERATION_TYPE(cmd->OperationType));
+  
+  if (hospi->Init.DualQuad == HAL_OSPI_DUALQUAD_DISABLE)
+  {
+    assert_param(IS_OSPI_FLASH_ID(cmd->FlashId));
+  }
+
+  assert_param(IS_OSPI_INSTRUCTION_MODE(cmd->InstructionMode));
+  if (cmd->InstructionMode != HAL_OSPI_INSTRUCTION_NONE)
+  {
+    assert_param(IS_OSPI_INSTRUCTION_SIZE    (cmd->InstructionSize));
+    assert_param(IS_OSPI_INSTRUCTION_DTR_MODE(cmd->InstructionDtrMode));
+  }
+  
+  assert_param(IS_OSPI_ADDRESS_MODE(cmd->AddressMode));
+  if (cmd->AddressMode != HAL_OSPI_ADDRESS_NONE)
+  {
+    assert_param(IS_OSPI_ADDRESS_SIZE    (cmd->AddressSize));
+    assert_param(IS_OSPI_ADDRESS_DTR_MODE(cmd->AddressDtrMode));
+  }
+
+  assert_param(IS_OSPI_ALT_BYTES_MODE(cmd->AlternateBytesMode));
+  if (cmd->AlternateBytesMode != HAL_OSPI_ALTERNATE_BYTES_NONE)
+  {
+    assert_param(IS_OSPI_ALT_BYTES_SIZE    (cmd->AlternateBytesSize));
+    assert_param(IS_OSPI_ALT_BYTES_DTR_MODE(cmd->AlternateBytesDtrMode));
+  }
+
+  assert_param(IS_OSPI_DATA_MODE(cmd->DataMode));
+  if (cmd->DataMode != HAL_OSPI_DATA_NONE)
+  {
+    assert_param(IS_OSPI_NUMBER_DATA  (cmd->NbData));
+    assert_param(IS_OSPI_DATA_DTR_MODE(cmd->DataDtrMode));
+    assert_param(IS_OSPI_DUMMY_CYCLES (cmd->DummyCycles));
+  }
+
+  assert_param(IS_OSPI_DQS_MODE (cmd->DQSMode));
+  assert_param(IS_OSPI_SIOO_MODE(cmd->SIOOMode));
+  
+  /* Check the state of the driver */
+  if ((hospi->State  == HAL_OSPI_STATE_READY) && (cmd->OperationType     == HAL_OSPI_OPTYPE_COMMON_CFG) &&
+      (cmd->DataMode == HAL_OSPI_DATA_NONE)   && (hospi->Init.MemoryType != HAL_OSPI_MEMTYPE_HYPERBUS))
+  {
+    /* Wait till busy flag is reset */
+    status = OSPI_WaitFlagStateUntilTimeout(hospi, HAL_OSPI_FLAG_BUSY, RESET, tickstart, hospi->Timeout);
+    
+    if (status == HAL_OK)
+    {
+      /* Initialize error code */
+      hospi->ErrorCode = HAL_OSPI_ERROR_NONE;
+    
+      /* Clear flags related to interrupt */
+      __HAL_OSPI_CLEAR_FLAG(hospi, HAL_OSPI_FLAG_TE | HAL_OSPI_FLAG_TC);
+
+      /* Configure the registers */
+      status = OSPI_ConfigCmd(hospi, cmd);
+
+      if (status == HAL_OK)
+      {
+        /* Update the state */
+          hospi->State = HAL_OSPI_STATE_BUSY_CMD;
+
+        /* Enable the transfer complete and transfer error interrupts */
+        __HAL_OSPI_ENABLE_IT(hospi, HAL_OSPI_IT_TC | HAL_OSPI_IT_TE);
+      }
+    }
+  }
+  else
+  {
+    status = HAL_ERROR;
+    hospi->ErrorCode = HAL_OSPI_ERROR_INVALID_SEQUENCE;
+  }
+
+  /* Return function status */
+  return status;
+}

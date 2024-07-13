@@ -1,0 +1,95 @@
+static uint32_t SD_PowerON(SD_HandleTypeDef *hsd)
+{
+  __IO uint32_t count = 0;
+  uint32_t response = 0, validvoltage = 0;
+  uint32_t errorstate = HAL_SD_ERROR_NONE;
+  
+  /* CMD0: GO_IDLE_STATE */
+  errorstate = SDMMC_CmdGoIdleState(hsd->Instance);
+  if(errorstate != HAL_SD_ERROR_NONE)
+  {
+    return errorstate;
+  }
+  
+  /* CMD8: SEND_IF_COND: Command available only on V2.0 cards */
+  errorstate = SDMMC_CmdOperCond(hsd->Instance);
+  if(errorstate != HAL_SD_ERROR_NONE)
+  {
+    hsd->SdCard.CardVersion = CARD_V1_X;
+      
+    /* Send ACMD41 SD_APP_OP_COND with Argument 0x80100000 */
+    while(validvoltage == 0)
+    {
+      if(count++ == SDMMC_MAX_VOLT_TRIAL)
+      {
+        return HAL_SD_ERROR_INVALID_VOLTRANGE;
+      }
+      
+      /* SEND CMD55 APP_CMD with RCA as 0 */
+      errorstate = SDMMC_CmdAppCommand(hsd->Instance, 0);
+      if(errorstate != HAL_SD_ERROR_NONE)
+      {
+        return HAL_SD_ERROR_UNSUPPORTED_FEATURE;
+      }
+      
+      /* Send CMD41 */
+      errorstate = SDMMC_CmdAppOperCommand(hsd->Instance, SDMMC_STD_CAPACITY);
+      if(errorstate != HAL_SD_ERROR_NONE)
+      {
+        return HAL_SD_ERROR_UNSUPPORTED_FEATURE;
+      }
+      
+      /* Get command response */
+      response = SDMMC_GetResponse(hsd->Instance, SDMMC_RESP1);
+      
+      /* Get operating voltage*/
+      validvoltage = (((response >> 31) == 1) ? 1 : 0);
+    }
+    /* Card type is SDSC */
+    hsd->SdCard.CardType = CARD_SDSC;
+  }
+  else
+  {
+    hsd->SdCard.CardVersion = CARD_V2_X;
+        
+    /* Send ACMD41 SD_APP_OP_COND with Argument 0x80100000 */
+    while(validvoltage == 0)
+    {
+      if(count++ == SDMMC_MAX_VOLT_TRIAL)
+      {
+        return HAL_SD_ERROR_INVALID_VOLTRANGE;
+      }
+      
+      /* SEND CMD55 APP_CMD with RCA as 0 */
+      errorstate = SDMMC_CmdAppCommand(hsd->Instance, 0);
+      if(errorstate != HAL_SD_ERROR_NONE)
+      {
+        return errorstate;
+      }
+      
+      /* Send CMD41 */
+      errorstate = SDMMC_CmdAppOperCommand(hsd->Instance, SDMMC_HIGH_CAPACITY);
+      if(errorstate != HAL_SD_ERROR_NONE)
+      {
+        return errorstate;
+      }
+      
+      /* Get command response */
+      response = SDMMC_GetResponse(hsd->Instance, SDMMC_RESP1);
+      
+      /* Get operating voltage*/
+      validvoltage = (((response >> 31) == 1) ? 1 : 0);
+    }
+    
+    if((response & SDMMC_HIGH_CAPACITY) == SDMMC_HIGH_CAPACITY) /* (response &= SD_HIGH_CAPACITY) */
+    {
+      hsd->SdCard.CardType = CARD_SDHC_SDXC;
+    }
+    else
+    {
+      hsd->SdCard.CardType = CARD_SDSC;
+    }
+  }
+  
+  return HAL_SD_ERROR_NONE;
+}

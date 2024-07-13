@@ -1,0 +1,37 @@
+int MQTTSerialize_subscribe(unsigned char *buf, int buflen, unsigned char dup, unsigned short packetid, int count,
+                            MQTTString topicFilters[], int requestedQoSs[])
+{
+    unsigned char *ptr = buf;
+    MQTTHeader header = {0};
+    int rem_len = 0;
+    int rc = 0;
+    int i = 0;
+
+    FUNC_ENTRY;
+    if (MQTTPacket_len(rem_len = MQTTSerialize_subscribeLength(count, topicFilters)) > buflen)
+    {
+        rc = MQTTPACKET_BUFFER_TOO_SHORT;
+        goto exit;
+    }
+
+    header.byte = 0;
+    header.bits.type = SUBSCRIBE;
+    header.bits.dup = dup;
+    header.bits.qos = 1;
+    writeChar(&ptr, header.byte); /* write header */
+
+    ptr += MQTTPacket_encode(ptr, rem_len); /* write remaining length */;
+
+    writeInt(&ptr, packetid);
+
+    for (i = 0; i < count; ++i)
+    {
+        writeMQTTString(&ptr, topicFilters[i]);
+        writeChar(&ptr, requestedQoSs[i]);
+    }
+
+    rc = ptr - buf;
+exit:
+    FUNC_EXIT_RC(rc);
+    return rc;
+}

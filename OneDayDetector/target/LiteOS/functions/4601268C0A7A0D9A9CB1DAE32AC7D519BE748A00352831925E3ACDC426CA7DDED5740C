@@ -1,0 +1,42 @@
+tcp_ConnectionTable_get_cell_value(const u32_t *column, const u32_t *row_oid, u8_t row_oid_len, union snmp_variant_value *value, u32_t *value_len)
+{
+  ip_addr_t local_ip, remote_ip;
+  u16_t local_port, remote_port;
+  struct tcp_pcb *pcb;
+  u8_t idx = 0;
+  u8_t i;
+  struct tcp_pcb **const tcp_pcb_nonlisten_lists[] = {&tcp_bound_pcbs, &tcp_active_pcbs, &tcp_tw_pcbs};
+
+  LWIP_UNUSED_ARG(value_len);
+
+  /* tcpConnectionLocalAddressType + tcpConnectionLocalAddress + tcpConnectionLocalPort */
+  idx += snmp_oid_to_ip_port(&row_oid[idx], row_oid_len - idx, &local_ip, &local_port);
+  if (idx == 0) {
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  /* tcpConnectionRemAddressType + tcpConnectionRemAddress + tcpConnectionRemPort */
+  idx += snmp_oid_to_ip_port(&row_oid[idx], row_oid_len - idx, &remote_ip, &remote_port);
+  if (idx == 0) {
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  /* find tcp_pcb with requested ip and port*/
+  for (i = 0; i < LWIP_ARRAYSIZE(tcp_pcb_nonlisten_lists); i++) {
+    pcb = *tcp_pcb_nonlisten_lists[i];
+
+    while (pcb != NULL) {
+      if (ip_addr_cmp(&local_ip, &pcb->local_ip) &&
+          (local_port == pcb->local_port) &&
+          ip_addr_cmp(&remote_ip, &pcb->remote_ip) &&
+          (remote_port == pcb->remote_port)) {
+        /* fill in object properties */
+        return tcp_ConnectionTable_get_cell_value_core(column, pcb, value);
+      }
+      pcb = pcb->next;
+    }
+  }
+
+  /* not found */
+  return SNMP_ERR_NOSUCHINSTANCE;
+}

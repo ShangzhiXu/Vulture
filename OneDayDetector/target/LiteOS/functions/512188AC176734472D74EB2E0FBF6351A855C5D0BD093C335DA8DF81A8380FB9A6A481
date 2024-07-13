@@ -1,0 +1,78 @@
+HAL_StatusTypeDef HAL_RTC_UnRegisterCallback(RTC_HandleTypeDef *hrtc, HAL_RTC_CallbackIDTypeDef CallbackID)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process locked */
+  __HAL_LOCK(hrtc);
+
+  if (HAL_RTC_STATE_READY == hrtc->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_RTC_ALARM_A_EVENT_CB_ID :
+        hrtc->AlarmAEventCallback = HAL_RTC_AlarmAEventCallback;         /* Legacy weak AlarmAEventCallback    */
+        break;
+
+      case HAL_RTC_TIMESTAMP_EVENT_CB_ID :
+        hrtc->TimeStampEventCallback = HAL_RTCEx_TimeStampEventCallback;    /* Legacy weak TimeStampEventCallback    */
+        break;
+#if defined(RTC_WAKEUP_SUPPORT)
+      case HAL_RTC_WAKEUPTIMER_EVENT_CB_ID :
+        hrtc->WakeUpTimerEventCallback = HAL_RTCEx_WakeUpTimerEventCallback; /* Legacy weak WakeUpTimerEventCallback */
+        break;
+#endif  /* RTC_WAKEUP_SUPPORT */
+      case HAL_RTC_TAMPER1_EVENT_CB_ID :
+        hrtc->Tamper1EventCallback = HAL_RTCEx_Tamper1EventCallback;         /* Legacy weak Tamper1EventCallback   */
+        break;
+
+      case HAL_RTC_TAMPER2_EVENT_CB_ID :
+        hrtc->Tamper2EventCallback = HAL_RTCEx_Tamper2EventCallback;         /* Legacy weak Tamper2EventCallback         */
+        break;
+#if defined( RTC_TAMPER3_SUPPORT)
+      case HAL_RTC_TAMPER3_EVENT_CB_ID :
+        hrtc->Tamper3EventCallback = HAL_RTCEx_Tamper3EventCallback;         /* Legacy weak Tamper3EventCallback         */
+        break;
+#endif /* RTC_TAMPER3_SUPPORT */
+      case HAL_RTC_MSPINIT_CB_ID :
+        hrtc->MspInitCallback = HAL_RTC_MspInit;
+        break;
+
+      case HAL_RTC_MSPDEINIT_CB_ID :
+        hrtc->MspDeInitCallback = HAL_RTC_MspDeInit;
+        break;
+
+      default :
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if (HAL_RTC_STATE_RESET == hrtc->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_RTC_MSPINIT_CB_ID :
+        hrtc->MspInitCallback = HAL_RTC_MspInit;
+        break;
+
+      case HAL_RTC_MSPDEINIT_CB_ID :
+        hrtc->MspDeInitCallback = HAL_RTC_MspDeInit;
+        break;
+
+      default :
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hrtc);
+
+  return status;
+}

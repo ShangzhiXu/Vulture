@@ -1,0 +1,94 @@
+spiffs_file SPIFFS_open(spiffs *fs, const char *path, spiffs_flags flags, spiffs_mode mode)
+{
+    SPIFFS_API_DBG("%s '%s' "_SPIPRIfl "\n", __func__, path, flags);
+    (void)mode;
+    SPIFFS_API_CHECK_CFG(fs);
+    SPIFFS_API_CHECK_MOUNT(fs);
+    if (strlen(path) > SPIFFS_OBJ_NAME_LEN - 1)
+    {
+        SPIFFS_API_CHECK_RES(fs, SPIFFS_ERR_NAME_TOO_LONG);
+    }
+    SPIFFS_LOCK(fs);
+
+    spiffs_fd *fd;
+    spiffs_page_ix pix;
+
+#if SPIFFS_READ_ONLY
+    // not valid flags in read only mode
+    flags &= ~(SPIFFS_WRONLY | SPIFFS_CREAT | SPIFFS_TRUNC);
+#endif // SPIFFS_READ_ONLY
+
+    s32_t res = spiffs_fd_find_new(fs, &fd, path);
+    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+
+    res = spiffs_object_find_object_index_header_by_name(fs, (const u8_t *)path, &pix);
+    if ((flags & SPIFFS_O_CREAT) == 0)
+    {
+        if (res < SPIFFS_OK)
+        {
+            spiffs_fd_return(fs, fd->file_nbr);
+        }
+        SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+    }
+
+    if (res == SPIFFS_OK &&
+            (flags & (SPIFFS_O_CREAT | SPIFFS_O_EXCL)) == (SPIFFS_O_CREAT | SPIFFS_O_EXCL))
+    {
+        // creat and excl and file exists - fail
+        res = SPIFFS_ERR_FILE_EXISTS;
+        spiffs_fd_return(fs, fd->file_nbr);
+        SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+    }
+
+    if ((flags & SPIFFS_O_CREAT) && res == SPIFFS_ERR_NOT_FOUND)
+    {
+#if !SPIFFS_READ_ONLY
+        spiffs_obj_id obj_id;
+        // no need to enter conflicting name here, already looked for it above
+        res = spiffs_obj_lu_find_free_obj_id(fs, &obj_id, 0);
+        if (res < SPIFFS_OK)
+        {
+            spiffs_fd_return(fs, fd->file_nbr);
+        }
+        SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+        res = spiffs_object_create(fs, obj_id, (const u8_t *)path, 0, SPIFFS_TYPE_FILE, &pix);
+        if (res < SPIFFS_OK)
+        {
+            spiffs_fd_return(fs, fd->file_nbr);
+        }
+        SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+        flags &= ~SPIFFS_O_TRUNC;
+#endif // !SPIFFS_READ_ONLY
+    }
+    else
+    {
+        if (res < SPIFFS_OK)
+        {
+            spiffs_fd_return(fs, fd->file_nbr);
+        }
+        SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+    }
+    res = spiffs_object_open_by_page(fs, pix, fd, flags, mode);
+    if (res < SPIFFS_OK)
+    {
+        spiffs_fd_return(fs, fd->file_nbr);
+    }
+    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+#if !SPIFFS_READ_ONLY
+    if (flags & SPIFFS_O_TRUNC)
+    {
+        res = spiffs_object_truncate(fd, 0, 0);
+        if (res < SPIFFS_OK)
+        {
+            spiffs_fd_return(fs, fd->file_nbr);
+        }
+        SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+    }
+#endif // !SPIFFS_READ_ONLY
+
+    fd->fdoffset = 0;
+
+    SPIFFS_UNLOCK(fs);
+
+    return SPIFFS_FH_OFFS(fs, fd->file_nbr);
+}

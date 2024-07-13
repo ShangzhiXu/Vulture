@@ -1,0 +1,56 @@
+do_memp_malloc_pool(const struct memp_desc *desc)
+#else
+do_memp_malloc_pool_fn(const struct memp_desc *desc, const char *file, const int line)
+#endif
+{
+  struct memp *memp;
+  SYS_ARCH_DECL_PROTECT(old_level);
+
+#if MEMP_MEM_MALLOC
+  memp = (struct memp *)mem_malloc(MEMP_SIZE + MEMP_ALIGN_SIZE(desc->size));
+  SYS_ARCH_PROTECT(old_level);
+#else /* MEMP_MEM_MALLOC */
+  SYS_ARCH_PROTECT(old_level);
+
+  memp = *desc->tab;
+#endif /* MEMP_MEM_MALLOC */
+
+  if (memp != NULL) {
+#if !MEMP_MEM_MALLOC
+#if MEMP_OVERFLOW_CHECK == 1
+    memp_overflow_check_element(memp, desc);
+#endif /* MEMP_OVERFLOW_CHECK */
+
+    *desc->tab = memp->next;
+#if MEMP_OVERFLOW_CHECK
+    memp->next = NULL;
+#endif /* MEMP_OVERFLOW_CHECK */
+#endif /* !MEMP_MEM_MALLOC */
+#if MEMP_OVERFLOW_CHECK
+    memp->file = file;
+    memp->line = line;
+#if MEMP_MEM_MALLOC
+    memp_overflow_init_element(memp, desc);
+#endif /* MEMP_MEM_MALLOC */
+#endif /* MEMP_OVERFLOW_CHECK */
+    LWIP_ASSERT("memp_malloc: memp properly aligned",
+                ((mem_ptr_t)memp % MEM_ALIGNMENT) == 0);
+#if MEMP_STATS
+    desc->stats->used++;
+    if (desc->stats->used > desc->stats->max) {
+      desc->stats->max = desc->stats->used;
+    }
+#endif
+    SYS_ARCH_UNPROTECT(old_level);
+    /* cast through u8_t* to get rid of alignment warnings */
+    return ((u8_t *)memp + MEMP_SIZE);
+  } else {
+#if MEMP_STATS
+    desc->stats->err++;
+#endif
+    SYS_ARCH_UNPROTECT(old_level);
+    LWIP_DEBUGF(MEMP_DEBUG | LWIP_DBG_LEVEL_SERIOUS, ("memp_malloc: out of memory in pool %s\n", desc->desc));
+  }
+
+  return NULL;
+}

@@ -1,0 +1,30 @@
+static lv_res_t lv_chart_signal(lv_obj_t * chart, lv_signal_t sign, void * param)
+{
+    /* Include the ancient signal function */
+    lv_res_t res;
+    if(sign == LV_SIGNAL_GET_STYLE) {
+        lv_get_style_info_t * info = param;
+        info->result = lv_chart_get_style(chart, info->part);
+        if(info->result != NULL) return LV_RES_OK;
+        else return ancestor_signal(chart, sign, param);
+    }
+
+    res = ancestor_signal(chart, sign, param);
+    if(res != LV_RES_OK) return res;
+    if(sign == LV_SIGNAL_GET_TYPE) return lv_obj_handle_get_type_signal(param, LV_OBJX_NAME);
+
+    lv_chart_ext_t * ext = lv_obj_get_ext_attr(chart);
+
+    if(sign == LV_SIGNAL_CLEANUP) {
+        lv_coord_t ** datal;
+        _LV_LL_READ(ext->series_ll, datal) {
+            lv_mem_free(*datal);
+        }
+        _lv_ll_clear(&ext->series_ll);
+
+        lv_obj_clean_style_list(chart, LV_CHART_PART_SERIES);
+        lv_obj_clean_style_list(chart, LV_CHART_PART_SERIES_BG);
+    }
+
+    return res;
+}

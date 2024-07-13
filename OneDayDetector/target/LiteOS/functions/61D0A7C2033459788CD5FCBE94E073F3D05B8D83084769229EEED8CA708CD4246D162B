@@ -1,0 +1,15 @@
+static uint8_t prv_delete(uint16_t id, lwm2m_object_t *objectP)
+{
+    acc_ctrl_oi_t *targetP = NULL;
+
+    objectP->instanceList = lwm2m_list_remove(objectP->instanceList, id,
+                            (lwm2m_list_t **)&targetP);
+    if (targetP == NULL) {
+        return COAP_404_NOT_FOUND;
+    }
+
+    LWM2M_LIST_FREE(targetP->accCtrlValList);
+    lwm2m_free(targetP);
+
+    return COAP_202_DELETED;
+}

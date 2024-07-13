@@ -1,0 +1,265 @@
+int SecInputSW(SecFileStream *stream, const wchar_t *cFormat, va_list argList)
+#else
+/*
+ * Formatting input core functions for char version.Called by a function such as vsscanf_s
+ */
+int SecInputS(SecFileStream *stream, const char *cFormat, va_list argList)
+#endif
+{
+    const SecUnsignedChar *format = (const SecUnsignedChar *)cFormat;
+    SecBracketTable bracketTable = SECUREC_INIT_BRACKET_TABLE;
+    SecScanSpec spec;
+    int doneCount = 0;
+    int formatError = 0;
+    int paraIsNull = 0;
+    int match = 0; /* When % is found , inc this value */
+    int errRet = 0;
+#if SECUREC_ENABLE_SCANF_FLOAT
+    SecFloatSpec floatSpec;
+    SecInitFloatSpec(&floatSpec);
+#endif
+    spec.ch = 0; /* Need to initialize to 0 */
+    spec.charCount = 0; /* Need to initialize to 0 */
+
+    /* Format must not NULL, use err < 1 to claer 845 */
+    while (errRet < 1 && *format != SECUREC_CHAR('\0')) {
+        /* Skip space in format and space in input */
+        if (SecIsSpace((SecInt)(int)(*format)) != 0) {
+            /* Read first no space char */
+            spec.ch = SecSkipSpaceChar(stream, &(spec.charCount));
+            /* Read the EOF cannot be returned directly here, because the case of " %n" needs to be handled */
+            /* Put fist no space char backup. put EOF back is also OK, and to modify the character count */
+            SecUnGetChar(spec.ch, stream, &(spec.charCount));
+            SecSkipSpaceFormat(&format);
+            continue;
+        }
+
+        if (*format != SECUREC_CHAR('%')) {
+            spec.ch = SecGetChar(stream, &(spec.charCount));
+            if ((int)(*format) != (int)(spec.ch)) {
+                SecUnGetChar(spec.ch, stream, &(spec.charCount));
+                break;
+            }
+            ++format;
+#if !defined(SECUREC_FOR_WCHAR) && defined(SECUREC_COMPATIBLE_VERSION)
+            if (SecIsLeadByte(spec.ch) != 0) {
+                if (SecDecodeLeadByte(&spec, &format, stream) != 0) {
+                    break;
+                }
+            }
+#endif
+            continue;
+        }
+
+        /* Now *format is % */
+        /* Set default value for each % */
+        SecSetDefaultScanSpec(&spec);
+        if (SecDecodeScanFlag(&format, &spec) != 0) {
+            formatError = 1;
+            ++errRet;
+            continue;
+        }
+        if (!SECUREC_FILED_WIDTH_ENOUGH(&spec)) {
+            /* 0 width in format */
+            ++errRet;
+            continue;
+        }
+
+        /* Update wchar flag for %S %C */
+        SecUpdateWcharFlagByType(*format, &spec);
+
+        spec.convChr = SECUREC_TO_LOWERCASE(*format);
+        spec.oriConvChr = spec.convChr; /* convChr may be modified to handle integer logic */
+        if (spec.convChr != 'n') {
+            if (spec.convChr != 'c' && spec.convChr != SECUREC_BRACE) {
+                spec.ch = SecSkipSpaceChar(stream, &(spec.charCount));
+            } else {
+                spec.ch = SecGetChar(stream, &(spec.charCount));
+            }
+            if (spec.ch == SECUREC_EOF) {
+                ++errRet;
+                continue;
+            }
+        }
+
+        /* Now no 0 width in format and get one char from input */
+        switch (spec.oriConvChr) {
+            case 'c': /* Also 'C' */
+                if (spec.widthSet == 0) {
+                    spec.widthSet = 1;
+                    spec.width = 1;
+                }
+                /* fall-through */ /* FALLTHRU */
+            case 's': /* Also 'S': */
+                /* fall-through */ /* FALLTHRU */
+            case SECUREC_BRACE:
+                /* Unset last char to stream */
+                SecUnGetChar(spec.ch, stream, &(spec.charCount));
+                /* Check dest buffer and size */
+                if (spec.suppress == 0) {
+                    spec.argPtr = (void *)va_arg(argList, void *);
+                    if (spec.argPtr == NULL) {
+                        paraIsNull = 1;
+                        ++errRet;
+                        continue;
+                    }
+                    /* Get the next argument, size of the array in characters */
+#ifdef SECUREC_ON_64BITS
+                    /* Use 0xffffffffUL mask to Support  pass integer as array length */
+                    spec.arrayWidth = ((size_t)(va_arg(argList, size_t))) & 0xffffffffUL;
+#else /* !SECUREC_ON_64BITS */
+                    spec.arrayWidth = (size_t)va_arg(argList, size_t);
+#endif
+                    if (SECUREC_ARRAY_WIDTH_IS_WRONG(spec)) {
+                        /* Do not clear buffer just go error */
+                        ++errRet;
+                        continue;
+                    }
+                    /* One element is needed for '\0' for %s and %[ */
+                    if (spec.convChr != 'c') {
+                        --spec.arrayWidth;
+                    }
+                } else {
+                    /* Set argPtr to  NULL  is necessary, in supress mode we don't use argPtr to store data */
+                    spec.argPtr = NULL;
+                }
+
+                if (spec.convChr == SECUREC_BRACE) {
+                    /* Malloc when first %[ is meet  for wchar version */
+#ifdef SECUREC_FOR_WCHAR
+                    if (SecAllocBracketTable(&bracketTable) != 0) {
+                        ++errRet;
+                        continue;
+                    }
+#endif
+                    (void)memset(bracketTable.table, 0, (size_t)SECUREC_BRACKET_TABLE_SIZE);
+                    if (SecSetupBracketTable(&format, &bracketTable) != 0) {
+                        ++errRet;
+                        continue;
+                    }
+
+                    if (*format == SECUREC_CHAR('\0')) {
+                        /* Default add string terminator */
+                        SecAddEndingZero(spec.argPtr, &spec);
+                        ++errRet;
+                        /* Truncated format */
+                        continue;
+                    }
+                }
+
+                /* Set completed.  Now read string or character */
+                if (SecInputString(stream, &spec, &bracketTable, &doneCount) != 0) {
+                    ++errRet;
+                    continue;
+                }
+                break;
+            case 'p':
+                /* Make %hp same as %p */
+                spec.numberWidth = SECUREC_NUM_WIDTH_INT;
+#ifdef SECUREC_ON_64BITS
+                spec.numberArgType = 1;
+#endif
+                /* fall-through */ /* FALLTHRU */
+            case 'o': /* fall-through */ /* FALLTHRU */
+            case 'u': /* fall-through */ /* FALLTHRU */
+            case 'd': /* fall-through */ /* FALLTHRU */
+            case 'i': /* fall-through */ /* FALLTHRU */
+            case 'x':
+                /* Unset last char to stream */
+                SecUnGetChar(spec.ch, stream, &(spec.charCount));
+                if (SecInputNumber(stream, &spec) != 0) {
+                    ++errRet;
+                    continue;
+                }
+                if (spec.suppress == 0) {
+                    spec.argPtr = (void *)va_arg(argList, void *);
+                    if (spec.argPtr == NULL) {
+                        paraIsNull = 1;
+                        ++errRet;
+                        continue;
+                    }
+                    SecAssignNumber(&spec);
+                    ++doneCount;
+                }
+                break;
+            case 'n': /* Char count */
+                if (spec.suppress == 0) {
+                    spec.argPtr = (void *)va_arg(argList, void *);
+                    if (spec.argPtr == NULL) {
+                        paraIsNull = 1;
+                        ++errRet;
+                        continue;
+                    }
+                    spec.number = (unsigned long)(unsigned int)(spec.charCount);
+                    spec.numberArgType = 0;
+                    SecAssignNumber(&spec);
+                }
+                break;
+            case 'e': /* fall-through */ /* FALLTHRU */
+            case 'f': /* fall-through */ /* FALLTHRU */
+            case 'g': /* Scan a float */
+                /* Unset last char to stream */
+                SecUnGetChar(spec.ch, stream, &(spec.charCount));
+#if SECUREC_ENABLE_SCANF_FLOAT
+                if (SecInputFloat(stream, &spec, &floatSpec) != 0) {
+                    ++errRet;
+                    continue;
+                }
+                if (spec.suppress == 0) {
+                    spec.argPtr = (void *)va_arg(argList, void *);
+                    if (spec.argPtr == NULL) {
+                        ++errRet;
+                        paraIsNull = 1;
+                        continue;
+                    }
+#ifdef SECUREC_FOR_WCHAR
+                    if (SecAssignFloatW(&floatSpec, &spec) != 0) {
+                        ++errRet;
+                        continue;
+                    }
+#else
+                    SecAssignFloat(floatSpec.floatStr, spec.numberWidth, spec.argPtr);
+#endif
+                    ++doneCount;
+                }
+                break;
+#else /* SECUREC_ENABLE_SCANF_FLOAT */
+                ++errRet;
+                continue;
+#endif
+            default:
+                if ((int)(*format) != (int)spec.ch) {
+                    SecUnGetChar(spec.ch, stream, &(spec.charCount));
+                    formatError = 1;
+                    ++errRet;
+                    continue;
+                } else {
+                    --match; /* Compensate for the self-increment of the following code */
+                }
+                break;
+        }
+        ++match;
+        ++format;
+    }
+
+#ifdef SECUREC_FOR_WCHAR
+    SecFreeBracketTable(&bracketTable);
+#endif
+
+#if SECUREC_ENABLE_SCANF_FLOAT
+    SecFreeFloatSpec(&floatSpec, &doneCount);
+#endif
+
+#if SECUREC_ENABLE_SCANF_FILE
+    SecAdjustStream(stream);
+#endif
+
+    if (spec.ch == SECUREC_EOF) {
+        return ((doneCount != 0 || match != 0) ? doneCount : SECUREC_SCANF_EINVAL);
+    }
+    if (formatError != 0 || paraIsNull != 0) {
+        /* Invalid Input Format or parameter, but not meet EOF */
+        return SECUREC_SCANF_ERROR_PARA;
+    }
+    return doneCount;
+}

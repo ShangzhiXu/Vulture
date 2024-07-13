@@ -1,0 +1,30 @@
+STATIC UINT32 OsCmdItemCreate(CmdType cmdType, CHAR *cmdKey, UINT32 paraNum, CmdCallBackFunc cmdProc)
+{
+    CmdItem *cmdItem = NULL;
+    CmdItemNode *cmdItemNode = NULL;
+
+    cmdItem = (CmdItem *)LOS_MemAlloc(m_aucSysMem0, sizeof(CmdItem));
+    if (cmdItem == NULL) {
+        return OS_ERRNO_SHELL_CMDREG_MEMALLOC_ERROR;
+    }
+    (VOID)memset_s(cmdItem, sizeof(CmdItem), '\0', sizeof(CmdItem));
+
+    cmdItemNode = (CmdItemNode *)LOS_MemAlloc(m_aucSysMem0, sizeof(CmdItemNode));
+    if (cmdItemNode == NULL) {
+        (VOID)LOS_MemFree(m_aucSysMem0, cmdItem);
+        return OS_ERRNO_SHELL_CMDREG_MEMALLOC_ERROR;
+    }
+    (VOID)memset_s(cmdItemNode, sizeof(CmdItemNode), '\0', sizeof(CmdItemNode));
+    cmdItemNode->cmd = cmdItem;
+    cmdItemNode->cmd->cmdHook = cmdProc;
+    cmdItemNode->cmd->paraNum = paraNum;
+    cmdItemNode->cmd->cmdType = cmdType;
+    cmdItemNode->cmd->cmdKey = cmdKey;
+
+    (VOID)LOS_MuxPend(g_cmdInfo.muxLock, LOS_WAIT_FOREVER);
+    OsCmdAscendingInsert(cmdItemNode);
+    g_cmdInfo.listNum++;
+    (VOID)LOS_MuxPost(g_cmdInfo.muxLock);
+
+    return LOS_OK;
+}

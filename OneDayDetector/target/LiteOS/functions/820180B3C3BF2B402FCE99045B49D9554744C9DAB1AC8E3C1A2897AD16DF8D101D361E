@@ -1,0 +1,50 @@
+static void JPEG_Init_Process(JPEG_HandleTypeDef *hjpeg)
+{
+  /*Reset pause*/
+  hjpeg->Context &= (~(JPEG_CONTEXT_PAUSE_INPUT | JPEG_CONTEXT_PAUSE_OUTPUT));
+
+  if ((hjpeg->Context & JPEG_CONTEXT_OPERATION_MASK) == JPEG_CONTEXT_DECODE)
+  {
+    /*Set JPEG Codec to Decoding mode */
+    hjpeg->Instance->CONFR1 |= JPEG_CONFR1_DE;
+  }
+  else /* JPEG_CONTEXT_ENCODE */
+  {
+    /*Set JPEG Codec to Encoding mode */
+    hjpeg->Instance->CONFR1 &= ~JPEG_CONFR1_DE;
+  }
+
+  /*Stop JPEG processing */
+  hjpeg->Instance->CONFR0 &=  ~JPEG_CONFR0_START;
+
+  /* Disable All Interrupts */
+  __HAL_JPEG_DISABLE_IT(hjpeg, JPEG_INTERRUPT_MASK);
+
+  /* Disable All DMA requests */
+  JPEG_DISABLE_DMA(hjpeg, JPEG_DMA_MASK);
+  /* Flush input and output FIFOs*/
+  hjpeg->Instance->CR |= JPEG_CR_IFF;
+  hjpeg->Instance->CR |= JPEG_CR_OFF;
+
+  /* Clear all flags */
+  __HAL_JPEG_CLEAR_FLAG(hjpeg, JPEG_FLAG_ALL);
+
+  /*Start Encoding/Decoding*/
+  hjpeg->Instance->CONFR0 |=  JPEG_CONFR0_START;
+
+  if ((hjpeg->Context & JPEG_CONTEXT_METHOD_MASK) == JPEG_CONTEXT_IT)
+  {
+    /*Enable IN/OUT, end of Conversation, and end of header parsing interruptions*/
+    __HAL_JPEG_ENABLE_IT(hjpeg, JPEG_IT_IFT | JPEG_IT_IFNF | JPEG_IT_OFT | JPEG_IT_OFNE | JPEG_IT_EOC | JPEG_IT_HPD);
+  }
+  else if ((hjpeg->Context & JPEG_CONTEXT_METHOD_MASK) == JPEG_CONTEXT_DMA)
+  {
+    /*Enable End Of Conversation, and End Of Header parsing interruptions*/
+    __HAL_JPEG_ENABLE_IT(hjpeg, JPEG_IT_EOC | JPEG_IT_HPD);
+
+  }
+  else
+  {
+    /* Nothing to do */
+  }
+}

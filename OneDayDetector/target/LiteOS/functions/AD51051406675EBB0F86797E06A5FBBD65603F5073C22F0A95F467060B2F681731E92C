@@ -1,0 +1,135 @@
+HAL_StatusTypeDef HAL_OPAMP_Init(OPAMP_HandleTypeDef *hopamp)
+{ 
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t updateotrlpotr = 0;
+
+  /* Check the OPAMP handle allocation and lock status */
+  /* Init not allowed if calibration is ongoing */
+  if((hopamp == NULL) || (hopamp->State == HAL_OPAMP_STATE_BUSYLOCKED)
+                      || (hopamp->State == HAL_OPAMP_STATE_CALIBBUSY))
+  {
+    return HAL_ERROR;
+  }
+  else
+  {
+    /* Check the parameter */
+    assert_param(IS_OPAMP_ALL_INSTANCE(hopamp->Instance));
+       
+    /* Set OPAMP parameters */
+    assert_param(IS_OPAMP_POWER_SUPPLY_RANGE(hopamp->Init.PowerSupplyRange));
+    assert_param(IS_OPAMP_POWERMODE(hopamp->Init.PowerMode));
+    assert_param(IS_OPAMP_FUNCTIONAL_NORMALMODE(hopamp->Init.Mode));
+    assert_param(IS_OPAMP_NONINVERTING_INPUT(hopamp->Init.NonInvertingInput));
+    
+    if ((hopamp->Init.Mode) == OPAMP_STANDALONE_MODE)
+    {
+      assert_param(IS_OPAMP_INVERTING_INPUT_STANDALONE(hopamp->Init.InvertingInput));
+    }
+
+    if ((hopamp->Init.Mode) == OPAMP_PGA_MODE)      
+    {
+      assert_param(IS_OPAMP_INVERTING_INPUT_PGA(hopamp->Init.InvertingInput));
+    }
+    
+    if ((hopamp->Init.Mode) == OPAMP_PGA_MODE)
+    {
+      assert_param(IS_OPAMP_PGA_GAIN(hopamp->Init.PgaGain));
+    }
+    
+    assert_param(IS_OPAMP_TRIMMING(hopamp->Init.UserTrimming)); 
+    if ((hopamp->Init.UserTrimming) == OPAMP_TRIMMING_USER)
+    {
+      if (hopamp->Init.PowerMode == OPAMP_POWERMODE_NORMAL)
+      {
+        assert_param(IS_OPAMP_TRIMMINGVALUE(hopamp->Init.TrimmingValueP));
+        assert_param(IS_OPAMP_TRIMMINGVALUE(hopamp->Init.TrimmingValueN));
+      }
+    else
+      {
+        assert_param(IS_OPAMP_TRIMMINGVALUE(hopamp->Init.TrimmingValuePLowPower));
+        assert_param(IS_OPAMP_TRIMMINGVALUE(hopamp->Init.TrimmingValueNLowPower));
+      }
+    }
+     
+    if(hopamp->State == HAL_OPAMP_STATE_RESET)
+    {
+      /* Allocate lock resource and initialize it */
+      hopamp->Lock = HAL_UNLOCKED;
+    }
+
+    /* Call MSP init function */
+    HAL_OPAMP_MspInit(hopamp);
+
+    /* Set operating mode */
+    CLEAR_BIT(hopamp->Instance->CSR, OPAMP_CSR_CALON);
+                                              
+    if (hopamp->Init.Mode == OPAMP_PGA_MODE)
+    {
+      MODIFY_REG(hopamp->Instance->CSR, OPAMP_CSR_INIT_MASK_PGA, \
+                                        hopamp->Init.PowerMode | \
+                                        hopamp->Init.Mode | \
+                                        hopamp->Init.PgaGain | \
+                                        hopamp->Init.InvertingInput    | \
+                                        hopamp->Init.NonInvertingInput | \
+                                        hopamp->Init.UserTrimming);
+    }
+    
+    if (hopamp->Init.Mode == OPAMP_FOLLOWER_MODE)
+    {
+    /* In Follower mode InvertingInput is Not Applicable  */
+    MODIFY_REG(hopamp->Instance->CSR, OPAMP_CSR_INIT_MASK_FOLLOWER, \
+                                        hopamp->Init.PowerMode | \
+                                        hopamp->Init.Mode | \
+                                        hopamp->Init.NonInvertingInput | \
+                                        hopamp->Init.UserTrimming);     
+    }     
+    
+    if (hopamp->Init.Mode == OPAMP_STANDALONE_MODE)
+    {
+      MODIFY_REG(hopamp->Instance->CSR, OPAMP_CSR_INIT_MASK_STANDALONE, \
+                                        hopamp->Init.PowerMode | \
+                                        hopamp->Init.Mode | \
+                                        hopamp->Init.InvertingInput    | \
+                                        hopamp->Init.NonInvertingInput | \
+                                        hopamp->Init.UserTrimming);
+    } 
+    
+    if (hopamp->Init.UserTrimming == OPAMP_TRIMMING_USER)
+    {
+      /* Set power mode and associated calibration parameters */
+      if (hopamp->Init.PowerMode != OPAMP_POWERMODE_LOWPOWER)
+      {
+        /* OPAMP_POWERMODE_NORMAL */
+        /* Set calibration mode (factory or user) and values for            */
+        /* transistors differential pair high (PMOS) and low (NMOS) for     */
+        /* normal mode.                                                     */
+        updateotrlpotr = (((hopamp->Init.TrimmingValueP) << (OPAMP_INPUT_NONINVERTING)) \
+                         | (hopamp->Init.TrimmingValueN)); 
+        MODIFY_REG(hopamp->Instance->OTR, OPAMP_OTR_TRIMOFFSETN | OPAMP_OTR_TRIMOFFSETP, updateotrlpotr);
+      }
+      else
+      {
+        /* OPAMP_POWERMODE_LOWPOWER */
+        /* transistors differential pair high (PMOS) and low (NMOS) for     */
+        /* low power mode.                                                     */
+        updateotrlpotr = (((hopamp->Init.TrimmingValuePLowPower) << (OPAMP_INPUT_NONINVERTING)) \
+                         | (hopamp->Init.TrimmingValueNLowPower)); 
+        MODIFY_REG(hopamp->Instance->LPOTR, OPAMP_OTR_TRIMOFFSETN | OPAMP_OTR_TRIMOFFSETP, updateotrlpotr);     
+      }
+    } 
+
+    /* Configure the power supply range */
+    /* The OPAMP_CSR_OPARANGE is common configuration for all OPAMPs */
+    /* bit OPAMP1_CSR_OPARANGE is used for both OPAMPs */
+    MODIFY_REG(OPAMP1->CSR, OPAMP1_CSR_OPARANGE, hopamp->Init.PowerSupplyRange);
+    
+    /* Update the OPAMP state*/
+    if (hopamp->State == HAL_OPAMP_STATE_RESET)
+    {
+      /* From RESET state to READY State */
+      hopamp->State = HAL_OPAMP_STATE_READY;
+    }
+    /* else: remain in READY or BUSY state (no update) */
+    return status;
+  }
+}

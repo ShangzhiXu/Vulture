@@ -1,0 +1,30 @@
+ssize_t los_read(int fd, char *buff, size_t bytes)
+{
+    struct file *file;
+    ssize_t ret = (ssize_t)-1;
+
+    if ((buff == NULL) || (bytes == 0)) {
+        VFS_ERRNO_SET(EINVAL);
+        return ret;
+    }
+
+    file = los_attach_file(fd);
+
+    if (file == NULL) {
+        return ret;
+    }
+
+    if ((file->f_flags & O_ACCMODE) == O_WRONLY) {
+        VFS_ERRNO_SET(EACCES);
+    } else if (file->f_fops->read != NULL) {
+        ret = file->f_fops->read(file, buff, bytes);
+    } else {
+        VFS_ERRNO_SET(ENOTSUP);
+    }
+
+    /* else ret will be -1 */
+
+    los_detach_file(file);
+
+    return ret;
+}

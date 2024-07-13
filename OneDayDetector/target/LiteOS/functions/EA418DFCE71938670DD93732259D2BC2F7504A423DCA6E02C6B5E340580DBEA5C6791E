@@ -1,0 +1,112 @@
+HAL_StatusTypeDef HAL_RTC_SetTime(RTC_HandleTypeDef *hrtc, RTC_TimeTypeDef *sTime, uint32_t Format)
+{
+  uint32_t tmpreg = 0U;
+
+ /* Check the parameters */
+  assert_param(IS_RTC_FORMAT(Format));
+  assert_param(IS_RTC_DAYLIGHT_SAVING(sTime->DayLightSaving));
+  assert_param(IS_RTC_STORE_OPERATION(sTime->StoreOperation));
+
+  /* Process Locked */
+  __HAL_LOCK(hrtc);
+
+  hrtc->State = HAL_RTC_STATE_BUSY;
+
+  if(Format == RTC_FORMAT_BIN)
+  {
+    if((hrtc->Instance->CR & RTC_CR_FMT) != (uint32_t)RESET)
+    {
+      assert_param(IS_RTC_HOUR12(sTime->Hours));
+      assert_param(IS_RTC_HOURFORMAT12(sTime->TimeFormat));
+    }
+    else
+    {
+      sTime->TimeFormat = 0x00U;
+      assert_param(IS_RTC_HOUR24(sTime->Hours));
+    }
+    assert_param(IS_RTC_MINUTES(sTime->Minutes));
+    assert_param(IS_RTC_SECONDS(sTime->Seconds));
+
+    tmpreg = (uint32_t)(((uint32_t)RTC_ByteToBcd2(sTime->Hours) << 16U) | \
+                        ((uint32_t)RTC_ByteToBcd2(sTime->Minutes) << 8U) | \
+                        ((uint32_t)RTC_ByteToBcd2(sTime->Seconds)) | \
+                        (((uint32_t)sTime->TimeFormat) << 16U));
+  }
+  else
+  {
+    if((hrtc->Instance->CR & RTC_CR_FMT) != (uint32_t)RESET)
+    {
+      assert_param(IS_RTC_HOUR12(RTC_Bcd2ToByte(sTime->Hours)));
+      assert_param(IS_RTC_HOURFORMAT12(sTime->TimeFormat));
+    }
+    else
+    {
+      sTime->TimeFormat = 0x00U;
+      assert_param(IS_RTC_HOUR24(RTC_Bcd2ToByte(sTime->Hours)));
+    }
+    assert_param(IS_RTC_MINUTES(RTC_Bcd2ToByte(sTime->Minutes)));
+    assert_param(IS_RTC_SECONDS(RTC_Bcd2ToByte(sTime->Seconds)));
+    tmpreg = (((uint32_t)(sTime->Hours) << 16U) | \
+              ((uint32_t)(sTime->Minutes) << 8U) | \
+              ((uint32_t)sTime->Seconds) | \
+              ((uint32_t)(sTime->TimeFormat) << 16U));
+  }
+
+  /* Disable the write protection for RTC registers */
+  __HAL_RTC_WRITEPROTECTION_DISABLE(hrtc);
+
+  /* Set Initialization mode */
+  if(RTC_EnterInitMode(hrtc) != HAL_OK)
+  {
+    /* Enable the write protection for RTC registers */
+    __HAL_RTC_WRITEPROTECTION_ENABLE(hrtc);
+
+    /* Set RTC state */
+    hrtc->State = HAL_RTC_STATE_ERROR;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hrtc);
+
+    return HAL_ERROR;
+  }
+  else
+  {
+    /* Set the RTC_TR register */
+    hrtc->Instance->TR = (uint32_t)(tmpreg & RTC_TR_RESERVED_MASK);
+
+    /* Clear the bits to be configured */
+    hrtc->Instance->CR &= (uint32_t)~RTC_CR_BCK;
+
+    /* Configure the RTC_CR register */
+    hrtc->Instance->CR |= (uint32_t)(sTime->DayLightSaving | sTime->StoreOperation);
+
+    /* Exit Initialization mode */
+    hrtc->Instance->ISR &= (uint32_t)~RTC_ISR_INIT;
+
+    /* If  CR_BYPSHAD bit = 0, wait for synchro else this check is not needed */
+    if((hrtc->Instance->CR & RTC_CR_BYPSHAD) == RESET)
+    {
+      if(HAL_RTC_WaitForSynchro(hrtc) != HAL_OK)
+      {
+        /* Enable the write protection for RTC registers */
+        __HAL_RTC_WRITEPROTECTION_ENABLE(hrtc);
+
+        hrtc->State = HAL_RTC_STATE_ERROR;
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(hrtc);
+
+        return HAL_ERROR;
+      }
+    }
+
+    /* Enable the write protection for RTC registers */
+    __HAL_RTC_WRITEPROTECTION_ENABLE(hrtc);
+
+   hrtc->State = HAL_RTC_STATE_READY;
+
+   __HAL_UNLOCK(hrtc);
+
+   return HAL_OK;
+  }
+}

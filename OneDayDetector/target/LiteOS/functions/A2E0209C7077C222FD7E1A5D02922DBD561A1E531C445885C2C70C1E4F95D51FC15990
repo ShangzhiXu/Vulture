@@ -1,0 +1,24 @@
+int mbedtls_pk_parse_keyfile( mbedtls_pk_context *ctx,
+                      const char *path, const char *pwd )
+{
+    int ret;
+    size_t n;
+    unsigned char *buf;
+
+    PK_VALIDATE_RET( ctx != NULL );
+    PK_VALIDATE_RET( path != NULL );
+
+    if( ( ret = mbedtls_pk_load_file( path, &buf, &n ) ) != 0 )
+        return( ret );
+
+    if( pwd == NULL )
+        ret = mbedtls_pk_parse_key( ctx, buf, n, NULL, 0 );
+    else
+        ret = mbedtls_pk_parse_key( ctx, buf, n,
+                (const unsigned char *) pwd, strlen( pwd ) );
+
+    mbedtls_platform_zeroize( buf, n );
+    mbedtls_free( buf );
+
+    return( ret );
+}

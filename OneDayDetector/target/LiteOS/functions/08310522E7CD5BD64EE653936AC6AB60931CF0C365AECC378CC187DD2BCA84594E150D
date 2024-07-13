@@ -1,0 +1,81 @@
+static void JPEG_DMA_PollResidualData(JPEG_HandleTypeDef *hjpeg)
+{
+  uint32_t tmpContext, count, dataOut;
+
+  for (count = JPEG_FIFO_SIZE; count > 0UL; count--)
+  {
+    if ((hjpeg->Context &  JPEG_CONTEXT_PAUSE_OUTPUT) == 0UL)
+    {
+      if (__HAL_JPEG_GET_FLAG(hjpeg, JPEG_FLAG_OFNEF) != 0UL)
+      {
+        dataOut = hjpeg->Instance->DOR;
+        hjpeg->pJpegOutBuffPtr[hjpeg->JpegOutCount] = (uint8_t)(dataOut & 0x000000FFUL);
+        hjpeg->pJpegOutBuffPtr[hjpeg->JpegOutCount + 1UL] = (uint8_t)((dataOut & 0x0000FF00UL) >> 8);
+        hjpeg->pJpegOutBuffPtr[hjpeg->JpegOutCount + 2UL] = (uint8_t)((dataOut & 0x00FF0000UL) >> 16);
+        hjpeg->pJpegOutBuffPtr[hjpeg->JpegOutCount + 3UL] = (uint8_t)((dataOut & 0xFF000000UL) >> 24);
+        hjpeg->JpegOutCount += 4UL;
+
+        if (hjpeg->JpegOutCount == hjpeg->OutDataLength)
+        {
+          /*Output Buffer is full, call HAL_JPEG_DataReadyCallback*/
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+          hjpeg->DataReadyCallback(hjpeg, hjpeg->pJpegOutBuffPtr, hjpeg->JpegOutCount);
+#else
+          HAL_JPEG_DataReadyCallback(hjpeg, hjpeg->pJpegOutBuffPtr, hjpeg->JpegOutCount);
+#endif /* USE_HAL_JPEG_REGISTER_CALLBACKS */
+
+          hjpeg->JpegOutCount = 0;
+        }
+
+      }
+    }
+  }
+
+  tmpContext = hjpeg->Context;
+
+  if ((__HAL_JPEG_GET_FLAG(hjpeg, JPEG_FLAG_OFNEF) == 0UL) || ((tmpContext & JPEG_CONTEXT_PAUSE_OUTPUT) == 0UL))
+  {
+    /*Stop Encoding/Decoding*/
+    hjpeg->Instance->CONFR0 &=  ~JPEG_CONFR0_START;
+
+    if (hjpeg->JpegOutCount > 0UL)
+    {
+      /*Output Buffer is not empty, call DecodedDataReadyCallback*/
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+      hjpeg->DataReadyCallback(hjpeg, hjpeg->pJpegOutBuffPtr, hjpeg->JpegOutCount);
+#else
+      HAL_JPEG_DataReadyCallback(hjpeg, hjpeg->pJpegOutBuffPtr, hjpeg->JpegOutCount);
+#endif /* USE_HAL_JPEG_REGISTER_CALLBACKS */
+
+      hjpeg->JpegOutCount = 0;
+    }
+
+    tmpContext = hjpeg->Context;
+    /*Clear all context fileds execpt JPEG_CONTEXT_CONF_ENCODING and JPEG_CONTEXT_CUSTOM_TABLES*/
+    hjpeg->Context &= (JPEG_CONTEXT_CONF_ENCODING | JPEG_CONTEXT_CUSTOM_TABLES);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hjpeg);
+
+    /* Change the JPEG state */
+    hjpeg->State = HAL_JPEG_STATE_READY;
+
+    /*Call End of Encoding/Decoding callback */
+    if ((tmpContext & JPEG_CONTEXT_OPERATION_MASK) == JPEG_CONTEXT_DECODE)
+    {
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+      hjpeg->DecodeCpltCallback(hjpeg);
+#else
+      HAL_JPEG_DecodeCpltCallback(hjpeg);
+#endif /* USE_HAL_JPEG_REGISTER_CALLBACKS */
+    }
+    else /* JPEG_CONTEXT_ENCODE */
+    {
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+      hjpeg->EncodeCpltCallback(hjpeg);
+#else
+      HAL_JPEG_EncodeCpltCallback(hjpeg);
+#endif /* USE_HAL_JPEG_REGISTER_CALLBACKS */
+    }
+  }
+}

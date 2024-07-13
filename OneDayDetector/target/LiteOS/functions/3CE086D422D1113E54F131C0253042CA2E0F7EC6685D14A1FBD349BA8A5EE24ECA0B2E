@@ -1,0 +1,24 @@
+osStatus_t osTimerStart(osTimerId_t timer_id, uint32_t ticks)
+{
+    LosSwtmrCB *swtmrCB = (LosSwtmrCB *)timer_id;
+    UINT32 ret;
+
+    if ((swtmrCB == NULL) || (ticks == 0)) {
+        return osErrorParameter;
+    }
+
+    if (OS_INT_ACTIVE) {
+        return osErrorISR;
+    }
+
+    swtmrCB->expiry = ticks;
+    swtmrCB->interval = ticks;
+    ret = LOS_SwtmrStart(swtmrCB->timerId);
+    if (ret == LOS_OK) {
+        return osOK;
+    } else if (ret == LOS_ERRNO_SWTMR_ID_INVALID) {
+        return osErrorParameter;
+    } else {
+        return osErrorResource;
+    }
+}

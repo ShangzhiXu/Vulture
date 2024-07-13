@@ -1,0 +1,58 @@
+pppos_netif_output(ppp_pcb *ppp, void *ctx, struct pbuf *pb, u16_t protocol)
+{
+  pppos_pcb *pppos = (pppos_pcb *)ctx;
+  struct pbuf *nb, *p;
+  u16_t fcs_out;
+  err_t err;
+  LWIP_UNUSED_ARG(ppp);
+
+  /* Grab an output buffer. Using PBUF_POOL here for tx is ok since the pbuf
+     gets freed by 'pppos_output_last' before this function returns and thus
+     cannot starve rx. */
+  nb = pbuf_alloc(PBUF_RAW, 0, PBUF_POOL);
+  if (nb == NULL) {
+    PPPDEBUG(LOG_WARNING, ("pppos_netif_output[%d]: alloc fail\n", ppp->netif->num));
+    LINK_STATS_INC(link.memerr);
+    LINK_STATS_INC(link.drop);
+    MIB2_STATS_NETIF_INC(ppp->netif, ifoutdiscards);
+    return ERR_MEM;
+  }
+
+  /* Set nb->tot_len to actual payload length */
+  nb->tot_len = pb->tot_len;
+
+  /* If the link has been idle, we'll send a fresh flag character to
+   * flush any noise. */
+  err = ERR_OK;
+  if ((sys_now() - pppos->last_xmit) >= PPP_MAXIDLEFLAG) {
+    err = pppos_output_append(pppos, err,  nb, PPP_FLAG, 0, NULL);
+  }
+
+  fcs_out = PPP_INITFCS;
+  if (!pppos->accomp) {
+    err = pppos_output_append(pppos, err,  nb, PPP_ALLSTATIONS, 1, &fcs_out);
+    err = pppos_output_append(pppos, err,  nb, PPP_UI, 1, &fcs_out);
+  }
+  if (!pppos->pcomp || protocol > 0xFF) {
+    err = pppos_output_append(pppos, err,  nb, (protocol >> 8) & 0xFF, 1, &fcs_out);
+  }
+  err = pppos_output_append(pppos, err,  nb, protocol & 0xFF, 1, &fcs_out);
+
+  /* Load packet. */
+  for(p = pb; p; p = p->next) {
+    u16_t n = p->len;
+    u8_t *s = (u8_t*)p->payload;
+
+    while (n-- > 0) {
+      err = pppos_output_append(pppos, err,  nb, *s++, 1, &fcs_out);
+    }
+  }
+
+  err = pppos_output_last(pppos, err, nb, &fcs_out);
+  if (err == ERR_OK) {
+    PPPDEBUG(LOG_INFO, ("pppos_netif_output[%d]: proto=0x%"X16_F", len = %d\n", ppp->netif->num, protocol, pb->tot_len));
+  } else {
+    PPPDEBUG(LOG_WARNING, ("pppos_netif_output[%d]: output failed proto=0x%"X16_F", len = %d\n", ppp->netif->num, protocol, pb->tot_len));
+  }
+  return err;
+}

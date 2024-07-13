@@ -1,0 +1,111 @@
+HAL_StatusTypeDef HAL_ADCEx_RegularMultiModeStop_DMA(ADC_HandleTypeDef* hadc)
+{
+  HAL_StatusTypeDef tmp_hal_status = HAL_OK;
+  uint32_t tickstart;
+  ADC_HandleTypeDef tmphadcSlave;
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_MULTIMODE_MASTER_INSTANCE(hadc->Instance));
+  
+  /* Process locked */
+  __HAL_LOCK(hadc);
+  
+  
+  /* 1. Stop potential multimode conversion on going, on regular groups */
+  tmp_hal_status = ADC_ConversionStop(hadc, ADC_REGULAR_GROUP);
+  
+  /* Disable ADC peripheral if conversions are effectively stopped */
+  if (tmp_hal_status == HAL_OK)
+  {
+    /* Clear HAL_ADC_STATE_REG_BUSY bit */
+    CLEAR_BIT(hadc->State, HAL_ADC_STATE_REG_BUSY);
+    
+    /* Set a temporary handle of the ADC slave associated to the ADC master   */
+    ADC_MULTI_SLAVE(hadc, &tmphadcSlave);
+    
+    if (tmphadcSlave.Instance == NULL)
+    {
+      /* Update ADC state machine to error */
+      SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_CONFIG);
+      
+      /* Process unlocked */
+      __HAL_UNLOCK(hadc);
+      
+      return HAL_ERROR;
+    }
+    
+    /* Procedure to disable the ADC peripheral: wait for conversions          */
+    /* effectively stopped (ADC master and ADC slave), then disable ADC       */
+    
+    /* 1. Wait until ADSTP=0 for ADC master and ADC slave*/
+    tickstart = HAL_GetTick();  
+    
+    while(ADC_IS_CONVERSION_ONGOING_REGULAR(hadc)          || 
+          ADC_IS_CONVERSION_ONGOING_REGULAR(&tmphadcSlave)   )
+    {
+      if((HAL_GetTick()-tickstart) > ADC_STOP_CONVERSION_TIMEOUT)
+      {
+        /* Update ADC state machine to error */
+        SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL);
+        
+        /* Process unlocked */
+        __HAL_UNLOCK(hadc);
+        
+        return HAL_ERROR;
+      }
+    }
+    
+    /* Disable the DMA channel (in case of DMA in circular mode or stop       */
+    /* while DMA transfer is on going)                                        */
+    /* Note: DMA channel of ADC slave should be stopped after this function   */
+    /* with HAL_ADCEx_RegularStop_DMA() API.                                  */
+    tmp_hal_status = HAL_DMA_Abort(hadc->DMA_Handle);
+    
+    /* Check if DMA channel effectively disabled */
+    if (tmp_hal_status != HAL_OK)
+    {
+      /* Update ADC state machine to error */
+      SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_DMA);  
+    }
+    
+    /* Disable ADC overrun interrupt */
+    __HAL_ADC_DISABLE_IT(hadc, ADC_IT_OVR);
+    
+    /* 2. Disable the ADC peripherals: master and slave if no injected        */
+    /*   conversion is on-going.                                              */
+    /* Update "tmp_hal_status" only if DMA channel disabling passed, to keep in */
+    /* memory a potential failing status.                                     */
+    if (tmp_hal_status == HAL_OK)
+    {
+       if (ADC_IS_CONVERSION_ONGOING_INJECTED(hadc) == RESET)
+       {  
+         tmp_hal_status =  ADC_Disable(hadc);
+         if (tmp_hal_status == HAL_OK)
+         {
+           if (ADC_IS_CONVERSION_ONGOING_INJECTED(&tmphadcSlave) == RESET)
+           {
+             tmp_hal_status =  ADC_Disable(&tmphadcSlave);
+           }
+         }
+       }
+       
+       if (tmp_hal_status == HAL_OK)
+       {
+         /* Both Master and Slave ADC's could be disabled. Update Master State */
+         /* Clear HAL_ADC_STATE_INJ_BUSY bit, set HAL_ADC_STATE_READY bit */
+         ADC_STATE_CLR_SET(hadc->State, HAL_ADC_STATE_INJ_BUSY, HAL_ADC_STATE_READY);
+       }
+       else
+       {
+         /* injected (Master or Slave) conversions are still on-going,
+            no Master State change */
+       }
+    }
+  }
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+  
+  /* Return function status */
+  return tmp_hal_status;
+}

@@ -1,0 +1,70 @@
+HAL_StatusTypeDef HAL_ADCEx_Calibration_Start(ADC_HandleTypeDef* hadc, uint32_t SingleDiff)
+{
+  HAL_StatusTypeDef tmp_hal_status = HAL_OK;
+  uint32_t WaitLoopIndex = 0;
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+  assert_param(IS_ADC_SINGLE_DIFFERENTIAL(SingleDiff));
+  
+  /* Process locked */
+  __HAL_LOCK(hadc);
+  
+  /* Calibration prerequisite: ADC must be disabled. */
+  
+  /* Disable the ADC (if not already disabled) */
+  tmp_hal_status = ADC_Disable(hadc);
+  
+  /* Check if ADC is effectively disabled */
+  if (tmp_hal_status == HAL_OK)
+  {
+    /* Set ADC state */
+    ADC_STATE_CLR_SET(hadc->State, 
+                      HAL_ADC_STATE_REG_BUSY | HAL_ADC_STATE_INJ_BUSY,
+                      HAL_ADC_STATE_BUSY_INTERNAL);
+
+    
+
+    /* Select calibration mode single ended or differential ended */
+    MODIFY_REG(hadc->Instance->CR, ADC_CR_ADCALDIF, SingleDiff);
+    
+    /* Start ADC calibration */
+    SET_BIT(hadc->Instance->CR, ADC_CR_ADCAL);
+    
+    /* Wait for calibration completion */
+    while(HAL_IS_BIT_SET(hadc->Instance->CR, ADC_CR_ADCAL))
+    {
+      WaitLoopIndex++;
+      if (WaitLoopIndex >= ADC_CALIBRATION_TIMEOUT)
+      {
+        /* Update ADC state machine to error */
+        ADC_STATE_CLR_SET(hadc->State,
+                          HAL_ADC_STATE_BUSY_INTERNAL,
+                          HAL_ADC_STATE_ERROR_INTERNAL);
+        
+        /* Process unlocked */
+        __HAL_UNLOCK(hadc);
+        
+        return HAL_ERROR;
+      }
+    }
+    
+    /* Set ADC state */
+    ADC_STATE_CLR_SET(hadc->State,
+                      HAL_ADC_STATE_BUSY_INTERNAL,
+                      HAL_ADC_STATE_READY);
+  }
+  else
+  {
+    SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL);
+    
+    /* Note: No need to update variable "tmp_hal_status" here: already set    */
+    /*       to state "HAL_ERROR" by function disabling the ADC.              */
+  }
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+  
+  /* Return function status */
+  return tmp_hal_status;
+}

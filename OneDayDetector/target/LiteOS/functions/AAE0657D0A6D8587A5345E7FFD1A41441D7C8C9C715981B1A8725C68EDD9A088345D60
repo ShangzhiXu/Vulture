@@ -1,0 +1,18 @@
+static VOID Pend_Entry(VOID)
+{
+#define QUEUE_BUFFER_SIZE 32
+    CHAR buf[QUEUE_BUFFER_SIZE] = {0};
+
+    LOS_EventRead(&g_demoEvent, TRACE_DEMO_EVENT_WAIT, LOS_WAITMODE_AND, 100);
+    LOS_EventClear(&g_demoEvent, ~g_demoEvent.uwEventID);
+
+    LOS_SemPend(g_demoSem, 10);
+    LOS_SemDelete(g_demoSem);
+
+    LOS_QueueRead(g_demoQueue, &buf, QUEUE_BUFFER_SIZE, LOS_WAIT_FOREVER);
+    LOS_QueueDelete(g_demoQueue);
+
+    LOS_MuxPend(g_demoMux, LOS_WAIT_FOREVER);
+    LOS_MuxPost(g_demoMux);
+    LOS_MuxDelete(g_demoMux);
+}

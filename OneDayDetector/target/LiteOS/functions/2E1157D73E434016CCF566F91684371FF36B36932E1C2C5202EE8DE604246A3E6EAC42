@@ -1,0 +1,65 @@
+static uint8_t prv_device_write(uint16_t instanceId,
+                                int numData,
+                                lwm2m_data_t *dataArray,
+                                lwm2m_object_t *objectP)
+{
+    int i;
+    uint8_t result;
+    int64_t current_time;
+
+    // this is a single instance object
+    if (instanceId != 0) {
+        return COAP_404_NOT_FOUND;
+    }
+
+    i = 0;
+    do {
+        switch (dataArray[i].id) {
+        case RES_O_CURRENT_TIME: {
+            if (lwm2m_data_decode_int(dataArray + i, &current_time) == 1) {
+                result = atiny_cmd_ioctl(ATINY_SET_CURRENT_TIME, (char *)&current_time, sizeof(int64_t));
+                if (result == ATINY_OK) {
+                    return COAP_204_CHANGED;
+                } else {
+                    return COAP_400_BAD_REQUEST;
+                }
+            } else {
+                result = COAP_400_BAD_REQUEST;
+            }
+            break;
+        }
+        case RES_O_UTC_OFFSET: {
+            if (prv_check_time_offset((char *)dataArray[i].value.asBuffer.buffer,
+                                      dataArray[i].value.asBuffer.length) == 1) {
+                result = atiny_cmd_ioctl(ATINY_SET_UTC_OFFSET, (char *)dataArray[i].value.asBuffer.buffer,
+                                         dataArray[i].value.asBuffer.length);
+                if (result == ATINY_OK) {
+                    return COAP_204_CHANGED;
+                }
+                else {
+                    return COAP_400_BAD_REQUEST;
+                }
+            } else {
+                result = COAP_400_BAD_REQUEST;
+            }
+            break;
+        }
+        case RES_O_TIMEZONE: {
+            result = atiny_cmd_ioctl(ATINY_SET_TIMEZONE, (char *)dataArray[i].value.asBuffer.buffer,
+                                     dataArray[i].value.asBuffer.length);
+            if (result == ATINY_OK) {
+                return COAP_204_CHANGED;
+            } else {
+                return COAP_400_BAD_REQUEST;
+            }
+        // break;
+        }
+        default:
+            result = COAP_405_METHOD_NOT_ALLOWED;
+        }
+        i++;
+    }
+    while ((i < numData) && (result == COAP_204_CHANGED));
+
+    return result;
+}

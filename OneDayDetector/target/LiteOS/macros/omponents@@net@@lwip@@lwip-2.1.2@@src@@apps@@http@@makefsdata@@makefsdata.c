@@ -1,0 +1,8 @@
+#define CHDIR(path)                   SetCurrentDirectoryA(path)
+#define CHDIR(path)                   chdir(path)
+#define CHDIR_SUCCEEDED(ret)          (ret == TRUE)
+#define CHDIR_SUCCEEDED(ret)          (ret == 0)
+#define GETCWD(path, len)             GetCurrentDirectoryA(len, path)
+#define GETCWD(path, len)             getcwd(path, len)
+#define my_max(a,b) (((a) > (b)) ? (a) : (b))
+#define my_min(a,b) (((a) < (b)) ? (a) : (b))

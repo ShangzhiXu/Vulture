@@ -1,0 +1,29 @@
+HAL_StatusTypeDef HAL_RNG_RegisterReadyDataCallback(RNG_HandleTypeDef *hrng, pRNG_ReadyDataCallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    /* Update the error code */
+    hrng->ErrorCode = HAL_RNG_ERROR_INVALID_CALLBACK;
+    return HAL_ERROR;
+  }
+  /* Process locked */
+  __HAL_LOCK(hrng);
+
+  if (HAL_RNG_STATE_READY == hrng->State)
+  {
+    hrng->ReadyDataCallback = pCallback;
+  }
+  else
+  {
+    /* Update the error code */
+    hrng->ErrorCode = HAL_RNG_ERROR_INVALID_CALLBACK;
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hrng);
+  return status;
+}

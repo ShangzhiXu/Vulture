@@ -1,0 +1,54 @@
+void HAL_FMPSMBUS_EV_IRQHandler(FMPSMBUS_HandleTypeDef *hfmpsmbus)
+{
+  /* Use a local variable to store the current ISR flags */
+  /* This action will avoid a wrong treatment due to ISR flags change during interrupt handler */
+  uint32_t tmpisrvalue = READ_REG(hfmpsmbus->Instance->ISR);
+  uint32_t tmpcr1value = READ_REG(hfmpsmbus->Instance->CR1);
+
+  /* FMPSMBUS in mode Transmitter ---------------------------------------------------*/
+  if ((FMPSMBUS_CHECK_IT_SOURCE(tmpcr1value, (FMPSMBUS_IT_TCI | FMPSMBUS_IT_STOPI | FMPSMBUS_IT_NACKI | FMPSMBUS_IT_TXI)) != RESET) && ((FMPSMBUS_CHECK_FLAG(tmpisrvalue, FMPSMBUS_FLAG_TXIS) != RESET) || (FMPSMBUS_CHECK_FLAG(tmpisrvalue, FMPSMBUS_FLAG_TCR) != RESET) || (FMPSMBUS_CHECK_FLAG(tmpisrvalue, FMPSMBUS_FLAG_TC) != RESET) || (FMPSMBUS_CHECK_FLAG(tmpisrvalue, FMPSMBUS_FLAG_STOPF) != RESET) || (FMPSMBUS_CHECK_FLAG(tmpisrvalue, FMPSMBUS_FLAG_AF) != RESET)))
+  {
+    /* Slave mode selected */
+    if ((hfmpsmbus->State & HAL_FMPSMBUS_STATE_SLAVE_BUSY_TX) == HAL_FMPSMBUS_STATE_SLAVE_BUSY_TX)
+    {
+      (void)FMPSMBUS_Slave_ISR(hfmpsmbus, tmpisrvalue);
+    }
+    /* Master mode selected */
+    else if ((hfmpsmbus->State & HAL_FMPSMBUS_STATE_MASTER_BUSY_TX) == HAL_FMPSMBUS_STATE_MASTER_BUSY_TX)
+    {
+      (void)FMPSMBUS_Master_ISR(hfmpsmbus, tmpisrvalue);
+    }
+    else
+    {
+      /* Nothing to do */
+    }
+  }
+
+  /* FMPSMBUS in mode Receiver ----------------------------------------------------*/
+  if ((FMPSMBUS_CHECK_IT_SOURCE(tmpcr1value, (FMPSMBUS_IT_TCI | FMPSMBUS_IT_STOPI | FMPSMBUS_IT_NACKI | FMPSMBUS_IT_RXI)) != RESET) && ((FMPSMBUS_CHECK_FLAG(tmpisrvalue, FMPSMBUS_FLAG_RXNE) != RESET) || (FMPSMBUS_CHECK_FLAG(tmpisrvalue, FMPSMBUS_FLAG_TCR) != RESET) || (FMPSMBUS_CHECK_FLAG(tmpisrvalue, FMPSMBUS_FLAG_TC) != RESET) || (FMPSMBUS_CHECK_FLAG(tmpisrvalue, FMPSMBUS_FLAG_STOPF) != RESET) || (FMPSMBUS_CHECK_FLAG(tmpisrvalue, FMPSMBUS_FLAG_AF) != RESET)))
+  {
+    /* Slave mode selected */
+    if ((hfmpsmbus->State & HAL_FMPSMBUS_STATE_SLAVE_BUSY_RX) == HAL_FMPSMBUS_STATE_SLAVE_BUSY_RX)
+    {
+      (void)FMPSMBUS_Slave_ISR(hfmpsmbus, tmpisrvalue);
+    }
+    /* Master mode selected */
+    else if ((hfmpsmbus->State & HAL_FMPSMBUS_STATE_MASTER_BUSY_RX) == HAL_FMPSMBUS_STATE_MASTER_BUSY_RX)
+    {
+      (void)FMPSMBUS_Master_ISR(hfmpsmbus, tmpisrvalue);
+    }
+    else
+    {
+      /* Nothing to do */
+    }
+  }
+
+  /* FMPSMBUS in mode Listener Only --------------------------------------------------*/
+  if (((FMPSMBUS_CHECK_IT_SOURCE(tmpcr1value, FMPSMBUS_IT_ADDRI) != RESET) || (FMPSMBUS_CHECK_IT_SOURCE(tmpcr1value, FMPSMBUS_IT_STOPI) != RESET) || (FMPSMBUS_CHECK_IT_SOURCE(tmpcr1value, FMPSMBUS_IT_NACKI) != RESET)) && ((FMPSMBUS_CHECK_FLAG(tmpisrvalue, FMPSMBUS_FLAG_ADDR) != RESET) || (FMPSMBUS_CHECK_FLAG(tmpisrvalue, FMPSMBUS_FLAG_STOPF) != RESET) || (FMPSMBUS_CHECK_FLAG(tmpisrvalue, FMPSMBUS_FLAG_AF) != RESET)))
+  {
+    if ((hfmpsmbus->State & HAL_FMPSMBUS_STATE_LISTEN) == HAL_FMPSMBUS_STATE_LISTEN)
+    {
+      (void)FMPSMBUS_Slave_ISR(hfmpsmbus, tmpisrvalue);
+    }
+  }
+}

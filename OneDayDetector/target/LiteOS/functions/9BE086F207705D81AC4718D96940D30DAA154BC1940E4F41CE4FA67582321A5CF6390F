@@ -1,0 +1,17 @@
+static HAL_StatusTypeDef SMBUS_SlaveTransmit_BTF(SMBUS_HandleTypeDef *hsmbus)
+{
+  if (hsmbus->XferCount != 0U)
+  {
+    /* Write data to DR */
+    hsmbus->Instance->DR = (*hsmbus->pBuffPtr++);
+    hsmbus->XferCount--;
+  }
+
+
+
+  else if ((hsmbus->XferCount == 0U) && (SMBUS_GET_PEC_MODE(hsmbus) == SMBUS_PEC_ENABLE) && ((hsmbus->XferOptions == SMBUS_FIRST_AND_LAST_FRAME_WITH_PEC) || (hsmbus->XferOptions == SMBUS_LAST_FRAME_WITH_PEC)))
+  {
+    SET_BIT(hsmbus->Instance->CR1, I2C_CR1_PEC);
+  }
+  return HAL_OK;
+}

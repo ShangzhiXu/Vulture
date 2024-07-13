@@ -1,0 +1,28 @@
+LITE_OS_SEC_TEXT_INIT STATIC BOOL OsTaskSuspendCheckOnRun(LosTaskCB *taskCB, UINT32 *ret)
+{
+    /* init default out return value */
+    *ret = LOS_OK;
+
+#ifdef LOSCFG_KERNEL_SMP
+    /* ASYNCHRONIZED. No need to do task lock checking */
+    if (taskCB->currCpu != ArchCurrCpuid()) {
+        taskCB->signal = SIGNAL_SUSPEND;
+        LOS_MpSchedule(taskCB->currCpu);
+        return FALSE;
+    }
+#endif
+
+    if (!OsPreemptableInSched()) {
+        /* Suspending the current core's running task */
+        *ret = LOS_ERRNO_TSK_SUSPEND_LOCKED;
+        return FALSE;
+    }
+
+    if (OS_INT_ACTIVE) {
+        /* suspend running task in interrupt */
+        taskCB->signal = SIGNAL_SUSPEND;
+        return FALSE;
+    }
+
+    return TRUE;
+}

@@ -1,0 +1,52 @@
+static err_t lwiperf_start_tcp_server_impl(const ip_addr_t *local_addr, u16_t local_port,
+                                           lwiperf_report_fn report_fn, void *report_arg,
+                                           lwiperf_state_base_t *related_master_state, lwiperf_state_tcp_t **state)
+{
+  err_t err;
+  struct tcp_pcb *pcb;
+  lwiperf_state_tcp_t *s;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  LWIP_ASSERT("state != NULL", state != NULL);
+
+  if (local_addr == NULL) {
+    return ERR_ARG;
+  }
+
+  s = (lwiperf_state_tcp_t *)LWIPERF_ALLOC(lwiperf_state_tcp_t);
+  if (s == NULL) {
+    return ERR_MEM;
+  }
+  memset(s, 0, sizeof(lwiperf_state_tcp_t));
+  s->base.tcp = 1;
+  s->base.server = 1;
+  s->base.related_master_state = related_master_state;
+  s->report_fn = report_fn;
+  s->report_arg = report_arg;
+
+  pcb = tcp_new_ip_type(LWIPERF_SERVER_IP_TYPE);
+  if (pcb == NULL) {
+    return ERR_MEM;
+  }
+  err = tcp_bind(pcb, local_addr, local_port);
+  if (err != ERR_OK) {
+    return err;
+  }
+  s->server_pcb = tcp_listen_with_backlog(pcb, 1);
+  if (s->server_pcb == NULL) {
+    if (pcb != NULL) {
+      tcp_close(pcb);
+    }
+    LWIPERF_FREE(lwiperf_state_tcp_t, s);
+    return ERR_MEM;
+  }
+  pcb = NULL;
+
+  tcp_arg(s->server_pcb, s);
+  tcp_accept(s->server_pcb, lwiperf_tcp_accept);
+
+  lwiperf_list_add(&s->base);
+  *state = s;
+  return ERR_OK;
+}

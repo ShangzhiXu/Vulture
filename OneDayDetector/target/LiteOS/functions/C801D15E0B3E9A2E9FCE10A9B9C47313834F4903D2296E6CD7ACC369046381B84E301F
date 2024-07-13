@@ -1,0 +1,31 @@
+void copy_server_object(lwm2m_object_t *objectDest, lwm2m_object_t *objectSrc)
+{
+    server_instance_t *instanceSrc = NULL;
+    server_instance_t *previousInstanceDest = NULL;
+
+    memcpy(objectDest, objectSrc, sizeof(lwm2m_object_t));
+    objectDest->instanceList = NULL;
+    objectDest->userData = NULL;
+    instanceSrc = (server_instance_t *)objectSrc->instanceList;
+    while (instanceSrc != NULL)
+    {
+        server_instance_t *instanceDest = (server_instance_t *)lwm2m_malloc(sizeof(server_instance_t));
+        if (NULL == instanceDest)
+        {
+            return;
+        }
+        memcpy(instanceDest, instanceSrc, sizeof(server_instance_t));
+        // not sure it's necessary:
+        strncpy(instanceDest->binding, instanceSrc->binding, 4);
+        instanceSrc = (server_instance_t *)instanceSrc->next;
+        if (previousInstanceDest == NULL)
+        {
+            objectDest->instanceList = (lwm2m_list_t *)instanceDest;
+        }
+        else
+        {
+            previousInstanceDest->next = instanceDest;
+        }
+        previousInstanceDest = instanceDest;
+    }
+}

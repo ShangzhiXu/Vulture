@@ -1,0 +1,35 @@
+static cJSON_bool compare_pointers(const unsigned char *name, const unsigned char *pointer, const cJSON_bool case_sensitive)
+{
+    if ((name == NULL) || (pointer == NULL))
+    {
+        return false;
+    }
+
+    for (; (*name != '\0') && (*pointer != '\0') && (*pointer != '/'); (void)name++, pointer++) /* compare until next '/' */
+    {
+        if (*pointer == '~')
+        {
+            /* check for escaped '~' (~0) and '/' (~1) */
+            if (((pointer[1] != '0') || (*name != '~')) && ((pointer[1] != '1') || (*name != '/')))
+            {
+                /* invalid escape sequence or wrong character in *name */
+                return false;
+            }
+            else
+            {
+                pointer++;
+            }
+        }
+        else if ((!case_sensitive && (tolower(*name) != tolower(*pointer))) || (case_sensitive && (*name != *pointer)))
+        {
+            return false;
+        }
+    }
+    if (((*pointer != 0) && (*pointer != '/')) != (*name != 0))
+    {
+        /* one string has ended, the other not */
+        return false;;
+    }
+
+    return true;
+}

@@ -1,0 +1,87 @@
+static int rsa_check_context( mbedtls_rsa_context const *ctx, int is_priv,
+                              int blinding_needed )
+{
+#if !defined(MBEDTLS_RSA_NO_CRT)
+    /* blinding_needed is only used for NO_CRT to decide whether
+     * P,Q need to be present or not. */
+    ((void) blinding_needed);
+#endif
+
+    if( ctx->len != mbedtls_mpi_size( &ctx->N ) ||
+        ctx->len > MBEDTLS_MPI_MAX_SIZE )
+    {
+        return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+    }
+
+    /*
+     * 1. Modular exponentiation needs positive, odd moduli.
+     */
+
+    /* Modular exponentiation wrt. N is always used for
+     * RSA public key operations. */
+    if( mbedtls_mpi_cmp_int( &ctx->N, 0 ) <= 0 ||
+        mbedtls_mpi_get_bit( &ctx->N, 0 ) == 0  )
+    {
+        return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+    }
+
+#if !defined(MBEDTLS_RSA_NO_CRT)
+    /* Modular exponentiation for P and Q is only
+     * used for private key operations and if CRT
+     * is used. */
+    if( is_priv &&
+        ( mbedtls_mpi_cmp_int( &ctx->P, 0 ) <= 0 ||
+          mbedtls_mpi_get_bit( &ctx->P, 0 ) == 0 ||
+          mbedtls_mpi_cmp_int( &ctx->Q, 0 ) <= 0 ||
+          mbedtls_mpi_get_bit( &ctx->Q, 0 ) == 0  ) )
+    {
+        return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+    }
+#endif /* !MBEDTLS_RSA_NO_CRT */
+
+    /*
+     * 2. Exponents must be positive
+     */
+
+    /* Always need E for public key operations */
+    if( mbedtls_mpi_cmp_int( &ctx->E, 0 ) <= 0 )
+        return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+
+#if defined(MBEDTLS_RSA_NO_CRT)
+    /* For private key operations, use D or DP & DQ
+     * as (unblinded) exponents. */
+    if( is_priv && mbedtls_mpi_cmp_int( &ctx->D, 0 ) <= 0 )
+        return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+#else
+    if( is_priv &&
+        ( mbedtls_mpi_cmp_int( &ctx->DP, 0 ) <= 0 ||
+          mbedtls_mpi_cmp_int( &ctx->DQ, 0 ) <= 0  ) )
+    {
+        return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+    }
+#endif /* MBEDTLS_RSA_NO_CRT */
+
+    /* Blinding shouldn't make exponents negative either,
+     * so check that P, Q >= 1 if that hasn't yet been
+     * done as part of 1. */
+#if defined(MBEDTLS_RSA_NO_CRT)
+    if( is_priv && blinding_needed &&
+        ( mbedtls_mpi_cmp_int( &ctx->P, 0 ) <= 0 ||
+          mbedtls_mpi_cmp_int( &ctx->Q, 0 ) <= 0 ) )
+    {
+        return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+    }
+#endif
+
+    /* It wouldn't lead to an error if it wasn't satisfied,
+     * but check for QP >= 1 nonetheless. */
+#if !defined(MBEDTLS_RSA_NO_CRT)
+    if( is_priv &&
+        mbedtls_mpi_cmp_int( &ctx->QP, 0 ) <= 0 )
+    {
+        return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+    }
+#endif
+
+    return( 0 );
+}

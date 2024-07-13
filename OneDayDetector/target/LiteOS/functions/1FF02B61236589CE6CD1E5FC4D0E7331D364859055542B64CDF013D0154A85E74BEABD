@@ -1,0 +1,44 @@
+HAL_StatusTypeDef HAL_LCD_Clear(LCD_HandleTypeDef *hlcd)
+{
+  uint32_t tickstart = 0x00;
+  uint32_t counter = 0;
+
+  if((hlcd->State == HAL_LCD_STATE_READY) || (hlcd->State == HAL_LCD_STATE_BUSY))
+  {
+    /* Process Locked */
+    __HAL_LOCK(hlcd);
+
+    hlcd->State = HAL_LCD_STATE_BUSY;
+
+    /* Get timeout */
+    tickstart = HAL_GetTick();
+
+    /*!< Wait Until the LCD is ready */
+    while(__HAL_LCD_GET_FLAG(hlcd, LCD_FLAG_UDR) != RESET)
+    {
+      if((HAL_GetTick() - tickstart ) > LCD_TIMEOUT_VALUE)
+      {
+        hlcd->ErrorCode = HAL_LCD_ERROR_UDR;
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(hlcd);
+
+        return HAL_TIMEOUT;
+      }
+    }
+    /* Clear the LCD_RAM registers */
+    for(counter = LCD_RAM_REGISTER0; counter <= LCD_RAM_REGISTER15; counter++)
+    {
+      hlcd->Instance->RAM[counter] = 0;
+    }
+
+    /* Update the LCD display */
+    HAL_LCD_UpdateDisplayRequest(hlcd);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_ERROR;
+  }
+}

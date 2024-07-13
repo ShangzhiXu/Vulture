@@ -1,0 +1,63 @@
+s32_t SPIFFS_rename(spiffs *fs, const char *old_path, const char *new_path)
+{
+    SPIFFS_API_DBG("%s %s %s\n", __func__, old_path, new_path);
+#if SPIFFS_READ_ONLY
+    (void)fs;
+    (void)old_path;
+    (void)new_path;
+    return SPIFFS_ERR_RO_NOT_IMPL;
+#else
+    SPIFFS_API_CHECK_CFG(fs);
+    SPIFFS_API_CHECK_MOUNT(fs);
+    if (strlen(new_path) > SPIFFS_OBJ_NAME_LEN - 1 ||
+            strlen(old_path) > SPIFFS_OBJ_NAME_LEN - 1)
+    {
+        SPIFFS_API_CHECK_RES(fs, SPIFFS_ERR_NAME_TOO_LONG);
+    }
+    SPIFFS_LOCK(fs);
+
+    spiffs_page_ix pix_old, pix_dummy;
+    spiffs_fd *fd;
+
+    s32_t res = spiffs_object_find_object_index_header_by_name(fs, (const u8_t *)old_path, &pix_old);
+    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+
+    res = spiffs_object_find_object_index_header_by_name(fs, (const u8_t *)new_path, &pix_dummy);
+    if (res == SPIFFS_ERR_NOT_FOUND)
+    {
+        res = SPIFFS_OK;
+    }
+    else if (res == SPIFFS_OK)
+    {
+        res = SPIFFS_ERR_CONFLICTING_NAME;
+    }
+    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+
+    res = spiffs_fd_find_new(fs, &fd, 0);
+    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+
+    res = spiffs_object_open_by_page(fs, pix_old, fd, 0, 0);
+    if (res != SPIFFS_OK)
+    {
+        spiffs_fd_return(fs, fd->file_nbr);
+    }
+    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+
+    res = spiffs_object_update_index_hdr(fs, fd, fd->obj_id, fd->objix_hdr_pix, 0, (const u8_t *)new_path,
+                                         0, 0, &pix_dummy);
+#if SPIFFS_TEMPORAL_FD_CACHE
+    if (res == SPIFFS_OK)
+    {
+        spiffs_fd_temporal_cache_rehash(fs, old_path, new_path);
+    }
+#endif
+
+    spiffs_fd_return(fs, fd->file_nbr);
+
+    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+
+    SPIFFS_UNLOCK(fs);
+
+    return res;
+#endif // SPIFFS_READ_ONLY
+}

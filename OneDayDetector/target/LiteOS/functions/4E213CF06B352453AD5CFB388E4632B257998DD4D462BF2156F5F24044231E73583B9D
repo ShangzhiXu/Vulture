@@ -1,0 +1,101 @@
+void LPTIM_Disable(LPTIM_HandleTypeDef *hlptim)
+{
+  uint32_t tmpclksource = 0;
+  uint32_t tmpIER;
+  uint32_t tmpCFGR;
+  uint32_t tmpCMP;
+  uint32_t tmpARR;
+  uint32_t tmpOR;
+
+  __disable_irq();
+
+  /*********** Save LPTIM Config ***********/
+  /* Save LPTIM source clock */
+  switch ((uint32_t)hlptim->Instance)
+  {
+    case LPTIM1_BASE:
+      tmpclksource = __HAL_RCC_GET_LPTIM1_SOURCE();
+      break;
+    default:
+      break;
+  }
+
+  /* Save LPTIM configuration registers */
+  tmpIER = hlptim->Instance->IER;
+  tmpCFGR = hlptim->Instance->CFGR;
+  tmpCMP = hlptim->Instance->CMP;
+  tmpARR = hlptim->Instance->ARR;
+  tmpOR = hlptim->Instance->OR;
+
+  /*********** Reset LPTIM ***********/
+  switch ((uint32_t)hlptim->Instance)
+  {
+    case LPTIM1_BASE:
+      __HAL_RCC_LPTIM1_FORCE_RESET();
+      __HAL_RCC_LPTIM1_RELEASE_RESET();
+      break;
+    default:
+      break;
+  }
+
+  /*********** Restore LPTIM Config ***********/
+  if ((tmpCMP != 0UL) || (tmpARR != 0UL))
+  {
+    /* Force LPTIM source kernel clock from APB */
+    switch ((uint32_t)hlptim->Instance)
+    {
+      case LPTIM1_BASE:
+        __HAL_RCC_LPTIM1_CONFIG(RCC_LPTIM1CLKSOURCE_PCLK1);
+        break;
+      default:
+        break;
+    }
+
+    if (tmpCMP != 0UL)
+    {
+      /* Restore CMP register (LPTIM should be enabled first) */
+      hlptim->Instance->CR |= LPTIM_CR_ENABLE;
+      hlptim->Instance->CMP = tmpCMP;
+
+      /* Wait for the completion of the write operation to the LPTIM_CMP register */
+      if (LPTIM_WaitForFlag(hlptim, LPTIM_FLAG_CMPOK) == HAL_TIMEOUT)
+      {
+        hlptim->State = HAL_LPTIM_STATE_TIMEOUT;
+      }
+      __HAL_LPTIM_CLEAR_FLAG(hlptim, LPTIM_FLAG_CMPOK);
+    }
+
+    if (tmpARR != 0UL)
+    {
+      /* Restore ARR register (LPTIM should be enabled first) */
+      hlptim->Instance->CR |= LPTIM_CR_ENABLE;
+      hlptim->Instance->ARR = tmpARR;
+
+      /* Wait for the completion of the write operation to the LPTIM_ARR register */
+      if (LPTIM_WaitForFlag(hlptim, LPTIM_FLAG_ARROK) == HAL_TIMEOUT)
+      {
+        hlptim->State = HAL_LPTIM_STATE_TIMEOUT;
+      }
+
+      __HAL_LPTIM_CLEAR_FLAG(hlptim, LPTIM_FLAG_ARROK);
+    }
+
+    /* Restore LPTIM source kernel clock */
+    switch ((uint32_t)hlptim->Instance)
+    {
+      case LPTIM1_BASE:
+        __HAL_RCC_LPTIM1_CONFIG(tmpclksource);
+        break;
+      default:
+        break;
+    }
+  }
+
+  /* Restore configuration registers (LPTIM should be disabled first) */
+  hlptim->Instance->CR &= ~(LPTIM_CR_ENABLE);
+  hlptim->Instance->IER = tmpIER;
+  hlptim->Instance->CFGR = tmpCFGR;
+  hlptim->Instance->OR = tmpOR;
+
+  __enable_irq();
+}

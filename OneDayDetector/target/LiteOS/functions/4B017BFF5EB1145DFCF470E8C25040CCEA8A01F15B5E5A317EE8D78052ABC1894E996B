@@ -1,0 +1,34 @@
+STATIC INLINE VOID OsEnterSleepMode(VOID)
+{
+#ifdef LOSCFG_KERNEL_SMP
+    UINT32 currCpuid = ArchCurrCpuid();
+    if (currCpuid == 0) {
+#endif
+        OsEnterDeepSleepMainCore();
+#ifdef LOSCFG_KERNEL_SMP
+        return;
+    }
+
+    UINT32 cpuMask = 1 << currCpuid;
+    LOS_AtomicAdd(&g_pmMgr.deepSleepCores, 1);
+    OsSRSaveRegister();
+    if (g_pmMgr.resumeSleepCores & cpuMask) {
+        INT32 val;
+        do {
+            val = LOS_AtomicRead(&g_pmMgr.resumeSleepCores);
+        } while (LOS_AtomicCmpXchg32bits(&g_pmMgr.resumeSleepCores, val & (~cpuMask), val));
+        g_deepSleepOps.otherCoreResume();
+        UINT32 sleepTicks = g_pmRunOps.withdrawWakeUpTimer();
+        OsTickResume(sleepTicks);
+    } else {
+        if (g_pmMgr.deepSleepCores == LOSCFG_KERNEL_CORE_NUM) {
+            LOS_MpSchedule(1 << 0);
+        }
+#ifdef LOSCFG_KERNEL_TICKLESS
+        OsTicklessOpen();
+#endif
+        g_pmRunOps.enterLightSleep();
+    }
+    LOS_AtomicSub(&g_pmMgr.deepSleepCores, 1);
+#endif // LOSCFG_KERNEL_SMP
+}

@@ -1,0 +1,14 @@
+lwip_select_dec_sockets_used(int maxfdp, fd_set *used_sockets)
+{
+  int i;
+  for (i = LWIP_SOCKET_OFFSET; i < maxfdp; i++) {
+    /* if this FD is not in the set, continue */
+    if (FD_ISSET(i, used_sockets)) {
+      struct lwip_sock *sock = tryget_socket_unconn_nouse(i);
+      LWIP_ASSERT("socket gone at the end of select", sock != NULL);
+      if (sock != NULL) {
+        done_socket(sock);
+      }
+    }
+  }
+}

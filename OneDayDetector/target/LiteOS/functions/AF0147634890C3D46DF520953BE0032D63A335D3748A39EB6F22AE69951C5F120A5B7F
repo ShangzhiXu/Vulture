@@ -1,0 +1,35 @@
+STATIC VOID OsTraceSetFrame(TraceEventFrame *frame, UINT32 eventType, UINTPTR identity, const UINTPTR *params,
+    UINT16 paramCount)
+{
+    INT32 i;
+    UINT32 intSave;
+
+    (VOID)memset_s(frame, sizeof(TraceEventFrame), 0, sizeof(TraceEventFrame));
+
+    if (paramCount > LOSCFG_TRACE_FRAME_MAX_PARAMS) {
+        paramCount = LOSCFG_TRACE_FRAME_MAX_PARAMS;
+    }
+
+    TRACE_LOCK(intSave);
+    frame->curTask   = OsTraceGetMaskTid(OsCurrTaskGet()->taskId);
+    frame->identity  = identity;
+    frame->curTime   = HalClockGetCycles();
+    frame->eventType = eventType;
+
+#if (LOSCFG_TRACE_FRAME_CORE_MSG == YES)
+    frame->core.cpuId      = ArchCurrCpuid();
+    frame->core.hwiActive  = OS_INT_ACTIVE ? TRUE : FALSE;
+    frame->core.taskLockCnt = MIN(OsPercpuGet()->taskLockCnt, 0xF); /* taskLockCnt is 4 bits, max vaule = 0xF */
+    frame->core.paramCount = paramCount;
+#endif
+
+#if (LOSCFG_TRACE_FRAME_EVENT_COUNT == YES)
+    frame->eventCount = g_traceEventCount;
+    g_traceEventCount++;
+#endif
+    TRACE_UNLOCK(intSave);
+
+    for (i = 0; i < paramCount; i++) {
+        frame->params[i] = params[i];
+    }
+}

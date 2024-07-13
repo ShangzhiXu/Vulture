@@ -1,0 +1,41 @@
+http_close_or_abort_conn(struct altcp_pcb *pcb, struct http_state *hs, u8_t abort_conn)
+{
+  err_t err;
+  LWIP_DEBUGF(HTTPD_DEBUG, ("Closing connection %p\n", (void *)pcb));
+
+#if LWIP_HTTPD_SUPPORT_POST
+  if (hs != NULL) {
+    if ((hs->post_content_len_left != 0)
+#if LWIP_HTTPD_POST_MANUAL_WND
+        || ((hs->no_auto_wnd != 0) && (hs->unrecved_bytes != 0))
+#endif /* LWIP_HTTPD_POST_MANUAL_WND */
+       ) {
+      /* make sure the post code knows that the connection is closed */
+      http_uri_buf[0] = 0;
+      httpd_post_finished(hs, http_uri_buf, LWIP_HTTPD_URI_BUF_LEN);
+    }
+  }
+#endif /* LWIP_HTTPD_SUPPORT_POST*/
+
+
+  altcp_arg(pcb, NULL);
+  altcp_recv(pcb, NULL);
+  altcp_err(pcb, NULL);
+  altcp_poll(pcb, NULL, 0);
+  altcp_sent(pcb, NULL);
+  if (hs != NULL) {
+    http_state_free(hs);
+  }
+
+  if (abort_conn) {
+    altcp_abort(pcb);
+    return ERR_OK;
+  }
+  err = altcp_close(pcb);
+  if (err != ERR_OK) {
+    LWIP_DEBUGF(HTTPD_DEBUG, ("Error %d closing %p\n", err, (void *)pcb));
+    /* error closing, try again later in poll */
+    altcp_poll(pcb, http_poll, HTTPD_POLL_INTERVAL);
+  }
+  return err;
+}

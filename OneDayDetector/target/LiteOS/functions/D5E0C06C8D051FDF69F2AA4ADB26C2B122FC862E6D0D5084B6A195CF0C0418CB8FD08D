@@ -1,0 +1,18 @@
+static void upap_lowerup(ppp_pcb *pcb) {
+
+    if (pcb->upap.us_clientstate == UPAPCS_INITIAL)
+	pcb->upap.us_clientstate = UPAPCS_CLOSED;
+    else if (pcb->upap.us_clientstate == UPAPCS_PENDING) {
+	upap_sauthreq(pcb);	/* send an auth-request */
+    }
+
+#if PPP_SERVER
+    if (pcb->upap.us_serverstate == UPAPSS_INITIAL)
+	pcb->upap.us_serverstate = UPAPSS_CLOSED;
+    else if (pcb->upap.us_serverstate == UPAPSS_PENDING) {
+	pcb->upap.us_serverstate = UPAPSS_LISTEN;
+	if (pcb->settings.pap_req_timeout > 0)
+	    TIMEOUT(upap_reqtimeout, pcb, pcb->settings.pap_req_timeout);
+    }
+#endif /* PPP_SERVER */
+}

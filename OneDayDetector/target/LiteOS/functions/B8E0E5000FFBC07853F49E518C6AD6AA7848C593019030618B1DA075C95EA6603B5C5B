@@ -1,0 +1,28 @@
+pppoe_destroy(ppp_pcb *ppp, void *ctx)
+{
+  struct pppoe_softc *sc = (struct pppoe_softc *)ctx;
+  struct pppoe_softc **copp, *freep;
+  LWIP_UNUSED_ARG(ppp);
+
+  sys_untimeout(pppoe_timeout, sc);
+
+  /* remove interface from list */
+  for (copp = &pppoe_softc_list; (freep = *copp); copp = &freep->next) {
+    if (freep == sc) {
+       *copp = freep->next;
+       break;
+    }
+  }
+
+#ifdef PPPOE_TODO
+  if (sc->sc_concentrator_name) {
+    mem_free(sc->sc_concentrator_name);
+  }
+  if (sc->sc_service_name) {
+    mem_free(sc->sc_service_name);
+  }
+#endif /* PPPOE_TODO */
+  LWIP_MEMPOOL_FREE(PPPOE_IF, sc);
+
+  return ERR_OK;
+}

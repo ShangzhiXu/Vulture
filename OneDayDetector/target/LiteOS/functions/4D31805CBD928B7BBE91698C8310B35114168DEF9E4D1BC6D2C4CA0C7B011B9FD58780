@@ -1,0 +1,90 @@
+static int ssl_decrypt_encrypted_pms( mbedtls_ssl_context *ssl,
+                                      const unsigned char *p,
+                                      const unsigned char *end,
+                                      unsigned char *peer_pms,
+                                      size_t *peer_pmslen,
+                                      size_t peer_pmssize )
+{
+    int ret;
+    mbedtls_pk_context *private_key = mbedtls_ssl_own_key( ssl );
+    mbedtls_pk_context *public_key = &mbedtls_ssl_own_cert( ssl )->pk;
+    size_t len = mbedtls_pk_get_len( public_key );
+
+#if defined(MBEDTLS_SSL_ASYNC_PRIVATE)
+    /* If we have already started decoding the message and there is an ongoing
+     * decryption operation, resume signing. */
+    if( ssl->handshake->async_in_progress != 0 )
+    {
+        MBEDTLS_SSL_DEBUG_MSG( 2, ( "resuming decryption operation" ) );
+        return( ssl_resume_decrypt_pms( ssl,
+                                        peer_pms, peer_pmslen, peer_pmssize ) );
+    }
+#endif /* MBEDTLS_SSL_ASYNC_PRIVATE */
+
+    /*
+     * Prepare to decrypt the premaster using own private RSA key
+     */
+#if defined(MBEDTLS_SSL_PROTO_TLS1) || defined(MBEDTLS_SSL_PROTO_TLS1_1) || \
+    defined(MBEDTLS_SSL_PROTO_TLS1_2)
+    if( ssl->minor_ver != MBEDTLS_SSL_MINOR_VERSION_0 )
+    {
+        if ( p + 2 > end ) {
+            MBEDTLS_SSL_DEBUG_MSG( 1, ( "bad client key exchange message" ) );
+            return( MBEDTLS_ERR_SSL_BAD_HS_CLIENT_KEY_EXCHANGE );
+        }
+        if( *p++ != ( ( len >> 8 ) & 0xFF ) ||
+            *p++ != ( ( len      ) & 0xFF ) )
+        {
+            MBEDTLS_SSL_DEBUG_MSG( 1, ( "bad client key exchange message" ) );
+            return( MBEDTLS_ERR_SSL_BAD_HS_CLIENT_KEY_EXCHANGE );
+        }
+    }
+#endif
+
+    if( p + len != end )
+    {
+        MBEDTLS_SSL_DEBUG_MSG( 1, ( "bad client key exchange message" ) );
+        return( MBEDTLS_ERR_SSL_BAD_HS_CLIENT_KEY_EXCHANGE );
+    }
+
+    /*
+     * Decrypt the premaster secret
+     */
+#if defined(MBEDTLS_SSL_ASYNC_PRIVATE)
+    if( ssl->conf->f_async_decrypt_start != NULL )
+    {
+        ret = ssl->conf->f_async_decrypt_start( ssl,
+                                                mbedtls_ssl_own_cert( ssl ),
+                                                p, len );
+        switch( ret )
+        {
+        case MBEDTLS_ERR_SSL_HW_ACCEL_FALLTHROUGH:
+            /* act as if f_async_decrypt_start was null */
+            break;
+        case 0:
+            ssl->handshake->async_in_progress = 1;
+            return( ssl_resume_decrypt_pms( ssl,
+                                            peer_pms,
+                                            peer_pmslen,
+                                            peer_pmssize ) );
+        case MBEDTLS_ERR_SSL_ASYNC_IN_PROGRESS:
+            ssl->handshake->async_in_progress = 1;
+            return( MBEDTLS_ERR_SSL_ASYNC_IN_PROGRESS );
+        default:
+            MBEDTLS_SSL_DEBUG_RET( 1, "f_async_decrypt_start", ret );
+            return( ret );
+        }
+    }
+#endif /* MBEDTLS_SSL_ASYNC_PRIVATE */
+
+    if( ! mbedtls_pk_can_do( private_key, MBEDTLS_PK_RSA ) )
+    {
+        MBEDTLS_SSL_DEBUG_MSG( 1, ( "got no RSA private key" ) );
+        return( MBEDTLS_ERR_SSL_PRIVATE_KEY_REQUIRED );
+    }
+
+    ret = mbedtls_pk_decrypt( private_key, p, len,
+                              peer_pms, peer_pmslen, peer_pmssize,
+                              ssl->conf->f_rng, ssl->conf->p_rng );
+    return( ret );
+}

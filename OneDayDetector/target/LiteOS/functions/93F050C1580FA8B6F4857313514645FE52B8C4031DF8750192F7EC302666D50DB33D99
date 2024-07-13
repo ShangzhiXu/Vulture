@@ -1,0 +1,47 @@
+int mbedtls_md5_update_ret( mbedtls_md5_context *ctx,
+                            const unsigned char *input,
+                            size_t ilen )
+{
+    int ret;
+    size_t fill;
+    uint32_t left;
+
+    if( ilen == 0 )
+        return( 0 );
+
+    left = ctx->total[0] & 0x3F;
+    fill = 64 - left;
+
+    ctx->total[0] += (uint32_t) ilen;
+    ctx->total[0] &= 0xFFFFFFFF;
+
+    if( ctx->total[0] < (uint32_t) ilen )
+        ctx->total[1]++;
+
+    if( left && ilen >= fill )
+    {
+        memcpy( (void *) (ctx->buffer + left), input, fill );
+        if( ( ret = mbedtls_internal_md5_process( ctx, ctx->buffer ) ) != 0 )
+            return( ret );
+
+        input += fill;
+        ilen  -= fill;
+        left = 0;
+    }
+
+    while( ilen >= 64 )
+    {
+        if( ( ret = mbedtls_internal_md5_process( ctx, input ) ) != 0 )
+            return( ret );
+
+        input += 64;
+        ilen  -= 64;
+    }
+
+    if( ilen > 0 )
+    {
+        memcpy( (void *) (ctx->buffer + left), input, ilen );
+    }
+
+    return( 0 );
+}

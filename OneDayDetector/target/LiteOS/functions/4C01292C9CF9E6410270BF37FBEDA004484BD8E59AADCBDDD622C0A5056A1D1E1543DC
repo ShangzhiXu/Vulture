@@ -1,0 +1,40 @@
+tcpip_api_call(tcpip_api_call_fn fn, struct tcpip_api_call_data *call)
+{
+#if LWIP_TCPIP_CORE_LOCKING
+  err_t err;
+  LOCK_TCPIP_CORE();
+  err = fn(call);
+  UNLOCK_TCPIP_CORE();
+  return err;
+#else /* LWIP_TCPIP_CORE_LOCKING */
+  TCPIP_MSG_VAR_DECLARE(msg);
+
+#if !LWIP_NETCONN_SEM_PER_THREAD
+  err_t err = sys_sem_new(&call->sem, 0);
+  if (err != ERR_OK) {
+    return err;
+  }
+#endif /* LWIP_NETCONN_SEM_PER_THREAD */
+
+  LWIP_ASSERT("Invalid mbox", sys_mbox_valid_val(tcpip_mbox));
+
+  TCPIP_MSG_VAR_ALLOC(msg);
+  TCPIP_MSG_VAR_REF(msg).type = TCPIP_MSG_API_CALL;
+  TCPIP_MSG_VAR_REF(msg).msg.api_call.arg = call;
+  TCPIP_MSG_VAR_REF(msg).msg.api_call.function = fn;
+#if LWIP_NETCONN_SEM_PER_THREAD
+  TCPIP_MSG_VAR_REF(msg).msg.api_call.sem = LWIP_NETCONN_THREAD_SEM_GET();
+#else /* LWIP_NETCONN_SEM_PER_THREAD */
+  TCPIP_MSG_VAR_REF(msg).msg.api_call.sem = &call->sem;
+#endif /* LWIP_NETCONN_SEM_PER_THREAD */
+  sys_mbox_post(&tcpip_mbox, &TCPIP_MSG_VAR_REF(msg));
+  sys_arch_sem_wait(TCPIP_MSG_VAR_REF(msg).msg.api_call.sem, 0);
+  TCPIP_MSG_VAR_FREE(msg);
+
+#if !LWIP_NETCONN_SEM_PER_THREAD
+  sys_sem_free(&call->sem);
+#endif /* LWIP_NETCONN_SEM_PER_THREAD */
+
+  return call->err;
+#endif /* LWIP_TCPIP_CORE_LOCKING */
+}

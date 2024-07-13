@@ -1,0 +1,35 @@
+void platform_Init(void)
+{
+#ifdef  USE_TRACEALYZER
+#if ( configUSE_TRACE_FACILITY == 1 )
+  vTraceEnable(TRC_START);
+#endif
+#endif
+
+  /* LED configuration */
+  BSP_LED_Init(LED_RED);
+  BSP_LED_Init(LED_GREEN);
+  /* Clear LEDs */
+  BSP_LED_Off(LED_RED);
+
+  /* Mandatory for spirit mp3 codec ??????? */
+#ifdef STM32F10X_CL
+  RCC_AHBPeriphClockCmd( RCC_AHBPeriph_CRC, ENABLE);
+#else
+  RCC->AHB1ENR |= RCC_AHB1ENR_CRCEN;
+#endif /* STM32F10X_CL */
+
+  KeyWord_Button_init();
+
+  /* Initialize user button */
+  BSP_PB_Init(BUTTON_WAKEUP, BUTTON_MODE_GPIO /*BUTTON_MODE_GPIO*/);
+
+  /* Mandatory for assets mng */
+  BSP_QSPI_Init();
+  BSP_QSPI_EnableMemoryMappedMode();
+
+#if defined(LiteVS_USE_DEBUG)
+  //GPIO_Config();
+#endif
+
+}

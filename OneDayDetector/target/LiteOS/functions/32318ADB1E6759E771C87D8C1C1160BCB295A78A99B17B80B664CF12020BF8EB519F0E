@@ -1,0 +1,82 @@
+static HAL_StatusTypeDef SAI_InitI2S(SAI_HandleTypeDef *hsai, uint32_t protocol, uint32_t datasize, uint32_t nbslot)
+{
+  hsai->Init.Protocol            = SAI_FREE_PROTOCOL;
+  hsai->Init.FirstBit            = SAI_FIRSTBIT_MSB;
+  /* Compute ClockStrobing according AudioMode */
+  if((hsai->Init.AudioMode == SAI_MODEMASTER_TX) || (hsai->Init.AudioMode == SAI_MODESLAVE_TX))
+  { /* Transmit */
+    hsai->Init.ClockStrobing     = SAI_CLOCKSTROBING_FALLINGEDGE;
+  }
+  else
+  { /* Receive */
+    hsai->Init.ClockStrobing     = SAI_CLOCKSTROBING_RISINGEDGE;
+  }
+  hsai->FrameInit.FSDefinition   = SAI_FS_CHANNEL_IDENTIFICATION;
+  hsai->SlotInit.SlotActive      = SAI_SLOTACTIVE_ALL;
+  hsai->SlotInit.FirstBitOffset  = 0;
+  hsai->SlotInit.SlotNumber      = nbslot;
+
+  /* in IS2 the number of slot must be even */
+  if((nbslot & 0x1) != 0 )
+  {
+    return HAL_ERROR;
+  }
+
+  switch(protocol)
+  {
+  case SAI_I2S_STANDARD :
+    hsai->FrameInit.FSPolarity = SAI_FS_ACTIVE_LOW;
+    hsai->FrameInit.FSOffset   = SAI_FS_BEFOREFIRSTBIT;
+    break;
+  case SAI_I2S_MSBJUSTIFIED :
+  case SAI_I2S_LSBJUSTIFIED :
+    hsai->FrameInit.FSPolarity = SAI_FS_ACTIVE_HIGH;
+    hsai->FrameInit.FSOffset   = SAI_FS_FIRSTBIT;
+    break;
+  default :
+    return HAL_ERROR;
+  }
+
+  /* Frame definition */
+  switch(datasize)
+  {
+  case SAI_PROTOCOL_DATASIZE_16BIT:
+    hsai->Init.DataSize = SAI_DATASIZE_16;
+    hsai->FrameInit.FrameLength = 32*(nbslot/2);
+    hsai->FrameInit.ActiveFrameLength = 16*(nbslot/2);
+    hsai->SlotInit.SlotSize = SAI_SLOTSIZE_16B;
+    break;
+  case SAI_PROTOCOL_DATASIZE_16BITEXTENDED :
+    hsai->Init.DataSize = SAI_DATASIZE_16;
+    hsai->FrameInit.FrameLength = 64*(nbslot/2);
+    hsai->FrameInit.ActiveFrameLength = 32*(nbslot/2);
+    hsai->SlotInit.SlotSize = SAI_SLOTSIZE_32B;
+    break;
+  case SAI_PROTOCOL_DATASIZE_24BIT:
+    hsai->Init.DataSize = SAI_DATASIZE_24;
+    hsai->FrameInit.FrameLength = 64*(nbslot/2);
+    hsai->FrameInit.ActiveFrameLength = 32*(nbslot/2);
+    hsai->SlotInit.SlotSize = SAI_SLOTSIZE_32B;
+    break;
+  case SAI_PROTOCOL_DATASIZE_32BIT:
+    hsai->Init.DataSize = SAI_DATASIZE_32;
+    hsai->FrameInit.FrameLength = 64*(nbslot/2);
+    hsai->FrameInit.ActiveFrameLength = 32*(nbslot/2);
+    hsai->SlotInit.SlotSize = SAI_SLOTSIZE_32B;
+    break;
+  default :
+    return HAL_ERROR;
+  }
+  if(protocol == SAI_I2S_LSBJUSTIFIED)
+  {
+    if (datasize == SAI_PROTOCOL_DATASIZE_16BITEXTENDED)
+    {
+      hsai->SlotInit.FirstBitOffset = 16;
+    }
+    if (datasize == SAI_PROTOCOL_DATASIZE_24BIT)
+    {
+      hsai->SlotInit.FirstBitOffset = 8;
+    }
+  }
+  return HAL_OK;
+}

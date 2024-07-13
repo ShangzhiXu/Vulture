@@ -1,0 +1,44 @@
+HAL_StatusTypeDef HAL_ADCEx_Calibration_SetValue(ADC_HandleTypeDef* hadc, uint32_t SingleDiff, uint32_t CalibrationFactor)
+{
+  HAL_StatusTypeDef tmp_hal_status = HAL_OK;
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+  assert_param(IS_ADC_SINGLE_DIFFERENTIAL(SingleDiff)); 
+  assert_param(IS_ADC_CALFACT(CalibrationFactor)); 
+  
+  /* Process locked */
+  __HAL_LOCK(hadc);
+  
+  /* Verification of hardware constraints before modifying the calibration    */
+  /* factors register: ADC must be enabled, no conversion on going.           */
+  if ( (ADC_IS_ENABLE(hadc) != RESET)                            &&
+       (ADC_IS_CONVERSION_ONGOING_REGULAR_INJECTED(hadc) == RESET)  )
+  {
+    /* Set the selected ADC calibration value */
+    if (SingleDiff == ADC_DIFFERENTIAL_ENDED)
+    {
+      MODIFY_REG(hadc->Instance->CALFACT, ADC_CALFACT_CALFACT_D, ADC_CALFACT_DIFF_SET(CalibrationFactor));
+    }
+    else
+    {
+      MODIFY_REG(hadc->Instance->CALFACT, ADC_CALFACT_CALFACT_S, CalibrationFactor);
+    }
+  }
+  else
+  {
+    /* Update ADC state machine */
+    SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_CONFIG);
+    /* Update ADC error code */
+    SET_BIT(hadc->ErrorCode, HAL_ADC_ERROR_INTERNAL);
+    
+    /* Update ADC state machine to error */
+    tmp_hal_status = HAL_ERROR;
+  }
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+  
+  /* Return function status */
+  return tmp_hal_status;
+}

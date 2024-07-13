@@ -1,0 +1,31 @@
+struct dirent *los_readdir(struct dir *dir)
+{
+    struct mount_point *mp;
+    struct dirent *ret = NULL;
+
+    if (dir == NULL) {
+        VFS_ERRNO_SET(EINVAL);
+        return NULL;
+    }
+
+    mp = dir->d_mp;
+
+    if (LOS_MuxPend(mp->m_mutex, LOS_WAIT_FOREVER) != LOS_OK) {
+        VFS_ERRNO_SET(EAGAIN);
+        return NULL;
+    }
+
+    if (dir->d_mp->m_fs->fs_fops->readdir != NULL) {
+        if (dir->d_mp->m_fs->fs_fops->readdir(dir, &dir->d_dent) == 0) {
+            ret = &dir->d_dent;
+        } else {
+            VFS_ERRNO_SET(EBADF);
+        }
+    } else {
+        VFS_ERRNO_SET(ENOTSUP);
+    }
+
+    LOS_MuxPost(mp->m_mutex);
+
+    return ret;
+}

@@ -1,0 +1,13 @@
+static inline void __wake(volatile void *addr, int cnt, int priv)
+{
+#ifdef __LITEOS__
+	(void)addr;
+	(void)cnt;
+	(void)priv;
+#else
+	if (priv) priv = FUTEX_PRIVATE;
+	if (cnt<0) cnt = INT_MAX;
+	__syscall(SYS_futex, addr, FUTEX_WAKE|priv, cnt) != -ENOSYS ||
+	__syscall(SYS_futex, addr, FUTEX_WAKE, cnt);
+#endif
+}

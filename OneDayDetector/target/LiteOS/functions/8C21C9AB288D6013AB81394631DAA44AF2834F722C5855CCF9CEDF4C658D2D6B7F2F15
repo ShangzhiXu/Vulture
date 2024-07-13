@@ -1,0 +1,57 @@
+int atiny_bind(atiny_device_info_t *device_info, void *phandle)
+{
+    handle_data_t *handle = (handle_data_t *)phandle;
+    uint32_t timeout;
+    int ret;
+
+    if ((device_info == NULL) || (phandle == NULL)) {
+        ATINY_LOG(LOG_FATAL, "Parameter null");
+        atiny_deinit(phandle);
+        return ATINY_ARG_INVALID;
+    }
+
+    if (device_info->endpoint_name == NULL) {
+        ATINY_LOG(LOG_FATAL, "Endpoint name null");
+        atiny_deinit(phandle);
+        return ATINY_ARG_INVALID;
+    }
+
+    if (device_info->manufacturer == NULL) {
+        ATINY_LOG(LOG_FATAL, "Manufacturer name null");
+        atiny_deinit(phandle);
+        return ATINY_ARG_INVALID;
+    }
+
+    ret = atiny_init_objects(&handle->atiny_params, device_info, handle);
+    if (ret != ATINY_OK) {
+        ATINY_LOG(LOG_FATAL, "atiny_init_object fail %d", ret);
+        atiny_destroy(handle);
+        return ret;
+    }
+#ifdef CONFIG_FEATURE_FOTA
+    (void)atiny_fota_manager_set_lwm2m_context(atiny_fota_manager_get_instance(), handle->lwm2m_context);
+#endif
+    lwm2m_register_observe_ack_call_back(observe_handle_ack);
+    lwm2m_register_event_handler(atiny_event_handle);
+    lwm2m_register_connection_err_notify(atiny_connection_err_notify);
+
+    handle->recv_buffer = (uint8_t *)lwm2m_malloc(MAX_PACKET_SIZE);
+    if (handle->recv_buffer == NULL) {
+        ATINY_LOG(LOG_FATAL, "memory not enough");
+        return ATINY_MALLOC_FAILED;
+    }
+
+    while (!handle->atiny_quit) {
+        timeout = BIND_TIMEOUT;
+
+        (void)atiny_step_rpt(handle->lwm2m_context);
+        atiny_handle_reconnect(handle);
+        (void)lwm2m_step(handle->lwm2m_context, (time_t *)&timeout);
+        reboot_check();
+        (void)lwm2m_poll(handle, &timeout);
+    }
+
+    atiny_destroy(phandle);
+
+    return ATINY_OK;
+}

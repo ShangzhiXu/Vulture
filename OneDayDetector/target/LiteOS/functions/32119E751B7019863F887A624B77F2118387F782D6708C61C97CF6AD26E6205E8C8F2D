@@ -1,0 +1,57 @@
+HAL_StatusTypeDef HAL_SD_Abort(SD_HandleTypeDef *hsd)
+{
+  HAL_SD_CardStateTypeDef CardState;
+  uint32_t context = hsd->Context;
+
+  /* DIsable All interrupts */
+  __HAL_SD_DISABLE_IT(hsd, SDIO_IT_DATAEND | SDIO_IT_DCRCFAIL | SDIO_IT_DTIMEOUT|\
+                           SDIO_IT_TXUNDERR| SDIO_IT_RXOVERR);
+
+  /* Clear All flags */
+  __HAL_SD_CLEAR_FLAG(hsd, SDIO_STATIC_DATA_FLAGS);
+
+  CLEAR_BIT(hsd->Instance->DCTRL, SDIO_DCTRL_DTEN);
+
+  if ((context & SD_CONTEXT_DMA) != 0U)
+  {
+    /* Disable the SD DMA request */
+    hsd->Instance->DCTRL &= (uint32_t)~((uint32_t)SDIO_DCTRL_DMAEN);
+
+    /* Abort the SD DMA Tx channel */
+    if (((context & SD_CONTEXT_WRITE_SINGLE_BLOCK) != 0U) || ((context & SD_CONTEXT_WRITE_MULTIPLE_BLOCK) != 0U))
+    {
+      if(HAL_DMA_Abort(hsd->hdmatx) != HAL_OK)
+      {
+        hsd->ErrorCode |= HAL_SD_ERROR_DMA;
+      }
+    }
+    /* Abort the SD DMA Rx channel */
+    else if (((context & SD_CONTEXT_READ_SINGLE_BLOCK) != 0U) || ((context & SD_CONTEXT_READ_MULTIPLE_BLOCK) != 0U))
+    {
+      if(HAL_DMA_Abort(hsd->hdmarx) != HAL_OK)
+      {
+        hsd->ErrorCode |= HAL_SD_ERROR_DMA;
+      }
+    }
+    else
+    {
+      /* Nothing to do */
+    }
+  }
+
+  hsd->State = HAL_SD_STATE_READY;
+
+  /* Initialize the SD operation */
+  hsd->Context = SD_CONTEXT_NONE;
+
+  CardState = HAL_SD_GetCardState(hsd);
+  if((CardState == HAL_SD_CARD_RECEIVING) || (CardState == HAL_SD_CARD_SENDING))
+  {
+    hsd->ErrorCode = SDMMC_CmdStopTransfer(hsd->Instance);
+  }
+  if(hsd->ErrorCode != HAL_SD_ERROR_NONE)
+  {
+    return HAL_ERROR;
+  }
+  return HAL_OK;
+}

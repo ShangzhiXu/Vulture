@@ -1,0 +1,46 @@
+udp_endpointTable_get_next_cell_instance_and_value(const u32_t *column, struct snmp_obj_id *row_oid, union snmp_variant_value *value, u32_t *value_len)
+{
+  struct udp_pcb *pcb;
+  struct snmp_next_oid_state state;
+  /* 1x udpEndpointLocalAddressType  + 1x OID len + 16x udpEndpointLocalAddress  + 1x udpEndpointLocalPort  +
+   * 1x udpEndpointRemoteAddressType + 1x OID len + 16x udpEndpointRemoteAddress + 1x udpEndpointRemotePort +
+   * 1x udpEndpointInstance = 39
+   */
+  u32_t  result_temp[39];
+
+  LWIP_UNUSED_ARG(value_len);
+
+  /* init struct to search next oid */
+  snmp_next_oid_init(&state, row_oid->id, row_oid->len, result_temp, LWIP_ARRAYSIZE(result_temp));
+
+  /* iterate over all possible OIDs to find the next one */
+  pcb = udp_pcbs;
+  while (pcb != NULL) {
+    u32_t test_oid[LWIP_ARRAYSIZE(result_temp)];
+    u8_t idx = 0;
+
+    /* udpEndpointLocalAddressType + udpEndpointLocalAddress + udpEndpointLocalPort */
+    idx += snmp_ip_port_to_oid(&pcb->local_ip, pcb->local_port, &test_oid[idx]);
+
+    /* udpEndpointRemoteAddressType + udpEndpointRemoteAddress + udpEndpointRemotePort */
+    idx += snmp_ip_port_to_oid(&pcb->remote_ip, pcb->remote_port, &test_oid[idx]);
+
+    test_oid[idx] = 0; /* udpEndpointInstance */
+    idx++;
+
+    /* check generated OID: is it a candidate for the next one? */
+    snmp_next_oid_check(&state, test_oid, idx, NULL);
+
+    pcb = pcb->next;
+  }
+
+  /* did we find a next one? */
+  if (state.status == SNMP_NEXT_OID_STATUS_SUCCESS) {
+    snmp_oid_assign(row_oid, state.next_oid, state.next_oid_len);
+    /* fill in object properties */
+    return udp_endpointTable_get_cell_value_core(column, value);
+  } else {
+    /* not found */
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+}

@@ -1,0 +1,42 @@
+int atiny_add_rpt_uri(const lwm2m_uri_t *uri,  rpt_list_t *list)
+{
+    atiny_rpt_list_t *rpt_list  = NULL;
+    int ret = ATINY_ARG_INVALID;
+
+    if (uri == NULL) {
+        ATINY_LOG(LOG_ERR, "null point");
+        return ATINY_ARG_INVALID;
+    }
+    if (list == NULL) {
+        ATINY_LOG(LOG_ERR, "null point");
+        return ATINY_ARG_INVALID;
+    }
+
+    *list = NULL;
+    atiny_mutex_lock(g_mutex);
+    do {
+        rpt_list = atiny_find_rpt_list(uri);
+
+        if (rpt_list != NULL) {
+            ATINY_LOG(LOG_ERR, "uri exist," URI_FORMAT, URI_LOG_PARAM(uri));
+            break;
+        }
+
+        rpt_list = lwm2m_malloc(sizeof(*rpt_list));
+        if (rpt_list == NULL) {
+            ATINY_LOG(LOG_ERR, "lwm2m_malloc fail," URI_FORMAT, URI_LOG_PARAM(uri));
+            break;
+        }
+
+        memset(rpt_list, 0, sizeof(*rpt_list));
+        atiny_list_init(&rpt_list->rpt_list);
+        memcpy(&rpt_list->uri, uri, sizeof(rpt_list->uri));
+        rpt_list->max_cnt = MAX_BUFFER_REPORT_CNT;
+        atiny_list_insert_tail(&g_atiny_rpt_table, &rpt_list->node);
+        ret = ATINY_OK;
+    } while (0);
+
+    atiny_mutex_unlock(g_mutex);
+    *list = rpt_list;
+    return ret;
+}

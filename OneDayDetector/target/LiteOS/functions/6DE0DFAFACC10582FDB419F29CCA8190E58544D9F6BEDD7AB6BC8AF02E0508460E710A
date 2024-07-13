@@ -1,0 +1,16 @@
+STATIC INLINE VOID OsMemReAllocSmaller(LosMemPoolInfo *pool, UINT32 allocSize, LosMemDynNode *node, UINT32 nodeSize)
+{
+    if ((allocSize + OS_MEM_NODE_HEAD_SIZE + OS_MEM_ALIGN_SIZE) <= nodeSize) {
+        node->selfNode.sizeAndFlag = nodeSize;
+        OsMemSplitNode(pool, node, allocSize);
+        OS_MEM_NODE_SET_USED_FLAG(node->selfNode.sizeAndFlag);
+#ifdef LOSCFG_MEM_HEAD_BACKUP
+        OsMemNodeSave(node);
+#endif
+
+        OS_MEM_REDUCE_USED(&pool->stat, nodeSize - allocSize, OS_MEM_TASKID_GET(node));
+    }
+#ifdef LOSCFG_MEM_LEAKCHECK
+    OsMemLinkRegisterRecord(node);
+#endif
+}

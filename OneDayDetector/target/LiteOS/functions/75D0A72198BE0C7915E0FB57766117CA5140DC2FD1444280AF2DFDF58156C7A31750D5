@@ -1,0 +1,22 @@
+static void at_rm_timeout_nodes(void)
+{
+    at_listener *pre = NULL;
+    at_listener *next = NULL;
+
+    for (at_listener *listener = at.head; listener != NULL; listener = next) {
+        next = listener->next;
+
+        if (listener->handle_data == NULL) {
+            pre = listener;
+            continue;
+        }
+
+        if (listener->expire_time <= at_get_time()) {
+            AT_LOG("get recv data timeout");
+            at_rm_node(listener, pre);
+        }
+        else {
+            pre = listener;
+        }
+    }
+}

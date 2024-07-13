@@ -1,0 +1,49 @@
+ErrorStatus  LL_I2S_InitFullDuplex(SPI_TypeDef *I2Sxext, LL_I2S_InitTypeDef *I2S_InitStruct)
+{
+  uint32_t mode = 0U;
+  ErrorStatus status = ERROR;
+
+  /* Check the I2S parameters */
+  assert_param(IS_I2S_EXT_ALL_INSTANCE(I2Sxext));
+  assert_param(IS_LL_I2S_MODE(I2S_InitStruct->Mode));
+  assert_param(IS_LL_I2S_STANDARD(I2S_InitStruct->Standard));
+  assert_param(IS_LL_I2S_DATAFORMAT(I2S_InitStruct->DataFormat));
+  assert_param(IS_LL_I2S_CPOL(I2S_InitStruct->ClockPolarity));
+
+  if (LL_I2S_IsEnabled(I2Sxext) == 0x00000000U)
+  {
+    /*---------------------------- SPIx I2SCFGR Configuration --------------------
+     * Configure SPIx I2SCFGR with parameters:
+     * - Mode:          SPI_I2SCFGR_I2SCFG[1:0] bit
+     * - Standard:      SPI_I2SCFGR_I2SSTD[1:0] and SPI_I2SCFGR_PCMSYNC bits
+     * - DataFormat:    SPI_I2SCFGR_CHLEN and SPI_I2SCFGR_DATLEN bits
+     * - ClockPolarity: SPI_I2SCFGR_CKPOL bit
+     */
+
+    /* Reset I2SPR registers */
+    WRITE_REG(I2Sxext->I2SPR, I2S_I2SPR_CLEAR_MASK);
+
+    /* Get the mode to be configured for the extended I2S */
+    if ((I2S_InitStruct->Mode == LL_I2S_MODE_MASTER_TX) || (I2S_InitStruct->Mode == LL_I2S_MODE_SLAVE_TX))
+    {
+      mode = LL_I2S_MODE_SLAVE_RX;
+    }
+    else
+    {
+      if ((I2S_InitStruct->Mode == LL_I2S_MODE_MASTER_RX) || (I2S_InitStruct->Mode == LL_I2S_MODE_SLAVE_RX))
+      {
+        mode = LL_I2S_MODE_SLAVE_TX;
+      }
+    }
+
+    /* Write to SPIx I2SCFGR */
+    MODIFY_REG(I2Sxext->I2SCFGR,
+               I2S_I2SCFGR_CLEAR_MASK,
+               I2S_InitStruct->Standard |
+               I2S_InitStruct->DataFormat | I2S_InitStruct->ClockPolarity |
+               SPI_I2SCFGR_I2SMOD | mode);
+
+    status = SUCCESS;
+  }
+  return status;
+}

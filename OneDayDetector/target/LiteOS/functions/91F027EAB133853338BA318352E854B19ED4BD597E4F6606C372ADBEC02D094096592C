@@ -1,0 +1,16 @@
+LITE_OS_SEC_TEXT_INIT VOID OsCpupGuardInit(VOID)
+{
+    TSK_INIT_PARAM_S taskInitParam;
+    UINT32 tempId;
+
+    (VOID)memset_s((void *)(&taskInitParam), sizeof(TSK_INIT_PARAM_S), 0, sizeof(TSK_INIT_PARAM_S));
+    taskInitParam.pfnTaskEntry  = (TSK_ENTRY_FUNC)OsCpupGuardCreator;
+    taskInitParam.uwStackSize   = LOS_TASK_MIN_STACK_SIZE;
+    taskInitParam.pcName        = "CpupGuardCreator";
+    taskInitParam.usTaskPrio    = OS_TASK_PRIORITY_HIGHEST;
+    taskInitParam.uwResved      = LOS_TASK_STATUS_DETACHED;
+#if (LOSCFG_KERNEL_SMP == YES)
+    taskInitParam.usCpuAffiMask = CPUID_TO_AFFI_MASK(ArchCurrCpuid());
+#endif
+    (VOID)LOS_TaskCreate(&tempId, &taskInitParam);
+}

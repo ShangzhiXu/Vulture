@@ -1,0 +1,16 @@
+LITE_OS_SEC_TEXT STATIC VOID OsTaskStackCheck(const LosTaskCB *oldTask, const LosTaskCB *newTask)
+{
+    if (!OS_STACK_MAGIC_CHECK(oldTask->topOfStack)) {
+        LOS_Panic("CURRENT task ID: %s:%u stack overflow!\n", oldTask->taskName, oldTask->taskId);
+    }
+
+    if (((UINTPTR)(newTask->stackPointer) <= newTask->topOfStack) ||
+        ((UINTPTR)(newTask->stackPointer) > (newTask->topOfStack + newTask->stackSize))) {
+        LOS_Panic("HIGHEST task ID: %s:%u SP error! StackPointer: %p TopOfStack: %p\n",
+                  newTask->taskName, newTask->taskId, newTask->stackPointer, newTask->topOfStack);
+    }
+
+    if (OsExcStackCheckHook != NULL) {
+        OsExcStackCheckHook();
+    }
+}

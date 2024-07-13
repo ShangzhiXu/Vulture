@@ -1,0 +1,24 @@
+static void SPDIFRX_ReceiveControlFlow_IT(SPDIFRX_HandleTypeDef *hspdif)
+{
+  /* Receive data */
+  (*hspdif->pCsBuffPtr) = hspdif->Instance->CSR;
+  hspdif->pCsBuffPtr++;
+  hspdif->CsXferCount--;
+
+  if(hspdif->CsXferCount == 0U)
+  {
+    /* Disable CSRNE interrupt */
+    __HAL_SPDIFRX_DISABLE_IT(hspdif, SPDIFRX_IT_CSRNE);
+
+    hspdif->State = HAL_SPDIFRX_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hspdif);
+
+#if (USE_HAL_SPDIFRX_REGISTER_CALLBACKS == 1)
+  hspdif->CxCpltCallback(hspdif);
+#else
+  HAL_SPDIFRX_CxCpltCallback(hspdif);
+#endif /* USE_HAL_SPDIFRX_REGISTER_CALLBACKS */
+  }
+}

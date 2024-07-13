@@ -1,0 +1,290 @@
+static int ipcp_reqci(fsm *f, u_char *inp, int *len, int reject_if_disagree) {
+    ppp_pcb *pcb = f->pcb;
+    ipcp_options *wo = &pcb->ipcp_wantoptions;
+    ipcp_options *ho = &pcb->ipcp_hisoptions;
+    ipcp_options *ao = &pcb->ipcp_allowoptions;
+    u_char *cip, *next;		/* Pointer to current and next CIs */
+    u_short cilen, citype;	/* Parsed len, type */
+#if VJ_SUPPORT
+    u_short cishort;		/* Parsed short value */
+#endif /* VJ_SUPPORT */
+    u32_t tl, ciaddr1, ciaddr2;/* Parsed address values */
+    int rc = CONFACK;		/* Final packet return code */
+    int orc;			/* Individual option return code */
+    u_char *p;			/* Pointer to next char to parse */
+    u_char *ucp = inp;		/* Pointer to current output char */
+    int l = *len;		/* Length left */
+#if VJ_SUPPORT
+    u_char maxslotindex, cflag;
+#endif /* VJ_SUPPORT */
+#if LWIP_DNS
+    int d;
+#endif /* LWIP_DNS */
+
+    /*
+     * Reset all his options.
+     */
+    BZERO(ho, sizeof(*ho));
+    
+    /*
+     * Process all his options.
+     */
+    next = inp;
+    while (l) {
+	orc = CONFACK;			/* Assume success */
+	cip = p = next;			/* Remember begining of CI */
+	if (l < 2 ||			/* Not enough data for CI header or */
+	    p[1] < 2 ||			/*  CI length too small or */
+	    p[1] > l) {			/*  CI length too big? */
+	    IPCPDEBUG(("ipcp_reqci: bad CI length!"));
+	    orc = CONFREJ;		/* Reject bad CI */
+	    cilen = l;			/* Reject till end of packet */
+	    l = 0;			/* Don't loop again */
+	    goto endswitch;
+	}
+	GETCHAR(citype, p);		/* Parse CI type */
+	GETCHAR(cilen, p);		/* Parse CI length */
+	l -= cilen;			/* Adjust remaining length */
+	next += cilen;			/* Step to next CI */
+
+	switch (citype) {		/* Check CI type */
+	case CI_ADDRS:
+	    if (!ao->old_addrs || ho->neg_addr ||
+		cilen != CILEN_ADDRS) {	/* Check CI length */
+		orc = CONFREJ;		/* Reject CI */
+		break;
+	    }
+
+	    /*
+	     * If he has no address, or if we both have his address but
+	     * disagree about it, then NAK it with our idea.
+	     * In particular, if we don't know his address, but he does,
+	     * then accept it.
+	     */
+	    GETLONG(tl, p);		/* Parse source address (his) */
+	    ciaddr1 = lwip_htonl(tl);
+	    if (ciaddr1 != wo->hisaddr
+		&& (ciaddr1 == 0 || !wo->accept_remote)) {
+		orc = CONFNAK;
+		if (!reject_if_disagree) {
+		    DECPTR(sizeof(u32_t), p);
+		    tl = lwip_ntohl(wo->hisaddr);
+		    PUTLONG(tl, p);
+		}
+	    } else if (ciaddr1 == 0 && wo->hisaddr == 0) {
+		/*
+		 * If neither we nor he knows his address, reject the option.
+		 */
+		orc = CONFREJ;
+		wo->req_addr = 0;	/* don't NAK with 0.0.0.0 later */
+		break;
+	    }
+
+	    /*
+	     * If he doesn't know our address, or if we both have our address
+	     * but disagree about it, then NAK it with our idea.
+	     */
+	    GETLONG(tl, p);		/* Parse desination address (ours) */
+	    ciaddr2 = lwip_htonl(tl);
+	    if (ciaddr2 != wo->ouraddr) {
+		if (ciaddr2 == 0 || !wo->accept_local) {
+		    orc = CONFNAK;
+		    if (!reject_if_disagree) {
+			DECPTR(sizeof(u32_t), p);
+			tl = lwip_ntohl(wo->ouraddr);
+			PUTLONG(tl, p);
+		    }
+		} else {
+		    wo->ouraddr = ciaddr2;	/* accept peer's idea */
+		}
+	    }
+
+	    ho->old_addrs = 1;
+	    ho->hisaddr = ciaddr1;
+	    ho->ouraddr = ciaddr2;
+	    break;
+
+	case CI_ADDR:
+	    if (!ao->neg_addr || ho->old_addrs ||
+		cilen != CILEN_ADDR) {	/* Check CI length */
+		orc = CONFREJ;		/* Reject CI */
+		break;
+	    }
+
+	    /*
+	     * If he has no address, or if we both have his address but
+	     * disagree about it, then NAK it with our idea.
+	     * In particular, if we don't know his address, but he does,
+	     * then accept it.
+	     */
+	    GETLONG(tl, p);	/* Parse source address (his) */
+	    ciaddr1 = lwip_htonl(tl);
+	    if (ciaddr1 != wo->hisaddr
+		&& (ciaddr1 == 0 || !wo->accept_remote)) {
+		orc = CONFNAK;
+		if (!reject_if_disagree) {
+		    DECPTR(sizeof(u32_t), p);
+		    tl = lwip_ntohl(wo->hisaddr);
+		    PUTLONG(tl, p);
+		}
+	    } else if (ciaddr1 == 0 && wo->hisaddr == 0) {
+		/*
+		 * Don't ACK an address of 0.0.0.0 - reject it instead.
+		 */
+		orc = CONFREJ;
+		wo->req_addr = 0;	/* don't NAK with 0.0.0.0 later */
+		break;
+	    }
+	
+	    ho->neg_addr = 1;
+	    ho->hisaddr = ciaddr1;
+	    break;
+
+#if LWIP_DNS
+	case CI_MS_DNS1:
+	case CI_MS_DNS2:
+	    /* Microsoft primary or secondary DNS request */
+	    d = citype == CI_MS_DNS2;
+
+	    /* If we do not have a DNS address then we cannot send it */
+	    if (ao->dnsaddr[d] == 0 ||
+		cilen != CILEN_ADDR) {	/* Check CI length */
+		orc = CONFREJ;		/* Reject CI */
+		break;
+	    }
+	    GETLONG(tl, p);
+	    if (lwip_htonl(tl) != ao->dnsaddr[d]) {
+                DECPTR(sizeof(u32_t), p);
+		tl = lwip_ntohl(ao->dnsaddr[d]);
+		PUTLONG(tl, p);
+		orc = CONFNAK;
+            }
+            break;
+#endif /* LWIP_DNS */
+
+#if 0 /* UNUSED - WINS */
+	case CI_MS_WINS1:
+	case CI_MS_WINS2:
+	    /* Microsoft primary or secondary WINS request */
+	    d = citype == CI_MS_WINS2;
+
+	    /* If we do not have a DNS address then we cannot send it */
+	    if (ao->winsaddr[d] == 0 ||
+		cilen != CILEN_ADDR) {	/* Check CI length */
+		orc = CONFREJ;		/* Reject CI */
+		break;
+	    }
+	    GETLONG(tl, p);
+	    if (lwip_htonl(tl) != ao->winsaddr[d]) {
+                DECPTR(sizeof(u32_t), p);
+		tl = lwip_ntohl(ao->winsaddr[d]);
+		PUTLONG(tl, p);
+		orc = CONFNAK;
+            }
+            break;
+#endif /* UNUSED - WINS */
+
+#if VJ_SUPPORT
+	case CI_COMPRESSTYPE:
+	    if (!ao->neg_vj ||
+		(cilen != CILEN_VJ && cilen != CILEN_COMPRESS)) {
+		orc = CONFREJ;
+		break;
+	    }
+	    GETSHORT(cishort, p);
+
+	    if (!(cishort == IPCP_VJ_COMP ||
+		  (cishort == IPCP_VJ_COMP_OLD && cilen == CILEN_COMPRESS))) {
+		orc = CONFREJ;
+		break;
+	    }
+
+	    ho->neg_vj = 1;
+	    ho->vj_protocol = cishort;
+	    if (cilen == CILEN_VJ) {
+		GETCHAR(maxslotindex, p);
+		if (maxslotindex > ao->maxslotindex) { 
+		    orc = CONFNAK;
+		    if (!reject_if_disagree){
+			DECPTR(1, p);
+			PUTCHAR(ao->maxslotindex, p);
+		    }
+		}
+		GETCHAR(cflag, p);
+		if (cflag && !ao->cflag) {
+		    orc = CONFNAK;
+		    if (!reject_if_disagree){
+			DECPTR(1, p);
+			PUTCHAR(wo->cflag, p);
+		    }
+		}
+		ho->maxslotindex = maxslotindex;
+		ho->cflag = cflag;
+	    } else {
+		ho->old_vj = 1;
+		ho->maxslotindex = MAX_STATES - 1;
+		ho->cflag = 1;
+	    }
+	    break;
+#endif /* VJ_SUPPORT */
+
+	default:
+	    orc = CONFREJ;
+	    break;
+	}
+endswitch:
+	if (orc == CONFACK &&		/* Good CI */
+	    rc != CONFACK)		/*  but prior CI wasnt? */
+	    continue;			/* Don't send this one */
+
+	if (orc == CONFNAK) {		/* Nak this CI? */
+	    if (reject_if_disagree)	/* Getting fed up with sending NAKs? */
+		orc = CONFREJ;		/* Get tough if so */
+	    else {
+		if (rc == CONFREJ)	/* Rejecting prior CI? */
+		    continue;		/* Don't send this one */
+		if (rc == CONFACK) {	/* Ack'd all prior CIs? */
+		    rc = CONFNAK;	/* Not anymore... */
+		    ucp = inp;		/* Backup */
+		}
+	    }
+	}
+
+	if (orc == CONFREJ &&		/* Reject this CI */
+	    rc != CONFREJ) {		/*  but no prior ones? */
+	    rc = CONFREJ;
+	    ucp = inp;			/* Backup */
+	}
+
+	/* Need to move CI? */
+	if (ucp != cip)
+	    MEMCPY(ucp, cip, cilen);	/* Move it */
+
+	/* Update output pointer */
+	INCPTR(cilen, ucp);
+    }
+
+    /*
+     * If we aren't rejecting this packet, and we want to negotiate
+     * their address, and they didn't send their address, then we
+     * send a NAK with a CI_ADDR option appended.  We assume the
+     * input buffer is long enough that we can append the extra
+     * option safely.
+     */
+    if (rc != CONFREJ && !ho->neg_addr && !ho->old_addrs &&
+	wo->req_addr && !reject_if_disagree && !pcb->settings.noremoteip) {
+	if (rc == CONFACK) {
+	    rc = CONFNAK;
+	    ucp = inp;			/* reset pointer */
+	    wo->req_addr = 0;		/* don't ask again */
+	}
+	PUTCHAR(CI_ADDR, ucp);
+	PUTCHAR(CILEN_ADDR, ucp);
+	tl = lwip_ntohl(wo->hisaddr);
+	PUTLONG(tl, ucp);
+    }
+
+    *len = ucp - inp;			/* Compute output length */
+    IPCPDEBUG(("ipcp: returning Configure-%s", CODENAME(rc)));
+    return (rc);			/* Return final code */
+}

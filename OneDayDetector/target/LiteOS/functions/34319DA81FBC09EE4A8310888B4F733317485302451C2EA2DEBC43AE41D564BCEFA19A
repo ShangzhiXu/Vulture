@@ -1,0 +1,127 @@
+HAL_StatusTypeDef HAL_SMBUS_IsDeviceReady(SMBUS_HandleTypeDef *hsmbus, uint16_t DevAddress, uint32_t Trials, uint32_t Timeout)
+{
+  uint32_t tickstart;
+
+  __IO uint32_t SMBUS_Trials = 0UL;
+
+  FlagStatus tmp1;
+  FlagStatus tmp2;
+
+  if (hsmbus->State == HAL_SMBUS_STATE_READY)
+  {
+    if (__HAL_SMBUS_GET_FLAG(hsmbus, SMBUS_FLAG_BUSY) != RESET)
+    {
+      return HAL_BUSY;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hsmbus);
+
+    hsmbus->State = HAL_SMBUS_STATE_BUSY;
+    hsmbus->ErrorCode = HAL_SMBUS_ERROR_NONE;
+
+    do
+    {
+      /* Generate Start */
+      hsmbus->Instance->CR2 = SMBUS_GENERATE_START(hsmbus->Init.AddressingMode, DevAddress);
+
+      /* No need to Check TC flag, with AUTOEND mode the stop is automatically generated */
+      /* Wait until STOPF flag is set or a NACK flag is set*/
+      tickstart = HAL_GetTick();
+
+      tmp1 = __HAL_SMBUS_GET_FLAG(hsmbus, SMBUS_FLAG_STOPF);
+      tmp2 = __HAL_SMBUS_GET_FLAG(hsmbus, SMBUS_FLAG_AF);
+
+      while ((tmp1 == RESET) && (tmp2 == RESET))
+      {
+        if (Timeout != HAL_MAX_DELAY)
+        {
+          if (((HAL_GetTick() - tickstart) > Timeout) || (Timeout == 0UL))
+          {
+            /* Device is ready */
+            hsmbus->State = HAL_SMBUS_STATE_READY;
+
+            /* Update SMBUS error code */
+            hsmbus->ErrorCode |= HAL_SMBUS_ERROR_HALTIMEOUT;
+
+            /* Process Unlocked */
+            __HAL_UNLOCK(hsmbus);
+            return HAL_ERROR;
+          }
+        }
+
+        tmp1 = __HAL_SMBUS_GET_FLAG(hsmbus, SMBUS_FLAG_STOPF);
+        tmp2 = __HAL_SMBUS_GET_FLAG(hsmbus, SMBUS_FLAG_AF);
+      }
+
+      /* Check if the NACKF flag has not been set */
+      if (__HAL_SMBUS_GET_FLAG(hsmbus, SMBUS_FLAG_AF) == RESET)
+      {
+        /* Wait until STOPF flag is reset */
+        if (SMBUS_WaitOnFlagUntilTimeout(hsmbus, SMBUS_FLAG_STOPF, RESET, Timeout) != HAL_OK)
+        {
+          return HAL_ERROR;
+        }
+
+        /* Clear STOP Flag */
+        __HAL_SMBUS_CLEAR_FLAG(hsmbus, SMBUS_FLAG_STOPF);
+
+        /* Device is ready */
+        hsmbus->State = HAL_SMBUS_STATE_READY;
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(hsmbus);
+
+        return HAL_OK;
+      }
+      else
+      {
+        /* Wait until STOPF flag is reset */
+        if (SMBUS_WaitOnFlagUntilTimeout(hsmbus, SMBUS_FLAG_STOPF, RESET, Timeout) != HAL_OK)
+        {
+          return HAL_ERROR;
+        }
+
+        /* Clear NACK Flag */
+        __HAL_SMBUS_CLEAR_FLAG(hsmbus, SMBUS_FLAG_AF);
+
+        /* Clear STOP Flag, auto generated with autoend*/
+        __HAL_SMBUS_CLEAR_FLAG(hsmbus, SMBUS_FLAG_STOPF);
+      }
+
+      /* Check if the maximum allowed number of trials has been reached */
+      if (SMBUS_Trials == Trials)
+      {
+        /* Generate Stop */
+        hsmbus->Instance->CR2 |= I2C_CR2_STOP;
+
+        /* Wait until STOPF flag is reset */
+        if (SMBUS_WaitOnFlagUntilTimeout(hsmbus, SMBUS_FLAG_STOPF, RESET, Timeout) != HAL_OK)
+        {
+          return HAL_ERROR;
+        }
+
+        /* Clear STOP Flag */
+        __HAL_SMBUS_CLEAR_FLAG(hsmbus, SMBUS_FLAG_STOPF);
+      }
+
+      /* Increment Trials */
+      SMBUS_Trials++;
+    }
+    while (SMBUS_Trials < Trials);
+
+    hsmbus->State = HAL_SMBUS_STATE_READY;
+
+    /* Update SMBUS error code */
+    hsmbus->ErrorCode |= HAL_SMBUS_ERROR_HALTIMEOUT;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hsmbus);
+
+    return HAL_ERROR;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

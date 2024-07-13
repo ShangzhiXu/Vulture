@@ -1,0 +1,15 @@
+LITE_OS_SEC_TEXT_INIT VOID release_secondary_cores(void)
+{
+    /* use psci to wakeup APs */
+    UINT64 psci_call_num = 0xC4000000 + 3; /* SMC64 CPU_ON */
+
+    for (UINT32 i = 1; i < LOSCFG_KERNEL_CORE_NUM; i++) {
+        psci_call(psci_call_num, i, 0x40010000, 0);
+    }
+
+
+    /* wait until all APs are ready */
+    while (LOS_AtomicRead(&ncpu) < LOSCFG_KERNEL_CORE_NUM) {
+        asm volatile("wfe");
+    }
+}

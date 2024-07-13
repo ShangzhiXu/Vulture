@@ -1,0 +1,35 @@
+static void IRDA_SetConfig(IRDA_HandleTypeDef *hirda)
+{
+  /* Check the parameters */
+  assert_param(IS_IRDA_BAUDRATE(hirda->Init.BaudRate));  
+  assert_param(IS_IRDA_WORD_LENGTH(hirda->Init.WordLength));
+  assert_param(IS_IRDA_PARITY(hirda->Init.Parity));
+  assert_param(IS_IRDA_MODE(hirda->Init.Mode));
+  
+  /*------- IRDA-associated USART registers setting : CR2 Configuration ------*/
+  /* Clear STOP[13:12] bits */
+  CLEAR_BIT(hirda->Instance->CR2, USART_CR2_STOP);
+  
+  /*------- IRDA-associated USART registers setting : CR1 Configuration ------*/
+  /* Configure the USART Word Length, Parity and mode: 
+     Set the M bits according to hirda->Init.WordLength value 
+     Set PCE and PS bits according to hirda->Init.Parity value
+     Set TE and RE bits according to hirda->Init.Mode value */
+  MODIFY_REG(hirda->Instance->CR1,
+             ((uint32_t)(USART_CR1_M | USART_CR1_PCE | USART_CR1_PS | USART_CR1_TE | USART_CR1_RE)),
+             (uint32_t)hirda->Init.WordLength | hirda->Init.Parity | hirda->Init.Mode);
+  
+  /*------- IRDA-associated USART registers setting : CR3 Configuration ------*/
+  /* Clear CTSE and RTSE bits */
+  CLEAR_BIT(hirda->Instance->CR3, (USART_CR3_RTSE | USART_CR3_CTSE));
+  
+  /*------- IRDA-associated USART registers setting : BRR Configuration ------*/
+  if(hirda->Instance == USART1)
+  {
+    hirda->Instance->BRR = IRDA_BRR(HAL_RCC_GetPCLK2Freq(), hirda->Init.BaudRate);
+  }
+  else
+  {
+    hirda->Instance->BRR = IRDA_BRR(HAL_RCC_GetPCLK1Freq(), hirda->Init.BaudRate);
+  }
+}

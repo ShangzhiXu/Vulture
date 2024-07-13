@@ -1,0 +1,21 @@
+off_t los_lseek(int fd, off_t off, int whence)
+{
+    struct file *file;
+    off_t ret = -1;
+
+    file = los_attach_file(fd);
+
+    if (file == NULL) {
+        return ret;
+    }
+
+    if (file->f_fops->lseek == NULL) {
+        ret = file->f_offset;
+    } else {
+        ret = file->f_fops->lseek(file, off, whence);
+    }
+
+    los_detach_file(file);
+
+    return ret;
+}

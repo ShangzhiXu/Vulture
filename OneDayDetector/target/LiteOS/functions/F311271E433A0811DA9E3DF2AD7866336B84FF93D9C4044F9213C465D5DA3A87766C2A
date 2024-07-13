@@ -1,0 +1,55 @@
+lv_obj_t * lv_cont_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+
+    LV_LOG_TRACE("container create started");
+
+    /*Create a basic object*/
+    lv_obj_t * cont = lv_obj_create(par, copy);
+    LV_ASSERT_MEM(cont);
+    if(cont == NULL) return NULL;
+
+    if(ancestor_signal == NULL) ancestor_signal = lv_obj_get_signal_cb(cont);
+    if(ancestor_design == NULL) ancestor_design = lv_obj_get_design_cb(cont);
+
+    lv_obj_allocate_ext_attr(cont, sizeof(lv_cont_ext_t));
+    lv_cont_ext_t * ext = lv_obj_get_ext_attr(cont);
+    if(ext == NULL) {
+        lv_obj_del(cont);
+        return NULL;
+    }
+
+    LV_ASSERT_MEM(ext);
+    ext->fit_left   = LV_FIT_NONE;
+    ext->fit_right  = LV_FIT_NONE;
+    ext->fit_top    = LV_FIT_NONE;
+    ext->fit_bottom = LV_FIT_NONE;
+    ext->layout     = LV_LAYOUT_OFF;
+
+    lv_obj_set_signal_cb(cont, lv_cont_signal);
+
+    /*Init the new container*/
+    if(copy == NULL) {
+        /*Set the default styles if it's not screen*/
+        if(par != NULL) {
+            lv_theme_apply(cont, LV_THEME_CONT);
+        }
+
+
+    }
+    /*Copy an existing object*/
+    else {
+        lv_cont_ext_t * copy_ext = lv_obj_get_ext_attr(copy);
+        ext->fit_left            = copy_ext->fit_left;
+        ext->fit_right           = copy_ext->fit_right;
+        ext->fit_top             = copy_ext->fit_top;
+        ext->fit_bottom          = copy_ext->fit_bottom;
+        ext->layout              = copy_ext->layout;
+
+        /*Refresh the style with new signal function*/
+        lv_obj_refresh_style(cont, LV_STYLE_PROP_ALL);
+    }
+
+    LV_LOG_INFO("container created");
+
+    return cont;
+}

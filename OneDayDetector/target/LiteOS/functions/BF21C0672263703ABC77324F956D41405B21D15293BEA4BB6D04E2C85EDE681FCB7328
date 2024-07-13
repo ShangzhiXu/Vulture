@@ -1,0 +1,59 @@
+LITE_OS_SEC_TEXT_MINOR VOID OsSystemWakeup(VOID)
+{
+    UINT32 cpuid;
+    errno_t err;
+
+    if (!g_resumeFromImg) {
+        return;
+    }
+
+#ifdef LOSCFG_EXC_INTERACTION
+    err = memmove_s(m_aucSysMem0, g_excInteractMemSize, g_excInteractionMemStart, g_excInteractionMemSize);
+    if (err != EOK) {
+        PRINT_RELEASE("%s, %d failed, errno = %d\n", __FUNCTION__, __LINE__, err);
+        return;
+    }
+#endif
+    err = memmove_s(m_aucSysMem1, OS_SYS_MEM_SIZE, g_heapMemStart, g_heapMemSize);
+    if (err != EOK) {
+        PRINT_RELEASE("%s, %d failed, errno = %d\n", __FUNCTION__, __LINE__, err);
+        return;
+    }
+    dsb();
+    /* Set the task of the current CPU */
+    cpuid = ArchCurrCpuid();
+    OsCurrTaskSet(g_saveTsk[cpuid]);
+
+    /* Set system counter freq */
+    HalClockFreqWrite(OS_SYS_CLOCK);
+    dsb();
+#ifdef LOSCFG_EXC_INTERACTION
+    if (LOS_MemPoolSizeGet(m_aucSysMem0) != g_excInteractionMemSize) {
+        OsMemResetEndNode(m_aucSysMem0, (UINTPTR)m_aucSysMem0 + g_excInteractionMemSize);
+    }
+#endif
+    if (LOS_MemPoolSizeGet(m_aucSysMem1) != g_heapMemSize) {
+        OsMemResetEndNode(m_aucSysMem1, (UINTPTR)m_aucSysMem1 + g_heapMemSize);
+    }
+
+    (VOID)memset_s((VOID *)&__bss_start, (((UINTPTR)&__bss_end) - ((UINTPTR)&__bss_start)), 0,
+        (((UINTPTR)&__bss_end) - ((UINTPTR)&__bss_start)));
+
+    HalIrqInit();
+
+#ifndef LOSCFG_PLATFORM_NO_UART
+    uart_early_init();
+#endif
+
+    g_resumeFromImg = LOS_COLD_RESET;
+    g_otherCoreResume = 1;
+
+#ifdef LOSCFG_KERNEL_CPUP
+    OsSetCpuCycle(0);
+#endif
+
+#if (LOSCFG_KERNEL_SMP == YES)
+    release_secondary_cores();
+#endif
+    OsSRRestoreRegister();
+}

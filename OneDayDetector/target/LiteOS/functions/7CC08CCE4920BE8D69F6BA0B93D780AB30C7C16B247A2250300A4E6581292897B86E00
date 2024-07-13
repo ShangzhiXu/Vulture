@@ -1,0 +1,19 @@
+smtp_close(struct smtp_session *s, struct altcp_pcb *pcb, u8_t result,
+           u16_t srv_err, err_t err)
+{
+  if (pcb != NULL) {
+     altcp_arg(pcb, NULL);
+     if (altcp_close(pcb) == ERR_OK) {
+       if (s != NULL) {
+         smtp_free(s, result, srv_err, err);
+       }
+     } else {
+       /* close failed, set back arg */
+       altcp_arg(pcb, s);
+     }
+  } else {
+    if (s != NULL) {
+      smtp_free(s, result, srv_err, err);
+    }
+  }
+}

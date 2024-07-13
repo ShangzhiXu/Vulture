@@ -1,0 +1,23 @@
+etharp_output_to_arp_index(struct netif *netif, struct pbuf *q, netif_addr_idx_t arp_idx)
+{
+  LWIP_ASSERT("arp_table[arp_idx].state >= ETHARP_STATE_STABLE",
+              arp_table[arp_idx].state >= ETHARP_STATE_STABLE);
+  /* if arp table entry is about to expire: re-request it,
+     but only if its state is ETHARP_STATE_STABLE to prevent flooding the
+     network with ARP requests if this address is used frequently. */
+  if (arp_table[arp_idx].state == ETHARP_STATE_STABLE) {
+    if (arp_table[arp_idx].ctime >= ARP_AGE_REREQUEST_USED_BROADCAST) {
+      /* issue a standard request using broadcast */
+      if (etharp_request(netif, &arp_table[arp_idx].ipaddr) == ERR_OK) {
+        arp_table[arp_idx].state = ETHARP_STATE_STABLE_REREQUESTING_1;
+      }
+    } else if (arp_table[arp_idx].ctime >= ARP_AGE_REREQUEST_USED_UNICAST) {
+      /* issue a unicast request (for 15 seconds) to prevent unnecessary broadcast */
+      if (etharp_request_dst(netif, &arp_table[arp_idx].ipaddr, &arp_table[arp_idx].ethaddr) == ERR_OK) {
+        arp_table[arp_idx].state = ETHARP_STATE_STABLE_REREQUESTING_1;
+      }
+    }
+  }
+
+  return ethernet_output(netif, q, (struct eth_addr *)(netif->hwaddr), &arp_table[arp_idx].ethaddr, ETHTYPE_IP);
+}

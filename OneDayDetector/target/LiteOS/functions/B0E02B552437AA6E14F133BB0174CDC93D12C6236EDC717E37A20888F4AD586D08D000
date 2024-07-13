@@ -1,0 +1,24 @@
+LITE_OS_SEC_TEXT_INIT UINT32 OsSemInit(VOID)
+{
+    LosSemCB *semNode = NULL;
+    UINT16 index; // support at most 65536 semaphores
+
+    /* system resident memory, don't free */
+    g_allSem = (LosSemCB *)LOS_MemAlloc(m_aucSysMem0, (LOSCFG_BASE_IPC_SEM_LIMIT * sizeof(LosSemCB)));
+    if (g_allSem == NULL) {
+        return LOS_ERRNO_SEM_NO_MEMORY;
+    }
+
+    LOS_ListInit(&g_unusedSemList);
+
+    for (index = 0; index < LOSCFG_BASE_IPC_SEM_LIMIT; index++) {
+        semNode = ((LosSemCB *)g_allSem) + index;
+        semNode->semId = (UINT32)index;
+        OsSemNodeRecycle(semNode);
+    }
+
+    if (OsSemDbgInitHook() != LOS_OK) {
+        return LOS_ERRNO_SEM_NO_MEMORY;
+    }
+    return LOS_OK;
+}

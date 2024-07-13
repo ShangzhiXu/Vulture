@@ -1,0 +1,28 @@
+int sched_setaffinity(pid_t pid, size_t set_size, const cpu_set_t* set)
+{
+#ifdef LOSCFG_KERNEL_SMP
+    UINT32 taskId = (UINT32)pid;
+    UINT32 ret;
+
+    if ((set == NULL) || (set_size != sizeof(cpu_set_t)) || (set->__bits[0] > LOSCFG_KERNEL_CPU_MASK)) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if (taskId == 0) {
+        taskId = LOS_CurTaskIDGet();
+        if (taskId == LOS_ERRNO_TSK_ID_INVALID) {
+            errno = EINVAL;
+            return -1;
+        }
+    }
+
+    ret = LOS_TaskCpuAffiSet(taskId, (UINT16)set->__bits[0]);
+    if (ret != LOS_OK) {
+        errno = map_errno(ret);
+        return -1;
+    }
+#endif
+
+    return 0;
+}

@@ -1,0 +1,21 @@
+ip6_chksum_pseudo(struct pbuf *p, u8_t proto, u16_t proto_len,
+                  const ip6_addr_t *src, const ip6_addr_t *dest)
+{
+  u32_t acc = 0;
+  u32_t addr;
+  u8_t addr_part;
+
+  for (addr_part = 0; addr_part < 4; addr_part++) {
+    addr = src->addr[addr_part];
+    acc = (u32_t)(acc + (addr & 0xffffUL));
+    acc = (u32_t)(acc + ((addr >> 16) & 0xffffUL));
+    addr = dest->addr[addr_part];
+    acc = (u32_t)(acc + (addr & 0xffffUL));
+    acc = (u32_t)(acc + ((addr >> 16) & 0xffffUL));
+  }
+  /* fold down to 16 bits */
+  acc = FOLD_U32T(acc);
+  acc = FOLD_U32T(acc);
+
+  return inet_cksum_pseudo_base(p, proto, proto_len, acc);
+}

@@ -1,0 +1,63 @@
+static void DMA2D_SetConfig(DMA2D_HandleTypeDef *hdma2d, uint32_t pdata, uint32_t DstAddress, uint32_t Width, uint32_t Height)
+{
+  uint32_t tmp;
+  uint32_t tmp1;
+  uint32_t tmp2;
+  uint32_t tmp3;
+  uint32_t tmp4;
+
+  /* Configure DMA2D data size */
+  MODIFY_REG(hdma2d->Instance->NLR, (DMA2D_NLR_NL|DMA2D_NLR_PL), (Height| (Width << DMA2D_NLR_PL_Pos)));
+
+  /* Configure DMA2D destination address */
+  WRITE_REG(hdma2d->Instance->OMAR, DstAddress);
+
+  /* Register to memory DMA2D mode selected */
+  if (hdma2d->Init.Mode == DMA2D_R2M)
+  {
+    tmp1 = pdata & DMA2D_OCOLR_ALPHA_1;
+    tmp2 = pdata & DMA2D_OCOLR_RED_1;
+    tmp3 = pdata & DMA2D_OCOLR_GREEN_1;
+    tmp4 = pdata & DMA2D_OCOLR_BLUE_1;
+
+    /* Prepare the value to be written to the OCOLR register according to the color mode */
+    if (hdma2d->Init.ColorMode == DMA2D_OUTPUT_ARGB8888)
+    {
+      tmp = (tmp3 | tmp2 | tmp1| tmp4);
+    }
+    else if (hdma2d->Init.ColorMode == DMA2D_OUTPUT_RGB888)
+    {
+      tmp = (tmp3 | tmp2 | tmp4);
+    }
+    else if (hdma2d->Init.ColorMode == DMA2D_OUTPUT_RGB565)
+    {
+      tmp2 = (tmp2 >> 19U);
+      tmp3 = (tmp3 >> 10U);
+      tmp4 = (tmp4 >> 3U );
+      tmp  = ((tmp3 << 5U) | (tmp2 << 11U) | tmp4);
+    }
+    else if (hdma2d->Init.ColorMode == DMA2D_OUTPUT_ARGB1555)
+    {
+      tmp1 = (tmp1 >> 31U);
+      tmp2 = (tmp2 >> 19U);
+      tmp3 = (tmp3 >> 11U);
+      tmp4 = (tmp4 >> 3U );
+      tmp  = ((tmp3 << 5U) | (tmp2 << 10U) | (tmp1 << 15U) | tmp4);
+    }
+    else /* Dhdma2d->Init.ColorMode = DMA2D_OUTPUT_ARGB4444 */
+    {
+      tmp1 = (tmp1 >> 28U);
+      tmp2 = (tmp2 >> 20U);
+      tmp3 = (tmp3 >> 12U);
+      tmp4 = (tmp4 >> 4U );
+      tmp  = ((tmp3 << 4U) | (tmp2 << 8U) | (tmp1 << 12U) | tmp4);
+    }
+    /* Write to DMA2D OCOLR register */
+    WRITE_REG(hdma2d->Instance->OCOLR, tmp);
+  }
+  else /* M2M, M2M_PFC or M2M_Blending DMA2D Mode */
+  {
+    /* Configure DMA2D source address */
+    WRITE_REG(hdma2d->Instance->FGMAR, pdata);
+  }
+}

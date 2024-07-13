@@ -1,0 +1,32 @@
+netif_set_link_up(struct netif *netif)
+{
+  LWIP_ASSERT_CORE_LOCKED();
+
+  LWIP_ERROR("netif_set_link_up: invalid netif", netif != NULL, return);
+
+  if (!(netif->flags & NETIF_FLAG_LINK_UP)) {
+    netif_set_flags(netif, NETIF_FLAG_LINK_UP);
+
+#if LWIP_DHCP
+    dhcp_network_changed(netif);
+#endif /* LWIP_DHCP */
+
+#if LWIP_AUTOIP
+    autoip_network_changed(netif);
+#endif /* LWIP_AUTOIP */
+
+    netif_issue_reports(netif, NETIF_REPORT_TYPE_IPV4 | NETIF_REPORT_TYPE_IPV6);
+#if LWIP_IPV6
+    nd6_restart_netif(netif);
+#endif /* LWIP_IPV6 */
+
+    NETIF_LINK_CALLBACK(netif);
+#if LWIP_NETIF_EXT_STATUS_CALLBACK
+    {
+      netif_ext_callback_args_t args;
+      args.link_changed.state = 1;
+      netif_invoke_ext_callback(netif, LWIP_NSC_LINK_CHANGED, &args);
+    }
+#endif
+  }
+}

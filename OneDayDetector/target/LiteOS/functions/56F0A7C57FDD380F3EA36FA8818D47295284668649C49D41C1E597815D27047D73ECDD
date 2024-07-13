@@ -1,0 +1,46 @@
+HAL_StatusTypeDef HAL_CRYPEx_AES_DMA(CRYP_HandleTypeDef *hcryp,  uint8_t *pInputData, uint16_t Size, uint8_t *pOutputData)
+{
+  uint32_t inputaddr = 0;
+  uint32_t outputaddr = 0;
+  
+  if (hcryp->State == HAL_CRYP_STATE_READY)
+  {
+    /* Check parameters setting */
+    if (hcryp->Init.OperatingMode == CRYP_ALGOMODE_KEYDERIVATION)
+    {
+      /* no DMA channel is provided for key derivation operating mode, 
+         access to AES_KEYRx registers must be done by software */
+      return  HAL_ERROR;
+    }
+    else
+    {
+      if ((pInputData == NULL) || (pOutputData == NULL) || (Size == 0))
+      {
+        return  HAL_ERROR;
+      }
+    }
+    
+    
+    /* Process Locked */
+    __HAL_LOCK(hcryp);
+    
+    inputaddr  = (uint32_t)pInputData;
+    outputaddr = (uint32_t)pOutputData;
+    
+    /* Change the CRYP state */
+    hcryp->State = HAL_CRYP_STATE_BUSY;
+    
+    /* Set the input and output addresses and start DMA transfer */ 
+    CRYP_SetDMAConfig(hcryp, inputaddr, Size, outputaddr);
+    
+    /* Process Unlocked */
+    __HAL_UNLOCK(hcryp);
+    
+    /* Return function status */
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;   
+  }
+}

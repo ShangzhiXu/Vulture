@@ -1,0 +1,14 @@
+lwiperf_tx_start_passive(lwiperf_state_tcp_t *conn)
+{
+  err_t ret;
+  lwiperf_state_tcp_t *new_conn = NULL;
+  u16_t remote_port = (u16_t)lwip_htonl(conn->settings.remote_port);
+
+  ret = lwiperf_tx_start_impl(&conn->conn_pcb->remote_ip, remote_port, &conn->settings, conn->report_fn, conn->report_arg,
+    conn->base.related_master_state, &new_conn);
+  if (ret == ERR_OK) {
+    LWIP_ASSERT("new_conn != NULL", new_conn != NULL);
+    new_conn->settings.flags = 0; /* prevent the remote side starting back as client again */
+  }
+  return ret;
+}

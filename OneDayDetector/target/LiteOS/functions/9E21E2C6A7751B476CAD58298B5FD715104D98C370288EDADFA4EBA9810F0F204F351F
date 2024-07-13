@@ -1,0 +1,64 @@
+HAL_StatusTypeDef HAL_JPEG_GetInfo(JPEG_HandleTypeDef *hjpeg, JPEG_ConfTypeDef *pInfo)
+{
+  uint32_t yblockNb, cBblockNb, cRblockNb;
+
+  /* Check the JPEG handle allocation */
+  if ((hjpeg == NULL) || (pInfo == NULL))
+  {
+    return HAL_ERROR;
+  }
+
+  /*Read the conf parameters */
+  if ((hjpeg->Instance->CONFR1 & JPEG_CONFR1_NF) == JPEG_CONFR1_NF_1)
+  {
+    pInfo->ColorSpace = JPEG_YCBCR_COLORSPACE;
+  }
+  else if ((hjpeg->Instance->CONFR1 & JPEG_CONFR1_NF) == 0UL)
+  {
+    pInfo->ColorSpace = JPEG_GRAYSCALE_COLORSPACE;
+  }
+  else if ((hjpeg->Instance->CONFR1 & JPEG_CONFR1_NF) == JPEG_CONFR1_NF)
+  {
+    pInfo->ColorSpace = JPEG_CMYK_COLORSPACE;
+  }
+  else
+  {
+    return HAL_ERROR;
+  }
+
+  pInfo->ImageHeight = (hjpeg->Instance->CONFR1 & 0xFFFF0000UL) >> 16;
+  pInfo->ImageWidth  = (hjpeg->Instance->CONFR3 & 0xFFFF0000UL) >> 16;
+
+  if ((pInfo->ColorSpace == JPEG_YCBCR_COLORSPACE) || (pInfo->ColorSpace == JPEG_CMYK_COLORSPACE))
+  {
+    yblockNb  = (hjpeg->Instance->CONFR4 & JPEG_CONFR4_NB) >> 4;
+    cBblockNb = (hjpeg->Instance->CONFR5 & JPEG_CONFR5_NB) >> 4;
+    cRblockNb = (hjpeg->Instance->CONFR6 & JPEG_CONFR6_NB) >> 4;
+
+    if ((yblockNb == 1UL) && (cBblockNb == 0UL) && (cRblockNb == 0UL))
+    {
+      pInfo->ChromaSubsampling = JPEG_422_SUBSAMPLING; /*16x8 block*/
+    }
+    else if ((yblockNb == 0UL) && (cBblockNb == 0UL) && (cRblockNb == 0UL))
+    {
+      pInfo->ChromaSubsampling = JPEG_444_SUBSAMPLING;
+    }
+    else if ((yblockNb == 3UL) && (cBblockNb == 0UL) && (cRblockNb == 0UL))
+    {
+      pInfo->ChromaSubsampling = JPEG_420_SUBSAMPLING;
+    }
+    else /*Default is 4:4:4*/
+    {
+      pInfo->ChromaSubsampling = JPEG_444_SUBSAMPLING;
+    }
+  }
+  else
+  {
+    pInfo->ChromaSubsampling = JPEG_444_SUBSAMPLING;
+  }
+
+  pInfo->ImageQuality = JPEG_GetQuality(hjpeg);
+
+  /* Return function status */
+  return HAL_OK;
+}

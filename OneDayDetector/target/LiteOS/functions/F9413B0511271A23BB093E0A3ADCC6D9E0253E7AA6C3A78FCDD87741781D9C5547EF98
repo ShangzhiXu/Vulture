@@ -1,0 +1,83 @@
+HAL_StatusTypeDef HAL_DCMI_Init(DCMI_HandleTypeDef *hdcmi)
+{     
+  /* Check the DCMI peripheral state */
+  if(hdcmi == NULL)
+  {
+     return HAL_ERROR;
+  }
+  
+  /* Check function parameters */
+  assert_param(IS_DCMI_ALL_INSTANCE(hdcmi->Instance));
+  assert_param(IS_DCMI_SYNCHRO(hdcmi->Init.SynchroMode));  
+  assert_param(IS_DCMI_PCKPOLARITY(hdcmi->Init.PCKPolarity));
+  assert_param(IS_DCMI_VSPOLARITY(hdcmi->Init.VSPolarity));
+  assert_param(IS_DCMI_HSPOLARITY(hdcmi->Init.HSPolarity));
+  assert_param(IS_DCMI_CAPTURE_RATE(hdcmi->Init.CaptureRate));
+  assert_param(IS_DCMI_EXTENDED_DATA(hdcmi->Init.ExtendedDataMode));
+  assert_param(IS_DCMI_MODE_JPEG(hdcmi->Init.JPEGMode));
+
+  assert_param(IS_DCMI_BYTE_SELECT_MODE(hdcmi->Init.ByteSelectMode));
+  assert_param(IS_DCMI_BYTE_SELECT_START(hdcmi->Init.ByteSelectStart));
+  assert_param(IS_DCMI_LINE_SELECT_MODE(hdcmi->Init.LineSelectMode));
+  assert_param(IS_DCMI_LINE_SELECT_START(hdcmi->Init.LineSelectStart));
+                
+  if(hdcmi->State == HAL_DCMI_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hdcmi->Lock = HAL_UNLOCKED;
+    /* Init the low level hardware */
+    HAL_DCMI_MspInit(hdcmi);
+  } 
+  
+  /* Change the DCMI state */
+  hdcmi->State = HAL_DCMI_STATE_BUSY; 
+  
+  /* Disable DCMI IP before setting the configuration register */
+  __HAL_DCMI_DISABLE(hdcmi); 
+  
+  if (hdcmi->Init.ExtendedDataMode != DCMI_EXTEND_DATA_8B)
+  {
+    /* Byte select mode must be programmed to the reset value if the extended mode 
+      is not set to 8-bit data capture on every pixel clock */
+    hdcmi->Init.ByteSelectMode = DCMI_BSM_ALL;      
+  }  
+
+  /* Set DCMI parameters */
+  hdcmi->Instance->CR &= ~(DCMI_CR_PCKPOL | DCMI_CR_HSPOL  | DCMI_CR_VSPOL  | DCMI_CR_EDM_0 |\
+                           DCMI_CR_EDM_1  | DCMI_CR_FCRC_0 | DCMI_CR_FCRC_1 | DCMI_CR_JPEG  |\
+                           DCMI_CR_ESS | DCMI_CR_BSM_0 | DCMI_CR_BSM_1 | DCMI_CR_OEBS |\
+                           DCMI_CR_LSM | DCMI_CR_OELS);
+
+  hdcmi->Instance->CR |=  (uint32_t)(hdcmi->Init.SynchroMode | hdcmi->Init.CaptureRate |\
+                                     hdcmi->Init.VSPolarity  | hdcmi->Init.HSPolarity  |\
+                                     hdcmi->Init.PCKPolarity | hdcmi->Init.ExtendedDataMode |\
+                                     hdcmi->Init.JPEGMode | hdcmi->Init.ByteSelectMode |\
+                                     hdcmi->Init.ByteSelectStart | hdcmi->Init.LineSelectMode |\
+                                     hdcmi->Init.LineSelectStart);
+
+  if(hdcmi->Init.SynchroMode == DCMI_SYNCHRO_EMBEDDED)
+  {
+    hdcmi->Instance->ESCR = (((uint32_t)hdcmi->Init.SynchroCode.FrameStartCode)    |\
+                             ((uint32_t)hdcmi->Init.SynchroCode.LineStartCode << DCMI_POSITION_ESCR_LSC)|\
+                             ((uint32_t)hdcmi->Init.SynchroCode.LineEndCode << DCMI_POSITION_ESCR_LEC) |\
+                             ((uint32_t)hdcmi->Init.SynchroCode.FrameEndCode << DCMI_POSITION_ESCR_FEC));
+  }
+
+  /* By default, enable all interrupts. The user may disable the unwanted ones
+     in resorting to __HAL_DCMI_DISABLE_IT() macro before invoking HAL_DCMI_Start_DMA(). 
+     Enabled interruptions are 
+     - end of line
+     - end of frame
+     - data reception overrun
+     - frame synchronization signal VSYNC
+     - synchronization error */
+  __HAL_DCMI_ENABLE_IT(hdcmi, DCMI_IT_FRAME|DCMI_IT_OVR|DCMI_IT_ERR|DCMI_IT_VSYNC|DCMI_IT_LINE);
+
+  /* Update error code */
+  hdcmi->ErrorCode = HAL_DCMI_ERROR_NONE;
+  
+  /* Initialize the DCMI state*/
+  hdcmi->State  = HAL_DCMI_STATE_READY;
+
+  return HAL_OK;
+}

@@ -1,0 +1,60 @@
+u32_t sys_arch_mbox_fetch_ext(struct sys_mbox **mb, void **msg, u32_t timeout, u8_t ignore_timeout)
+{
+    u32_t time_needed = 0;
+    struct sys_mbox *mbox;
+    unsigned long long u64StartTick;
+    unsigned long long u64EndTick;
+    unsigned int ret;
+    mbox = *mb;
+    LWIP_DEBUGF(SYS_DEBUG, ("sys_arch_mbox_fetch: mbox 0x%p msg 0x%p\n", (void *)mbox, (void *)msg));
+    /* The mutex lock is quick so we don't bother with the timeout
+       stuff here. */
+    (void)LOS_SemPend(mbox->mutex, LOS_WAIT_FOREVER);
+
+    while (mbox->isEmpty && !ignore_timeout) {
+        (void)LOS_SemPost(mbox->mutex);
+
+        if (timeout == 0) {
+            timeout = LOS_WAIT_FOREVER;
+        } else {
+            timeout = LOS_MS2Tick(timeout);
+            timeout = (timeout > 0) ? timeout : 1;
+        }
+
+        u64StartTick = LOS_TickCountGet();
+        LWIP_DEBUGF(SYS_DEBUG, ("sys_arch_mbox_fetch: mbox 0x%p, timed cond wait\n", (void *)mbox));
+        ret = LOS_SemPend(mbox->not_empty, timeout);
+
+        if (ret != 0) {
+            LWIP_DEBUGF(SYS_DEBUG, ("sys_arch_mbox_fetch: mbox 0x%p,timeout in cond wait\n", (void *)mbox));
+            return SYS_ARCH_TIMEOUT;
+        }
+
+        u64EndTick = LOS_TickCountGet();
+        time_needed = (u32_t)(((u64EndTick - u64StartTick) * OS_SYS_MS_PER_SECOND) / LOSCFG_BASE_CORE_TICK_PER_SECOND);
+        (void)LOS_SemPend(mbox->mutex, LOS_WAIT_FOREVER);
+    }
+
+    if (msg != NULL) {
+        *msg = mbox->msgs[mbox->first];
+        LWIP_DEBUGF(SYS_DEBUG, ("sys_arch_mbox_fetch: mbox 0x%p msg 0x%p\n", (void *)mbox, (void *)*msg));
+    } else {
+        LWIP_DEBUGF(SYS_DEBUG, ("sys_arch_mbox_fetch: mbox 0x%p, null msg\n", (void *)mbox));
+    }
+
+    mbox->first = (mbox->first + 1) % mbox->mbox_size;
+
+    if (mbox->first == mbox->last) {
+        mbox->isEmpty = 1;
+    }
+
+    if (mbox->isFull) {
+        mbox->isFull = 0;
+        (void)LOS_SemPost(mbox->not_full);
+    }
+
+    LWIP_DEBUGF(SYS_DEBUG, ("sys_arch_mbox_fetch: mbox 0x%p msg 0x%p fetched\n", (void *)mbox, (void *)msg));
+    (void)LOS_SemPost(mbox->mutex);
+
+    return time_needed;
+}

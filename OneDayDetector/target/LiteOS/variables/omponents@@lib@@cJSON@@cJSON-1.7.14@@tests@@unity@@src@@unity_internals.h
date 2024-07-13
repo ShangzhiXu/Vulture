@@ -1,0 +1,11 @@
+    jmp_buf AbortFrame;
+    const char* CurrentDetail1;
+    const char* CurrentDetail2;
+    UNITY_COUNTER_TYPE CurrentTestFailed;
+    UNITY_COUNTER_TYPE CurrentTestIgnored;
+    UNITY_LINE_TYPE CurrentTestLineNumber;
+    const char* CurrentTestName;
+    UNITY_COUNTER_TYPE NumberOfTests;
+    UNITY_COUNTER_TYPE TestFailures;
+    const char* TestFile;
+    UNITY_COUNTER_TYPE TestIgnores;

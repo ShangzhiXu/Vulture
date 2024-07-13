@@ -1,0 +1,81 @@
+static void JPEG_StoreOutputData(JPEG_HandleTypeDef *hjpeg, uint32_t nbOutputWords)
+{
+  uint32_t index, nBwords, nbBytes, dataword;
+
+  if (hjpeg->OutDataLength >= (hjpeg->JpegOutCount + (nbOutputWords * 4UL)))
+  {
+    for (index = 0; index < nbOutputWords; index++)
+    {
+      /*Transfer 32 bits from the JPEG output FIFO*/
+      dataword = hjpeg->Instance->DOR;
+      hjpeg->pJpegOutBuffPtr[hjpeg->JpegOutCount] = (uint8_t)(dataword & 0x000000FFUL);
+      hjpeg->pJpegOutBuffPtr[hjpeg->JpegOutCount + 1UL] = (uint8_t)((dataword & 0x0000FF00UL) >> 8);
+      hjpeg->pJpegOutBuffPtr[hjpeg->JpegOutCount + 2UL] = (uint8_t)((dataword & 0x00FF0000UL) >> 16);
+      hjpeg->pJpegOutBuffPtr[hjpeg->JpegOutCount + 3UL] = (uint8_t)((dataword & 0xFF000000UL) >> 24);
+      hjpeg->JpegOutCount += 4UL;
+    }
+    if (hjpeg->OutDataLength == hjpeg->JpegOutCount)
+    {
+      /*Output Buffer is full, call DecodedDataReadyCallback*/
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+      hjpeg->DataReadyCallback(hjpeg, hjpeg->pJpegOutBuffPtr, hjpeg->JpegOutCount);
+#else
+      HAL_JPEG_DataReadyCallback(hjpeg, hjpeg->pJpegOutBuffPtr, hjpeg->JpegOutCount);
+#endif /*USE_HAL_JPEG_REGISTER_CALLBACKS*/
+      hjpeg->JpegOutCount = 0;
+    }
+  }
+  else if (hjpeg->OutDataLength > hjpeg->JpegOutCount)
+  {
+    nBwords = (hjpeg->OutDataLength - hjpeg->JpegOutCount) / 4UL;
+    for (index = 0; index < nBwords; index++)
+    {
+      /*Transfer 32 bits from the JPEG output FIFO*/
+      dataword = hjpeg->Instance->DOR;
+      hjpeg->pJpegOutBuffPtr[hjpeg->JpegOutCount] = (uint8_t)(dataword & 0x000000FFUL);
+      hjpeg->pJpegOutBuffPtr[hjpeg->JpegOutCount + 1UL] = (uint8_t)((dataword & 0x0000FF00UL) >> 8);
+      hjpeg->pJpegOutBuffPtr[hjpeg->JpegOutCount + 2UL] = (uint8_t)((dataword & 0x00FF0000UL) >> 16);
+      hjpeg->pJpegOutBuffPtr[hjpeg->JpegOutCount + 3UL] = (uint8_t)((dataword & 0xFF000000UL) >> 24);
+      hjpeg->JpegOutCount += 4UL;
+    }
+    if (hjpeg->OutDataLength == hjpeg->JpegOutCount)
+    {
+      /*Output Buffer is full, call DecodedDataReadyCallback*/
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+      hjpeg->DataReadyCallback(hjpeg, hjpeg->pJpegOutBuffPtr, hjpeg->JpegOutCount);
+#else
+      HAL_JPEG_DataReadyCallback(hjpeg, hjpeg->pJpegOutBuffPtr, hjpeg->JpegOutCount);
+#endif /* USE_HAL_JPEG_REGISTER_CALLBACKS */
+      hjpeg->JpegOutCount = 0;
+    }
+    else
+    {
+      nbBytes = hjpeg->OutDataLength - hjpeg->JpegOutCount;
+      dataword = hjpeg->Instance->DOR;
+      for (index = 0; index < nbBytes; index++)
+      {
+        hjpeg->pJpegOutBuffPtr[hjpeg->JpegOutCount] = (uint8_t)((dataword >> (8UL * (index & 0x3UL))) & 0xFFUL);
+        hjpeg->JpegOutCount++;
+      }
+      /*Output Buffer is full, call DecodedDataReadyCallback*/
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+      hjpeg->DataReadyCallback(hjpeg, hjpeg->pJpegOutBuffPtr, hjpeg->JpegOutCount);
+#else
+      HAL_JPEG_DataReadyCallback(hjpeg, hjpeg->pJpegOutBuffPtr, hjpeg->JpegOutCount);
+#endif /* USE_HAL_JPEG_REGISTER_CALLBACKS */
+
+      hjpeg->JpegOutCount = 0;
+
+      nbBytes = 4UL - nbBytes;
+      for (index = nbBytes; index < 4UL; index++)
+      {
+        hjpeg->pJpegOutBuffPtr[hjpeg->JpegOutCount] = (uint8_t)((dataword >> (8UL * index)) & 0xFFUL);
+        hjpeg->JpegOutCount++;
+      }
+    }
+  }
+  else
+  {
+    /* Nothing to do */
+  }
+}

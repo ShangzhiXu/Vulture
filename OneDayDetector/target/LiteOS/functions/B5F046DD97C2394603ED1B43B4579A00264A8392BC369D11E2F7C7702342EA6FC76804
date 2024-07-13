@@ -1,0 +1,56 @@
+uint8_t BSP_AUDIO_IN_Stop(void)
+{
+  if (AudioIn_Device == INPUT_DEVICE_DIGITAL_MIC)
+  { 
+    AppBuffTrigger = 0;
+    AppBuffHalf    = 0;
+    
+    if(AudioIn_ChannelNumber > 2)
+    {    
+      /* Call the Media layer stop function for buttom right channel */
+      if(HAL_OK != HAL_DFSDM_FilterRegularStop_DMA(&hAudioInButtomRightFilter))
+      {
+        return AUDIO_ERROR;
+      }
+      
+      /* Call the Media layer stop function for buttom left channel */
+      if(HAL_OK != HAL_DFSDM_FilterRegularStop_DMA(&hAudioInButtomLeftFilter))
+      {
+        return AUDIO_ERROR;
+      }
+    }
+    
+    /* Call the Media layer stop function for top right channel */
+    if(HAL_OK != HAL_DFSDM_FilterRegularStop_DMA(&hAudioInTopRightFilter))
+    {
+      return AUDIO_ERROR;
+    }
+    
+    /* Call the Media layer stop function for top left channel */
+    if(HAL_OK != HAL_DFSDM_FilterRegularStop_DMA(&hAudioInTopLeftFilter))
+    {
+      return AUDIO_ERROR;
+    }
+  }
+  else
+  {
+    /* Call the Media layer stop function */
+    HAL_SAI_DMAStop(&haudio_in_sai);
+    
+    /* Call Audio Codec Stop function */
+    if(audio_drv->Stop(AUDIO_I2C_ADDRESS, CODEC_PDWN_HW) != 0)
+    {
+      return AUDIO_ERROR;
+    }
+    else
+    {
+      /* Wait at least 100us */
+      HAL_Delay(1);
+      
+      /* Return AUDIO_OK when all operations are correctly done */
+      return AUDIO_OK;
+    }  
+  }
+  /* Return AUDIO_OK when all operations are correctly done */
+  return AUDIO_OK;
+}

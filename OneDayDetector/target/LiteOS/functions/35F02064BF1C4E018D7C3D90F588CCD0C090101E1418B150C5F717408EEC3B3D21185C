@@ -1,0 +1,25 @@
+int32_t esp8266_close(int32_t id)
+{
+    char cmd[64] = {0};
+
+    if (at.linkid[id].usable == AT_LINK_UNUSE) {
+        return 0;
+    }
+
+    if (at.mux_mode == AT_MUXMODE_SINGLE) {
+        snprintf(cmd, 64, "%s", AT_CMD_CLOSE);
+    } else {
+        uint32_t qlen = sizeof(QUEUE_BUFF);
+        QUEUE_BUFF qbuf = {0, NULL};
+        while (LOS_QueueReadCopy(at.linkid[id].qid, (void *)&qbuf, (UINT32 *)&qlen, 10) == LOS_OK) {
+            if (qbuf.len) {
+                at_free(qbuf.addr);
+                memset(&qbuf, 0, sizeof(QUEUE_BUFF)); // don't use qlen
+            }
+        }
+        (void)LOS_QueueDelete(at.linkid[id].qid);
+        memset(&at.linkid[id], 0, sizeof(at_link));
+        snprintf(cmd, 64, "%s=%ld", AT_CMD_CLOSE, id);
+    }
+    return esp8266_cmd((int8_t *)cmd, strlen(cmd), "OK\r\n", NULL, NULL);
+}

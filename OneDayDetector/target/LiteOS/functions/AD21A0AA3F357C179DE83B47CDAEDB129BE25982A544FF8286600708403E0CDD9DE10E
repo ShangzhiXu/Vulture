@@ -1,0 +1,109 @@
+HAL_StatusTypeDef HAL_ADC_PollForConversion(ADC_HandleTypeDef* hadc, uint32_t Timeout)
+{
+  uint32_t tickstart;
+  uint32_t tmp_Flag_EOC;
+ 
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+
+  /* If end of conversion selected to end of sequence */
+  if (hadc->Init.EOCSelection == ADC_EOC_SEQ_CONV)
+  {
+    tmp_Flag_EOC = ADC_FLAG_EOS;
+  }
+  /* If end of conversion selected to end of each conversion */
+  else /* ADC_EOC_SINGLE_CONV */
+  {
+    /* Verification that ADC configuration is compliant with polling for      */
+    /* each conversion:                                                       */
+    /* Particular case is ADC configured in DMA mode and ADC sequencer with   */
+    /* several ranks and polling for end of each conversion.                  */
+    /* For code simplicity sake, this particular case is generalized to       */
+    /* ADC configured in DMA mode and and polling for end of each conversion. */
+    if (HAL_IS_BIT_SET(hadc->Instance->CFGR1, ADC_CFGR1_DMAEN))
+    {
+      /* Update ADC state machine to error */
+      SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_CONFIG);
+      
+      /* Process unlocked */
+      __HAL_UNLOCK(hadc);
+      
+      return HAL_ERROR;
+    }
+    else
+    {
+      tmp_Flag_EOC = (ADC_FLAG_EOC | ADC_FLAG_EOS);
+    }
+  }
+  
+  /* Get tick count */
+  tickstart = HAL_GetTick();
+  
+  /* Wait until End of Conversion flag is raised */
+  while(HAL_IS_BIT_CLR(hadc->Instance->ISR, tmp_Flag_EOC))
+  {
+    /* Check if timeout is disabled (set to infinite wait) */
+    if(Timeout != HAL_MAX_DELAY)
+    {
+      if((Timeout == 0) || ((HAL_GetTick()-tickstart) > Timeout))
+      {
+        /* Update ADC state machine to timeout */
+        SET_BIT(hadc->State, HAL_ADC_STATE_TIMEOUT);
+        
+        /* Process unlocked */
+        __HAL_UNLOCK(hadc);
+        
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+    
+  /* Update ADC state machine */
+  SET_BIT(hadc->State, HAL_ADC_STATE_REG_EOC);
+  
+  /* Determine whether any further conversion upcoming on group regular       */
+  /* by external trigger, continuous mode or scan sequence on going.          */
+  if(ADC_IS_SOFTWARE_START_REGULAR(hadc)        && 
+     (hadc->Init.ContinuousConvMode == DISABLE)   )
+  {
+    /* If End of Sequence is reached, disable interrupts */
+    if( __HAL_ADC_GET_FLAG(hadc, ADC_FLAG_EOS) )
+    {
+      /* Allowed to modify bits ADC_IT_EOC/ADC_IT_EOS only if bit             */
+      /* ADSTART==0 (no conversion on going)                                  */
+      if (ADC_IS_CONVERSION_ONGOING_REGULAR(hadc) == RESET)
+      {
+        /* Disable ADC end of single conversion interrupt on group regular */
+        /* Note: Overrun interrupt was enabled with EOC interrupt in          */
+        /* HAL_Start_IT(), but is not disabled here because can be used       */
+        /* by overrun IRQ process below.                                      */
+        __HAL_ADC_DISABLE_IT(hadc, ADC_IT_EOC | ADC_IT_EOS);
+        
+        /* Set ADC state */
+        ADC_STATE_CLR_SET(hadc->State,
+                          HAL_ADC_STATE_REG_BUSY,
+                          HAL_ADC_STATE_READY);
+      }
+      else
+      {
+        /* Change ADC state to error state */
+        SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_CONFIG);
+        
+        /* Set ADC error code to ADC IP internal error */
+        SET_BIT(hadc->ErrorCode, HAL_ADC_ERROR_INTERNAL);
+      }
+    }
+  }
+  
+  /* Clear end of conversion flag of regular group if low power feature       */
+  /* "LowPowerAutoWait " is disabled, to not interfere with this feature      */
+  /* until data register is read using function HAL_ADC_GetValue().           */
+  if (hadc->Init.LowPowerAutoWait == DISABLE)
+  {
+    /* Clear regular group conversion flag */
+    __HAL_ADC_CLEAR_FLAG(hadc, (ADC_FLAG_EOC | ADC_FLAG_EOS));
+  }
+  
+  /* Return ADC state */
+  return HAL_OK;
+}

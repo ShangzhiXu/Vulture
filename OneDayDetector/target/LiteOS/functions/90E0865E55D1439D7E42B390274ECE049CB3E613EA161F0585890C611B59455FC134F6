@@ -1,0 +1,32 @@
+static int ecjpake_kkp_write( const mbedtls_md_info_t *md_info,
+                              const mbedtls_ecp_group *grp,
+                              const int pf,
+                              const mbedtls_ecp_point *G,
+                              mbedtls_mpi *x,
+                              mbedtls_ecp_point *X,
+                              const char *id,
+                              unsigned char **p,
+                              const unsigned char *end,
+                              int (*f_rng)(void *, unsigned char *, size_t),
+                              void *p_rng )
+{
+    int ret;
+    size_t len;
+
+    if( end < *p )
+        return( MBEDTLS_ERR_ECP_BUFFER_TOO_SMALL );
+
+    /* Generate key (7.4.2.3.1) and write it out */
+    MBEDTLS_MPI_CHK( mbedtls_ecp_gen_keypair_base( (mbedtls_ecp_group *) grp, G, x, X,
+                                                   f_rng, p_rng ) );
+    MBEDTLS_MPI_CHK( mbedtls_ecp_tls_write_point( grp, X,
+                pf, &len, *p, end - *p ) );
+    *p += len;
+
+    /* Generate and write proof */
+    MBEDTLS_MPI_CHK( ecjpake_zkp_write( md_info, grp, pf, G, x, X, id,
+                                        p, end, f_rng, p_rng ) );
+
+cleanup:
+    return( ret );
+}

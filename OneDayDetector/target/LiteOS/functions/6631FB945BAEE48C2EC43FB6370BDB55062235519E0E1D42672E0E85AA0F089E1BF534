@@ -1,0 +1,147 @@
+static HAL_StatusTypeDef HMAC_Processing(HASH_HandleTypeDef *hhash, uint32_t Timeout)
+{
+  /* Ensure first that Phase is correct */
+  if ((hhash->Phase != HAL_HASH_PHASE_HMAC_STEP_1) && (hhash->Phase != HAL_HASH_PHASE_HMAC_STEP_2) && (hhash->Phase != HAL_HASH_PHASE_HMAC_STEP_3))
+  {
+    /* Change the HASH state */
+    hhash->State = HAL_HASH_STATE_READY;
+  
+    /* Process Unlock */
+    __HAL_UNLOCK(hhash);
+  
+    /* Return function status */
+    return HAL_ERROR;
+  }
+  
+  /* HMAC Step 1 processing */
+  if (hhash->Phase == HAL_HASH_PHASE_HMAC_STEP_1)
+  {
+    /************************** STEP 1 ******************************************/
+    /* Configure the Number of valid bits in last word of the message */
+    __HAL_HASH_SET_NBVALIDBITS(hhash->Init.KeySize);
+    
+    /* Write input buffer in Data register */
+    if ((hhash->Status = HASH_WriteData(hhash, hhash->pHashKeyBuffPtr, hhash->HashKeyCount)) != HAL_OK)
+    {
+      return hhash->Status;
+    }
+    
+    /* Check whether or not key entering process has been suspended */
+    if (hhash->State == HAL_HASH_STATE_SUSPENDED)
+    {
+      /* Process Unlocked */
+      __HAL_UNLOCK(hhash);
+    
+      /* Stop right there and return function status */
+      return HAL_OK;
+    }   
+    
+    /* No processing suspension at this point: set DCAL bit. */
+    __HAL_HASH_START_DIGEST();
+    
+    /* Wait for BUSY flag to be cleared */
+    if (HASH_WaitOnFlagUntilTimeout(hhash, HASH_FLAG_BUSY, SET, Timeout) != HAL_OK)
+    {
+      return HAL_TIMEOUT;
+    }
+    
+    /* Move from Step 1 to Step 2 */
+    hhash->Phase = HAL_HASH_PHASE_HMAC_STEP_2;
+     
+  }
+  
+  /* HMAC Step 2 processing.
+     After phase check, HMAC_Processing() may 
+     - directly start up from this point in resumption case
+       if the same Step 2 processing was suspended previously
+    - or fall through from the Step 1 processing carried out hereabove */
+  if (hhash->Phase == HAL_HASH_PHASE_HMAC_STEP_2)
+  {
+    /************************** STEP 2 ******************************************/
+    /* Configure the Number of valid bits in last word of the message */
+    __HAL_HASH_SET_NBVALIDBITS(hhash->HashBuffSize);
+    
+    /* Write input buffer in Data register */
+    if ((hhash->Status = HASH_WriteData(hhash, hhash->pHashInBuffPtr, hhash->HashInCount)) != HAL_OK)
+    {
+      return hhash->Status;
+    }       
+    
+    /* Check whether or not data entering process has been suspended */
+    if (hhash->State == HAL_HASH_STATE_SUSPENDED)
+    {
+      /* Process Unlocked */
+      __HAL_UNLOCK(hhash);
+    
+      /* Stop right there and return function status */
+      return HAL_OK;
+    }   
+    
+    /* No processing suspension at this point: set DCAL bit. */
+    __HAL_HASH_START_DIGEST();
+    
+    /* Wait for BUSY flag to be cleared */
+    if (HASH_WaitOnFlagUntilTimeout(hhash, HASH_FLAG_BUSY, SET, Timeout) != HAL_OK)
+    {
+      return HAL_TIMEOUT;
+    } 
+    
+    /* Move from Step 2 to Step 3 */ 
+    hhash->Phase = HAL_HASH_PHASE_HMAC_STEP_3; 
+    /* In case Step 1 phase was suspended then resumed,
+       set again Key input buffers and size before moving to
+       next step */
+    hhash->pHashKeyBuffPtr = hhash->Init.pKey;
+    hhash->HashKeyCount    = hhash->Init.KeySize;
+  }
+         
+    
+ /* HMAC Step 3 processing.
+     After phase check, HMAC_Processing() may 
+     - directly start up from this point in resumption case
+       if the same Step 3 processing was suspended previously
+    - or fall through from the Step 2 processing carried out hereabove */
+  if (hhash->Phase == HAL_HASH_PHASE_HMAC_STEP_3)
+  { 
+    /************************** STEP 3 ******************************************/
+    /* Configure the Number of valid bits in last word of the message */
+    __HAL_HASH_SET_NBVALIDBITS(hhash->Init.KeySize);
+    
+    /* Write input buffer in Data register */
+    if ((hhash->Status = HASH_WriteData(hhash, hhash->pHashKeyBuffPtr, hhash->HashKeyCount)) != HAL_OK)
+    {
+      return hhash->Status;
+    }       
+    
+    /* Check whether or not key entering process has been suspended */
+    if (hhash->State == HAL_HASH_STATE_SUSPENDED)
+    {
+      /* Process Unlocked */
+      __HAL_UNLOCK(hhash);
+    
+      /* Stop right there and return function status */
+      return HAL_OK;
+    }   
+    
+    /* No processing suspension at this point: start the Digest calculation. */
+    __HAL_HASH_START_DIGEST();
+    
+    /* Wait for DCIS flag to be set */
+     if (HASH_WaitOnFlagUntilTimeout(hhash, HASH_FLAG_DCIS, RESET, Timeout) != HAL_OK)
+    {
+      return HAL_TIMEOUT;
+    }  
+    
+    /* Read the message digest */
+    HASH_GetDigest(hhash->pHashOutBuffPtr, HASH_DIGEST_LENGTH());
+  }    
+  
+   /* Change the HASH state */
+   hhash->State = HAL_HASH_STATE_READY;
+  
+   /* Process Unlock */
+   __HAL_UNLOCK(hhash);
+  
+   /* Return function status */
+   return HAL_OK;
+}

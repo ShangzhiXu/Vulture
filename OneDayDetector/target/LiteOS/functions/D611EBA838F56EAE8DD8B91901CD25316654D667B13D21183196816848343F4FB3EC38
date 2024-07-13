@@ -1,0 +1,47 @@
+zepif_linkoutput(struct netif *netif, struct pbuf *p)
+{
+  err_t err;
+  struct pbuf *q;
+  struct zep_hdr *zep;
+  struct zepif_state *state;
+
+  LWIP_ASSERT("invalid netif", netif != NULL);
+  LWIP_ASSERT("invalid pbuf", p != NULL);
+
+  if (p->tot_len > ZEP_MAX_DATA_LEN) {
+    return ERR_VAL;
+  }
+  LWIP_ASSERT("TODO: support chained pbufs", p->next == NULL);
+
+  state = (struct zepif_state *)netif->state;
+  LWIP_ASSERT("state->pcb != NULL", state->pcb != NULL);
+
+  q = pbuf_alloc(PBUF_TRANSPORT, sizeof(struct zep_hdr) + p->tot_len, PBUF_RAM);
+  if (q == NULL) {
+    return ERR_MEM;
+  }
+  zep = (struct zep_hdr *)q->payload;
+  memset(zep, 0, sizeof(struct zep_hdr));
+  zep->prot_id[0] = 'E';
+  zep->prot_id[1] = 'X';
+  zep->prot_version = 2;
+  zep->type = 1; /* Data */
+  zep->channel_id = 0; /* whatever */
+  zep->device_id = lwip_htons(1); /* whatever */
+  zep->crc_mode = 1;
+  zep->unknown_1 = 0xff;
+  zep->seq_num = lwip_htonl(state->seqno);
+  state->seqno++;
+  zep->len = (u8_t)p->tot_len;
+
+  err = pbuf_take_at(q, p->payload, p->tot_len, sizeof(struct zep_hdr));
+  if (err == ERR_OK) {
+#if ZEPIF_LOOPBACK
+    zepif_udp_recv(netif, state->pcb, pbuf_clone(PBUF_RAW, PBUF_RAM, q), NULL, 0);
+#endif
+    err = udp_sendto(state->pcb, q, state->init.zep_dst_ip_addr, state->init.zep_dst_udp_port);
+  }
+  pbuf_free(q);
+
+  return err;
+}

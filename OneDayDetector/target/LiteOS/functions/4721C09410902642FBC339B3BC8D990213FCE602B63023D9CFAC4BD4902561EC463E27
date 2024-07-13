@@ -1,0 +1,65 @@
+int MQTTSerialize_connect(unsigned char *buf, int buflen, MQTTPacket_connectData *options)
+{
+    unsigned char *ptr = buf;
+    MQTTHeader header = {0};
+    MQTTConnectFlags flags = {0};
+    int len = 0;
+    int rc = -1;
+
+    FUNC_ENTRY;
+    if (MQTTPacket_len(len = MQTTSerialize_connectLength(options)) > buflen)
+    {
+        rc = MQTTPACKET_BUFFER_TOO_SHORT;
+        goto exit;
+    }
+
+    header.byte = 0;
+    header.bits.type = CONNECT;
+    writeChar(&ptr, header.byte); /* write header */
+
+    ptr += MQTTPacket_encode(ptr, len); /* write remaining length */
+
+    if (options->MQTTVersion == 4)
+    {
+        writeCString(&ptr, "MQTT");
+        writeChar(&ptr, (char) 4);
+    }
+    else
+    {
+        writeCString(&ptr, "MQIsdp");
+        writeChar(&ptr, (char) 3);
+    }
+
+    flags.all = 0;
+    flags.bits.cleansession = options->cleansession;
+    flags.bits.will = (options->willFlag) ? 1 : 0;
+    if (flags.bits.will)
+    {
+        flags.bits.willQoS = options->will.qos;
+        flags.bits.willRetain = options->will.retained;
+    }
+
+    if (options->username.cstring || options->username.lenstring.data)
+        flags.bits.username = 1;
+    if (options->password.cstring || options->password.lenstring.data)
+        flags.bits.password = 1;
+
+    writeChar(&ptr, flags.all);
+    writeInt(&ptr, options->keepAliveInterval);
+    writeMQTTString(&ptr, options->clientID);
+    if (options->willFlag)
+    {
+        writeMQTTString(&ptr, options->will.topicName);
+        writeMQTTString(&ptr, options->will.message);
+    }
+    if (flags.bits.username)
+        writeMQTTString(&ptr, options->username);
+    if (flags.bits.password)
+        writeMQTTString(&ptr, options->password);
+
+    rc = ptr - buf;
+
+exit:
+    FUNC_EXIT_RC(rc);
+    return rc;
+}

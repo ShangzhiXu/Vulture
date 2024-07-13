@@ -1,0 +1,17 @@
+		uint64_t hi;
+		uint64_t hi;
+		uint64_t lo;
+		uint64_t lo;
+		uint64_t lo;
+		uint64_t lo;
+		uint64_t m;
+		uint64_t m;
+		uint32_t mid;
+		uint32_t mid;
+		uint16_t pad;
+		uint16_t se;
+		uint16_t se;
+		uint16_t se;
+		uint16_t se;
+		uint16_t top;
+		uint16_t top;

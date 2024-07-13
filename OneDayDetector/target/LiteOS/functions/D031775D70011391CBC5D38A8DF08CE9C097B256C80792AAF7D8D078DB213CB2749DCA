@@ -1,0 +1,79 @@
+static lv_design_res_t lv_slider_design(lv_obj_t * slider, const lv_area_t * clip_area, lv_design_mode_t mode)
+{
+    /*Return false if the object is not covers the mask_p area*/
+    if(mode == LV_DESIGN_COVER_CHK) {
+        return LV_DESIGN_RES_NOT_COVER;
+    }
+    /*Draw the object*/
+    else if(mode == LV_DESIGN_DRAW_MAIN) {
+
+        /*The ancestor design function will draw the background and the indicator.
+         * It also sets ext->bar.indic_area*/
+        ancestor_design_f(slider, clip_area, mode);
+
+        lv_slider_ext_t * ext = lv_obj_get_ext_attr(slider);
+        lv_bidi_dir_t base_dir = lv_obj_get_base_dir(slider);
+
+        lv_coord_t objw = lv_obj_get_width(slider);
+        lv_coord_t objh = lv_obj_get_height(slider);
+        bool hor = objw >= objh ? true : false;
+        lv_coord_t knob_size = hor ? objh : objw;
+        bool sym = false;
+        if(ext->bar.type == LV_BAR_TYPE_SYMMETRICAL && ext->bar.min_value < 0 && ext->bar.max_value > 0) sym = true;
+
+        lv_area_t knob_area;
+
+        /*Horizontal*/
+        if(hor) {
+            if(!sym) {
+                knob_area.x1 = LV_SLIDER_KNOB_COORD(hor, base_dir == LV_BIDI_DIR_RTL, ext->bar.indic_area);
+            }
+            else {
+                if(ext->bar.cur_value >= 0) {
+                    knob_area.x1 = LV_SLIDER_KNOB_COORD(hor, base_dir == LV_BIDI_DIR_RTL, ext->bar.indic_area);
+                }
+                else {
+                    knob_area.x1 = LV_SLIDER_KNOB_COORD(hor, base_dir != LV_BIDI_DIR_RTL, ext->bar.indic_area);
+                }
+            }
+        }
+        /*Vertical*/
+        else {
+            if(!sym) {
+                knob_area.y1 = ext->bar.indic_area.y1;
+            }
+            else {
+                if(ext->bar.cur_value >= 0) {
+                    knob_area.y1 = ext->bar.indic_area.y1;
+                }
+                else {
+                    knob_area.y1 = ext->bar.indic_area.y2;
+                }
+            }
+        }
+        lv_slider_position_knob(slider, &knob_area, knob_size, hor);
+
+        lv_area_copy(&ext->right_knob_area, &knob_area);
+        lv_slider_draw_knob(slider, &knob_area, clip_area);
+
+        if(lv_slider_get_type(slider) == LV_SLIDER_TYPE_RANGE) {
+            /* Draw a second knob for the start_value side */
+            if(hor) {
+                knob_area.x1 = LV_SLIDER_KNOB_COORD(hor, base_dir != LV_BIDI_DIR_RTL, ext->bar.indic_area);
+            }
+            else {
+                knob_area.y1 = ext->bar.indic_area.y2;
+            }
+            lv_slider_position_knob(slider, &knob_area, knob_size, hor);
+
+            lv_area_copy(&ext->left_knob_area, &knob_area);
+            lv_slider_draw_knob(slider, &knob_area, clip_area);
+        }
+    }
+    /*Post draw when the children are drawn*/
+    else if(mode == LV_DESIGN_DRAW_POST) {
+        return ancestor_design_f(slider, clip_area, mode);
+    }
+
+    return LV_DESIGN_RES_OK;
+}

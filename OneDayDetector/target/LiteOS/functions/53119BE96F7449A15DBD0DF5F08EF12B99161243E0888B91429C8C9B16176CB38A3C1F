@@ -1,0 +1,38 @@
+snmp_get_node_instance_from_oid(const u32_t *oid, u8_t oid_len, struct snmp_node_instance *node_instance)
+{
+  u8_t result = SNMP_ERR_NOSUCHOBJECT;
+  const struct snmp_mib *mib;
+  const struct snmp_node *mn = NULL;
+
+  mib = snmp_get_mib_from_oid(oid, oid_len);
+  if (mib != NULL) {
+    u8_t oid_instance_len;
+
+    mn = snmp_mib_tree_resolve_exact(mib, oid, oid_len, &oid_instance_len);
+    if ((mn != NULL) && (mn->node_type != SNMP_NODE_TREE)) {
+      /* get instance */
+      const struct snmp_leaf_node *leaf_node = (const struct snmp_leaf_node *)(const void *)mn;
+
+      node_instance->node = mn;
+      snmp_oid_assign(&node_instance->instance_oid, oid + (oid_len - oid_instance_len), oid_instance_len);
+
+      result = leaf_node->get_instance(
+                 oid,
+                 oid_len - oid_instance_len,
+                 node_instance);
+
+#ifdef LWIP_DEBUG
+      if (result == SNMP_ERR_NOERROR) {
+        if (((node_instance->access & SNMP_NODE_INSTANCE_ACCESS_READ) != 0) && (node_instance->get_value == NULL)) {
+          LWIP_DEBUGF(SNMP_DEBUG, ("SNMP inconsistent access: node is readable but no get_value function is specified\n"));
+        }
+        if (((node_instance->access & SNMP_NODE_INSTANCE_ACCESS_WRITE) != 0) && (node_instance->set_value == NULL)) {
+          LWIP_DEBUGF(SNMP_DEBUG, ("SNMP inconsistent access: node is writable but no set_value and/or set_test function is specified\n"));
+        }
+      }
+#endif
+    }
+  }
+
+  return result;
+}

@@ -1,0 +1,22 @@
+float j1f(float x)
+{
+	float z,r,s;
+	uint32_t ix;
+	int sign;
+
+	GET_FLOAT_WORD(ix, x);
+	sign = ix>>31;
+	ix &= 0x7fffffff;
+	if (ix >= 0x7f800000)
+		return 1/(x*x);
+	if (ix >= 0x40000000)  /* |x| >= 2 */
+		return common(ix, fabsf(x), 0, sign);
+	if (ix >= 0x39000000) {  /* |x| >= 2**-13 */
+		z = x*x;
+		r = z*(r00+z*(r01+z*(r02+z*r03)));
+		s = 1+z*(s01+z*(s02+z*(s03+z*(s04+z*s05))));
+		z = 0.5f + r/s;
+	} else
+		z = 0.5f;
+	return z*x;
+}

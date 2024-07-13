@@ -1,0 +1,26 @@
+coap_set_header_uri_path(void *packet, const char *path)
+{
+    coap_packet_t *coap_pkt = (coap_packet_t *) packet;
+    int length = 0;
+
+    free_multi_option(coap_pkt->uri_path);
+    coap_pkt->uri_path = NULL;
+
+    if (path[0] == '/') ++path;
+
+    do
+    {
+        int i = 0;
+
+        while (path[i] != 0 && path[i] != '/') i++;
+        coap_add_multi_option(&(coap_pkt->uri_path), (uint8_t *)path, i, 0);
+
+        if (path[i] == '/') i++;
+        path += i;
+        length += i;
+    }
+    while (path[0] != 0);
+
+    SET_OPTION(coap_pkt, COAP_OPTION_URI_PATH);
+    return length;
+}

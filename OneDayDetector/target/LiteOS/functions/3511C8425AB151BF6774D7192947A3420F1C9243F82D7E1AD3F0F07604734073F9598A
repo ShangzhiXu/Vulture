@@ -1,0 +1,43 @@
+void HAL_SPDIFRX_IRQHandler(SPDIFRX_HandleTypeDef *hspdif)
+{
+  uint32_t itFlag   = hspdif->Instance->SR;
+  uint32_t itSource = hspdif->Instance->IMR;
+
+  /* SPDIFRX in mode Data Flow Reception */
+  if(((itFlag & SPDIFRX_FLAG_RXNE) == SPDIFRX_FLAG_RXNE) && ((itSource &  SPDIFRX_IT_RXNE) == SPDIFRX_IT_RXNE))
+  {
+    __HAL_SPDIFRX_CLEAR_IT(hspdif, SPDIFRX_IT_RXNE);
+    SPDIFRX_ReceiveDataFlow_IT(hspdif);
+  }
+
+  /* SPDIFRX in mode Control Flow Reception */
+  if(((itFlag & SPDIFRX_FLAG_CSRNE) == SPDIFRX_FLAG_CSRNE) && ((itSource &  SPDIFRX_IT_CSRNE) == SPDIFRX_IT_CSRNE))
+  {
+    __HAL_SPDIFRX_CLEAR_IT(hspdif, SPDIFRX_IT_CSRNE);
+    SPDIFRX_ReceiveControlFlow_IT(hspdif);
+  }
+
+  /* SPDIFRX Overrun error interrupt occurred */
+  if(((itFlag & SPDIFRX_FLAG_OVR) == SPDIFRX_FLAG_OVR) && ((itSource &  SPDIFRX_IT_OVRIE) == SPDIFRX_IT_OVRIE))
+  {
+    __HAL_SPDIFRX_CLEAR_IT(hspdif, SPDIFRX_IT_OVRIE);
+
+    /* Change the SPDIFRX error code */
+    hspdif->ErrorCode |= HAL_SPDIFRX_ERROR_OVR;
+
+    /* the transfer is not stopped */
+    HAL_SPDIFRX_ErrorCallback(hspdif);
+  }
+
+  /* SPDIFRX Parity error interrupt occurred */
+  if(((itFlag & SPDIFRX_FLAG_PERR) == SPDIFRX_FLAG_PERR) && ((itSource &  SPDIFRX_IT_PERRIE) == SPDIFRX_IT_PERRIE))
+  {
+    __HAL_SPDIFRX_CLEAR_IT(hspdif, SPDIFRX_IT_PERRIE);
+
+    /* Change the SPDIFRX error code */
+    hspdif->ErrorCode |= HAL_SPDIFRX_ERROR_PE;
+
+    /* the transfer is not stopped */
+    HAL_SPDIFRX_ErrorCallback(hspdif);
+  }
+}

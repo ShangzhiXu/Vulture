@@ -1,0 +1,35 @@
+static int pk_get_ecparams( unsigned char **p, const unsigned char *end,
+                            mbedtls_asn1_buf *params )
+{
+    int ret;
+
+    if ( end - *p < 1 )
+        return( MBEDTLS_ERR_PK_KEY_INVALID_FORMAT +
+                MBEDTLS_ERR_ASN1_OUT_OF_DATA );
+
+    /* Tag may be either OID or SEQUENCE */
+    params->tag = **p;
+    if( params->tag != MBEDTLS_ASN1_OID
+#if defined(MBEDTLS_PK_PARSE_EC_EXTENDED)
+            && params->tag != ( MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE )
+#endif
+            )
+    {
+        return( MBEDTLS_ERR_PK_KEY_INVALID_FORMAT +
+                MBEDTLS_ERR_ASN1_UNEXPECTED_TAG );
+    }
+
+    if( ( ret = mbedtls_asn1_get_tag( p, end, &params->len, params->tag ) ) != 0 )
+    {
+        return( MBEDTLS_ERR_PK_KEY_INVALID_FORMAT + ret );
+    }
+
+    params->p = *p;
+    *p += params->len;
+
+    if( *p != end )
+        return( MBEDTLS_ERR_PK_KEY_INVALID_FORMAT +
+                MBEDTLS_ERR_ASN1_LENGTH_MISMATCH );
+
+    return( 0 );
+}

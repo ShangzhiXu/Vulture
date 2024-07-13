@@ -1,0 +1,12 @@
+STATIC INLINE VOID ArchAtomicDec(Atomic *v)
+{
+    INT32 val;
+    UINT32 status;
+
+    do {
+        __asm__ __volatile__("ldxr   %w0, %2\n"
+                             "sub   %w0, %w0, #1\n"
+                             "stxr   %w1, %w0, %2"
+                             : "=&r"(val), "=&r"(status), "+Q"(*v));
+    } while (__builtin_expect(status != 0, 0));
+}

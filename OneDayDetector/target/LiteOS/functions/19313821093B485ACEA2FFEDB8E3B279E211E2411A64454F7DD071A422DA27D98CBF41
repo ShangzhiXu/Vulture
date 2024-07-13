@@ -1,0 +1,82 @@
+static void test_tcp_rto_timeout_impl(int link_down)
+{
+  struct netif netif;
+  struct test_tcp_txcounters txcounters;
+  struct test_tcp_counters counters;
+  struct tcp_pcb *pcb, *cur;
+  err_t err;
+  size_t i;
+  const size_t max_wait_ctr = 1024 * 1024;
+
+  /* Setup data for a single segment */
+  for (i = 0; i < TCP_MSS; i++) {
+    tx_data[i] = (u8_t)i;
+  }
+
+  /* initialize local vars */
+  test_tcp_init_netif(&netif, &txcounters, &test_local_ip, &test_netmask);
+  memset(&counters, 0, sizeof(counters));
+
+  /* create and initialize the pcb */
+  tcp_ticks = SEQNO1 - ISS;
+  pcb = test_tcp_new_counters_pcb(&counters);
+  EXPECT_RET(pcb != NULL);
+  tcp_set_state(pcb, ESTABLISHED, &test_local_ip, &test_remote_ip, TEST_LOCAL_PORT, TEST_REMOTE_PORT);
+  pcb->mss = TCP_MSS;
+  pcb->cwnd = TCP_MSS;
+
+  /* send our segment */
+  err = tcp_write(pcb, &tx_data[0], TCP_MSS, TCP_WRITE_FLAG_COPY);
+  EXPECT_RET(err == ERR_OK);
+  err = tcp_output(pcb);
+  EXPECT(txcounters.num_tx_calls == 1);
+  EXPECT(txcounters.num_tx_bytes == 1 * (TCP_MSS + 40U));
+  memset(&txcounters, 0, sizeof(txcounters));
+
+  /* ensure no errors have been recorded */
+  EXPECT(counters.err_calls == 0);
+  EXPECT(counters.last_err == ERR_OK);
+
+  /* Force us into retransmisson timeout */
+   for (i = 0; !(pcb->flags & TF_RTO) && i < max_wait_ctr; i++) {
+    test_tcp_tmr();
+  }
+   EXPECT(i < max_wait_ctr);
+
+  /* check first rexmit */
+  EXPECT(pcb->nrtx == 1);
+  EXPECT(txcounters.num_tx_calls == 1);
+  EXPECT(txcounters.num_tx_bytes == 1 * (TCP_MSS + 40U));
+
+  /* still no error expected */
+  EXPECT(counters.err_calls == 0);
+  EXPECT(counters.last_err == ERR_OK);
+
+  if (link_down) {
+    netif_set_link_down(&netif);
+  }
+
+  /* keep running the timer till we hit our maximum RTO */
+  for (i = 0;  counters.last_err == ERR_OK && i < max_wait_ctr; i++) {
+    test_tcp_tmr();
+  }
+  EXPECT(i < max_wait_ctr);
+
+  /* check number of retransmissions */
+  if (link_down) {
+    EXPECT(txcounters.num_tx_calls == 1);
+    EXPECT(txcounters.num_tx_bytes == 1 * (TCP_MSS + 40U));
+  } else {
+    EXPECT(txcounters.num_tx_calls == TCP_MAXRTX);
+    EXPECT(txcounters.num_tx_bytes == TCP_MAXRTX * (TCP_MSS + 40U));
+  }
+
+  /* check the connection (pcb) has been aborted */
+  EXPECT(counters.err_calls == 1);
+  EXPECT(counters.last_err == ERR_ABRT);
+  /* check our pcb is no longer active */
+  for (cur = tcp_active_pcbs; cur != NULL; cur = cur->next) {
+    EXPECT(cur != pcb);
+  }  
+  EXPECT_RET(MEMP_STATS_GET(used, MEMP_TCP_PCB) == 0);
+}

@@ -1,0 +1,25 @@
+static uint32_t lv_txt_utf8_prev(const char * txt, uint32_t * i)
+{
+    uint8_t c_size;
+    uint8_t cnt = 0;
+
+    /*Try to find a !0 long UTF-8 char by stepping one character back*/
+    (*i)--;
+    do {
+        if(cnt >= 4) return 0; /*No UTF-8 char found before the initial*/
+
+        c_size = _lv_txt_encoded_size(&txt[*i]);
+        if(c_size == 0) {
+            if(*i != 0)
+                (*i)--;
+            else
+                return 0;
+        }
+        cnt++;
+    } while(c_size == 0);
+
+    uint32_t i_tmp  = *i;
+    uint32_t letter = _lv_txt_encoded_next(txt, &i_tmp); /*Character found, get it*/
+
+    return letter;
+}

@@ -1,0 +1,32 @@
+VOID ArchMMUParamSet(MMU_PARAM *para)
+{
+    UINT32 ret;
+    UINT32 itemStart, itemEnd;
+    UINT32 tableType;
+
+    if (para == NULL) {
+        PRINT_ERR("input is null\n");
+        return;
+    }
+    itemStart = MMU_GET_FIRST_TABLE_ADDR(para->startAddr);
+    itemEnd = MMU_GET_FIRST_TABLE_ADDR(para->endAddr - 1);
+    if (itemStart > itemEnd) {
+        PRINT_ERR("wrong addr input, itemStart:0x%x, itemEnd:0x%x\n", itemStart, itemEnd);
+        return;
+    }
+
+    tableType = MMU_GET_AREA(para->uwFlag);
+    if (tableType == SECOND_PAGE) {
+        ret = MmuSetSecondPage(para, itemStart, itemEnd);
+        if (ret == LOS_NOK) {
+            return;
+        }
+    } else if (tableType == FIRST_SECTION) {
+        ret = MmuSetFirstSection(para, itemStart, itemEnd);
+        if (ret == LOS_NOK) {
+            return;
+        }
+    }
+
+    CleanTLB();
+}

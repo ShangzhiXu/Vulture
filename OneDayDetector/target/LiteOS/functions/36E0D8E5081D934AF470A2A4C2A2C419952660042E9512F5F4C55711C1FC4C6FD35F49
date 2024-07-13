@@ -1,0 +1,37 @@
+void UnityAssertEqualString(const char* expected,
+                            const char* actual,
+                            const char* msg,
+                            const UNITY_LINE_TYPE lineNumber)
+{
+    UNITY_UINT32 i;
+
+    RETURN_IF_FAIL_OR_IGNORE;
+
+    /* if both pointers not null compare the strings */
+    if (expected && actual)
+    {
+        for (i = 0; expected[i] || actual[i]; i++)
+        {
+            if (expected[i] != actual[i])
+            {
+                Unity.CurrentTestFailed = 1;
+                break;
+            }
+        }
+    }
+    else
+    { /* handle case of one pointers being null (if both null, test should pass) */
+        if (expected != actual)
+        {
+            Unity.CurrentTestFailed = 1;
+        }
+    }
+
+    if (Unity.CurrentTestFailed)
+    {
+        UnityTestResultsFailBegin(lineNumber);
+        UnityPrintExpectedAndActualStrings(expected, actual);
+        UnityAddMsgIfSpecified(msg);
+        UNITY_FAIL_AND_BAIL;
+    }
+}

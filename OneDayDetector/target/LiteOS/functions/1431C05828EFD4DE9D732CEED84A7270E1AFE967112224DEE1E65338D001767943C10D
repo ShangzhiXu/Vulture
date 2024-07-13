@@ -1,0 +1,92 @@
+netif_loop_output(struct netif *netif, struct pbuf *p)
+{
+  struct pbuf *r;
+  err_t err;
+  struct pbuf *last;
+#if LWIP_LOOPBACK_MAX_PBUFS
+  u16_t clen = 0;
+#endif /* LWIP_LOOPBACK_MAX_PBUFS */
+  /* If we have a loopif, SNMP counters are adjusted for it,
+   * if not they are adjusted for 'netif'. */
+#if MIB2_STATS
+#if LWIP_HAVE_LOOPIF
+  struct netif *stats_if = &loop_netif;
+#else /* LWIP_HAVE_LOOPIF */
+  struct netif *stats_if = netif;
+#endif /* LWIP_HAVE_LOOPIF */
+#endif /* MIB2_STATS */
+#if LWIP_NETIF_LOOPBACK_MULTITHREADING
+  u8_t schedule_poll = 0;
+#endif /* LWIP_NETIF_LOOPBACK_MULTITHREADING */
+  SYS_ARCH_DECL_PROTECT(lev);
+
+  LWIP_ASSERT("netif_loop_output: invalid netif", netif != NULL);
+  LWIP_ASSERT("netif_loop_output: invalid pbuf", p != NULL);
+
+  /* Allocate a new pbuf */
+  r = pbuf_alloc(PBUF_LINK, p->tot_len, PBUF_RAM);
+  if (r == NULL) {
+    LINK_STATS_INC(link.memerr);
+    LINK_STATS_INC(link.drop);
+    MIB2_STATS_NETIF_INC(stats_if, ifoutdiscards);
+    return ERR_MEM;
+  }
+#if LWIP_LOOPBACK_MAX_PBUFS
+  clen = pbuf_clen(r);
+  /* check for overflow or too many pbuf on queue */
+  if (((netif->loop_cnt_current + clen) < netif->loop_cnt_current) ||
+      ((netif->loop_cnt_current + clen) > LWIP_MIN(LWIP_LOOPBACK_MAX_PBUFS, 0xFFFF))) {
+    pbuf_free(r);
+    LINK_STATS_INC(link.memerr);
+    LINK_STATS_INC(link.drop);
+    MIB2_STATS_NETIF_INC(stats_if, ifoutdiscards);
+    return ERR_MEM;
+  }
+  netif->loop_cnt_current = (u16_t)(netif->loop_cnt_current + clen);
+#endif /* LWIP_LOOPBACK_MAX_PBUFS */
+
+  /* Copy the whole pbuf queue p into the single pbuf r */
+  if ((err = pbuf_copy(r, p)) != ERR_OK) {
+    pbuf_free(r);
+    LINK_STATS_INC(link.memerr);
+    LINK_STATS_INC(link.drop);
+    MIB2_STATS_NETIF_INC(stats_if, ifoutdiscards);
+    return err;
+  }
+
+  /* Put the packet on a linked list which gets emptied through calling
+     netif_poll(). */
+
+  /* let last point to the last pbuf in chain r */
+  for (last = r; last->next != NULL; last = last->next) {
+    /* nothing to do here, just get to the last pbuf */
+  }
+
+  SYS_ARCH_PROTECT(lev);
+  if (netif->loop_first != NULL) {
+    LWIP_ASSERT("if first != NULL, last must also be != NULL", netif->loop_last != NULL);
+    netif->loop_last->next = r;
+    netif->loop_last = last;
+  } else {
+    netif->loop_first = r;
+    netif->loop_last = last;
+#if LWIP_NETIF_LOOPBACK_MULTITHREADING
+    /* No existing packets queued, schedule poll */
+    schedule_poll = 1;
+#endif /* LWIP_NETIF_LOOPBACK_MULTITHREADING */
+  }
+  SYS_ARCH_UNPROTECT(lev);
+
+  LINK_STATS_INC(link.xmit);
+  MIB2_STATS_NETIF_ADD(stats_if, ifoutoctets, p->tot_len);
+  MIB2_STATS_NETIF_INC(stats_if, ifoutucastpkts);
+
+#if LWIP_NETIF_LOOPBACK_MULTITHREADING
+  /* For multithreading environment, schedule a call to netif_poll */
+  if (schedule_poll) {
+    tcpip_try_callback((tcpip_callback_fn)netif_poll, netif);
+  }
+#endif /* LWIP_NETIF_LOOPBACK_MULTITHREADING */
+
+  return ERR_OK;
+}

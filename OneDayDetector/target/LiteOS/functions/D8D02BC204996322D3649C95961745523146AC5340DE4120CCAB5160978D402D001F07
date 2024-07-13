@@ -1,0 +1,21 @@
+LITE_OS_SEC_TEXT UINT32 LOS_MemFree(VOID *pool, VOID *mem)
+{
+    BOOL ret = FALSE;
+    UINT32 intSave;
+
+    if ((pool == NULL) || (mem == NULL)) {
+        return LOS_NOK;
+    }
+
+    MEM_LOCK(intSave);
+
+    ret = OsSlabMemFree(pool, mem);
+    if (ret != TRUE) {
+        ret = OsHeapFree(pool, mem);
+    }
+
+    MEM_UNLOCK(intSave);
+
+    LOS_TRACE(MEM_FREE, pool, (UINTPTR)mem);
+    return (ret == TRUE ? LOS_OK : LOS_NOK);
+}

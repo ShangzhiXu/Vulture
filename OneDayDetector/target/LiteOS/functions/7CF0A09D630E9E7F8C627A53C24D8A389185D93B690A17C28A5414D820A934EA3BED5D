@@ -1,0 +1,34 @@
+static void I2C_SlaveTransmit_TXE(I2C_HandleTypeDef *hi2c)
+{
+  /* Declaration of temporary variables to prevent undefined behavior of volatile usage */
+  HAL_I2C_StateTypeDef CurrentState = hi2c->State;
+
+  if (hi2c->XferCount != 0U)
+  {
+    /* Write data to DR */
+    hi2c->Instance->DR = *hi2c->pBuffPtr;
+
+    /* Increment Buffer pointer */
+    hi2c->pBuffPtr++;
+
+    /* Update counter */
+    hi2c->XferCount--;
+
+    if ((hi2c->XferCount == 0U) && (CurrentState == HAL_I2C_STATE_BUSY_TX_LISTEN))
+    {
+      /* Last Byte is received, disable Interrupt */
+      __HAL_I2C_DISABLE_IT(hi2c, I2C_IT_BUF);
+
+      /* Set state at HAL_I2C_STATE_LISTEN */
+      hi2c->PreviousState = I2C_STATE_SLAVE_BUSY_TX;
+      hi2c->State = HAL_I2C_STATE_LISTEN;
+
+      /* Call the corresponding callback to inform upper layer of End of Transfer */
+#if (USE_HAL_I2C_REGISTER_CALLBACKS == 1)
+      hi2c->SlaveTxCpltCallback(hi2c);
+#else
+      HAL_I2C_SlaveTxCpltCallback(hi2c);
+#endif /* USE_HAL_I2C_REGISTER_CALLBACKS */
+    }
+  }
+}

@@ -1,0 +1,128 @@
+static lv_res_t lv_calendar_signal(lv_obj_t * calendar, lv_signal_t sign, void * param)
+{
+    lv_res_t res;
+    if(sign == LV_SIGNAL_GET_STYLE) {
+        lv_get_style_info_t * info = param;
+        info->result = lv_calendar_get_style(calendar, info->part);
+        if(info->result != NULL) return LV_RES_OK;
+        else return ancestor_signal(calendar, sign, param);
+        return LV_RES_OK;
+    }
+
+    /* Include the ancient signal function */
+    res = ancestor_signal(calendar, sign, param);
+    if(res != LV_RES_OK) return res;
+    if(sign == LV_SIGNAL_GET_TYPE) return lv_obj_handle_get_type_signal(param, LV_OBJX_NAME);
+
+    if(sign == LV_SIGNAL_CLEANUP) {
+        lv_obj_clean_style_list(calendar, LV_CALENDAR_PART_HEADER);
+        lv_obj_clean_style_list(calendar, LV_CALENDAR_PART_DAY_NAMES);
+        lv_obj_clean_style_list(calendar, LV_CALENDAR_PART_DATE);
+    }
+    else if(sign == LV_SIGNAL_PRESSING) {
+        lv_calendar_ext_t * ext = lv_obj_get_ext_attr(calendar);
+        lv_area_t header_area;
+        lv_area_copy(&header_area, &calendar->coords);
+        header_area.y2 = header_area.y1 + get_header_height(calendar);
+
+        lv_indev_t * indev = lv_indev_get_act();
+        lv_point_t p;
+        lv_indev_get_point(indev, &p);
+
+        /*If the header is pressed mark an arrow as pressed*/
+        if(_lv_area_is_point_on(&header_area, &p, 0)) {
+            if(p.x < header_area.x1 + lv_area_get_width(&header_area) / 2) {
+                if(ext->btn_pressing != -1) lv_obj_invalidate(calendar);
+                ext->btn_pressing = -1;
+            }
+            else {
+                if(ext->btn_pressing != 1) lv_obj_invalidate(calendar);
+                ext->btn_pressing = 1;
+            }
+
+            ext->pressed_date.year  = 0;
+            ext->pressed_date.month = 0;
+            ext->pressed_date.day   = 0;
+        }
+        /*If a day is pressed save it*/
+        else if(calculate_touched_day(calendar, &p)) {
+            ext->btn_pressing = 0;
+            lv_obj_invalidate(calendar);
+        }
+        /*Else set a default state*/
+        else {
+            if(ext->btn_pressing != 0) lv_obj_invalidate(calendar);
+            ext->btn_pressing       = 0;
+            ext->pressed_date.year  = 0;
+            ext->pressed_date.month = 0;
+            ext->pressed_date.day   = 0;
+        }
+    }
+    else if(sign == LV_SIGNAL_PRESS_LOST) {
+        lv_calendar_ext_t * ext = lv_obj_get_ext_attr(calendar);
+        ext->btn_pressing       = 0;
+        ext->pressed_date.year  = 0;
+        ext->pressed_date.month = 0;
+        ext->pressed_date.day   = 0;
+        lv_obj_invalidate(calendar);
+
+    }
+    else if(sign == LV_SIGNAL_RELEASED) {
+        lv_calendar_ext_t * ext = lv_obj_get_ext_attr(calendar);
+        if(ext->btn_pressing < 0) {
+            if(ext->showed_date.month <= 1) {
+                ext->showed_date.month = 12;
+                ext->showed_date.year--;
+            }
+            else {
+                ext->showed_date.month--;
+            }
+        }
+        else if(ext->btn_pressing > 0) {
+            if(ext->showed_date.month >= 12) {
+                ext->showed_date.month = 1;
+                ext->showed_date.year++;
+            }
+            else {
+                ext->showed_date.month++;
+            }
+        }
+        else if(ext->pressed_date.year != 0) {
+            res = lv_event_send(calendar, LV_EVENT_VALUE_CHANGED, NULL);
+            if(res != LV_RES_OK) return res;
+
+        }
+
+        ext->btn_pressing = 0;
+        ext->pressed_date.year  = 0;
+        ext->pressed_date.month = 0;
+        ext->pressed_date.day   = 0;
+        lv_obj_invalidate(calendar);
+    }
+    else if(sign == LV_SIGNAL_CONTROL) {
+        uint8_t c               = *((uint8_t *)param);
+        lv_calendar_ext_t * ext = lv_obj_get_ext_attr(calendar);
+        if(c == LV_KEY_RIGHT || c == LV_KEY_UP) {
+            if(ext->showed_date.month >= 12) {
+                ext->showed_date.month = 1;
+                ext->showed_date.year++;
+            }
+            else {
+                ext->showed_date.month++;
+            }
+            lv_obj_invalidate(calendar);
+        }
+        else if(c == LV_KEY_LEFT || c == LV_KEY_DOWN) {
+            if(ext->showed_date.month <= 1) {
+                ext->showed_date.month = 12;
+                ext->showed_date.year--;
+            }
+            else {
+                ext->showed_date.month--;
+            }
+            lv_obj_invalidate(calendar);
+        }
+    }
+
+    return res;
+}

@@ -1,0 +1,53 @@
+lv_obj_t * lv_spinner_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+    LV_LOG_TRACE("spinner create started");
+
+    /*Create the ancestor of pre loader*/
+    lv_obj_t * spinner = lv_arc_create(par, copy);
+    LV_ASSERT_MEM(spinner);
+    if(spinner == NULL) return NULL;
+
+    /*Allocate the pre loader type specific extended data*/
+    lv_spinner_ext_t * ext = lv_obj_allocate_ext_attr(spinner, sizeof(lv_spinner_ext_t));
+    LV_ASSERT_MEM(ext);
+    if(ext == NULL) {
+        lv_obj_del(spinner);
+        return NULL;
+    }
+
+    if(ancestor_signal == NULL) ancestor_signal = lv_obj_get_signal_cb(spinner);
+    if(ancestor_design == NULL) ancestor_design = lv_obj_get_design_cb(spinner);
+
+    /*Initialize the allocated 'ext' */
+    ext->arc_length = LV_SPINNER_DEF_ARC_LENGTH;
+    ext->anim_type  = LV_SPINNER_DEF_ANIM;
+    ext->anim_dir   = LV_SPINNER_DIR_FORWARD;
+    ext->time = LV_SPINNER_DEF_SPIN_TIME;
+
+    /*The signal and design functions are not copied so set them here*/
+    lv_obj_set_signal_cb(spinner, lv_spinner_signal);
+
+    /*Init the new spinner spinner*/
+    if(copy == NULL) {
+        ext->arc.bg_angle_start = 0;
+        ext->arc.bg_angle_end = 360;
+        lv_obj_set_size(spinner, LV_DPI, LV_DPI);
+        lv_theme_apply(spinner, LV_THEME_SPINNER);
+
+    }
+    /*Copy an existing spinner*/
+    else {
+        lv_spinner_ext_t * copy_ext = lv_obj_get_ext_attr(copy);
+        ext->arc_length             = copy_ext->arc_length;
+        ext->time                   = copy_ext->time;
+        ext->anim_dir               = copy_ext->anim_dir;
+        /*Refresh the style with new signal function*/
+        lv_obj_refresh_style(spinner, LV_STYLE_PROP_ALL);
+    }
+
+    lv_spinner_set_type(spinner, ext->anim_type);
+
+    LV_LOG_INFO("spinner created");
+
+    return spinner;
+}

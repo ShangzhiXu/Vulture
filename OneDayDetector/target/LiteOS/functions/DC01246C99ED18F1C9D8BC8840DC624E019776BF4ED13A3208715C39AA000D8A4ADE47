@@ -1,0 +1,48 @@
+lv_task_t * lv_task_create_basic(void)
+{
+    lv_task_t * new_task = NULL;
+    lv_task_t * tmp;
+
+    /*Create task lists in order of priority from high to low*/
+    tmp = _lv_ll_get_head(&LV_GC_ROOT(_lv_task_ll));
+
+    /*It's the first task*/
+    if(NULL == tmp) {
+        new_task = _lv_ll_ins_head(&LV_GC_ROOT(_lv_task_ll));
+        LV_ASSERT_MEM(new_task);
+        if(new_task == NULL) return NULL;
+    }
+    /*Insert the new task to proper place according to its priority*/
+    else {
+        do {
+            if(tmp->prio <= DEF_PRIO) {
+                new_task = _lv_ll_ins_prev(&LV_GC_ROOT(_lv_task_ll), tmp);
+                LV_ASSERT_MEM(new_task);
+                if(new_task == NULL) return NULL;
+                break;
+            }
+            tmp = _lv_ll_get_next(&LV_GC_ROOT(_lv_task_ll), tmp);
+        } while(tmp != NULL);
+
+        /*Only too high priority tasks were found. Add the task to the end*/
+        if(tmp == NULL) {
+            new_task = _lv_ll_ins_tail(&LV_GC_ROOT(_lv_task_ll));
+            LV_ASSERT_MEM(new_task);
+            if(new_task == NULL) return NULL;
+        }
+    }
+    task_list_changed = true;
+
+    new_task->period  = DEF_PERIOD;
+    new_task->task_cb = NULL;
+    new_task->prio    = DEF_PRIO;
+
+    new_task->repeat_count = -1;
+    new_task->last_run = lv_tick_get();
+
+    new_task->user_data = NULL;
+
+    task_created = true;
+
+    return new_task;
+}

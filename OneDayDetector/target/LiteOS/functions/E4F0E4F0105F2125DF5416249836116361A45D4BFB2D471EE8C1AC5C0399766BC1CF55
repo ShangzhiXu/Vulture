@@ -1,0 +1,29 @@
+int open_dir(const char *name, struct dir **dir)
+{
+    int ret = 0;
+    int counter = 3;
+
+    if ((name == NULL) || (dir == NULL)) {
+        FS_LOG_ERR("invalid parameter.");
+        return -1;
+    }
+
+    do {
+        *dir = los_opendir(name);
+        if (*dir == NULL) {
+            FS_LOG_ERR("los_opendir %s failed, ret=%d.", name, ret);
+            ret = los_mkdir(name, 0);
+            if (ret != 0) {
+                FS_LOG_ERR("los_mkdir %s failed, ret=%d.", name, ret);
+            } else {
+                FS_LOG_ERR("los_mkdir %s successfully.", name);
+            }
+        }
+    } while ((*dir == NULL) && (--counter > 0));
+
+    if (counter <= 0) {
+        FS_LOG_ERR("los_opendir/los_mkdir %s failed, ret=%d.", name, ret);
+        return -1;
+    }
+    return 0;
+}

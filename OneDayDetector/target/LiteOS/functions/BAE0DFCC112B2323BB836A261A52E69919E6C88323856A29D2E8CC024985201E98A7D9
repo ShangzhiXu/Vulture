@@ -1,0 +1,24 @@
+static int pem_des_decrypt( unsigned char des_iv[8],
+                            unsigned char *buf, size_t buflen,
+                            const unsigned char *pwd, size_t pwdlen )
+{
+    mbedtls_des_context des_ctx;
+    unsigned char des_key[8];
+    int ret;
+
+    mbedtls_des_init( &des_ctx );
+
+    if( ( ret = pem_pbkdf1( des_key, 8, des_iv, pwd, pwdlen ) ) != 0 )
+        goto exit;
+
+    if( ( ret = mbedtls_des_setkey_dec( &des_ctx, des_key ) ) != 0 )
+        goto exit;
+    ret = mbedtls_des_crypt_cbc( &des_ctx, MBEDTLS_DES_DECRYPT, buflen,
+                     des_iv, buf, buf );
+
+exit:
+    mbedtls_des_free( &des_ctx );
+    mbedtls_platform_zeroize( des_key, 8 );
+
+    return( ret );
+}

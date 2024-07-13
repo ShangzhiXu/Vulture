@@ -1,0 +1,19 @@
+http_send_data_nonssi(struct altcp_pcb *pcb, struct http_state *hs)
+{
+  err_t err;
+  u16_t len;
+  u8_t data_to_send = 0;
+
+  /* We are not processing an SHTML file so no tag checking is necessary.
+   * Just send the data as we received it from the file. */
+  len = (u16_t)LWIP_MIN(hs->left, 0xffff);
+
+  err = http_write(pcb, hs->file, &len, HTTP_IS_DATA_VOLATILE(hs));
+  if (err == ERR_OK) {
+    data_to_send = 1;
+    hs->file += len;
+    hs->left -= len;
+  }
+
+  return data_to_send;
+}

@@ -1,0 +1,27 @@
+HAL_StatusTypeDef HAL_IRDA_DeInit(IRDA_HandleTypeDef *hirda)
+{
+  /* Check the IRDA handle allocation */
+  if(hirda == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the USART/UART associated to the IRDA handle */
+  assert_param(IS_IRDA_INSTANCE(hirda->Instance));
+
+  hirda->gState = HAL_IRDA_STATE_BUSY;
+
+  /* DeInit the low level hardware */
+  HAL_IRDA_MspDeInit(hirda);
+  /* Disable the Peripheral */
+  __HAL_IRDA_DISABLE(hirda);
+
+  hirda->ErrorCode = HAL_IRDA_ERROR_NONE;
+  hirda->gState    = HAL_IRDA_STATE_RESET;
+  hirda->RxState   = HAL_IRDA_STATE_RESET;
+
+  /* Process Unlock */
+  __HAL_UNLOCK(hirda);
+
+  return HAL_OK;
+}

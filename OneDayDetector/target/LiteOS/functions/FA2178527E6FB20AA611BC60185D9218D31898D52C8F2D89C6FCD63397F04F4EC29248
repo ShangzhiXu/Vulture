@@ -1,0 +1,71 @@
+HAL_StatusTypeDef HAL_NOR_ProgramBuffer(NOR_HandleTypeDef *hnor, uint32_t uwAddress, uint16_t *pData, uint32_t uwBufferSize)
+{
+  uint16_t * p_currentaddress = (uint16_t *)NULL;
+  uint16_t * p_endaddress = (uint16_t *)NULL;
+  uint32_t lastloadedaddress = 0, deviceaddress = 0;
+  
+  /* Process Locked */
+  __HAL_LOCK(hnor);
+  
+  /* Check the NOR controller state */
+  if(hnor->State == HAL_NOR_STATE_BUSY)
+  {
+     return HAL_BUSY;
+  }
+  
+  /* Select the NOR device address */
+  if (hnor->Init.NSBank == FMC_NORSRAM_BANK1)
+  {
+    deviceaddress = NOR_MEMORY_ADRESS1;
+  }
+  else if (hnor->Init.NSBank == FMC_NORSRAM_BANK2)
+  {
+    deviceaddress = NOR_MEMORY_ADRESS2;
+  }
+  else if (hnor->Init.NSBank == FMC_NORSRAM_BANK3)
+  {
+    deviceaddress = NOR_MEMORY_ADRESS3;
+  }
+  else /* FMC_NORSRAM_BANK4 */
+  {
+    deviceaddress = NOR_MEMORY_ADRESS4;
+  }  
+    
+  /* Update the NOR controller state */
+  hnor->State = HAL_NOR_STATE_BUSY;
+  
+  /* Initialize variables */
+  p_currentaddress  = (uint16_t*)((uint32_t)(uwAddress));
+  p_endaddress      = p_currentaddress + (uwBufferSize-1);
+  lastloadedaddress = (uint32_t)(uwAddress);
+
+  /* Issue unlock command sequence */
+  NOR_WRITE(NOR_ADDR_SHIFT(deviceaddress, uwNORMemoryDataWidth, NOR_CMD_ADDRESS_FIRST), NOR_CMD_DATA_FIRST);
+  NOR_WRITE(NOR_ADDR_SHIFT(deviceaddress, uwNORMemoryDataWidth, NOR_CMD_ADDRESS_SECOND), NOR_CMD_DATA_SECOND); 
+
+  /* Write Buffer Load Command */
+  NOR_WRITE(NOR_ADDR_SHIFT(deviceaddress, uwNORMemoryDataWidth, uwAddress), NOR_CMD_DATA_BUFFER_AND_PROG); 
+  NOR_WRITE(NOR_ADDR_SHIFT(deviceaddress, uwNORMemoryDataWidth, uwAddress), (uwBufferSize - 1)); 
+
+  /* Load Data into NOR Buffer */
+  while(p_currentaddress <= p_endaddress)
+  {
+    /* Store last loaded address & data value (for polling) */
+     lastloadedaddress = (uint32_t)p_currentaddress;
+ 
+    NOR_WRITE(p_currentaddress, *pData++);
+    
+    p_currentaddress ++; 
+  }
+
+  NOR_WRITE((uint32_t)(lastloadedaddress), NOR_CMD_DATA_BUFFER_AND_PROG_CONFIRM);
+  
+  /* Check the NOR controller state */
+  hnor->State = HAL_NOR_STATE_READY;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hnor);
+  
+  return HAL_OK; 
+  
+}

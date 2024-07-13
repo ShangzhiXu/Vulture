@@ -1,0 +1,33 @@
+pppoe_send_padt(struct netif *outgoing_if, u_int session, const u8_t *dest)
+{
+  struct pbuf *pb;
+  struct eth_hdr *ethhdr;
+  err_t res;
+  u8_t *p;
+
+  pb = pbuf_alloc(PBUF_LINK, (u16_t)(PPPOE_HEADERLEN), PBUF_RAM);
+  if (!pb) {
+    return ERR_MEM;
+  }
+  LWIP_ASSERT("pb->tot_len == pb->len", pb->tot_len == pb->len);
+
+  if (pbuf_add_header(pb, sizeof(struct eth_hdr))) {
+    PPPDEBUG(LOG_ERR, ("pppoe: pppoe_send_padt: could not allocate room for PPPoE header\n"));
+    LINK_STATS_INC(link.lenerr);
+    pbuf_free(pb);
+    return ERR_BUF;
+  }
+  ethhdr = (struct eth_hdr *)pb->payload;
+  ethhdr->type = PP_HTONS(ETHTYPE_PPPOEDISC);
+  MEMCPY(&ethhdr->dest.addr, dest, sizeof(ethhdr->dest.addr));
+  MEMCPY(&ethhdr->src.addr, &outgoing_if->hwaddr, sizeof(ethhdr->src.addr));
+
+  p = (u8_t*)(ethhdr + 1);
+  PPPOE_ADD_HEADER(p, PPPOE_CODE_PADT, session, 0);
+
+  res = outgoing_if->linkoutput(outgoing_if, pb);
+
+  pbuf_free(pb);
+
+  return res;
+}

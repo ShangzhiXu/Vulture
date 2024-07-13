@@ -1,0 +1,19 @@
+SECUREC_INLINE void SecWriteTextAfterMbtowc(SecPrintfStream *stream, const SecFormatAttr *attr, int *charsOut)
+{
+    const char *p = attr->text.str;
+    int count = attr->textLen;
+    while (count > 0) {
+        wchar_t wChar = L'\0';
+        int retVal = mbtowc(&wChar, p, (size_t)MB_CUR_MAX);
+        if (retVal <= 0) {
+            *charsOut = -1;
+            break;
+        }
+        SecWriteCharW(wChar, stream, charsOut);
+        if (*charsOut == -1) {
+            break;
+        }
+        p += retVal;
+        count -= retVal;
+    }
+}

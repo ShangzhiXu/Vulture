@@ -1,0 +1,18 @@
+SECUREC_INLINE errno_t SecMemsetError(void *dest, size_t destMax, int c, size_t count)
+{
+    /* Check destMax is 0 compatible with _sp macro */
+    if (destMax == 0 || destMax > SECUREC_MEM_MAX_LEN) {
+        SECUREC_ERROR_INVALID_RANGE("memset_s");
+        return ERANGE;
+    }
+    if (dest == NULL) {
+        SECUREC_ERROR_INVALID_PARAMTER("memset_s");
+        return EINVAL;
+    }
+    if (count > destMax) {
+        (void)memset(dest, c, destMax); /* Set entire buffer to value c */
+        SECUREC_ERROR_INVALID_RANGE("memset_s");
+        return ERANGE_AND_RESET;
+    }
+    return EOK;
+}

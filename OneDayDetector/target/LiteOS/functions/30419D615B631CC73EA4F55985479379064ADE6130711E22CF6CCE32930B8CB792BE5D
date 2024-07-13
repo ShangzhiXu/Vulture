@@ -1,0 +1,138 @@
+HAL_StatusTypeDef HAL_SPI_Abort(SPI_HandleTypeDef *hspi)
+{
+  HAL_StatusTypeDef errorcode;
+  __IO uint32_t count, resetcount;
+
+  /* Initialized local variable  */
+  errorcode = HAL_OK;
+  resetcount = SPI_DEFAULT_TIMEOUT * (SystemCoreClock / 24U / 1000U);
+  count = resetcount;
+
+  /* Disable TXEIE, RXNEIE and ERRIE(mode fault event, overrun error, TI frame error) interrupts */
+  if (HAL_IS_BIT_SET(hspi->Instance->CR2, SPI_CR2_TXEIE))
+  {
+    hspi->TxISR = SPI_AbortTx_ISR;
+    /* Wait HAL_SPI_STATE_ABORT state */
+    do
+    {
+      if (count-- == 0U)
+      {
+        SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_ABORT);
+        break;
+      }
+    }
+    while (hspi->State != HAL_SPI_STATE_ABORT);
+    /* Reset Timeout Counter */
+    count = resetcount;
+  }
+
+  if (HAL_IS_BIT_SET(hspi->Instance->CR2, SPI_CR2_RXNEIE))
+  {
+    hspi->RxISR = SPI_AbortRx_ISR;
+    /* Wait HAL_SPI_STATE_ABORT state */
+    do
+    {
+      if (count-- == 0U)
+      {
+        SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_ABORT);
+        break;
+      }
+    }
+    while (hspi->State != HAL_SPI_STATE_ABORT);
+    /* Reset Timeout Counter */
+    count = resetcount;
+  }
+
+  /* Clear ERRIE interrupts in case of DMA Mode */
+  CLEAR_BIT(hspi->Instance->CR2, SPI_CR2_ERRIE);
+
+  /* Disable the SPI DMA Tx or SPI DMA Rx request if enabled */
+  if ((HAL_IS_BIT_SET(hspi->Instance->CR2, SPI_CR2_TXDMAEN)) || (HAL_IS_BIT_SET(hspi->Instance->CR2, SPI_CR2_RXDMAEN)))
+  {
+    /* Abort the SPI DMA Tx Stream/Channel : use blocking DMA Abort API (no callback) */
+    if (hspi->hdmatx != NULL)
+    {
+      /* Set the SPI DMA Abort callback :
+      will lead to call HAL_SPI_AbortCpltCallback() at end of DMA abort procedure */
+      hspi->hdmatx->XferAbortCallback = NULL;
+
+      /* Abort DMA Tx Handle linked to SPI Peripheral */
+      if (HAL_DMA_Abort(hspi->hdmatx) != HAL_OK)
+      {
+        hspi->ErrorCode = HAL_SPI_ERROR_ABORT;
+      }
+
+      /* Disable Tx DMA Request */
+      CLEAR_BIT(hspi->Instance->CR2, (SPI_CR2_TXDMAEN));
+
+      if (SPI_EndRxTxTransaction(hspi, SPI_DEFAULT_TIMEOUT, HAL_GetTick()) != HAL_OK)
+      {
+        hspi->ErrorCode = HAL_SPI_ERROR_ABORT;
+      }
+
+      /* Disable SPI Peripheral */
+      __HAL_SPI_DISABLE(hspi);
+
+      /* Empty the FRLVL fifo */
+      if (SPI_WaitFifoStateUntilTimeout(hspi, SPI_FLAG_FRLVL, SPI_FRLVL_EMPTY, SPI_DEFAULT_TIMEOUT, HAL_GetTick()) != HAL_OK)
+      {
+        hspi->ErrorCode = HAL_SPI_ERROR_ABORT;
+      }
+    }
+    /* Abort the SPI DMA Rx Stream/Channel : use blocking DMA Abort API (no callback) */
+    if (hspi->hdmarx != NULL)
+    {
+      /* Set the SPI DMA Abort callback :
+      will lead to call HAL_SPI_AbortCpltCallback() at end of DMA abort procedure */
+      hspi->hdmarx->XferAbortCallback = NULL;
+
+      /* Abort DMA Rx Handle linked to SPI Peripheral */
+      if (HAL_DMA_Abort(hspi->hdmarx) != HAL_OK)
+      {
+        hspi->ErrorCode = HAL_SPI_ERROR_ABORT;
+      }
+
+      /* Disable peripheral */
+      __HAL_SPI_DISABLE(hspi);
+
+      /* Control the BSY flag */
+      if (SPI_WaitFlagStateUntilTimeout(hspi, SPI_FLAG_BSY, RESET, SPI_DEFAULT_TIMEOUT, HAL_GetTick()) != HAL_OK)
+      {
+        hspi->ErrorCode = HAL_SPI_ERROR_ABORT;
+      }
+
+      /* Empty the FRLVL fifo */
+      if (SPI_WaitFifoStateUntilTimeout(hspi, SPI_FLAG_FRLVL, SPI_FRLVL_EMPTY, SPI_DEFAULT_TIMEOUT, HAL_GetTick()) != HAL_OK)
+      {
+        hspi->ErrorCode = HAL_SPI_ERROR_ABORT;
+      }
+
+      /* Disable Rx DMA Request */
+      CLEAR_BIT(hspi->Instance->CR2, (SPI_CR2_RXDMAEN));
+    }
+  }
+  /* Reset Tx and Rx transfer counters */
+  hspi->RxXferCount = 0U;
+  hspi->TxXferCount = 0U;
+
+  /* Check error during Abort procedure */
+  if (hspi->ErrorCode == HAL_SPI_ERROR_ABORT)
+  {
+    /* return HAL_Error in case of error during Abort procedure */
+    errorcode = HAL_ERROR;
+  }
+  else
+  {
+    /* Reset errorCode */
+    hspi->ErrorCode = HAL_SPI_ERROR_NONE;
+  }
+
+  /* Clear the Error flags in the SR register */
+  __HAL_SPI_CLEAR_OVRFLAG(hspi);
+  __HAL_SPI_CLEAR_FREFLAG(hspi);
+
+  /* Restore hspi->state to ready */
+  hspi->State = HAL_SPI_STATE_READY;
+
+  return errorcode;
+}

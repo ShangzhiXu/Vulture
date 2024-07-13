@@ -1,0 +1,42 @@
+HAL_StatusTypeDef HAL_DMA2D_Suspend(DMA2D_HandleTypeDef *hdma2d)
+{
+  uint32_t tickstart;
+
+  /* Suspend the DMA2D transfer */
+  /* START bit is reset to make sure not to set it again, in the event the HW clears it
+     between the register read and the register write by the CPU (writing 0 has no
+     effect on START bitvalue). */
+  MODIFY_REG(hdma2d->Instance->CR, DMA2D_CR_SUSP|DMA2D_CR_START, DMA2D_CR_SUSP);
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  /* Check if the DMA2D is effectively suspended */
+  while ((hdma2d->Instance->CR & (DMA2D_CR_SUSP | DMA2D_CR_START)) == DMA2D_CR_START)
+  {
+    if((HAL_GetTick() - tickstart ) > DMA2D_TIMEOUT_SUSPEND)
+    {
+      /* Update error code */
+      hdma2d->ErrorCode |= HAL_DMA2D_ERROR_TIMEOUT;
+
+      /* Change the DMA2D state */
+      hdma2d->State = HAL_DMA2D_STATE_TIMEOUT;
+
+      return HAL_TIMEOUT;
+    }
+  }
+
+   /* Check whether or not a transfer is actually suspended and change the DMA2D state accordingly */
+  if ((hdma2d->Instance->CR & DMA2D_CR_START) != 0U)
+  {
+    hdma2d->State = HAL_DMA2D_STATE_SUSPEND;
+  }
+  else
+  {
+    /* Make sure SUSP bit is cleared since it is meaningless
+       when no tranfer is on-going */
+    CLEAR_BIT(hdma2d->Instance->CR, DMA2D_CR_SUSP);
+  }
+
+  return HAL_OK;
+}

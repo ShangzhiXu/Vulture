@@ -1,0 +1,296 @@
+HAL_StatusTypeDef UART_SetConfig(UART_HandleTypeDef *huart)
+{
+  uint32_t tmpreg                     = 0x00000000U;
+  UART_ClockSourceTypeDef clocksource = UART_CLOCKSOURCE_UNDEFINED;
+  uint16_t brrtemp                    = 0x0000U;
+  uint32_t usartdiv                   = 0x00000000U;
+  HAL_StatusTypeDef ret               = HAL_OK;
+  uint32_t lpuart_ker_ck_pres         = 0x00000000U;
+  
+  /* Check the parameters */
+  assert_param(IS_UART_BAUDRATE(huart->Init.BaudRate));
+  assert_param(IS_UART_WORD_LENGTH(huart->Init.WordLength));
+  if(UART_INSTANCE_LOWPOWER(huart))
+  {
+    assert_param(IS_LPUART_STOPBITS(huart->Init.StopBits));  
+  }
+  else
+  {
+    assert_param(IS_UART_STOPBITS(huart->Init.StopBits));
+    assert_param(IS_UART_ONE_BIT_SAMPLE(huart->Init.OneBitSampling));
+  }
+  
+  assert_param(IS_UART_PARITY(huart->Init.Parity));
+  assert_param(IS_UART_MODE(huart->Init.Mode));
+  assert_param(IS_UART_HARDWARE_FLOW_CONTROL(huart->Init.HwFlowCtl));
+  assert_param(IS_UART_OVERSAMPLING(huart->Init.OverSampling));
+#if defined(USART_PRESC_PRESCALER)
+  assert_param(IS_UART_PRESCALER(huart->Init.ClockPrescaler));
+#endif
+  
+  /*-------------------------- USART CR1 Configuration -----------------------*/
+  /* Clear M, PCE, PS, TE, RE and OVER8 bits and configure
+  *  the UART Word Length, Parity, Mode and oversampling:
+  *  set the M bits according to huart->Init.WordLength value
+  *  set PCE and PS bits according to huart->Init.Parity value
+  *  set TE and RE bits according to huart->Init.Mode value
+  *  set OVER8 bit according to huart->Init.OverSampling value */
+  tmpreg = (uint32_t)huart->Init.WordLength | huart->Init.Parity | huart->Init.Mode | huart->Init.OverSampling ;
+  MODIFY_REG(huart->Instance->CR1, USART_CR1_FIELDS, tmpreg);
+  
+  /*-------------------------- USART CR2 Configuration -----------------------*/
+  /* Configure the UART Stop Bits: Set STOP[13:12] bits according
+  * to huart->Init.StopBits value */
+  MODIFY_REG(huart->Instance->CR2, USART_CR2_STOP, huart->Init.StopBits);
+  
+  /*-------------------------- USART CR3 Configuration -----------------------*/
+  /* Configure
+  * - UART HardWare Flow Control: set CTSE and RTSE bits according
+  *   to huart->Init.HwFlowCtl value
+  * - one-bit sampling method versus three samples' majority rule according
+  *   to huart->Init.OneBitSampling (not applicable to LPUART)
+  * - set TXFTCFG bit according to huart->Init.TxFifoThreshold value
+  * - set RXFTCFG bit according to huart->Init.RxFifoThreshold value */
+  tmpreg = (uint32_t)huart->Init.HwFlowCtl;
+  
+  if (!(UART_INSTANCE_LOWPOWER(huart)))
+  {
+    tmpreg |= huart->Init.OneBitSampling;
+  }
+  MODIFY_REG(huart->Instance->CR3, USART_CR3_FIELDS, tmpreg);
+  
+#if defined(USART_PRESC_PRESCALER)
+  /*-------------------------- USART PRESC Configuration -----------------------*/
+  /* Configure
+  * - UART Clock Prescaler : set PRESCALER according to huart->Init.ClockPrescaler value */
+  MODIFY_REG(huart->Instance->PRESC, USART_PRESC_PRESCALER, huart->Init.ClockPrescaler);
+#endif
+  
+  /*-------------------------- USART BRR Configuration -----------------------*/
+  UART_GETCLOCKSOURCE(huart, clocksource);
+  
+  /* Check LPUART instance */
+  if(UART_INSTANCE_LOWPOWER(huart))
+  {
+    /* Retrieve frequency clock */
+    switch (clocksource)
+    {
+    case UART_CLOCKSOURCE_PCLK1:
+#if defined(USART_PRESC_PRESCALER)
+      lpuart_ker_ck_pres = (HAL_RCC_GetPCLK1Freq()/UARTPrescTable[huart->Init.ClockPrescaler]);
+#else
+      lpuart_ker_ck_pres = HAL_RCC_GetPCLK1Freq();
+#endif
+      break;
+    case UART_CLOCKSOURCE_HSI:
+#if defined(USART_PRESC_PRESCALER)
+      lpuart_ker_ck_pres = ((uint32_t)HSI_VALUE/UARTPrescTable[huart->Init.ClockPrescaler]);
+#else
+      lpuart_ker_ck_pres = (uint32_t)HSI_VALUE;
+#endif
+      break;
+    case UART_CLOCKSOURCE_SYSCLK:
+#if defined(USART_PRESC_PRESCALER)
+      lpuart_ker_ck_pres = (HAL_RCC_GetSysClockFreq()/UARTPrescTable[huart->Init.ClockPrescaler]);
+#else
+      lpuart_ker_ck_pres = HAL_RCC_GetSysClockFreq();
+#endif
+      break;
+    case UART_CLOCKSOURCE_LSE:
+#if defined(USART_PRESC_PRESCALER)
+      lpuart_ker_ck_pres = ((uint32_t)LSE_VALUE/UARTPrescTable[huart->Init.ClockPrescaler]);
+#else
+      lpuart_ker_ck_pres = (uint32_t)LSE_VALUE;
+#endif
+      break;
+    case UART_CLOCKSOURCE_UNDEFINED:
+    default:
+      ret = HAL_ERROR;
+      break;
+    }
+    
+    /* if proper clock source reported */
+    if (lpuart_ker_ck_pres != 0U)
+    {
+      /* ensure that Frequency clock is in the range [3 * baudrate, 4096 * baudrate] */
+      if ( (lpuart_ker_ck_pres < (3 * huart->Init.BaudRate) ) ||
+          (lpuart_ker_ck_pres > (4096 * huart->Init.BaudRate) ))
+      {
+        ret = HAL_ERROR;
+      }
+      else
+      {
+        switch (clocksource)
+        {
+        case UART_CLOCKSOURCE_PCLK1:
+#if defined(USART_PRESC_PRESCALER)
+          usartdiv = (uint32_t)(UART_DIV_LPUART(HAL_RCC_GetPCLK1Freq(), huart->Init.BaudRate, huart->Init.ClockPrescaler));
+#else
+          usartdiv = (uint32_t)(UART_DIV_LPUART(HAL_RCC_GetPCLK1Freq(), huart->Init.BaudRate));
+#endif
+          break;
+        case UART_CLOCKSOURCE_HSI:
+#if defined(USART_PRESC_PRESCALER)
+          usartdiv = (uint32_t)(UART_DIV_LPUART(HSI_VALUE, huart->Init.BaudRate, huart->Init.ClockPrescaler));
+#else
+          usartdiv = (uint32_t)(UART_DIV_LPUART(HSI_VALUE, huart->Init.BaudRate));
+#endif
+          break;
+        case UART_CLOCKSOURCE_SYSCLK:
+#if defined(USART_PRESC_PRESCALER)
+          usartdiv = (uint32_t)(UART_DIV_LPUART(HAL_RCC_GetSysClockFreq(), huart->Init.BaudRate, huart->Init.ClockPrescaler));
+#else
+          usartdiv = (uint32_t)(UART_DIV_LPUART(HAL_RCC_GetSysClockFreq(), huart->Init.BaudRate));
+#endif
+          break;
+        case UART_CLOCKSOURCE_LSE:
+#if defined(USART_PRESC_PRESCALER)
+          usartdiv = (uint32_t)(UART_DIV_LPUART(LSE_VALUE, huart->Init.BaudRate, huart->Init.ClockPrescaler));
+#else
+          usartdiv = (uint32_t)(UART_DIV_LPUART(LSE_VALUE, huart->Init.BaudRate));
+#endif
+          break;
+        case UART_CLOCKSOURCE_UNDEFINED:
+        default:
+          ret = HAL_ERROR;
+          break;
+        }
+        
+        /* It is forbidden to write values lower than 0x300 in the LPUART_BRR register */
+        if ((usartdiv >= LPUART_BRR_MIN) && (usartdiv <= LPUART_BRR_MAX))
+        {
+          huart->Instance->BRR = usartdiv;
+        }
+        else
+        {
+          ret = HAL_ERROR;
+        }
+      }  /*   if ( (tmpreg < (3 * huart->Init.BaudRate) ) || (tmpreg > (4096 * huart->Init.BaudRate) )) */
+    } /* if (tmpreg != 0) */
+  }
+  /* Check UART Over Sampling to set Baud Rate Register */
+  else if (huart->Init.OverSampling == UART_OVERSAMPLING_8)
+  {
+    switch (clocksource)
+    {
+    case UART_CLOCKSOURCE_PCLK1:
+#if defined(USART_PRESC_PRESCALER)
+      usartdiv = (uint16_t)(UART_DIV_SAMPLING8(HAL_RCC_GetPCLK1Freq(), huart->Init.BaudRate, huart->Init.ClockPrescaler));
+#else
+      usartdiv = (uint16_t)(UART_DIV_SAMPLING8(HAL_RCC_GetPCLK1Freq(), huart->Init.BaudRate));
+#endif
+      break;
+    case UART_CLOCKSOURCE_PCLK2:
+#if defined(USART_PRESC_PRESCALER)
+      usartdiv = (uint16_t)(UART_DIV_SAMPLING8(HAL_RCC_GetPCLK2Freq(), huart->Init.BaudRate, huart->Init.ClockPrescaler));
+#else
+      usartdiv = (uint16_t)(UART_DIV_SAMPLING8(HAL_RCC_GetPCLK2Freq(), huart->Init.BaudRate));
+#endif
+      break;
+    case UART_CLOCKSOURCE_HSI:
+#if defined(USART_PRESC_PRESCALER)
+      usartdiv = (uint16_t)(UART_DIV_SAMPLING8(HSI_VALUE, huart->Init.BaudRate, huart->Init.ClockPrescaler));
+#else
+      usartdiv = (uint16_t)(UART_DIV_SAMPLING8(HSI_VALUE, huart->Init.BaudRate));
+#endif
+      break;
+    case UART_CLOCKSOURCE_SYSCLK:
+#if defined(USART_PRESC_PRESCALER)
+      usartdiv = (uint16_t)(UART_DIV_SAMPLING8(HAL_RCC_GetSysClockFreq(), huart->Init.BaudRate, huart->Init.ClockPrescaler));
+#else
+      usartdiv = (uint16_t)(UART_DIV_SAMPLING8(HAL_RCC_GetSysClockFreq(), huart->Init.BaudRate));
+#endif
+      break;
+    case UART_CLOCKSOURCE_LSE:
+#if defined(USART_PRESC_PRESCALER)
+      usartdiv = (uint16_t)(UART_DIV_SAMPLING8(LSE_VALUE, huart->Init.BaudRate, huart->Init.ClockPrescaler));
+#else
+      usartdiv = (uint16_t)(UART_DIV_SAMPLING8(LSE_VALUE, huart->Init.BaudRate));
+#endif
+      break;
+    case UART_CLOCKSOURCE_UNDEFINED:
+    default:
+      ret = HAL_ERROR;
+      break;
+    }
+    
+    /* USARTDIV must be greater than or equal to 0d16 */
+    if ((usartdiv >= UART_BRR_MIN) && (usartdiv <= UART_BRR_MAX))
+    {
+      brrtemp = usartdiv & 0xFFF0U;
+      brrtemp |= (uint16_t)((usartdiv & (uint16_t)0x000FU) >> 1U);
+      huart->Instance->BRR = brrtemp;
+    }
+    else
+    {
+      ret = HAL_ERROR;
+    }
+  }
+  else
+  {
+    switch (clocksource)
+    {
+    case UART_CLOCKSOURCE_PCLK1:
+#if defined(USART_PRESC_PRESCALER)
+      usartdiv = (uint16_t)(UART_DIV_SAMPLING16(HAL_RCC_GetPCLK1Freq(), huart->Init.BaudRate, huart->Init.ClockPrescaler));
+#else
+      usartdiv = (uint16_t)(UART_DIV_SAMPLING16(HAL_RCC_GetPCLK1Freq(), huart->Init.BaudRate));
+#endif
+      break;
+    case UART_CLOCKSOURCE_PCLK2:
+#if defined(USART_PRESC_PRESCALER)
+      usartdiv = (uint16_t)(UART_DIV_SAMPLING16(HAL_RCC_GetPCLK2Freq(), huart->Init.BaudRate, huart->Init.ClockPrescaler));
+#else
+      usartdiv = (uint16_t)(UART_DIV_SAMPLING16(HAL_RCC_GetPCLK2Freq(), huart->Init.BaudRate));
+#endif
+      break;
+    case UART_CLOCKSOURCE_HSI:
+#if defined(USART_PRESC_PRESCALER)
+      usartdiv = (uint16_t)(UART_DIV_SAMPLING16(HSI_VALUE, huart->Init.BaudRate, huart->Init.ClockPrescaler));
+#else
+      usartdiv = (uint16_t)(UART_DIV_SAMPLING16(HSI_VALUE, huart->Init.BaudRate));
+#endif
+      break;
+    case UART_CLOCKSOURCE_SYSCLK:
+#if defined(USART_PRESC_PRESCALER)
+      usartdiv = (uint16_t)(UART_DIV_SAMPLING16(HAL_RCC_GetSysClockFreq(), huart->Init.BaudRate, huart->Init.ClockPrescaler));
+#else
+      usartdiv = (uint16_t)(UART_DIV_SAMPLING16(HAL_RCC_GetSysClockFreq(), huart->Init.BaudRate));
+#endif
+      break;
+    case UART_CLOCKSOURCE_LSE:
+#if defined(USART_PRESC_PRESCALER)
+      usartdiv = (uint16_t)(UART_DIV_SAMPLING16(LSE_VALUE, huart->Init.BaudRate, huart->Init.ClockPrescaler));
+#else
+      usartdiv = (uint16_t)(UART_DIV_SAMPLING16(LSE_VALUE, huart->Init.BaudRate));
+#endif
+      break;
+    case UART_CLOCKSOURCE_UNDEFINED:
+    default:
+      ret = HAL_ERROR;
+      break;
+    }
+    
+    /* USARTDIV must be greater than or equal to 0d16 */
+    if ((usartdiv >= UART_BRR_MIN) && (usartdiv <= UART_BRR_MAX))
+    {
+      huart->Instance->BRR = usartdiv;
+    }
+    else
+    {
+      ret = HAL_ERROR;
+    }
+  }
+  
+#if defined(USART_CR1_FIFOEN)
+  /* Initialize the number of data to process during RX/TX ISR execution */
+  huart->NbTxDataToProcess = 1;
+  huart->NbRxDataToProcess = 1;
+#endif
+    
+  /* Clear ISR function pointers */
+  huart->RxISR = NULL;
+  huart->TxISR = NULL;
+  
+  return ret;
+}

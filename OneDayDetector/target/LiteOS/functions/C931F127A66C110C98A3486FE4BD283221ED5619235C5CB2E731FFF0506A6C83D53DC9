@@ -1,0 +1,72 @@
+void lv_obj_refresh_style(lv_obj_t * obj, lv_style_property_t prop)
+{
+    LV_ASSERT_OBJ(obj, LV_OBJX_NAME);
+
+    /*If a real style refresh is required*/
+    bool real_refr = false;
+    switch(prop) {
+        case LV_STYLE_PROP_ALL:
+        case LV_STYLE_CLIP_CORNER:
+        case LV_STYLE_SIZE:
+        case LV_STYLE_TRANSFORM_WIDTH:
+        case LV_STYLE_TRANSFORM_HEIGHT:
+        case LV_STYLE_TRANSFORM_ANGLE:
+        case LV_STYLE_TRANSFORM_ZOOM:
+        case LV_STYLE_PAD_TOP:
+        case LV_STYLE_PAD_BOTTOM:
+        case LV_STYLE_PAD_LEFT:
+        case LV_STYLE_PAD_RIGHT:
+        case LV_STYLE_PAD_INNER:
+        case LV_STYLE_MARGIN_TOP:
+        case LV_STYLE_MARGIN_BOTTOM:
+        case LV_STYLE_MARGIN_LEFT:
+        case LV_STYLE_MARGIN_RIGHT:
+        case LV_STYLE_OUTLINE_WIDTH:
+        case LV_STYLE_OUTLINE_PAD:
+        case LV_STYLE_OUTLINE_OPA:
+        case LV_STYLE_SHADOW_WIDTH:
+        case LV_STYLE_SHADOW_OPA:
+        case LV_STYLE_SHADOW_OFS_X:
+        case LV_STYLE_SHADOW_OFS_Y:
+        case LV_STYLE_SHADOW_SPREAD:
+        case LV_STYLE_VALUE_LETTER_SPACE:
+        case LV_STYLE_VALUE_LINE_SPACE:
+        case LV_STYLE_VALUE_OFS_X:
+        case LV_STYLE_VALUE_OFS_Y:
+        case LV_STYLE_VALUE_ALIGN:
+        case LV_STYLE_VALUE_STR:
+        case LV_STYLE_VALUE_FONT:
+        case LV_STYLE_VALUE_OPA:
+        case LV_STYLE_TEXT_LETTER_SPACE:
+        case LV_STYLE_TEXT_LINE_SPACE:
+        case LV_STYLE_TEXT_FONT:
+        case LV_STYLE_LINE_WIDTH:
+            real_refr = true;
+            break;
+        default:
+            real_refr = false;
+    }
+
+    if(real_refr) {
+        lv_obj_invalidate(obj);
+        obj->signal_cb(obj, LV_SIGNAL_STYLE_CHG, NULL);
+
+        switch(prop) {
+            case LV_STYLE_PROP_ALL:
+            case LV_STYLE_MARGIN_TOP:
+            case LV_STYLE_MARGIN_BOTTOM:
+            case LV_STYLE_MARGIN_LEFT:
+            case LV_STYLE_MARGIN_RIGHT:
+                if(obj->parent) obj->parent->signal_cb(obj->parent, LV_SIGNAL_CHILD_CHG, NULL);
+                break;
+        }
+
+        lv_obj_invalidate(obj);
+
+        /*Send style change signals*/
+        if(prop == LV_STYLE_PROP_ALL || (prop & LV_STYLE_INHERIT_MASK)) refresh_children_style(obj);
+    }
+    else {
+        lv_obj_invalidate(obj);
+    }
+}

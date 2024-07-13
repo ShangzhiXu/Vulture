@@ -1,0 +1,24 @@
+void lv_list_focus_btn(lv_obj_t * list, lv_obj_t * btn)
+{
+    LV_ASSERT_OBJ(list, LV_OBJX_NAME);
+    if(btn) LV_ASSERT_OBJ(btn, "lv_btn");
+
+    lv_list_ext_t * ext = lv_obj_get_ext_attr(list);
+
+    /*Defocus the current button*/
+    if(ext->act_sel_btn) lv_obj_clear_state(ext->act_sel_btn, LV_STATE_FOCUSED);
+
+#if LV_USE_GROUP
+    /*Don't forget which button was selected.
+     * It will be restored when the list is focused again.*/
+    if(btn) ext->last_sel_btn = btn;
+#endif
+
+    /*Focus the new button*/
+    ext->act_sel_btn = btn;
+
+    if(ext->act_sel_btn) {
+        lv_obj_add_state(ext->act_sel_btn, LV_STATE_FOCUSED);
+        lv_page_focus(list, ext->act_sel_btn, LV_ANIM_ON);
+    }
+}

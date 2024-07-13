@@ -1,0 +1,11 @@
+  u16_t chksum_len_rx, chksum_len_tx;
+  u16_t chksum_len_rx, chksum_len_tx;
+  u8_t flags;
+  u16_t local_port, remote_port;
+  u8_t mcast_ifindex;
+  ip4_addr_t mcast_ip4;
+  u8_t mcast_ttl;
+  struct udp_pcb *next;
+  udp_recv_fn recv;
+  void *recv_arg;
+  u16_t local_port, remote_port;

@@ -1,0 +1,29 @@
+static VOID Example_SemTask1(VOID)
+{
+    UINT32 ret;
+
+    printf("Example_SemTask1 try get sem g_demoSemId, timeout 10 ticks.\n");
+    /* get sem, timeout is 10 ticks */
+    ret = LOS_SemPend(g_demoSemId, 10);
+    /* get sem ok */
+    if (ret == LOS_OK) {
+        LOS_SemPost(g_demoSemId);
+        return;
+    }
+    /* timeout, get sem fail */
+    if (ret == LOS_ERRNO_SEM_TIMEOUT) {
+        printf("Example_SemTask1 timeout and try get sem g_demoSemId wait forever.\n");
+        /* get sem wait forever, LOS_SemPend return until has been get mux */
+        ret = LOS_SemPend(g_demoSemId, LOS_WAIT_FOREVER);
+        if (ret == LOS_OK) {
+            printf("Example_SemTask1 wait_forever and got sem g_demoSemId ok.\n");
+            LOS_SemPost(g_demoSemId);
+            ret = LOS_InspectStatusSetById(LOS_INSPECT_SEM, LOS_INSPECT_STU_SUCCESS);
+            if (ret != LOS_OK) {
+                printf("Set Inspect Status Err.\n");
+            }
+            return;
+        }
+    }
+    return;
+}

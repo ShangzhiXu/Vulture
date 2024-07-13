@@ -1,0 +1,93 @@
+HAL_StatusTypeDef HAL_SPDIFRX_ReceiveControlFlow_DMA(SPDIFRX_HandleTypeDef *hspdif, uint32_t *pData, uint16_t Size)
+{
+  register uint32_t count = SPDIFRX_TIMEOUT_VALUE * (SystemCoreClock / 24U / 1000U);
+
+  const HAL_SPDIFRX_StateTypeDef tempState = hspdif->State;
+
+  if((pData == NULL) || (Size == 0U))
+  {
+    return  HAL_ERROR;
+  }
+
+  if((tempState == HAL_SPDIFRX_STATE_READY) || (tempState == HAL_SPDIFRX_STATE_BUSY_RX))
+  {
+    hspdif->pCsBuffPtr = pData;
+    hspdif->CsXferSize = Size;
+    hspdif->CsXferCount = Size;
+
+    /* Process Locked */
+    __HAL_LOCK(hspdif);
+
+    hspdif->ErrorCode = HAL_SPDIFRX_ERROR_NONE;
+    hspdif->State = HAL_SPDIFRX_STATE_BUSY_CX;
+
+    /* Set the SPDIFRX Rx DMA Half transfer complete callback */
+    hspdif->hdmaCsRx->XferHalfCpltCallback = SPDIFRX_DMACxHalfCplt;
+
+    /* Set the SPDIFRX Rx DMA transfer complete callback */
+    hspdif->hdmaCsRx->XferCpltCallback = SPDIFRX_DMACxCplt;
+
+    /* Set the DMA error callback */
+    hspdif->hdmaCsRx->XferErrorCallback = SPDIFRX_DMAError;
+
+    /* Enable the DMA request */
+    if(HAL_DMA_Start_IT(hspdif->hdmaCsRx, (uint32_t)&hspdif->Instance->CSR, (uint32_t)hspdif->pCsBuffPtr, Size) != HAL_OK)
+    {
+      /* Set SPDIFRX error */
+      hspdif->ErrorCode = HAL_SPDIFRX_ERROR_DMA;
+
+      /* Set SPDIFRX state */
+      hspdif->State = HAL_SPDIFRX_STATE_ERROR;
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hspdif);
+
+      return HAL_ERROR;
+    }
+
+    /* Enable CBDMAEN bit in SPDIFRX CR register for control flow reception*/
+    hspdif->Instance->CR |= SPDIFRX_CR_CBDMAEN;
+
+    if((SPDIFRX->CR & SPDIFRX_CR_SPDIFEN) != SPDIFRX_STATE_RCV)
+    {
+      /* Start synchronization */
+      __HAL_SPDIFRX_SYNC(hspdif);
+
+      /* Wait until SYNCD flag is set */
+      do
+      {
+        if (count == 0U)
+        {
+          /* Disable TXE, RXNE, PE and ERR (Frame error, noise error, overrun error) interrupts for the interrupt process */
+          __HAL_SPDIFRX_DISABLE_IT(hspdif, SPDIFRX_IT_RXNE);
+          __HAL_SPDIFRX_DISABLE_IT(hspdif, SPDIFRX_IT_CSRNE);
+          __HAL_SPDIFRX_DISABLE_IT(hspdif, SPDIFRX_IT_PERRIE);
+          __HAL_SPDIFRX_DISABLE_IT(hspdif, SPDIFRX_IT_OVRIE);
+          __HAL_SPDIFRX_DISABLE_IT(hspdif, SPDIFRX_IT_SBLKIE);
+          __HAL_SPDIFRX_DISABLE_IT(hspdif, SPDIFRX_IT_SYNCDIE);
+          __HAL_SPDIFRX_DISABLE_IT(hspdif, SPDIFRX_IT_IFEIE);
+
+          hspdif->State= HAL_SPDIFRX_STATE_READY;
+
+          /* Process Unlocked */
+          __HAL_UNLOCK(hspdif);
+
+          return HAL_TIMEOUT;
+        }
+        count--;
+      } while (__HAL_SPDIFRX_GET_FLAG(hspdif, SPDIFRX_FLAG_SYNCD) == RESET);
+
+      /* Start reception */
+      __HAL_SPDIFRX_RCV(hspdif);
+    }
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hspdif);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

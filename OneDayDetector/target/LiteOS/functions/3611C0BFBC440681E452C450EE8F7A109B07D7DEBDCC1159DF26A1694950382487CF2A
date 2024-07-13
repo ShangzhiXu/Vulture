@@ -1,0 +1,32 @@
+VOID OsBinaryTreeInit(VOID)
+{
+    INT32 index;
+    LinkRegNode linkRegNode;
+    AddrNode node;
+    TaskIDNode taskNode;
+    ReqSizeNode reqNode;
+
+    /* equal to the middle address of __text_start and __text_end */
+    linkRegNode.linkReg1 = (UINTPTR)(((&__text_end - &__text_start) / 2) + &__text_start);
+    linkRegNode.linkReg2 = linkRegNode.linkReg1;
+    linkRegNode.linkReg3 = linkRegNode.linkReg1;
+    (VOID)OsBinTreeInsert(&linkRegNode, sizeof(LinkRegNode), (BinNode **)&g_linkRegRoot,
+                          OsGetLRBinNode, OsCompareLRNode);
+
+    /* equal to the middle address of __bss_end and g_sys_mem_addr_end */
+    node.addr = ((g_sys_mem_addr_end - (UINTPTR)(&__bss_end)) / 2) + (UINTPTR)(&__bss_end);
+    (VOID)OsBinTreeInsert(&node, sizeof(AddrNode), (BinNode **)&g_addrRoot,
+                          OsGetAddrBinNode, OsCompareAddrNode);
+
+    for (index = 0; index < BINARYTREE_TASKID_COUNT; index++) {
+        taskNode.taskId = g_binaryTreeTaskID[index];
+        (VOID)OsBinTreeInsert(&taskNode, sizeof(TaskIDNode), (BinNode **)&g_taskIdRoot,
+                              OsGetTaskIDBinNode, OsCompareTaskIDNode);
+    }
+
+    for (index = 0; index < BINARYTREE_REQSIZE_COUNT; index++) {
+        reqNode.reqSize = g_binaryTreeReqSize[index];
+        (VOID)OsBinTreeInsert(&reqNode, sizeof(ReqSizeNode), (BinNode **)&g_reqSizeRoot,
+                              OsGetReqSizeBinNode, OsCompareReqSizeNode);
+    }
+}

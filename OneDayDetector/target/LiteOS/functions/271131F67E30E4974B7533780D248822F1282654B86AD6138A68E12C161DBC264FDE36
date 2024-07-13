@@ -1,0 +1,64 @@
+ErrorStatus LL_ADC_INJ_Init(ADC_TypeDef *ADCx, LL_ADC_INJ_InitTypeDef *ADC_INJ_InitStruct)
+{
+  ErrorStatus status = SUCCESS;
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(ADCx));
+  assert_param(IS_LL_ADC_INJ_TRIG_SOURCE(ADC_INJ_InitStruct->TriggerSource));
+  assert_param(IS_LL_ADC_INJ_SEQ_SCAN_LENGTH(ADC_INJ_InitStruct->SequencerLength));
+  if(ADC_INJ_InitStruct->SequencerLength != LL_ADC_INJ_SEQ_SCAN_DISABLE)
+  {
+    assert_param(IS_LL_ADC_INJ_SEQ_SCAN_DISCONT_MODE(ADC_INJ_InitStruct->SequencerDiscont));
+  }
+  assert_param(IS_LL_ADC_INJ_TRIG_AUTO(ADC_INJ_InitStruct->TrigAuto));
+  
+  /* Note: Hardware constraint (refer to description of this function):       */
+  /*       ADC instance must be disabled.                                     */
+  if(LL_ADC_IsEnabled(ADCx) == 0U)
+  {
+    /* Configuration of ADC hierarchical scope:                               */
+    /*  - ADC group injected                                                  */
+    /*    - Set ADC group injected trigger source                             */
+    /*    - Set ADC group injected sequencer length                           */
+    /*    - Set ADC group injected sequencer discontinuous mode               */
+    /*    - Set ADC group injected conversion trigger: independent or         */
+    /*      from ADC group regular                                            */
+    /* Note: On this STM32 serie, ADC trigger edge is set to value 0x0 by     */
+    /*       setting of trigger source to SW start.                           */
+    if(ADC_INJ_InitStruct->SequencerLength != LL_ADC_REG_SEQ_SCAN_DISABLE)
+    {
+      MODIFY_REG(ADCx->CFGR,
+                   ADC_CFGR_JDISCEN
+                 | ADC_CFGR_JAUTO
+                ,
+                   ADC_INJ_InitStruct->SequencerDiscont
+                 | ADC_INJ_InitStruct->TrigAuto
+                );
+    }
+    else
+    {
+      MODIFY_REG(ADCx->CFGR,
+                   ADC_CFGR_JDISCEN
+                 | ADC_CFGR_JAUTO
+                ,
+                   LL_ADC_REG_SEQ_DISCONT_DISABLE
+                 | ADC_INJ_InitStruct->TrigAuto
+                );
+    }
+    
+    MODIFY_REG(ADCx->JSQR,
+                 ADC_JSQR_JEXTSEL
+               | ADC_JSQR_JEXTEN
+               | ADC_JSQR_JL
+              ,
+                 ADC_INJ_InitStruct->TriggerSource
+               | ADC_INJ_InitStruct->SequencerLength
+              );
+  }
+  else
+  {
+    /* Initialization error: ADC instance is not disabled. */
+    status = ERROR;
+  }
+  return status;
+}

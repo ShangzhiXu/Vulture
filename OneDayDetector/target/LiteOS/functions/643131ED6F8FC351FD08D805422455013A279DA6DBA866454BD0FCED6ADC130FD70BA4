@@ -1,0 +1,103 @@
+int mbedtls_rsa_complete( mbedtls_rsa_context *ctx )
+{
+    int ret = 0;
+    int have_N, have_P, have_Q, have_D, have_E;
+#if !defined(MBEDTLS_RSA_NO_CRT)
+    int have_DP, have_DQ, have_QP;
+#endif
+    int n_missing, pq_missing, d_missing, is_pub, is_priv;
+
+    RSA_VALIDATE_RET( ctx != NULL );
+
+    have_N = ( mbedtls_mpi_cmp_int( &ctx->N, 0 ) != 0 );
+    have_P = ( mbedtls_mpi_cmp_int( &ctx->P, 0 ) != 0 );
+    have_Q = ( mbedtls_mpi_cmp_int( &ctx->Q, 0 ) != 0 );
+    have_D = ( mbedtls_mpi_cmp_int( &ctx->D, 0 ) != 0 );
+    have_E = ( mbedtls_mpi_cmp_int( &ctx->E, 0 ) != 0 );
+
+#if !defined(MBEDTLS_RSA_NO_CRT)
+    have_DP = ( mbedtls_mpi_cmp_int( &ctx->DP, 0 ) != 0 );
+    have_DQ = ( mbedtls_mpi_cmp_int( &ctx->DQ, 0 ) != 0 );
+    have_QP = ( mbedtls_mpi_cmp_int( &ctx->QP, 0 ) != 0 );
+#endif
+
+    /*
+     * Check whether provided parameters are enough
+     * to deduce all others. The following incomplete
+     * parameter sets for private keys are supported:
+     *
+     * (1) P, Q missing.
+     * (2) D and potentially N missing.
+     *
+     */
+
+    n_missing  =              have_P &&  have_Q &&  have_D && have_E;
+    pq_missing =   have_N && !have_P && !have_Q &&  have_D && have_E;
+    d_missing  =              have_P &&  have_Q && !have_D && have_E;
+    is_pub     =   have_N && !have_P && !have_Q && !have_D && have_E;
+
+    /* These three alternatives are mutually exclusive */
+    is_priv = n_missing || pq_missing || d_missing;
+
+    if( !is_priv && !is_pub )
+        return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+
+    /*
+     * Step 1: Deduce N if P, Q are provided.
+     */
+
+    if( !have_N && have_P && have_Q )
+    {
+        if( ( ret = mbedtls_mpi_mul_mpi( &ctx->N, &ctx->P,
+                                         &ctx->Q ) ) != 0 )
+        {
+            return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA + ret );
+        }
+
+        ctx->len = mbedtls_mpi_size( &ctx->N );
+    }
+
+    /*
+     * Step 2: Deduce and verify all remaining core parameters.
+     */
+
+    if( pq_missing )
+    {
+        ret = mbedtls_rsa_deduce_primes( &ctx->N, &ctx->E, &ctx->D,
+                                         &ctx->P, &ctx->Q );
+        if( ret != 0 )
+            return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA + ret );
+
+    }
+    else if( d_missing )
+    {
+        if( ( ret = mbedtls_rsa_deduce_private_exponent( &ctx->P,
+                                                         &ctx->Q,
+                                                         &ctx->E,
+                                                         &ctx->D ) ) != 0 )
+        {
+            return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA + ret );
+        }
+    }
+
+    /*
+     * Step 3: Deduce all additional parameters specific
+     *         to our current RSA implementation.
+     */
+
+#if !defined(MBEDTLS_RSA_NO_CRT)
+    if( is_priv && ! ( have_DP && have_DQ && have_QP ) )
+    {
+        ret = mbedtls_rsa_deduce_crt( &ctx->P,  &ctx->Q,  &ctx->D,
+                                      &ctx->DP, &ctx->DQ, &ctx->QP );
+        if( ret != 0 )
+            return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA + ret );
+    }
+#endif /* MBEDTLS_RSA_NO_CRT */
+
+    /*
+     * Step 3: Basic sanity checks
+     */
+
+    return( rsa_check_context( ctx, is_priv, 1 ) );
+}

@@ -1,0 +1,24 @@
+HAL_StatusTypeDef FMC_NAND_Init(FMC_NAND_TypeDef *Device, FMC_NAND_InitTypeDef *Init)
+{
+  /* Check the parameters */
+  assert_param(IS_FMC_NAND_DEVICE(Device));
+  assert_param(IS_FMC_NAND_BANK(Init->NandBank));
+  assert_param(IS_FMC_WAIT_FEATURE(Init->Waitfeature));
+  assert_param(IS_FMC_NAND_MEMORY_WIDTH(Init->MemoryDataWidth));
+  assert_param(IS_FMC_ECC_STATE(Init->EccComputation));
+  assert_param(IS_FMC_ECCPAGE_SIZE(Init->ECCPageSize));
+  assert_param(IS_FMC_TCLR_TIME(Init->TCLRSetupTime));
+  assert_param(IS_FMC_TAR_TIME(Init->TARSetupTime));
+
+    /* NAND bank 3 registers configuration */
+    MODIFY_REG(Device->PCR, PCR_CLEAR_MASK, (Init->Waitfeature                                      |
+                                              FMC_PCR_MEMORY_TYPE_NAND                              |
+                                              Init->MemoryDataWidth                                 |
+                                              Init->EccComputation                                  |
+                                              Init->ECCPageSize                                     |
+                                              ((Init->TCLRSetupTime) << POSITION_VAL(FMC_PCR_TCLR)) |
+                                              ((Init->TARSetupTime) << POSITION_VAL(FMC_PCR_TAR))));
+
+  return HAL_OK;
+
+}

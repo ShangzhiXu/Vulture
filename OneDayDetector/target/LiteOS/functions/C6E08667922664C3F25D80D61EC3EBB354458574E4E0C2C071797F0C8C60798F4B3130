@@ -1,0 +1,29 @@
+const int *mbedtls_ssl_list_ciphersuites( void )
+{
+    /*
+     * On initial call filter out all ciphersuites not supported by current
+     * build based on presence in the ciphersuite_definitions.
+     */
+    if( supported_init == 0 )
+    {
+        const int *p;
+        int *q;
+
+        for( p = ciphersuite_preference, q = supported_ciphersuites;
+             *p != 0 && q < supported_ciphersuites + MAX_CIPHERSUITES - 1;
+             p++ )
+        {
+            const mbedtls_ssl_ciphersuite_t *cs_info;
+            if( ( cs_info = mbedtls_ssl_ciphersuite_from_id( *p ) ) != NULL &&
+                !ciphersuite_is_removed( cs_info ) )
+            {
+                *(q++) = *p;
+            }
+        }
+        *q = 0;
+
+        supported_init = 1;
+    }
+
+    return( supported_ciphersuites );
+}

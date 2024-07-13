@@ -1,0 +1,26 @@
+HAL_PCCARD_StatusTypeDef HAL_PCCARD_GetStatus(PCCARD_HandleTypeDef *hpccard)
+{
+  uint32_t timeout = PCCARD_TIMEOUT_STATUS, status_cf = 0;  
+  
+  /* Check the PCCARD controller state */
+  if(hpccard->State == HAL_PCCARD_STATE_BUSY)
+  {
+     return HAL_PCCARD_STATUS_ONGOING;
+  }
+
+  status_cf =  *(__IO uint8_t *)(PCCARD_IO_SPACE_PRIMARY_ADDR | ATA_STATUS_CMD_ALTERNATE);
+  
+  while((status_cf == PCCARD_BUSY) && timeout)
+  {
+    status_cf =  *(__IO uint8_t *)(PCCARD_IO_SPACE_PRIMARY_ADDR | ATA_STATUS_CMD_ALTERNATE);
+    timeout--;
+  }
+
+  if(timeout == 0)
+  {          
+    status_cf =  PCCARD_TIMEOUT_ERROR;      
+  }   
+
+  /* Return the operation status */
+  return (HAL_PCCARD_StatusTypeDef) status_cf;      
+}

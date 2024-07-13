@@ -1,0 +1,38 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 LOS_MemTaskIdGet(const VOID *ptr)
+{
+    LosMemDynNode *tmpNode = NULL;
+    LosMemPoolInfo *poolInfo = (LosMemPoolInfo *)(VOID *)m_aucSysMem1;
+    UINT32 intSave;
+#ifdef LOSCFG_EXC_INTERACTION
+    if (ptr < (VOID *)m_aucSysMem1) {
+        poolInfo = (LosMemPoolInfo *)(VOID *)m_aucSysMem0;
+    }
+#endif
+
+    if ((ptr == NULL) ||
+        (ptr < (VOID *)OS_MEM_FIRST_NODE(poolInfo)) ||
+        (ptr > (VOID *)OS_MEM_END_NODE(poolInfo, poolInfo->poolSize))) {
+        PRINT_ERR("input ptr %p is out of system memory range[%p, %p]\n", ptr, OS_MEM_FIRST_NODE(poolInfo),
+                  OS_MEM_END_NODE(poolInfo, poolInfo->poolSize));
+        return OS_INVALID;
+    }
+
+    MEM_LOCK(intSave);
+
+    for (tmpNode = OS_MEM_FIRST_NODE(poolInfo); tmpNode <= OS_MEM_END_NODE(poolInfo, poolInfo->poolSize);
+         tmpNode = OS_MEM_NEXT_NODE(tmpNode)) {
+        if ((UINTPTR)ptr < (UINTPTR)tmpNode) {
+            if (OS_MEM_NODE_GET_USED_FLAG(tmpNode->selfNode.preNode->selfNode.sizeAndFlag)) {
+                MEM_UNLOCK(intSave);
+                return tmpNode->selfNode.preNode->selfNode.taskId;
+            } else {
+                MEM_UNLOCK(intSave);
+                PRINT_ERR("input ptr %p is belong to a free mem node\n", ptr);
+                return OS_INVALID;
+            }
+        }
+    }
+
+    MEM_UNLOCK(intSave);
+    return OS_INVALID;
+}

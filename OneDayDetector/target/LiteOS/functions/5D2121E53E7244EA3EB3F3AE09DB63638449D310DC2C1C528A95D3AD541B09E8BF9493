@@ -1,0 +1,94 @@
+HAL_StatusTypeDef HAL_FMPSMBUS_RegisterCallback(FMPSMBUS_HandleTypeDef *hfmpsmbus, HAL_FMPSMBUS_CallbackIDTypeDef CallbackID, pFMPSMBUS_CallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    /* Update the error code */
+    hfmpsmbus->ErrorCode |= HAL_FMPSMBUS_ERROR_INVALID_CALLBACK;
+
+    return HAL_ERROR;
+  }
+
+  /* Process locked */
+  __HAL_LOCK(hfmpsmbus);
+
+  if (HAL_FMPSMBUS_STATE_READY == hfmpsmbus->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_FMPSMBUS_MASTER_TX_COMPLETE_CB_ID :
+        hfmpsmbus->MasterTxCpltCallback = pCallback;
+        break;
+
+      case HAL_FMPSMBUS_MASTER_RX_COMPLETE_CB_ID :
+        hfmpsmbus->MasterRxCpltCallback = pCallback;
+        break;
+
+      case HAL_FMPSMBUS_SLAVE_TX_COMPLETE_CB_ID :
+        hfmpsmbus->SlaveTxCpltCallback = pCallback;
+        break;
+
+      case HAL_FMPSMBUS_SLAVE_RX_COMPLETE_CB_ID :
+        hfmpsmbus->SlaveRxCpltCallback = pCallback;
+        break;
+
+      case HAL_FMPSMBUS_LISTEN_COMPLETE_CB_ID :
+        hfmpsmbus->ListenCpltCallback = pCallback;
+        break;
+
+      case HAL_FMPSMBUS_ERROR_CB_ID :
+        hfmpsmbus->ErrorCallback = pCallback;
+        break;
+
+      case HAL_FMPSMBUS_MSPINIT_CB_ID :
+        hfmpsmbus->MspInitCallback = pCallback;
+        break;
+
+      case HAL_FMPSMBUS_MSPDEINIT_CB_ID :
+        hfmpsmbus->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hfmpsmbus->ErrorCode |= HAL_FMPSMBUS_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if (HAL_FMPSMBUS_STATE_RESET == hfmpsmbus->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_FMPSMBUS_MSPINIT_CB_ID :
+        hfmpsmbus->MspInitCallback = pCallback;
+        break;
+
+      case HAL_FMPSMBUS_MSPDEINIT_CB_ID :
+        hfmpsmbus->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hfmpsmbus->ErrorCode |= HAL_FMPSMBUS_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    hfmpsmbus->ErrorCode |= HAL_FMPSMBUS_ERROR_INVALID_CALLBACK;
+
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hfmpsmbus);
+  return status;
+}

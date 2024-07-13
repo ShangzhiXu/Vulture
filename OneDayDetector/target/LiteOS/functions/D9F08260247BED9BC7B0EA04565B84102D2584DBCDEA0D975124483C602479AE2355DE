@@ -1,0 +1,28 @@
+uint8_t BSP_TS_ITConfig(void)
+{
+  uint8_t ts_status = TS_OK;
+  GPIO_InitTypeDef gpio_init_structure;
+
+  /* Msp Init of GPIO used for TS_INT pin coming from TouchScreen driver IC FT6x06 */
+  /* When touchscreen is operated in interrupt mode */
+  BSP_TS_INT_MspInit();
+
+  /* Configure Interrupt mode for TS_INT pin falling edge : when a new touch is available */
+  /* TS_INT pin is active on low level on new touch available */
+  gpio_init_structure.Pin = TS_INT_PIN;
+  gpio_init_structure.Pull = GPIO_PULLUP;
+  gpio_init_structure.Speed = GPIO_SPEED_FAST;
+  gpio_init_structure.Mode = GPIO_MODE_IT_FALLING;
+  HAL_GPIO_Init(TS_INT_GPIO_PORT, &gpio_init_structure);
+
+  /* Enable and set the TS_INT EXTI Interrupt to an intermediate priority */
+  HAL_NVIC_SetPriority((IRQn_Type)(TS_INT_EXTI_IRQn), 0x0F, 0x00);
+  HAL_NVIC_EnableIRQ((IRQn_Type)(TS_INT_EXTI_IRQn));
+
+  /* Enable the TS in interrupt mode */
+  /* In that case the INT output of FT6206 when new touch is available */
+  /* is active on low level and directed on EXTI */
+  ts_driver->EnableIT(I2C_Address);
+
+  return (ts_status);
+}

@@ -1,0 +1,75 @@
+lwiperf_tcp_client_send_more(lwiperf_state_tcp_t *conn)
+{
+  int send_more;
+  err_t err;
+  u16_t txlen;
+  u16_t txlen_max;
+  void *txptr;
+  u8_t apiflags;
+
+  LWIP_ASSERT("conn invalid", (conn != NULL) && conn->base.tcp && (conn->base.server == 0));
+
+  do {
+    send_more = 0;
+    if (conn->settings.amount & PP_HTONL(0x80000000)) {
+      /* this session is time-limited */
+      u32_t now = sys_now();
+      u32_t diff_ms = now - conn->time_started;
+      u32_t time = (u32_t) - (s32_t)lwip_htonl(conn->settings.amount);
+      u32_t time_ms = time * 10;
+      if (diff_ms >= time_ms) {
+        /* time specified by the client is over -> close the connection */
+        lwiperf_tcp_close(conn, LWIPERF_TCP_DONE_CLIENT);
+        return ERR_OK;
+      }
+    } else {
+      /* this session is byte-limited */
+      u32_t amount_bytes = lwip_htonl(conn->settings.amount);
+      /* @todo: this can send up to 1*MSS more than requested... */
+      if (amount_bytes >= conn->bytes_transferred) {
+        /* all requested bytes transferred -> close the connection */
+        lwiperf_tcp_close(conn, LWIPERF_TCP_DONE_CLIENT);
+        return ERR_OK;
+      }
+    }
+
+    if (conn->bytes_transferred < 24) {
+      /* transmit the settings a first time */
+      txptr = &((u8_t *)&conn->settings)[conn->bytes_transferred];
+      txlen_max = (u16_t)(24 - conn->bytes_transferred);
+      apiflags = TCP_WRITE_FLAG_COPY;
+    } else if (conn->bytes_transferred < 48) {
+      /* transmit the settings a second time */
+      txptr = &((u8_t *)&conn->settings)[conn->bytes_transferred - 24];
+      txlen_max = (u16_t)(48 - conn->bytes_transferred);
+      apiflags = TCP_WRITE_FLAG_COPY | TCP_WRITE_FLAG_MORE;
+      send_more = 1;
+    } else {
+      /* transmit data */
+      /* @todo: every x bytes, transmit the settings again */
+      txptr = LWIP_CONST_CAST(void *, &lwiperf_txbuf_const[conn->bytes_transferred % 10]);
+      txlen_max = TCP_MSS;
+      if (conn->bytes_transferred == 48) { /* @todo: fix this for intermediate settings, too */
+        txlen_max = TCP_MSS - 24;
+      }
+      apiflags = 0; /* no copying needed */
+      send_more = 1;
+    }
+    txlen = txlen_max;
+    do {
+      err = tcp_write(conn->conn_pcb, txptr, txlen, apiflags);
+      if (err ==  ERR_MEM) {
+        txlen /= 2;
+      }
+    } while ((err == ERR_MEM) && (txlen >= (TCP_MSS / 2)));
+
+    if (err == ERR_OK) {
+      conn->bytes_transferred += txlen;
+    } else {
+      send_more = 0;
+    }
+  } while (send_more);
+
+  tcp_output(conn->conn_pcb);
+  return ERR_OK;
+}

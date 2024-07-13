@@ -1,0 +1,17 @@
+static FRESULT fill_first_frag (
+	FFOBJID* obj	/* Pointer to the corresponding object */
+)
+{
+	FRESULT res;
+	DWORD cl, n;
+
+
+	if (obj->stat == 3) {	/* Has the object been changed 'fragmented' in this session? */
+		for (cl = obj->sclust, n = obj->n_cont; n; cl++, n--) {	/* Create cluster chain on the FAT */
+			res = put_fat(obj->fs, cl, cl + 1);
+			if (res != FR_OK) return res;
+		}
+		obj->stat = 0;	/* Change status 'FAT chain is valid' */
+	}
+	return FR_OK;
+}

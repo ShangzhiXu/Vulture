@@ -1,0 +1,277 @@
+pppoe_disc_input(struct netif *netif, struct pbuf *pb)
+{
+  u16_t tag, len, off;
+  u16_t session, plen;
+  struct pppoe_softc *sc;
+#if PPP_DEBUG
+  const char *err_msg = NULL;
+#endif /* PPP_DEBUG */
+  u8_t *ac_cookie;
+  u16_t ac_cookie_len;
+#ifdef PPPOE_SERVER
+  u8_t *hunique;
+  size_t hunique_len;
+#endif
+  struct pppoehdr *ph;
+  struct pppoetag pt;
+  int err;
+  struct eth_hdr *ethhdr;
+
+  /* don't do anything if there is not a single PPPoE instance */
+  if (pppoe_softc_list == NULL) {
+    pbuf_free(pb);
+    return;
+  }
+
+  pb = pbuf_coalesce(pb, PBUF_RAW);
+
+  ethhdr = (struct eth_hdr *)pb->payload;
+
+  ac_cookie = NULL;
+  ac_cookie_len = 0;
+#ifdef PPPOE_SERVER
+  hunique = NULL;
+  hunique_len = 0;
+#endif
+  session = 0;
+  off = sizeof(struct eth_hdr) + sizeof(struct pppoehdr);
+  if (pb->len < off) {
+    PPPDEBUG(LOG_DEBUG, ("pppoe: packet too short: %d\n", pb->len));
+    goto done;
+  }
+
+  ph = (struct pppoehdr *) (ethhdr + 1);
+  if (ph->vertype != PPPOE_VERTYPE) {
+    PPPDEBUG(LOG_DEBUG, ("pppoe: unknown version/type packet: 0x%x\n", ph->vertype));
+    goto done;
+  }
+  session = lwip_ntohs(ph->session);
+  plen = lwip_ntohs(ph->plen);
+
+  if (plen > (pb->len - off)) {
+    PPPDEBUG(LOG_DEBUG, ("pppoe: packet content does not fit: data available = %d, packet size = %u\n",
+        pb->len - off, plen));
+    goto done;
+  }
+  if(pb->tot_len == pb->len) {
+    u16_t framelen = off + plen;
+    if (framelen < pb->len) {
+      /* ignore trailing garbage */
+      pb->tot_len = pb->len = framelen;
+    }
+  }
+  tag = 0;
+  len = 0;
+  sc = NULL;
+  while (off + sizeof(pt) <= pb->len) {
+    MEMCPY(&pt, (u8_t*)pb->payload + off, sizeof(pt));
+    tag = lwip_ntohs(pt.tag);
+    len = lwip_ntohs(pt.len);
+    if (off + sizeof(pt) + len > pb->len) {
+      PPPDEBUG(LOG_DEBUG, ("pppoe: tag 0x%x len 0x%x is too long\n", tag, len));
+      goto done;
+    }
+    switch (tag) {
+      case PPPOE_TAG_EOL:
+        goto breakbreak;
+      case PPPOE_TAG_SNAME:
+        break;  /* ignored */
+      case PPPOE_TAG_ACNAME:
+        break;  /* ignored */
+      case PPPOE_TAG_HUNIQUE:
+        if (sc != NULL) {
+          break;
+        }
+#ifdef PPPOE_SERVER
+        hunique = (u8_t*)pb->payload + off + sizeof(pt);
+        hunique_len = len;
+#endif
+        sc = pppoe_find_softc_by_hunique((u8_t*)pb->payload + off + sizeof(pt), len, netif);
+        break;
+      case PPPOE_TAG_ACCOOKIE:
+        if (ac_cookie == NULL) {
+          if (len > PPPOE_MAX_AC_COOKIE_LEN) {
+            PPPDEBUG(LOG_DEBUG, ("pppoe: AC cookie is too long: len = %d, max = %d\n", len, PPPOE_MAX_AC_COOKIE_LEN));
+            goto done;
+          }
+          ac_cookie = (u8_t*)pb->payload + off + sizeof(pt);
+          ac_cookie_len = len;
+        }
+        break;
+#if PPP_DEBUG
+      case PPPOE_TAG_SNAME_ERR:
+        err_msg = "SERVICE NAME ERROR";
+        break;
+      case PPPOE_TAG_ACSYS_ERR:
+        err_msg = "AC SYSTEM ERROR";
+        break;
+      case PPPOE_TAG_GENERIC_ERR:
+        err_msg = "GENERIC ERROR";
+        break;
+#endif /* PPP_DEBUG */
+      default:
+        break;
+    }
+#if PPP_DEBUG
+    if (err_msg != NULL) {
+      char error_tmp[PPPOE_ERRORSTRING_LEN];
+      u16_t error_len = LWIP_MIN(len, sizeof(error_tmp)-1);
+      strncpy(error_tmp, (char*)pb->payload + off + sizeof(pt), error_len);
+      error_tmp[error_len] = '\0';
+      if (sc) {
+        PPPDEBUG(LOG_DEBUG, ("pppoe: %c%c%"U16_F": %s: %s\n", sc->sc_ethif->name[0], sc->sc_ethif->name[1], sc->sc_ethif->num, err_msg, error_tmp));
+      } else {
+        PPPDEBUG(LOG_DEBUG, ("pppoe: %s: %s\n", err_msg, error_tmp));
+      }
+    }
+#endif /* PPP_DEBUG */
+    off += sizeof(pt) + len;
+  }
+
+breakbreak:;
+  switch (ph->code) {
+    case PPPOE_CODE_PADI:
+#ifdef PPPOE_SERVER
+      /*
+       * got service name, concentrator name, and/or host unique.
+       * ignore if we have no interfaces with IFF_PASSIVE|IFF_UP.
+       */
+      if (LIST_EMPTY(&pppoe_softc_list)) {
+        goto done;
+      }
+      LIST_FOREACH(sc, &pppoe_softc_list, sc_list) {
+        if (!(sc->sc_sppp.pp_if.if_flags & IFF_UP)) {
+          continue;
+        }
+        if (!(sc->sc_sppp.pp_if.if_flags & IFF_PASSIVE)) {
+          continue;
+        }
+        if (sc->sc_state == PPPOE_STATE_INITIAL) {
+          break;
+        }
+      }
+      if (sc == NULL) {
+        /* PPPDEBUG(LOG_DEBUG, ("pppoe: free passive interface is not found\n")); */
+        goto done;
+      }
+      if (hunique) {
+        if (sc->sc_hunique) {
+          mem_free(sc->sc_hunique);
+        }
+        sc->sc_hunique = mem_malloc(hunique_len);
+        if (sc->sc_hunique == NULL) {
+          goto done;
+        }
+        sc->sc_hunique_len = hunique_len;
+        MEMCPY(sc->sc_hunique, hunique, hunique_len);
+      }
+      MEMCPY(&sc->sc_dest, eh->ether_shost, sizeof sc->sc_dest);
+      sc->sc_state = PPPOE_STATE_PADO_SENT;
+      pppoe_send_pado(sc);
+      break;
+#endif /* PPPOE_SERVER */
+    case PPPOE_CODE_PADR:
+#ifdef PPPOE_SERVER
+      /*
+       * get sc from ac_cookie if IFF_PASSIVE
+       */
+      if (ac_cookie == NULL) {
+        /* be quiet if there is not a single pppoe instance */
+        PPPDEBUG(LOG_DEBUG, ("pppoe: received PADR but not includes ac_cookie\n"));
+        goto done;
+      }
+      sc = pppoe_find_softc_by_hunique(ac_cookie, ac_cookie_len, netif);
+      if (sc == NULL) {
+        /* be quiet if there is not a single pppoe instance */
+        if (!LIST_EMPTY(&pppoe_softc_list)) {
+          PPPDEBUG(LOG_DEBUG, ("pppoe: received PADR but could not find request for it\n"));
+        }
+        goto done;
+      }
+      if (sc->sc_state != PPPOE_STATE_PADO_SENT) {
+        PPPDEBUG(LOG_DEBUG, ("%c%c%"U16_F": received unexpected PADR\n", sc->sc_ethif->name[0], sc->sc_ethif->name[1], sc->sc_ethif->num));
+        goto done;
+      }
+      if (hunique) {
+        if (sc->sc_hunique) {
+          mem_free(sc->sc_hunique);
+        }
+        sc->sc_hunique = mem_malloc(hunique_len);
+        if (sc->sc_hunique == NULL) {
+          goto done;
+        }
+        sc->sc_hunique_len = hunique_len;
+        MEMCPY(sc->sc_hunique, hunique, hunique_len);
+      }
+      pppoe_send_pads(sc);
+      sc->sc_state = PPPOE_STATE_SESSION;
+      ppp_start(sc->pcb); /* notify upper layers */
+      break;
+#else
+      /* ignore, we are no access concentrator */
+      goto done;
+#endif /* PPPOE_SERVER */
+    case PPPOE_CODE_PADO:
+      if (sc == NULL) {
+        /* be quiet if there is not a single pppoe instance */
+        if (pppoe_softc_list != NULL) {
+          PPPDEBUG(LOG_DEBUG, ("pppoe: received PADO but could not find request for it\n"));
+        }
+        goto done;
+      }
+      if (sc->sc_state != PPPOE_STATE_PADI_SENT) {
+        PPPDEBUG(LOG_DEBUG, ("%c%c%"U16_F": received unexpected PADO\n", sc->sc_ethif->name[0], sc->sc_ethif->name[1], sc->sc_ethif->num));
+        goto done;
+      }
+      if (ac_cookie) {
+        sc->sc_ac_cookie_len = ac_cookie_len;
+        MEMCPY(sc->sc_ac_cookie, ac_cookie, ac_cookie_len);
+      }
+      MEMCPY(&sc->sc_dest, ethhdr->src.addr, sizeof(sc->sc_dest.addr));
+      sys_untimeout(pppoe_timeout, sc);
+      sc->sc_padr_retried = 0;
+      sc->sc_state = PPPOE_STATE_PADR_SENT;
+      if ((err = pppoe_send_padr(sc)) != 0) {
+        PPPDEBUG(LOG_DEBUG, ("pppoe: %c%c%"U16_F": failed to send PADR, error=%d\n", sc->sc_ethif->name[0], sc->sc_ethif->name[1], sc->sc_ethif->num, err));
+        LWIP_UNUSED_ARG(err); /* if PPPDEBUG is disabled */
+      }
+      sys_timeout(PPPOE_DISC_TIMEOUT * (1 + sc->sc_padr_retried), pppoe_timeout, sc);
+      break;
+    case PPPOE_CODE_PADS:
+      if (sc == NULL) {
+        goto done;
+      }
+      sc->sc_session = session;
+      sys_untimeout(pppoe_timeout, sc);
+      PPPDEBUG(LOG_DEBUG, ("pppoe: %c%c%"U16_F": session 0x%x connected\n", sc->sc_ethif->name[0], sc->sc_ethif->name[1], sc->sc_ethif->num, session));
+      sc->sc_state = PPPOE_STATE_SESSION;
+      ppp_start(sc->pcb); /* notify upper layers */
+      break;
+    case PPPOE_CODE_PADT:
+      /* Don't disconnect here, we let the LCP Echo/Reply find the fact
+       * that PPP session is down. Asking the PPP stack to end the session
+       * require strict checking about the PPP phase to prevent endless
+       * disconnection loops.
+       */
+#if 0 /* UNUSED */
+      if (sc == NULL) { /* PADT frames are rarely sent with a hunique tag, this is actually almost always true */
+        goto done;
+      }
+      pppoe_clear_softc(sc, "received PADT");
+#endif /* UNUSED */
+      break;
+    default:
+      if(sc) {
+        PPPDEBUG(LOG_DEBUG, ("%c%c%"U16_F": unknown code (0x%"X16_F") session = 0x%"X16_F"\n",
+            sc->sc_ethif->name[0], sc->sc_ethif->name[1], sc->sc_ethif->num,
+            (u16_t)ph->code, session));
+      } else {
+        PPPDEBUG(LOG_DEBUG, ("pppoe: unknown code (0x%"X16_F") session = 0x%"X16_F"\n", (u16_t)ph->code, session));
+      }
+      break;
+  }
+
+done:
+  pbuf_free(pb);
+  return;
+}

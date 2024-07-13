@@ -1,0 +1,140 @@
+static HAL_StatusTypeDef SMARTCARD_SetConfig(SMARTCARD_HandleTypeDef *hsmartcard)
+{
+  uint32_t tmpreg                          = 0x00000000;
+  SMARTCARD_ClockSourceTypeDef clocksource = SMARTCARD_CLOCKSOURCE_UNDEFINED;
+  HAL_StatusTypeDef ret                    = HAL_OK;
+
+  /* Check the parameters */
+  assert_param(IS_SMARTCARD_INSTANCE(hsmartcard->Instance));
+  assert_param(IS_SMARTCARD_BAUDRATE(hsmartcard->Init.BaudRate));
+  assert_param(IS_SMARTCARD_WORD_LENGTH(hsmartcard->Init.WordLength));
+  assert_param(IS_SMARTCARD_STOPBITS(hsmartcard->Init.StopBits));
+  assert_param(IS_SMARTCARD_PARITY(hsmartcard->Init.Parity));
+  assert_param(IS_SMARTCARD_MODE(hsmartcard->Init.Mode));
+  assert_param(IS_SMARTCARD_POLARITY(hsmartcard->Init.CLKPolarity));
+  assert_param(IS_SMARTCARD_PHASE(hsmartcard->Init.CLKPhase));
+  assert_param(IS_SMARTCARD_LASTBIT(hsmartcard->Init.CLKLastBit));
+  assert_param(IS_SMARTCARD_ONE_BIT_SAMPLE(hsmartcard->Init.OneBitSampling));
+  assert_param(IS_SMARTCARD_NACK(hsmartcard->Init.NACKEnable));
+  assert_param(IS_SMARTCARD_TIMEOUT(hsmartcard->Init.TimeOutEnable));
+  assert_param(IS_SMARTCARD_AUTORETRY_COUNT(hsmartcard->Init.AutoRetryCount));
+#if defined(USART_PRESC_PRESCALER)
+  assert_param(IS_SMARTCARD_CLOCKPRESCALER(hsmartcard->Init.ClockPrescaler));
+#endif
+
+  /*-------------------------- USART CR1 Configuration -----------------------*/
+  /* In SmartCard mode, M and PCE are forced to 1 (8 bits + parity).
+   * Oversampling is forced to 16 (OVER8 = 0).
+   * Configure the Parity and Mode:
+   *  set PS bit according to hsmartcard->Init.Parity value
+   *  set TE and RE bits according to hsmartcard->Init.Mode value */
+  tmpreg = (uint32_t) (hsmartcard->Init.Parity | hsmartcard->Init.Mode | hsmartcard->Init.WordLength);
+  MODIFY_REG(hsmartcard->Instance->CR1, USART_CR1_FIELDS, tmpreg);
+
+  /*-------------------------- USART CR2 Configuration -----------------------*/
+  tmpreg = hsmartcard->Init.StopBits;
+  /* Synchronous mode is activated by default */
+  tmpreg |= (uint32_t) USART_CR2_CLKEN | hsmartcard->Init.CLKPolarity;
+  tmpreg |= (uint32_t) hsmartcard->Init.CLKPhase | hsmartcard->Init.CLKLastBit;
+  tmpreg |= (uint32_t) hsmartcard->Init.TimeOutEnable;
+  MODIFY_REG(hsmartcard->Instance->CR2, USART_CR2_FIELDS, tmpreg);
+
+  /*-------------------------- USART CR3 Configuration -----------------------*/
+  /* Configure
+   * - one-bit sampling method versus three samples' majority rule
+   *   according to hsmartcard->Init.OneBitSampling
+   * - NACK transmission in case of parity error according
+   *   to hsmartcard->Init.NACKEnable
+   * - autoretry counter according to hsmartcard->Init.AutoRetryCount     */
+  tmpreg =  (uint32_t) hsmartcard->Init.OneBitSampling | hsmartcard->Init.NACKEnable;
+  tmpreg |= ((uint32_t)hsmartcard->Init.AutoRetryCount << USART_CR3_SCARCNT_Pos);
+  MODIFY_REG(hsmartcard->Instance->CR3, USART_CR3_FIELDS, tmpreg);
+
+#if defined(USART_PRESC_PRESCALER)
+  /*--------------------- SMARTCARD clock PRESC Configuration ----------------*/
+  /* Configure
+  * - SMARTCARD Clock Prescaler: set PRESCALER according to hsmartcard->Init.ClockPrescaler value */
+  MODIFY_REG(hsmartcard->Instance->PRESC, USART_PRESC_PRESCALER, hsmartcard->Init.ClockPrescaler);
+#endif
+
+  /*-------------------------- USART GTPR Configuration ----------------------*/
+  tmpreg = (hsmartcard->Init.Prescaler | ((uint32_t)hsmartcard->Init.GuardTime << USART_GTPR_GT_Pos));
+  MODIFY_REG(hsmartcard->Instance->GTPR, (USART_GTPR_GT|USART_GTPR_PSC), tmpreg);
+
+  /*-------------------------- USART RTOR Configuration ----------------------*/
+  tmpreg =   ((uint32_t)hsmartcard->Init.BlockLength << USART_RTOR_BLEN_Pos);
+  if (hsmartcard->Init.TimeOutEnable == SMARTCARD_TIMEOUT_ENABLE)
+  {
+    assert_param(IS_SMARTCARD_TIMEOUT_VALUE(hsmartcard->Init.TimeOutValue));
+    tmpreg |=  (uint32_t) hsmartcard->Init.TimeOutValue;
+  }
+  MODIFY_REG(hsmartcard->Instance->RTOR, (USART_RTOR_RTO|USART_RTOR_BLEN), tmpreg);
+
+  /*-------------------------- USART BRR Configuration -----------------------*/
+  SMARTCARD_GETCLOCKSOURCE(hsmartcard, clocksource);
+  tmpreg =   0;
+  switch (clocksource)
+  {
+  case SMARTCARD_CLOCKSOURCE_PCLK1:
+#if defined(USART_PRESC_PRESCALER)
+    tmpreg = (uint16_t)((HAL_RCC_GetPCLK1Freq()/SMARTCARDPrescTable[hsmartcard->Init.ClockPrescaler] + (hsmartcard->Init.BaudRate/2)) / hsmartcard->Init.BaudRate);
+#else
+    tmpreg = (uint16_t)((HAL_RCC_GetPCLK1Freq() + (hsmartcard->Init.BaudRate/2)) / hsmartcard->Init.BaudRate);
+#endif
+    break;
+  case SMARTCARD_CLOCKSOURCE_PCLK2:
+#if defined(USART_PRESC_PRESCALER)
+    tmpreg = (uint16_t)((HAL_RCC_GetPCLK2Freq()/SMARTCARDPrescTable[hsmartcard->Init.ClockPrescaler] + (hsmartcard->Init.BaudRate/2)) / hsmartcard->Init.BaudRate);
+#else
+    tmpreg = (uint16_t)((HAL_RCC_GetPCLK2Freq() + (hsmartcard->Init.BaudRate/2)) / hsmartcard->Init.BaudRate);
+#endif
+    break;
+  case SMARTCARD_CLOCKSOURCE_HSI:
+#if defined(USART_PRESC_PRESCALER)
+    tmpreg = (uint16_t)((HSI_VALUE/SMARTCARDPrescTable[hsmartcard->Init.ClockPrescaler] + (hsmartcard->Init.BaudRate/2)) / hsmartcard->Init.BaudRate);
+#else
+    tmpreg = (uint16_t)((HSI_VALUE + (hsmartcard->Init.BaudRate/2)) / hsmartcard->Init.BaudRate);
+#endif
+    break;
+  case SMARTCARD_CLOCKSOURCE_SYSCLK:
+#if defined(USART_PRESC_PRESCALER)
+    tmpreg = (uint16_t)((HAL_RCC_GetSysClockFreq()/SMARTCARDPrescTable[hsmartcard->Init.ClockPrescaler] + (hsmartcard->Init.BaudRate/2)) / hsmartcard->Init.BaudRate);
+#else
+    tmpreg = (uint16_t)((HAL_RCC_GetSysClockFreq() + (hsmartcard->Init.BaudRate/2)) / hsmartcard->Init.BaudRate);
+#endif
+    break;
+  case SMARTCARD_CLOCKSOURCE_LSE:
+#if defined(USART_PRESC_PRESCALER)
+    tmpreg = (uint16_t)((LSE_VALUE/SMARTCARDPrescTable[hsmartcard->Init.ClockPrescaler] + (hsmartcard->Init.BaudRate/2)) / hsmartcard->Init.BaudRate);
+#else
+    tmpreg = (uint16_t)((LSE_VALUE + (hsmartcard->Init.BaudRate/2)) / hsmartcard->Init.BaudRate);
+#endif
+    break;
+  case SMARTCARD_CLOCKSOURCE_UNDEFINED:
+  default:
+    ret = HAL_ERROR;
+    break;
+  }
+  
+  /* USARTDIV must be greater than or equal to 0d16 */
+  if ((tmpreg >= USART_BRR_MIN) && (tmpreg <= USART_BRR_MAX))
+  {
+    hsmartcard->Instance->BRR = tmpreg;
+  }
+  else
+  {
+    ret = HAL_ERROR;
+  }
+  
+#if defined(USART_CR1_FIFOEN)
+  /* Initialize the number of data to process during RX/TX ISR execution */
+  hsmartcard->NbTxDataToProcess = 1;
+  hsmartcard->NbRxDataToProcess = 1;
+#endif
+
+  /* Clear ISR function pointers */
+  hsmartcard->RxISR   = NULL;
+  hsmartcard->TxISR   = NULL;
+
+  return ret;
+}

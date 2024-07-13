@@ -1,0 +1,31 @@
+VOID OsKeepExcInteractionTask(VOID)
+{
+    LosTaskCB *taskCB = NULL;
+    UINT32 taskId;
+    UINT32 curIrqNum;
+
+    OsIrqNestingCntSet(0);
+    for (taskId = 0; taskId < g_taskMaxNum; taskId++) {
+        if ((taskId == OsCurrTaskGet()->taskId) ||
+            (IsIdleTask(taskId) == TRUE) ||
+            (IsShellTask(taskId) == TRUE)) {
+            continue;
+        }
+
+        taskCB = OS_TCB_FROM_TID(taskId);
+        if (taskCB->taskStatus & OS_TASK_STATUS_UNUSED) {
+            continue;
+        }
+        if (IsSwtmrTask(taskId) == TRUE) {
+            taskCB->taskFlags &= (~OS_TASK_FLAG_SYSTEM);
+        }
+
+        (VOID)LOS_TaskDelete(taskId);
+    }
+    OsHwiInit();
+    LOS_HwiEnable(NUM_HAL_INTERRUPT_UART);
+    curIrqNum = OsIntNumGet();
+    LOS_HwiDisable(curIrqNum);
+    (VOID)LOS_TaskDelete(OsCurrTaskGet()->taskId);
+    /* unreachable */
+}

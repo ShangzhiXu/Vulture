@@ -1,0 +1,46 @@
+static void aesni_setkey_enc_128( unsigned char *rk,
+                                  const unsigned char *key )
+{
+    asm( "movdqu (%1), %%xmm0               \n\t" // copy the original key
+         "movdqu %%xmm0, (%0)               \n\t" // as round key 0
+         "jmp 2f                            \n\t" // skip auxiliary routine
+
+         /*
+          * Finish generating the next round key.
+          *
+          * On entry xmm0 is r3:r2:r1:r0 and xmm1 is X:stuff:stuff:stuff
+          * with X = rot( sub( r3 ) ) ^ RCON.
+          *
+          * On exit, xmm0 is r7:r6:r5:r4
+          * with r4 = X + r0, r5 = r4 + r1, r6 = r5 + r2, r7 = r6 + r3
+          * and those are written to the round key buffer.
+          */
+         "1:                                \n\t"
+         "pshufd $0xff, %%xmm1, %%xmm1      \n\t" // X:X:X:X
+         "pxor %%xmm0, %%xmm1               \n\t" // X+r3:X+r2:X+r1:r4
+         "pslldq $4, %%xmm0                 \n\t" // r2:r1:r0:0
+         "pxor %%xmm0, %%xmm1               \n\t" // X+r3+r2:X+r2+r1:r5:r4
+         "pslldq $4, %%xmm0                 \n\t" // etc
+         "pxor %%xmm0, %%xmm1               \n\t"
+         "pslldq $4, %%xmm0                 \n\t"
+         "pxor %%xmm1, %%xmm0               \n\t" // update xmm0 for next time!
+         "add $16, %0                       \n\t" // point to next round key
+         "movdqu %%xmm0, (%0)               \n\t" // write it
+         "ret                               \n\t"
+
+         /* Main "loop" */
+         "2:                                \n\t"
+         AESKEYGENA xmm0_xmm1 ",0x01        \n\tcall 1b \n\t"
+         AESKEYGENA xmm0_xmm1 ",0x02        \n\tcall 1b \n\t"
+         AESKEYGENA xmm0_xmm1 ",0x04        \n\tcall 1b \n\t"
+         AESKEYGENA xmm0_xmm1 ",0x08        \n\tcall 1b \n\t"
+         AESKEYGENA xmm0_xmm1 ",0x10        \n\tcall 1b \n\t"
+         AESKEYGENA xmm0_xmm1 ",0x20        \n\tcall 1b \n\t"
+         AESKEYGENA xmm0_xmm1 ",0x40        \n\tcall 1b \n\t"
+         AESKEYGENA xmm0_xmm1 ",0x80        \n\tcall 1b \n\t"
+         AESKEYGENA xmm0_xmm1 ",0x1B        \n\tcall 1b \n\t"
+         AESKEYGENA xmm0_xmm1 ",0x36        \n\tcall 1b \n\t"
+         :
+         : "r" (rk), "r" (key)
+         : "memory", "cc", "0" );
+}

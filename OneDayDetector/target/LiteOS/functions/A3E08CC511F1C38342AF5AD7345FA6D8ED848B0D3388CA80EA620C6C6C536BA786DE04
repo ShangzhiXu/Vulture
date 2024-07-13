@@ -1,0 +1,24 @@
+spiffs_cache_page *spiffs_cache_page_get_by_fd(spiffs *fs, spiffs_fd *fd)
+{
+    spiffs_cache *cache = spiffs_get_cache(fs);
+
+    if ((cache->cpage_use_map & cache->cpage_use_mask) == 0)
+    {
+        // all cpages free, no cpage cannot be assigned to obj_id
+        return 0;
+    }
+
+    int i;
+    for (i = 0; i < cache->cpage_count; i++)
+    {
+        spiffs_cache_page *cp = spiffs_get_cache_page_hdr(fs, cache, i);
+        if ((cache->cpage_use_map & (1 << i)) &&
+                (cp->flags & SPIFFS_CACHE_FLAG_TYPE_WR) &&
+                cp->obj_id == fd->obj_id)
+        {
+            return cp;
+        }
+    }
+
+    return 0;
+}

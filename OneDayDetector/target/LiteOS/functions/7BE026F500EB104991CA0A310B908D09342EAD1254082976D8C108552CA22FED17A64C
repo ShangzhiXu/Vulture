@@ -1,0 +1,29 @@
+static int cmp_lfn (		/* 1:matched, 0:not matched */
+	const WCHAR* lfnbuf,	/* Pointer to the LFN working buffer to be compared */
+	BYTE* dir				/* Pointer to the directory entry containing the part of LFN */
+)
+{
+	UINT i, s;
+	WCHAR wc, uc;
+
+
+	if (ld_word(dir + LDIR_FstClusLO) != 0) return 0;	/* Check LDIR_FstClusLO */
+
+	i = ((dir[LDIR_Ord] & 0x3F) - 1) * 13;	/* Offset in the LFN buffer */
+
+	for (wc = 1, s = 0; s < 13; s++) {		/* Process all characters in the entry */
+		uc = ld_word(dir + LfnOfs[s]);		/* Pick an LFN character */
+		if (wc != 0) {
+			if (i >= FF_MAX_LFN || ff_wtoupper(uc) != ff_wtoupper(lfnbuf[i++])) {	/* Compare it */
+				return 0;					/* Not matched */
+			}
+			wc = uc;
+		} else {
+			if (uc != 0xFFFF) return 0;		/* Check filler */
+		}
+	}
+
+	if ((dir[LDIR_Ord] & LLEF) && wc && lfnbuf[i]) return 0;	/* Last segment matched but different length */
+
+	return 1;		/* The part of LFN matched */
+}

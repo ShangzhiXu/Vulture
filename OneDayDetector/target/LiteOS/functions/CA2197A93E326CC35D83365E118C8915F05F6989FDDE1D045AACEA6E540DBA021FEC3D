@@ -1,0 +1,65 @@
+ErrorStatus LL_SPI_Init(SPI_TypeDef *SPIx, LL_SPI_InitTypeDef *SPI_InitStruct)
+{
+  ErrorStatus status = ERROR;
+
+  /* Check the SPI Instance SPIx*/
+  assert_param(IS_SPI_ALL_INSTANCE(SPIx));
+
+  /* Check the SPI parameters from SPI_InitStruct*/
+  assert_param(IS_LL_SPI_TRANSFER_DIRECTION(SPI_InitStruct->TransferDirection));
+  assert_param(IS_LL_SPI_MODE(SPI_InitStruct->Mode));
+  assert_param(IS_LL_SPI_DATAWIDTH(SPI_InitStruct->DataWidth));
+  assert_param(IS_LL_SPI_POLARITY(SPI_InitStruct->ClockPolarity));
+  assert_param(IS_LL_SPI_PHASE(SPI_InitStruct->ClockPhase));
+  assert_param(IS_LL_SPI_NSS(SPI_InitStruct->NSS));
+  assert_param(IS_LL_SPI_BAUDRATE(SPI_InitStruct->BaudRate));
+  assert_param(IS_LL_SPI_BITORDER(SPI_InitStruct->BitOrder));
+  assert_param(IS_LL_SPI_CRCCALCULATION(SPI_InitStruct->CRCCalculation));
+
+  if (LL_SPI_IsEnabled(SPIx) == 0x00000000U)
+  {
+    /*---------------------------- SPIx CR1 Configuration ------------------------
+     * Configure SPIx CR1 with parameters:
+     * - TransferDirection:  SPI_CR1_BIDIMODE, SPI_CR1_BIDIOE and SPI_CR1_RXONLY bits
+     * - Master/Slave Mode:  SPI_CR1_MSTR bit
+     * - ClockPolarity:      SPI_CR1_CPOL bit
+     * - ClockPhase:         SPI_CR1_CPHA bit
+     * - NSS management:     SPI_CR1_SSM bit
+     * - BaudRate prescaler: SPI_CR1_BR[2:0] bits
+     * - BitOrder:           SPI_CR1_LSBFIRST bit
+     * - CRCCalculation:     SPI_CR1_CRCEN bit
+     */
+    MODIFY_REG(SPIx->CR1,
+               SPI_CR1_CLEAR_MASK,
+               SPI_InitStruct->TransferDirection | SPI_InitStruct->Mode |
+               SPI_InitStruct->ClockPolarity | SPI_InitStruct->ClockPhase |
+               SPI_InitStruct->NSS | SPI_InitStruct->BaudRate |
+               SPI_InitStruct->BitOrder | SPI_InitStruct->CRCCalculation);
+
+    /*---------------------------- SPIx CR2 Configuration ------------------------
+     * Configure SPIx CR2 with parameters:
+     * - DataWidth:          DS[3:0] bits
+     * - NSS management:     SSOE bit
+     */
+    MODIFY_REG(SPIx->CR2,
+               SPI_CR2_DS | SPI_CR2_SSOE,
+               SPI_InitStruct->DataWidth | (SPI_InitStruct->NSS >> 16U));
+
+    /*---------------------------- SPIx CRCPR Configuration ----------------------
+     * Configure SPIx CRCPR with parameters:
+     * - CRCPoly:            CRCPOLY[15:0] bits
+     */
+    if (SPI_InitStruct->CRCCalculation == LL_SPI_CRCCALCULATION_ENABLE)
+    {
+      assert_param(IS_LL_SPI_CRC_POLYNOMIAL(SPI_InitStruct->CRCPoly));
+      LL_SPI_SetCRCPolynomial(SPIx, SPI_InitStruct->CRCPoly);
+    }
+    status = SUCCESS;
+  }
+
+#if defined (SPI_I2S_SUPPORT)
+  /* Activate the SPI mode (Reset I2SMOD bit in I2SCFGR register) */
+  CLEAR_BIT(SPIx->I2SCFGR, SPI_I2SCFGR_I2SMOD);
+#endif /* SPI_I2S_SUPPORT */
+  return status;
+}

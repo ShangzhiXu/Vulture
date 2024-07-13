@@ -1,0 +1,39 @@
+int mbedtls_cipher_cmac_starts( mbedtls_cipher_context_t *ctx,
+                                const unsigned char *key, size_t keybits )
+{
+    mbedtls_cipher_type_t type;
+    mbedtls_cmac_context_t *cmac_ctx;
+    int retval;
+
+    if( ctx == NULL || ctx->cipher_info == NULL || key == NULL )
+        return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+
+    if( ( retval = mbedtls_cipher_setkey( ctx, key, (int)keybits,
+                                          MBEDTLS_ENCRYPT ) ) != 0 )
+        return( retval );
+
+    type = ctx->cipher_info->type;
+
+    switch( type )
+    {
+        case MBEDTLS_CIPHER_AES_128_ECB:
+        case MBEDTLS_CIPHER_AES_192_ECB:
+        case MBEDTLS_CIPHER_AES_256_ECB:
+        case MBEDTLS_CIPHER_DES_EDE3_ECB:
+            break;
+        default:
+            return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+    }
+
+    /* Allocated and initialise in the cipher context memory for the CMAC
+     * context */
+    cmac_ctx = mbedtls_calloc( 1, sizeof( mbedtls_cmac_context_t ) );
+    if( cmac_ctx == NULL )
+        return( MBEDTLS_ERR_CIPHER_ALLOC_FAILED );
+
+    ctx->cmac_ctx = cmac_ctx;
+
+    mbedtls_platform_zeroize( cmac_ctx->state, sizeof( cmac_ctx->state ) );
+
+    return 0;
+}

@@ -1,0 +1,57 @@
+VOID atiny_task_entry(VOID)
+{
+#if defined(WITH_LINUX) || defined(LOSCFG_COMPONENTS_NET_LWIP)
+    hieth_hw_init();
+    net_init();
+#endif
+#ifdef LOSCFG_COMPONNETS_NET_AT
+#ifdef LOSCFG_COMPONENTS_NET_AT_ESP8266
+    extern at_adaptor_api esp8266_interface;
+    printf("\r\n=============agent_tiny_entry  LOSCFG_COMPONENTS_NET_AT_ESP8266============================\n");
+    at_api_register(&esp8266_interface);
+
+#elif defined LOSCFG_COMPONENTS_NET_AT_BG36
+    extern at_adaptor_api emtc_bg36_interface;
+    printf("\r\n=============agent_tiny_entry  LOSCFG_COMPONENTS_NET_AT_BG36============================\n");
+    at_api_register(&emtc_bg36_interface);
+
+#elif defined LOSCFG_COMPONENTS_NET_AT_SIM900A
+    extern at_adaptor_api sim900a_interface;
+    printf("\r\n=============agent_tiny_entry  LOSCFG_COMPONENTS_NET_AT_SIM900A============================\n");
+    at_api_register(&sim900a_interface);
+
+#elif defined LOSCFG_COMPONENTS_NET_AT_BC95
+    extern at_adaptor_api bc95_interface;
+    printf("\r\n=============agent_tiny_entry  LOSCFG_COMPONENTS_NET_AT_BC95============================\n");
+    at_api_register(&bc95_interface);
+#endif
+
+#ifdef LOSCFG_DEMOS_NBIOT_WITHOUT_ATINY
+    demo_nbiot_only();
+#endif
+#endif
+
+#ifdef LOSCFG_DEMOS_AGENT_TINY_MQTT
+    flash_adaptor_init();
+    demo_param_s demo_param = {
+        .init = NULL,
+        .write_flash_info = flash_adaptor_write_mqtt_info,
+        .read_flash_info = flash_adaptor_read_mqtt_info
+    };
+    agent_tiny_demo_init(&demo_param);
+#endif
+
+
+#ifndef LOSCFG_DEMOS_NBIOT_WITHOUT_ATINY
+#ifdef CONFIG_FEATURE_FOTA
+    hal_init_ota();
+#endif
+#ifdef LOSCFG_DEMOS_AGENT_TINY_MQTT
+    agent_tiny_mqtt_entry();
+#endif
+
+#ifdef LOSCFG_DEMOS_AGENT_TINY_LWM2M
+    agent_tiny_lwm2m_entry();
+#endif
+#endif
+}

@@ -1,0 +1,37 @@
+static void I2C_ITSlaveSequentialCplt(I2C_HandleTypeDef *hi2c)
+{
+  /* Reset I2C handle mode */
+  hi2c->Mode = HAL_I2C_MODE_NONE;
+
+  if (hi2c->State == HAL_I2C_STATE_BUSY_TX_LISTEN)
+  {
+    /* Remove HAL_I2C_STATE_SLAVE_BUSY_TX, keep only HAL_I2C_STATE_LISTEN */
+    hi2c->State         = HAL_I2C_STATE_LISTEN;
+    hi2c->PreviousState = I2C_STATE_SLAVE_BUSY_TX;
+
+    /* Disable Interrupts */
+    I2C_Disable_IRQ(hi2c, I2C_XFER_TX_IT);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2c);
+
+    /* Call the Tx complete callback to inform upper layer of the end of transmit process */
+    HAL_I2C_SlaveTxCpltCallback(hi2c);
+  }
+
+  else if (hi2c->State == HAL_I2C_STATE_BUSY_RX_LISTEN)
+  {
+    /* Remove HAL_I2C_STATE_SLAVE_BUSY_RX, keep only HAL_I2C_STATE_LISTEN */
+    hi2c->State         = HAL_I2C_STATE_LISTEN;
+    hi2c->PreviousState = I2C_STATE_SLAVE_BUSY_RX;
+
+    /* Disable Interrupts */
+    I2C_Disable_IRQ(hi2c, I2C_XFER_RX_IT);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2c);
+
+    /* Call the Rx complete callback to inform upper layer of the end of receive process */
+    HAL_I2C_SlaveRxCpltCallback(hi2c);
+  }
+}

@@ -1,0 +1,51 @@
+static HAL_StatusTypeDef JPEG_Set_HuffDC_Mem(JPEG_HandleTypeDef *hjpeg, JPEG_DCHuffTableTypeDef *HuffTableDC,
+                                             const __IO uint32_t *DCTableAddress)
+{
+  HAL_StatusTypeDef error;
+  JPEG_DC_HuffCodeTableTypeDef dcSizeCodesTable;
+  uint32_t i, lsb, msb;
+  __IO uint32_t *address, *addressDef;
+
+  if (DCTableAddress == (hjpeg->Instance->HUFFENC_DC0))
+  {
+    address = (hjpeg->Instance->HUFFENC_DC0 + (JPEG_DC_HUFF_TABLE_SIZE / 2UL));
+  }
+  else if (DCTableAddress == (hjpeg->Instance->HUFFENC_DC1))
+  {
+    address = (hjpeg->Instance->HUFFENC_DC1 + (JPEG_DC_HUFF_TABLE_SIZE / 2UL));
+  }
+  else
+  {
+    return HAL_ERROR;
+  }
+
+  if (HuffTableDC != NULL)
+  {
+    error = JPEG_DCHuff_BitsVals_To_SizeCodes(HuffTableDC, &dcSizeCodesTable);
+    if (error != HAL_OK)
+    {
+      return  error;
+    }
+    addressDef = address;
+    *addressDef = 0x0FFF0FFF;
+    addressDef++;
+    *addressDef = 0x0FFF0FFF;
+
+    i = JPEG_DC_HUFF_TABLE_SIZE;
+    while (i > 1UL)
+    {
+      i--;
+      address --;
+      msb = ((uint32_t)(((uint32_t)dcSizeCodesTable.CodeLength[i] & 0xFU) << 8)) | ((uint32_t)dcSizeCodesTable.HuffmanCode[i] &
+                                                                                   0xFFUL);
+      i--;
+      lsb = ((uint32_t)(((uint32_t)dcSizeCodesTable.CodeLength[i] & 0xFU) << 8)) | ((uint32_t)dcSizeCodesTable.HuffmanCode[i] &
+                                                                                   0xFFUL);
+
+      *address = lsb | (msb << 16);
+    }
+  }
+
+  /* Return function status */
+  return HAL_OK;
+}

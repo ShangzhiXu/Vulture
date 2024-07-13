@@ -1,0 +1,70 @@
+long double tgammal(long double x)
+{
+	long double p, q, z;
+
+	if (!isfinite(x))
+		return x + INFINITY;
+
+	q = fabsl(x);
+	if (q > 13.0) {
+		if (x < 0.0) {
+			p = floorl(q);
+			z = q - p;
+			if (z == 0)
+				return 0 / z;
+			if (q > MAXGAML) {
+				z = 0;
+			} else {
+				if (z > 0.5) {
+					p += 1.0;
+					z = q - p;
+				}
+				z = q * sinl(PIL * z);
+				z = fabsl(z) * stirf(q);
+				z = PIL/z;
+			}
+			if (0.5 * p == floorl(q * 0.5))
+				z = -z;
+		} else if (x > MAXGAML) {
+			z = x * 0x1p16383L;
+		} else {
+			z = stirf(x);
+		}
+		return z;
+	}
+
+	z = 1.0;
+	while (x >= 3.0) {
+		x -= 1.0;
+		z *= x;
+	}
+	while (x < -0.03125L) {
+		z /= x;
+		x += 1.0;
+	}
+	if (x <= 0.03125L)
+		goto small;
+	while (x < 2.0) {
+		z /= x;
+		x += 1.0;
+	}
+	if (x == 2.0)
+		return z;
+
+	x -= 2.0;
+	p = __polevll(x, P, 7);
+	q = __polevll(x, Q, 8);
+	z = z * p / q;
+	return z;
+
+small:
+	/* z==1 if x was originally +-0 */
+	if (x == 0 && z != 1)
+		return x / x;
+	if (x < 0.0) {
+		x = -x;
+		q = z / (x * __polevll(x, SN, 8));
+	} else
+		q = z / (x * __polevll(x, S, 8));
+	return q;
+}

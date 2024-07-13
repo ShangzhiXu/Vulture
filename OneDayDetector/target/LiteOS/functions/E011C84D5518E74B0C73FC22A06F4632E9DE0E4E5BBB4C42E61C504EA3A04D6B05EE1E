@@ -1,0 +1,50 @@
+HAL_StatusTypeDef  HAL_PCCARD_Erase_Sector(PCCARD_HandleTypeDef *hpccard, uint16_t SectorAddress, uint8_t *pStatus)
+{
+  uint32_t timeout = 0x400;
+  uint8_t status = 0;
+  
+  /* Process Locked */
+  __HAL_LOCK(hpccard);  
+  
+  /* Check the PCCARD controller state */
+  if(hpccard->State == HAL_PCCARD_STATE_BUSY)
+  {
+     return HAL_BUSY;
+  }
+
+  /* Update the PCCARD controller state */
+  hpccard->State = HAL_PCCARD_STATE_BUSY;
+  
+  /* Initialize CF status */ 
+  *pStatus = PCCARD_READY;
+    
+  /* Set the parameters to write a sector */
+  *(__IO uint8_t *)(PCCARD_IO_SPACE_PRIMARY_ADDR | ATA_CYLINDER_LOW)  = 0x00;
+  *(__IO uint8_t *)(PCCARD_IO_SPACE_PRIMARY_ADDR | ATA_CYLINDER_HIGH) = 0x00;
+  *(__IO uint8_t *)(PCCARD_IO_SPACE_PRIMARY_ADDR | ATA_SECTOR_NUMBER) = SectorAddress;
+  *(__IO uint8_t *)(PCCARD_IO_SPACE_PRIMARY_ADDR | ATA_SECTOR_COUNT)  = 0x01;
+  *(__IO uint8_t *)(PCCARD_IO_SPACE_PRIMARY_ADDR | ATA_CARD_HEAD)     = 0xA0;
+  *(__IO uint8_t *)(PCCARD_IO_SPACE_PRIMARY_ADDR | ATA_STATUS_CMD)    = ATA_ERASE_SECTOR_CMD;
+  
+  /* wait till the CF is ready */
+  status =  *(__IO uint8_t *)(PCCARD_IO_SPACE_PRIMARY_ADDR | ATA_STATUS_CMD_ALTERNATE);
+  
+  while((status != PCCARD_STATUS_WRITE_OK) && timeout)
+  {
+    status =  *(__IO uint8_t *)(PCCARD_IO_SPACE_PRIMARY_ADDR | ATA_STATUS_CMD_ALTERNATE);
+    timeout--;
+  } 
+  
+  if(timeout == 0)
+  {
+    *pStatus = PCCARD_TIMEOUT_ERROR;
+  }
+  
+  /* Check the PCCARD controller state */
+  hpccard->State = HAL_PCCARD_STATE_READY;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hpccard);   
+  
+  return HAL_OK;
+}

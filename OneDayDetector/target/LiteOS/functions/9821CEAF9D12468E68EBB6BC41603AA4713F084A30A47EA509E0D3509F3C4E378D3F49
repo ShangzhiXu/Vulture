@@ -1,0 +1,94 @@
+int cycle(MQTTClient* c, Timer* timer)
+{
+    int len = 0,
+        rc = MQTT_SUCCESS;
+    Timer send_timer;
+
+    int packet_type = readPacket(c, timer);     /* read the socket, see what work is due */
+
+    switch (packet_type)
+    {
+    default:
+        /* no more data to read, unrecoverable. Or read packet fails due to unexpected network error */
+        rc = packet_type;
+        goto exit;
+    case 0: /* timed out reading packet */
+        break;
+    case CONNACK:
+    case PUBACK:
+    case SUBACK:
+    case UNSUBACK:
+        break;
+    case PUBLISH:
+    {
+        MQTTString topicName;
+        MQTTMessage msg;
+        int intQoS;
+        msg.payloadlen = 0; /* this is a size_t, but deserialize publish sets this as int */
+        if (MQTTDeserialize_publish(&msg.dup, &intQoS, &msg.retained, &msg.id, &topicName,
+                                    (unsigned char **)&msg.payload, (int *)&msg.payloadlen, c->readbuf, c->readbuf_size) != 1)
+            goto exit;
+        msg.qos = (enum QoS)intQoS;
+        deliverMessage(c, &topicName, &msg);
+        if (msg.qos != QOS0)
+        {
+            if (msg.qos == QOS1)
+                len = MQTTSerialize_ack(c->buf, c->buf_size, PUBACK, 0, msg.id);
+            else if (msg.qos == QOS2)
+                len = MQTTSerialize_ack(c->buf, c->buf_size, PUBREC, 0, msg.id);
+            if (len <= 0)
+                rc = FAILURE;
+            else
+            {
+                TimerInit(&send_timer);
+                TimerCountdownMS(&send_timer, 1000);
+                rc = sendPacket(c, len, &send_timer);
+            }
+            if (rc == FAILURE)
+                goto exit; // there was a problem
+        }
+        break;
+    }
+    case PUBREC:
+    case PUBREL:
+    {
+        unsigned short mypacketid;
+        unsigned char dup, type;
+        if (MQTTDeserialize_ack(&type, &dup, &mypacketid, c->readbuf, c->readbuf_size) != 1)
+            rc = FAILURE;
+        else if ((len = MQTTSerialize_ack(c->buf, c->buf_size,
+                                          (packet_type == PUBREC) ? PUBREL : PUBCOMP, 0, mypacketid)) <= 0)
+            rc = FAILURE;
+        else
+        {
+            TimerInit(&send_timer);
+            TimerCountdownMS(&send_timer, 1000);
+            rc = sendPacket(c, len, &send_timer);
+            if(rc != MQTT_SUCCESS)
+                rc = FAILURE; // there was a problem
+        }
+        if (rc == FAILURE)
+            goto exit; // there was a problem
+        break;
+    }
+
+    case PUBCOMP:
+        break;
+    case PINGRESP:
+        c->ping_outstanding = 0;
+        break;
+    }
+
+    if (keepalive(c) != MQTT_SUCCESS)
+    {
+        //check only keepalive FAILURE status so that previous FAILURE status can be considered as FAULT
+        rc = FAILURE;
+    }
+
+exit:
+    if (rc == MQTT_SUCCESS)
+        rc = packet_type;
+    else if (c->isconnected)
+        MQTTCloseSession(c);
+    return rc;
+}

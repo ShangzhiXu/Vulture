@@ -1,0 +1,25 @@
+STATIC INT32 OsViewFileTime(const CHAR *filename)
+{
+#define BUFFER_SIZE 26 /* The buffer size is equal to the size used by the asctime_r interface */
+    struct stat statBuf = {0};
+    CHAR *fullpath = NULL;
+    INT32 ret;
+    CHAR buf[BUFFER_SIZE];
+    CHAR *shellWorkingDirectory = OsShellGetWorkingDirectory();
+
+    ret = vfs_normalize_path(shellWorkingDirectory, filename, &fullpath);
+    if (ret < 0) {
+        set_errno(-ret);
+        perror("date error");
+        return DATE_ERR;
+    }
+
+    if (stat(fullpath, &statBuf) != 0) {
+        OsCmdUsageDate(DATE_ERR_INFO);
+        free(fullpath);
+        return DATE_ERR;
+    }
+    PRINTK("%s\n", ctime_r(&statBuf.st_mtim.tv_sec, buf));
+    free(fullpath);
+    return DATE_OK;
+}

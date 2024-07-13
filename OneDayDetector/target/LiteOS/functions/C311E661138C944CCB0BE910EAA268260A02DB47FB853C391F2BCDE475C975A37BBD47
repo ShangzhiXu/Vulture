@@ -1,0 +1,40 @@
+static void refr_content_size(lv_obj_t * tabview)
+{
+    lv_tabview_ext_t * ext = lv_obj_get_ext_attr(tabview);
+    lv_coord_t cont_w;
+    lv_coord_t cont_h;
+
+    switch(ext->btns_pos) {
+        default: /*default case is prevented in lv_tabview_set_btns_pos(), but here for safety*/
+        case LV_TABVIEW_TAB_POS_NONE:
+            cont_w = lv_obj_get_width(tabview);
+            cont_h = lv_obj_get_height(tabview);
+            break;
+        case LV_TABVIEW_TAB_POS_TOP:
+        case LV_TABVIEW_TAB_POS_BOTTOM:
+            cont_w = lv_obj_get_width(tabview);
+            cont_h = lv_obj_get_height(tabview) - lv_obj_get_height(ext->btns);
+            break;
+        case LV_TABVIEW_TAB_POS_LEFT:
+        case LV_TABVIEW_TAB_POS_RIGHT:
+            cont_w = lv_obj_get_width(tabview) - lv_obj_get_width(ext->btns);
+            cont_h = lv_obj_get_height(tabview);
+            break;
+    }
+
+    lv_obj_set_size(ext->content, cont_w, cont_h);
+
+    /*Refresh the size of the tab pages too. `ext->content` has a layout to align the pages*/
+    lv_style_int_t bg_top = lv_obj_get_style_pad_top(tabview, LV_TABVIEW_PART_BG_SCRLLABLE);
+    lv_style_int_t bg_bottom = lv_obj_get_style_pad_bottom(tabview, LV_TABVIEW_PART_BG_SCRLLABLE);
+    cont_h -= bg_top + bg_bottom;
+    lv_obj_t * content_scrl = lv_page_get_scrllable(ext->content);
+    lv_obj_t * pages = lv_obj_get_child(content_scrl, NULL);
+    while(pages != NULL) {
+        /*Be sure adjust only the pages (user can other things)*/
+        if(lv_obj_get_signal_cb(pages) == page_signal) {
+            lv_obj_set_size(pages, cont_w, cont_h);
+        }
+        pages = lv_obj_get_child(content_scrl, pages);
+    }
+}

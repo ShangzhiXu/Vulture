@@ -1,0 +1,54 @@
+static void SAIx_Out_Init(uint32_t AudioFreq)
+{
+  /* Initialize the haudio_out_sai Instance parameter */
+  haudio_out_sai.Instance = AUDIO_OUT_SAIx;
+  
+  /* Disable SAI peripheral to allow access to SAI internal registers */
+  __HAL_SAI_DISABLE(&haudio_out_sai);
+  
+  /* Configure SAI_Block_x 
+  LSBFirst: Disabled 
+  DataSize: 16 */
+  haudio_out_sai.Init.MonoStereoMode = SAI_STEREOMODE;
+  haudio_out_sai.Init.AudioFrequency = AudioFreq;
+  haudio_out_sai.Init.AudioMode = SAI_MODEMASTER_TX;
+  haudio_out_sai.Init.NoDivider = SAI_MASTERDIVIDER_ENABLED;
+  haudio_out_sai.Init.Protocol = SAI_FREE_PROTOCOL;
+  haudio_out_sai.Init.DataSize = SAI_DATASIZE_16;
+  haudio_out_sai.Init.FirstBit = SAI_FIRSTBIT_MSB;
+  haudio_out_sai.Init.ClockStrobing = SAI_CLOCKSTROBING_RISINGEDGE;
+  haudio_out_sai.Init.Synchro = SAI_ASYNCHRONOUS;
+  haudio_out_sai.Init.OutputDrive = SAI_OUTPUTDRIVE_ENABLED;
+  haudio_out_sai.Init.FIFOThreshold = SAI_FIFOTHRESHOLD_1QF;
+  haudio_out_sai.Init.SynchroExt     = SAI_SYNCEXT_DISABLE;
+  haudio_out_sai.Init.CompandingMode = SAI_NOCOMPANDING;
+  haudio_out_sai.Init.TriState       = SAI_OUTPUT_NOTRELEASED;
+  haudio_out_sai.Init.Mckdiv         = 0;
+    
+  /* Configure SAI_Block_x Frame 
+  Frame Length: 64
+  Frame active Length: 32
+  FS Definition: Start frame + Channel Side identification
+  FS Polarity: FS active Low
+  FS Offset: FS asserted one bit before the first bit of slot 0 */ 
+  haudio_out_sai.FrameInit.FrameLength = 128; 
+  haudio_out_sai.FrameInit.ActiveFrameLength = 64;
+  haudio_out_sai.FrameInit.FSDefinition = SAI_FS_CHANNEL_IDENTIFICATION;
+  haudio_out_sai.FrameInit.FSPolarity = SAI_FS_ACTIVE_LOW;
+  haudio_out_sai.FrameInit.FSOffset = SAI_FS_BEFOREFIRSTBIT;
+  
+  /* Configure SAI Block_x Slot 
+  Slot First Bit Offset: 0
+  Slot Size  : 16
+  Slot Number: 4
+  Slot Active: All slot actives */
+  haudio_out_sai.SlotInit.FirstBitOffset = 0;
+  haudio_out_sai.SlotInit.SlotSize = SAI_SLOTSIZE_DATASIZE;
+  haudio_out_sai.SlotInit.SlotNumber = 4; 
+  haudio_out_sai.SlotInit.SlotActive = CODEC_AUDIOFRAME_SLOT_0123;
+
+  HAL_SAI_Init(&haudio_out_sai);
+  
+  /* Enable SAI peripheral to generate MCLK */
+  __HAL_SAI_ENABLE(&haudio_out_sai);
+}

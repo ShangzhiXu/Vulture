@@ -1,0 +1,36 @@
+HAL_StatusTypeDef HAL_DMAEx_ConfigMuxSync(DMA_HandleTypeDef *hdma, HAL_DMA_MuxSyncConfigTypeDef *pSyncConfig)
+{
+  /* Check the parameters */
+  assert_param(IS_DMA_ALL_INSTANCE(hdma->Instance));
+
+  assert_param(IS_DMAMUX_SYNC_SIGNAL_ID(pSyncConfig->SyncSignalID));
+
+  assert_param(IS_DMAMUX_SYNC_POLARITY(pSyncConfig-> SyncPolarity));
+  assert_param(IS_DMAMUX_SYNC_STATE(pSyncConfig->SyncEnable));
+  assert_param(IS_DMAMUX_SYNC_EVENT(pSyncConfig->EventEnable));
+  assert_param(IS_DMAMUX_SYNC_REQUEST_NUMBER(pSyncConfig->RequestNumber));
+
+  /*Check if the DMA state is ready */
+  if(hdma->State == HAL_DMA_STATE_READY)
+  {
+    /* Process Locked */
+    __HAL_LOCK(hdma);
+
+    /* Set the new synchronization parameters (and keep the request ID filled during the Init)*/
+    MODIFY_REG( hdma->DMAmuxChannel->CCR, \
+               (~DMAMUX_CxCR_DMAREQ_ID) , \
+               ((pSyncConfig->SyncSignalID) << DMAMUX_CxCR_SYNC_ID_Pos) | ((pSyncConfig->RequestNumber - 1U) << DMAMUX_CxCR_NBREQ_Pos) | \
+               pSyncConfig->SyncPolarity | (pSyncConfig->SyncEnable << DMAMUX_CxCR_SE_Pos) | \
+                 (pSyncConfig->EventEnable << DMAMUX_CxCR_EGE_Pos));
+
+    /* Process UnLocked */
+    __HAL_UNLOCK(hdma);
+
+    return HAL_OK;
+  }
+  else
+  {
+    /*DMA State not Ready*/
+    return HAL_ERROR;
+  }
+}

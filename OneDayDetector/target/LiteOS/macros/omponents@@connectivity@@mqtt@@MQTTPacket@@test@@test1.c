@@ -1,0 +1,6 @@
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
+#define assert(a)
+#define assert(a, b, c, d) myassert(__FILE__, __LINE__, a, b, c, d)
+#define assert1(a, b, c, d, e) myassert(__FILE__, __LINE__, a, b, c, d, e)
+#define min(a, b) ((a < b) ? a : b)
+#define mqsleep(A) Sleep(1000*A)

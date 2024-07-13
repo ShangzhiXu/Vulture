@@ -1,0 +1,31 @@
+static ErrorStatus UTILS_SetFlashLatency(uint32_t Frequency)
+{
+  ErrorStatus status = SUCCESS;
+
+  uint32_t latency = LL_FLASH_LATENCY_0;  /* default value 0WS */
+
+  /* Frequency cannot be equal to 0 */
+  if (Frequency == 0U)
+  {
+    status = ERROR;
+  }
+  else
+  {
+    if (Frequency > UTILS_LATENCY1_FREQ)
+    {
+      /* 24 < SYSCLK <= 48 => 1WS (2 CPU cycles) */
+      latency = LL_FLASH_LATENCY_1;
+    }
+    /* else SYSCLK < 24MHz default LL_FLASH_LATENCY_0 0WS */
+
+    LL_FLASH_SetLatency(latency);
+
+    /* Check that the new number of wait states is taken into account to access the Flash
+       memory by reading the FLASH_ACR register */
+    if (LL_FLASH_GetLatency() != latency)
+    {
+      status = ERROR;
+    }
+  }
+  return status;
+}

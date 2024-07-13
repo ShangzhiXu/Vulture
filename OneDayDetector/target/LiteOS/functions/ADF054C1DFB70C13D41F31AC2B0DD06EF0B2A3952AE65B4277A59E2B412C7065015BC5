@@ -1,0 +1,28 @@
+uint32_t LL_DMA2D_GetOutputAlphaColor(DMA2D_TypeDef *DMA2Dx, uint32_t ColorMode)
+{
+  uint32_t color = 0U;
+
+  /* Check the parameters */
+  assert_param(IS_DMA2D_ALL_INSTANCE(DMA2Dx));
+  assert_param(IS_LL_DMA2D_OCMODE(ColorMode));
+
+  /* DMA2D OCOLR register reading ------------------------------------------*/
+  if (ColorMode == LL_DMA2D_OUTPUT_MODE_ARGB8888)
+  {
+    color = (uint32_t)(READ_BIT(DMA2Dx->OCOLR, 0xFF000000U) >> 24U);
+  }
+  else if ((ColorMode == LL_DMA2D_OUTPUT_MODE_RGB888) || (ColorMode == LL_DMA2D_OUTPUT_MODE_RGB565))
+  {
+    color = 0x0U;
+  }
+  else if (ColorMode == LL_DMA2D_OUTPUT_MODE_ARGB1555)
+  {
+    color = (uint32_t)(READ_BIT(DMA2Dx->OCOLR, 0x8000U) >> 15U);
+  }
+  else /* ColorMode = LL_DMA2D_OUTPUT_MODE_ARGB4444 */
+  {
+    color = (uint32_t)(READ_BIT(DMA2Dx->OCOLR, 0xF000U) >> 12U);
+  }
+  
+  return color;
+}

@@ -1,0 +1,29 @@
+static void SecFinishNumber(SecScanSpec *spec)
+{
+#if (defined(SECUREC_COMPATIBLE_LINUX_FORMAT) && !(defined(SECUREC_ON_UNIX)))
+    if (spec->negative != 0) {
+        if (spec->numberWidth == SECUREC_NUM_WIDTH_INT) {
+            SecFinishNumberNegativeInt(spec);
+        } else {
+            SecFinishNumberNegativeOther(spec);
+        }
+    } else {
+        if (spec->numberWidth == SECUREC_NUM_WIDTH_INT) {
+            SecFinishNumberPositiveInt(spec);
+        } else {
+            SecFinishNumberPositiveOther(spec);
+        }
+    }
+#else
+    if (spec->negative != 0) {
+#if defined(__hpux)
+        if (spec->oriConvChr != 'p') {
+            spec->number = (unsigned long)(0U - spec->number); /* Wrap with unsigned long numbers */
+        }
+#else
+        spec->number = (unsigned long)(0U - spec->number); /* Wrap with unsigned long numbers */
+#endif
+    }
+#endif
+    return;
+}

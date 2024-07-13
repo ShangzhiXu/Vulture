@@ -1,0 +1,60 @@
+int mbedtls_cipher_check_tag( mbedtls_cipher_context_t *ctx,
+                      const unsigned char *tag, size_t tag_len )
+{
+    unsigned char check_tag[16];
+    int ret;
+
+    CIPHER_VALIDATE_RET( ctx != NULL );
+    CIPHER_VALIDATE_RET( tag_len == 0 || tag != NULL );
+    if( ctx->cipher_info == NULL )
+        return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+
+    if( MBEDTLS_DECRYPT != ctx->operation )
+    {
+        return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+    }
+
+#if defined(MBEDTLS_GCM_C)
+    if( MBEDTLS_MODE_GCM == ctx->cipher_info->mode )
+    {
+        if( tag_len > sizeof( check_tag ) )
+            return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+
+        if( 0 != ( ret = mbedtls_gcm_finish( (mbedtls_gcm_context *) ctx->cipher_ctx,
+                                     check_tag, tag_len ) ) )
+        {
+            return( ret );
+        }
+
+        /* Check the tag in "constant-time" */
+        if( mbedtls_constant_time_memcmp( tag, check_tag, tag_len ) != 0 )
+            return( MBEDTLS_ERR_CIPHER_AUTH_FAILED );
+
+        return( 0 );
+    }
+#endif /* MBEDTLS_GCM_C */
+
+#if defined(MBEDTLS_CHACHAPOLY_C)
+    if ( MBEDTLS_CIPHER_CHACHA20_POLY1305 == ctx->cipher_info->type )
+    {
+        /* Don't allow truncated MAC for Poly1305 */
+        if ( tag_len != sizeof( check_tag ) )
+            return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+
+        ret = mbedtls_chachapoly_finish( (mbedtls_chachapoly_context*) ctx->cipher_ctx,
+                                                     check_tag );
+        if ( ret != 0 )
+        {
+            return( ret );
+        }
+
+        /* Check the tag in "constant-time" */
+        if( mbedtls_constant_time_memcmp( tag, check_tag, tag_len ) != 0 )
+            return( MBEDTLS_ERR_CIPHER_AUTH_FAILED );
+
+        return( 0 );
+    }
+#endif /* MBEDTLS_CHACHAPOLY_C */
+
+    return( 0 );
+}

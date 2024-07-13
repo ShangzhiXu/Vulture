@@ -1,0 +1,32 @@
+__STATIC_INLINE void LL_ADC_INJ_ConfigQueueContext(ADC_TypeDef *ADCx,
+                                                   uint32_t TriggerSource,
+                                                   uint32_t ExternalTriggerEdge,
+                                                   uint32_t SequencerNbRanks,
+                                                   uint32_t Rank1_Channel,
+                                                   uint32_t Rank2_Channel,
+                                                   uint32_t Rank3_Channel,
+                                                   uint32_t Rank4_Channel)
+{
+  /* Set bits with content of parameter "Rankx_Channel" with bits position    */
+  /* in register depending on literal "LL_ADC_INJ_RANK_x".                    */
+  /* Parameters "Rankx_Channel" and "LL_ADC_INJ_RANK_x" are used with masks   */
+  /* because containing other bits reserved for other purpose.                */
+  /* If parameter "TriggerSource" is set to SW start, then parameter          */
+  /* "ExternalTriggerEdge" is discarded.                                      */
+  MODIFY_REG(ADCx->JSQR           ,
+             ADC_JSQR_JEXTSEL |
+             ADC_JSQR_JEXTEN  |
+             ADC_JSQR_JSQ4    |
+             ADC_JSQR_JSQ3    |
+             ADC_JSQR_JSQ2    |
+             ADC_JSQR_JSQ1    |
+             ADC_JSQR_JL          ,
+             TriggerSource       |
+             (ExternalTriggerEdge * ((TriggerSource != LL_ADC_INJ_TRIG_SOFTWARE))) |
+             (((Rank4_Channel & ADC_CHANNEL_ID_NUMBER_MASK) >> ADC_CHANNEL_ID_NUMBER_BITOFFSET_POS) << (LL_ADC_INJ_RANK_4 & ADC_INJ_RANK_ID_JSQR_MASK)) |
+             (((Rank3_Channel & ADC_CHANNEL_ID_NUMBER_MASK) >> ADC_CHANNEL_ID_NUMBER_BITOFFSET_POS) << (LL_ADC_INJ_RANK_3 & ADC_INJ_RANK_ID_JSQR_MASK)) |
+             (((Rank2_Channel & ADC_CHANNEL_ID_NUMBER_MASK) >> ADC_CHANNEL_ID_NUMBER_BITOFFSET_POS) << (LL_ADC_INJ_RANK_2 & ADC_INJ_RANK_ID_JSQR_MASK)) |
+             (((Rank1_Channel & ADC_CHANNEL_ID_NUMBER_MASK) >> ADC_CHANNEL_ID_NUMBER_BITOFFSET_POS) << (LL_ADC_INJ_RANK_1 & ADC_INJ_RANK_ID_JSQR_MASK)) |
+             SequencerNbRanks
+            );
+}

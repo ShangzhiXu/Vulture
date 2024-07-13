@@ -1,0 +1,83 @@
+dns_gethostbyname_addrtype(const char *hostname, ip_addr_t *addr, dns_found_callback found,
+                           void *callback_arg, u8_t dns_addrtype)
+{
+  size_t hostnamelen;
+#if LWIP_DNS_SUPPORT_MDNS_QUERIES
+  u8_t is_mdns;
+#endif
+  /* not initialized or no valid server yet, or invalid addr pointer
+   * or invalid hostname or invalid hostname length */
+  if ((addr == NULL) ||
+      (!hostname) || (!hostname[0])) {
+    return ERR_ARG;
+  }
+#if ((LWIP_DNS_SECURE & LWIP_DNS_SECURE_RAND_SRC_PORT) == 0)
+  if (dns_pcbs[0] == NULL) {
+    return ERR_ARG;
+  }
+#endif
+  hostnamelen = strlen(hostname);
+  if (hostnamelen >= DNS_MAX_NAME_LENGTH) {
+    LWIP_DEBUGF(DNS_DEBUG, ("dns_gethostbyname: name too long to resolve"));
+    return ERR_ARG;
+  }
+
+
+#if LWIP_HAVE_LOOPIF
+  if (strcmp(hostname, "localhost") == 0) {
+    ip_addr_set_loopback(LWIP_DNS_ADDRTYPE_IS_IPV6(dns_addrtype), addr);
+    return ERR_OK;
+  }
+#endif /* LWIP_HAVE_LOOPIF */
+
+  /* host name already in octet notation? set ip addr and return ERR_OK */
+  if (ipaddr_aton(hostname, addr)) {
+#if LWIP_IPV4 && LWIP_IPV6
+    if ((IP_IS_V6(addr) && (dns_addrtype != LWIP_DNS_ADDRTYPE_IPV4)) ||
+        (IP_IS_V4(addr) && (dns_addrtype != LWIP_DNS_ADDRTYPE_IPV6)))
+#endif /* LWIP_IPV4 && LWIP_IPV6 */
+    {
+      return ERR_OK;
+    }
+  }
+  /* already have this address cached? */
+  if (dns_lookup(hostname, addr LWIP_DNS_ADDRTYPE_ARG(dns_addrtype)) == ERR_OK) {
+    return ERR_OK;
+  }
+#if LWIP_IPV4 && LWIP_IPV6
+  if ((dns_addrtype == LWIP_DNS_ADDRTYPE_IPV4_IPV6) || (dns_addrtype == LWIP_DNS_ADDRTYPE_IPV6_IPV4)) {
+    /* fallback to 2nd IP type and try again to lookup */
+    u8_t fallback;
+    if (dns_addrtype == LWIP_DNS_ADDRTYPE_IPV4_IPV6) {
+      fallback = LWIP_DNS_ADDRTYPE_IPV6;
+    } else {
+      fallback = LWIP_DNS_ADDRTYPE_IPV4;
+    }
+    if (dns_lookup(hostname, addr LWIP_DNS_ADDRTYPE_ARG(fallback)) == ERR_OK) {
+      return ERR_OK;
+    }
+  }
+#else /* LWIP_IPV4 && LWIP_IPV6 */
+  LWIP_UNUSED_ARG(dns_addrtype);
+#endif /* LWIP_IPV4 && LWIP_IPV6 */
+
+#if LWIP_DNS_SUPPORT_MDNS_QUERIES
+  if (strstr(hostname, ".local") == &hostname[hostnamelen] - 6) {
+    is_mdns = 1;
+  } else {
+    is_mdns = 0;
+  }
+
+  if (!is_mdns)
+#endif /* LWIP_DNS_SUPPORT_MDNS_QUERIES */
+  {
+    /* prevent calling found callback if no server is set, return error instead */
+    if (ip_addr_isany_val(dns_servers[0])) {
+      return ERR_VAL;
+    }
+  }
+
+  /* queue query with specified callback */
+  return dns_enqueue(hostname, hostnamelen, found, callback_arg LWIP_DNS_ADDRTYPE_ARG(dns_addrtype)
+                     LWIP_DNS_ISMDNS_ARG(is_mdns));
+}

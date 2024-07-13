@@ -1,0 +1,86 @@
+smtp_send_mail_alloced(struct smtp_session *s)
+{
+  err_t err;
+  struct altcp_pcb* pcb = NULL;
+  ip_addr_t addr;
+
+  LWIP_ASSERT("no smtp_session supplied", s != NULL);
+
+#if SMTP_CHECK_DATA
+  /* check that body conforms to RFC:
+   * - convert all single-CR or -LF in body to CRLF
+   * - only 7-bit ASCII is allowed
+   */
+  if (smtp_verify(s->to, s->to_len, 0) != ERR_OK) {
+    err = ERR_ARG;
+    goto leave;
+  }
+  if (smtp_verify(s->from, s->from_len, 0) != ERR_OK) {
+    err = ERR_ARG;
+    goto leave;
+  }
+  if (smtp_verify(s->subject, s->subject_len, 0) != ERR_OK) {
+    err = ERR_ARG;
+    goto leave;
+  }
+#if SMTP_BODYDH
+  if (s->bodydh == NULL)
+#endif /* SMTP_BODYDH */
+  {
+    if (smtp_verify(s->body, s->body_len, 0) != ERR_OK) {
+      err = ERR_ARG;
+      goto leave;
+    }
+  }
+#endif /* SMTP_CHECK_DATA */
+
+#if SMTP_COPY_AUTHDATA
+  /* copy auth data, ensuring the first byte is always zero */
+  MEMCPY(s->auth_plain + 1, smtp_auth_plain + 1, smtp_auth_plain_len - 1);
+  s->auth_plain_len = smtp_auth_plain_len;
+  /* default username and pass is empty string */
+  s->username = s->auth_plain;
+  s->pass = s->auth_plain;
+  if (smtp_username != NULL) {
+    s->username += smtp_username - smtp_auth_plain;
+  }
+  if (smtp_pass != NULL) {
+    s->pass += smtp_pass - smtp_auth_plain;
+  }
+#endif /* SMTP_COPY_AUTHDATA */
+
+  s->state = SMTP_NULL;
+  s->timer = SMTP_TIMEOUT;
+
+#if LWIP_DNS
+  err = dns_gethostbyname(smtp_server, &addr, smtp_dns_found, s);
+#else /* LWIP_DNS */
+  err = ipaddr_aton(smtp_server, &addr) ? ERR_OK : ERR_ARG;
+#endif /* LWIP_DNS */
+  if (err == ERR_OK) {
+    pcb = smtp_setup_pcb(s, &addr);
+    if (pcb == NULL) {
+      err = ERR_MEM;
+      goto leave;
+    }
+    err = altcp_connect(pcb, &addr, smtp_server_port, smtp_tcp_connected);
+    if (err != ERR_OK) {
+      LWIP_DEBUGF(SMTP_DEBUG_WARN_STATE, ("tcp_connect failed: %d\n", (int)err));
+      goto deallocate_and_leave;
+    }
+  } else if (err != ERR_INPROGRESS) {
+    LWIP_DEBUGF(SMTP_DEBUG_WARN_STATE, ("dns_gethostbyname failed: %d\n", (int)err));
+    goto deallocate_and_leave;
+  }
+  return ERR_OK;
+
+deallocate_and_leave:
+  if (pcb != NULL) {
+    altcp_arg(pcb, NULL);
+    altcp_close(pcb);
+  }
+leave:
+  smtp_free_struct(s);
+  /* no need to call the callback here since we return != ERR_OK */
+  return err;
+}

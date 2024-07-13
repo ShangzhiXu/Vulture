@@ -1,0 +1,26 @@
+int NetworkConnect(Network *n, char *addr, int port)
+{
+    int ret = -1;
+    mqtt_security_info_s *info = NULL;
+
+    if ((n == NULL) || (addr == NULL)) {
+        ATINY_LOG(LOG_FATAL, "invalid params.\n");
+        return -1;
+    }
+
+    info = n->get_security_info();
+    switch (info->security_type) {
+        case MQTT_SECURITY_TYPE_NONE :
+            ret = los_mqtt_connect(n, addr, port);
+            break;
+        case MQTT_SECURITY_TYPE_PSK:
+        case MQTT_SECURITY_TYPE_CA:
+            ret = los_mqtt_tls_connect(n, addr, port);
+            break;
+        default :
+            ATINY_LOG(LOG_WARNING, "unknow proto : %d\n", info->security_type);
+            break;
+    }
+
+    return ret;
+}

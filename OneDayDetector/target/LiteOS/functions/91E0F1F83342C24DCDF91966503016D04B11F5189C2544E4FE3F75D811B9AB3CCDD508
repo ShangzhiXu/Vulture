@@ -1,0 +1,31 @@
+u32_t sys_arch_sem_wait(sys_sem_t *sem, u32_t timeout)
+{
+    int retval;
+    uint64_t u64StartTick;
+    uint64_t u64EndTick;
+
+    if (!sem) {
+        return SYS_ARCH_TIMEOUT;
+    }
+
+    u64StartTick = LOS_TickCountGet();
+
+    if (timeout == 0) {
+        timeout = LOS_WAIT_FOREVER;
+    } else {
+        timeout = LOS_MS2Tick(timeout);
+        if (!timeout) {
+            timeout = 1;
+        }
+    }
+
+    retval = LOS_SemPend(sem->sem->semId, timeout);
+
+    if (retval != ERR_OK) {
+        return SYS_ARCH_TIMEOUT;
+    }
+
+    u64EndTick = LOS_TickCountGet();
+    /* Here milli second will not come more than 32 bit because timeout received as 32 bit millisecond only */
+    return (u32_t)(((u64EndTick - u64StartTick) * OS_SYS_MS_PER_SECOND) / LOSCFG_BASE_CORE_TICK_PER_SECOND);
+}

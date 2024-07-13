@@ -1,0 +1,32 @@
+uint32_t RCC_GetSystemClockFreq(void)
+{
+  uint32_t frequency = 0U;
+
+  /* Get SYSCLK source -------------------------------------------------------*/
+  switch (LL_RCC_GetSysClkSource())
+  {
+    case LL_RCC_SYS_CLKSOURCE_STATUS_HSI:  /* HSI used as system clock  source */
+      frequency = HSI_VALUE;
+      break;
+
+    case LL_RCC_SYS_CLKSOURCE_STATUS_HSE:  /* HSE used as system clock  source */
+      frequency = HSE_VALUE;
+      break;
+
+    case LL_RCC_SYS_CLKSOURCE_STATUS_PLL:  /* PLL used as system clock  source */
+      frequency = RCC_PLL_GetFreqDomain_SYS();
+      break;
+
+#if defined(RCC_HSI48_SUPPORT)
+    case LL_RCC_SYS_CLKSOURCE_STATUS_HSI48:/* HSI48 used as system clock  source */
+      frequency = HSI48_VALUE;
+      break;
+#endif /* RCC_HSI48_SUPPORT */
+
+    default:
+      frequency = HSI_VALUE;
+      break;
+  }
+
+  return frequency;
+}

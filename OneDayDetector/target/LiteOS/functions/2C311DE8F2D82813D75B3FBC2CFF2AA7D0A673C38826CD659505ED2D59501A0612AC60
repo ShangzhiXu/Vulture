@@ -1,0 +1,87 @@
+void lv_textarea_add_char(lv_obj_t * ta, uint32_t c)
+{
+    LV_ASSERT_OBJ(ta, LV_OBJX_NAME);
+
+    lv_textarea_ext_t * ext = lv_obj_get_ext_attr(ta);
+
+    uint32_t letter_buf[2];
+    letter_buf[0] = c;
+    letter_buf[1] = '\0';
+
+    ta_insert_replace = NULL;
+    lv_event_send(ta, LV_EVENT_INSERT, letter_buf);
+    if(ta_insert_replace) {
+        if(ta_insert_replace[0] == '\0') return; /*Drop this text*/
+
+        /*Add the replaced text directly it's different from the original*/
+        if(strcmp(ta_insert_replace, (char *)letter_buf)) {
+            lv_textarea_add_text(ta, ta_insert_replace);
+            return;
+        }
+    }
+
+    if(ext->one_line && (c == '\n' || c == '\r')) {
+        LV_LOG_INFO("Text area: line break ignored in one-line mode");
+        return;
+    }
+
+    uint32_t c_uni = _lv_txt_encoded_next((const char *)&c, NULL);
+
+    if(char_is_accepted(ta, c_uni) == false) {
+        LV_LOG_INFO("Character is no accepted by the text area (too long text or not in the "
+                    "accepted list)");
+        return;
+    }
+
+    /*If a new line was added it shouldn't show edge flash effect*/
+    bool edge_flash_en = lv_textarea_get_edge_flash(ta);
+    lv_textarea_set_edge_flash(ta, false);
+
+    if(ext->pwd_mode != 0) pwd_char_hider(ta); /*Make sure all the current text contains only '*'*/
+
+    /*If the textarea is empty, invalidate it to hide the placeholder*/
+    if(ext->placeholder_txt) {
+        const char * txt = lv_label_get_text(ext->label);
+        if(txt[0] == '\0') lv_obj_invalidate(ta);
+    }
+
+    lv_label_ins_text(ext->label, ext->cursor.pos, (const char *)letter_buf); /*Insert the character*/
+    lv_textarea_clear_selection(ta);                                                /*Clear selection*/
+
+    if(ext->pwd_mode != 0) {
+
+        ext->pwd_tmp = lv_mem_realloc(ext->pwd_tmp, strlen(ext->pwd_tmp) + 2); /*+2: the new char + \0 */
+        LV_ASSERT_MEM(ext->pwd_tmp);
+        if(ext->pwd_tmp == NULL) return;
+
+        _lv_txt_ins(ext->pwd_tmp, ext->cursor.pos, (const char *)letter_buf);
+
+#if LV_USE_ANIMATION
+        /*Auto hide characters*/
+        lv_anim_path_t path;
+        lv_anim_path_init(&path);
+        lv_anim_path_set_cb(&path, lv_anim_path_step);
+
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, ta);
+        lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)pwd_char_hider_anim);
+        lv_anim_set_time(&a, ext->pwd_show_time);
+        lv_anim_set_values(&a, 0, 1);
+        lv_anim_set_path(&a, &path);
+        lv_anim_set_ready_cb(&a, pwd_char_hider_anim_ready);
+        lv_anim_start(&a);
+
+#else
+        pwd_char_hider(ta);
+#endif
+    }
+
+    /*Move the cursor after the new character*/
+    lv_textarea_set_cursor_pos(ta, lv_textarea_get_cursor_pos(ta) + 1);
+
+    /*Revert the original edge flash state*/
+    lv_textarea_set_edge_flash(ta, edge_flash_en);
+
+    lv_event_send(ta, LV_EVENT_VALUE_CHANGED, NULL);
+}

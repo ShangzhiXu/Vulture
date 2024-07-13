@@ -1,0 +1,113 @@
+void HAL_FLASH_IRQHandler(void)
+{
+  uint32_t addresstmp = 0U;
+  
+  /* Check FLASH operation error flags */
+#if defined(FLASH_SR_RDERR) 
+  if(__HAL_FLASH_GET_FLAG((FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR | FLASH_FLAG_PGAERR | \
+    FLASH_FLAG_PGPERR | FLASH_FLAG_PGSERR | FLASH_FLAG_RDERR)) != RESET)
+#else
+  if(__HAL_FLASH_GET_FLAG((FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR | FLASH_FLAG_PGAERR | \
+    FLASH_FLAG_PGPERR | FLASH_FLAG_PGSERR)) != RESET)
+#endif /* FLASH_SR_RDERR */
+  {
+    if(pFlash.ProcedureOnGoing == FLASH_PROC_SECTERASE)
+    {
+      /*return the faulty sector*/
+      addresstmp = pFlash.Sector;
+      pFlash.Sector = 0xFFFFFFFFU;
+    }
+    else if(pFlash.ProcedureOnGoing == FLASH_PROC_MASSERASE)
+    {
+      /*return the faulty bank*/
+      addresstmp = pFlash.Bank;
+    }
+    else
+    {
+      /*return the faulty address*/
+      addresstmp = pFlash.Address;
+    }
+    
+    /*Save the Error code*/
+    FLASH_SetErrorCode();
+    
+    /* FLASH error interrupt user callback */
+    HAL_FLASH_OperationErrorCallback(addresstmp);
+    
+    /*Stop the procedure ongoing*/
+    pFlash.ProcedureOnGoing = FLASH_PROC_NONE;
+  }
+  
+  /* Check FLASH End of Operation flag  */
+  if(__HAL_FLASH_GET_FLAG(FLASH_FLAG_EOP) != RESET)
+  {
+    /* Clear FLASH End of Operation pending bit */
+    __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP);
+    
+    if(pFlash.ProcedureOnGoing == FLASH_PROC_SECTERASE)
+    {
+      /*Nb of sector to erased can be decreased*/
+      pFlash.NbSectorsToErase--;
+      
+      /* Check if there are still sectors to erase*/
+      if(pFlash.NbSectorsToErase != 0U)
+      {
+        addresstmp = pFlash.Sector;
+        /*Indicate user which sector has been erased*/
+        HAL_FLASH_EndOfOperationCallback(addresstmp);
+        
+        /*Increment sector number*/
+        pFlash.Sector++;
+        addresstmp = pFlash.Sector;
+        FLASH_Erase_Sector(addresstmp, pFlash.VoltageForErase);
+      }
+      else
+      {
+        /*No more sectors to Erase, user callback can be called.*/
+        /*Reset Sector and stop Erase sectors procedure*/
+        pFlash.Sector = addresstmp = 0xFFFFFFFFU;
+        pFlash.ProcedureOnGoing = FLASH_PROC_NONE;
+        
+        /* Flush the caches to be sure of the data consistency */
+        FLASH_FlushCaches() ;
+                
+        /* FLASH EOP interrupt user callback */
+        HAL_FLASH_EndOfOperationCallback(addresstmp);
+      }
+    }
+    else 
+    {
+      if(pFlash.ProcedureOnGoing == FLASH_PROC_MASSERASE) 
+      {
+        /* MassErase ended. Return the selected bank */
+        /* Flush the caches to be sure of the data consistency */
+        FLASH_FlushCaches() ;
+
+        /* FLASH EOP interrupt user callback */
+        HAL_FLASH_EndOfOperationCallback(pFlash.Bank);
+      }
+      else
+      {
+        /*Program ended. Return the selected address*/
+        /* FLASH EOP interrupt user callback */
+        HAL_FLASH_EndOfOperationCallback(pFlash.Address);
+      }
+      pFlash.ProcedureOnGoing = FLASH_PROC_NONE;
+    }
+  }
+  
+  if(pFlash.ProcedureOnGoing == FLASH_PROC_NONE)
+  {
+    /* Operation is completed, disable the PG, SER, SNB and MER Bits */
+    CLEAR_BIT(FLASH->CR, (FLASH_CR_PG | FLASH_CR_SER | FLASH_CR_SNB | FLASH_MER_BIT));
+
+    /* Disable End of FLASH Operation interrupt */
+    __HAL_FLASH_DISABLE_IT(FLASH_IT_EOP);
+    
+    /* Disable Error source interrupt */
+    __HAL_FLASH_DISABLE_IT(FLASH_IT_ERR);
+    
+    /* Process Unlocked */
+    __HAL_UNLOCK(&pFlash);
+  }
+}

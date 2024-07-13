@@ -1,0 +1,32 @@
+LITE_OS_SEC_TEXT_MINOR STATIC VOID OsCpupGetPos(UINT32 mode, UINT16 *curPosPointer, UINT16 *prePosPointer)
+{
+    UINT16 curPos;
+    UINT16 tmpPos;
+    UINT16 prePos;
+
+    tmpPos = g_hisPos;
+    curPos = CPUP_PRE_POS(tmpPos);
+
+    /*
+     * The current position has nothing to do with the CPUP modes,
+     * however, the previous position differs.
+     */
+    switch (mode) {
+        case CPUP_LAST_ONE_SECONDS:
+            prePos = CPUP_PRE_POS(curPos);
+            break;
+        case CPUP_LAST_TEN_SECONDS:
+            prePos = tmpPos;
+            break;
+        case CPUP_ALL_TIME:
+            /* fall-through */
+        default:
+            prePos = OS_CPUP_HISTORY_RECORD_NUM;
+            break;
+    }
+
+    *curPosPointer = curPos;
+    *prePosPointer = prePos;
+
+    return;
+}

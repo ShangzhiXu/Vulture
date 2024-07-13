@@ -1,0 +1,26 @@
+static uint8_t prv_write(uint16_t instanceId,
+                         int numData,
+                         lwm2m_data_t *dataArray,
+                         lwm2m_object_t *objectP)
+{
+    plat_instance_t *targetP;
+    int i;
+
+    targetP = (plat_instance_t *)lwm2m_list_find(objectP->instanceList, instanceId);
+    if (targetP == NULL) {
+        return COAP_404_NOT_FOUND;
+    }
+
+    for (i = 0 ; i < numData ; i++) {
+        switch (dataArray[i].id) {
+        case 0: {
+            (void)atiny_cmd_ioctl(ATINY_WRITE_APP_DATA, (char *)(dataArray[i].value.asBuffer.buffer), dataArray->value.asBuffer.length);
+            break;
+        }
+        default:
+            return COAP_404_NOT_FOUND;
+        }
+    }
+
+    return COAP_204_CHANGED;
+}

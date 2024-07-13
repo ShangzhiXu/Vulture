@@ -1,0 +1,17 @@
+static size_t ssl_get_current_mtu( const mbedtls_ssl_context *ssl )
+{
+    /* Return unlimited mtu for client hello messages to avoid fragmentation. */
+    if( ssl->conf->endpoint == MBEDTLS_SSL_IS_CLIENT &&
+        ( ssl->state == MBEDTLS_SSL_CLIENT_HELLO ||
+          ssl->state == MBEDTLS_SSL_SERVER_HELLO ) )
+        return ( 0 );
+
+    if( ssl->handshake == NULL || ssl->handshake->mtu == 0 )
+        return( ssl->mtu );
+
+    if( ssl->mtu == 0 )
+        return( ssl->handshake->mtu );
+
+    return( ssl->mtu < ssl->handshake->mtu ?
+            ssl->mtu : ssl->handshake->mtu );
+}

@@ -1,0 +1,78 @@
+autoip_tmr(void)
+{
+  struct netif *netif;
+  /* loop through netif's */
+  NETIF_FOREACH(netif) {
+    struct autoip *autoip = netif_autoip_data(netif);
+    /* only act on AutoIP configured interfaces */
+    if (autoip != NULL) {
+      if (autoip->lastconflict > 0) {
+        autoip->lastconflict--;
+      }
+
+      LWIP_DEBUGF(AUTOIP_DEBUG | LWIP_DBG_TRACE,
+                  ("autoip_tmr() AutoIP-State: %"U16_F", ttw=%"U16_F"\n",
+                   (u16_t)(autoip->state), autoip->ttw));
+
+      if (autoip->ttw > 0) {
+        autoip->ttw--;
+      }
+
+      switch (autoip->state) {
+        case AUTOIP_STATE_PROBING:
+          if (autoip->ttw == 0) {
+            if (autoip->sent_num >= PROBE_NUM) {
+              /* Switch to ANNOUNCING: now we can bind to an IP address and use it */
+              autoip->state = AUTOIP_STATE_ANNOUNCING;
+              autoip_bind(netif);
+              /* autoip_bind() calls netif_set_addr(): this triggers a gratuitous ARP
+                 which counts as an announcement */
+              autoip->sent_num = 1;
+              autoip->ttw = ANNOUNCE_WAIT * AUTOIP_TICKS_PER_SECOND;
+              LWIP_DEBUGF(AUTOIP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE,
+                          ("autoip_tmr(): changing state to ANNOUNCING: %"U16_F".%"U16_F".%"U16_F".%"U16_F"\n",
+                           ip4_addr1_16(&autoip->llipaddr), ip4_addr2_16(&autoip->llipaddr),
+                           ip4_addr3_16(&autoip->llipaddr), ip4_addr4_16(&autoip->llipaddr)));
+            } else {
+              autoip_arp_probe(netif);
+              LWIP_DEBUGF(AUTOIP_DEBUG | LWIP_DBG_TRACE, ("autoip_tmr() PROBING Sent Probe\n"));
+              autoip->sent_num++;
+              if (autoip->sent_num == PROBE_NUM) {
+                /* calculate time to wait to for announce */
+                autoip->ttw = ANNOUNCE_WAIT * AUTOIP_TICKS_PER_SECOND;
+              } else {
+                /* calculate time to wait to next probe */
+                autoip->ttw = (u16_t)((LWIP_AUTOIP_RAND(netif) %
+                                       ((PROBE_MAX - PROBE_MIN) * AUTOIP_TICKS_PER_SECOND) ) +
+                                      PROBE_MIN * AUTOIP_TICKS_PER_SECOND);
+              }
+            }
+          }
+          break;
+
+        case AUTOIP_STATE_ANNOUNCING:
+          if (autoip->ttw == 0) {
+            autoip_arp_announce(netif);
+            LWIP_DEBUGF(AUTOIP_DEBUG | LWIP_DBG_TRACE, ("autoip_tmr() ANNOUNCING Sent Announce\n"));
+            autoip->ttw = ANNOUNCE_INTERVAL * AUTOIP_TICKS_PER_SECOND;
+            autoip->sent_num++;
+
+            if (autoip->sent_num >= ANNOUNCE_NUM) {
+              autoip->state = AUTOIP_STATE_BOUND;
+              autoip->sent_num = 0;
+              autoip->ttw = 0;
+              LWIP_DEBUGF(AUTOIP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE,
+                          ("autoip_tmr(): changing state to BOUND: %"U16_F".%"U16_F".%"U16_F".%"U16_F"\n",
+                           ip4_addr1_16(&autoip->llipaddr), ip4_addr2_16(&autoip->llipaddr),
+                           ip4_addr3_16(&autoip->llipaddr), ip4_addr4_16(&autoip->llipaddr)));
+            }
+          }
+          break;
+
+        default:
+          /* nothing to do in other states */
+          break;
+      }
+    }
+  }
+}

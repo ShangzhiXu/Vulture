@@ -1,0 +1,26 @@
+HAL_StatusTypeDef FSMC_PCCARD_CommonSpace_Timing_Init(FSMC_PCCARD_TypeDef *Device, FSMC_NAND_PCC_TimingTypeDef *Timing)
+{
+  uint32_t tmpr = 0U;
+  
+  /* Check the parameters */
+  assert_param(IS_FSMC_SETUP_TIME(Timing->SetupTime));
+  assert_param(IS_FSMC_WAIT_TIME(Timing->WaitSetupTime));
+  assert_param(IS_FSMC_HOLD_TIME(Timing->HoldSetupTime));
+  assert_param(IS_FSMC_HIZ_TIME(Timing->HiZSetupTime));
+
+  /* Get PCCARD common space timing register value */
+  tmpr = Device->PMEM4;
+  
+  /* Clear MEMSETx, MEMWAITx, MEMHOLDx and MEMHIZx bits */
+  tmpr &= ((uint32_t)~(FSMC_PMEM4_MEMSET4  | FSMC_PMEM4_MEMWAIT4 | FSMC_PMEM4_MEMHOLD4 | \
+                       FSMC_PMEM4_MEMHIZ4));
+  /* Set PCCARD timing parameters */
+  tmpr |= (uint32_t)((Timing->SetupTime                 |\
+                    ((Timing->WaitSetupTime) << 8U)     |\
+                    (Timing->HoldSetupTime) << 16U)     |\
+                    ((Timing->HiZSetupTime) << 24U));
+  
+  Device->PMEM4 = tmpr;
+  
+  return HAL_OK;  
+}

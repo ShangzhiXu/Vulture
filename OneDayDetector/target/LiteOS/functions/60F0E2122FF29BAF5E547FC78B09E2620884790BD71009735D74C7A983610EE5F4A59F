@@ -1,0 +1,36 @@
+static void SMARTCARD_EndTransmit_IT(SMARTCARD_HandleTypeDef *hsmartcard)
+{
+  /* Disable the SMARTCARD Transmit Complete Interrupt */
+  __HAL_SMARTCARD_DISABLE_IT(hsmartcard, hsmartcard->AdvancedInit.TxCompletionIndication);
+
+  /* Check if a receive process is ongoing or not. If not disable ERR IT */
+  if (hsmartcard->RxState == HAL_SMARTCARD_STATE_READY)
+  {
+    /* Disable the SMARTCARD Error Interrupt: (Frame error) */
+    CLEAR_BIT(hsmartcard->Instance->CR3, USART_CR3_EIE);
+  }
+
+  /* Re-enable Rx at end of transmission if initial mode is Rx/Tx */
+  if (hsmartcard->Init.Mode == SMARTCARD_MODE_TX_RX)
+  {
+    /* Disable the Peripheral first to update modes */
+    CLEAR_BIT(hsmartcard->Instance->CR1, USART_CR1_UE);
+    SET_BIT(hsmartcard->Instance->CR1, USART_CR1_RE);
+    /* Enable the Peripheral */
+    SET_BIT(hsmartcard->Instance->CR1, USART_CR1_UE);
+  }
+
+  /* Tx process is ended, restore hsmartcard->gState to Ready */
+  hsmartcard->gState = HAL_SMARTCARD_STATE_READY;
+
+  /* Clear TxISR function pointer */
+  hsmartcard->TxISR = NULL;
+
+#if (USE_HAL_SMARTCARD_REGISTER_CALLBACKS == 1)
+  /* Call registered Tx complete callback */
+  hsmartcard->TxCpltCallback(hsmartcard);
+#else
+  /* Call legacy weak Tx complete callback */
+  HAL_SMARTCARD_TxCpltCallback(hsmartcard);
+#endif /* USE_HAL_SMARTCARD_REGISTER_CALLBACK */
+}

@@ -1,0 +1,36 @@
+HAL_StatusTypeDef HAL_FLASHEx_OBErase(void)
+{
+  uint8_t rdptmp = OB_RDP_LEVEL_0;
+  HAL_StatusTypeDef status = HAL_ERROR;
+
+  /* Get the actual read protection Option Byte value */
+  rdptmp = FLASH_OB_GetRDP();
+
+  /* Wait for last operation to be completed */
+  status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+
+  if(status == HAL_OK)
+  {
+    /* Clean the error context */
+    pFlash.ErrorCode = HAL_FLASH_ERROR_NONE;
+
+    /* If the previous operation is completed, proceed to erase the option bytes */
+    SET_BIT(FLASH->CR, FLASH_CR_OPTER);
+    SET_BIT(FLASH->CR, FLASH_CR_STRT);
+
+    /* Wait for last operation to be completed */
+    status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+
+    /* If the erase operation is completed, disable the OPTER Bit */
+    CLEAR_BIT(FLASH->CR, FLASH_CR_OPTER);
+
+    if(status == HAL_OK)
+    {
+      /* Restore the last read protection Option Byte value */
+      status = FLASH_OB_RDP_LevelConfig(rdptmp);
+    }
+  }
+
+  /* Return the erase status */
+  return status;
+}

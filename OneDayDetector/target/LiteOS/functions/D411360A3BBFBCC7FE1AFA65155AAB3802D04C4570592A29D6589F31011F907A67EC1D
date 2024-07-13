@@ -1,0 +1,62 @@
+HAL_StatusTypeDef HAL_SPI_TransmitReceive_IT(SPI_HandleTypeDef *hspi, uint8_t *pTxData, uint8_t *pRxData, uint16_t Size)
+{
+
+  if((hspi->State == HAL_SPI_STATE_READY) || \
+     ((hspi->Init.Mode == SPI_MODE_MASTER) && (hspi->Init.Direction == SPI_DIRECTION_2LINES) && (hspi->State == HAL_SPI_STATE_BUSY_RX)))
+  {
+    if((pTxData == NULL ) || (pRxData == NULL ) || (Size == 0)) 
+    {
+      return  HAL_ERROR;
+    }
+
+    /* Check the parameters */
+    assert_param(IS_SPI_DIRECTION_2LINES(hspi->Init.Direction));
+
+    /* Process locked */
+    __HAL_LOCK(hspi);
+
+    /* Don't overwrite in case of HAL_SPI_STATE_BUSY_RX */
+    if(hspi->State != HAL_SPI_STATE_BUSY_RX)
+    {
+      hspi->State = HAL_SPI_STATE_BUSY_TX_RX;
+    }
+
+    /* Configure communication */
+    hspi->ErrorCode    = HAL_SPI_ERROR_NONE;
+
+    hspi->TxISR = &SPI_TxISR;
+    hspi->pTxBuffPtr   = pTxData;
+    hspi->TxXferSize   = Size;
+    hspi->TxXferCount  = Size;
+
+    hspi->RxISR = &SPI_2LinesRxISR;
+    hspi->pRxBuffPtr   = pRxData;
+    hspi->RxXferSize   = Size;
+    hspi->RxXferCount  = Size;
+
+    /* Reset CRC Calculation */
+    if(hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+    {
+      SPI_RESET_CRC(hspi);
+    }
+
+    /* Enable TXE, RXNE and ERR interrupt */
+    __HAL_SPI_ENABLE_IT(hspi, (SPI_IT_TXE | SPI_IT_RXNE | SPI_IT_ERR));
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hspi);
+
+    /* Check if the SPI is already enabled */ 
+    if((hspi->Instance->CR1 &SPI_CR1_SPE) != SPI_CR1_SPE)
+    {
+      /* Enable SPI peripheral */
+      __HAL_SPI_ENABLE(hspi);
+    }
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY; 
+  }
+}

@@ -1,0 +1,22 @@
+uint32_t osThreadFlagsSet(osThreadId_t thread_id, uint32_t flags)
+{
+    LosTaskCB *taskCB = (LosTaskCB *)thread_id;
+    UINT32 ret;
+    EVENT_CB_S *eventCB = NULL;
+    UINT32 eventSave;
+
+    if (taskCB == NULL) {
+        return (uint32_t)osFlagsErrorParameter;
+    }
+
+    eventCB = &(taskCB->event);
+    eventSave = eventCB->uwEventID;
+    ret = LOS_EventWrite(eventCB, (UINT32)flags);
+    if (ret == LOS_OK) {
+        return ((uint32_t)eventSave | flags);
+    } else if (ret == LOS_ERRNO_EVENT_SETBIT_INVALID) {
+        return (uint32_t)osFlagsErrorParameter;
+    } else {
+        return (uint32_t)osFlagsErrorResource;
+    }
+}

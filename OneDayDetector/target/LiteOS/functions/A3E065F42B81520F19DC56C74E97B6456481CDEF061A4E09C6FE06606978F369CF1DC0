@@ -1,0 +1,21 @@
+SECUREC_INLINE int SecInputFloatFractional(SecFileStream *stream, SecScanSpec *spec, SecFloatSpec *floatSpec)
+{
+    if (SECUREC_FILED_WIDTH_ENOUGH(spec)) {
+        spec->ch = SecGetChar(stream, &(spec->charCount));
+        if (SecIsFloatDecimal((SecChar)spec->ch) == 0) {
+            SecUnGetChar(spec->ch, stream, &(spec->charCount));
+            return 0;
+        }
+        SECUREC_FILED_WIDTH_DEC(spec); /* Must be behind un get char, otherwise the logic is incorrect */
+        /* Now check for decimal */
+        floatSpec->floatStr[floatSpec->floatStrUsedLen] = (SecChar)spec->ch;
+        ++floatSpec->floatStrUsedLen;
+        if (SecExtendFloatLen(floatSpec) != 0) {
+            return -1;
+        }
+        if (SecInputFloatDigit(stream, spec, floatSpec) != 0) {
+            return -1;
+        }
+    }
+    return 0;
+}

@@ -1,0 +1,30 @@
+HAL_StatusTypeDef HAL_RCCEx_DisablePLLI2S(void)
+{
+  uint32_t tickstart = 0;
+
+  /* Disable PLL I2S as not requested by I2S2 or I2S3*/
+  if (HAL_IS_BIT_CLR(RCC->CFGR2, RCC_CFGR2_I2S2SRC) && HAL_IS_BIT_CLR(RCC->CFGR2, RCC_CFGR2_I2S3SRC))
+  {
+    /* Disable the main PLLI2S. */
+    __HAL_RCC_PLLI2S_DISABLE();
+
+    /* Get Start Tick*/
+    tickstart = HAL_GetTick();
+    
+    /* Wait till PLLI2S is ready */  
+    while(__HAL_RCC_GET_FLAG(RCC_FLAG_PLLI2SRDY)  != RESET)
+    {
+      if((HAL_GetTick() - tickstart ) > PLLI2S_TIMEOUT_VALUE)
+      {
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+  else
+  {
+    /* PLLI2S is currently used by I2S2 or I2S3. Cannot be disabled.*/
+    return HAL_ERROR;
+  }
+  
+  return HAL_OK;
+}

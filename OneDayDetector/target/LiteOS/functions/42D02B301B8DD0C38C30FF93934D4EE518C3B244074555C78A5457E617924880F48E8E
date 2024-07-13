@@ -1,0 +1,17 @@
+static void SMARTCARD_DMARxOnlyAbortCallback(DMA_HandleTypeDef *hdma)
+{
+  SMARTCARD_HandleTypeDef* hsc = ( SMARTCARD_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+
+  hsc->RxXferCount = 0x00U;
+
+  /* Restore hsc->RxState to Ready */
+  hsc->RxState = HAL_SMARTCARD_STATE_READY;
+
+#if (USE_HAL_SMARTCARD_REGISTER_CALLBACKS == 1)
+  /* Call registered Abort Receive Complete Callback */
+  hsc->AbortReceiveCpltCallback(hsc);
+#else
+  /* Call legacy weak Abort Receive Complete Callback */
+  HAL_SMARTCARD_AbortReceiveCpltCallback(hsc);
+#endif /* USE_HAL_SMARTCARD_REGISTER_CALLBACK */
+}

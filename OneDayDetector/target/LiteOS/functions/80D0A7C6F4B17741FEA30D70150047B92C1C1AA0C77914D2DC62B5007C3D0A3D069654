@@ -1,0 +1,14 @@
+UINT32 LOS_RingbufUsedSize(Ringbuf *ringbuf)
+{
+    UINT32 size;
+    UINT32 intSave;
+    if ((ringbuf == NULL) || (ringbuf->status != RBUF_INITED)) {
+        return 0;
+    }
+
+    LOS_SpinLockSave(&ringbuf->lock, &intSave);
+    size = ringbuf->size - ringbuf->remain;
+    LOS_SpinUnlockRestore(&ringbuf->lock, intSave);
+
+    return size;
+}

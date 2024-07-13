@@ -1,0 +1,20 @@
+int spiffs_op_readdir(struct dir *dir, struct dirent *dent)
+{
+    struct spiffs_dirent e;
+
+    if (SPIFFS_readdir((spiffs_DIR *)dir->d_data, &e) == NULL) {
+        return -ENOENT;
+    }
+
+    strncpy(dent->name, (const char *)e.name, LOS_MAX_FILE_NAME_LEN - 1);
+    dent->name[LOS_MAX_FILE_NAME_LEN - 1] = '\0';
+    dent->size = e.size;
+
+    if (e.type == SPIFFS_TYPE_DIR) {
+        dent->type = VFS_TYPE_DIR;
+    } else {
+        dent->type = VFS_TYPE_FILE;
+    }
+
+    return LOS_OK;
+}

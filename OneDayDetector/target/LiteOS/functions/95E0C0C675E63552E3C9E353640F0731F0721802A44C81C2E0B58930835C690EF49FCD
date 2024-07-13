@@ -1,0 +1,27 @@
+static int fatfs_op_readdir(struct dir *dir, struct dirent *dent)
+{
+    FRESULT res;
+    DIR *dp = (DIR *)dir->d_data;
+    FILINFO e;
+    int len;
+
+    POINTER_ASSERT(dp);
+
+    res = f_readdir(dp, &e);
+    if (res != FR_OK) {
+        return ret_to_errno(res);
+    }
+
+    len = MIN(sizeof(e.fname), LOS_MAX_DIR_NAME_LEN + 1) - 1;
+    strncpy((char *)dent->name, (const char *)e.fname, len);
+    dent->name[len] = '\0';
+    dent->size = e.fsize;
+
+    if (e.fattrib == AM_DIR) {
+        dent->type = VFS_TYPE_DIR;
+    } else {
+        dent->type = VFS_TYPE_FILE;
+    }
+
+    return FR_OK;
+}

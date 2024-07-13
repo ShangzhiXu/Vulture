@@ -1,0 +1,37 @@
+coap_get_variable(const uint8_t *buffer, size_t length, const char *name, const char **output)
+{
+    const uint8_t *start = NULL;
+    const uint8_t *end = NULL;
+    const uint8_t *value_end = NULL;
+    size_t name_len = 0;
+
+    /*initialize the output buffer first*/
+    *output = 0;
+
+    name_len = strlen(name);
+    end = buffer + length;
+
+    for (start = buffer; start + name_len < end; ++start)
+    {
+        if ((start == buffer || start[-1] == '&') && start[name_len] == '=' &&
+                strncmp(name, (char *)start, name_len) == 0)
+        {
+
+            /* Point start to variable value */
+            start += name_len + 1;
+
+            /* Point end to the end of the value */
+            value_end = (const uint8_t *) memchr(start, '&', end - start);
+            if (value_end == NULL)
+            {
+                value_end = end;
+            }
+
+            *output = (char *)start;
+
+            return (value_end - start);
+        }
+    }
+
+    return 0;
+}

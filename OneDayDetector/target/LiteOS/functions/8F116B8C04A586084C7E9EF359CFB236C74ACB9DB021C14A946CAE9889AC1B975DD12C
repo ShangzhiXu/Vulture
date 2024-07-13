@@ -1,0 +1,34 @@
+static s32_t spiffs_obj_lu_find_free_obj_id_compact_v(spiffs *fs, spiffs_obj_id id, spiffs_block_ix bix, int ix_entry,
+        const void *user_const_p, void *user_var_p)
+{
+    (void)user_var_p;
+    if (id != SPIFFS_OBJ_ID_FREE && id != SPIFFS_OBJ_ID_DELETED && (id & SPIFFS_OBJ_ID_IX_FLAG))
+    {
+        s32_t res;
+        const spiffs_free_obj_id_state *state = (const spiffs_free_obj_id_state *)user_const_p;
+        spiffs_page_object_ix_header objix_hdr;
+
+        res = _spiffs_rd(fs, SPIFFS_OP_T_OBJ_LU2 | SPIFFS_OP_C_READ,
+                         0, SPIFFS_OBJ_LOOKUP_ENTRY_TO_PADDR(fs, bix, ix_entry), sizeof(spiffs_page_object_ix_header), (u8_t *)&objix_hdr);
+        if (res == SPIFFS_OK && objix_hdr.p_hdr.span_ix == 0 &&
+                ((objix_hdr.p_hdr.flags & (SPIFFS_PH_FLAG_INDEX | SPIFFS_PH_FLAG_FINAL | SPIFFS_PH_FLAG_DELET)) ==
+                 (SPIFFS_PH_FLAG_DELET)))
+        {
+            // ok object look up entry
+            if (state->conflicting_name && strcmp((const char *)state->conflicting_name, (char *)objix_hdr.name) == 0)
+            {
+                return SPIFFS_ERR_CONFLICTING_NAME;
+            }
+
+            id &= ~SPIFFS_OBJ_ID_IX_FLAG;
+            if (id >= state->min_obj_id && id <= state->max_obj_id)
+            {
+                u8_t *map = (u8_t *)fs->work;
+                int ix = (id - state->min_obj_id) / state->compaction;
+                //SPIFFS_DBG("free_obj_id: add ix "_SPIPRIi" for id "_SPIPRIid" min"_SPIPRIid" max"_SPIPRIid" comp:"_SPIPRIi"\n", ix, id, state->min_obj_id, state->max_obj_id, state->compaction);
+                map[ix]++;
+            }
+        }
+    }
+    return SPIFFS_VIS_COUNTINUE;
+}

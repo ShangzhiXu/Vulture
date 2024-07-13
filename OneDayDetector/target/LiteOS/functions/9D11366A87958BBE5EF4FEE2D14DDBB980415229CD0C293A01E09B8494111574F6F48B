@@ -1,0 +1,73 @@
+static void USART_RxISR_16BIT(USART_HandleTypeDef *husart)
+{
+  const HAL_USART_StateTypeDef state = husart->State;
+  uint16_t txdatacount;
+  uint16_t *tmp;
+  uint16_t uhMask = husart->Mask;
+
+  if ((state == HAL_USART_STATE_BUSY_RX) ||
+      (state == HAL_USART_STATE_BUSY_TX_RX))
+  {
+    tmp = (uint16_t *) husart->pRxBuffPtr;
+    *tmp = (uint16_t)(husart->Instance->RDR & uhMask);
+    husart->pRxBuffPtr += 2U;
+    husart->RxXferCount--;
+
+    if (husart->RxXferCount == 0U)
+    {
+      /* Disable the USART Parity Error Interrupt and RXNE interrupt*/
+      CLEAR_BIT(husart->Instance->CR1, (USART_CR1_RXNEIE | USART_CR1_PEIE));
+
+      /* Disable the USART Error Interrupt: (Frame error, noise error, overrun error) */
+      CLEAR_BIT(husart->Instance->CR3, USART_CR3_EIE);
+
+      /* Clear RxISR function pointer */
+      husart->RxISR = NULL;
+
+      /* txdatacount is a temporary variable for MISRAC2012-Rule-13.5 */
+      txdatacount = husart->TxXferCount;
+
+      if (state == HAL_USART_STATE_BUSY_RX)
+      {
+
+        /* Rx process is completed, restore husart->State to Ready */
+        husart->State = HAL_USART_STATE_READY;
+
+#if (USE_HAL_USART_REGISTER_CALLBACKS == 1)
+        /* Call registered Rx Complete Callback */
+        husart->RxCpltCallback(husart);
+#else
+        /* Call legacy weak Rx Complete Callback */
+        HAL_USART_RxCpltCallback(husart);
+#endif /* USE_HAL_USART_REGISTER_CALLBACKS */
+      }
+      else if ((READ_BIT(husart->Instance->CR1, USART_CR1_TCIE) != USART_CR1_TCIE) &&
+               (txdatacount == 0U))
+      {
+        /* TxRx process is completed, restore husart->State to Ready */
+        husart->State = HAL_USART_STATE_READY;
+
+#if (USE_HAL_USART_REGISTER_CALLBACKS == 1)
+        /* Call registered Tx Rx Complete Callback */
+        husart->TxRxCpltCallback(husart);
+#else
+        /* Call legacy weak Tx Rx Complete Callback */
+        HAL_USART_TxRxCpltCallback(husart);
+#endif /* USE_HAL_USART_REGISTER_CALLBACKS */
+      }
+      else
+      {
+        /* Nothing to do */
+      }
+    }
+    else if (state == HAL_USART_STATE_BUSY_RX)
+    {
+      /* Send dummy byte in order to generate the clock for the Slave to Send the next data */
+      husart->Instance->TDR = (USART_DUMMY_DATA & (uint16_t)0x00FF);
+    }
+    else
+    {
+      /* Nothing to do */
+    }
+  }
+}

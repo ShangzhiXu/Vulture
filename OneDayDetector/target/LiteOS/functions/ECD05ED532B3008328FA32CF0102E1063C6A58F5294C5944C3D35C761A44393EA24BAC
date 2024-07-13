@@ -1,0 +1,23 @@
+lwip_poll_should_wake(const struct lwip_select_cb *scb, int fd, int has_recvevent, int has_sendevent, int has_errevent)
+{
+  nfds_t fdi;
+  for (fdi = 0; fdi < scb->poll_nfds; fdi++) {
+    const struct pollfd *pollfd = &scb->poll_fds[fdi];
+    if (pollfd->fd == fd) {
+      /* Do not update pollfd->revents right here;
+         that would be a data race because lwip_pollscan
+         accesses revents without protecting. */
+      if (has_recvevent && (pollfd->events & POLLIN) != 0) {
+        return 1;
+      }
+      if (has_sendevent && (pollfd->events & POLLOUT) != 0) {
+        return 1;
+      }
+      if (has_errevent) {
+        /* POLLERR is output only. */
+        return 1;
+      }
+    }
+  }
+  return 0;
+}

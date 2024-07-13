@@ -1,0 +1,46 @@
+int mbedtls_cipher_set_iv( mbedtls_cipher_context_t *ctx,
+                           const unsigned char *iv,
+                           size_t iv_len )
+{
+    size_t actual_iv_size;
+
+    CIPHER_VALIDATE_RET( ctx != NULL );
+    CIPHER_VALIDATE_RET( iv_len == 0 || iv != NULL );
+    if( ctx->cipher_info == NULL )
+        return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+
+    /* avoid buffer overflow in ctx->iv */
+    if( iv_len > MBEDTLS_MAX_IV_LENGTH )
+        return( MBEDTLS_ERR_CIPHER_FEATURE_UNAVAILABLE );
+
+    if( ( ctx->cipher_info->flags & MBEDTLS_CIPHER_VARIABLE_IV_LEN ) != 0 )
+        actual_iv_size = iv_len;
+    else
+    {
+        actual_iv_size = ctx->cipher_info->iv_size;
+
+        /* avoid reading past the end of input buffer */
+        if( actual_iv_size > iv_len )
+            return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+    }
+
+#if defined(MBEDTLS_CHACHA20_C)
+    if ( ctx->cipher_info->type == MBEDTLS_CIPHER_CHACHA20 )
+    {
+        if ( 0 != mbedtls_chacha20_starts( (mbedtls_chacha20_context*)ctx->cipher_ctx,
+                                           iv,
+                                           0U ) ) /* Initial counter value */
+        {
+            return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+        }
+    }
+#endif
+
+    if ( actual_iv_size != 0 )
+    {
+        memcpy( ctx->iv, iv, actual_iv_size );
+        ctx->iv_size = actual_iv_size;
+    }
+
+    return( 0 );
+}

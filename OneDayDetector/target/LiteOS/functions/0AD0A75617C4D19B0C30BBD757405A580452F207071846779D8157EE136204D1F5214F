@@ -1,0 +1,14 @@
+static void SMARTCARD_DMAAbortOnError(DMA_HandleTypeDef *hdma)
+{
+  SMARTCARD_HandleTypeDef *hsmartcard = (SMARTCARD_HandleTypeDef *)(hdma->Parent);
+  hsmartcard->RxXferCount = 0U;
+  hsmartcard->TxXferCount = 0U;
+
+#if (USE_HAL_SMARTCARD_REGISTER_CALLBACKS == 1)
+  /* Call registered user error callback */
+  hsmartcard->ErrorCallback(hsmartcard);
+#else
+  /* Call legacy weak user error callback */
+  HAL_SMARTCARD_ErrorCallback(hsmartcard);
+#endif /* USE_HAL_SMARTCARD_REGISTER_CALLBACK */
+}

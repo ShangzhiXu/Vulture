@@ -1,0 +1,15 @@
+netbiosns_init(void)
+{
+  /* LWIP_ASSERT_CORE_LOCKED(); is checked by udp_new() */
+#ifdef NETBIOS_LWIP_NAME
+  LWIP_ASSERT("NetBIOS name is too long!", strlen(NETBIOS_LWIP_NAME) < NETBIOS_NAME_LEN);
+#endif
+
+  netbiosns_pcb = udp_new_ip_type(IPADDR_TYPE_ANY);
+  if (netbiosns_pcb != NULL) {
+    /* we have to be allowed to send broadcast packets! */
+    ip_set_option(netbiosns_pcb, SOF_BROADCAST);
+    udp_bind(netbiosns_pcb, IP_ANY_TYPE, LWIP_IANA_PORT_NETBIOS);
+    udp_recv(netbiosns_pcb, netbiosns_recv, netbiosns_pcb);
+  }
+}

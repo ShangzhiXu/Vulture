@@ -1,0 +1,27 @@
+HAL_StatusTypeDef HAL_SPI_DMAStop(SPI_HandleTypeDef *hspi)
+{
+  /* The Lock is not implemented on this API to allow the user application
+     to call the HAL SPI API under callbacks HAL_SPI_TxCpltCallback() or HAL_SPI_RxCpltCallback() or HAL_SPI_TxRxCpltCallback():
+     when calling HAL_DMA_Abort() API the DMA TX/RX Transfer complete interrupt is generated
+     and the correspond call back is executed HAL_SPI_TxCpltCallback() or HAL_SPI_RxCpltCallback() or HAL_SPI_TxRxCpltCallback()
+     */
+  
+  /* Abort the SPI DMA tx Channel */
+  if(hspi->hdmatx != NULL)
+  {
+    HAL_DMA_Abort(hspi->hdmatx);
+  }
+  /* Abort the SPI DMA rx Channel */
+  if(hspi->hdmarx != NULL)
+  {
+    HAL_DMA_Abort(hspi->hdmarx);
+  }
+  
+  /* Disable the SPI DMA Tx & Rx requests */
+  CLEAR_BIT(hspi->Instance->CR2, SPI_CR2_TXDMAEN);
+  CLEAR_BIT(hspi->Instance->CR2, SPI_CR2_RXDMAEN);
+  
+  hspi->State = HAL_SPI_STATE_READY;
+  
+  return HAL_OK;
+}

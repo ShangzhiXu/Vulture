@@ -1,0 +1,20 @@
+LITE_OS_SEC_TEXT_MINOR UINT64 OsGetCpuCycle(VOID)
+{
+    UINT32 high;
+    UINT32 low;
+    UINT64 cycles;
+
+    LOS_GetCpuCycle(&high, &low);
+    cycles = ((UINT64)high << HIGH_BITS) + low;
+    if (g_startCycles == 0) {
+        g_startCycles = cycles;
+    }
+
+    /*
+     * The cycles should keep growing, if the checking failed,
+     * it mean LOS_GetCpuCycle has the problem which should be fixed.
+     */
+    LOS_ASSERT(cycles >= g_startCycles);
+
+    return (cycles - g_startCycles);
+}

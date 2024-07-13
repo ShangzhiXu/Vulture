@@ -1,0 +1,21 @@
+uint32_t osSemaphoreGetCount(osSemaphoreId_t semaphore_id)
+{
+    LosSemCB *semCB = (LosSemCB *)semaphore_id;
+    UINT32 intSave;
+    UINT16 count;
+
+    if (semCB == NULL) {
+        return 0;
+    }
+
+    intSave = LOS_IntLock();
+    if (semCB->semStat == OS_SEM_UNUSED) {
+        LOS_IntRestore(intSave);
+        return 0;
+    }
+
+    count = semCB->semCount;
+    LOS_IntRestore(intSave);
+
+    return (uint32_t)count;
+}

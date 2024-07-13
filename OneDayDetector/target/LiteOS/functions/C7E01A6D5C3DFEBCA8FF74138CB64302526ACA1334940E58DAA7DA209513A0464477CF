@@ -1,0 +1,22 @@
+lwip_unlink_select_cb(struct lwip_select_cb *select_cb)
+{
+  LWIP_SOCKET_SELECT_DECL_PROTECT(lev);
+
+  /* Take us off the list */
+  LWIP_SOCKET_SELECT_PROTECT(lev);
+  if (select_cb->next != NULL) {
+    select_cb->next->prev = select_cb->prev;
+  }
+  if (select_cb_list == select_cb) {
+    LWIP_ASSERT("select_cb->prev == NULL", select_cb->prev == NULL);
+    select_cb_list = select_cb->next;
+  } else {
+    LWIP_ASSERT("select_cb->prev != NULL", select_cb->prev != NULL);
+    select_cb->prev->next = select_cb->next;
+  }
+#if !LWIP_TCPIP_CORE_LOCKING
+  /* Increasing this counter tells select_check_waiters that the list has changed. */
+  select_cb_ctr++;
+#endif
+  LWIP_SOCKET_SELECT_UNPROTECT(lev);
+}

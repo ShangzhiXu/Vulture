@@ -1,0 +1,78 @@
+dhcp_create_msg(struct netif *netif, struct dhcp *dhcp, u8_t message_type, u16_t *options_out_len)
+{
+  u16_t i;
+  struct pbuf *p_out;
+  struct dhcp_msg *msg_out;
+  u16_t options_out_len_loc;
+
+#ifndef DHCP_GLOBAL_XID
+  /** default global transaction identifier starting value (easy to match
+   *  with a packet analyser). We simply increment for each new request.
+   *  Predefine DHCP_GLOBAL_XID to a better value or a function call to generate one
+   *  at runtime, any supporting function prototypes can be defined in DHCP_GLOBAL_XID_HEADER */
+#if DHCP_CREATE_RAND_XID && defined(LWIP_RAND)
+  static u32_t xid;
+#else /* DHCP_CREATE_RAND_XID && defined(LWIP_RAND) */
+  static u32_t xid = 0xABCD0000;
+#endif /* DHCP_CREATE_RAND_XID && defined(LWIP_RAND) */
+#else
+  if (!xid_initialised) {
+    xid = DHCP_GLOBAL_XID;
+    xid_initialised = !xid_initialised;
+  }
+#endif
+  LWIP_ERROR("dhcp_create_msg: netif != NULL", (netif != NULL), return NULL;);
+  LWIP_ERROR("dhcp_create_msg: dhcp != NULL", (dhcp != NULL), return NULL;);
+  p_out = pbuf_alloc(PBUF_TRANSPORT, sizeof(struct dhcp_msg), PBUF_RAM);
+  if (p_out == NULL) {
+    LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_LEVEL_SERIOUS,
+                ("dhcp_create_msg(): could not allocate pbuf\n"));
+    return NULL;
+  }
+  LWIP_ASSERT("dhcp_create_msg: check that first pbuf can hold struct dhcp_msg",
+              (p_out->len >= sizeof(struct dhcp_msg)));
+
+  /* DHCP_REQUEST should reuse 'xid' from DHCPOFFER */
+  if ((message_type != DHCP_REQUEST) || (dhcp->state == DHCP_STATE_REBOOTING)) {
+    /* reuse transaction identifier in retransmissions */
+    if (dhcp->tries == 0) {
+#if DHCP_CREATE_RAND_XID && defined(LWIP_RAND)
+      xid = LWIP_RAND();
+#else /* DHCP_CREATE_RAND_XID && defined(LWIP_RAND) */
+      xid++;
+#endif /* DHCP_CREATE_RAND_XID && defined(LWIP_RAND) */
+    }
+    dhcp->xid = xid;
+  }
+  LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE,
+              ("transaction id xid(%"X32_F")\n", xid));
+
+  msg_out = (struct dhcp_msg *)p_out->payload;
+  memset(msg_out, 0, sizeof(struct dhcp_msg));
+
+  msg_out->op = DHCP_BOOTREQUEST;
+  /* @todo: make link layer independent */
+  msg_out->htype = LWIP_IANA_HWTYPE_ETHERNET;
+  msg_out->hlen = netif->hwaddr_len;
+  msg_out->xid = lwip_htonl(dhcp->xid);
+  /* we don't need the broadcast flag since we can receive unicast traffic
+     before being fully configured! */
+  /* set ciaddr to netif->ip_addr based on message_type and state */
+  if ((message_type == DHCP_INFORM) || (message_type == DHCP_DECLINE) || (message_type == DHCP_RELEASE) ||
+      ((message_type == DHCP_REQUEST) && /* DHCP_STATE_BOUND not used for sending! */
+       ((dhcp->state == DHCP_STATE_RENEWING) || dhcp->state == DHCP_STATE_REBINDING))) {
+    ip4_addr_copy(msg_out->ciaddr, *netif_ip4_addr(netif));
+  }
+  for (i = 0; i < LWIP_MIN(DHCP_CHADDR_LEN, NETIF_MAX_HWADDR_LEN); i++) {
+    /* copy netif hardware address (padded with zeroes through memset already) */
+    msg_out->chaddr[i] = netif->hwaddr[i];
+  }
+  msg_out->cookie = PP_HTONL(DHCP_MAGIC_COOKIE);
+  /* Add option MESSAGE_TYPE */
+  options_out_len_loc = dhcp_option(0, msg_out->options, DHCP_OPTION_MESSAGE_TYPE, DHCP_OPTION_MESSAGE_TYPE_LEN);
+  options_out_len_loc = dhcp_option_byte(options_out_len_loc, msg_out->options, message_type);
+  if (options_out_len) {
+    *options_out_len = options_out_len_loc;
+  }
+  return p_out;
+}

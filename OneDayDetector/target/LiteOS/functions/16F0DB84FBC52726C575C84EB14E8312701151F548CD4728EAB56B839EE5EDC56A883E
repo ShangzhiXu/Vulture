@@ -1,0 +1,55 @@
+static uint32_t JPEG_Set_Quantization_Mem(JPEG_HandleTypeDef *hjpeg, uint8_t *QTable,
+                                                    __IO uint32_t *QTableAddress)
+{
+  uint32_t i, j, quantRow, quantVal, ScaleFactor;
+  __IO uint32_t *tableAddress;
+
+  tableAddress = QTableAddress;
+
+  if ((hjpeg->Conf.ImageQuality >= 50UL) && (hjpeg->Conf.ImageQuality <= 100UL))
+  {
+    ScaleFactor = 200UL - (hjpeg->Conf.ImageQuality * 2UL);
+  }
+  else if (hjpeg->Conf.ImageQuality > 0UL)
+  {
+    ScaleFactor = ((uint32_t) 5000) / ((uint32_t) hjpeg->Conf.ImageQuality);
+  }
+  else
+  {
+    return 1UL;
+  }
+
+  /*Quantization_table = (Standard_quanization_table * ScaleFactor + 50) / 100*/
+  i = 0;
+  while (i < (JPEG_QUANT_TABLE_SIZE - 3UL))
+  {
+    quantRow = 0;
+    for (j = 0; j < 4UL; j++)
+    {
+      /* Note that the quantization coefficients must be specified in the table in zigzag order */
+      quantVal = ((((uint32_t) QTable[JPEG_ZIGZAG_ORDER[i + j]]) * ScaleFactor) + 50UL) / 100UL;
+
+      if (quantVal == 0UL)
+      {
+        quantVal = 1UL;
+      }
+      else if (quantVal > 255UL)
+      {
+        quantVal = 255UL;
+      }
+      else
+      {
+        /* Nothing to do, keep same value of quantVal */
+      }
+
+      quantRow |= ((quantVal & 0xFFUL) << (8UL * j));
+    }
+
+    i += 4UL;
+    *tableAddress = quantRow;
+    tableAddress ++;
+  }
+
+  /* Return function status */
+  return 0UL;
+}

@@ -1,0 +1,21 @@
+osStatus_t osThreadResume(osThreadId_t thread_id)
+{
+    LosTaskCB *taskCB = (LosTaskCB *)thread_id;
+    UINT32 ret;
+
+    if (taskCB == NULL) {
+        return osErrorParameter;
+    }
+    if (OS_INT_ACTIVE) {
+        return osErrorISR;
+    }
+
+    ret = LOS_TaskResume(taskCB->taskId);
+    if ((ret == LOS_OK) || (ret == LOS_ERRNO_TSK_NOT_SUSPENDED)) {
+        return osOK;
+    } else if (ret == LOS_ERRNO_TSK_ID_INVALID) {
+        return osErrorParameter;
+    } else {
+        return osErrorResource;
+    }
+}

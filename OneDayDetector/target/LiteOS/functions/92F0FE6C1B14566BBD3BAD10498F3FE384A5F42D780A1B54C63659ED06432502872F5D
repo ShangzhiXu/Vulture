@@ -1,0 +1,25 @@
+void _lv_bidi_process(const char * str_in, char * str_out, lv_bidi_dir_t base_dir)
+{
+    if(base_dir == LV_BIDI_DIR_AUTO) base_dir = _lv_bidi_detect_base_dir(str_in);
+
+    uint32_t par_start = 0;
+    uint32_t par_len;
+
+    while(str_in[par_start] == '\n' || str_in[par_start] == '\r') {
+        str_out[par_start] = str_in[par_start];
+        par_start ++;
+    }
+
+    while(str_in[par_start] != '\0') {
+        par_len = lv_bidi_get_next_paragraph(&str_in[par_start]);
+        _lv_bidi_process_paragraph(&str_in[par_start], &str_out[par_start], par_len, base_dir, NULL, 0);
+        par_start += par_len;
+
+        while(str_in[par_start] == '\n' || str_in[par_start] == '\r') {
+            str_out[par_start] = str_in[par_start];
+            par_start ++;
+        }
+    }
+
+    str_out[par_start] = '\0';
+}

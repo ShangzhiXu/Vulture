@@ -1,0 +1,23 @@
+int write_file(const char *name, char *buff, int len)
+{
+    int fd;
+    int ret;
+
+    if ((name == NULL) || (buff == NULL) || (len <= 0)) {
+        FS_LOG_ERR("invalid parameter.");
+        return -1;
+    }
+    fd = los_open(name, O_CREAT | O_WRONLY | O_TRUNC);
+    if (fd < 0) {
+        FS_LOG_ERR("los_open file %s failed.", name);
+        return -1;
+    }
+    ret = los_write(fd, buff, len);
+    if (ret < 0) {
+        FS_LOG_ERR("los_write file %s failed.", name);
+        los_close(fd);
+        return -1;
+    }
+    los_close(fd);
+    return 0;
+}

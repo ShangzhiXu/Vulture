@@ -1,0 +1,164 @@
+static HAL_StatusTypeDef OSPI_ConfigCmd(OSPI_HandleTypeDef *hospi, OSPI_RegularCmdTypeDef *cmd)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  __IO uint32_t *ccr_reg, *tcr_reg, *ir_reg, *abr_reg;
+
+  /* Re-initialize the value of the functional mode */
+  MODIFY_REG(hospi->Instance->CR, OCTOSPI_CR_FMODE, 0);
+    
+  /* Configure the flash ID */
+  if (hospi->Init.DualQuad == HAL_OSPI_DUALQUAD_DISABLE)
+  {
+    MODIFY_REG(hospi->Instance->CR, OCTOSPI_CR_FSEL, cmd->FlashId);
+  }
+    
+  if (cmd->OperationType != HAL_OSPI_OPTYPE_WRITE_CFG)
+  {
+    ccr_reg = &(hospi->Instance->CCR);
+    tcr_reg = &(hospi->Instance->TCR);
+    ir_reg  = &(hospi->Instance->IR);
+    abr_reg = &(hospi->Instance->ABR);
+  }
+  else
+  {
+    ccr_reg = &(hospi->Instance->WCCR);
+    tcr_reg = &(hospi->Instance->WTCR);
+    ir_reg  = &(hospi->Instance->WIR);
+    abr_reg = &(hospi->Instance->WABR);
+  }
+
+  /* Configure the CCR register with DQS and SIOO modes */
+  *ccr_reg = (cmd->DQSMode | cmd->SIOOMode);
+
+  if (cmd->AlternateBytesMode != HAL_OSPI_ALTERNATE_BYTES_NONE)
+  {
+    /* Configure the ABR register with alternate bytes value */
+    *abr_reg = cmd->AlternateBytes;
+    
+    /* Configure the CCR register with alternate bytes communication parameters */
+    MODIFY_REG((*ccr_reg), (OCTOSPI_CCR_ABMODE | OCTOSPI_CCR_ABDTR | OCTOSPI_CCR_ABSIZE),
+                           (cmd->AlternateBytesMode | cmd->AlternateBytesDtrMode | cmd->AlternateBytesSize));
+  }
+
+  /* Configure the TCR register with the number of dummy cycles */ 
+  MODIFY_REG((*tcr_reg), OCTOSPI_TCR_DCYC, cmd->DummyCycles);
+
+  if (cmd->DataMode != HAL_OSPI_DATA_NONE)
+  {
+    if (cmd->OperationType == HAL_OSPI_OPTYPE_COMMON_CFG)
+    {
+      /* Configure the DLR register with the number of data */
+      hospi->Instance->DLR = (cmd->NbData - 1);
+    }
+  }
+    
+  if (cmd->InstructionMode != HAL_OSPI_INSTRUCTION_NONE)
+  {
+    if (cmd->AddressMode != HAL_OSPI_ADDRESS_NONE)
+    {
+      if (cmd->DataMode != HAL_OSPI_DATA_NONE)
+      {
+        /* ---- Command with instruction, address and data ---- */
+        
+        /* Configure the CCR register with all communication parameters */
+        MODIFY_REG((*ccr_reg), (OCTOSPI_CCR_IMODE  | OCTOSPI_CCR_IDTR  | OCTOSPI_CCR_ISIZE  |
+                                OCTOSPI_CCR_ADMODE | OCTOSPI_CCR_ADDTR | OCTOSPI_CCR_ADSIZE |
+                                OCTOSPI_CCR_DMODE  | OCTOSPI_CCR_DDTR),
+                               (cmd->InstructionMode | cmd->InstructionDtrMode | cmd->InstructionSize |
+                                cmd->AddressMode     | cmd->AddressDtrMode     | cmd->AddressSize     |
+                                cmd->DataMode        | cmd->DataDtrMode));
+      }
+      else
+      {
+        /* ---- Command with instruction and address ---- */
+          
+        /* Configure the CCR register with all communication parameters */
+        MODIFY_REG((*ccr_reg), (OCTOSPI_CCR_IMODE  | OCTOSPI_CCR_IDTR  | OCTOSPI_CCR_ISIZE  |
+                                OCTOSPI_CCR_ADMODE | OCTOSPI_CCR_ADDTR | OCTOSPI_CCR_ADSIZE),
+                               (cmd->InstructionMode | cmd->InstructionDtrMode | cmd->InstructionSize |
+                                cmd->AddressMode     | cmd->AddressDtrMode     | cmd->AddressSize));
+
+        /* The DHQC bit is linked with DDTR bit which should be activated */
+        if ((hospi->Init.DelayHoldQuarterCycle == HAL_OSPI_DHQC_ENABLE) && 
+            (cmd->InstructionDtrMode == HAL_OSPI_INSTRUCTION_DTR_ENABLE))
+        {
+          MODIFY_REG((*ccr_reg), OCTOSPI_CCR_DDTR, HAL_OSPI_DATA_DTR_ENABLE);
+        }
+      }
+
+      /* Configure the IR register with the instruction value */
+      *ir_reg = cmd->Instruction;
+      
+      /* Configure the AR register with the address value */
+      hospi->Instance->AR = cmd->Address;
+    }
+    else
+    {
+      if (cmd->DataMode != HAL_OSPI_DATA_NONE)
+      {
+        /* ---- Command with instruction and data ---- */
+          
+        /* Configure the CCR register with all communication parameters */
+        MODIFY_REG((*ccr_reg), (OCTOSPI_CCR_IMODE | OCTOSPI_CCR_IDTR | OCTOSPI_CCR_ISIZE |
+                                OCTOSPI_CCR_DMODE | OCTOSPI_CCR_DDTR),
+                               (cmd->InstructionMode | cmd->InstructionDtrMode | cmd->InstructionSize |
+                                cmd->DataMode        | cmd->DataDtrMode));
+      }
+      else
+      {
+        /* ---- Command with only instruction ---- */
+
+        /* Configure the CCR register with all communication parameters */
+        MODIFY_REG((*ccr_reg), (OCTOSPI_CCR_IMODE | OCTOSPI_CCR_IDTR | OCTOSPI_CCR_ISIZE),
+                               (cmd->InstructionMode | cmd->InstructionDtrMode | cmd->InstructionSize));
+
+        /* The DHQC bit is linked with DDTR bit which should be activated */
+        if ((hospi->Init.DelayHoldQuarterCycle == HAL_OSPI_DHQC_ENABLE) && 
+            (cmd->InstructionDtrMode == HAL_OSPI_INSTRUCTION_DTR_ENABLE))
+        {
+          MODIFY_REG((*ccr_reg), OCTOSPI_CCR_DDTR, HAL_OSPI_DATA_DTR_ENABLE);
+        }
+      }
+
+      /* Configure the IR register with the instruction value */
+      *ir_reg = cmd->Instruction;
+      
+    }
+  }
+  else
+  {
+    if (cmd->AddressMode != HAL_OSPI_ADDRESS_NONE)
+    {
+      if (cmd->DataMode != HAL_OSPI_DATA_NONE)
+      {
+        /* ---- Command with address and data ---- */
+
+        /* Configure the CCR register with all communication parameters */
+        MODIFY_REG((*ccr_reg), (OCTOSPI_CCR_ADMODE | OCTOSPI_CCR_ADDTR | OCTOSPI_CCR_ADSIZE |
+                                OCTOSPI_CCR_DMODE  | OCTOSPI_CCR_DDTR),
+                               (cmd->AddressMode | cmd->AddressDtrMode | cmd->AddressSize     |
+                                cmd->DataMode    | cmd->DataDtrMode));
+      }
+      else
+      {
+        /* ---- Command with only address ---- */
+
+        /* Configure the CCR register with all communication parameters */
+        MODIFY_REG((*ccr_reg), (OCTOSPI_CCR_ADMODE | OCTOSPI_CCR_ADDTR | OCTOSPI_CCR_ADSIZE),
+                               (cmd->AddressMode | cmd->AddressDtrMode | cmd->AddressSize));
+      }
+
+      /* Configure the AR register with the instruction value */
+      hospi->Instance->AR = cmd->Address;
+    }
+    else
+    {
+      /* ---- Invalid command configuration (no instruction, no address) ---- */
+      status = HAL_ERROR;
+      hospi->ErrorCode = HAL_OSPI_ERROR_INVALID_PARAM;
+    }
+  }
+
+  /* Return function status */
+  return status;
+}

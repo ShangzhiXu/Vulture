@@ -1,0 +1,36 @@
+tcp_recved(struct tcp_pcb *pcb, u16_t len)
+{
+  u32_t wnd_inflation;
+  tcpwnd_size_t rcv_wnd;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  LWIP_ERROR("tcp_recved: invalid pcb", pcb != NULL, return);
+
+  /* pcb->state LISTEN not allowed here */
+  LWIP_ASSERT("don't call tcp_recved for listen-pcbs",
+              pcb->state != LISTEN);
+
+  rcv_wnd = (tcpwnd_size_t)(pcb->rcv_wnd + len);
+  if ((rcv_wnd > TCP_WND_MAX(pcb)) || (rcv_wnd < pcb->rcv_wnd)) {
+    /* window got too big or tcpwnd_size_t overflow */
+    LWIP_DEBUGF(TCP_DEBUG, ("tcp_recved: window got too big or tcpwnd_size_t overflow\n"));
+    pcb->rcv_wnd = TCP_WND_MAX(pcb);
+  } else  {
+    pcb->rcv_wnd = rcv_wnd;
+  }
+
+  wnd_inflation = tcp_update_rcv_ann_wnd(pcb);
+
+  /* If the change in the right edge of window is significant (default
+   * watermark is TCP_WND/4), then send an explicit update now.
+   * Otherwise wait for a packet to be sent in the normal course of
+   * events (or more window to be available later) */
+  if (wnd_inflation >= TCP_WND_UPDATE_THRESHOLD) {
+    tcp_ack_now(pcb);
+    tcp_output(pcb);
+  }
+
+  LWIP_DEBUGF(TCP_DEBUG, ("tcp_recved: received %"U16_F" bytes, wnd %"TCPWNDSIZE_F" (%"TCPWNDSIZE_F").\n",
+                          len, pcb->rcv_wnd, (u16_t)(TCP_WND_MAX(pcb) - pcb->rcv_wnd)));
+}

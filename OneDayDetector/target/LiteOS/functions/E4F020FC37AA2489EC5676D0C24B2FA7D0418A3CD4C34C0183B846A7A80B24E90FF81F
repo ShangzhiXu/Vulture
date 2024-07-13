@@ -1,0 +1,44 @@
+HAL_StatusTypeDef HAL_FMPI2CEx_ConfigDigitalFilter(FMPI2C_HandleTypeDef *hfmpi2c, uint32_t DigitalFilter)
+{
+  uint32_t tmpreg;
+
+  /* Check the parameters */
+  assert_param(IS_FMPI2C_ALL_INSTANCE(hfmpi2c->Instance));
+  assert_param(IS_FMPI2C_DIGITAL_FILTER(DigitalFilter));
+
+  if (hfmpi2c->State == HAL_FMPI2C_STATE_READY)
+  {
+    /* Process Locked */
+    __HAL_LOCK(hfmpi2c);
+
+    hfmpi2c->State = HAL_FMPI2C_STATE_BUSY;
+
+    /* Disable the selected FMPI2C peripheral */
+    __HAL_FMPI2C_DISABLE(hfmpi2c);
+
+    /* Get the old register value */
+    tmpreg = hfmpi2c->Instance->CR1;
+
+    /* Reset FMPI2Cx DNF bits [11:8] */
+    tmpreg &= ~(FMPI2C_CR1_DNF);
+
+    /* Set FMPI2Cx DNF coefficient */
+    tmpreg |= DigitalFilter << 8U;
+
+    /* Store the new register value */
+    hfmpi2c->Instance->CR1 = tmpreg;
+
+    __HAL_FMPI2C_ENABLE(hfmpi2c);
+
+    hfmpi2c->State = HAL_FMPI2C_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hfmpi2c);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

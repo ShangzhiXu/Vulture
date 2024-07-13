@@ -1,0 +1,17 @@
+UINT8 uart_getc(void)
+{
+    UINT8 ch = 0;
+    UINTPTR base = UART_REG_BASE;
+
+    UINT32 status;
+    READ_UINT32(status, base + UART_FR);
+    /* Wait until there is data in the FIFO */
+    while (status & 0x10) {
+        READ_UINT32(status, base + UART_FR);
+        (VOID)LOS_TaskDelay(1);
+    }
+
+    READ_UINT8(ch, base + UART_DR);
+
+    return ch;
+}

@@ -1,0 +1,33 @@
+__STATIC_INLINE void LL_I2C_ConfigSpeed(I2C_TypeDef *I2Cx, uint32_t PeriphClock, uint32_t ClockSpeed,
+                                        uint32_t DutyCycle)
+{
+  register uint32_t freqrange = 0x0U;
+  register uint32_t clockconfig = 0x0U;
+
+  /* Compute frequency range */
+  freqrange = __LL_I2C_FREQ_HZ_TO_MHZ(PeriphClock);
+
+  /* Configure I2Cx: Frequency range register */
+  MODIFY_REG(I2Cx->CR2, I2C_CR2_FREQ, freqrange);
+
+  /* Configure I2Cx: Rise Time register */
+  MODIFY_REG(I2Cx->TRISE, I2C_TRISE_TRISE, __LL_I2C_RISE_TIME(freqrange, ClockSpeed));
+
+  /* Configure Speed mode, Duty Cycle and Clock control register value */
+  if (ClockSpeed > LL_I2C_MAX_SPEED_STANDARD)
+  {
+    /* Set Speed mode at fast and duty cycle for Clock Speed request in fast clock range */
+    clockconfig = LL_I2C_CLOCK_SPEED_FAST_MODE                                          | \
+                  __LL_I2C_SPEED_FAST_TO_CCR(PeriphClock, ClockSpeed, DutyCycle)        | \
+                  DutyCycle;
+  }
+  else
+  {
+    /* Set Speed mode at standard for Clock Speed request in standard clock range */
+    clockconfig = LL_I2C_CLOCK_SPEED_STANDARD_MODE                                      | \
+                  __LL_I2C_SPEED_STANDARD_TO_CCR(PeriphClock, ClockSpeed);
+  }
+
+  /* Configure I2Cx: Clock control register */
+  MODIFY_REG(I2Cx->CCR, (I2C_CCR_FS | I2C_CCR_DUTY | I2C_CCR_CCR), clockconfig);
+}

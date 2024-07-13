@@ -1,0 +1,22 @@
+lv_disp_t * lv_obj_get_disp(const lv_obj_t * obj)
+{
+    LV_ASSERT_OBJ(obj, LV_OBJX_NAME);
+
+    const lv_obj_t * scr;
+
+    if(obj->parent == NULL)
+        scr = obj; /*`obj` is a screen*/
+    else
+        scr = lv_obj_get_screen(obj); /*get the screen of `obj`*/
+
+    lv_disp_t * d;
+    _LV_LL_READ(LV_GC_ROOT(_lv_disp_ll), d) {
+        lv_obj_t * s;
+        _LV_LL_READ(d->scr_ll, s) {
+            if(s == scr) return d;
+        }
+    }
+
+    LV_LOG_WARN("lv_scr_get_disp: screen not found")
+    return NULL;
+}

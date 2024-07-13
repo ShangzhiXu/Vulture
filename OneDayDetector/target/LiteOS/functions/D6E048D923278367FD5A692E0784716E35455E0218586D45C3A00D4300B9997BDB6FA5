@@ -1,0 +1,26 @@
+int mbedtls_sha1_ret( const unsigned char *input,
+                      size_t ilen,
+                      unsigned char output[20] )
+{
+    int ret;
+    mbedtls_sha1_context ctx;
+
+    SHA1_VALIDATE_RET( ilen == 0 || input != NULL );
+    SHA1_VALIDATE_RET( (unsigned char *)output != NULL );
+
+    mbedtls_sha1_init( &ctx );
+
+    if( ( ret = mbedtls_sha1_starts_ret( &ctx ) ) != 0 )
+        goto exit;
+
+    if( ( ret = mbedtls_sha1_update_ret( &ctx, input, ilen ) ) != 0 )
+        goto exit;
+
+    if( ( ret = mbedtls_sha1_finish_ret( &ctx, output ) ) != 0 )
+        goto exit;
+
+exit:
+    mbedtls_sha1_free( &ctx );
+
+    return( ret );
+}

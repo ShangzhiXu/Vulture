@@ -1,0 +1,21 @@
+altcp_mbedtls_lower_sent(void *arg, struct altcp_pcb *inner_conn, u16_t len)
+{
+  struct altcp_pcb *conn = (struct altcp_pcb *)arg;
+  LWIP_UNUSED_ARG(inner_conn); /* for LWIP_NOASSERT */
+  LWIP_UNUSED_ARG(len);
+  if (conn) {
+    altcp_mbedtls_state_t *state = (altcp_mbedtls_state_t *)conn->state;
+    LWIP_ASSERT("pcb mismatch", conn->inner_conn == inner_conn);
+    if (!state || !(state->flags & ALTCP_MBEDTLS_FLAGS_HANDSHAKE_DONE)) {
+      /* @todo: do something here? */
+      return ERR_OK;
+    }
+    /* try to send more if we failed before */
+    mbedtls_ssl_flush_output(&state->ssl_context);
+    /* call upper sent with len==0 if the application already sent data */
+    if ((state->flags & ALTCP_MBEDTLS_FLAGS_APPLDATA_SENT) && conn->sent) {
+      return conn->sent(conn->arg, conn, 0);
+    }
+  }
+  return ERR_OK;
+}

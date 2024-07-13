@@ -1,0 +1,36 @@
+HAL_StatusTypeDef HAL_FMPSMBUS_ConfigAnalogFilter(FMPSMBUS_HandleTypeDef *hfmpsmbus, uint32_t AnalogFilter)
+{
+  /* Check the parameters */
+  assert_param(IS_FMPSMBUS_ALL_INSTANCE(hfmpsmbus->Instance));
+  assert_param(IS_FMPSMBUS_ANALOG_FILTER(AnalogFilter));
+
+  if (hfmpsmbus->State == HAL_FMPSMBUS_STATE_READY)
+  {
+    /* Process Locked */
+    __HAL_LOCK(hfmpsmbus);
+
+    hfmpsmbus->State = HAL_FMPSMBUS_STATE_BUSY;
+
+    /* Disable the selected FMPSMBUS peripheral */
+    __HAL_FMPSMBUS_DISABLE(hfmpsmbus);
+
+    /* Reset ANOFF bit */
+    hfmpsmbus->Instance->CR1 &= ~(FMPI2C_CR1_ANFOFF);
+
+    /* Set analog filter bit*/
+    hfmpsmbus->Instance->CR1 |= AnalogFilter;
+
+    __HAL_FMPSMBUS_ENABLE(hfmpsmbus);
+
+    hfmpsmbus->State = HAL_FMPSMBUS_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hfmpsmbus);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

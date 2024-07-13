@@ -1,0 +1,52 @@
+HAL_StatusTypeDef HAL_OSPI_Abort(OSPI_HandleTypeDef *hospi)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t tickstart = HAL_GetTick();
+
+  /* Check if the state is in one of the busy or configured states */
+  if (((hospi->State & OSPI_BUSY_STATE_MASK) != 0) || ((hospi->State & OSPI_CFG_STATE_MASK) != 0))
+  {
+    /* Check if the DMA is enabled */
+    if ((hospi->Instance->CR & OCTOSPI_CR_DMAEN) != 0)
+    {
+      /* Disable the DMA transfer on the OctoSPI side */
+      CLEAR_BIT(hospi->Instance->CR, OCTOSPI_CR_DMAEN);
+      
+      /* Disable the DMA transfer on the DMA side */
+      status = HAL_DMA_Abort(hospi->hdma);
+      if (status != HAL_OK)
+      {
+        hospi->ErrorCode = HAL_OSPI_ERROR_DMA;
+      }
+    }
+    
+    /* Perform an abort of the OctoSPI */
+    SET_BIT(hospi->Instance->CR, OCTOSPI_CR_ABORT);
+    
+    /* Wait until the transfer complete flag is set to go back in idle state */
+    status = OSPI_WaitFlagStateUntilTimeout(hospi, HAL_OSPI_FLAG_TC, SET, tickstart, hospi->Timeout);
+    
+    if (status == HAL_OK)
+    {
+      /* Clear transfer complete flag */
+      __HAL_OSPI_CLEAR_FLAG(hospi, HAL_OSPI_FLAG_TC);
+          
+      /* Wait until the busy flag is reset to go back in idle state */
+      status = OSPI_WaitFlagStateUntilTimeout(hospi, HAL_OSPI_FLAG_BUSY, RESET, tickstart, hospi->Timeout);
+
+      if (status == HAL_OK)
+      {
+        /* Update state */
+        hospi->State = HAL_OSPI_STATE_READY;
+      }
+    }
+  }
+  else
+  {
+    status = HAL_ERROR;
+    hospi->ErrorCode = HAL_OSPI_ERROR_INVALID_SEQUENCE;
+  }
+
+  /* Return function status */
+  return status;
+}

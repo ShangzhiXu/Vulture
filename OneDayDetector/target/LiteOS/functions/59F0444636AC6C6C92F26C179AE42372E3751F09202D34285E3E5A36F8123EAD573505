@@ -1,0 +1,16 @@
+smtp_prepare_helo(struct smtp_session *s, u16_t *tx_buf_len, struct altcp_pcb *pcb)
+{
+  size_t ipa_len;
+  const char *ipa = ipaddr_ntoa(altcp_get_ip(pcb, 1));
+  LWIP_ASSERT("ipaddr_ntoa returned NULL", ipa != NULL);
+  ipa_len = strlen(ipa);
+  LWIP_ASSERT("string too long", ipa_len <= (SMTP_TX_BUF_LEN-SMTP_CMD_EHLO_1_LEN-SMTP_CMD_EHLO_2_LEN));
+
+  *tx_buf_len = (u16_t)(SMTP_CMD_EHLO_1_LEN + (u16_t)ipa_len + SMTP_CMD_EHLO_2_LEN);
+  LWIP_ASSERT("tx_buf overflow detected", *tx_buf_len <= SMTP_TX_BUF_LEN);
+
+  SMEMCPY(s->tx_buf, SMTP_CMD_EHLO_1, SMTP_CMD_EHLO_1_LEN);
+  MEMCPY(&s->tx_buf[SMTP_CMD_EHLO_1_LEN], ipa, ipa_len);
+  SMEMCPY(&s->tx_buf[SMTP_CMD_EHLO_1_LEN + ipa_len], SMTP_CMD_EHLO_2, SMTP_CMD_EHLO_2_LEN);
+  return SMTP_HELO;
+}

@@ -1,0 +1,20 @@
+mdns_add_srv_answer(struct mdns_outpacket *reply, u16_t cache_flush, struct mdns_host *mdns, struct mdns_service *service)
+{
+  struct mdns_domain service_instance, srvhost;
+  u16_t srvdata[3];
+  mdns_build_service_domain(&service_instance, service, 1);
+  mdns_build_host_domain(&srvhost, mdns);
+  if (reply->legacy_query) {
+    /* RFC 6762 section 18.14:
+     * In legacy unicast responses generated to answer legacy queries,
+     * name compression MUST NOT be performed on SRV records.
+     */
+    srvhost.skip_compression = 1;
+  }
+  srvdata[0] = lwip_htons(SRV_PRIORITY);
+  srvdata[1] = lwip_htons(SRV_WEIGHT);
+  srvdata[2] = lwip_htons(service->port);
+  LWIP_DEBUGF(MDNS_DEBUG, ("MDNS: Responding with SRV record\n"));
+  return mdns_add_answer(reply, &service_instance, DNS_RRTYPE_SRV, DNS_RRCLASS_IN, cache_flush, service->dns_ttl,
+                         (const u8_t *) &srvdata, sizeof(srvdata), &srvhost);
+}

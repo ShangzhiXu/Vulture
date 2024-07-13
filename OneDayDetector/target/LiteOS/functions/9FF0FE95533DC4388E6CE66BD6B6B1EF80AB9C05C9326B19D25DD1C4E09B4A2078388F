@@ -1,0 +1,24 @@
+void clean_security_object(lwm2m_object_t *objectP)
+{
+    if(NULL == objectP)
+    {
+        return;
+    }
+    while (objectP->instanceList != NULL)
+    {
+        security_instance_t *securityInstance = (security_instance_t *)objectP->instanceList;
+        objectP->instanceList = objectP->instanceList->next;
+        if (NULL != securityInstance->uri)
+        {
+            lwm2m_free(securityInstance->uri);
+        }
+        if (securityInstance->securityMode == LWM2M_SECURITY_MODE_PRE_SHARED_KEY)
+        {
+            lwm2m_free(securityInstance->publicIdentity);
+            lwm2m_free(securityInstance->secretKey);
+        }
+        lwm2m_free(securityInstance);
+    }
+
+    lwm2m_free(objectP);
+}

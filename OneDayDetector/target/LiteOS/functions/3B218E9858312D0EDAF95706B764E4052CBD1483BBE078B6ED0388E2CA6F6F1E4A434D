@@ -1,0 +1,58 @@
+lwip_connect(int s, const struct sockaddr *name, socklen_t namelen)
+{
+  struct lwip_sock *sock;
+  err_t err;
+
+  sock = get_socket(s);
+  if (!sock) {
+    return -1;
+  }
+
+  if (!SOCK_ADDR_TYPE_MATCH_OR_UNSPEC(name, sock)) {
+    /* sockaddr does not match socket type (IPv4/IPv6) */
+    sock_set_errno(sock, err_to_errno(ERR_VAL));
+    done_socket(sock);
+    return -1;
+  }
+
+  LWIP_UNUSED_ARG(namelen);
+  if (name->sa_family == AF_UNSPEC) {
+    LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_connect(%d, AF_UNSPEC)\n", s));
+    err = netconn_disconnect(sock->conn);
+  } else {
+    ip_addr_t remote_addr;
+    u16_t remote_port;
+
+    /* check size, family and alignment of 'name' */
+    LWIP_ERROR("lwip_connect: invalid address", IS_SOCK_ADDR_LEN_VALID(namelen) &&
+               IS_SOCK_ADDR_TYPE_VALID_OR_UNSPEC(name) && IS_SOCK_ADDR_ALIGNED(name),
+               sock_set_errno(sock, err_to_errno(ERR_ARG)); done_socket(sock); return -1;);
+
+    SOCKADDR_TO_IPADDR_PORT(name, &remote_addr, remote_port);
+    LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_connect(%d, addr=", s));
+    ip_addr_debug_print_val(SOCKETS_DEBUG, remote_addr);
+    LWIP_DEBUGF(SOCKETS_DEBUG, (" port=%"U16_F")\n", remote_port));
+
+#if LWIP_IPV4 && LWIP_IPV6
+    /* Dual-stack: Unmap IPv4 mapped IPv6 addresses */
+    if (IP_IS_V6_VAL(remote_addr) && ip6_addr_isipv4mappedipv6(ip_2_ip6(&remote_addr))) {
+      unmap_ipv4_mapped_ipv6(ip_2_ip4(&remote_addr), ip_2_ip6(&remote_addr));
+      IP_SET_TYPE_VAL(remote_addr, IPADDR_TYPE_V4);
+    }
+#endif /* LWIP_IPV4 && LWIP_IPV6 */
+
+    err = netconn_connect(sock->conn, &remote_addr, remote_port);
+  }
+
+  if (err != ERR_OK) {
+    LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_connect(%d) failed, err=%d\n", s, err));
+    sock_set_errno(sock, err_to_errno(err));
+    done_socket(sock);
+    return -1;
+  }
+
+  LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_connect(%d) succeeded\n", s));
+  sock_set_errno(sock, 0);
+  done_socket(sock);
+  return 0;
+}

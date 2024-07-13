@@ -1,0 +1,36 @@
+HAL_StatusTypeDef HAL_PWREx_DisableOverDrive(void)
+{
+  uint32_t tickstart = 0;
+  
+  __HAL_RCC_PWR_CLK_ENABLE();
+    
+  /* Disable the Over-drive switch */
+  __HAL_PWR_OVERDRIVESWITCHING_DISABLE();
+  
+  /* Get tick */
+  tickstart = HAL_GetTick();
+ 
+  while(__HAL_PWR_GET_FLAG(PWR_FLAG_ODSWRDY))
+  {
+    if((HAL_GetTick() - tickstart ) > PWR_OVERDRIVE_TIMEOUT_VALUE)
+    {
+      return HAL_TIMEOUT;
+    }
+  } 
+  
+  /* Disable the Over-drive */
+  __HAL_PWR_OVERDRIVE_DISABLE();
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  while(__HAL_PWR_GET_FLAG(PWR_FLAG_ODRDY))
+  {
+    if((HAL_GetTick() - tickstart ) > PWR_OVERDRIVE_TIMEOUT_VALUE)
+    {
+      return HAL_TIMEOUT;
+    }
+  }
+  
+  return HAL_OK;
+}

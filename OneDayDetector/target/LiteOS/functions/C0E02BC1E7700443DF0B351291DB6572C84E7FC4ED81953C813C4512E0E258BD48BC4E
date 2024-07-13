@@ -1,0 +1,26 @@
+HAL_StatusTypeDef HAL_DFSDM_ChannelScdStop(DFSDM_Channel_HandleTypeDef *hdfsdm_channel)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t channel;
+
+  /* Check parameters */
+  assert_param(IS_DFSDM_CHANNEL_ALL_INSTANCE(hdfsdm_channel->Instance));
+  
+  /* Check DFSDM channel state */
+  if(hdfsdm_channel->State != HAL_DFSDM_CHANNEL_STATE_READY)
+  {
+    /* Return error status */
+    status = HAL_ERROR;
+  }
+  else
+  {
+    /* Stop short circuit detection */
+    hdfsdm_channel->Instance->CHCFGR1 &= ~(DFSDM_CHCFGR1_SCDEN);
+    
+    /* Clear short circuit detection flag */
+    channel = DFSDM_GetChannelFromInstance(hdfsdm_channel->Instance);
+    DFSDM1_Filter0->FLTICR = (1 << (DFSDM_FLTICR_CLRSCDF_Pos + channel));
+  }
+  /* Return function status */
+  return status;
+}

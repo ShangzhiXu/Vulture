@@ -1,0 +1,15 @@
+VOID OsTaskWait(LOS_DL_LIST *list, UINT16 taskStatus, UINT32 timeout)
+{
+    LosTaskCB *runTask = NULL;
+    LOS_DL_LIST *pendObj = NULL;
+
+    runTask = OsCurrTaskGet();
+    runTask->taskStatus &= ~OS_TASK_STATUS_READY;
+    pendObj = &runTask->pendList;
+    runTask->taskStatus |= taskStatus;
+    LOS_ListTailInsert(list, pendObj);
+    if (timeout != LOS_WAIT_FOREVER) {
+        runTask->taskStatus |= OS_TASK_STATUS_PEND_TIME;
+        OsTaskAdd2TimerList((LosTaskCB *)runTask, timeout);
+    }
+}

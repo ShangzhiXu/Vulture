@@ -1,0 +1,45 @@
+HAL_StatusTypeDef FSMC_NAND_AttributeSpace_Timing_Init(FSMC_NAND_TypeDef *Device, FSMC_NAND_PCC_TimingTypeDef *Timing, uint32_t Bank)
+{
+  uint32_t tmpr = 0U;  
+  
+  /* Check the parameters */  
+  assert_param(IS_FSMC_SETUP_TIME(Timing->SetupTime));
+  assert_param(IS_FSMC_WAIT_TIME(Timing->WaitSetupTime));
+  assert_param(IS_FSMC_HOLD_TIME(Timing->HoldSetupTime));
+  assert_param(IS_FSMC_HIZ_TIME(Timing->HiZSetupTime));
+  
+  if(Bank == FSMC_NAND_BANK2)
+  {
+    /* Get the NAND bank 2 register value */
+    tmpr = Device->PATT2;
+  }
+  else
+  {
+    /* Get the NAND bank 3 register value */
+    tmpr = Device->PATT3;
+  } 
+  
+  /* Clear ATTSETx, ATTWAITx, ATTHOLDx and ATTHIZx bits */
+  tmpr &= ((uint32_t)~(FSMC_PATT2_ATTSET2  | FSMC_PATT2_ATTWAIT2 | FSMC_PATT2_ATTHOLD2 | \
+                       FSMC_PATT2_ATTHIZ2));
+  
+  /* Set FSMC_NAND device timing parameters */
+  tmpr |= (uint32_t)(Timing->SetupTime                     |\
+                       ((Timing->WaitSetupTime) << 8U)     |\
+                       ((Timing->HoldSetupTime) << 16U)    |\
+                       ((Timing->HiZSetupTime) << 24U)
+                       );
+                       
+  if(Bank == FSMC_NAND_BANK2)
+  {
+    /* NAND bank 2 registers configuration */
+    Device->PATT2 = tmpr;
+  }
+  else
+  {
+    /* NAND bank 3 registers configuration */
+    Device->PATT3 = tmpr;
+  }   
+  
+  return HAL_OK;
+}

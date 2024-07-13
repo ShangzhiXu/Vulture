@@ -1,0 +1,23 @@
+lv_objmask_mask_t * lv_objmask_add_mask(lv_obj_t * objmask, void * param)
+{
+    LV_ASSERT_OBJ(objmask, LV_OBJX_NAME);
+    LV_ASSERT_NULL(param);
+
+    lv_objmask_ext_t * ext = lv_obj_get_ext_attr(objmask);
+
+    lv_draw_mask_common_dsc_t * dsc = param;
+    uint16_t param_size = get_param_size(dsc->type);
+
+    lv_objmask_mask_t * m = _lv_ll_ins_head(&ext->mask_ll);
+    LV_ASSERT_MEM(m);
+    if(m == NULL) return NULL;
+    m->param = lv_mem_alloc(param_size);
+    LV_ASSERT_MEM(m->param);
+    if(m->param == NULL) return NULL;
+
+    _lv_memcpy(m->param, param, param_size);
+
+    lv_obj_invalidate(objmask);
+
+    return m;
+}

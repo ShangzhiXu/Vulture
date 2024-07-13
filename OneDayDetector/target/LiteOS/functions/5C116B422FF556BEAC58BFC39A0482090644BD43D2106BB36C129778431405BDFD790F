@@ -1,0 +1,61 @@
+HAL_StatusTypeDef HAL_SMARTCARD_Receive_IT(SMARTCARD_HandleTypeDef *hsmartcard, uint8_t *pData, uint16_t Size)
+{
+  /* Check that a Rx process is not already ongoing */
+  if(hsmartcard->RxState == HAL_SMARTCARD_STATE_READY)
+  {
+    if((pData == NULL) || (Size == 0))
+    {
+      return HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hsmartcard);
+
+    hsmartcard->ErrorCode = HAL_SMARTCARD_ERROR_NONE;
+    hsmartcard->RxState   = HAL_SMARTCARD_STATE_BUSY_RX;
+
+    hsmartcard->pRxBuffPtr = pData;
+    hsmartcard->RxXferSize = Size;
+    hsmartcard->RxXferCount = Size;
+
+    /* Configure Rx interrupt processing */
+#if defined(USART_CR1_FIFOEN)
+    if ((hsmartcard->FifoMode == SMARTCARD_FIFOMODE_ENABLE) && (Size >= hsmartcard->NbRxDataToProcess))
+    {   
+      /* Set the Rx ISR function pointer */
+      hsmartcard->RxISR = SMARTCARD_RxISR_FIFOEN;
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hsmartcard);
+      
+      /* Enable the SMARTCART Parity Error interrupt and RX FIFO Threshold interrupt */
+      SET_BIT(hsmartcard->Instance->CR1, USART_CR1_PEIE);
+      SET_BIT(hsmartcard->Instance->CR3, USART_CR3_RXFTIE);
+    }
+    else
+#endif
+    {
+      /* Set the Rx ISR function pointer */
+      hsmartcard->RxISR = SMARTCARD_RxISR;
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hsmartcard);
+      
+      /* Enable the SMARTCARD Parity Error and Data Register not empty Interrupts */
+#if defined(USART_CR1_FIFOEN)
+      SET_BIT(hsmartcard->Instance->CR1, USART_CR1_PEIE| USART_CR1_RXNEIE_RXFNEIE);
+#else
+      SET_BIT(hsmartcard->Instance->CR1, USART_CR1_PEIE| USART_CR1_RXNEIE);
+#endif
+    }
+    
+    /* Enable the SMARTCARD Error Interrupt: (Frame error, noise error, overrun error) */
+    SET_BIT(hsmartcard->Instance->CR3, USART_CR3_EIE);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

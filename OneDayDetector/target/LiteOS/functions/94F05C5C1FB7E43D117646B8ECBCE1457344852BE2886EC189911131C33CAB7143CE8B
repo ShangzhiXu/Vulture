@@ -1,0 +1,22 @@
+pppoe_disconnect(ppp_pcb *ppp, void *ctx)
+{
+  struct pppoe_softc *sc = (struct pppoe_softc *)ctx;
+
+  PPPDEBUG(LOG_DEBUG, ("pppoe: %c%c%"U16_F": disconnecting\n", sc->sc_ethif->name[0], sc->sc_ethif->name[1], sc->sc_ethif->num));
+  if (sc->sc_state == PPPOE_STATE_SESSION) {
+    pppoe_send_padt(sc->sc_ethif, sc->sc_session, (const u8_t *)&sc->sc_dest);
+  }
+
+  /* stop any timer, disconnect can be called while initiating is in progress */
+  sys_untimeout(pppoe_timeout, sc);
+  sc->sc_state = PPPOE_STATE_INITIAL;
+#ifdef PPPOE_SERVER
+  if (sc->sc_hunique) {
+    mem_free(sc->sc_hunique);
+    sc->sc_hunique = NULL; /* probably not necessary, if state is initial we shouldn't have to access hunique anyway  */
+  }
+  sc->sc_hunique_len = 0; /* probably not necessary, if state is initial we shouldn't have to access hunique anyway  */
+#endif
+  ppp_link_end(ppp); /* notify upper layers */
+  return;
+}

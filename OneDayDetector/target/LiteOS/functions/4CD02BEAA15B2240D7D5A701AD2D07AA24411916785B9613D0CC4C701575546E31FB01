@@ -1,0 +1,23 @@
+static int fatfs_op_opendir(struct dir *dir, const char *path)
+{
+    FRESULT res;
+    DIR *dp;
+
+    dp = (DIR *)malloc(sizeof(DIR));
+    if (dp == NULL) {
+        PRINT_ERR("fail to malloc memory in SPIFFS, <malloc.c> is needed,"
+            "make sure it is added\n");
+        return -ENOMEM;
+    }
+
+    res = f_opendir(dp, path);
+    if (res != FR_OK) {
+        free(dp);
+        return ret_to_errno(res);
+    }
+
+    dir->d_data = dp;
+    dir->d_offset = 0;
+
+    return FR_OK;
+}

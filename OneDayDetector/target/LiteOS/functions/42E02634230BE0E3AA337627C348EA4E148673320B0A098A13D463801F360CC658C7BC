@@ -1,0 +1,21 @@
+static void IRDA_DMARxOnlyAbortCallback(DMA_HandleTypeDef *hdma)
+{
+  IRDA_HandleTypeDef *hirda = (IRDA_HandleTypeDef *)((DMA_HandleTypeDef *)hdma)->Parent;
+
+  hirda->RxXferCount = 0U;
+
+  /* Clear the Error flags in the ICR register */
+  __HAL_IRDA_CLEAR_FLAG(hirda, IRDA_CLEAR_OREF | IRDA_CLEAR_NEF | IRDA_CLEAR_PEF | IRDA_CLEAR_FEF);
+
+  /* Restore hirda->RxState to Ready */
+  hirda->RxState = HAL_IRDA_STATE_READY;
+
+  /* Call user Abort complete callback */
+#if (USE_HAL_IRDA_REGISTER_CALLBACKS == 1)
+  /* Call registered Abort Receive Complete Callback */
+  hirda->AbortReceiveCpltCallback(hirda);
+#else
+  /* Call legacy weak Abort Receive Complete Callback */
+  HAL_IRDA_AbortReceiveCpltCallback(hirda);
+#endif /* USE_HAL_IRDA_REGISTER_CALLBACK */
+}

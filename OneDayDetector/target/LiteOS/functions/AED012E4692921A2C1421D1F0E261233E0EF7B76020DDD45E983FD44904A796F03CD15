@@ -1,0 +1,21 @@
+int pthread_cond_signal(pthread_cond_t *cond)
+{
+    int ret = ENOERR;
+
+    if (cond == NULL) {
+        return EINVAL;
+    }
+
+    (VOID)pthread_mutex_lock(cond->mutex);
+    if (cond->count > 0) {
+        cond->count--;
+        (VOID)pthread_mutex_unlock(cond->mutex);
+        PthreadCondValueModify(cond);
+        (VOID)OsEventWriteOnce(&(cond->event), 0x01);
+
+        return ret;
+    }
+    (VOID)pthread_mutex_unlock(cond->mutex);
+
+    return ret;
+}

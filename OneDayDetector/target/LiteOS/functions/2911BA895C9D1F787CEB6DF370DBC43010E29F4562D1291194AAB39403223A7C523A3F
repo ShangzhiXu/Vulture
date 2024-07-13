@@ -1,0 +1,40 @@
+VOID ArchPrintPageItem(const MMU_PARAM *para)
+{
+    UINT32 tmp;
+    UINT32 startAddr;
+    UINT32 pageLen;
+
+    if ((para == NULL) || (para->stPage == NULL)) {
+        return;
+    }
+
+    if (MMU_GET_AREA(para->uwFlag) == SECOND_PAGE) {
+        startAddr = para->stPage->page_descriptor_addr +
+                    (((para->startAddr - para->stPage->page_addr) >> SHIFT_4K) * BYTES_PER_ITEM);
+        pageLen = ((para->endAddr - para->startAddr) >> SHIFT_4K) * BYTES_PER_ITEM;
+        if ((para->endAddr & (MMU_4K - 1)) != 0) {
+            pageLen += sizeof(UINT32);
+        }
+        PRINTK("SECOND_PAGE:\n");
+    } else if (MMU_GET_AREA(para->uwFlag) == FIRST_SECTION) {
+        startAddr = para->stPage->page_descriptor_addr + ((para->startAddr >> SHIFT_1M) * BYTES_PER_ITEM);
+        pageLen = ((para->endAddr - para->startAddr) >> SHIFT_1M) * BYTES_PER_ITEM;
+        if ((para->endAddr & (MMU_1M - 1)) != 0) {
+            pageLen += sizeof(UINT32);
+        }
+        PRINTK("FIRST_SECTION:\n");
+    } else {
+        return;
+    }
+
+    PRINTK("para->endAddr = 0x%x para->startAddr = 0x%x page_len = %u * 4\n",
+           para->endAddr, para->startAddr, pageLen / BYTES_PER_ITEM);
+
+    for (tmp = 0; tmp < pageLen; tmp += sizeof(UINT32)) {
+        if (tmp % ITEM_PRINT_LEN == 0) {
+            PRINTK("\n");
+        }
+        PRINTK ("0x%0+8x  ", *(UINTPTR *)(startAddr + tmp));
+    }
+    PRINTK("\n");
+}

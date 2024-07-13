@@ -1,0 +1,41 @@
+int MQTTSetMessageHandler(MQTTClient* c, const char* topicFilter, messageHandler messageHandler)
+{
+    int rc = FAILURE;
+    int i = -1;
+
+    /* first check for an existing matching slot */
+    for (i = 0; i < MAX_MESSAGE_HANDLERS; ++i)
+    {
+        if (c->messageHandlers[i].topicFilter != NULL && strcmp(c->messageHandlers[i].topicFilter, topicFilter) == 0)
+        {
+            if (messageHandler == NULL) /* remove existing */
+            {
+                c->messageHandlers[i].topicFilter = NULL;
+                c->messageHandlers[i].fp = NULL;
+            }
+            rc = MQTT_SUCCESS; /* return i when adding new subscription */
+            break;
+        }
+    }
+    /* if no existing, look for empty slot (unless we are removing) */
+    if (messageHandler != NULL)
+    {
+        if (rc == FAILURE)
+        {
+            for (i = 0; i < MAX_MESSAGE_HANDLERS; ++i)
+            {
+                if (c->messageHandlers[i].topicFilter == NULL)
+                {
+                    rc = MQTT_SUCCESS;
+                    break;
+                }
+            }
+        }
+        if (i < MAX_MESSAGE_HANDLERS)
+        {
+            c->messageHandlers[i].topicFilter = topicFilter;
+            c->messageHandlers[i].fp = messageHandler;
+        }
+    }
+    return rc;
+}

@@ -1,0 +1,67 @@
+LITE_OS_SEC_TEXT UINT32 LOS_SemPend(UINT32 semHandle, UINT32 timeout)
+{
+    UINT32 intSave;
+    LosSemCB *semPended = NULL;
+    UINT32 ret;
+    LosTaskCB *runTask = NULL;
+
+    ret = OsSemGetCBWithCheck(semHandle, &semPended);
+    if (ret != LOS_OK) {
+        return ret;
+    }
+
+    LOS_TRACE(SEM_PEND, semHandle, semPended->semCount, timeout);
+
+    if (OS_INT_ACTIVE) {
+        return LOS_ERRNO_SEM_PEND_INTERR;
+    }
+
+    runTask = OsCurrTaskGet();
+    if (runTask->taskFlags & OS_TASK_FLAG_SYSTEM) {
+        PRINT_DEBUG("Warning: DO NOT recommend to use %s in system tasks.\n", __FUNCTION__);
+    }
+
+    if (!OsPreemptable()) {
+        return LOS_ERRNO_SEM_PEND_IN_LOCK;
+    }
+
+    SCHEDULER_LOCK(intSave);
+
+    ret = OsSemStateVerify(semHandle, semPended);
+    if (ret != LOS_OK) {
+        goto OUT;
+    }
+
+    /* Update the operate time, no matter the actual Pend success or not */
+    OsSemDbgTimeUpdateHook(semHandle);
+
+    if (semPended->semCount > 0) {
+        semPended->semCount--;
+        goto OUT;
+    } else if (!timeout) {
+        ret = LOS_ERRNO_SEM_UNAVAILABLE;
+        goto OUT;
+    }
+
+    runTask->taskSem = (VOID *)semPended;
+    OsTaskWait(&semPended->semList, OS_TASK_STATUS_PEND, timeout);
+
+    /*
+     * it will immediately do the scheduling, so there's no need to release the
+     * task spinlock. when this task's been rescheduled, it will be holding the spinlock.
+     */
+    OsSchedResched();
+
+    SCHEDULER_UNLOCK(intSave);
+    SCHEDULER_LOCK(intSave);
+
+    if (runTask->taskStatus & OS_TASK_STATUS_TIMEOUT) {
+        runTask->taskStatus &= ~OS_TASK_STATUS_TIMEOUT;
+        ret = LOS_ERRNO_SEM_TIMEOUT;
+        goto OUT;
+    }
+
+OUT:
+    SCHEDULER_UNLOCK(intSave);
+    return ret;
+}

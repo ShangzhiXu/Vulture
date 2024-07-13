@@ -1,0 +1,50 @@
+static int32_t sota_data_block_process(const ota_pcp_head_s *head, const uint8_t *pbuf)
+{
+    uint16_t block_seq = 0;
+    int ret = SOTA_OK;
+
+    if (g_at_update_record.state != DOWNLOADING) {
+        return SOTA_UNEXPECT_PACKET;
+    }
+
+    if (*pbuf == UPDATE_TASK_EXIT) {
+        g_at_update_record.state = IDLE;
+        return SOTA_EXIT;
+    }
+
+    block_seq = ((*(pbuf + 1) << 8) & 0XFF00) | (*(pbuf + 2) & 0XFF);
+    if (g_at_update_record.block_num != block_seq) {
+        SOTA_LOG("Download wrong,we need block %X, but rx %X:", (int)g_at_update_record.block_num, (int)block_seq);
+        return SOTA_UNEXPECT_PACKET;
+    }
+    SOTA_LOG("off:%lx size:%x ", g_at_update_record.block_offset, head->data_len);
+    ret = g_storage_device->write_software(g_storage_device, g_at_update_record.block_offset,
+        (const uint8_t *)(pbuf + BLOCK_HEAD), head->data_len);
+    if (ret != SOTA_OK) {
+        SOTA_LOG("write software failed. ret:%d", ret);
+        sota_send_response_code(MSG_DOWNLOAD_STATE, DEV_NO_SPACE);
+        return SOTA_WRITE_FLASH_FAILED;
+    }
+
+    g_at_update_record.block_offset += g_at_update_record.block_size;
+    g_at_update_record.block_tolen += head->data_len;
+    g_at_update_record.block_num++;
+
+    if ((g_at_update_record.block_num) < g_at_update_record.block_totalnum) {
+        SOTA_LOG("Rx total %d bytes downloading\r\n", g_at_update_record.block_tolen);
+        sota_send_request_block(g_at_update_record.ver);
+        return SOTA_DOWNLOADING;
+    } else {
+        SOTA_LOG("Rx total %d bytes, UPDATING...\r\n", g_at_update_record.block_tolen);
+        ret = g_storage_device->write_software_end(g_storage_device, PACK_DOWNLOAD_OK, g_at_update_record.block_tolen);
+        if (ret != SOTA_OK) {
+            SOTA_LOG("write software end ret:%d", ret);
+            sota_send_response_code(MSG_DOWNLOAD_STATE, FIRMWARE_CHECK_ERROR);
+            return SOTA_WRITE_FLASH_FAILED;
+        } else {
+            g_at_update_record.state = UPDATING;
+            sota_send_response_code(MSG_DOWNLOAD_STATE, DEV_OK);
+            return SOTA_UPDATING;
+        }
+    }
+}

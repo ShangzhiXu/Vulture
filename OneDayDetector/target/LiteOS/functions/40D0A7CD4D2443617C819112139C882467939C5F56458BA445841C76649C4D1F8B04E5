@@ -1,0 +1,22 @@
+static inline int fix_negative( mbedtls_mpi *N, signed char c, mbedtls_mpi *C, size_t bits )
+{
+    int ret;
+
+    /* C = - c * 2^(bits + 32) */
+#if !defined(MBEDTLS_HAVE_INT64)
+    ((void) bits);
+#else
+    if( bits == 224 )
+        C->p[ C->n - 1 ] = ((mbedtls_mpi_uint) -c) << 32;
+    else
+#endif
+        C->p[ C->n - 1 ] = (mbedtls_mpi_uint) -c;
+
+    /* N = - ( C - N ) */
+    MBEDTLS_MPI_CHK( mbedtls_mpi_sub_abs( N, C, N ) );
+    N->s = -1;
+
+cleanup:
+
+    return( ret );
+}

@@ -1,0 +1,108 @@
+static uint16_t lv_txt_get_next_word(const char * txt, const lv_font_t * font,
+                                     lv_coord_t letter_space, lv_coord_t max_width,
+                                     lv_txt_flag_t flag, uint32_t * word_w_ptr, lv_txt_cmd_state_t * cmd_state, bool force)
+{
+    if(txt == NULL || txt[0] == '\0') return 0;
+    if(font == NULL) return 0;
+
+    if(flag & LV_TXT_FLAG_EXPAND) max_width = LV_COORD_MAX;
+
+    uint32_t i = 0, i_next = 0, i_next_next = 0;  /* Iterating index into txt */
+    uint32_t letter = 0;      /* Letter at i */
+    uint32_t letter_next = 0; /* Letter at i_next */
+    lv_coord_t letter_w;
+    lv_coord_t cur_w = 0;  /* Pixel Width of transversed string */
+    uint32_t word_len = 0;   /* Number of characters in the transversed word */
+    uint32_t break_index = NO_BREAK_FOUND; /* only used for "long" words */
+    uint32_t break_letter_count = 0; /* Number of characters up to the long word break point */
+
+    letter = _lv_txt_encoded_next(txt, &i_next);
+    i_next_next = i_next;
+
+    /* Obtain the full word, regardless if it fits or not in max_width */
+    while(txt[i] != '\0') {
+        letter_next = _lv_txt_encoded_next(txt, &i_next_next);
+        word_len++;
+
+        /*Handle the recolor command*/
+        if((flag & LV_TXT_FLAG_RECOLOR) != 0) {
+            if(_lv_txt_is_cmd(cmd_state, letter) != false) {
+                i = i_next;
+                i_next = i_next_next;
+                letter = letter_next;
+                continue;   /*Skip the letter is it is part of a command*/
+            }
+        }
+
+        letter_w = lv_font_get_glyph_width(font, letter, letter_next);
+        cur_w += letter_w;
+
+        if(letter_w > 0) {
+            cur_w += letter_space;
+        }
+
+        /* Test if this character fits within max_width */
+        if(break_index == NO_BREAK_FOUND && (cur_w - letter_space) > max_width) {
+            break_index = i;
+            break_letter_count = word_len - 1;
+            /* break_index is now pointing at the character that doesn't fit */
+        }
+
+        /*Check for new line chars and breakchars*/
+        if(letter == '\n' || letter == '\r' || is_break_char(letter)) {
+            /* Update the output width on the first character if it fits.
+             * Must do this here incase first letter is a break character. */
+            if(i == 0 && break_index == NO_BREAK_FOUND && word_w_ptr != NULL) *word_w_ptr = cur_w;
+            word_len--;
+            break;
+        }
+
+        /* Update the output width */
+        if(word_w_ptr != NULL && break_index == NO_BREAK_FOUND) *word_w_ptr = cur_w;
+
+
+        i = i_next;
+        i_next = i_next_next;
+        letter = letter_next;
+    }
+
+    /* Entire Word fits in the provided space */
+    if(break_index == NO_BREAK_FOUND) {
+        if(word_len == 0 || (letter == '\r' && letter_next == '\n')) i = i_next;
+        return i;
+    }
+
+#if LV_TXT_LINE_BREAK_LONG_LEN > 0
+    /* Word doesn't fit in provided space, but isn't "long" */
+    if(word_len < LV_TXT_LINE_BREAK_LONG_LEN) {
+        if(force) return break_index;
+        if(word_w_ptr != NULL) *word_w_ptr = 0; /* Return no word */
+        return 0;
+    }
+
+    /* Word is "long," but insufficient amounts can fit in provided space */
+    if(break_letter_count < LV_TXT_LINE_BREAK_LONG_PRE_MIN_LEN) {
+        if(force) return break_index;
+        if(word_w_ptr != NULL) *word_w_ptr = 0;
+        return 0;
+    }
+
+    /* Word is a "long", but letters may need to be better distributed */
+    {
+        i = break_index;
+        int32_t n_move = LV_TXT_LINE_BREAK_LONG_POST_MIN_LEN - (word_len - break_letter_count);
+        /* Move pointer "i" backwards */
+        for(; n_move > 0; n_move--) {
+            _lv_txt_encoded_prev(txt, &i);
+            // TODO: it would be appropriate to update the returned word width here
+            // However, in current usage, this doesn't impact anything.
+        }
+    }
+    return i;
+#else
+    if(force) return break_index;
+    if(word_w_ptr != NULL) *word_w_ptr = 0; /* Return no word */
+    (void) break_letter_count;
+    return 0;
+#endif
+}

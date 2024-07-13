@@ -1,0 +1,54 @@
+HAL_StatusTypeDef HAL_IRDA_Init(IRDA_HandleTypeDef *hirda)
+{
+  /* Check the IRDA handle allocation */
+  if(hirda == NULL)
+  {
+    return HAL_ERROR;
+  }
+  
+  /* Check the IRDA instance parameters */
+  assert_param(IS_IRDA_INSTANCE(hirda->Instance));
+  /* Check the IRDA mode parameter in the IRDA handle */
+  assert_param(IS_IRDA_POWERMODE(hirda->Init.IrDAMode)); 
+  
+  if(hirda->State == HAL_IRDA_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hirda->Lock = HAL_UNLOCKED;
+    
+    /* Init the low level hardware */
+    HAL_IRDA_MspInit(hirda);
+  }
+  
+  hirda->State = HAL_IRDA_STATE_BUSY;
+  
+  /* Disable the IRDA peripheral */
+  __HAL_IRDA_DISABLE(hirda);
+  
+  /* Set the IRDA communication parameters */
+  IRDA_SetConfig(hirda);
+  
+  /* In IrDA mode, the following bits must be kept cleared: 
+     - LINEN, STOP and CLKEN bits in the USART_CR2 register,
+     - SCEN and HDSEL bits in the USART_CR3 register.*/
+  CLEAR_BIT(hirda->Instance->CR2, (USART_CR2_LINEN | USART_CR2_STOP | USART_CR2_CLKEN));
+  CLEAR_BIT(hirda->Instance->CR3, (USART_CR3_SCEN | USART_CR3_HDSEL));
+  
+  /* Enable the IRDA peripheral */
+  __HAL_IRDA_ENABLE(hirda);
+  
+  /* Set the prescaler */
+  MODIFY_REG(hirda->Instance->GTPR, USART_GTPR_PSC, hirda->Init.Prescaler);
+  
+  /* Configure the IrDA mode */
+  MODIFY_REG(hirda->Instance->CR3, USART_CR3_IRLP, hirda->Init.IrDAMode);
+  
+  /* Enable the IrDA mode by setting the IREN bit in the CR3 register */
+  SET_BIT(hirda->Instance->CR3, USART_CR3_IREN);
+  
+  /* Initialize the IRDA state*/
+  hirda->ErrorCode = HAL_IRDA_ERROR_NONE;
+  hirda->State= HAL_IRDA_STATE_READY;
+  
+  return HAL_OK;
+}

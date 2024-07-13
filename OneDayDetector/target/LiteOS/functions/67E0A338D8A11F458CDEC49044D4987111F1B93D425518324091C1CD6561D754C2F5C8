@@ -1,0 +1,28 @@
+static void ccp_input(ppp_pcb *pcb, u_char *p, int len) {
+    fsm *f = &pcb->ccp_fsm;
+    ccp_options *go = &pcb->ccp_gotoptions;
+    int oldstate;
+
+    /*
+     * Check for a terminate-request so we can print a message.
+     */
+    oldstate = f->state;
+    fsm_input(f, p, len);
+    if (oldstate == PPP_FSM_OPENED && p[0] == TERMREQ && f->state != PPP_FSM_OPENED) {
+	ppp_notice("Compression disabled by peer.");
+#if MPPE_SUPPORT
+	if (go->mppe) {
+	    ppp_error("MPPE disabled, closing LCP");
+	    lcp_close(pcb, "MPPE disabled by peer");
+	}
+#endif /* MPPE_SUPPORT */
+    }
+
+    /*
+     * If we get a terminate-ack and we're not asking for compression,
+     * close CCP.
+     */
+    if (oldstate == PPP_FSM_REQSENT && p[0] == TERMACK
+	&& !ccp_anycompress(go))
+	ccp_close(pcb, "No compression negotiated");
+}

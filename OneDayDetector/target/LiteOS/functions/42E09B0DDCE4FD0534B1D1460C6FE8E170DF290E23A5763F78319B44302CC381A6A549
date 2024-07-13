@@ -1,0 +1,27 @@
+tcp_remove_sacks_gt(struct tcp_pcb *pcb, u32_t seq)
+{
+  u8_t i;
+  u8_t unused_idx;
+
+  /* We run this loop for all entries, until we find the first invalid one.
+     There is no point checking after that. */
+  for (i = unused_idx = 0; (i < LWIP_TCP_MAX_SACK_NUM) && LWIP_TCP_SACK_VALID(pcb, i); ++i) {
+    /* We only want to use SACK at index [i] if its left side is < 'seq'. */
+    if (TCP_SEQ_LT(pcb->rcv_sacks[i].left, seq)) {
+      if (unused_idx != i) {
+        /* We only copy it if it's not in the right spot already. */
+        pcb->rcv_sacks[unused_idx] = pcb->rcv_sacks[i];
+      }
+      /* NOTE: It is possible that its right side is > 'seq', in which case we should adjust it. */
+      if (TCP_SEQ_GT(pcb->rcv_sacks[unused_idx].right, seq)) {
+        pcb->rcv_sacks[unused_idx].right = seq;
+      }
+      ++unused_idx;
+    }
+  }
+
+  /* We also need to invalidate everything from 'unused_idx' till the end */
+  for (i = unused_idx; i < LWIP_TCP_MAX_SACK_NUM; ++i) {
+    pcb->rcv_sacks[i].left = pcb->rcv_sacks[i].right = 0;
+  }
+}

@@ -1,0 +1,107 @@
+HAL_StatusTypeDef HAL_LPTIM_Init(LPTIM_HandleTypeDef *hlptim)
+{
+  uint32_t tmpcfgr = 0;
+
+  /* Check the LPTIM handle allocation */
+  if(hlptim == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_LPTIM_INSTANCE(hlptim->Instance));
+  
+  assert_param(IS_LPTIM_CLOCK_SOURCE(hlptim->Init.Clock.Source));
+  assert_param(IS_LPTIM_CLOCK_PRESCALER(hlptim->Init.Clock.Prescaler));  
+  if ((hlptim->Init.Clock.Source) ==  LPTIM_CLOCKSOURCE_ULPTIM)
+  {
+    assert_param(IS_LPTIM_CLOCK_POLARITY(hlptim->Init.UltraLowPowerClock.Polarity));
+    assert_param(IS_LPTIM_CLOCK_SAMPLE_TIME(hlptim->Init.UltraLowPowerClock.SampleTime));
+  }  
+  assert_param(IS_LPTIM_TRG_SOURCE(hlptim->Init.Trigger.Source));
+  if ((hlptim->Init.Trigger.Source) !=  LPTIM_TRIGSOURCE_SOFTWARE)
+  {
+    assert_param(IS_LPTIM_TRIG_SAMPLE_TIME(hlptim->Init.Trigger.SampleTime));
+    assert_param(IS_LPTIM_EXT_TRG_POLARITY(hlptim->Init.Trigger.ActiveEdge));
+  }  
+  assert_param(IS_LPTIM_OUTPUT_POLARITY(hlptim->Init.OutputPolarity));  
+  assert_param(IS_LPTIM_UPDATE_MODE(hlptim->Init.UpdateMode));
+  assert_param(IS_LPTIM_COUNTER_SOURCE(hlptim->Init.CounterSource));
+  
+  if(hlptim->State == HAL_LPTIM_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hlptim->Lock = HAL_UNLOCKED;
+
+    /* Init the low level hardware */
+    HAL_LPTIM_MspInit(hlptim);
+  }
+  
+  /* Change the LPTIM state */
+  hlptim->State = HAL_LPTIM_STATE_BUSY;
+  
+  /* Get the LPTIMx CFGR value */
+  tmpcfgr = hlptim->Instance->CFGR;
+  
+  if ((hlptim->Init.Clock.Source) ==  LPTIM_CLOCKSOURCE_ULPTIM)
+  {
+    tmpcfgr &= (uint32_t)(~(LPTIM_CFGR_CKPOL | LPTIM_CFGR_CKFLT));
+  }
+  if ((hlptim->Init.Trigger.Source) !=  LPTIM_TRIGSOURCE_SOFTWARE)
+  {
+    tmpcfgr &= (uint32_t)(~ (LPTIM_CFGR_TRGFLT | LPTIM_CFGR_TRIGSEL));
+  }
+    
+  /* Clear CKSEL, PRESC, TRIGEN, TRGFLT, WAVPOL, PRELOAD & COUNTMODE bits */
+  tmpcfgr &= (uint32_t)(~(LPTIM_CFGR_CKSEL | LPTIM_CFGR_TRIGEN | LPTIM_CFGR_PRELOAD |
+                          LPTIM_CFGR_WAVPOL | LPTIM_CFGR_PRESC | LPTIM_CFGR_COUNTMODE ));
+  
+  /* Set initialization parameters */
+  tmpcfgr |= (hlptim->Init.Clock.Source    |
+              hlptim->Init.Clock.Prescaler |
+              hlptim->Init.OutputPolarity  |
+              hlptim->Init.UpdateMode      |
+              hlptim->Init.CounterSource);
+  
+  if ((hlptim->Init.Clock.Source) ==  LPTIM_CLOCKSOURCE_ULPTIM)
+  {
+    tmpcfgr |=  (hlptim->Init.UltraLowPowerClock.Polarity |
+                hlptim->Init.UltraLowPowerClock.SampleTime);
+  } 
+  
+  if ((hlptim->Init.Trigger.Source) !=  LPTIM_TRIGSOURCE_SOFTWARE)
+  {
+    /* Enable External trigger and set the trigger source */
+    tmpcfgr |= (hlptim->Init.Trigger.Source     |
+                hlptim->Init.Trigger.ActiveEdge |
+                hlptim->Init.Trigger.SampleTime);
+  }
+  
+  /* Write to LPTIMx CFGR */
+  hlptim->Instance->CFGR = tmpcfgr;
+
+  /* Configure LPTIM input sources */
+  if(hlptim->Instance == LPTIM1)
+  {
+    /* Check LPTIM1 Input1 and Input2 sources */
+    assert_param(IS_LPTIM_INPUT1_SOURCE(hlptim->Instance,hlptim->Init.Input1Source));
+    assert_param(IS_LPTIM_INPUT2_SOURCE(hlptim->Instance,hlptim->Init.Input2Source));
+    
+    /* Configure LPTIM1 Input1 and Input2 sources */
+    hlptim->Instance->OR = (hlptim->Init.Input1Source | hlptim->Init.Input2Source);
+  }
+  else
+  {
+    /* Check LPTIM2 Input1 source */
+    assert_param(IS_LPTIM_INPUT1_SOURCE(hlptim->Instance,hlptim->Init.Input1Source));
+    
+    /* Configure LPTIM2 Input1 source */
+    hlptim->Instance->OR = hlptim->Init.Input1Source;
+  }
+  
+  /* Change the LPTIM state */
+  hlptim->State = HAL_LPTIM_STATE_READY;
+  
+  /* Return function status */
+  return HAL_OK;
+}

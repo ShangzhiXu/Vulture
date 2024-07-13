@@ -1,0 +1,14 @@
+static int chachapoly_pad_aad( mbedtls_chachapoly_context *ctx )
+{
+    uint32_t partial_block_len = (uint32_t) ( ctx->aad_len % 16U );
+    unsigned char zeroes[15];
+
+    if( partial_block_len == 0U )
+        return( 0 );
+
+    memset( zeroes, 0, sizeof( zeroes ) );
+
+    return( mbedtls_poly1305_update( &ctx->poly1305_ctx,
+                                     zeroes,
+                                     16U - partial_block_len ) );
+}

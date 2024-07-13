@@ -1,0 +1,28 @@
+osThreadId osThreadCreate(const osThreadDef_t *thread_def, void *argument)
+{
+    UINT32 ret;
+    UINT32 taskId;
+    TSK_INIT_PARAM_S taskInitParam;
+
+    if ((thread_def == NULL) ||
+        (thread_def->pthread == NULL) ||
+        (thread_def->tpriority < osPriorityIdle) ||
+        (thread_def->tpriority > osPriorityRealtime)) {
+        return NULL;
+    }
+
+    (VOID)memset_s(&taskInitParam, sizeof(TSK_INIT_PARAM_S), 0, sizeof(TSK_INIT_PARAM_S));
+    taskInitParam.pfnTaskEntry = (TSK_ENTRY_FUNC)thread_def->pthread;
+    taskInitParam.uwStackSize  = thread_def->stacksize;
+    taskInitParam.pcName       = thread_def->name;
+    taskInitParam.uwResved     = LOS_TASK_STATUS_DETACHED;
+    taskInitParam.usTaskPrio   = (UINT16)(PRIORITY_WIN - thread_def->tpriority);  /* 1~7 */
+    LOS_TASK_PARAM_INIT_ARG(taskInitParam, argument);
+
+    ret = LOS_TaskCreate(&taskId, &taskInitParam);
+    if (ret == LOS_OK) {
+        return (osThreadId)OS_TCB_FROM_TID(taskId);
+    } else {
+        return NULL;
+    }
+}

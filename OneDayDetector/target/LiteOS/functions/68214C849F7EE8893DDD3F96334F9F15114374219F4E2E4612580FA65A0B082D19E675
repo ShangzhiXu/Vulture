@@ -1,0 +1,89 @@
+HAL_StatusTypeDef HMAC_Start_IT(HASH_HandleTypeDef *hhash, uint8_t *pInBuffer, uint32_t Size, uint8_t* pOutBuffer, uint32_t Algorithm)
+{
+    HAL_HASH_StateTypeDef State_tmp = hhash->State; 
+    
+  /* If State is ready or suspended, start or resume IT-based HASH processing */
+if((State_tmp == HAL_HASH_STATE_READY) || (State_tmp == HAL_HASH_STATE_SUSPENDED))
+  { 
+    /* Check input parameters */
+    if ((pInBuffer == NULL) || (Size == 0U) || (hhash->Init.pKey == NULL) || (hhash->Init.KeySize == 0U) || (pOutBuffer == NULL))
+    {
+      hhash->State = HAL_HASH_STATE_READY;
+      return  HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hhash);
+
+    /* Change the HASH state */
+    hhash->State = HAL_HASH_STATE_BUSY;
+
+    /* Initialize IT counter */
+    hhash->HashITCounter = 1;
+
+    /* Check if initialization phase has already be performed */
+    if (hhash->Phase == HAL_HASH_PHASE_READY)
+    {
+      /* Check if key size is larger than 64 bytes, accordingly set LKEY and the other setting bits */
+      if(hhash->Init.KeySize > 64U)
+      {
+        MODIFY_REG(HASH->CR, HASH_CR_LKEY|HASH_CR_ALGO|HASH_CR_MODE|HASH_CR_INIT, Algorithm | HASH_ALGOMODE_HMAC | HASH_HMAC_KEYTYPE_LONGKEY | HASH_CR_INIT);
+      }
+      else
+      {
+        MODIFY_REG(HASH->CR, HASH_CR_LKEY|HASH_CR_ALGO|HASH_CR_MODE|HASH_CR_INIT, Algorithm | HASH_ALGOMODE_HMAC | HASH_CR_INIT);
+      }
+
+      /* Resort to hhash internal fields hhash->pHashInBuffPtr and hhash->HashInCount
+         to feed the IP whatever the HMAC step.
+         Lines below are set to start HMAC Step 1 processing where key is entered first. */
+      hhash->HashInCount     = hhash->Init.KeySize; /* Key size                      */
+      hhash->pHashInBuffPtr  = hhash->Init.pKey ;   /* Key address                   */
+
+      /* Store input and output parameters in handle fields to manage steps transition
+         or possible HMAC suspension/resumption */
+      hhash->pHashKeyBuffPtr = hhash->Init.pKey;    /* Key address                   */
+      hhash->pHashMsgBuffPtr = pInBuffer;           /* Input message address         */
+      hhash->HashBuffSize    = Size;                /* Input message size (in bytes) */
+      hhash->pHashOutBuffPtr = pOutBuffer;          /* Output digest address         */
+
+      /* Configure the number of valid bits in last word of the key */
+      __HAL_HASH_SET_NBVALIDBITS(hhash->Init.KeySize);
+
+      /* Set the phase to Step 1 */
+      hhash->Phase = HAL_HASH_PHASE_HMAC_STEP_1;
+    }
+    else if ((hhash->Phase == HAL_HASH_PHASE_HMAC_STEP_1) || (hhash->Phase == HAL_HASH_PHASE_HMAC_STEP_3))
+    {
+      /* Restart IT-based HASH processing after Step 1 or Step 3 suspension */
+
+    }
+    else if (hhash->Phase == HAL_HASH_PHASE_HMAC_STEP_2)
+    {
+      /* Restart IT-based HASH processing after Step 2 suspension */
+
+    }
+    else
+    {
+      /* Error report as phase incorrect */
+      /* Process Unlock */
+      __HAL_UNLOCK(hhash);
+      hhash->State = HAL_HASH_STATE_READY;
+      return HAL_ERROR;
+    }
+
+    /* Process Unlock */
+    __HAL_UNLOCK(hhash);
+
+    /* Enable Interrupts */
+    __HAL_HASH_ENABLE_IT(HASH_IT_DINI|HASH_IT_DCI);
+
+    /* Return function status */
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+
+}

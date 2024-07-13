@@ -1,0 +1,24 @@
+UINT32 OsMemBackupDoRestore(VOID *pool, const LosMemDynNode *nodePre, LosMemDynNode *node)
+{
+    if (node == NULL) {
+        PRINT_ERR("the node is NULL.\n");
+        return LOS_NOK;
+    }
+    PRINT_ERR("the backup node information of current node in previous node:\n");
+    OsMemDispCtlNode(&nodePre->backupNode);
+    PRINT_ERR("the detailed information of previous node:\n");
+    OsMemDispMoreDetails(nodePre);
+
+    node->selfNode.freeNodeInfo.pstNext = nodePre->backupNode.freeNodeInfo.pstNext;
+    node->selfNode.freeNodeInfo.pstPrev = nodePre->backupNode.freeNodeInfo.pstPrev;
+    node->selfNode.preNode = nodePre->backupNode.preNode;
+    node->selfNode.checksum = nodePre->backupNode.checksum;
+    node->selfNode.gapSize = nodePre->backupNode.gapSize;
+#ifdef LOSCFG_MEM_RECORDINFO
+    node->selfNode.originSize = nodePre->backupNode.originSize;
+#endif
+    node->selfNode.sizeAndFlag = nodePre->backupNode.sizeAndFlag;
+
+    /* we should re-setup next node's backup on current node */
+    return OsMemBackupSetup4Next(pool, node);
+}

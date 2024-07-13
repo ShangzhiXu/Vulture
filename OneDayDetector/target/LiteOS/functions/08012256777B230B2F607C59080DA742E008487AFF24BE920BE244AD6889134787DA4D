@@ -1,0 +1,54 @@
+HAL_StatusTypeDef HAL_NOR_Init(NOR_HandleTypeDef *hnor, FMC_NORSRAM_TimingTypeDef *Timing, FMC_NORSRAM_TimingTypeDef *ExtTiming)
+{
+  /* Check the NOR handle parameter */
+  if(hnor == NULL)
+  {
+     return HAL_ERROR;
+  }
+  
+  if(hnor->State == HAL_NOR_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hnor->Lock = HAL_UNLOCKED;
+
+#if (USE_HAL_NOR_REGISTER_CALLBACKS == 1)
+    if(hnor->MspInitCallback == NULL)
+    {
+      hnor->MspInitCallback = HAL_NOR_MspInit;
+    }
+
+    /* Init the low level hardware */
+    hnor->MspInitCallback(hnor);
+#else
+    /* Initialize the low level hardware (MSP) */
+    HAL_NOR_MspInit(hnor);
+#endif /* (USE_HAL_NOR_REGISTER_CALLBACKS) */
+  }
+  
+  /* Initialize NOR control Interface */
+  FMC_NORSRAM_Init(hnor->Instance, &(hnor->Init));
+
+  /* Initialize NOR timing Interface */
+  FMC_NORSRAM_Timing_Init(hnor->Instance, Timing, hnor->Init.NSBank); 
+
+  /* Initialize NOR extended mode timing Interface */
+  FMC_NORSRAM_Extended_Timing_Init(hnor->Extended, ExtTiming, hnor->Init.NSBank, hnor->Init.ExtendedMode);
+
+  /* Enable the NORSRAM device */
+  __FMC_NORSRAM_ENABLE(hnor->Instance, hnor->Init.NSBank);
+
+  /* Initialize NOR Memory Data Width*/
+  if (hnor->Init.MemoryDataWidth == FMC_NORSRAM_MEM_BUS_WIDTH_8)
+  {
+    uwNORMemoryDataWidth = NOR_MEMORY_8B;
+  }
+  else
+  {
+    uwNORMemoryDataWidth = NOR_MEMORY_16B;
+  }
+
+  /* Check the NOR controller state */
+  hnor->State = HAL_NOR_STATE_READY; 
+  
+  return HAL_OK;
+}

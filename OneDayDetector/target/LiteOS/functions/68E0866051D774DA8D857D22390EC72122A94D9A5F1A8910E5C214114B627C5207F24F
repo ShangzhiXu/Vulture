@@ -1,0 +1,21 @@
+altcp_proxyconnect_write(struct altcp_pcb *conn, const void *dataptr, u16_t len, u8_t apiflags)
+{
+  altcp_proxyconnect_state_t *state;
+
+  LWIP_UNUSED_ARG(apiflags);
+
+  if (conn == NULL) {
+    return ERR_VAL;
+  }
+
+  state = (altcp_proxyconnect_state_t *)conn->state;
+  if (state == NULL) {
+    /* @todo: which error? */
+    return ERR_CLSD;
+  }
+  if (!(state->flags & ALTCP_PROXYCONNECT_FLAGS_HANDSHAKE_DONE)) {
+    /* @todo: which error? */
+    return ERR_VAL;
+  }
+  return altcp_write(conn->inner_conn, dataptr, len, apiflags);
+}

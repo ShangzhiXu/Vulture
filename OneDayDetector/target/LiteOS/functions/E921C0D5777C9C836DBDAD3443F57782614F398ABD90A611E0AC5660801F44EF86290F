@@ -1,0 +1,93 @@
+HAL_StatusTypeDef HAL_DSI_Read(DSI_HandleTypeDef *hdsi,
+                               uint32_t ChannelNbr,
+                               uint8_t *Array,
+                               uint32_t Size,
+                               uint32_t Mode,
+                               uint32_t DCSCmd,
+                               uint8_t *ParametersTable)
+{
+  uint32_t tickstart;
+  uint8_t *pdata = Array;
+  uint32_t datasize = Size;
+  uint32_t fifoword;
+  uint32_t nbbytes;
+  uint32_t count;
+
+  /* Process locked */
+  __HAL_LOCK(hdsi);
+
+  /* Check the parameters */
+  assert_param(IS_DSI_READ_PACKET_TYPE(Mode));
+
+  if (datasize > 2U)
+  {
+    /* set max return packet size */
+    if (DSI_ShortWrite(hdsi, ChannelNbr, DSI_MAX_RETURN_PKT_SIZE, ((datasize) & 0xFFU),
+                           (((datasize) >> 8U) & 0xFFU)) != HAL_OK)
+    {
+      /* Process Unlocked */
+      __HAL_UNLOCK(hdsi);
+
+      return HAL_ERROR;
+    }
+  }
+
+  /* Configure the packet to read command */
+  if (Mode == DSI_DCS_SHORT_PKT_READ)
+  {
+    DSI_ConfigPacketHeader(hdsi->Instance, ChannelNbr, Mode, DCSCmd, 0U);
+  }
+  else if (Mode == DSI_GEN_SHORT_PKT_READ_P0)
+  {
+    DSI_ConfigPacketHeader(hdsi->Instance, ChannelNbr, Mode, 0U, 0U);
+  }
+  else if (Mode == DSI_GEN_SHORT_PKT_READ_P1)
+  {
+    DSI_ConfigPacketHeader(hdsi->Instance, ChannelNbr, Mode, ParametersTable[0U], 0U);
+  }
+  else if (Mode == DSI_GEN_SHORT_PKT_READ_P2)
+  {
+    DSI_ConfigPacketHeader(hdsi->Instance, ChannelNbr, Mode, ParametersTable[0U], ParametersTable[1U]);
+  }
+  else
+  {
+    /* Process Unlocked */
+    __HAL_UNLOCK(hdsi);
+
+    return HAL_ERROR;
+  }
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  /* If DSI fifo is not empty, read requested bytes */
+  while (((int32_t)(datasize)) > 0)
+  {
+    if ((hdsi->Instance->GPSR & DSI_GPSR_PRDFE) == 0U)
+    {
+      fifoword = hdsi->Instance->GPDR;
+      nbbytes = (datasize < 4U) ? datasize : 4U;
+
+      for (count = 0U; count < nbbytes; count++)
+      {
+        *pdata = (uint8_t)(fifoword >> (8U * count));
+        pdata++;
+        datasize--;
+      }
+    }
+
+    /* Check for the Timeout */
+    if ((HAL_GetTick() - tickstart) > DSI_TIMEOUT_VALUE)
+    {
+      /* Process Unlocked */
+      __HAL_UNLOCK(hdsi);
+
+      return HAL_TIMEOUT;
+    }
+  }
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hdsi);
+
+  return HAL_OK;
+}

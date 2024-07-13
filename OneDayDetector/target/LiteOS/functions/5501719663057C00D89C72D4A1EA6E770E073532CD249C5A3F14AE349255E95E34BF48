@@ -1,0 +1,36 @@
+void lv_table_set_cell_type(lv_obj_t * table, uint16_t row, uint16_t col, uint8_t type)
+{
+    LV_ASSERT_OBJ(table, LV_OBJX_NAME);
+
+    lv_table_ext_t * ext = lv_obj_get_ext_attr(table);
+    if(col >= ext->col_cnt) {
+        LV_LOG_WARN("lv_table_set_cell_type: invalid column");
+        return;
+    }
+
+    /*Auto expand*/
+    if(row >= ext->row_cnt) {
+        lv_table_set_row_cnt(table, row + 1);
+    }
+
+    uint32_t cell = row * ext->col_cnt + col;
+
+    if(ext->cell_data[cell] == NULL) {
+        ext->cell_data[cell]    = lv_mem_alloc(2); /*+1: trailing '\0; +1: format byte*/
+        LV_ASSERT_MEM(ext->cell_data[cell]);
+        if(ext->cell_data[cell] == NULL) return;
+
+        ext->cell_data[cell][0] = 0;
+        ext->cell_data[cell][1] = '\0';
+    }
+
+    if(type > 0) type--; /*User gives 1,2,3,4 but easier to handle 0, 1, 2, 3*/
+    if(type >= LV_TABLE_CELL_STYLE_CNT) type = LV_TABLE_CELL_STYLE_CNT - 1;
+
+    lv_table_cell_format_t format;
+    format.format_byte      = ext->cell_data[cell][0];
+    format.s.type           = type;
+    ext->cell_data[cell][0] = format.format_byte;
+
+    ext->cell_types |= 1 << type;
+}

@@ -1,0 +1,31 @@
+osThreadId_t osThreadNew(osThreadFunc_t func, void *argument, const osThreadAttr_t *attr)
+{
+    UINT32 ret;
+    UINT32 taskId;
+    TSK_INIT_PARAM_S taskInitParam;
+
+    if ((func == NULL) || (attr == NULL) || OS_INT_ACTIVE) {
+        return NULL;
+    }
+    if ((attr->priority < osPriorityLow3) || (attr->priority > osPriorityHigh)) {
+        PRINT_ERR("[%s] Fail, NOT in adapt priority range: [osPriorityLow3 : osPriorityHigh].\n", __func__);
+        return NULL;
+    }
+
+    /* Ignore the return code when matching CSEC rule 6.6(4). */
+    (VOID)memset_s(&taskInitParam, sizeof(taskInitParam), 0, sizeof(taskInitParam));
+    taskInitParam.pfnTaskEntry = (TSK_ENTRY_FUNC)func;
+    taskInitParam.uwStackSize = attr->stack_size;
+    taskInitParam.pcName = (CHAR *)attr->name;
+    taskInitParam.uwResved = LOS_TASK_STATUS_DETACHED;
+    /* task priority: 0~31 */
+    taskInitParam.usTaskPrio = (UINT16)(OS_TASK_PRIORITY_LOWEST - (attr->priority - LOS_PRIORITY_WIN));
+    LOS_TASK_PARAM_INIT_ARG(taskInitParam, argument);
+
+    ret = LOS_TaskCreate(&taskId, &taskInitParam);
+    if (ret == LOS_OK) {
+        return (osThreadId_t)OS_TCB_FROM_TID(taskId);
+    } else {
+        return NULL;
+    }
+}

@@ -1,0 +1,72 @@
+HAL_StatusTypeDef HAL_SMARTCARD_Init(SMARTCARD_HandleTypeDef *hsc)
+{
+  /* Check the SMARTCARD handle allocation */
+  if(hsc == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_SMARTCARD_INSTANCE(hsc->Instance));
+  assert_param(IS_SMARTCARD_NACK_STATE(hsc->Init.NACKState));
+
+  if(hsc->gState == HAL_SMARTCARD_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hsc->Lock = HAL_UNLOCKED;
+
+#if USE_HAL_SMARTCARD_REGISTER_CALLBACKS == 1
+    SMARTCARD_InitCallbacksToDefault(hsc);
+
+    if (hsc->MspInitCallback == NULL)
+    {
+      hsc->MspInitCallback = HAL_SMARTCARD_MspInit;
+    }
+
+    /* Init the low level hardware */
+    hsc->MspInitCallback(hsc);
+#else
+    /* Init the low level hardware : GPIO, CLOCK */
+    HAL_SMARTCARD_MspInit(hsc);
+#endif /* USE_HAL_SMARTCARD_REGISTER_CALLBACKS */
+  }
+
+  hsc->gState = HAL_SMARTCARD_STATE_BUSY;
+
+  /* Set the Prescaler */
+  MODIFY_REG(hsc->Instance->GTPR, USART_GTPR_PSC, hsc->Init.Prescaler);
+
+  /* Set the Guard Time */
+  MODIFY_REG(hsc->Instance->GTPR, USART_GTPR_GT, ((hsc->Init.GuardTime)<<8U));
+
+  /* Set the Smartcard Communication parameters */
+  SMARTCARD_SetConfig(hsc);
+
+  /* In SmartCard mode, the following bits must be kept cleared:
+  - LINEN bit in the USART_CR2 register
+  - HDSEL and IREN bits in the USART_CR3 register.*/
+  CLEAR_BIT(hsc->Instance->CR2, USART_CR2_LINEN);
+  CLEAR_BIT(hsc->Instance->CR3, (USART_CR3_IREN | USART_CR3_HDSEL));
+
+  /* Enable the SMARTCARD Parity Error Interrupt */
+  SET_BIT(hsc->Instance->CR1, USART_CR1_PEIE);
+
+  /* Enable the SMARTCARD Framing Error Interrupt */
+  SET_BIT(hsc->Instance->CR3, USART_CR3_EIE);
+
+  /* Enable the Peripheral */
+  __HAL_SMARTCARD_ENABLE(hsc);
+
+  /* Configure the Smartcard NACK state */
+  MODIFY_REG(hsc->Instance->CR3, USART_CR3_NACK, hsc->Init.NACKState);
+
+  /* Enable the SC mode by setting the SCEN bit in the CR3 register */
+  hsc->Instance->CR3 |= (USART_CR3_SCEN);
+
+  /* Initialize the SMARTCARD state*/
+  hsc->ErrorCode = HAL_SMARTCARD_ERROR_NONE;
+  hsc->gState= HAL_SMARTCARD_STATE_READY;
+  hsc->RxState= HAL_SMARTCARD_STATE_READY;
+
+  return HAL_OK;
+}

@@ -1,0 +1,55 @@
+HAL_StatusTypeDef HAL_IRDA_Receive_DMA(IRDA_HandleTypeDef *hirda, uint8_t *pData, uint16_t Size)
+{
+  uint32_t *tmp = 0;
+  uint32_t tmp_state = 0;
+
+  tmp_state = hirda->State;
+  if((tmp_state == HAL_IRDA_STATE_READY) || (tmp_state == HAL_IRDA_STATE_BUSY_TX))
+  {
+    if((pData == NULL) || (Size == 0))
+    {
+      return HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hirda);
+
+    hirda->pRxBuffPtr = pData;
+    hirda->RxXferSize = Size;
+    hirda->ErrorCode = HAL_IRDA_ERROR_NONE;
+    if(hirda->State == HAL_IRDA_STATE_BUSY_TX)
+    {
+      hirda->State = HAL_IRDA_STATE_BUSY_TX_RX;
+    }
+    else
+    {
+      hirda->State = HAL_IRDA_STATE_BUSY_RX;
+    }
+
+    /* Set the IRDA DMA transfer complete callback */
+    hirda->hdmarx->XferCpltCallback = IRDA_DMAReceiveCplt;
+
+    /* Set the IRDA DMA half transfert complete callback */
+    hirda->hdmarx->XferHalfCpltCallback = IRDA_DMAReceiveHalfCplt;
+
+    /* Set the DMA error callback */
+    hirda->hdmarx->XferErrorCallback = IRDA_DMAError;
+
+    /* Enable the DMA channel */
+    tmp = (uint32_t*)&pData;
+    HAL_DMA_Start_IT(hirda->hdmarx, (uint32_t)&hirda->Instance->DR, *(uint32_t*)tmp, Size);
+
+    /* Enable the DMA transfer for the receiver request by setting the DMAR bit 
+       in the USART CR3 register */
+    SET_BIT(hirda->Instance->CR3, USART_CR3_DMAR);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hirda);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

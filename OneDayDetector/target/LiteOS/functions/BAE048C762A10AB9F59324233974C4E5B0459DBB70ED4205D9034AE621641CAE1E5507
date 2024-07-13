@@ -1,0 +1,24 @@
+static ssize_t kifs_read(struct file *file, char *buff, size_t bytes)
+{
+    struct kifs_node *node = (struct kifs_node *)file->f_data;
+
+    if ((node->attr & KIFS_ATTR_R) == 0) {
+        VFS_ERRNO_SET(EACCES);
+        return (ssize_t) - 1;
+    }
+
+    if (node->attr & KIFS_ATTR_B) {
+        bytes = bytes > node->size ? node->size : bytes;
+
+        memcpy(buff, node->buff, bytes);
+
+        return bytes;
+    }
+
+    if (node->kiops->read == NULL) {
+        VFS_ERRNO_SET(EACCES);
+        return (ssize_t) - 1;
+    }
+
+    return node->kiops->read(node->arg, buff, bytes);
+}

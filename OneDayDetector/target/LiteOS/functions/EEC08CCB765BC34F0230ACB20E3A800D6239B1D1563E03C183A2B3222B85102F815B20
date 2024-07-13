@@ -1,0 +1,16 @@
+static FRESULT fill_last_frag (
+	FFOBJID* obj,	/* Pointer to the corresponding object */
+	DWORD lcl,		/* Last cluster of the fragment */
+	DWORD term		/* Value to set the last FAT entry */
+)
+{
+	FRESULT res;
+
+
+	while (obj->n_frag > 0) {	/* Create the chain of last fragment */
+		res = put_fat(obj->fs, lcl - obj->n_frag + 1, (obj->n_frag > 1) ? lcl - obj->n_frag + 2 : term);
+		if (res != FR_OK) return res;
+		obj->n_frag--;
+	}
+	return FR_OK;
+}

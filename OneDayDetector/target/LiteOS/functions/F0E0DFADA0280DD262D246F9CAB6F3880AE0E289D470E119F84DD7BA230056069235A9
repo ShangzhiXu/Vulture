@@ -1,0 +1,20 @@
+void lcp_lowerup(ppp_pcb *pcb) {
+    lcp_options *wo = &pcb->lcp_wantoptions;
+    fsm *f = &pcb->lcp_fsm;
+    /*
+     * Don't use A/C or protocol compression on transmission,
+     * but accept A/C and protocol compressed packets
+     * if we are going to ask for A/C and protocol compression.
+     */
+    if (ppp_send_config(pcb, PPP_MRU, 0xffffffff, 0, 0) < 0
+	|| ppp_recv_config(pcb, PPP_MRU, (pcb->settings.lax_recv? 0: 0xffffffff),
+			   wo->neg_pcompression, wo->neg_accompression) < 0)
+	    return;
+    pcb->peer_mru = PPP_MRU;
+
+    if (pcb->settings.listen_time != 0) {
+	f->flags |= DELAYED_UP;
+	TIMEOUTMS(lcp_delayed_up, f, pcb->settings.listen_time);
+    } else
+	fsm_lowerup(f);
+}

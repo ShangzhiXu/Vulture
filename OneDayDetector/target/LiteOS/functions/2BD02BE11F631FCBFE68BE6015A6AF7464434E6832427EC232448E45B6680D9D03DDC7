@@ -1,0 +1,27 @@
+HAL_StatusTypeDef HAL_QSPI_SetFifoThreshold(QSPI_HandleTypeDef *hqspi, uint32_t Threshold)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process locked */
+  __HAL_LOCK(hqspi);
+
+  if(hqspi->State == HAL_QSPI_STATE_READY)
+  {
+    /* Synchronize init structure with new FIFO threshold value */
+    hqspi->Init.FifoThreshold = Threshold;
+    
+    /* Configure QSPI FIFO Threshold */
+    MODIFY_REG(hqspi->Instance->CR, QUADSPI_CR_FTHRES, 
+               ((hqspi->Init.FifoThreshold - 1) << QUADSPI_CR_FTHRES_Pos));
+  }
+  else
+  {
+    status = HAL_BUSY;   
+  }
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hqspi);
+
+  /* Return function status */
+  return status;
+}

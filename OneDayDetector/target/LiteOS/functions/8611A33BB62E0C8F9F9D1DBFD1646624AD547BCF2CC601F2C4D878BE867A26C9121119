@@ -1,0 +1,83 @@
+HAL_StatusTypeDef HAL_EXTI_GetConfigLine(EXTI_HandleTypeDef *hexti, EXTI_ConfigTypeDef *pExtiConfig)
+{
+  uint32_t regval;
+  uint32_t linepos;
+  uint32_t maskline;
+
+  /* Check null pointer */
+  if ((hexti == NULL) || (pExtiConfig == NULL))
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameter */
+  assert_param(IS_EXTI_LINE(hexti->Line));
+
+  /* Store handle line number to configuration structure */
+  pExtiConfig->Line = hexti->Line;
+
+  /* Compute line mask */
+  linepos = (pExtiConfig->Line & EXTI_PIN_MASK);
+  maskline = (1uL << linepos);
+
+  /* 1] Get core mode : interrupt */
+
+  /* Check if selected line is enable */
+  if ((EXTI->IMR & maskline) != 0x00u)
+  {
+    pExtiConfig->Mode = EXTI_MODE_INTERRUPT;
+  }
+  else
+  {
+    pExtiConfig->Mode = EXTI_MODE_NONE;
+  }
+
+  /* Get event mode */
+  /* Check if selected line is enable */
+  if ((EXTI->EMR & maskline) != 0x00u)
+  {
+    pExtiConfig->Mode |= EXTI_MODE_EVENT;
+  }
+
+  /* 2] Get trigger for configurable lines : rising */
+  if ((pExtiConfig->Line & EXTI_CONFIG) != 0x00u)
+  {
+    /* Check if configuration of selected line is enable */
+    if ((EXTI->RTSR & maskline) != 0x00u)
+    {
+      pExtiConfig->Trigger = EXTI_TRIGGER_RISING;
+    }
+    else
+    {
+      pExtiConfig->Trigger = EXTI_TRIGGER_NONE;
+    }
+
+    /* Get falling configuration */
+    /* Check if configuration of selected line is enable */
+    if ((EXTI->FTSR & maskline) != 0x00u)
+    {
+      pExtiConfig->Trigger |= EXTI_TRIGGER_FALLING;
+    }
+
+    /* Get Gpio port selection for gpio lines */
+    if ((pExtiConfig->Line & EXTI_GPIO) == EXTI_GPIO)
+    {
+      assert_param(IS_EXTI_GPIO_PIN(linepos));
+
+      regval = SYSCFG->EXTICR[linepos >> 2u];
+      pExtiConfig->GPIOSel = ((regval << (SYSCFG_EXTICR1_EXTI1_Pos * (3uL - (linepos & 0x03u)))) >> 24);
+    }
+    else
+    {
+      pExtiConfig->GPIOSel = 0x00u;
+    }
+  }
+  else
+  {
+    /* No Trigger selected */
+    pExtiConfig->Trigger = EXTI_TRIGGER_NONE;
+    pExtiConfig->GPIOSel = 0x00u;
+  }
+
+  return HAL_OK;
+}

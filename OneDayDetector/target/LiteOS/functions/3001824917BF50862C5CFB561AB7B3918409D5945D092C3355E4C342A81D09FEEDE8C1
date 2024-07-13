@@ -1,0 +1,66 @@
+HAL_StatusTypeDef HAL_ETH_UnRegisterCallback(ETH_HandleTypeDef *heth, HAL_ETH_CallbackIDTypeDef CallbackID)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process locked */
+  __HAL_LOCK(heth);
+
+  if(heth->State == HAL_ETH_STATE_READY)
+  {
+    switch (CallbackID)
+    {
+    case HAL_ETH_TX_COMPLETE_CB_ID :
+      heth->TxCpltCallback = HAL_ETH_TxCpltCallback;
+      break;
+
+    case HAL_ETH_RX_COMPLETE_CB_ID :
+      heth->RxCpltCallback = HAL_ETH_RxCpltCallback;
+      break;
+
+    case HAL_ETH_DMA_ERROR_CB_ID :
+      heth->DMAErrorCallback = HAL_ETH_ErrorCallback;
+      break;
+
+    case HAL_ETH_MSPINIT_CB_ID :
+      heth->MspInitCallback = HAL_ETH_MspInit;
+      break;
+
+    case HAL_ETH_MSPDEINIT_CB_ID :
+      heth->MspDeInitCallback = HAL_ETH_MspDeInit;
+      break;
+
+    default :
+      /* Return error status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else if(heth->State == HAL_ETH_STATE_RESET)
+  {
+    switch (CallbackID)
+    {
+    case HAL_ETH_MSPINIT_CB_ID :
+      heth->MspInitCallback = HAL_ETH_MspInit;
+      break;
+
+    case HAL_ETH_MSPDEINIT_CB_ID :
+      heth->MspDeInitCallback = HAL_ETH_MspDeInit;
+      break;
+
+    default :
+      /* Return error status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else
+  {
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(heth);
+
+  return status;
+}

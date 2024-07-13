@@ -1,0 +1,32 @@
+HAL_StatusTypeDef HAL_I2CEx_DisableWakeUp(I2C_HandleTypeDef *hi2c)
+{
+  /* Check the parameters */
+  assert_param(IS_I2C_WAKEUP_FROMSTOP_INSTANCE(hi2c->Instance));
+
+  if (hi2c->State == HAL_I2C_STATE_READY)
+  {
+    /* Process Locked */
+    __HAL_LOCK(hi2c);
+
+    hi2c->State = HAL_I2C_STATE_BUSY;
+
+    /* Disable the selected I2C peripheral */
+    __HAL_I2C_DISABLE(hi2c);
+
+    /* Enable wakeup from stop mode */
+    hi2c->Instance->CR1 &= ~(I2C_CR1_WUPEN);
+
+    __HAL_I2C_ENABLE(hi2c);
+
+    hi2c->State = HAL_I2C_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2c);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

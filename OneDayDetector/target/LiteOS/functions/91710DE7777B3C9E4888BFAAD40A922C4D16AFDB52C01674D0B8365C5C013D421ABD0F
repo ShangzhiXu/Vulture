@@ -1,0 +1,176 @@
+HAL_StatusTypeDef HAL_DAC_ConfigChannel(DAC_HandleTypeDef* hdac, DAC_ChannelConfTypeDef* sConfig, uint32_t Channel)
+{
+  uint32_t tmpreg1 = 0, tmpreg2 = 0;
+  uint32_t tickstart = 0;
+#if defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined(STM32L4S9xx)
+  uint32_t hclkfreq = 0;
+#endif /* STM32L4R5xx STM32L4R7xx STM32L4R9xx STM32L4S5xx STM32L4S7xx STM32L4S9xx */ 
+  
+  /* Check the DAC parameters */ 
+#if defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined(STM32L4S9xx)
+  assert_param(IS_DAC_HIGH_FREQUENCY_MODE(sConfig->DAC_HighFrequency)); 
+#endif /* STM32L4R5xx STM32L4R7xx STM32L4R9xx STM32L4S5xx STM32L4S7xx STM32L4S9xx */
+  assert_param(IS_DAC_TRIGGER(sConfig->DAC_Trigger));
+  assert_param(IS_DAC_OUTPUT_BUFFER_STATE(sConfig->DAC_OutputBuffer));
+  assert_param(IS_DAC_CHIP_CONNECTION(sConfig->DAC_ConnectOnChipPeripheral));
+  assert_param(IS_DAC_TRIMMING(sConfig->DAC_UserTrimming));
+  if ((sConfig->DAC_UserTrimming) == DAC_TRIMMING_USER)
+  {
+    assert_param(IS_DAC_TRIMMINGVALUE(sConfig->DAC_TrimmingValue));               
+  }
+  assert_param(IS_DAC_SAMPLEANDHOLD(sConfig->DAC_SampleAndHold));
+  if ((sConfig->DAC_SampleAndHold) == DAC_SAMPLEANDHOLD_ENABLE)
+  {
+    assert_param(IS_DAC_SAMPLETIME(sConfig->DAC_SampleAndHoldConfig.DAC_SampleTime));
+    assert_param(IS_DAC_HOLDTIME(sConfig->DAC_SampleAndHoldConfig.DAC_HoldTime));
+    assert_param(IS_DAC_REFRESHTIME(sConfig->DAC_SampleAndHoldConfig.DAC_RefreshTime)); 
+  }
+  assert_param(IS_DAC_CHANNEL(Channel));
+ 
+  /* Process locked */
+  __HAL_LOCK(hdac);
+  
+  /* Change DAC state */
+  hdac->State = HAL_DAC_STATE_BUSY;
+  
+  if(sConfig->DAC_SampleAndHold == DAC_SAMPLEANDHOLD_ENABLE)
+  /* Sample on old configuration */ 
+  {
+    /* SampleTime */
+    if (Channel == DAC_CHANNEL_1)
+    {
+      /* Get timeout */
+      tickstart = HAL_GetTick();
+      
+      /* SHSR1 can be written when BWST1  equals RESET */
+      while (((hdac->Instance->SR) & DAC_SR_BWST1)!= RESET)
+      {
+        /* Check for the Timeout */
+        if((HAL_GetTick() - tickstart) > TIMEOUT_DAC_CALIBCONFIG)
+        {
+          /* Update error code */
+          SET_BIT(hdac->ErrorCode, HAL_DAC_ERROR_TIMEOUT);
+
+          /* Change the DMA state */
+          hdac->State = HAL_DAC_STATE_TIMEOUT;
+
+          return HAL_TIMEOUT;
+        }
+      }
+      HAL_Delay(1);
+      hdac->Instance->SHSR1 = sConfig->DAC_SampleAndHoldConfig.DAC_SampleTime;
+    }
+#if !defined (STM32L451xx) & !defined (STM32L452xx) & !defined (STM32L462xx) 
+    else /* Channel 2 */
+    {
+      /* SHSR2 can be written when BWST2 equals RESET */
+
+      while (((hdac->Instance->SR) & DAC_SR_BWST2)!= RESET)
+      {
+        /* Check for the Timeout */
+        if((HAL_GetTick() - tickstart) > TIMEOUT_DAC_CALIBCONFIG)
+        {
+          /* Update error code */
+          SET_BIT(hdac->ErrorCode, HAL_DAC_ERROR_TIMEOUT);
+
+          /* Change the DMA state */
+          hdac->State = HAL_DAC_STATE_TIMEOUT;
+
+          return HAL_TIMEOUT;
+        }
+      }
+      HAL_Delay(1);
+      hdac->Instance->SHSR2 = sConfig->DAC_SampleAndHoldConfig.DAC_SampleTime;
+    }
+#endif /* STM32L451xx STM32L452xx STM32L462xx */   
+    
+    /* HoldTime */
+    MODIFY_REG (hdac->Instance->SHHR, DAC_SHHR_THOLD1<<Channel, (sConfig->DAC_SampleAndHoldConfig.DAC_HoldTime)<<Channel);
+    /* RefreshTime */
+    MODIFY_REG (hdac->Instance->SHRR, DAC_SHRR_TREFRESH1<<Channel, (sConfig->DAC_SampleAndHoldConfig.DAC_RefreshTime)<<Channel);
+  }
+    
+  if(sConfig->DAC_UserTrimming == DAC_TRIMMING_USER)
+  /* USER TRIMMING */
+  {
+  /* Get the DAC CCR value */
+  tmpreg1 = hdac->Instance->CCR;
+  /* Clear trimming value */
+  tmpreg1 &= ~(((uint32_t)(DAC_CCR_OTRIM1)) << Channel);
+  /* Configure for the selected trimming offset */
+  tmpreg2 = sConfig->DAC_TrimmingValue;
+  /* Calculate CCR register value depending on DAC_Channel */
+  tmpreg1 |= tmpreg2 << Channel;
+  /* Write to DAC CCR */
+  hdac->Instance->CCR = tmpreg1;
+  }
+  /* else factory trimming is used (factory setting are available at reset)*/
+  /* SW Nothing has nothing to do */
+  
+  /* Get the DAC MCR value */
+  tmpreg1 = hdac->Instance->MCR;
+  /* Clear DAC_MCR_MODE2_0, DAC_MCR_MODE2_1 and DAC_MCR_MODE2_2 bits */
+  tmpreg1 &= ~(((uint32_t)(DAC_MCR_MODE1)) << Channel); 
+  /* Configure for the selected DAC channel: mode, buffer output & on chip peripheral connect */
+  tmpreg2 = (sConfig->DAC_SampleAndHold | sConfig->DAC_OutputBuffer | sConfig->DAC_ConnectOnChipPeripheral);
+  /* Calculate MCR register value depending on DAC_Channel */
+  tmpreg1 |= tmpreg2 << Channel;
+  /* Write to DAC MCR */
+  hdac->Instance->MCR = tmpreg1;
+  
+  /* DAC in normal operating mode hence clear DAC_CR_CENx bit */
+  CLEAR_BIT (hdac->Instance->CR, DAC_CR_CEN1 << Channel);
+  
+  /* Get the DAC CR value */
+  tmpreg1 = hdac->Instance->CR;
+  /* Clear TENx, TSELx, WAVEx and MAMPx bits */
+  tmpreg1 &= ~(((uint32_t)(DAC_CR_MAMP1 | DAC_CR_WAVE1 | DAC_CR_TSEL1 | DAC_CR_TEN1)) << Channel); 
+  /* Configure for the selected DAC channel: trigger */
+  /* Set TSELx and TENx bits according to DAC_Trigger value */
+  tmpreg2 = (sConfig->DAC_Trigger);
+  /* Calculate CR register value depending on DAC_Channel */
+  tmpreg1 |= tmpreg2 << Channel;
+#if defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined(STM32L4S9xx)
+  if(DAC_HIGH_FREQUENCY_INTERFACE_MODE_ABOVE_80MHZ == sConfig->DAC_HighFrequency)
+  {
+    tmpreg1 |= DAC_CR_HFSEL;
+  }
+  else 
+  {
+    if (DAC_HIGH_FREQUENCY_INTERFACE_MODE_DISABLE == sConfig->DAC_HighFrequency)
+    {
+      tmpreg1 &= ~(DAC_CR_HFSEL);
+    }
+    else /* Automatic selection */
+    {
+      hclkfreq = HAL_RCC_GetHCLKFreq();
+      if (hclkfreq > HFSEL_ENABLE_THRESHOLD_80MHZ) 
+      {  
+        /* High frequency enable when HCLK frequency higher than 80   */
+         tmpreg1 |= DAC_CR_HFSEL;
+      }
+      else
+      {
+        /* High frequency disable when HCLK frequency higher than 80  */
+        tmpreg1 &= ~(DAC_CR_HFSEL);
+      }
+    }
+  }
+  
+#endif /* STM32L4R5xx STM32L4R7xx STM32L4R9xx STM32L4S5xx STM32L4S7xx STM32L4S9xx */  
+
+  /* Write to DAC CR */
+  hdac->Instance->CR = tmpreg1;
+      
+  /* Disable wave generation */
+  hdac->Instance->CR &= ~(DAC_CR_WAVE1 << Channel);
+  
+  /* Change DAC state */
+  hdac->State = HAL_DAC_STATE_READY;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hdac);
+  
+  /* Return function status */
+  return HAL_OK;
+}

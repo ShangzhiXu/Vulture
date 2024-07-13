@@ -1,0 +1,46 @@
+udp_connect(struct udp_pcb *pcb, const ip_addr_t *ipaddr, u16_t port)
+{
+  struct udp_pcb *ipcb;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  LWIP_ERROR("udp_connect: invalid pcb", pcb != NULL, return ERR_ARG);
+  LWIP_ERROR("udp_connect: invalid ipaddr", ipaddr != NULL, return ERR_ARG);
+
+  if (pcb->local_port == 0) {
+    err_t err = udp_bind(pcb, &pcb->local_ip, pcb->local_port);
+    if (err != ERR_OK) {
+      return err;
+    }
+  }
+
+  ip_addr_set_ipaddr(&pcb->remote_ip, ipaddr);
+#if LWIP_IPV6 && LWIP_IPV6_SCOPES
+  /* If the given IP address should have a zone but doesn't, assign one now,
+   * using the bound address to make a more informed decision when possible. */
+  if (IP_IS_V6(&pcb->remote_ip) &&
+      ip6_addr_lacks_zone(ip_2_ip6(&pcb->remote_ip), IP6_UNKNOWN)) {
+    ip6_addr_select_zone(ip_2_ip6(&pcb->remote_ip), ip_2_ip6(&pcb->local_ip));
+  }
+#endif /* LWIP_IPV6 && LWIP_IPV6_SCOPES */
+
+  pcb->remote_port = port;
+  pcb->flags |= UDP_FLAGS_CONNECTED;
+
+  LWIP_DEBUGF(UDP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("udp_connect: connected to "));
+  ip_addr_debug_print_val(UDP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE,
+                          pcb->remote_ip);
+  LWIP_DEBUGF(UDP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, (", port %"U16_F")\n", pcb->remote_port));
+
+  /* Insert UDP PCB into the list of active UDP PCBs. */
+  for (ipcb = udp_pcbs; ipcb != NULL; ipcb = ipcb->next) {
+    if (pcb == ipcb) {
+      /* already on the list, just return */
+      return ERR_OK;
+    }
+  }
+  /* PCB not yet on the list, add PCB now */
+  pcb->next = udp_pcbs;
+  udp_pcbs = pcb;
+  return ERR_OK;
+}

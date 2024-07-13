@@ -1,0 +1,19 @@
+int sem_trywait(sem_t *sem)
+{
+    UINT32 ret;
+
+    if ((sem == NULL) || (sem->sem == NULL)) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    ret = LOS_SemPend(sem->sem->semId, LOS_NO_WAIT);
+    if (map_errno(ret) == ENOERR) {
+        return 0;
+    } else {
+        if ((errno != EINVAL) || (ret == LOS_ERRNO_SEM_UNAVAILABLE)) {
+            errno = EAGAIN;
+        }
+        return -1;
+    }
+}

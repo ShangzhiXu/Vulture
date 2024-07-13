@@ -1,0 +1,24 @@
+mdns_read_rr_info(struct mdns_packet *pkt, struct mdns_rr_info *info)
+{
+  u16_t field16, copied;
+  pkt->parse_offset = mdns_readname(pkt->pbuf, pkt->parse_offset, &info->domain);
+  if (pkt->parse_offset == MDNS_READNAME_ERROR) {
+    return ERR_VAL;
+  }
+
+  copied = pbuf_copy_partial(pkt->pbuf, &field16, sizeof(field16), pkt->parse_offset);
+  if (copied != sizeof(field16)) {
+    return ERR_VAL;
+  }
+  pkt->parse_offset += copied;
+  info->type = lwip_ntohs(field16);
+
+  copied = pbuf_copy_partial(pkt->pbuf, &field16, sizeof(field16), pkt->parse_offset);
+  if (copied != sizeof(field16)) {
+    return ERR_VAL;
+  }
+  pkt->parse_offset += copied;
+  info->klass = lwip_ntohs(field16);
+
+  return ERR_OK;
+}

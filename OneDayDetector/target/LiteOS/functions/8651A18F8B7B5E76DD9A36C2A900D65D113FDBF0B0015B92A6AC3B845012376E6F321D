@@ -1,0 +1,138 @@
+static void I2C_Master_ADDR(I2C_HandleTypeDef *hi2c)
+{
+  /* Declaration of temporary variable to prevent undefined behavior of volatile usage */
+  HAL_I2C_ModeTypeDef CurrentMode       = hi2c->Mode;
+  uint32_t CurrentXferOptions           = hi2c->XferOptions;
+  uint32_t Prev_State                   = hi2c->PreviousState;
+
+  if (hi2c->State == HAL_I2C_STATE_BUSY_RX)
+  {
+    if ((hi2c->EventCount == 0U) && (CurrentMode == HAL_I2C_MODE_MEM))
+    {
+      /* Clear ADDR flag */
+      __HAL_I2C_CLEAR_ADDRFLAG(hi2c);
+    }
+    else if ((hi2c->EventCount == 0U) && (hi2c->Init.AddressingMode == I2C_ADDRESSINGMODE_10BIT))
+    {
+      /* Clear ADDR flag */
+      __HAL_I2C_CLEAR_ADDRFLAG(hi2c);
+
+      /* Generate Restart */
+      SET_BIT(hi2c->Instance->CR1, I2C_CR1_START);
+
+      hi2c->EventCount++;
+    }
+    else
+    {
+      if (hi2c->XferCount == 0U)
+      {
+        /* Clear ADDR flag */
+        __HAL_I2C_CLEAR_ADDRFLAG(hi2c);
+
+        /* Generate Stop */
+        SET_BIT(hi2c->Instance->CR1, I2C_CR1_STOP);
+      }
+      else if (hi2c->XferCount == 1U)
+      {
+        if (CurrentXferOptions == I2C_NO_OPTION_FRAME)
+        {
+          /* Disable Acknowledge */
+          CLEAR_BIT(hi2c->Instance->CR1, I2C_CR1_ACK);
+
+          if ((hi2c->Instance->CR2 & I2C_CR2_DMAEN) == I2C_CR2_DMAEN)
+          {
+            /* Disable Acknowledge */
+            CLEAR_BIT(hi2c->Instance->CR1, I2C_CR1_ACK);
+
+            /* Clear ADDR flag */
+            __HAL_I2C_CLEAR_ADDRFLAG(hi2c);
+          }
+          else
+          {
+            /* Clear ADDR flag */
+            __HAL_I2C_CLEAR_ADDRFLAG(hi2c);
+
+            /* Generate Stop */
+            SET_BIT(hi2c->Instance->CR1, I2C_CR1_STOP);
+          }
+        }
+        /* Prepare next transfer or stop current transfer */
+        else if ((CurrentXferOptions != I2C_FIRST_AND_LAST_FRAME) && (CurrentXferOptions != I2C_LAST_FRAME) \
+                 && ((Prev_State != I2C_STATE_MASTER_BUSY_RX) || (CurrentXferOptions == I2C_FIRST_FRAME)))
+        {
+          if ((CurrentXferOptions != I2C_NEXT_FRAME) && (CurrentXferOptions != I2C_FIRST_AND_NEXT_FRAME) && (CurrentXferOptions != I2C_LAST_FRAME_NO_STOP))
+          {
+            /* Disable Acknowledge */
+            CLEAR_BIT(hi2c->Instance->CR1, I2C_CR1_ACK);
+          }
+          else
+          {
+            /* Enable Acknowledge */
+            SET_BIT(hi2c->Instance->CR1, I2C_CR1_ACK);
+          }
+
+          /* Clear ADDR flag */
+          __HAL_I2C_CLEAR_ADDRFLAG(hi2c);
+        }
+        else
+        {
+          /* Disable Acknowledge */
+          CLEAR_BIT(hi2c->Instance->CR1, I2C_CR1_ACK);
+
+          /* Clear ADDR flag */
+          __HAL_I2C_CLEAR_ADDRFLAG(hi2c);
+
+          /* Generate Stop */
+          SET_BIT(hi2c->Instance->CR1, I2C_CR1_STOP);
+        }
+      }
+      else if (hi2c->XferCount == 2U)
+      {
+        if ((CurrentXferOptions != I2C_NEXT_FRAME) && (CurrentXferOptions != I2C_FIRST_AND_NEXT_FRAME) && (CurrentXferOptions != I2C_LAST_FRAME_NO_STOP))
+        {
+          /* Disable Acknowledge */
+          CLEAR_BIT(hi2c->Instance->CR1, I2C_CR1_ACK);
+
+          /* Enable Pos */
+          SET_BIT(hi2c->Instance->CR1, I2C_CR1_POS);
+        }
+        else
+        {
+          /* Enable Acknowledge */
+          SET_BIT(hi2c->Instance->CR1, I2C_CR1_ACK);
+        }
+
+        if (((hi2c->Instance->CR2 & I2C_CR2_DMAEN) == I2C_CR2_DMAEN) && ((CurrentXferOptions == I2C_NO_OPTION_FRAME) || (CurrentXferOptions == I2C_FIRST_FRAME) || (CurrentXferOptions == I2C_FIRST_AND_LAST_FRAME) || (CurrentXferOptions == I2C_LAST_FRAME_NO_STOP) || (CurrentXferOptions == I2C_LAST_FRAME)))
+        {
+          /* Enable Last DMA bit */
+          SET_BIT(hi2c->Instance->CR2, I2C_CR2_LAST);
+        }
+
+        /* Clear ADDR flag */
+        __HAL_I2C_CLEAR_ADDRFLAG(hi2c);
+      }
+      else
+      {
+        /* Enable Acknowledge */
+        SET_BIT(hi2c->Instance->CR1, I2C_CR1_ACK);
+
+        if (((hi2c->Instance->CR2 & I2C_CR2_DMAEN) == I2C_CR2_DMAEN) && ((CurrentXferOptions == I2C_NO_OPTION_FRAME) || (CurrentXferOptions == I2C_FIRST_FRAME) || (CurrentXferOptions == I2C_FIRST_AND_LAST_FRAME) || (CurrentXferOptions == I2C_LAST_FRAME_NO_STOP) || (CurrentXferOptions == I2C_LAST_FRAME)))
+        {
+          /* Enable Last DMA bit */
+          SET_BIT(hi2c->Instance->CR2, I2C_CR2_LAST);
+        }
+
+        /* Clear ADDR flag */
+        __HAL_I2C_CLEAR_ADDRFLAG(hi2c);
+      }
+
+      /* Reset Event counter  */
+      hi2c->EventCount = 0U;
+    }
+  }
+  else
+  {
+    /* Clear ADDR flag */
+    __HAL_I2C_CLEAR_ADDRFLAG(hi2c);
+  }
+}

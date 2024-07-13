@@ -1,0 +1,43 @@
+lv_res_t lv_table_get_pressed_cell(lv_obj_t * table, uint16_t * row, uint16_t * col)
+{
+    lv_table_ext_t * ext = lv_obj_get_ext_attr(table);
+
+    lv_indev_type_t type = lv_indev_get_type(lv_indev_get_act());
+    if(type != LV_INDEV_TYPE_POINTER && type != LV_INDEV_TYPE_BUTTON) {
+        if(col) *col = 0xFFFF;
+        if(row) *row = 0xFFFF;
+        return LV_RES_INV;
+    }
+
+    lv_point_t p;
+    lv_indev_get_point(lv_indev_get_act(), &p);
+
+    lv_coord_t tmp;
+    if(col) {
+        lv_coord_t x = p.x;
+        x -= table->coords.x1;
+        x -= lv_obj_get_style_pad_left(table, LV_TABLE_PART_BG);
+        *col = 0;
+        tmp = 0;
+        for(*col = 0; *col < ext->col_cnt; (*col)++) {
+            tmp += ext->col_w[*col];
+            if(x < tmp) break;
+        }
+    }
+
+    if(row) {
+        lv_coord_t y = p.y;
+        y -= table->coords.y1;
+        y -= lv_obj_get_style_pad_top(table, LV_TABLE_PART_BG);
+
+        *row = 0;
+        tmp = 0;
+
+        for(*row = 0; *row < ext->row_cnt; (*row)++) {
+            tmp += ext->row_h[*row];
+            if(y < tmp) break;
+        }
+    }
+
+    return LV_RES_OK;
+}

@@ -1,0 +1,56 @@
+mdns_readname_loop(struct pbuf *p, u16_t offset, struct mdns_domain *domain, unsigned depth)
+{
+  u8_t c;
+
+  do {
+    if (depth > 5) {
+      /* Too many jumps */
+      return MDNS_READNAME_ERROR;
+    }
+
+    c = pbuf_get_at(p, offset);
+    offset++;
+
+    /* is this a compressed label? */
+    if ((c & 0xc0) == 0xc0) {
+      u16_t jumpaddr;
+      if (offset >= p->tot_len) {
+        /* Make sure both jump bytes fit in the packet */
+        return MDNS_READNAME_ERROR;
+      }
+      jumpaddr = (((c & 0x3f) << 8) | (pbuf_get_at(p, offset) & 0xff));
+      offset++;
+      if (jumpaddr >= SIZEOF_DNS_HDR && jumpaddr < p->tot_len) {
+        u16_t res;
+        /* Recursive call, maximum depth will be checked */
+        res = mdns_readname_loop(p, jumpaddr, domain, depth + 1);
+        /* Dont return offset since new bytes were not read (jumped to somewhere in packet) */
+        if (res == MDNS_READNAME_ERROR) {
+          return res;
+        }
+      } else {
+        return MDNS_READNAME_ERROR;
+      }
+      break;
+    }
+
+    /* normal label */
+    if (c <= MDNS_LABEL_MAXLEN) {
+      err_t res;
+
+      if (c + domain->length >= MDNS_DOMAIN_MAXLEN) {
+        return MDNS_READNAME_ERROR;
+      }
+      res = mdns_domain_add_label_pbuf(domain, p, offset, c);
+      if (res != ERR_OK) {
+        return MDNS_READNAME_ERROR;
+      }
+      offset += c;
+    } else {
+      /* bad length byte */
+      return MDNS_READNAME_ERROR;
+    }
+  } while (c != 0);
+
+  return offset;
+}

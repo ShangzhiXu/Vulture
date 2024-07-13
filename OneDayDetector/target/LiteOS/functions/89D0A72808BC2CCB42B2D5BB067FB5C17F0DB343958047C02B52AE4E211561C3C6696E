@@ -1,0 +1,16 @@
+sntp_stop(void)
+{
+  LWIP_ASSERT_CORE_LOCKED();
+  if (sntp_pcb != NULL) {
+#if SNTP_MONITOR_SERVER_REACHABILITY
+    u8_t i;
+    for (i = 0; i < SNTP_MAX_SERVERS; i++) {
+      sntp_servers[i].reachability = 0;
+    }
+#endif /* SNTP_MONITOR_SERVER_REACHABILITY */
+    sys_untimeout(sntp_request, NULL);
+    sys_untimeout(sntp_try_next_server, NULL);
+    udp_remove(sntp_pcb);
+    sntp_pcb = NULL;
+  }
+}

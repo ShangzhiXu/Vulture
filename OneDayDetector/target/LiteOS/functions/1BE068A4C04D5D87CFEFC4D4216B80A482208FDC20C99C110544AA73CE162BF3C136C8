@@ -1,0 +1,21 @@
+UINTPTR CalculateBLTargetAddress(UINTPTR bl)
+{
+    UINTPTR target = 0;
+    UINT32 off0, off1, off;
+
+    if (*(UINT16 *)bl & SIGN_BIT_MASK) {
+        off1 = *(UINT16 *)bl & LOW_11_BITS_MASK;
+        off0 = *(UINT16 *)(bl + 2) & LOW_11_BITS_MASK;
+    } else {
+        off0 = *(UINT16 *)bl & LOW_11_BITS_MASK;
+        off1 = *(UINT16 *)(bl + 2) & LOW_11_BITS_MASK;
+    }
+    off = (off0 << HIGH_OFFSET_NUMBER) + (off1 << LOW_OFFSET_NUMBER);
+    if (off & SIGN_BIT_MASK) {
+        target = bl + BL_CMD_OFFSET - ((~(off - 1)) & 0x7FFFFF); // 0x7FFFFF : offset mask
+    } else {
+        target = bl + BL_CMD_OFFSET + off;
+    }
+
+    return target;
+}

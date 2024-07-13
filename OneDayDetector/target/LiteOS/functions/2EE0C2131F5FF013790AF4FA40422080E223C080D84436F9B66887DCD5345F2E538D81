@@ -1,0 +1,14 @@
+STATIC UINT32 OsTlvEncode(const TlvTable *table, UINT8 *srcBuf, UINT8 *tlvBuf, INT32 tlvBufLen)
+{
+    UINT32 len = 0;
+    const TlvTable *tlvTableItem = table;
+
+    while (tlvTableItem->tag != TRACE_TLV_TYPE_NULL) {
+        if ((len + tlvTableItem->elemSize + sizeof(UINT8) + sizeof(UINT8)) > tlvBufLen) {
+            break;
+        }
+        len += OsWriteTlv(tlvBuf + len, tlvTableItem->tag, tlvTableItem->elemSize, srcBuf + tlvTableItem->elemOffset);
+        tlvTableItem++;
+    }
+    return len;
+}

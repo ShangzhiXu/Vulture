@@ -1,0 +1,85 @@
+static HAL_StatusTypeDef RCC_SetFlashLatencyFromMSIRange(uint32_t msirange)
+{
+  uint32_t vos = 0;
+  uint32_t latency = FLASH_LATENCY_0;  /* default value 0WS */
+
+  if(__HAL_RCC_PWR_IS_CLK_ENABLED())
+  {
+    vos = HAL_PWREx_GetVoltageRange();
+  }
+  else
+  {
+    __HAL_RCC_PWR_CLK_ENABLE();
+    vos = HAL_PWREx_GetVoltageRange();
+    __HAL_RCC_PWR_CLK_DISABLE();
+  }
+
+  if(vos == PWR_REGULATOR_VOLTAGE_SCALE1)
+  {
+    if(msirange > RCC_MSIRANGE_8)
+    {
+      /* MSI > 16Mhz */
+      if(msirange > RCC_MSIRANGE_10)
+      {
+        /* MSI 48Mhz */
+        latency = FLASH_LATENCY_2; /* 2WS */
+      }
+      else
+      {
+        /* MSI 24Mhz or 32Mhz */
+        latency = FLASH_LATENCY_1; /* 1WS */
+      }
+    }
+    /* else MSI <= 16Mhz default FLASH_LATENCY_0 0WS */
+  }
+  else
+  {
+#if defined(STM32L4R5xx) || defined(STM32L4R7xx) || defined(STM32L4R9xx) || defined(STM32L4S5xx) || defined(STM32L4S7xx) || defined(STM32L4S9xx)
+    if(msirange >= RCC_MSIRANGE_8)
+    {
+      /* MSI >= 16Mhz */
+      latency = FLASH_LATENCY_2; /* 2WS */
+    }
+    else
+    {
+      if(msirange == RCC_MSIRANGE_7)
+      {
+        /* MSI 8Mhz */
+        latency = FLASH_LATENCY_1; /* 1WS */
+      }
+      /* else MSI < 8Mhz default FLASH_LATENCY_0 0WS */
+    }
+#else
+    if(msirange > RCC_MSIRANGE_8)
+    {
+      /* MSI > 16Mhz */
+      latency = FLASH_LATENCY_3; /* 3WS */
+    }
+    else
+    {
+      if(msirange == RCC_MSIRANGE_8)
+      {
+        /* MSI 16Mhz */
+        latency = FLASH_LATENCY_2; /* 2WS */
+      }
+      else if(msirange == RCC_MSIRANGE_7)
+      {
+        /* MSI 8Mhz */
+        latency = FLASH_LATENCY_1; /* 1WS */
+      }
+      /* else MSI < 8Mhz default FLASH_LATENCY_0 0WS */
+    }
+#endif
+  }
+
+  __HAL_FLASH_SET_LATENCY(latency);
+
+  /* Check that the new number of wait states is taken into account to access the Flash
+     memory by reading the FLASH_ACR register */
+  if(READ_BIT(FLASH->ACR, FLASH_ACR_LATENCY) != latency)
+  {
+    return HAL_ERROR;
+  }
+
+  return HAL_OK;
+}

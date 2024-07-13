@@ -1,0 +1,45 @@
+int ramfs_mount(const char *path, size_t block_size)
+{
+    struct ramfs_mount_point *rmp;
+
+    if (strlen(path) >= LOS_MAX_FILE_NAME_LEN) {
+        return LOS_NOK;
+    }
+
+    rmp = (struct ramfs_mount_point *)malloc(sizeof(struct ramfs_mount_point));
+    if (rmp == NULL) {
+        PRINT_ERR("fail to malloc memory in RAMFS, <malloc.c> is needed,"
+            "make sure it is added\n");
+        return LOS_NOK;
+    }
+
+    memset(rmp, 0, sizeof(struct ramfs_mount_point));
+    rmp->root.type = RAMFS_TYPE_DIR;
+    strncpy(rmp->root.name, path, LOS_MAX_FILE_NAME_LEN);
+    rmp->memory = malloc(block_size);
+
+    if (rmp->memory == NULL) {
+        PRINT_ERR("fail to malloc memory in RAMFS, <malloc.c> is needed,"
+            "make sure it is added\n");
+        PRINT_ERR("failed to allocate memory\n");
+        return LOS_NOK;
+    }
+
+    if (LOS_MemInit(rmp->memory, block_size) != LOS_OK) {
+        PRINT_ERR("failed to init pool\n");
+        free(rmp->memory);
+        return LOS_NOK;
+    }
+
+    if (los_fs_mount("ramfs", path, rmp) == LOS_OK) {
+        PRINT_INFO("ramfs mount at %s done!\n", path);
+        return LOS_OK;
+    }
+
+    PRINT_ERR("failed to register fs!\n");
+
+    free(rmp->memory);
+    free(rmp);
+
+    return LOS_NOK;
+}

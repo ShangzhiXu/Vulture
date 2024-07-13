@@ -1,0 +1,69 @@
+void TIM_OC2_SetConfig(TIM_TypeDef *TIMx, TIM_OC_InitTypeDef *OC_Config)
+{
+  uint32_t tmpccmrx = 0;
+  uint32_t tmpccer = 0;
+  uint32_t tmpcr2 = 0;
+
+  /* Disable the Channel 2: Reset the CC2E Bit */
+  TIMx->CCER &= ~TIM_CCER_CC2E;
+
+  /* Get the TIMx CCER register value */
+  tmpccer = TIMx->CCER;
+  /* Get the TIMx CR2 register value */
+  tmpcr2 =  TIMx->CR2;
+
+  /* Get the TIMx CCMR1 register value */
+  tmpccmrx = TIMx->CCMR1;
+
+  /* Reset the Output Compare mode and Capture/Compare selection Bits */
+  tmpccmrx &= ~TIM_CCMR1_OC2M;
+  tmpccmrx &= ~TIM_CCMR1_CC2S;
+
+  /* Select the Output Compare Mode */
+  tmpccmrx |= (OC_Config->OCMode << 8);
+
+  /* Reset the Output Polarity level */
+  tmpccer &= ~TIM_CCER_CC2P;
+  /* Set the Output Compare Polarity */
+  tmpccer |= (OC_Config->OCPolarity << 4);
+
+  if(IS_TIM_CCXN_INSTANCE(TIMx, TIM_CHANNEL_2))
+  {
+    assert_param(IS_TIM_OCN_POLARITY(OC_Config->OCNPolarity));
+
+    /* Reset the Output N Polarity level */
+    tmpccer &= ~TIM_CCER_CC2NP;
+    /* Set the Output N Polarity */
+    tmpccer |= (OC_Config->OCNPolarity << 4);
+    /* Reset the Output N State */
+    tmpccer &= ~TIM_CCER_CC2NE;
+
+  }
+
+  if(IS_TIM_BREAK_INSTANCE(TIMx))
+  {
+    /* Check parameters */
+    assert_param(IS_TIM_OCNIDLE_STATE(OC_Config->OCNIdleState));
+    assert_param(IS_TIM_OCIDLE_STATE(OC_Config->OCIdleState));
+
+    /* Reset the Output Compare and Output Compare N IDLE State */
+    tmpcr2 &= ~TIM_CR2_OIS2;
+    tmpcr2 &= ~TIM_CR2_OIS2N;
+    /* Set the Output Idle state */
+    tmpcr2 |= (OC_Config->OCIdleState << 2);
+    /* Set the Output N Idle state */
+    tmpcr2 |= (OC_Config->OCNIdleState << 2);
+  }
+
+  /* Write to TIMx CR2 */
+  TIMx->CR2 = tmpcr2;
+
+  /* Write to TIMx CCMR1 */
+  TIMx->CCMR1 = tmpccmrx;
+
+  /* Set the Capture Compare Register value */
+  TIMx->CCR2 = OC_Config->Pulse;
+
+  /* Write to TIMx CCER */
+  TIMx->CCER = tmpccer;
+}

@@ -1,0 +1,110 @@
+static cJSON *sort_list(cJSON *list, const cJSON_bool case_sensitive)
+{
+    cJSON *first = list;
+    cJSON *second = list;
+    cJSON *current_item = list;
+    cJSON *result = list;
+    cJSON *result_tail = NULL;
+
+    if ((list == NULL) || (list->next == NULL))
+    {
+        /* One entry is sorted already. */
+        return result;
+    }
+
+    while ((current_item != NULL) && (current_item->next != NULL) && (compare_strings((unsigned char*)current_item->string, (unsigned char*)current_item->next->string, case_sensitive) < 0))
+    {
+        /* Test for list sorted. */
+        current_item = current_item->next;
+    }
+    if ((current_item == NULL) || (current_item->next == NULL))
+    {
+        /* Leave sorted lists unmodified. */
+        return result;
+    }
+
+    /* reset pointer to the beginning */
+    current_item = list;
+    while (current_item != NULL)
+    {
+        /* Walk two pointers to find the middle. */
+        second = second->next;
+        current_item = current_item->next;
+        /* advances current_item two steps at a time */
+        if (current_item != NULL)
+        {
+            current_item = current_item->next;
+        }
+    }
+    if ((second != NULL) && (second->prev != NULL))
+    {
+        /* Split the lists */
+        second->prev->next = NULL;
+        second->prev = NULL;
+    }
+
+    /* Recursively sort the sub-lists. */
+    first = sort_list(first, case_sensitive);
+    second = sort_list(second, case_sensitive);
+    result = NULL;
+
+    /* Merge the sub-lists */
+    while ((first != NULL) && (second != NULL))
+    {
+        cJSON *smaller = NULL;
+        if (compare_strings((unsigned char*)first->string, (unsigned char*)second->string, case_sensitive) < 0)
+        {
+            smaller = first;
+        }
+        else
+        {
+            smaller = second;
+        }
+
+        if (result == NULL)
+        {
+            /* start merged list with the smaller element */
+            result_tail = smaller;
+            result = smaller;
+        }
+        else
+        {
+            /* add smaller element to the list */
+            result_tail->next = smaller;
+            smaller->prev = result_tail;
+            result_tail = smaller;
+        }
+
+        if (first == smaller)
+        {
+            first = first->next;
+        }
+        else
+        {
+            second = second->next;
+        }
+    }
+
+    if (first != NULL)
+    {
+        /* Append rest of first list. */
+        if (result == NULL)
+        {
+            return first;
+        }
+        result_tail->next = first;
+        first->prev = result_tail;
+    }
+    if (second != NULL)
+    {
+        /* Append rest of second list */
+        if (result == NULL)
+        {
+            return second;
+        }
+        result_tail->next = second;
+        second->prev = result_tail;
+    }
+
+    return result;
+}

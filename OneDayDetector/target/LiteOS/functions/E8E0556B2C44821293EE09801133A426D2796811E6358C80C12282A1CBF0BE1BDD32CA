@@ -1,0 +1,24 @@
+int lwm2m_buffer_recv(void *sessionH, uint8_t *buffer, size_t length, uint32_t timeout)
+{
+    connection_t *connP = (connection_t *) sessionH;
+    int ret = -1;
+    const int TIME_OUT = -2;
+
+    timeout *= 1000;
+#ifdef LOSCFG_COMPONENTS_SECURITY_MBEDTLS
+    if (connP->dtls_flag == true) {
+        // security
+        ret = dtls_read(connP->net_context, buffer, length, timeout);
+    } else
+#endif
+    {
+        ret = atiny_net_recv_timeout(connP->net_context, buffer, length, timeout);
+    }
+
+    if ((ret < 0) && (ret != TIME_OUT)) {
+        inc_connection_stat(connP, CONNECTION_RECV_ERR);
+    } else {
+        connP->errs[CONNECTION_RECV_ERR] = 0;
+    }
+    return ret;
+}

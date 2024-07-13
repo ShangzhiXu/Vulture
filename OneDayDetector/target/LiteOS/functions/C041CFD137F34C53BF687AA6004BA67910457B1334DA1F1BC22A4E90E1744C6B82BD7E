@@ -1,0 +1,121 @@
+HAL_StatusTypeDef HAL_OSPI_Receive_DMA(OSPI_HandleTypeDef *hospi, uint8_t *pData)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t *tmp;
+  uint32_t data_size = hospi->Instance->DLR + 1;
+  uint32_t addr_reg = hospi->Instance->AR;
+  uint32_t ir_reg = hospi->Instance->IR;
+
+  /* Check the data pointer allocation */
+  if (pData == NULL)
+  {
+    status = HAL_ERROR;
+    hospi->ErrorCode = HAL_OSPI_ERROR_INVALID_PARAM;
+  }
+  else
+  {
+    /* Check the state */
+    if (hospi->State == HAL_OSPI_STATE_CMD_CFG)
+    {
+      /* Configure counters and size */
+      if (hospi->hdma->Init.PeriphDataAlignment == DMA_PDATAALIGN_BYTE)
+      {
+        hospi->XferCount = data_size;
+      }
+      else if (hospi->hdma->Init.PeriphDataAlignment == DMA_PDATAALIGN_HALFWORD)
+      {
+        if (((data_size % 2) != 0) || ((hospi->Init.FifoThreshold % 2) != 0))
+        {
+          /* The number of data or the fifo threshold is not aligned on halfword 
+          => no transfer possible with DMA peripheral access configured as halfword */
+          hospi->ErrorCode = HAL_OSPI_ERROR_INVALID_PARAM;
+          status = HAL_ERROR;
+        }
+        else
+        {
+          hospi->XferCount = (data_size >> 1);
+        }
+      }
+      else if (hospi->hdma->Init.PeriphDataAlignment == DMA_PDATAALIGN_WORD)
+      {
+        if (((data_size % 4) != 0) || ((hospi->Init.FifoThreshold % 4) != 0))
+        {
+          /* The number of data or the fifo threshold is not aligned on word 
+          => no transfer possible with DMA peripheral access configured as word */
+          hospi->ErrorCode = HAL_OSPI_ERROR_INVALID_PARAM;
+          status = HAL_ERROR;
+        }
+        else
+        {
+          hospi->XferCount = (data_size >> 2);
+        }
+      }
+
+      if (status == HAL_OK)
+      {
+        hospi->XferSize  = hospi->XferCount;
+        hospi->pBuffPtr  = pData;
+      
+        /* Configure CR register with functional mode as indirect read */
+        MODIFY_REG(hospi->Instance->CR, OCTOSPI_CR_FMODE, OSPI_FUNCTIONAL_MODE_INDIRECT_READ);
+      
+        /* Clear flags related to interrupt */
+        __HAL_OSPI_CLEAR_FLAG(hospi, HAL_OSPI_FLAG_TE | HAL_OSPI_FLAG_TC);
+
+        /* Update the state */
+        hospi->State = HAL_OSPI_STATE_BUSY_RX;
+
+        /* Set the DMA transfer complete callback */
+        hospi->hdma->XferCpltCallback = OSPI_DMACplt;
+        
+        /* Set the DMA Half transfer complete callback */
+        hospi->hdma->XferHalfCpltCallback = OSPI_DMAHalfCplt;
+        
+        /* Set the DMA error callback */
+        hospi->hdma->XferErrorCallback = OSPI_DMAError;
+        
+        /* Clear the DMA abort callback */      
+        hospi->hdma->XferAbortCallback = NULL;
+        
+        /* Configure the direction of the DMA */
+        hospi->hdma->Init.Direction = DMA_PERIPH_TO_MEMORY;
+        MODIFY_REG(hospi->hdma->Instance->CCR, DMA_CCR_DIR, hospi->hdma->Init.Direction);
+
+        /* Enable the transmit DMA Channel */
+        tmp = (uint32_t*)((void *)&pData);
+        HAL_DMA_Start_IT(hospi->hdma, (uint32_t)&hospi->Instance->DR, *(uint32_t*)tmp, hospi->XferSize);
+
+        /* Enable the transfer error interrupt */
+        __HAL_OSPI_ENABLE_IT(hospi, HAL_OSPI_IT_TE);
+
+        /* Trig the transfer by re-writing address or instruction register */
+        if (hospi->Init.MemoryType == HAL_OSPI_MEMTYPE_HYPERBUS)
+        {
+          WRITE_REG(hospi->Instance->AR, addr_reg);
+        }
+        else
+        {
+          if (READ_BIT(hospi->Instance->CCR, OCTOSPI_CCR_ADMODE) != HAL_OSPI_ADDRESS_NONE)
+          {
+            WRITE_REG(hospi->Instance->AR, addr_reg);
+          }
+          else
+          {
+            WRITE_REG(hospi->Instance->IR, ir_reg);
+          }
+        }
+
+        /* Enable the DMA transfer by setting the DMAEN bit  */
+        SET_BIT(hospi->Instance->CR, OCTOSPI_CR_DMAEN);
+      }
+    }
+    else
+    {
+      status = HAL_ERROR;
+      hospi->ErrorCode = HAL_OSPI_ERROR_INVALID_SEQUENCE;
+    }
+  }
+
+  /* Return function status */
+  return status;
+}

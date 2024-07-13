@@ -1,0 +1,24 @@
+uint32_t HAL_CAN_GetRxFifoFillLevel(CAN_HandleTypeDef *hcan, uint32_t RxFifo)
+{
+  uint32_t filllevel = 0U;
+  HAL_CAN_StateTypeDef state = hcan->State;
+
+  /* Check function parameters */
+  assert_param(IS_CAN_RX_FIFO(RxFifo));
+
+  if ((state == HAL_CAN_STATE_READY) ||
+      (state == HAL_CAN_STATE_LISTENING))
+  {
+    if (RxFifo == CAN_RX_FIFO0)
+    {
+      filllevel = hcan->Instance->RF0R & CAN_RF0R_FMP0;
+    }
+    else /* RxFifo == CAN_RX_FIFO1 */
+    {
+      filllevel = hcan->Instance->RF1R & CAN_RF1R_FMP1;
+    }
+  }
+
+  /* Return Rx FIFO fill level */
+  return filllevel;
+}

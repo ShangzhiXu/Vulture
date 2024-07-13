@@ -1,0 +1,40 @@
+void md4_update( md4_context *ctx, const unsigned char *input, int ilen )
+{
+    int fill;
+    unsigned long left;
+
+    if( ilen <= 0 )
+        return;
+
+    left = ctx->total[0] & 0x3F;
+    fill = 64 - left;
+
+    ctx->total[0] += ilen;
+    ctx->total[0] &= 0xFFFFFFFF;
+
+    if( ctx->total[0] < (unsigned long) ilen )
+        ctx->total[1]++;
+
+    if( left && ilen >= fill )
+    {
+        MEMCPY( (void *) (ctx->buffer + left),
+                input, fill );
+        md4_process( ctx, ctx->buffer );
+        input += fill;
+        ilen  -= fill;
+        left = 0;
+    }
+
+    while( ilen >= 64 )
+    {
+        md4_process( ctx, input );
+        input += 64;
+        ilen  -= 64;
+    }
+
+    if( ilen > 0 )
+    {
+        MEMCPY( (void *) (ctx->buffer + left),
+                input, ilen );
+    }
+}

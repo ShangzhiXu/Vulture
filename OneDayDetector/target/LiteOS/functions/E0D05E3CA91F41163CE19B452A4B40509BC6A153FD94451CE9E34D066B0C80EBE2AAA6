@@ -1,0 +1,15 @@
+tls_free(void *ptr)
+{
+  altcp_mbedtls_malloc_helper_t *hlpr;
+  if (ptr == NULL) {
+    /* this obviously happened in mbedtls... */
+    return;
+  }
+  hlpr = ((altcp_mbedtls_malloc_helper_t *)ptr) - 1;
+#if ALTCP_MBEDTLS_PLATFORM_ALLOC_STATS
+  if (!altcp_mbedtls_malloc_clear_stats) {
+    altcp_mbedtls_malloc_stats.allocedBytes -= hlpr->c * hlpr->len;
+  }
+#endif
+  mem_free(hlpr);
+}

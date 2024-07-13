@@ -1,0 +1,19 @@
+ip4_output_if_opt(struct pbuf *p, const ip4_addr_t *src, const ip4_addr_t *dest,
+                  u8_t ttl, u8_t tos, u8_t proto, struct netif *netif, void *ip_options,
+                  u16_t optlen)
+{
+#endif /* IP_OPTIONS_SEND */
+  const ip4_addr_t *src_used = src;
+  if (dest != LWIP_IP_HDRINCL) {
+    if (ip4_addr_isany(src)) {
+      src_used = netif_ip4_addr(netif);
+    }
+  }
+
+#if IP_OPTIONS_SEND
+  return ip4_output_if_opt_src(p, src_used, dest, ttl, tos, proto, netif,
+                               ip_options, optlen);
+#else /* IP_OPTIONS_SEND */
+  return ip4_output_if_src(p, src_used, dest, ttl, tos, proto, netif);
+#endif /* IP_OPTIONS_SEND */
+}

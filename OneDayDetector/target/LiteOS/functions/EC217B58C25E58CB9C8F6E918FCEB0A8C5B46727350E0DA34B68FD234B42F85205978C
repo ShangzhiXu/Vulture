@@ -1,0 +1,81 @@
+static lv_bidi_dir_t get_next_run(const char * txt, lv_bidi_dir_t base_dir, uint32_t max_len, uint32_t * len,
+                                  uint16_t  * pos_conv_len)
+{
+    uint32_t i = 0;
+    uint32_t letter;
+
+    uint16_t pos_conv_i = 0;
+
+    letter = _lv_txt_encoded_next(txt, NULL);
+    lv_bidi_dir_t dir = lv_bidi_get_letter_dir(letter);
+    if(dir == LV_BIDI_DIR_NEUTRAL)  dir = bracket_process(txt, 0, max_len, letter, base_dir);
+
+    /*Find the first strong char. Skip the neutrals*/
+    while(dir == LV_BIDI_DIR_NEUTRAL || dir == LV_BIDI_DIR_WEAK) {
+        letter = _lv_txt_encoded_next(txt, &i);
+        pos_conv_i++;
+        dir = lv_bidi_get_letter_dir(letter);
+        if(dir == LV_BIDI_DIR_NEUTRAL)  dir = bracket_process(txt, i, max_len, letter, base_dir);
+
+        if(i >= max_len || txt[i] == '\0' || txt[i] == '\n' || txt[i] == '\r') {
+            *len = i;
+            *pos_conv_len = pos_conv_i;
+            return base_dir;
+        }
+    }
+
+    lv_bidi_dir_t run_dir = dir;
+
+    uint32_t i_prev = i;
+    uint32_t i_last_strong = i;
+    uint16_t pos_conv_i_prev = pos_conv_i;
+    uint16_t pos_conv_i_last_strong = pos_conv_i;
+
+    /*Find the next char which has different direction*/
+    lv_bidi_dir_t next_dir = base_dir;
+    while(i_prev < max_len && txt[i] != '\0' && txt[i] != '\n' && txt[i] != '\r') {
+        letter = _lv_txt_encoded_next(txt, &i);
+        pos_conv_i++;
+        next_dir  = lv_bidi_get_letter_dir(letter);
+        if(next_dir == LV_BIDI_DIR_NEUTRAL)  next_dir = bracket_process(txt, i, max_len, letter, base_dir);
+
+        /*New dir found?*/
+        if((next_dir == LV_BIDI_DIR_RTL || next_dir == LV_BIDI_DIR_LTR) && next_dir != run_dir) {
+            /*Include neutrals if `run_dir == base_dir` */
+            if(run_dir == base_dir) {
+                *len = i_prev;
+                *pos_conv_len = pos_conv_i_prev;
+            }
+            /*Exclude neutrals if `run_dir != base_dir` */
+            else {
+                *len = i_last_strong;
+                *pos_conv_len = pos_conv_i_last_strong;
+            }
+
+            return run_dir;
+        }
+
+        if(next_dir != LV_BIDI_DIR_NEUTRAL) {
+            i_last_strong = i;
+            pos_conv_i_last_strong = pos_conv_i;
+        }
+
+        i_prev = i;
+        pos_conv_i_prev = pos_conv_i;
+    }
+
+    /*Handle end of of string. Apply `base_dir` on trailing neutrals*/
+
+    /*Include neutrals if `run_dir == base_dir` */
+    if(run_dir == base_dir) {
+        *len = i_prev;
+        *pos_conv_len = pos_conv_i_prev;
+    }
+    /*Exclude neutrals if `run_dir != base_dir` */
+    else {
+        *len = i_last_strong;
+        *pos_conv_len = pos_conv_i_last_strong;
+    }
+
+    return run_dir;
+}

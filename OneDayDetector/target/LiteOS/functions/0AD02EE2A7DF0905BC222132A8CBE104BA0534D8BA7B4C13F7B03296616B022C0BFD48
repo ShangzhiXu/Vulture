@@ -1,0 +1,16 @@
+HAL_StatusTypeDef USB_DoPing(USB_OTG_GlobalTypeDef *USBx , uint8_t ch_num)
+{
+  uint8_t  num_packets = 1;
+  uint32_t tmpreg = 0;
+  
+  USBx_HC(ch_num)->HCTSIZ = ((num_packets << 19) & USB_OTG_HCTSIZ_PKTCNT) |\
+                                USB_OTG_HCTSIZ_DOPING;
+  
+  /* Set host channel enable */
+  tmpreg = USBx_HC(ch_num)->HCCHAR;
+  tmpreg &= ~USB_OTG_HCCHAR_CHDIS;
+  tmpreg |= USB_OTG_HCCHAR_CHENA;
+  USBx_HC(ch_num)->HCCHAR = tmpreg;
+  
+  return HAL_OK;  
+}

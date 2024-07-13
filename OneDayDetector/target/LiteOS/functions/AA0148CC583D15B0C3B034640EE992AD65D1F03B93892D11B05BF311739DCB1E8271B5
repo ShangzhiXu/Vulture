@@ -1,0 +1,52 @@
+VOID OsLockDepCheckIn(const SPIN_LOCK_S *lock)
+{
+    UINT32 intSave;
+    enum LockDepErrType checkResult = LOCKDEP_SUCEESS;
+    VOID *requestAddr = (VOID *)__builtin_return_address(0);
+    LosTaskCB *current = OsCurrTaskGet();
+    LockDep *lockDep = &current->lockDep;
+    LosTaskCB *lockOwner = NULL;
+
+    if (lock == NULL) {
+        return;
+    }
+    OsLockDepRequire(&intSave);
+
+    if (lockDep->lockDepth >= (INT32)MAX_LOCK_DEPTH) {
+        checkResult = LOCKDEP_ERR_OVERFLOW;
+        goto OUT;
+    }
+
+    lockOwner = lock->owner;
+    /* not owned by any tasks yet, not doing following checks */
+    if (lockOwner == SPINLOCK_OWNER_INIT) {
+        goto OUT;
+    }
+
+    if (current == lockOwner) {
+        checkResult = LOCKDEP_ERR_DOUBLE_LOCK;
+        goto OUT;
+    }
+
+    if (OsLockDepCheckDependancy(current, lockOwner) != TRUE) {
+        checkResult = LOCKDEP_ERR_DEAD_LOCK;
+        goto OUT;
+    }
+
+OUT:
+    if (checkResult == LOCKDEP_SUCEESS) {
+        /*
+         * though the check may succeed, the waitLock still need to be set.
+         * because the OsLockDepCheckIn and OsLockDepRecord is not strictly muti-core
+         * sequential, there would be more than two tasks can pass the checking, but
+         * only one task can successfully obtain the lock.
+         */
+        lockDep->waitLock = (SPIN_LOCK_S *)lock;
+        lockDep->heldLocks[lockDep->lockDepth].lockAddr = requestAddr;
+        lockDep->heldLocks[lockDep->lockDepth].waitTime = OsLockDepGetCycles(); /* start time */
+    } else {
+        OsLockDepDumpLock(current, lock, requestAddr, checkResult);
+    }
+
+    OsLockDepRelease(intSave);
+}

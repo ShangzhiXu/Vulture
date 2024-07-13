@@ -1,0 +1,55 @@
+HAL_SD_ErrorTypedef HAL_SD_CheckWriteOperation(SD_HandleTypeDef *hsd, uint32_t Timeout)
+{
+  HAL_SD_ErrorTypedef errorstate = SD_OK;
+  uint32_t timeout = Timeout;
+  uint32_t tmp1, tmp2;
+  HAL_SD_ErrorTypedef tmp3;
+
+  /* Wait for DMA/SD transfer end or SD error variables to be in SD handle */
+  tmp1 = hsd->DmaTransferCplt; 
+  tmp2 = hsd->SdTransferCplt;
+  tmp3 = (HAL_SD_ErrorTypedef)hsd->SdTransferErr;
+    
+  while (((tmp1 & tmp2) == 0) && (tmp3 == SD_OK) && (timeout > 0))
+  {
+    tmp1 = hsd->DmaTransferCplt; 
+    tmp2 = hsd->SdTransferCplt;
+    tmp3 = (HAL_SD_ErrorTypedef)hsd->SdTransferErr;
+    timeout--;
+  }
+  
+  timeout = Timeout;
+  
+  /* Wait until the Tx transfer is no longer active */
+  while((__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_FLAG_TXACT))  && (timeout > 0))
+  {
+    timeout--;  
+  }
+
+  /* Send stop command in multiblock write */
+  if (hsd->SdOperation == SD_WRITE_MULTIPLE_BLOCK)
+  {
+    errorstate = HAL_SD_StopTransfer(hsd);
+  }
+  
+  if ((timeout == 0) && (errorstate == SD_OK))
+  {
+    errorstate = SD_DATA_TIMEOUT;
+  }
+  
+  /* Clear all the static flags */
+  __HAL_SD_SDIO_CLEAR_FLAG(hsd, SDIO_STATIC_FLAGS);
+  
+  /* Return error state */
+  if (hsd->SdTransferErr != SD_OK)
+  {
+    return (HAL_SD_ErrorTypedef)(hsd->SdTransferErr);
+  }
+  
+  /* Wait until write is complete */
+  while(HAL_SD_GetStatus(hsd) != SD_TRANSFER_OK)
+  {    
+  }
+
+  return errorstate; 
+}

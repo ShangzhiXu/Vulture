@@ -1,0 +1,32 @@
+static void SPI_CloseTx_ISR(SPI_HandleTypeDef *hspi)
+{
+  uint32_t tickstart = 0U;
+
+  /* Init tickstart for timeout management*/
+  tickstart = HAL_GetTick();
+
+  /* Disable TXE and ERR interrupt */
+  __HAL_SPI_DISABLE_IT(hspi, (SPI_IT_TXE | SPI_IT_ERR));
+
+  /* Check the end of the transaction */
+  if (SPI_EndRxTxTransaction(hspi, SPI_DEFAULT_TIMEOUT, tickstart) != HAL_OK)
+  {
+    SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_FLAG);
+  }
+
+  /* Clear overrun flag in 2 Lines communication mode because received is not read */
+  if (hspi->Init.Direction == SPI_DIRECTION_2LINES)
+  {
+    __HAL_SPI_CLEAR_OVRFLAG(hspi);
+  }
+
+  hspi->State = HAL_SPI_STATE_READY;
+  if (hspi->ErrorCode != HAL_SPI_ERROR_NONE)
+  {
+    HAL_SPI_ErrorCallback(hspi);
+  }
+  else
+  {
+    HAL_SPI_TxCpltCallback(hspi);
+  }
+}

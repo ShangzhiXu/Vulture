@@ -1,0 +1,25 @@
+igmp_start(struct netif *netif)
+{
+  struct igmp_group *group;
+
+  LWIP_DEBUGF(IGMP_DEBUG, ("igmp_start: starting IGMP processing on if %p\n", (void *)netif));
+
+  group = igmp_lookup_group(netif, &allsystems);
+
+  if (group != NULL) {
+    group->group_state = IGMP_GROUP_IDLE_MEMBER;
+    group->use++;
+
+    /* Allow the igmp messages at the MAC level */
+    if (netif->igmp_mac_filter != NULL) {
+      LWIP_DEBUGF(IGMP_DEBUG, ("igmp_start: igmp_mac_filter(ADD "));
+      ip4_addr_debug_print_val(IGMP_DEBUG, allsystems);
+      LWIP_DEBUGF(IGMP_DEBUG, (") on if %p\n", (void *)netif));
+      netif->igmp_mac_filter(netif, &allsystems, NETIF_ADD_MAC_FILTER);
+    }
+
+    return ERR_OK;
+  }
+
+  return ERR_MEM;
+}

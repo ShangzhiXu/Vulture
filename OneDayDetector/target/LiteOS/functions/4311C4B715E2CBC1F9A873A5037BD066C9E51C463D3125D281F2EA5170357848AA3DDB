@@ -1,0 +1,77 @@
+static cJSON *generate_merge_patch(cJSON * const from, cJSON * const to, const cJSON_bool case_sensitive)
+{
+    cJSON *from_child = NULL;
+    cJSON *to_child = NULL;
+    cJSON *patch = NULL;
+    if (to == NULL)
+    {
+        /* patch to delete everything */
+        return cJSON_CreateNull();
+    }
+    if (!cJSON_IsObject(to) || !cJSON_IsObject(from))
+    {
+        return cJSON_Duplicate(to, 1);
+    }
+
+    sort_object(from, case_sensitive);
+    sort_object(to, case_sensitive);
+
+    from_child = from->child;
+    to_child = to->child;
+    patch = cJSON_CreateObject();
+    while (from_child || to_child)
+    {
+        int diff;
+        if (from_child != NULL)
+        {
+            if (to_child != NULL)
+            {
+                diff = strcmp(from_child->string, to_child->string);
+            }
+            else
+            {
+                diff = -1;
+            }
+        }
+        else
+        {
+            diff = 1;
+        }
+
+        if (diff < 0)
+        {
+            /* from has a value that to doesn't have -> remove */
+            cJSON_AddItemToObject(patch, from_child->string, cJSON_CreateNull());
+
+            from_child = from_child->next;
+        }
+        else if (diff > 0)
+        {
+            /* to has a value that from doesn't have -> add to patch */
+            cJSON_AddItemToObject(patch, to_child->string, cJSON_Duplicate(to_child, 1));
+
+            to_child = to_child->next;
+        }
+        else
+        {
+            /* object key exists in both objects */
+            if (!compare_json(from_child, to_child, case_sensitive))
+            {
+                /* not identical --> generate a patch */
+                cJSON_AddItemToObject(patch, to_child->string, cJSONUtils_GenerateMergePatch(from_child, to_child));
+            }
+
+            /* next key in the object */
+            from_child = from_child->next;
+            to_child = to_child->next;
+        }
+    }
+    if (patch->child == NULL)
+    {
+        /* no patch generated */
+        cJSON_Delete(patch);
+        return NULL;
+    }
+
+    return patch;
+}

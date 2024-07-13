@@ -1,0 +1,15 @@
+UINT32 GetTimerMasked(VOID)
+{
+    UINT32 now = READ_TIMER;
+
+    if (g_lastDec >= now) {
+        /* not roll back */
+        g_timeStamp += g_lastDec - now;
+    } else {
+        /* rollback */
+        g_timeStamp += g_lastDec + (GET_SYS_CLOCK() / LOSCFG_BASE_CORE_TICK_PER_SECOND) - now;
+    }
+
+    g_lastDec = now;
+    return g_timeStamp;
+}

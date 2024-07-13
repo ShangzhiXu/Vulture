@@ -1,0 +1,20 @@
+HAL_StatusTypeDef HAL_SYSCFG_EnableVREFBUF(void)
+{
+  uint32_t  tickstart = 0;
+  
+  SET_BIT(VREFBUF->CSR, VREFBUF_CSR_ENVR);
+  
+  /* Get Start Tick*/
+  tickstart = HAL_GetTick();
+
+  /* Wait for VRR bit  */
+  while(READ_BIT(VREFBUF->CSR, VREFBUF_CSR_VRR) == RESET)
+  {
+    if((HAL_GetTick() - tickstart) > VREFBUF_TIMEOUT_VALUE)
+    {
+      return HAL_TIMEOUT;
+    }
+  }
+  
+  return HAL_OK;
+}

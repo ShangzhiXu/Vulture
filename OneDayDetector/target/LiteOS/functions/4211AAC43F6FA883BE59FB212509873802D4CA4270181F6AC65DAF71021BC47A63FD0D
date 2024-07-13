@@ -1,0 +1,79 @@
+HAL_StatusTypeDef HAL_SPI_Receive_DMA(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t Size)
+{
+  if(hspi->State == HAL_SPI_STATE_READY)
+  {
+    if((pData == NULL) || (Size == 0))
+    {
+      return  HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hspi);
+
+    /* Configure communication */
+    hspi->State       = HAL_SPI_STATE_BUSY_RX;
+    hspi->ErrorCode   = HAL_SPI_ERROR_NONE;
+
+    hspi->pRxBuffPtr  = pData;
+    hspi->RxXferSize  = Size;
+    hspi->RxXferCount = Size;
+
+    /*Init field not used in handle to zero */
+    hspi->RxISR       = 0;
+    hspi->TxISR       = 0;
+    hspi->pTxBuffPtr  = NULL;
+    hspi->TxXferSize  = 0;
+    hspi->TxXferCount = 0;
+
+    /* Configure communication direction : 1Line */
+    if(hspi->Init.Direction == SPI_DIRECTION_1LINE)
+    {
+      SPI_1LINE_RX(hspi);
+    }
+    else if((hspi->Init.Direction == SPI_DIRECTION_2LINES)&&(hspi->Init.Mode == SPI_MODE_MASTER))
+    {
+      /* Process Unlocked */
+      __HAL_UNLOCK(hspi);
+
+      /* Call transmit-receive function to send Dummy data on Tx line and generate clock on CLK line */
+      return HAL_SPI_TransmitReceive_DMA(hspi, pData, pData, Size);
+    }
+
+    /* Reset CRC Calculation */
+    if(hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+    {
+      SPI_RESET_CRC(hspi);
+    }
+
+    /* Set the SPI RxDMA Half transfer complete callback */
+    hspi->hdmarx->XferHalfCpltCallback = SPI_DMAHalfReceiveCplt;
+
+    /* Set the SPI Rx DMA transfer complete callback */
+    hspi->hdmarx->XferCpltCallback = SPI_DMAReceiveCplt;
+
+    /* Set the DMA error callback */
+    hspi->hdmarx->XferErrorCallback = SPI_DMAError;
+
+    /* Enable the Rx DMA Channel */
+    HAL_DMA_Start_IT(hspi->hdmarx, (uint32_t)&hspi->Instance->DR, (uint32_t)hspi->pRxBuffPtr, hspi->RxXferCount);
+
+    /* Enable Rx DMA Request */  
+    SET_BIT(hspi->Instance->CR2, SPI_CR2_RXDMAEN);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hspi);
+
+    /* Check if the SPI is already enabled */ 
+    if((hspi->Instance->CR1 &SPI_CR1_SPE) != SPI_CR1_SPE)
+    {
+      /* Enable SPI peripheral */
+      __HAL_SPI_ENABLE(hspi);
+    }
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

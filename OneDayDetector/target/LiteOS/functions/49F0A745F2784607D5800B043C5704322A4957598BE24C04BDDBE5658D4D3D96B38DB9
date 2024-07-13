@@ -1,0 +1,22 @@
+static void invalidate_columns(lv_obj_t * chart, uint16_t i)
+{
+    lv_chart_ext_t * ext = lv_obj_get_ext_attr(chart);
+
+    lv_area_t series_area;
+    get_series_area(chart, &series_area);
+
+    lv_area_t col_a;
+    lv_coord_t w     = lv_area_get_width(&series_area);
+    lv_coord_t col_w = w / ((_lv_ll_get_len(&ext->series_ll) + 1) * ext->point_cnt); /* Suppose + 1 series as separator*/
+    lv_coord_t x_ofs = col_w / 2;                                    /*Shift with a half col.*/
+
+    lv_coord_t x_act;
+    x_act = (int32_t)((int32_t)w * i) / ext->point_cnt;
+    x_act += series_area.x1 + x_ofs;
+
+    lv_obj_get_coords(chart, &col_a);
+    col_a.x1 = x_act;
+    col_a.x2 = col_a.x1 + col_w;
+
+    _lv_inv_area(lv_obj_get_disp(chart), &col_a);
+}

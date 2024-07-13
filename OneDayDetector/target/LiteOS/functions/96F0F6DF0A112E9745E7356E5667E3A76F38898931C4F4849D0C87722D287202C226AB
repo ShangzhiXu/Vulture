@@ -1,0 +1,18 @@
+HAL_StatusTypeDef FSMC_PCCARD_CommonSpace_Timing_Init(FSMC_PCCARD_TypeDef *Device, FSMC_NAND_PCC_TimingTypeDef *Timing)
+{
+  /* Check the parameters */
+  assert_param(IS_FSMC_PCCARD_DEVICE(Device));
+  assert_param(IS_FSMC_SETUP_TIME(Timing->SetupTime));
+  assert_param(IS_FSMC_WAIT_TIME(Timing->WaitSetupTime));
+  assert_param(IS_FSMC_HOLD_TIME(Timing->HoldSetupTime));
+  assert_param(IS_FSMC_HIZ_TIME(Timing->HiZSetupTime));
+
+  /* Set PCCARD timing parameters */
+  MODIFY_REG(Device->PMEM4, PMEM_CLEAR_MASK,                            \
+             (Timing->SetupTime                                              | \
+              ((Timing->WaitSetupTime) << POSITION_VAL(FSMC_PMEMx_MEMWAITx))  | \
+              ((Timing->HoldSetupTime) << POSITION_VAL(FSMC_PMEMx_MEMHOLDx))  | \
+              ((Timing->HiZSetupTime) << POSITION_VAL(FSMC_PMEMx_MEMHIZx))));
+
+  return HAL_OK;
+}

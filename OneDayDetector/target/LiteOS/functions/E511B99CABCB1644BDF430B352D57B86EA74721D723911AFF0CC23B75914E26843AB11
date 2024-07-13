@@ -1,0 +1,43 @@
+STATIC BOOL TimezoneFormat(CHAR *standardString, size_t bufLen)
+{
+    if ((standardString[OPERATE_OFF] == '-') || (standardString[OPERATE_OFF] == '+')) {
+        if (!IS_NUM(standardString[OPERATE_OFF + 1])) {
+            return FALSE;
+        }
+    } else if (IS_NUM(standardString[OPERATE_OFF])) {
+        BufferInsert(standardString, bufLen, OPERATE_OFF, '+'); /* no operate is default to add */
+    } else {
+        return FALSE;
+    }
+
+    if (!IS_NUM(standardString[HOUR_LOW_OFF])) {
+        BufferInsert(standardString, bufLen, HOUR_HIGH_OFF, '0'); /* hour only one bit, padding 0 to high bit */
+    }
+
+    if (standardString[HOUR_LOW_OFF + 1] == ':') {
+        if (!IS_NUM(standardString[MIN_HIGH_OFF])) {
+            return FALSE;
+        } else if (!IS_NUM(standardString[MIN_LOW_OFF])) {
+            BufferInsert(standardString, bufLen, MIN_HIGH_OFF, '0'); /* minute only one bit, padding 0 to high bit */
+        }
+    } else {
+        /* no minute bits, default is 0 */
+        BufferInsert(standardString, bufLen, HOUR_LOW_OFF + 1, ':');
+        BufferInsert(standardString, bufLen, MIN_HIGH_OFF, '0');
+        BufferInsert(standardString, bufLen, MIN_LOW_OFF, '0');
+    }
+
+    if (standardString[MIN_LOW_OFF + 1] == ':') {
+        if (!IS_NUM(standardString[SEC_HIGH_OFF])) {
+            return FALSE;
+        } else if (!IS_NUM(standardString[SEC_LOW_OFF])) {
+            BufferInsert(standardString, bufLen, SEC_HIGH_OFF, '0'); /* second only one bit, padding 0 to high bit */
+        }
+    } else {
+        /* no second bits, default is 0 */
+        BufferInsert(standardString, bufLen, MIN_LOW_OFF + 1, ':');
+        BufferInsert(standardString, bufLen, SEC_HIGH_OFF, '0');
+        BufferInsert(standardString, bufLen, SEC_LOW_OFF, '0');
+    }
+    return TRUE;
+}

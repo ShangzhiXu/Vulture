@@ -1,0 +1,26 @@
+HAL_StatusTypeDef HAL_TSC_Stop(TSC_HandleTypeDef *htsc)
+{
+  /* Check the parameters */
+  assert_param(IS_TSC_ALL_INSTANCE(htsc->Instance));
+
+  /* Process locked */
+  __HAL_LOCK(htsc);
+
+  /* Stop the acquisition */
+  __HAL_TSC_STOP_ACQ(htsc);
+
+  /* Set touch sensing IOs in low power mode (output push-pull) */
+  __HAL_TSC_SET_IODEF_OUTPPLOW(htsc);
+
+  /* Clear flags */
+  __HAL_TSC_CLEAR_FLAG(htsc, (TSC_FLAG_EOA | TSC_FLAG_MCE));
+
+  /* Change TSC state */
+  htsc->State = HAL_TSC_STATE_READY;
+
+  /* Process unlocked */
+  __HAL_UNLOCK(htsc);
+
+  /* Return function status */
+  return HAL_OK;
+}

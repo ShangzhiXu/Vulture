@@ -1,0 +1,24 @@
+START_TEST(readname_jump_later)
+{
+  static const u8_t data[] = {
+      /* 0x00 */ 0x05, 'm', 'u', 'l', 't', 'i', 0x04, 'c', 'a', 's', 't', 0xc0, 0x10, 0x00, 0x01, 0x40,
+      /* 0x10 */ 0x05, 'l', 'o', 'c', 'a', 'l', 0x00, 0xab
+  };
+  static const u8_t fullname[] = {
+      0x05, 'm', 'u', 'l', 't', 'i', 0x04, 'c', 'a', 's', 't', 0x05, 'l', 'o', 'c', 'a', 'l', 0x00
+  };
+  struct pbuf *p;
+  struct mdns_domain domain;
+  u16_t offset;
+  LWIP_UNUSED_ARG(_i);
+
+  p = pbuf_alloc(PBUF_RAW, sizeof(data), PBUF_ROM);
+  fail_if(p == NULL);
+  p->payload = (void *)(size_t)data;
+  offset = mdns_readname(p, 0, &domain);
+  pbuf_free(p);
+  fail_unless(offset == 13);
+  fail_unless(domain.length == sizeof(fullname));
+
+  fail_if(memcmp(&domain.name, fullname, sizeof(fullname)));
+}

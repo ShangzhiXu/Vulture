@@ -1,0 +1,56 @@
+static void LTDC_Init(void)
+{
+    /* DeInit */
+    HAL_LTDC_DeInit(&hltdc_discovery);
+
+    /* LTDC Config */
+    /* Timing and polarity */
+    hltdc_discovery.Init.HorizontalSync = HSYNC;
+    hltdc_discovery.Init.VerticalSync = VSYNC;
+    hltdc_discovery.Init.AccumulatedHBP = HSYNC+HBP;
+    hltdc_discovery.Init.AccumulatedVBP = VSYNC+VBP;
+    hltdc_discovery.Init.AccumulatedActiveH = VSYNC+VBP+VACT;
+    hltdc_discovery.Init.AccumulatedActiveW = HSYNC+HBP+HACT;
+    hltdc_discovery.Init.TotalHeigh = VSYNC+VBP+VACT+VFP;
+    hltdc_discovery.Init.TotalWidth = HSYNC+HBP+HACT+HFP;
+
+    /* background value */
+    hltdc_discovery.Init.Backcolor.Blue = 0;
+    hltdc_discovery.Init.Backcolor.Green = 0;
+    hltdc_discovery.Init.Backcolor.Red = 0;
+
+    /* Polarity */
+    hltdc_discovery.Init.HSPolarity = LTDC_HSPOLARITY_AL;
+    hltdc_discovery.Init.VSPolarity = LTDC_VSPOLARITY_AL;
+    hltdc_discovery.Init.DEPolarity = LTDC_DEPOLARITY_AL;
+    hltdc_discovery.Init.PCPolarity = LTDC_PCPOLARITY_IPC;
+    hltdc_discovery.Instance = LTDC;
+
+    HAL_LTDC_Init(&hltdc_discovery);
+
+
+    LCD_LayerCfgTypeDef  Layercfg;
+
+    /* Layer Init */
+    Layercfg.WindowX0 = 0;
+    Layercfg.WindowX1 = HACT;
+    Layercfg.WindowY0 = 0;
+    Layercfg.WindowY1 = BSP_LCD_GetYSize();
+#if LV_COLOR_DEPTH == 16
+    Layercfg.PixelFormat = LTDC_PIXEL_FORMAT_RGB565;
+#else
+    Layercfg.PixelFormat = LTDC_PIXEL_FORMAT_ARGB8888;
+#endif
+    Layercfg.FBStartAdress = LAYER0_ADDRESS;
+    Layercfg.Alpha = 255;
+    Layercfg.Alpha0 = 0;
+    Layercfg.Backcolor.Blue = 0;
+    Layercfg.Backcolor.Green = 0;
+    Layercfg.Backcolor.Red = 0;
+    Layercfg.BlendingFactor1 = LTDC_BLENDING_FACTOR1_PAxCA;
+    Layercfg.BlendingFactor2 = LTDC_BLENDING_FACTOR2_PAxCA;
+    Layercfg.ImageWidth = BSP_LCD_GetXSize();;
+    Layercfg.ImageHeight = BSP_LCD_GetYSize();
+
+    HAL_LTDC_ConfigLayer(&hltdc_discovery, &Layercfg, 0);
+}

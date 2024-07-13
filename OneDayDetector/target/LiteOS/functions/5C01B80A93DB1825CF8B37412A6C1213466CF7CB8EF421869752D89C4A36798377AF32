@@ -1,0 +1,44 @@
+lv_obj_t * lv_objmask_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+    LV_LOG_TRACE("object mask create started");
+
+    /*Create the ancestor of object mask*/
+    lv_obj_t * objmask = lv_cont_create(par, copy);
+    LV_ASSERT_MEM(objmask);
+    if(objmask == NULL) return NULL;
+
+    /*Allocate the object mask type specific extended data*/
+    lv_objmask_ext_t * ext = lv_obj_allocate_ext_attr(objmask, sizeof(lv_objmask_ext_t));
+    LV_ASSERT_MEM(ext);
+    if(ext == NULL) {
+        lv_obj_del(objmask);
+        return NULL;
+    }
+
+    if(ancestor_signal == NULL) ancestor_signal = lv_obj_get_signal_cb(objmask);
+    if(ancestor_design == NULL) ancestor_design = lv_obj_get_design_cb(objmask);
+
+    /*Initialize the allocated 'ext' */
+    _lv_ll_init(&ext->mask_ll, sizeof(lv_objmask_mask_t));
+
+    /*The signal and design functions are not copied so set them here*/
+    lv_obj_set_signal_cb(objmask, lv_objmask_signal);
+    lv_obj_set_design_cb(objmask, lv_objmask_design);
+
+    /*Init the new object mask object mask*/
+    if(copy == NULL) {
+        lv_theme_apply(objmask, LV_THEME_OBJMASK);
+
+    }
+    /*TODO: Copy an existing object mask*/
+    else {
+        /* lv_objmask_ext_t * copy_ext = lv_obj_get_ext_attr(copy); */
+
+        /*Refresh the style with new signal function*/
+        lv_obj_refresh_style(objmask, LV_STYLE_PROP_ALL);
+    }
+
+    LV_LOG_INFO("object mask created");
+
+    return objmask;
+}

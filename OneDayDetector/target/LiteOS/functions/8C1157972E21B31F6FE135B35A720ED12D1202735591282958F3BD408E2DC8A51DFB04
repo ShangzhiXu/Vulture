@@ -1,0 +1,52 @@
+UINT32 OsSemInfoGetFullData(VOID)
+{
+    UINT32 usedSemCnt = 0;
+    LosSemCB *semNode = NULL;
+    SemDebugCB *semDebug = NULL;
+    UINT32 i;
+    UINT32 *semIndexArray = NULL;
+    UINT32 count, intSave;
+
+    SCHEDULER_LOCK(intSave);
+    /* Get the used semaphore count. */
+    for (i = 0; i < LOSCFG_BASE_IPC_SEM_LIMIT; i++) {
+        semNode = GET_SEM(i);
+        semDebug = &g_semDebugArray[i];
+        if ((semNode->semStat == OS_SEM_USED) && (semDebug->creator != NULL)) {
+            usedSemCnt++;
+        }
+    }
+    SCHEDULER_UNLOCK(intSave);
+
+    if (usedSemCnt > 0) {
+        semIndexArray = (UINT32 *)LOS_MemAlloc((VOID *)OS_SYS_MEM_ADDR, usedSemCnt * sizeof(UINT32));
+        if (semIndexArray == NULL) {
+            PRINTK("LOS_MemAlloc failed in %s \n", __func__);
+            return LOS_NOK;
+        }
+
+        /* Fill the semIndexArray with the real index. */
+        count = 0;
+
+        SCHEDULER_LOCK(intSave);
+        for (i = 0; i < LOSCFG_BASE_IPC_SEM_LIMIT; i++) {
+            semNode = GET_SEM(i);
+            semDebug = &g_semDebugArray[i];
+            if ((semNode->semStat != OS_SEM_USED) || (semDebug->creator == NULL)) {
+                continue;
+            }
+            *(semIndexArray + count) = i;
+            count++;
+            /* if the count is touched usedSemCnt break. */
+            if (count >= usedSemCnt) {
+                break;
+            }
+        }
+        SCHEDULER_UNLOCK(intSave);
+        OsSemSort(semIndexArray, count);
+
+        /* free the index array. */
+        (VOID)LOS_MemFree((VOID *)OS_SYS_MEM_ADDR, semIndexArray);
+    }
+    return LOS_OK;
+}

@@ -1,0 +1,17 @@
+SECUREC_INLINE void SecNumber32ToDecStringFast(SecUnsignedInt32 number, SecFormatAttr *attr)
+{
+    SecUnsignedInt32 val32 = number;
+    do {
+        SecUnsignedInt32 quotient;
+        SecUnsignedInt32 remain;
+        --attr->text.str;
+        *(attr->text.str) = g_itoaLowerDigits[val32 % SECUREC_RADIX_DECIMAL];
+        quotient = (val32 >> 1U) + (val32 >> 2U); /* Fast div  magic 2 */
+        quotient = quotient + (quotient >> 4U); /* Fast div  magic 4 */
+        quotient = quotient + (quotient >> 8U); /* Fast div  magic 8 */
+        quotient = quotient + (quotient >> 16U); /* Fast div  magic 16 */
+        quotient = quotient >> 3U; /* Fast div  magic 3 */
+        remain = val32 - SECUREC_MUL_TEN(quotient);
+        val32 = (remain > 9U) ? (quotient + 1U) : quotient; /* Fast div  magic 9 */
+    } while (val32 != 0);
+}

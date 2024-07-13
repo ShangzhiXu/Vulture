@@ -1,0 +1,50 @@
+snmpv3_password_to_key_sha(
+  const u8_t *password,    /* IN */
+  size_t      passwordlen, /* IN */
+  const u8_t *engineID,    /* IN  - pointer to snmpEngineID  */
+  u8_t        engineLength,/* IN  - length of snmpEngineID */
+  u8_t       *key)         /* OUT - pointer to caller 20-octet buffer */
+{
+  mbedtls_sha1_context SH;
+  u8_t *cp, password_buf[72];
+  u32_t password_index = 0;
+  u8_t i;
+  u32_t count = 0;
+
+  mbedtls_sha1_init(&SH); /* initialize SHA */
+  mbedtls_sha1_starts(&SH);
+
+  /**********************************************/
+  /* Use while loop until we've done 1 Megabyte */
+  /**********************************************/
+  while (count < 1048576) {
+    cp = password_buf;
+    for (i = 0; i < 64; i++) {
+      /*************************************************/
+      /* Take the next octet of the password, wrapping */
+      /* to the beginning of the password as necessary.*/
+      /*************************************************/
+      *cp++ = password[password_index++ % passwordlen];
+    }
+    mbedtls_sha1_update(&SH, password_buf, 64);
+    count += 64;
+  }
+  mbedtls_sha1_finish(&SH, key); /* tell SHA we're done */
+
+  /*****************************************************/
+  /* Now localize the key with the engineID and pass   */
+  /* through SHA to produce final key                  */
+  /* May want to ensure that engineLength <= 32,       */
+  /* otherwise need to use a buffer larger than 72     */
+  /*****************************************************/
+  SMEMCPY(password_buf, key, 20);
+  MEMCPY(password_buf + 20, engineID, engineLength);
+  SMEMCPY(password_buf + 20 + engineLength, key, 20);
+
+  mbedtls_sha1_starts(&SH);
+  mbedtls_sha1_update(&SH, password_buf, 40 + engineLength);
+  mbedtls_sha1_finish(&SH, key);
+
+  mbedtls_sha1_free(&SH);
+  return;
+}

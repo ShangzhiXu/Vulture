@@ -1,0 +1,40 @@
+static HAL_StatusTypeDef UART_Transmit_IT(UART_HandleTypeDef *huart)
+{
+  uint16_t *tmp;
+
+  /* Check that a Tx process is ongoing */
+  if (huart->gState == HAL_UART_STATE_BUSY_TX)
+  {
+    if (huart->Init.WordLength == UART_WORDLENGTH_9B)
+    {
+      tmp = (uint16_t *) huart->pTxBuffPtr;
+      huart->Instance->DR = (uint16_t)(*tmp & (uint16_t)0x01FF);
+      if (huart->Init.Parity == UART_PARITY_NONE)
+      {
+        huart->pTxBuffPtr += 2U;
+      }
+      else
+      {
+        huart->pTxBuffPtr += 1U;
+      }
+    }
+    else
+    {
+      huart->Instance->DR = (uint8_t)(*huart->pTxBuffPtr++ & (uint8_t)0x00FF);
+    }
+
+    if (--huart->TxXferCount == 0U)
+    {
+      /* Disable the UART Transmit Complete Interrupt */
+      __HAL_UART_DISABLE_IT(huart, UART_IT_TXE);
+
+      /* Enable the UART Transmit Complete Interrupt */
+      __HAL_UART_ENABLE_IT(huart, UART_IT_TC);
+    }
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

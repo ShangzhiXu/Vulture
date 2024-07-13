@@ -1,0 +1,58 @@
+static void spiffs_update_ix_map(spiffs *fs,
+                                 spiffs_fd *fd, spiffs_span_ix objix_spix, spiffs_page_object_ix *objix)
+{
+#if SPIFFS_SINGLETON
+    (void)fs;
+#endif
+    spiffs_ix_map *map = fd->ix_map;
+    spiffs_span_ix map_objix_start_spix = SPIFFS_OBJ_IX_ENTRY_SPAN_IX(fs, map->start_spix);
+    spiffs_span_ix map_objix_end_spix = SPIFFS_OBJ_IX_ENTRY_SPAN_IX(fs, map->end_spix);
+
+    // check if updated ix is within map range
+    if (objix_spix < map_objix_start_spix || objix_spix > map_objix_end_spix)
+    {
+        return;
+    }
+
+    // update memory mapped page index buffer to new pages
+
+    // get range of updated object index map data span indices
+    spiffs_span_ix objix_data_spix_start =
+        SPIFFS_DATA_SPAN_IX_FOR_OBJ_IX_SPAN_IX(fs, objix_spix);
+    spiffs_span_ix objix_data_spix_end = objix_data_spix_start +
+                                         (objix_spix == 0 ? SPIFFS_OBJ_HDR_IX_LEN(fs) : SPIFFS_OBJ_IX_LEN(fs));
+
+    // calc union of object index range and index map range array
+    spiffs_span_ix map_spix = MAX(map->start_spix, objix_data_spix_start);
+    spiffs_span_ix map_spix_end = MIN(map->end_spix + 1, objix_data_spix_end);
+
+    while (map_spix < map_spix_end)
+    {
+        spiffs_page_ix objix_data_pix;
+        if (objix_spix == 0)
+        {
+            // get data page from object index header page
+            objix_data_pix = ((spiffs_page_ix *)((u8_t *)objix + sizeof(spiffs_page_object_ix_header)))[map_spix];
+        }
+        else
+        {
+            // get data page from object index page
+            objix_data_pix = ((spiffs_page_ix *)((u8_t *)objix + sizeof(spiffs_page_object_ix)))[SPIFFS_OBJ_IX_ENTRY(fs, map_spix)];
+        }
+
+        if (objix_data_pix == (spiffs_page_ix) - 1)
+        {
+            // reached end of object, abort
+            break;
+        }
+
+        map->map_buf[map_spix - map->start_spix] = objix_data_pix;
+        SPIFFS_DBG("map "_SPIPRIid":"_SPIPRIsp" ("_SPIPRIsp"--"_SPIPRIsp") objix.spix:"_SPIPRIsp" to pix "_SPIPRIpg"\n",
+                   fd->obj_id, map_spix - map->start_spix,
+                   map->start_spix, map->end_spix,
+                   objix->p_hdr.span_ix,
+                   objix_data_pix);
+
+        map_spix++;
+    }
+}

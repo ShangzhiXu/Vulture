@@ -1,0 +1,18 @@
+static void GenerateAuthenticatorResponsePlain(
+		 const char *secret, int secret_len,
+		 u_char NTResponse[24], const u_char PeerChallenge[16],
+		 const u_char *rchallenge, const char *username,
+		 u_char authResponse[MS_AUTH_RESPONSE_LENGTH+1]) {
+    u_char	unicodePassword[MAX_NT_PASSWORD * 2];
+    u_char	PasswordHash[MD4_SIGNATURE_SIZE];
+    u_char	PasswordHashHash[MD4_SIGNATURE_SIZE];
+
+    /* Hash (x2) the Unicode version of the secret (== password). */
+    ascii2unicode(secret, secret_len, unicodePassword);
+    NTPasswordHash(unicodePassword, secret_len * 2, PasswordHash);
+    NTPasswordHash(PasswordHash, sizeof(PasswordHash),
+		   PasswordHashHash);
+
+    GenerateAuthenticatorResponse(PasswordHashHash, NTResponse, PeerChallenge,
+				  rchallenge, username, authResponse);
+}

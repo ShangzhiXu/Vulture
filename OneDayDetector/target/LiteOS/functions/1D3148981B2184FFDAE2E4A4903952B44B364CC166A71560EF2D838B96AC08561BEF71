@@ -1,0 +1,110 @@
+void bootstrap_step(lwm2m_context_t *contextP,
+                    uint32_t currentTime,
+                    time_t *timeoutP)
+{
+    lwm2m_server_t *targetP;
+
+    LOG("entering");
+    targetP = contextP->bootstrapServerList;
+    while (targetP != NULL)
+    {
+        time_t timeOut;
+
+        LOG_ARG("Initial status: %s", STR_STATUS(targetP->status));
+        switch (targetP->status)
+        {
+        case STATE_DEREGISTERED:
+            //pay attention: targetP->lifetime come from securityobj instance, it's init value is 10. too small, too short for
+            //STATE_BS_HOLD_OFF. of course, the value could be wrote by the bs server. encode decode used for securityobj/serverobj instance
+
+            targetP->registration =  currentTime;
+            if(lwm2m_isBsCtrlInServerInitiatedBs(contextP))
+            {
+                targetP->registration = (currentTime + targetP->lifetime);
+            }
+            prv_createBsConnection(contextP, targetP);
+            currentTime = lwm2m_gettime();
+            targetP->status = STATE_BS_HOLD_OFF;
+
+            timeOut = (targetP->registration - currentTime);
+            if (timeOut < 0)
+            {
+                timeOut = 0;
+            }
+            if (*timeoutP > timeOut)
+            {
+                *timeoutP = timeOut;
+            }
+            break;
+
+        case STATE_BS_HOLD_OFF:
+            if (targetP->registration <= currentTime)
+            {
+                if (lwm2m_isBsCtrlInServerInitiatedBs(contextP))
+                {
+                    lwm2m_stop_striger_server_initiated_bs(targetP->sessionH);
+                    targetP->status = STATE_REG_FAILED;
+                }
+                else
+                {
+                    prv_requestBootstrap(contextP, targetP);
+                }
+            }
+            else if (*timeoutP > targetP->registration - currentTime)
+            {
+                *timeoutP = targetP->registration - currentTime;
+                 lwm2m_step_striger_server_initiated_bs(targetP->sessionH);
+            }
+            break;
+
+
+        case STATE_BS_INITIATED:
+            // waiting
+            break;
+
+        case STATE_BS_PENDING:
+            if (targetP->registration <= currentTime)
+            {
+               targetP->status = STATE_BS_FAILING;
+               *timeoutP = 0;
+            }
+            else if (*timeoutP > targetP->registration - currentTime)
+            {
+                *timeoutP = targetP->registration - currentTime;
+            }
+            break;
+
+        case STATE_BS_FINISHING:
+            if (targetP->sessionH != NULL)
+            {
+                lwm2m_close_connection(targetP->sessionH, contextP->userData);
+                targetP->sessionH = NULL;
+            }
+            targetP->status = STATE_BS_FINISHED;
+            *timeoutP = 0;
+            break;
+
+        case STATE_BS_FAILING:
+            if (targetP->sessionH != NULL)
+            {
+                lwm2m_close_connection(targetP->sessionH, contextP->userData);
+                targetP->sessionH = NULL;
+            }
+            targetP->status = STATE_BS_FAILED;
+            *timeoutP = 0;
+            break;
+
+        default:
+            break;
+        }
+        LOG_ARG("Finalal status: %s", STR_STATUS(targetP->status));
+
+        if (lwm2m_isBsCtrlInServerInitiatedBs(contextP))
+        {
+            return;
+        }
+        targetP = targetP->next;
+    }
+
+
+}

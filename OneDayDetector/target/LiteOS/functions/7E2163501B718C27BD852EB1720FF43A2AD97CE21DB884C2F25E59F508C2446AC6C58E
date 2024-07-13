@@ -1,0 +1,84 @@
+static uint32_t SD_PowerON(SD_HandleTypeDef *hsd)
+{
+  __IO uint32_t count = 0U;
+  uint32_t response = 0U, validvoltage = 0U;
+  uint32_t errorstate;
+
+  /* CMD0: GO_IDLE_STATE */
+  errorstate = SDMMC_CmdGoIdleState(hsd->Instance);
+  if(errorstate != HAL_SD_ERROR_NONE)
+  {
+    return errorstate;
+  }
+
+  /* CMD8: SEND_IF_COND: Command available only on V2.0 cards */
+  errorstate = SDMMC_CmdOperCond(hsd->Instance);
+  if(errorstate != HAL_SD_ERROR_NONE)
+  {
+    hsd->SdCard.CardVersion = CARD_V1_X;
+    /* CMD0: GO_IDLE_STATE */
+    errorstate = SDMMC_CmdGoIdleState(hsd->Instance);
+    if(errorstate != HAL_SD_ERROR_NONE)
+    {
+      return errorstate;
+    }
+
+  }
+  else
+  {
+    hsd->SdCard.CardVersion = CARD_V2_X;
+  }
+
+  if( hsd->SdCard.CardVersion == CARD_V2_X)
+  {
+    /* SEND CMD55 APP_CMD with RCA as 0 */
+    errorstate = SDMMC_CmdAppCommand(hsd->Instance, 0);
+    if(errorstate != HAL_SD_ERROR_NONE)
+    {
+      return HAL_SD_ERROR_UNSUPPORTED_FEATURE;
+    }
+  }
+  /* SD CARD */
+  /* Send ACMD41 SD_APP_OP_COND with Argument 0x80100000 */
+  while((count < SDMMC_MAX_VOLT_TRIAL) && (validvoltage == 0U))
+  {
+    /* SEND CMD55 APP_CMD with RCA as 0 */
+    errorstate = SDMMC_CmdAppCommand(hsd->Instance, 0);
+    if(errorstate != HAL_SD_ERROR_NONE)
+    {
+      return errorstate;
+    }
+
+    /* Send CMD41 */
+    errorstate = SDMMC_CmdAppOperCommand(hsd->Instance, SDMMC_VOLTAGE_WINDOW_SD | SDMMC_HIGH_CAPACITY | SD_SWITCH_1_8V_CAPACITY);
+    if(errorstate != HAL_SD_ERROR_NONE)
+    {
+      return HAL_SD_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    /* Get command response */
+    response = SDIO_GetResponse(hsd->Instance, SDIO_RESP1);
+
+    /* Get operating voltage*/
+    validvoltage = (((response >> 31U) == 1U) ? 1U : 0U);
+
+    count++;
+  }
+
+  if(count >= SDMMC_MAX_VOLT_TRIAL)
+  {
+    return HAL_SD_ERROR_INVALID_VOLTRANGE;
+  }
+
+  if((response & SDMMC_HIGH_CAPACITY) == SDMMC_HIGH_CAPACITY) /* (response &= SD_HIGH_CAPACITY) */
+  {
+    hsd->SdCard.CardType = CARD_SDHC_SDXC;
+  }
+  else
+  {
+    hsd->SdCard.CardType = CARD_SDSC;
+  }
+
+
+  return HAL_SD_ERROR_NONE;
+}

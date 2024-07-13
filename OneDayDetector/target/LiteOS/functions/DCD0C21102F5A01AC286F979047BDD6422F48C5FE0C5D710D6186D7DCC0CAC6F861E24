@@ -1,0 +1,26 @@
+static int prv_spi_flash_write_page(const uint8_t *buf, uint32_t addr, int32_t len)
+{
+    int ret = 0;
+    int i;
+
+    if (len == 0) {
+        return 0;
+    }
+
+    prv_spi_flash_write_enable();
+    SPI_FLASH_CS_ENABLE();
+
+    if ((ret = prv_spi_flash_send_cmd(SPI_FLASH_PageProgram, addr)) != -1) {
+        for (i = 0; i < len; ++i) {
+            if (prv_spi_flash_send_byte(buf[i], NULL) == -1) {
+                ret = -1;
+                break;
+            }
+        }
+    }
+
+    SPI_FLASH_CS_DISABLE();
+    prv_spi_flash_wait_write_end();
+
+    return ret;
+}

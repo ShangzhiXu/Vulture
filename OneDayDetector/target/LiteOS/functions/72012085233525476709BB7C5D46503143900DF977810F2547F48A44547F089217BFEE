@@ -1,0 +1,44 @@
+HAL_StatusTypeDef HAL_LPTIM_Encoder_Start(LPTIM_HandleTypeDef *hlptim, uint32_t Period)
+{
+  uint32_t tmpcfgr = 0;
+
+  /* Check the parameters */
+  assert_param(IS_LPTIM_INSTANCE(hlptim->Instance));
+  assert_param(IS_LPTIM_PERIOD(Period));
+  assert_param(hlptim->Init.Clock.Source == LPTIM_CLOCKSOURCE_APBCLOCK_LPOSC);
+  assert_param(hlptim->Init.Clock.Prescaler == LPTIM_PRESCALER_DIV1);
+  assert_param(IS_LPTIM_CLOCK_POLARITY(hlptim->Init.UltraLowPowerClock.Polarity));
+
+  /* Set the LPTIM state */
+  hlptim->State= HAL_LPTIM_STATE_BUSY;
+
+  /* Get the LPTIMx CFGR value */
+  tmpcfgr = hlptim->Instance->CFGR;
+
+  /* Clear CKPOL bits */
+  tmpcfgr &= (uint32_t)(~LPTIM_CFGR_CKPOL);
+
+  /* Set Input polarity */
+  tmpcfgr |=  hlptim->Init.UltraLowPowerClock.Polarity;
+
+  /* Write to LPTIMx CFGR */
+  hlptim->Instance->CFGR = tmpcfgr;
+
+  /* Set ENC bit to enable the encoder interface */
+  hlptim->Instance->CFGR |= LPTIM_CFGR_ENC;
+
+  /* Enable the Peripheral */
+  __HAL_LPTIM_ENABLE(hlptim);
+
+  /* Load the period value in the autoreload register */
+  __HAL_LPTIM_AUTORELOAD_SET(hlptim, Period);
+
+  /* Start timer in continuous mode */
+  __HAL_LPTIM_START_CONTINUOUS(hlptim);
+
+  /* Change the TIM state*/
+  hlptim->State= HAL_LPTIM_STATE_READY;
+
+  /* Return function status */
+  return HAL_OK;
+}

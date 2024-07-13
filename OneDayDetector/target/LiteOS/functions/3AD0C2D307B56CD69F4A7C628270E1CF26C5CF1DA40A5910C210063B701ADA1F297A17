@@ -1,0 +1,24 @@
+HAL_StatusTypeDef HAL_PCD_EP_Transmit(PCD_HandleTypeDef *hpcd, uint8_t ep_addr, uint8_t *pBuf, uint32_t len)
+{
+  PCD_EPTypeDef *ep = NULL;
+  
+  ep = &hpcd->IN_ep[ep_addr & 0x7F];
+  
+  /*setup and start the Xfer */
+  ep->xfer_buff = pBuf;  
+  ep->xfer_len = len;
+  ep->xfer_count = 0;
+  ep->is_in = 1;
+  ep->num = ep_addr & 0x7F;
+  
+  if ((ep_addr & 0x7F) == 0 )
+  {
+    USB_EP0StartXfer(hpcd->Instance,ep,  hpcd->Init.dma_enable);
+  }
+  else
+  {
+    USB_EPStartXfer(hpcd->Instance, ep,  hpcd->Init.dma_enable);
+  }
+  
+  return HAL_OK;
+}

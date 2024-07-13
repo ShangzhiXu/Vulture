@@ -1,0 +1,75 @@
+HAL_StatusTypeDef HAL_USART_Receive_DMA(USART_HandleTypeDef *husart, uint8_t *pRxData, uint16_t Size)
+{
+  uint32_t *tmp;
+
+  /* Check that a Rx process is not already ongoing */
+  if(husart->State == HAL_USART_STATE_READY)
+  {
+    if((pRxData == NULL ) || (Size == 0))
+    {
+      return HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(husart);
+
+    husart->pRxBuffPtr = pRxData;
+    husart->RxXferSize = Size;
+    husart->pTxBuffPtr = pRxData;
+    husart->TxXferSize = Size;
+
+    husart->ErrorCode = HAL_USART_ERROR_NONE;
+    husart->State = HAL_USART_STATE_BUSY_RX;
+
+    /* Set the USART DMA Rx transfer complete callback */
+    husart->hdmarx->XferCpltCallback = USART_DMAReceiveCplt;
+
+    /* Set the USART DMA Half transfer complete callback */
+    husart->hdmarx->XferHalfCpltCallback = USART_DMARxHalfCplt;
+
+    /* Set the USART DMA Rx transfer error callback */
+    husart->hdmarx->XferErrorCallback = USART_DMAError;
+
+    /* Enable the USART receive DMA channel */
+    tmp = (uint32_t*)&pRxData;
+    HAL_DMA_Start_IT(husart->hdmarx, (uint32_t)&husart->Instance->RDR, *(uint32_t*)tmp, Size);
+
+#if defined(USART_CR2_SLVEN)
+    if (husart->SlaveMode == USART_SLAVEMODE_DISABLE)
+    {
+      /* Enable the USART transmit DMA channel: the transmit channel is used in order
+      to generate in the non-blocking mode the clock to the slave device,
+      this mode isn't a simplex receive mode but a full-duplex receive mode */
+      tmp = (uint32_t*)&pRxData;
+      /* Set the USART DMA Tx Complete and Error callback to Null */
+      husart->hdmatx->XferErrorCallback = NULL;
+      husart->hdmatx->XferHalfCpltCallback = NULL;
+      husart->hdmatx->XferCpltCallback = NULL;
+      HAL_DMA_Start_IT(husart->hdmatx, *(uint32_t*)tmp, (uint32_t)&husart->Instance->TDR, Size);
+    }
+#endif
+    
+    /* Process Unlocked */
+    __HAL_UNLOCK(husart);
+
+    /* Enable the USART Parity Error Interrupt */
+    SET_BIT(husart->Instance->CR1, USART_CR1_PEIE);
+
+    /* Enable the USART Error Interrupt: (Frame error, noise error, overrun error) */
+    SET_BIT(husart->Instance->CR3, USART_CR3_EIE);
+
+    /* Enable the DMA transfer for the receiver request by setting the DMAR bit
+       in the USART CR3 register */
+    SET_BIT(husart->Instance->CR3, USART_CR3_DMAR);
+
+    /* Enable the DMA transfer for transmit request by setting the DMAT bit
+       in the USART CR3 register */
+    SET_BIT(husart->Instance->CR3, USART_CR3_DMAT);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

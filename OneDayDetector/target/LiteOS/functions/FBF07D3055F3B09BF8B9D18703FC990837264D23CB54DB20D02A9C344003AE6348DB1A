@@ -1,0 +1,38 @@
+alloc_socket(struct netconn *newconn, int accepted)
+{
+  int i;
+  SYS_ARCH_DECL_PROTECT(lev);
+  LWIP_UNUSED_ARG(accepted);
+
+  /* allocate a new socket identifier */
+  for (i = 0; i < NUM_SOCKETS; ++i) {
+    /* Protect socket array */
+    SYS_ARCH_PROTECT(lev);
+    if (!sockets[i].conn) {
+#if LWIP_NETCONN_FULLDUPLEX
+      if (sockets[i].fd_used) {
+        SYS_ARCH_UNPROTECT(lev);
+        continue;
+      }
+      sockets[i].fd_used    = 1;
+      sockets[i].fd_free_pending = 0;
+#endif
+      sockets[i].conn       = newconn;
+      /* The socket is not yet known to anyone, so no need to protect
+         after having marked it as used. */
+      SYS_ARCH_UNPROTECT(lev);
+      sockets[i].lastdata.pbuf = NULL;
+#if LWIP_SOCKET_SELECT || LWIP_SOCKET_POLL
+      LWIP_ASSERT("sockets[i].select_waiting == 0", sockets[i].select_waiting == 0);
+      sockets[i].rcvevent   = 0;
+      /* TCP sendbuf is empty, but the socket is not yet writable until connected
+       * (unless it has been created by accept()). */
+      sockets[i].sendevent  = (NETCONNTYPE_GROUP(newconn->type) == NETCONN_TCP ? (accepted != 0) : 1);
+      sockets[i].errevent   = 0;
+#endif /* LWIP_SOCKET_SELECT || LWIP_SOCKET_POLL */
+      return i + LWIP_SOCKET_OFFSET;
+    }
+    SYS_ARCH_UNPROTECT(lev);
+  }
+  return -1;
+}

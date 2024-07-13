@@ -1,0 +1,12 @@
+static void SMARTCARD_DMATransmitCplt(DMA_HandleTypeDef *hdma)
+{
+  SMARTCARD_HandleTypeDef *hsmartcard = (SMARTCARD_HandleTypeDef *)(hdma->Parent);
+  hsmartcard->TxXferCount = 0U;
+
+  /* Disable the DMA transfer for transmit request by resetting the DMAT bit
+  in the SMARTCARD associated USART CR3 register */
+  CLEAR_BIT(hsmartcard->Instance->CR3, USART_CR3_DMAT);
+
+  /* Enable the SMARTCARD Transmit Complete Interrupt */
+  __HAL_SMARTCARD_ENABLE_IT(hsmartcard, hsmartcard->AdvancedInit.TxCompletionIndication);
+}

@@ -1,0 +1,29 @@
+HAL_StatusTypeDef SDIO_ConfigData(SDIO_TypeDef *SDIOx, SDIO_DataInitTypeDef* Data)
+{
+  uint32_t tmpreg = 0;
+  
+  /* Check the parameters */
+  assert_param(IS_SDIO_DATA_LENGTH(Data->DataLength));
+  assert_param(IS_SDIO_BLOCK_SIZE(Data->DataBlockSize));
+  assert_param(IS_SDIO_TRANSFER_DIR(Data->TransferDir));
+  assert_param(IS_SDIO_TRANSFER_MODE(Data->TransferMode));
+  assert_param(IS_SDIO_DPSM(Data->DPSM));
+
+  /* Set the SDMMC Data TimeOut value */
+  SDIOx->DTIMER = Data->DataTimeOut;
+
+  /* Set the SDMMC DataLength value */
+  SDIOx->DLEN = Data->DataLength;
+
+  /* Set the SDMMC data configuration parameters */
+  tmpreg |= (uint32_t)(Data->DataBlockSize |\
+                       Data->TransferDir   |\
+                       Data->TransferMode  |\
+                       Data->DPSM);
+  
+  /* Write to SDMMC DCTRL */
+  MODIFY_REG(SDIOx->DCTRL, DCTRL_CLEAR_MASK, tmpreg);
+
+  return HAL_OK;
+
+}

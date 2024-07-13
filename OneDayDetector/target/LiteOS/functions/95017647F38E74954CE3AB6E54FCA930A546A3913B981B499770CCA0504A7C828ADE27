@@ -1,0 +1,41 @@
+lv_color_t _lv_obj_get_style_color(const lv_obj_t * obj, uint8_t part, lv_style_property_t prop)
+{
+    lv_style_property_t prop_ori = prop;
+
+    lv_style_attr_t attr;
+    attr.full = prop_ori >> 8;
+
+    lv_color_t value_act;
+    lv_res_t res = LV_RES_INV;
+    const lv_obj_t * parent = obj;
+    while(parent) {
+        lv_style_list_t * dsc = lv_obj_get_style_list(parent, part);
+
+        lv_state_t state = lv_obj_get_state(parent, part);
+        prop = (uint16_t)prop_ori + ((uint16_t)state << LV_STYLE_STATE_POS);
+
+        res = _lv_style_list_get_color(dsc, prop, &value_act);
+        if(res == LV_RES_OK) return value_act;
+
+        if(attr.bits.inherit == 0) break;
+
+        /*If not found, check the `MAIN` style first*/
+        if(part != LV_OBJ_PART_MAIN) {
+            part = LV_OBJ_PART_MAIN;
+            continue;
+        }
+
+        /*Check the parent too.*/
+        parent = lv_obj_get_parent(parent);
+    }
+
+    /*Handle unset values*/
+    prop = prop & (~LV_STYLE_STATE_MASK);
+    switch(prop) {
+        case LV_STYLE_BG_COLOR:
+        case LV_STYLE_BG_GRAD_COLOR:
+            return LV_COLOR_WHITE;
+    }
+
+    return LV_COLOR_BLACK;
+}

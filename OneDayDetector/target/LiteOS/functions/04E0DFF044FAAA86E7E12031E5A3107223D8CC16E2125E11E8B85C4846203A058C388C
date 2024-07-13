@@ -1,0 +1,20 @@
+tcp_send_fin(struct tcp_pcb *pcb)
+{
+  LWIP_ASSERT("tcp_send_fin: invalid pcb", pcb != NULL);
+
+  /* first, try to add the fin to the last unsent segment */
+  if (pcb->unsent != NULL) {
+    struct tcp_seg *last_unsent;
+    for (last_unsent = pcb->unsent; last_unsent->next != NULL;
+         last_unsent = last_unsent->next);
+
+    if ((TCPH_FLAGS(last_unsent->tcphdr) & (TCP_SYN | TCP_FIN | TCP_RST)) == 0) {
+      /* no SYN/FIN/RST flag in the header, we can add the FIN flag */
+      TCPH_SET_FLAG(last_unsent->tcphdr, TCP_FIN);
+      tcp_set_flags(pcb, TF_FIN);
+      return ERR_OK;
+    }
+  }
+  /* no data, no length, flags, copy=1, no optdata */
+  return tcp_enqueue_flags(pcb, TCP_FIN);
+}

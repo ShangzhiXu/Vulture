@@ -1,0 +1,41 @@
+sys_timeout_abs(u32_t abs_time, sys_timeout_handler handler, void *arg, const char *handler_name)
+#else /* LWIP_DEBUG_TIMERNAMES */
+sys_timeout_abs(u32_t abs_time, sys_timeout_handler handler, void *arg)
+#endif
+{
+  struct sys_timeo *timeout, *t;
+
+  timeout = (struct sys_timeo *)memp_malloc(MEMP_SYS_TIMEOUT);
+  if (timeout == NULL) {
+    LWIP_ASSERT("sys_timeout: timeout != NULL, pool MEMP_SYS_TIMEOUT is empty", timeout != NULL);
+    return;
+  }
+
+  timeout->next = NULL;
+  timeout->h = handler;
+  timeout->arg = arg;
+  timeout->time = abs_time;
+
+#if LWIP_DEBUG_TIMERNAMES
+  timeout->handler_name = handler_name;
+  LWIP_DEBUGF(TIMERS_DEBUG, ("sys_timeout: %p abs_time=%"U32_F" handler=%s arg=%p\n",
+                             (void *)timeout, abs_time, handler_name, (void *)arg));
+#endif /* LWIP_DEBUG_TIMERNAMES */
+
+  if (next_timeout == NULL) {
+    next_timeout = timeout;
+    return;
+  }
+  if (TIME_LESS_THAN(timeout->time, next_timeout->time)) {
+    timeout->next = next_timeout;
+    next_timeout = timeout;
+  } else {
+    for (t = next_timeout; t != NULL; t = t->next) {
+      if ((t->next == NULL) || TIME_LESS_THAN(timeout->time, t->next->time)) {
+        timeout->next = t->next;
+        t->next = timeout;
+        break;
+      }
+    }
+  }
+}

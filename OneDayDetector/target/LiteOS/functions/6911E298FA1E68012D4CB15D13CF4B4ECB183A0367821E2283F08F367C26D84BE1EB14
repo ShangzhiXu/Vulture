@@ -1,0 +1,43 @@
+HAL_StatusTypeDef HAL_SPDIFRX_SetDataFormat(SPDIFRX_HandleTypeDef *hspdif, SPDIFRX_SetDataFormatTypeDef sDataFormat)
+{
+  uint32_t tmpreg;
+
+  /* Check the SPDIFRX handle allocation */
+  if(hspdif == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the SPDIFRX parameters */
+  assert_param(IS_STEREO_MODE(sDataFormat.StereoMode));
+  assert_param(IS_SPDIFRX_DATA_FORMAT(sDataFormat.DataFormat));
+  assert_param(IS_PREAMBLE_TYPE_MASK(sDataFormat.PreambleTypeMask));
+  assert_param(IS_CHANNEL_STATUS_MASK(sDataFormat.ChannelStatusMask));
+  assert_param(IS_VALIDITY_MASK(sDataFormat.ValidityBitMask));
+  assert_param(IS_PARITY_ERROR_MASK(sDataFormat.ParityErrorMask));
+
+  /* Reset the old SPDIFRX CR configuration */
+  tmpreg = hspdif->Instance->CR;
+
+  if(((tmpreg & SPDIFRX_STATE_RCV) == SPDIFRX_STATE_RCV) &&
+     (((tmpreg & SPDIFRX_CR_DRFMT) != sDataFormat.DataFormat) ||
+      ((tmpreg & SPDIFRX_CR_RXSTEO) != sDataFormat.StereoMode)))
+  {
+    return HAL_ERROR;
+  }
+
+  tmpreg &= ~(SPDIFRX_CR_RXSTEO  | SPDIFRX_CR_DRFMT  | SPDIFRX_CR_PMSK |
+              SPDIFRX_CR_VMSK | SPDIFRX_CR_CUMSK | SPDIFRX_CR_PTMSK);
+
+  /* Configure the new data format */
+  tmpreg |= (sDataFormat.StereoMode |
+             sDataFormat.DataFormat |
+             sDataFormat.PreambleTypeMask |
+             sDataFormat.ChannelStatusMask |
+             sDataFormat.ValidityBitMask |
+             sDataFormat.ParityErrorMask);
+
+  hspdif->Instance->CR = tmpreg;
+
+  return HAL_OK;
+}

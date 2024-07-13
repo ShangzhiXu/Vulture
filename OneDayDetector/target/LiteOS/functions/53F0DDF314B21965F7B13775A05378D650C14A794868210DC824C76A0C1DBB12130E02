@@ -1,0 +1,39 @@
+static void make_bundle_links(int append)
+{
+	TDB_DATA key, rec;
+	char *p;
+	char entry[32];
+	int l;
+
+	key.dptr = blinks_id;
+	key.dsize = strlen(blinks_id);
+	slprintf(entry, sizeof(entry), "%s;", db_key);
+	p = entry;
+	if (append) {
+		rec = tdb_fetch(pppdb, key);
+		if (rec.dptr != NULL && rec.dsize > 0) {
+			rec.dptr[rec.dsize-1] = 0;
+			if (strstr(rec.dptr, db_key) != NULL) {
+				/* already in there? strange */
+				warn("link entry already exists in tdb");
+				return;
+			}
+			l = rec.dsize + strlen(entry);
+			p = malloc(l);
+			if (p == NULL)
+				novm("bundle link list");
+			slprintf(p, l, "%s%s", rec.dptr, entry);
+		} else {
+			warn("bundle link list not found");
+		}
+		if (rec.dptr != NULL)
+			free(rec.dptr);
+	}
+	rec.dptr = p;
+	rec.dsize = strlen(p) + 1;
+	if (tdb_store(pppdb, key, rec, TDB_REPLACE))
+		error("couldn't %s bundle link list",
+		      append? "update": "create");
+	if (p != entry)
+		free(p);
+}

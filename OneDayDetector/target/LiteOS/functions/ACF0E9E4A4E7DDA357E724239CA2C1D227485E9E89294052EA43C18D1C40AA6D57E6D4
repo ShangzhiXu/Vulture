@@ -1,0 +1,36 @@
+INT32 OsShellCmdDate(INT32 argc, const CHAR **argv)
+{
+    struct timeval64 nowTime = {0};
+
+    if (argc == 1) { /* 1:count of parameters */
+        if (gettimeofday64(&nowTime, NULL)) {
+            return DATE_ERR;
+        }
+        PRINTK("%s\n", ctime64(&nowTime.tv_sec));
+        return DATE_OK;
+    }
+
+    if (argc == 2) { /* 2:count of parameters */
+        if (!(strcmp(argv[1], "--help"))) {
+            OsCmdUsageDate(DATE_HELP_INFO);
+            return DATE_OK;
+        }
+        if (!(strncmp(argv[1], "+", 1))) {
+            return OsFormatPrintTime(argv[1]);
+        }
+    }
+
+    if (argc > 2) { /* 2:count of parameters */
+        if (!(strcmp(argv[1], "-s"))) {
+            return OsDateSetTime(argv[2]); /* 2:index of parameters */
+        }
+#ifdef  LOSCFG_FS_VFS
+        else if (!(strcmp(argv[1], "-r"))) {
+            return OsViewFileTime(argv[2]); /* 2:index of parameters */
+        }
+#endif
+    }
+
+    OsCmdUsageDate(DATE_ERR_INFO);
+    return DATE_OK;
+}

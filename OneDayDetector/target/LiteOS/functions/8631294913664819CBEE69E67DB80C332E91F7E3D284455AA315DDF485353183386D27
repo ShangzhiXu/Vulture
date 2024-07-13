@@ -1,0 +1,84 @@
+lv_obj_t * lv_page_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+    LV_LOG_TRACE("page create started");
+
+    /*Create the ancestor object*/
+    lv_obj_t * page = lv_cont_create(par, copy);
+    LV_ASSERT_MEM(page);
+    if(page == NULL) return NULL;
+
+    if(ancestor_signal == NULL) ancestor_signal = lv_obj_get_signal_cb(page);
+    if(ancestor_design == NULL) ancestor_design = lv_obj_get_design_cb(page);
+
+    /*Allocate the object type specific extended data*/
+    lv_page_ext_t * ext = lv_obj_allocate_ext_attr(page, sizeof(lv_page_ext_t));
+    LV_ASSERT_MEM(ext);
+    if(ext == NULL) {
+        lv_obj_del(page);
+        return NULL;
+    }
+
+    ext->scrl        = NULL;
+    lv_style_list_init(&ext->scrlbar.style);
+    ext->scrlbar.hor_draw = 0;
+    ext->scrlbar.ver_draw = 0;
+    ext->scrlbar.mode     = LV_SCROLLBAR_MODE_AUTO;
+#if LV_USE_ANIMATION
+    lv_style_list_init(&ext->edge_flash.style);
+    ext->edge_flash.enabled   = 0;
+    ext->edge_flash.bottom_ip = 0;
+    ext->edge_flash.top_ip    = 0;
+    ext->edge_flash.left_ip   = 0;
+    ext->edge_flash.right_ip  = 0;
+    ext->edge_flash.state     = 0;
+    ext->anim_time            = LV_PAGE_DEF_ANIM_TIME;
+#endif
+    ext->scroll_prop    = 0;
+    ext->scroll_prop_obj = NULL;
+
+    /*Init the new page object*/
+    if(copy == NULL) {
+        ext->scrl = lv_cont_create(page, NULL);
+        lv_obj_set_drag(ext->scrl, true);
+        lv_obj_set_drag_throw(ext->scrl, true);
+        lv_obj_add_protect(ext->scrl, LV_PROTECT_PARENT | LV_PROTECT_PRESS_LOST);
+        lv_cont_set_fit(ext->scrl, LV_FIT_MAX);
+        lv_obj_set_event_cb(ext->scrl, scrl_def_event_cb); /*Propagate some event to the background
+                                                              object by default for convenience */
+        lv_obj_set_signal_cb(ext->scrl, lv_page_scrollable_signal);
+
+        /* Add the signal function only if 'scrolling' is created
+        +         * because everything has to be ready before any signal is received*/
+        lv_obj_set_signal_cb(page, lv_page_signal);
+        lv_obj_set_design_cb(page, lv_page_design);
+
+        lv_page_set_scrollbar_mode(page, ext->scrlbar.mode);
+
+        lv_theme_apply(page, LV_THEME_PAGE);
+
+    }
+    else {
+        lv_page_ext_t * copy_ext = lv_obj_get_ext_attr(copy);
+        ext->scrl                = lv_cont_create(page, copy_ext->scrl);
+        lv_obj_set_signal_cb(ext->scrl, lv_page_scrollable_signal);
+
+        lv_style_list_copy(&ext->scrlbar.style, &copy_ext->scrlbar.style);
+#if LV_USE_ANIMATION
+        lv_style_list_copy(&ext->edge_flash.style, &copy_ext->edge_flash.style);
+#endif
+
+        /* Add the signal function only if 'scrolling' is created
+         * because everything has to be ready before any signal is received*/
+        lv_obj_set_signal_cb(page, lv_page_signal);
+        lv_obj_set_design_cb(page, lv_page_design);
+
+        lv_page_set_scrollbar_mode(page, copy_ext->scrlbar.mode);
+    }
+
+
+    scrlbar_refresh(page);
+
+    LV_LOG_INFO("page created");
+
+    return page;
+}

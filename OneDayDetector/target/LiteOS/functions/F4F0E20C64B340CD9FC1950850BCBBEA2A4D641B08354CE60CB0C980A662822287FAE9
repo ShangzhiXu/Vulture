@@ -1,0 +1,20 @@
+dhcp_t1_timeout(struct netif *netif)
+{
+  struct dhcp *dhcp = netif_dhcp_data(netif);
+
+  LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_STATE, ("dhcp_t1_timeout()\n"));
+  if ((dhcp->state == DHCP_STATE_REQUESTING) || (dhcp->state == DHCP_STATE_BOUND) ||
+      (dhcp->state == DHCP_STATE_RENEWING)) {
+    /* just retry to renew - note that the rebind timer (t2) will
+     * eventually time-out if renew tries fail. */
+    LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE,
+                ("dhcp_t1_timeout(): must renew\n"));
+    /* This slightly different to RFC2131: DHCPREQUEST will be sent from state
+       DHCP_STATE_RENEWING, not DHCP_STATE_BOUND */
+    dhcp_renew(netif);
+    /* Calculate next timeout */
+    if (((dhcp->t2_timeout - dhcp->lease_used) / 2) >= ((60 + DHCP_COARSE_TIMER_SECS / 2) / DHCP_COARSE_TIMER_SECS)) {
+      dhcp->t1_renew_time = (u16_t)((dhcp->t2_timeout - dhcp->lease_used) / 2);
+    }
+  }
+}

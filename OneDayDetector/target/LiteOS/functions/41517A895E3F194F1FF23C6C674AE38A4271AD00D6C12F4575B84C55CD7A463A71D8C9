@@ -1,0 +1,174 @@
+HAL_StatusTypeDef HAL_CRYP_Init(CRYP_HandleTypeDef *hcryp)
+{   
+  /* Check the CRYP handle allocation */
+  if(hcryp == NULL)
+  {
+    return HAL_ERROR;
+  }
+  
+  /* Check the instance */
+  assert_param(IS_AES_ALL_INSTANCE(hcryp->Instance));
+  
+  /* Check the parameters */
+  assert_param(IS_CRYP_KEYSIZE(hcryp->Init.KeySize));
+  assert_param(IS_CRYP_DATATYPE(hcryp->Init.DataType));
+  assert_param(IS_CRYP_ALGOMODE(hcryp->Init.OperatingMode));
+  /* ChainingMode parameter is irrelevant when mode is set to Key derivation */
+  if (hcryp->Init.OperatingMode != CRYP_ALGOMODE_KEYDERIVATION)
+  {
+    assert_param(IS_CRYP_CHAINMODE(hcryp->Init.ChainingMode));
+  }
+  assert_param(IS_CRYP_WRITE(hcryp->Init.KeyWriteFlag));
+  
+  /*========================================================*/
+  /* Check the proper operating/chaining modes combinations */
+  /*========================================================*/  
+  /* Check the proper chaining when the operating mode is key derivation and decryption */
+#if defined(AES_CR_NPBLB)
+  if ((hcryp->Init.OperatingMode == CRYP_ALGOMODE_KEYDERIVATION_DECRYPT) &&\
+         ((hcryp->Init.ChainingMode == CRYP_CHAINMODE_AES_CTR)           \
+       || (hcryp->Init.ChainingMode == CRYP_CHAINMODE_AES_GCM_GMAC)      \
+       || (hcryp->Init.ChainingMode == CRYP_CHAINMODE_AES_CCM)))
+#else  
+  if ((hcryp->Init.OperatingMode == CRYP_ALGOMODE_KEYDERIVATION_DECRYPT) &&\
+         ((hcryp->Init.ChainingMode == CRYP_CHAINMODE_AES_CTR)           \
+       || (hcryp->Init.ChainingMode == CRYP_CHAINMODE_AES_GCM_GMAC)      \
+       || (hcryp->Init.ChainingMode == CRYP_CHAINMODE_AES_CMAC)))
+#endif               
+  {
+    return HAL_ERROR;
+  }  
+  /* Check that key derivation is not set in CMAC mode or CCM mode when applicable */  
+#if defined(AES_CR_NPBLB)
+  if ((hcryp->Init.OperatingMode == CRYP_ALGOMODE_KEYDERIVATION) 
+   && (hcryp->Init.ChainingMode == CRYP_CHAINMODE_AES_CCM))
+#else  
+  if ((hcryp->Init.OperatingMode == CRYP_ALGOMODE_KEYDERIVATION) 
+   && (hcryp->Init.ChainingMode == CRYP_CHAINMODE_AES_CMAC))
+#endif           
+  {
+    return HAL_ERROR;
+  }
+  
+  
+  /*================*/
+  /* Initialization */
+  /*================*/  
+  /* Initialization start */
+  if(hcryp->State == HAL_CRYP_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hcryp->Lock = HAL_UNLOCKED;
+
+    /* Init the low level hardware */
+    HAL_CRYP_MspInit(hcryp);
+  }
+  
+  /* Change the CRYP state */
+  hcryp->State = HAL_CRYP_STATE_BUSY;  
+  
+  /* Disable the Peripheral */
+  __HAL_CRYP_DISABLE(hcryp);
+  
+  /*=============================================================*/
+  /* AES initialization common to all operating modes            */ 
+  /*=============================================================*/
+  /* Set the Key size selection */
+  MODIFY_REG(hcryp->Instance->CR, AES_CR_KEYSIZE, hcryp->Init.KeySize);
+  
+  /* Set the default CRYP phase when this parameter is not used.
+     Phase is updated below in case of GCM/GMAC(/CMAC)(/CCM) setting. */
+  hcryp->Phase = HAL_CRYP_PHASE_NOT_USED;
+  
+  
+
+  /*=============================================================*/
+  /* Carry on the initialization based on the AES operating mode */ 
+  /*=============================================================*/
+  /* Key derivation */ 
+  if (hcryp->Init.OperatingMode == CRYP_ALGOMODE_KEYDERIVATION)
+  {
+    MODIFY_REG(hcryp->Instance->CR, AES_CR_MODE, CRYP_ALGOMODE_KEYDERIVATION);
+    
+    /* Configure the Key registers */
+    if (CRYP_SetKey(hcryp) != HAL_OK)
+    {
+      return HAL_ERROR;
+    }
+  }
+  else
+  /* Encryption / Decryption (with or without key derivation) / authentication */
+  {  
+#if !defined(AES_CR_NPBLB)    
+    /* Set data type, operating and chaining modes.
+       In case of GCM or GMAC, data type is forced to 0b00 */
+    if (hcryp->Init.ChainingMode == CRYP_CHAINMODE_AES_GCM_GMAC)
+    {
+      MODIFY_REG(hcryp->Instance->CR, AES_CR_DATATYPE|AES_CR_MODE|AES_CR_CHMOD, hcryp->Init.OperatingMode|hcryp->Init.ChainingMode);    
+    }
+    else
+#endif    
+    {
+      MODIFY_REG(hcryp->Instance->CR, AES_CR_DATATYPE|AES_CR_MODE|AES_CR_CHMOD, hcryp->Init.DataType|hcryp->Init.OperatingMode|hcryp->Init.ChainingMode);
+    }
+
+    
+   /* Specify the encryption/decryption phase in case of Galois counter mode (GCM), 
+      Galois message authentication code (GMAC), cipher message authentication code (CMAC) when applicable
+      or Counter with Cipher Mode (CCM) when applicable */
+#if defined(AES_CR_NPBLB)      
+   if ((hcryp->Init.ChainingMode == CRYP_CHAINMODE_AES_GCM_GMAC)
+    || (hcryp->Init.ChainingMode == CRYP_CHAINMODE_AES_CCM))
+#else
+   if ((hcryp->Init.ChainingMode == CRYP_CHAINMODE_AES_GCM_GMAC)
+    || (hcryp->Init.ChainingMode == CRYP_CHAINMODE_AES_CMAC))
+#endif    
+    {
+      MODIFY_REG(hcryp->Instance->CR, AES_CR_GCMPH, hcryp->Init.GCMCMACPhase);
+      hcryp->Phase = HAL_CRYP_PHASE_START;
+    }
+
+    
+    /* Configure the Key registers if no need to bypass this step */
+    if (hcryp->Init.KeyWriteFlag == CRYP_KEY_WRITE_ENABLE)
+    {
+      if (CRYP_SetKey(hcryp) != HAL_OK)
+      {
+        return HAL_ERROR;
+      }      
+    }
+    
+    /* If applicable, configure the Initialization Vector */
+    if (hcryp->Init.ChainingMode != CRYP_CHAINMODE_AES_ECB)
+    {
+      if (CRYP_SetInitVector(hcryp) != HAL_OK)
+      {
+        return HAL_ERROR;
+      }
+    }
+  }
+  
+#if defined(AES_CR_NPBLB)   
+  /* Clear NPBLB field */
+  CLEAR_BIT(hcryp->Instance->CR, AES_CR_NPBLB);
+#endif  
+
+  /* Reset CrypInCount and CrypOutCount */
+  hcryp->CrypInCount = 0;
+  hcryp->CrypOutCount = 0;
+  
+  /* Reset ErrorCode field */
+  hcryp->ErrorCode = HAL_CRYP_ERROR_NONE;
+  
+  /* Reset Mode suspension request */
+  hcryp->SuspendRequest = HAL_CRYP_SUSPEND_NONE;
+  
+  /* Change the CRYP state */
+  hcryp->State = HAL_CRYP_STATE_READY;
+  
+  /* Enable the Peripheral */
+  __HAL_CRYP_ENABLE(hcryp);
+  
+  /* Return function status */
+  return HAL_OK;
+}

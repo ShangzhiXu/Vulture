@@ -1,0 +1,34 @@
+void lv_list_set_layout(lv_obj_t * list, lv_layout_t layout)
+{
+    LV_ASSERT_OBJ(list, LV_OBJX_NAME);
+
+    /* Update list layout if necessary */
+    if(layout == lv_list_get_layout(list)) return;
+
+    /* Get the first button on the list */
+    lv_obj_t * btn = lv_list_get_prev_btn(list, NULL);
+
+    /* Visit all buttons on the list and update their layout  */
+    while(btn != NULL) {
+        /*If a column layout set the buttons' width to list width*/
+        if(layout == LV_LAYOUT_COLUMN_MID || layout == LV_LAYOUT_COLUMN_LEFT || layout == LV_LAYOUT_COLUMN_RIGHT) {
+            lv_btn_set_fit2(btn, LV_FIT_PARENT, LV_FIT_TIGHT);
+        }
+        /*If a row layout set the buttons' width according to the content*/
+        else if(layout == LV_LAYOUT_ROW_MID || layout == LV_LAYOUT_ROW_TOP || layout == LV_LAYOUT_ROW_BOTTOM) {
+            lv_btn_set_fit(btn, LV_FIT_TIGHT);
+        }
+
+        btn = lv_list_get_prev_btn(list, btn);
+    }
+
+    if(layout == LV_LAYOUT_COLUMN_MID || layout == LV_LAYOUT_COLUMN_LEFT || layout == LV_LAYOUT_COLUMN_RIGHT) {
+        lv_page_set_scrllable_fit2(list, LV_FIT_PARENT, LV_FIT_TIGHT);
+    }
+    else if(layout == LV_LAYOUT_ROW_MID || layout == LV_LAYOUT_ROW_TOP || layout == LV_LAYOUT_ROW_BOTTOM) {
+        lv_page_set_scrllable_fit2(list, LV_FIT_TIGHT, LV_FIT_TIGHT);
+        lv_cont_set_fit2(list, LV_FIT_NONE, LV_FIT_TIGHT);
+    }
+
+    lv_page_set_scrl_layout(list, layout);
+}

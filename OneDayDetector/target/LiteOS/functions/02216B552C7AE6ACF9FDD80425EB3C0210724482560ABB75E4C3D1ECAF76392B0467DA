@@ -1,0 +1,73 @@
+static void test_sockets_msgapi_udp(int domain)
+{
+  int s, i, ret;
+  struct sockaddr_storage addr_storage;
+  socklen_t addr_size;
+  struct iovec riovs[4];
+  struct msghdr rmsg;
+  u8_t rcv_buf[4];
+  struct iovec siovs[4];
+  struct msghdr smsg;
+  u8_t snd_buf[4] = {0xDE, 0xAD, 0xBE, 0xEF};
+
+  /* initialize IO vectors with data */
+  for (i = 0; i < 4; i++) {
+    siovs[i].iov_base = &snd_buf[i];
+    siovs[i].iov_len = sizeof(u8_t);
+    riovs[i].iov_base = &rcv_buf[i];
+    riovs[i].iov_len = sizeof(u8_t);
+  }
+
+  test_sockets_init_loopback_addr(domain, &addr_storage, &addr_size);
+
+  s = test_sockets_alloc_socket_nonblocking(domain, SOCK_DGRAM);
+  fail_unless(s >= 0);
+
+  ret = lwip_bind(s, (struct sockaddr*)&addr_storage, addr_size);
+  fail_unless(ret == 0);
+
+  /* Update addr with epehermal port */
+  ret = lwip_getsockname(s, (struct sockaddr*)&addr_storage, &addr_size);
+  fail_unless(ret == 0);
+  switch(domain) {
+#if LWIP_IPV6
+    case AF_INET6:
+      fail_unless(addr_size == sizeof(struct sockaddr_in6));
+      break;
+#endif /* LWIP_IPV6 */
+#if LWIP_IPV4
+    case AF_INET:
+        fail_unless(addr_size == sizeof(struct sockaddr_in));
+        break;
+#endif /* LWIP_IPV6 */
+    default:
+      fail();
+      break;
+  }
+
+  /* send and receive the datagram in 4 pieces */
+  memset(&smsg, 0, sizeof(smsg));
+  smsg.msg_iov = siovs;
+  smsg.msg_iovlen = 4;
+  memset(&rmsg, 0, sizeof(rmsg));
+  rmsg.msg_iov = riovs;
+  rmsg.msg_iovlen = 4;
+
+  /* perform a sendmsg with remote host (self) */
+  smsg.msg_name = &addr_storage;
+  smsg.msg_namelen = addr_size;
+
+  test_sockets_msgapi_udp_send_recv_loop(s, &smsg, &rmsg);
+
+  /* Connect to self, allowing us to not pass message name */
+  ret = lwip_connect(s, (struct sockaddr*)&addr_storage, addr_size);
+  fail_unless(ret == 0);
+
+  smsg.msg_name = NULL;
+  smsg.msg_namelen = 0;
+
+  test_sockets_msgapi_udp_send_recv_loop(s, &smsg, &rmsg);
+
+  ret = lwip_close(s);
+  fail_unless(ret == 0);
+}

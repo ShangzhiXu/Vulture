@@ -1,0 +1,22 @@
+mld6_leavegroup(const ip6_addr_t *srcaddr, const ip6_addr_t *groupaddr)
+{
+  err_t         err = ERR_VAL; /* no matching interface */
+  struct netif *netif;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  /* loop through netif's */
+  NETIF_FOREACH(netif) {
+    /* Should we leave this interface ? */
+    if (ip6_addr_isany(srcaddr) ||
+        netif_get_ip6_addr_match(netif, srcaddr) >= 0) {
+      err_t res = mld6_leavegroup_netif(netif, groupaddr);
+      if (err != ERR_OK) {
+        /* Store this result if we have not yet gotten a success */
+        err = res;
+      }
+    }
+  }
+
+  return err;
+}

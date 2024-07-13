@@ -1,0 +1,29 @@
+HAL_StatusTypeDef HAL_LPTIM_Counter_Stop_IT(LPTIM_HandleTypeDef *hlptim)
+{
+  /* Check the parameters */
+  assert_param(IS_LPTIM_INSTANCE(hlptim->Instance));
+  
+  /* Set the LPTIM state */
+  hlptim->State= HAL_LPTIM_STATE_BUSY;
+  
+  /* Disable rising edge trigger on the LPTIM Wake-up Timer Exti line */ 
+  __HAL_LPTIM_WAKEUPTIMER_EXTI_DISABLE_RISING_EDGE();
+  
+  /* Disable EXTI Line interrupt on the LPTIM Wake-up Timer */
+  __HAL_LPTIM_WAKEUPTIMER_EXTI_DISABLE_IT(); 
+  
+  /* Disable the Peripheral */
+  __HAL_LPTIM_DISABLE(hlptim);
+  
+  /* Disable Autoreload write complete interrupt */
+  __HAL_LPTIM_DISABLE_IT(hlptim, LPTIM_IT_ARROK);
+  
+  /* Disable Autoreload match interrupt */
+  __HAL_LPTIM_DISABLE_IT(hlptim, LPTIM_IT_ARRM);
+  
+  /* Change the TIM state*/
+  hlptim->State= HAL_LPTIM_STATE_READY;
+  
+  /* Return function status */
+  return HAL_OK;
+}

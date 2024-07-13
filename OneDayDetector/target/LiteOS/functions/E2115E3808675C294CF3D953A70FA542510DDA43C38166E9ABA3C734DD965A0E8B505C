@@ -1,0 +1,76 @@
+netif_remove(struct netif *netif)
+{
+#if LWIP_IPV6
+  int i;
+#endif
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  if (netif == NULL) {
+    return;
+  }
+
+  netif_invoke_ext_callback(netif, LWIP_NSC_NETIF_REMOVED, NULL);
+
+#if LWIP_IPV4
+  if (!ip4_addr_isany_val(*netif_ip4_addr(netif))) {
+    netif_do_ip_addr_changed(netif_ip_addr4(netif), NULL);
+  }
+
+#if LWIP_IGMP
+  /* stop IGMP processing */
+  if (netif->flags & NETIF_FLAG_IGMP) {
+    igmp_stop(netif);
+  }
+#endif /* LWIP_IGMP */
+#endif /* LWIP_IPV4*/
+
+#if LWIP_IPV6
+  for (i = 0; i < LWIP_IPV6_NUM_ADDRESSES; i++) {
+    if (ip6_addr_isvalid(netif_ip6_addr_state(netif, i))) {
+      netif_do_ip_addr_changed(netif_ip_addr6(netif, i), NULL);
+    }
+  }
+#if LWIP_IPV6_MLD
+  /* stop MLD processing */
+  mld6_stop(netif);
+#endif /* LWIP_IPV6_MLD */
+#endif /* LWIP_IPV6 */
+  if (netif_is_up(netif)) {
+    /* set netif down before removing (call callback function) */
+    netif_set_down(netif);
+  }
+
+  mib2_remove_ip4(netif);
+
+  /* this netif is default? */
+  if (netif_default == netif) {
+    /* reset default netif */
+    netif_set_default(NULL);
+  }
+#if !LWIP_SINGLE_NETIF
+  /*  is it the first netif? */
+  if (netif_list == netif) {
+    netif_list = netif->next;
+  } else {
+    /*  look for netif further down the list */
+    struct netif *tmp_netif;
+    NETIF_FOREACH(tmp_netif) {
+      if (tmp_netif->next == netif) {
+        tmp_netif->next = netif->next;
+        break;
+      }
+    }
+    if (tmp_netif == NULL) {
+      return; /* netif is not on the list */
+    }
+  }
+#endif /* !LWIP_SINGLE_NETIF */
+  mib2_netif_removed(netif);
+#if LWIP_NETIF_REMOVE_CALLBACK
+  if (netif->remove_callback) {
+    netif->remove_callback(netif);
+  }
+#endif /* LWIP_NETIF_REMOVE_CALLBACK */
+  LWIP_DEBUGF( NETIF_DEBUG, ("netif_remove: removed netif\n") );
+}

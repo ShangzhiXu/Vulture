@@ -1,0 +1,22 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 LOS_MemIntegrityCheck(VOID *pool)
+{
+    LosMemDynNode *tmpNode = NULL;
+    LosMemDynNode *preNode = NULL;
+    UINT32 intSave;
+
+    if (pool == NULL) {
+        return LOS_NOK;
+    }
+
+    MEM_LOCK(intSave);
+    if (OsMemIntegrityCheck(pool, &tmpNode, &preNode)) {
+        goto ERROR_OUT;
+    }
+    MEM_UNLOCK(intSave);
+    return LOS_OK;
+
+ERROR_OUT:
+    OsMemIntegrityCheckError(tmpNode, preNode);
+    MEM_UNLOCK(intSave);
+    return LOS_NOK;
+}

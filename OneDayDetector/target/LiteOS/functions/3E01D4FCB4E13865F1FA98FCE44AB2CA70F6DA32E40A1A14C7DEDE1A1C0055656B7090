@@ -1,0 +1,41 @@
+VOID *OsSlabMemAlloc(VOID *pool, UINT32 size)
+{
+    VOID *ret = NULL;
+    struct LosSlabControlHeader *slabMem = OsSlabCtrlHdrGet(pool);
+    UINT32 idx;
+
+    if (size > (SLAB_MEM_CALSS_STEP_SIZE << (SLAB_MEM_COUNT - 1))) {
+        return NULL;
+    }
+
+    for (idx = 0; idx < SLAB_MEM_COUNT; idx++) {
+        if (size <= slabMem->slabClass[idx].blkSz) {
+#ifdef LOSCFG_KERNEL_MEM_SLAB_AUTO_EXPANSION_MODE
+            /* if slab mem alloc from current bucket succeesful, goto ALLOC_SUCC */
+            /* otherwise, should alloc in slabAlloc with new bucket */
+            if (OsSlabMemAllocStrollBuckets(pool, &ret, &(slabMem->slabClass[idx])) == FALSE) {
+                return NULL;
+            }
+#else
+            if (slabMem->slabClass[idx].blkUsedCnt >= slabMem->slabClass[idx].blkCnt) {
+                return NULL;
+            }
+
+            if (slabMem->slabClass[idx].alloc == NULL) {
+                return NULL;
+            }
+
+            ret = OsSlabAllocatorAlloc(slabMem->slabClass[idx].alloc);
+#endif
+            if (ret != NULL) {
+                /* alloc success */
+                ret = OsSlabBlockHeadFill((OsSlabBlockNode *)ret, slabMem->slabClass[idx].blkSz);
+                slabMem->slabClass[idx].blkUsedCnt++;
+            }
+
+            return ret;
+        }
+    }
+
+    return NULL;
+}

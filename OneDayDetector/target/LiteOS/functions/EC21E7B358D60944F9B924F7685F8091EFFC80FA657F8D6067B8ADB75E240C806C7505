@@ -1,0 +1,42 @@
+STATIC INLINE VOID OsMemFreeNode(LosMemDynNode *node, LosMemPoolInfo *pool)
+{
+    LosMemDynNode *nextNode = NULL;
+    LOS_DL_LIST *listNodeHead = NULL;
+    const VOID *firstNode = (const VOID *)((UINT8 *)OS_MEM_HEAD_ADDR(pool) + OS_DLNK_HEAD_SIZE);
+
+    OS_MEM_REDUCE_USED(&pool->stat, OS_MEM_NODE_GET_SIZE(node->selfNode.sizeAndFlag), OS_MEM_TASKID_GET(node));
+    node->selfNode.sizeAndFlag = OS_MEM_NODE_GET_SIZE(node->selfNode.sizeAndFlag);
+#ifdef LOSCFG_MEM_HEAD_BACKUP
+    OsMemNodeSave(node);
+#endif
+#ifdef LOSCFG_MEM_LEAKCHECK
+    OsMemLinkRegisterRecord(node);
+#endif
+    if ((node->selfNode.preNode != NULL) &&
+        !OS_MEM_NODE_GET_USED_FLAG(node->selfNode.preNode->selfNode.sizeAndFlag)) {
+        LosMemDynNode *preNode = node->selfNode.preNode;
+        OsMemMergeNode(node);
+        nextNode = OS_MEM_NEXT_NODE(preNode);
+        if (!OS_MEM_NODE_GET_USED_FLAG(nextNode->selfNode.sizeAndFlag)) {
+            OsMemListDelete(&nextNode->selfNode.freeNodeInfo, firstNode);
+            OsMemMergeNode(nextNode);
+        }
+
+        OsMemListDelete(&(preNode->selfNode.freeNodeInfo), firstNode);
+        listNodeHead = OS_MEM_HEAD(pool, preNode->selfNode.sizeAndFlag);
+        OS_CHECK_NULL_RETURN(listNodeHead);
+
+        OsMemListAdd(listNodeHead, &preNode->selfNode.freeNodeInfo, firstNode);
+    } else {
+        nextNode = OS_MEM_NEXT_NODE(node);
+        if (!OS_MEM_NODE_GET_USED_FLAG(nextNode->selfNode.sizeAndFlag)) {
+            OsMemListDelete(&nextNode->selfNode.freeNodeInfo, firstNode);
+            OsMemMergeNode(nextNode);
+        }
+
+        listNodeHead = OS_MEM_HEAD(pool, node->selfNode.sizeAndFlag);
+        OS_CHECK_NULL_RETURN(listNodeHead);
+
+        OsMemListAdd(listNodeHead, &node->selfNode.freeNodeInfo, firstNode);
+    }
+}

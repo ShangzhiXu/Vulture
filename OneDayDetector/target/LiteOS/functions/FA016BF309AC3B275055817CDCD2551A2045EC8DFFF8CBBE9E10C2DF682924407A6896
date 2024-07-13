@@ -1,0 +1,53 @@
+uint32_t LL_RCC_GetRNGClockFreq(uint32_t RNGxSource)
+{
+  uint32_t rng_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_RNG_CLKSOURCE(RNGxSource));
+
+  /* RNGCLK clock frequency */
+  switch (LL_RCC_GetRNGClockSource(RNGxSource))
+  {
+    case LL_RCC_RNG_CLKSOURCE_PLLSAI1:       /* PLLSAI1 clock used as RNG clock source */
+      if (LL_RCC_PLLSAI1_IsReady())
+      {
+        rng_frequency = RCC_PLLSAI1_GetFreqDomain_48M();
+      }
+      break;
+
+    case LL_RCC_RNG_CLKSOURCE_PLL:           /* PLL clock used as RNG clock source */
+      if (LL_RCC_PLL_IsReady())
+      {
+        rng_frequency = RCC_PLL_GetFreqDomain_48M();
+      }
+      break;
+
+    case LL_RCC_RNG_CLKSOURCE_MSI:           /* MSI clock used as RNG clock source */
+      if (LL_RCC_MSI_IsReady())
+      {
+        rng_frequency = __LL_RCC_CALC_MSI_FREQ(LL_RCC_MSI_IsEnabledRangeSelect(),
+                                    (LL_RCC_MSI_IsEnabledRangeSelect() ?
+                                     LL_RCC_MSI_GetRange() :
+                                     LL_RCC_MSI_GetRangeAfterStandby()));
+      }
+      break;
+
+
+#if defined(RCC_HSI48_SUPPORT)
+    case LL_RCC_RNG_CLKSOURCE_HSI48:      /* HSI48 used as SDMMC1 clock source */
+      if (LL_RCC_HSI48_IsReady())
+      {
+        rng_frequency = HSI48_VALUE;
+      }
+      break;
+#else
+    case LL_RCC_RNG_CLKSOURCE_NONE:       /* No clock used as SDMMC1 clock source */
+#endif
+    default:
+      rng_frequency = LL_RCC_PERIPH_FREQUENCY_NA;
+      break;
+
+  }
+
+  return rng_frequency;
+}

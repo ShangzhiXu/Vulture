@@ -1,0 +1,28 @@
+HAL_StatusTypeDef HAL_FLASH_Unlock(void)
+{
+  if (HAL_IS_BIT_SET(FLASH->CR, FLASH_CR_LOCK))
+  {
+    /* Authorize the FLASH Registers access */
+    WRITE_REG(FLASH->KEYR, FLASH_KEY1);
+    WRITE_REG(FLASH->KEYR, FLASH_KEY2);
+  }
+  else
+  {
+    return HAL_ERROR;
+  }
+
+#if defined(FLASH_BANK2_END)
+  if (HAL_IS_BIT_SET(FLASH->CR2, FLASH_CR2_LOCK))
+  {
+    /* Authorize the FLASH BANK2 Registers access */
+    WRITE_REG(FLASH->KEYR2, FLASH_KEY1);
+    WRITE_REG(FLASH->KEYR2, FLASH_KEY2);
+  }
+  else
+  {
+    return HAL_ERROR;
+  }
+  
+#endif /* FLASH_BANK2_END */
+  return HAL_OK; 
+}

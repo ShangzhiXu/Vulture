@@ -1,0 +1,58 @@
+HAL_StatusTypeDef HAL_DMA_Abort_IT(DMA_HandleTypeDef *hdma)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if(HAL_DMA_STATE_BUSY != hdma->State)
+  {
+    /* no transfer ongoing */
+    hdma->ErrorCode = HAL_DMA_ERROR_NO_XFER;
+
+    status = HAL_ERROR;
+  }
+  else
+  {
+    /* Disable DMA IT */
+    __HAL_DMA_DISABLE_IT(hdma, (DMA_IT_TC | DMA_IT_HT | DMA_IT_TE));
+
+    /* Disable the channel */
+    __HAL_DMA_DISABLE(hdma);
+
+#if defined(DMAMUX1)
+    /* disable the DMAMUX sync overrun IT*/
+    hdma->DMAmuxChannel->CCR &= ~DMAMUX_CxCR_SOIE;
+
+    /* Clear all flags */
+    hdma->DmaBaseAddress->IFCR = (DMA_ISR_GIF1 << hdma->ChannelIndex);
+
+    /* Clear the DMAMUX synchro overrun flag */
+    hdma->DMAmuxChannelStatus->CFR = hdma->DMAmuxChannelStatusMask;
+
+    if(hdma->DMAmuxRequestGen != 0U)
+    {
+      /* if using DMAMUX request generator, disable the DMAMUX request generator overrun IT*/
+      /* disable the request gen overrun IT*/
+      hdma->DMAmuxRequestGen->RGCR &= ~DMAMUX_RGxCR_OIE;
+
+      /* Clear the DMAMUX request generator overrun flag */
+      hdma->DMAmuxRequestGenStatus->RGCFR = hdma->DMAmuxRequestGenStatusMask;
+    }
+
+#else
+    /* Clear all flags */
+    hdma->DmaBaseAddress->IFCR = (DMA_ISR_GIF1 << hdma->ChannelIndex);
+#endif /* DMAMUX1 */
+
+    /* Change the DMA state */
+    hdma->State = HAL_DMA_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hdma);
+
+    /* Call User Abort callback */
+    if(hdma->XferAbortCallback != NULL)
+    {
+      hdma->XferAbortCallback(hdma);
+    }
+  }
+  return status;
+}

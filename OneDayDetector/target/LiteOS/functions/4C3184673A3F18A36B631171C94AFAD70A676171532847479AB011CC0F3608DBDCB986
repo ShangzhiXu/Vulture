@@ -1,0 +1,75 @@
+void HAL_IRDA_IRQHandler(IRDA_HandleTypeDef *hirda)
+{
+  uint32_t  tmp_flag = 0, tmp_it_source = 0;
+  
+  tmp_flag = __HAL_IRDA_GET_FLAG(hirda, IRDA_FLAG_PE);
+  tmp_it_source = __HAL_IRDA_GET_IT_SOURCE(hirda, IRDA_IT_PE);
+  /* IRDA parity error interrupt occurred -----------------------------------*/
+  if((tmp_flag != RESET) && (tmp_it_source != RESET))
+  {
+    hirda->ErrorCode |= HAL_IRDA_ERROR_PE;
+  }
+
+  tmp_flag = __HAL_IRDA_GET_FLAG(hirda, IRDA_FLAG_FE);
+  tmp_it_source = __HAL_IRDA_GET_IT_SOURCE(hirda, IRDA_IT_ERR);
+  /* IRDA frame error interrupt occurred ------------------------------------*/
+  if((tmp_flag != RESET) && (tmp_it_source != RESET))
+  {
+    hirda->ErrorCode |= HAL_IRDA_ERROR_FE;
+  }
+
+  tmp_flag = __HAL_IRDA_GET_FLAG(hirda, IRDA_FLAG_NE);
+  /* IRDA noise error interrupt occurred ------------------------------------*/
+  if((tmp_flag != RESET) && (tmp_it_source != RESET))
+  {
+    hirda->ErrorCode |= HAL_IRDA_ERROR_NE;
+  }
+
+  tmp_flag = __HAL_IRDA_GET_FLAG(hirda, IRDA_FLAG_ORE);
+  /* IRDA Over-Run interrupt occurred ---------------------------------------*/
+  if((tmp_flag != RESET) && (tmp_it_source != RESET))
+  {
+    hirda->ErrorCode |= HAL_IRDA_ERROR_ORE;
+  }
+
+  /* Call the Error call Back in case of Errors */
+  if(hirda->ErrorCode != HAL_IRDA_ERROR_NONE)
+  {
+    /* Disable PE and ERR interrupt */
+    __HAL_IRDA_DISABLE_IT(hirda, IRDA_IT_ERR);
+    __HAL_IRDA_DISABLE_IT(hirda, IRDA_IT_PE);
+    __HAL_IRDA_DISABLE_IT(hirda, IRDA_IT_TXE);
+    
+    /* Clear all the error flag at once */
+    __HAL_IRDA_CLEAR_PEFLAG(hirda);
+
+    /* Set the IRDA state ready to be able to start again the process */
+    hirda->State = HAL_IRDA_STATE_READY;
+    HAL_IRDA_ErrorCallback(hirda);
+  }
+
+  tmp_flag = __HAL_IRDA_GET_FLAG(hirda, IRDA_FLAG_RXNE);
+  tmp_it_source = __HAL_IRDA_GET_IT_SOURCE(hirda, IRDA_IT_RXNE);
+  /* IRDA in mode Receiver --------------------------------------------------*/
+  if((tmp_flag != RESET) && (tmp_it_source != RESET))
+  {
+    IRDA_Receive_IT(hirda);
+  }
+
+  tmp_flag = __HAL_IRDA_GET_FLAG(hirda, IRDA_FLAG_TXE);
+  tmp_it_source = __HAL_IRDA_GET_IT_SOURCE(hirda, IRDA_IT_TXE);
+  /* IRDA in mode Transmitter -----------------------------------------------*/
+  if((tmp_flag != RESET) && (tmp_it_source != RESET))
+  {
+    IRDA_Transmit_IT(hirda);
+  }
+
+  tmp_flag = __HAL_IRDA_GET_FLAG(hirda, IRDA_FLAG_TC);
+  tmp_it_source = __HAL_IRDA_GET_IT_SOURCE(hirda, IRDA_IT_TC);
+  /* IRDA in mode Transmitter (transmission end) -----------------------------*/
+  if((tmp_flag != RESET) && (tmp_it_source != RESET))
+  {
+    IRDA_EndTransmit_IT(hirda);
+  }   
+  
+}

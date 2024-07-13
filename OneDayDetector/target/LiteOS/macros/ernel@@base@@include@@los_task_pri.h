@@ -1,0 +1,6 @@
+#define OS_TASK_ID_CHECK_INVALID(taskId) (OS_TSK_GET_INDEX(taskId) >= g_taskMaxNum)
+#define OS_TCB_FROM_PENDLIST(ptr) LOS_DL_LIST_ENTRY(ptr, LosTaskCB, pendList)
+#define OS_TCB_FROM_TID(taskId) (((LosTaskCB *)g_taskCBArray) + (taskId))
+#define OS_TSK_GET_INDEX(taskId)    (taskId)
+#define SCHEDULER_LOCK(state)       LOS_SpinLockSave(&g_taskSpin, &(state))
+#define SCHEDULER_UNLOCK(state)     LOS_SpinUnlockRestore(&g_taskSpin, state)

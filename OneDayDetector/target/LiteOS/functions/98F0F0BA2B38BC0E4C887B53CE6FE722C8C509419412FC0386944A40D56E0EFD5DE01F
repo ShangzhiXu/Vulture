@@ -1,0 +1,49 @@
+HAL_StatusTypeDef HAL_ADCEx_InjectedStop_IT(ADC_HandleTypeDef* hadc)
+{
+  HAL_StatusTypeDef tmp_hal_status = HAL_OK;
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+
+  /* Process locked */
+  __HAL_LOCK(hadc);
+    
+  /* Stop potential conversion and disable ADC peripheral                     */
+  /* Conditioned to:                                                          */
+  /* - No conversion on the other group (regular group) is intended to        */
+  /*   continue (injected and regular groups stop conversion and ADC disable  */
+  /*   are common)                                                            */
+  /* - In case of auto-injection mode, HAL_ADC_Stop must be used.             */ 
+  if(((hadc->State & HAL_ADC_STATE_REG_BUSY) == RESET)  &&
+     HAL_IS_BIT_CLR(hadc->Instance->CR1, ADC_CR1_JAUTO)   )
+  {
+    /* Stop potential conversion on going, on regular and injected groups */
+    /* Disable ADC peripheral */
+    __HAL_ADC_DISABLE(hadc);
+    
+    /* Check if ADC is effectively disabled */
+    if(HAL_IS_BIT_CLR(hadc->Instance->CR2, ADC_CR2_ADON))
+    {
+      /* Disable ADC end of conversion interrupt for injected channels */
+      __HAL_ADC_DISABLE_IT(hadc, ADC_IT_JEOC);
+      
+      /* Set ADC state */
+      ADC_STATE_CLR_SET(hadc->State,
+                        HAL_ADC_STATE_REG_BUSY | HAL_ADC_STATE_INJ_BUSY,
+                        HAL_ADC_STATE_READY);
+    }
+  }
+  else
+  {
+    /* Update ADC state machine to error */
+    SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_CONFIG);
+      
+    tmp_hal_status = HAL_ERROR;
+  }
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+  
+  /* Return function status */
+  return tmp_hal_status;
+}

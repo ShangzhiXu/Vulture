@@ -1,0 +1,32 @@
+uint32_t LL_RCC_GetFMPI2CClockFreq(uint32_t FMPI2CxSource)
+{
+  uint32_t FMPI2C_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_FMPI2C_CLKSOURCE(FMPI2CxSource));
+
+  if (FMPI2CxSource == LL_RCC_FMPI2C1_CLKSOURCE)
+  {
+    /* FMPI2C1 CLK clock frequency */
+    switch (LL_RCC_GetFMPI2CClockSource(FMPI2CxSource))
+    {
+      case LL_RCC_FMPI2C1_CLKSOURCE_SYSCLK: /* FMPI2C1 Clock is System Clock */
+        FMPI2C_frequency = RCC_GetSystemClockFreq();
+        break;
+
+      case LL_RCC_FMPI2C1_CLKSOURCE_HSI:    /* FMPI2C1 Clock is HSI Osc. */
+        if (LL_RCC_HSI_IsReady())
+        {
+          FMPI2C_frequency = HSI_VALUE;
+        }
+        break;
+
+      case LL_RCC_FMPI2C1_CLKSOURCE_PCLK1:  /* FMPI2C1 Clock is PCLK1 */
+      default:
+        FMPI2C_frequency = RCC_GetPCLK1ClockFreq(RCC_GetHCLKClockFreq(RCC_GetSystemClockFreq()));
+        break;
+    }
+  }
+
+  return FMPI2C_frequency;
+}

@@ -1,0 +1,26 @@
+HAL_StatusTypeDef HAL_SDRAM_DeInit(SDRAM_HandleTypeDef *hsdram)
+{
+#if (USE_HAL_SDRAM_REGISTER_CALLBACKS == 1)
+  if(hsdram->MspDeInitCallback == NULL)
+  {
+    hsdram->MspDeInitCallback = HAL_SDRAM_MspDeInit;
+  }
+
+  /* DeInit the low level hardware */
+  hsdram->MspDeInitCallback(hsdram);
+#else
+  /* Initialize the low level hardware (MSP) */
+  HAL_SDRAM_MspDeInit(hsdram);
+#endif
+
+  /* Configure the SDRAM registers with their reset values */
+  FMC_SDRAM_DeInit(hsdram->Instance, hsdram->Init.SDBank);
+
+  /* Reset the SDRAM controller state */
+  hsdram->State = HAL_SDRAM_STATE_RESET;
+
+  /* Release Lock */
+  __HAL_UNLOCK(hsdram);
+
+  return HAL_OK;
+}

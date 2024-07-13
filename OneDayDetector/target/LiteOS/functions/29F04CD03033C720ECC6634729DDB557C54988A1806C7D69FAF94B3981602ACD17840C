@@ -1,0 +1,28 @@
+dns_lookup_local(const char *hostname, ip_addr_t *addr LWIP_DNS_ADDRTYPE_ARG(u8_t dns_addrtype))
+{
+#if DNS_LOCAL_HOSTLIST_IS_DYNAMIC
+  struct local_hostlist_entry *entry = local_hostlist_dynamic;
+  while (entry != NULL) {
+    if ((lwip_stricmp(entry->name, hostname) == 0) &&
+        LWIP_DNS_ADDRTYPE_MATCH_IP(dns_addrtype, entry->addr)) {
+      if (addr) {
+        ip_addr_copy(*addr, entry->addr);
+      }
+      return ERR_OK;
+    }
+    entry = entry->next;
+  }
+#else /* DNS_LOCAL_HOSTLIST_IS_DYNAMIC */
+  size_t i;
+  for (i = 0; i < LWIP_ARRAYSIZE(local_hostlist_static); i++) {
+    if ((lwip_stricmp(local_hostlist_static[i].name, hostname) == 0) &&
+        LWIP_DNS_ADDRTYPE_MATCH_IP(dns_addrtype, local_hostlist_static[i].addr)) {
+      if (addr) {
+        ip_addr_copy(*addr, local_hostlist_static[i].addr);
+      }
+      return ERR_OK;
+    }
+  }
+#endif /* DNS_LOCAL_HOSTLIST_IS_DYNAMIC */
+  return ERR_ARG;
+}

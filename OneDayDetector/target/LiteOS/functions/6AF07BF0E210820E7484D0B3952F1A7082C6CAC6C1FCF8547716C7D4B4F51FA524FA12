@@ -1,0 +1,35 @@
+STATIC VOID OsExcType(const ExcContext *frame, UINT32 regESR, UINT32 bitsEC)
+{
+    UINT32 bitIL = GET_IL(regESR);
+    UINT32 bitsISS = NBIT(regESR, 24, 0); /* Instruction Specific Syndrome in ESR_ELx[24:0] */
+    UINT64 regFAR;
+
+    switch (bitsEC) {
+        case 0x24:  /* 0b100100 */
+        case 0x25:  /* 0b100101 */
+            PrintExcInfo("Data Abort.\n");
+            /* read the FAR register */
+            regFAR = AARCH64_SYSREG_READ(FAR_ELx);
+            /* decode the iss */
+            if (bitIL) {
+                OsDecodeDataAbortISS(bitsISS);
+            }
+            PrintExcInfo("PC at 0x%llx,FAR 0x%llx,ISS 0x%x\n", frame->regELR, regFAR, bitsISS);
+            break;
+        case 0x20:  /* 0b100000 */
+        case 0x21:  /* 0b100001 */
+            PrintExcInfo("Instruction Abort.\n");
+            break;
+        case 0x22:  /* 0b100010 */
+            PrintExcInfo("PC alignment fault.\n");
+            break;
+        case 0x26:  /* 0b100110 */
+            PrintExcInfo("SP alignment fault.\n");
+            break;
+        default:
+            PrintExcInfo("OMG!Unknown synchronous exception, "
+                         "check Exception Syndrome Register in AARM for armv8-a.\n");
+            break;
+    }
+    PrintExcInfo("ESR 0x%x: ec 0x%x, il 0x%x, iss 0x%x\n", regESR, bitsEC, bitIL, bitsISS);
+}

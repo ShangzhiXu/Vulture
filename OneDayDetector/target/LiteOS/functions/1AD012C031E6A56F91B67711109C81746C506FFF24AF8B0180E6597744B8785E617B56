@@ -1,0 +1,21 @@
+static int kifs_opendir(struct dir *dir, const char *path_in_mp)
+{
+    struct kifs_node *node;
+
+    node = kifs_file_find((struct kifs_node *) dir->d_mp->m_data, path_in_mp,
+                           &path_in_mp);
+    if ((node == NULL) || (*path_in_mp != '\0')) {
+        VFS_ERRNO_SET(ENOENT);
+        return -1;
+    }
+
+    if ((node->attr & KIFS_ATTR_D) == 0) {
+        VFS_ERRNO_SET(ENOTDIR);
+        return -1;
+    }
+
+    dir->d_data = (void *) node;
+    dir->d_offset = 0;
+
+    return 0;
+}

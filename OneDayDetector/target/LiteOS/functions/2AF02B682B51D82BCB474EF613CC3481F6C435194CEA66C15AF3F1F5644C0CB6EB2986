@@ -1,0 +1,56 @@
+LV_ATTRIBUTE_FAST_MEM void * _lv_memcpy(void * dst, const void * src, size_t len)
+{
+    uint8_t * d8 = dst;
+    const uint8_t * s8 = src;
+
+    lv_uintptr_t d_align = (lv_uintptr_t)d8 & ALIGN_MASK;
+    lv_uintptr_t s_align = (lv_uintptr_t)s8 & ALIGN_MASK;
+
+    /*Byte copy for unaligned memories*/
+    if(s_align != d_align) {
+        while(len > 32) {
+            REPEAT8(COPY8);
+            REPEAT8(COPY8);
+            REPEAT8(COPY8);
+            REPEAT8(COPY8);
+            len -= 32;
+        }
+        while(len) {
+            COPY8
+            len--;
+        }
+        return dst;
+    }
+
+
+    /*Make the memories aligned*/
+    if(d_align) {
+        d_align = ALIGN_MASK + 1 - d_align;
+        while(d_align && len) {
+            COPY8;
+            d_align--;
+            len--;
+        }
+    }
+
+    uint32_t * d32 = (uint32_t *)d8;
+    const uint32_t * s32 = (uint32_t *)s8;
+    while(len > 32) {
+        REPEAT8(COPY32)
+        len -= 32;
+    }
+
+    while(len > 4) {
+        COPY32;
+        len -= 4;
+    }
+
+    d8 = (uint8_t *)d32;
+    s8 = (const uint8_t *)s32;
+    while(len) {
+        COPY8
+        len--;
+    }
+
+    return dst;
+}

@@ -1,0 +1,33 @@
+void HAL_RTC_AlarmIRQHandler(RTC_HandleTypeDef* hrtc)
+{
+  /* Clear the EXTI's line Flag for RTC Alarm */
+  __HAL_RTC_ALARM_EXTI_CLEAR_FLAG();
+
+  /* As alarms are sharing the same EXTI line, exit when no more pending Alarm event */
+  while(((__HAL_RTC_ALARM_GET_IT_SOURCE(hrtc, RTC_IT_ALRA) != RESET) && (__HAL_RTC_ALARM_GET_FLAG(hrtc, RTC_FLAG_ALRAF) != RESET)) ||
+        ((__HAL_RTC_ALARM_GET_IT_SOURCE(hrtc, RTC_IT_ALRB) != RESET) && (__HAL_RTC_ALARM_GET_FLAG(hrtc, RTC_FLAG_ALRBF) != RESET)))
+  {
+    /* Get the AlarmA interrupt source enable status and pending flag status*/
+    if((__HAL_RTC_ALARM_GET_IT_SOURCE(hrtc, RTC_IT_ALRA) != RESET) && (__HAL_RTC_ALARM_GET_FLAG(hrtc, RTC_FLAG_ALRAF) != RESET))
+    {
+      /* Clear the AlarmA interrupt pending bit */
+      __HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRAF);
+
+      /* AlarmA callback */
+      HAL_RTC_AlarmAEventCallback(hrtc);
+    }
+
+    /* Get the AlarmB interrupt source enable status and pending flag status*/
+    if((__HAL_RTC_ALARM_GET_IT_SOURCE(hrtc, RTC_IT_ALRB) != RESET) && (__HAL_RTC_ALARM_GET_FLAG(hrtc, RTC_FLAG_ALRBF) != RESET))
+    {
+      /* Clear the AlarmB interrupt pending bit */
+      __HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRBF);
+
+      /* AlarmB callback */
+      HAL_RTCEx_AlarmBEventCallback(hrtc);
+    }
+  }
+
+  /* Change RTC state */
+  hrtc->State = HAL_RTC_STATE_READY;
+}

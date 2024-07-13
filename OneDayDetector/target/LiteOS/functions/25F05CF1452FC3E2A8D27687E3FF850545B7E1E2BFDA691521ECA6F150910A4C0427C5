@@ -1,0 +1,29 @@
+LITE_OS_SEC_TEXT_MINOR LosTaskCB *OsGetTopTask(VOID)
+{
+    UINT32 priority;
+    UINT32 bitmap;
+    LosTaskCB *newTask = NULL;
+#ifdef LOSCFG_KERNEL_SMP
+    UINT32 cpuid = ArchCurrCpuid();
+#endif
+
+    bitmap = g_priQueueBitmap;
+
+    while (bitmap) {
+        priority = CLZ(bitmap);
+        LOS_DL_LIST_FOR_EACH_ENTRY(newTask, &g_priQueueList[priority], LosTaskCB, pendList) {
+#ifdef LOSCFG_KERNEL_SMP
+            if (newTask->cpuAffiMask & (1U << cpuid)) {
+#endif
+                OsPriQueueDequeue(&newTask->pendList);
+                goto OUT;
+#ifdef LOSCFG_KERNEL_SMP
+            }
+#endif
+        }
+        bitmap &= ~(1U << (OS_PRIORITY_QUEUE_NUM - priority - 1));
+    }
+
+OUT:
+    return newTask;
+}

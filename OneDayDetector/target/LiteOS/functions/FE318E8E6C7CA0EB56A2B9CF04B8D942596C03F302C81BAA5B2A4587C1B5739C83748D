@@ -1,0 +1,57 @@
+dhcp6_handle_config_reply(struct netif *netif, struct pbuf *p_msg_in)
+{
+  struct dhcp6 *dhcp6 = netif_dhcp6_data(netif);
+
+  LWIP_UNUSED_ARG(dhcp6);
+  LWIP_UNUSED_ARG(p_msg_in);
+
+#if LWIP_DHCP6_PROVIDE_DNS_SERVERS
+  if (dhcp6_option_given(dhcp6, DHCP6_OPTION_IDX_DNS_SERVER)) {
+    ip_addr_t dns_addr;
+    ip6_addr_t *dns_addr6;
+    u16_t op_start = dhcp6_get_option_start(dhcp6, DHCP6_OPTION_IDX_DNS_SERVER);
+    u16_t op_len = dhcp6_get_option_length(dhcp6, DHCP6_OPTION_IDX_DNS_SERVER);
+    u16_t idx;
+    u8_t n;
+
+    memset(&dns_addr, 0, sizeof(dns_addr));
+    dns_addr6 = ip_2_ip6(&dns_addr);
+    for (n = 0, idx = op_start; (idx < op_start + op_len) && (n < LWIP_DHCP6_PROVIDE_DNS_SERVERS);
+         n++, idx += sizeof(struct ip6_addr_packed)) {
+      u16_t copied = pbuf_copy_partial(p_msg_in, dns_addr6, sizeof(struct ip6_addr_packed), idx);
+      if (copied != sizeof(struct ip6_addr_packed)) {
+        /* pbuf length mismatch */
+        return;
+      }
+      ip6_addr_assign_zone(dns_addr6, IP6_UNKNOWN, netif);
+      /* @todo: do we need a different offset than DHCP(v4)? */
+      dns_setserver(n, &dns_addr);
+    }
+  }
+  /* @ todo: parse and set Domain Search List */
+#endif /* LWIP_DHCP6_PROVIDE_DNS_SERVERS */
+
+#if LWIP_DHCP6_GET_NTP_SRV
+  if (dhcp6_option_given(dhcp6, DHCP6_OPTION_IDX_NTP_SERVER)) {
+    ip_addr_t ntp_server_addrs[LWIP_DHCP6_MAX_NTP_SERVERS];
+    u16_t op_start = dhcp6_get_option_start(dhcp6, DHCP6_OPTION_IDX_NTP_SERVER);
+    u16_t op_len = dhcp6_get_option_length(dhcp6, DHCP6_OPTION_IDX_NTP_SERVER);
+    u16_t idx;
+    u8_t n;
+
+    for (n = 0, idx = op_start; (idx < op_start + op_len) && (n < LWIP_DHCP6_MAX_NTP_SERVERS);
+         n++, idx += sizeof(struct ip6_addr_packed)) {
+      u16_t copied;
+      ip6_addr_t *ntp_addr6 = ip_2_ip6(&ntp_server_addrs[n]);
+      ip_addr_set_zero_ip6(&ntp_server_addrs[n]);
+      copied = pbuf_copy_partial(p_msg_in, ntp_addr6, sizeof(struct ip6_addr_packed), idx);
+      if (copied != sizeof(struct ip6_addr_packed)) {
+        /* pbuf length mismatch */
+        return;
+      }
+      ip6_addr_assign_zone(ntp_addr6, IP6_UNKNOWN, netif);
+    }
+    dhcp6_set_ntp_servers(n, ntp_server_addrs);
+  }
+#endif /* LWIP_DHCP6_GET_NTP_SRV */
+}

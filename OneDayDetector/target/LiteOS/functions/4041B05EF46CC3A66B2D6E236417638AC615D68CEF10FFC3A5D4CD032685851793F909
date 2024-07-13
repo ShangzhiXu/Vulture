@@ -1,0 +1,87 @@
+s32_t SPIFFS_mount(spiffs *fs, spiffs_config *config, u8_t *work,
+                   u8_t *fd_space, u32_t fd_space_size,
+                   void *cache, u32_t cache_size,
+                   spiffs_check_callback check_cb_f)
+{
+    SPIFFS_API_DBG("%s "
+                   " sz:"_SPIPRIi " logpgsz:"_SPIPRIi " logblksz:"_SPIPRIi " perasz:"_SPIPRIi
+                   " addr:"_SPIPRIad
+                   " fdsz:"_SPIPRIi " cachesz:"_SPIPRIi
+                   "\n",
+                   __func__,
+                   SPIFFS_CFG_PHYS_SZ(fs),
+                   SPIFFS_CFG_LOG_PAGE_SZ(fs),
+                   SPIFFS_CFG_LOG_BLOCK_SZ(fs),
+                   SPIFFS_CFG_PHYS_ERASE_SZ(fs),
+                   SPIFFS_CFG_PHYS_ADDR(fs),
+                   fd_space_size, cache_size);
+    void *user_data;
+    SPIFFS_LOCK(fs);
+    user_data = fs->user_data;
+    memset(fs, 0, sizeof(spiffs));
+    _SPIFFS_MEMCPY(&fs->cfg, config, sizeof(spiffs_config));
+    fs->user_data = user_data;
+    fs->block_count = SPIFFS_CFG_PHYS_SZ(fs) / SPIFFS_CFG_LOG_BLOCK_SZ(fs);
+    fs->work = &work[0];
+    fs->lu_work = &work[SPIFFS_CFG_LOG_PAGE_SZ(fs)];
+    memset(fd_space, 0, fd_space_size);
+    // align fd_space pointer to pointer size byte boundary
+    u8_t ptr_size = sizeof(void *);
+    u8_t addr_lsb = ((u8_t)(intptr_t)fd_space) & (ptr_size - 1);
+    if (addr_lsb)
+    {
+        fd_space += (ptr_size - addr_lsb);
+        fd_space_size -= (ptr_size - addr_lsb);
+    }
+    fs->fd_space = fd_space;
+    fs->fd_count = (fd_space_size / sizeof(spiffs_fd));
+
+    // align cache pointer to 4 byte boundary
+    addr_lsb = ((u8_t)(intptr_t)cache) & (ptr_size - 1);
+    if (addr_lsb)
+    {
+        u8_t *cache_8 = (u8_t *)cache;
+        cache_8 += (ptr_size - addr_lsb);
+        cache = cache_8;
+        cache_size -= (ptr_size - addr_lsb);
+    }
+    if (cache_size & (ptr_size - 1))
+    {
+        cache_size -= (cache_size & (ptr_size - 1));
+    }
+
+#if SPIFFS_CACHE
+    fs->cache = cache;
+    fs->cache_size = (cache_size > (SPIFFS_CFG_LOG_PAGE_SZ(fs) * 32)) ? SPIFFS_CFG_LOG_PAGE_SZ(fs) * 32 : cache_size;
+    spiffs_cache_init(fs);
+#endif
+
+    s32_t res;
+
+#if SPIFFS_USE_MAGIC
+    res = SPIFFS_CHECK_MAGIC_POSSIBLE(fs) ? SPIFFS_OK : SPIFFS_ERR_MAGIC_NOT_POSSIBLE;
+    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+#endif
+
+    fs->config_magic = SPIFFS_CONFIG_MAGIC;
+
+    res = spiffs_obj_lu_scan(fs);
+    SPIFFS_API_CHECK_RES_UNLOCK(fs, res);
+
+    SPIFFS_DBG("page index byte len:         "_SPIPRIi"\n", (u32_t)SPIFFS_CFG_LOG_PAGE_SZ(fs));
+    SPIFFS_DBG("object lookup pages:         "_SPIPRIi"\n", (u32_t)SPIFFS_OBJ_LOOKUP_PAGES(fs));
+    SPIFFS_DBG("page pages per block:        "_SPIPRIi"\n", (u32_t)SPIFFS_PAGES_PER_BLOCK(fs));
+    SPIFFS_DBG("page header length:          "_SPIPRIi"\n", (u32_t)sizeof(spiffs_page_header));
+    SPIFFS_DBG("object header index entries: "_SPIPRIi"\n", (u32_t)SPIFFS_OBJ_HDR_IX_LEN(fs));
+    SPIFFS_DBG("object index entries:        "_SPIPRIi"\n", (u32_t)SPIFFS_OBJ_IX_LEN(fs));
+    SPIFFS_DBG("available file descriptors:  "_SPIPRIi"\n", (u32_t)fs->fd_count);
+    SPIFFS_DBG("free blocks:                 "_SPIPRIi"\n", (u32_t)fs->free_blocks);
+
+    fs->check_cb_f = check_cb_f;
+
+    fs->mounted = 1;
+
+    SPIFFS_UNLOCK(fs);
+
+    return 0;
+}

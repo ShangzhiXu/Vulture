@@ -1,0 +1,49 @@
+HAL_StatusTypeDef HAL_DSI_DeInit(DSI_HandleTypeDef *hdsi)
+{
+  /* Check the DSI handle allocation */
+  if (hdsi == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Change DSI peripheral state */
+  hdsi->State = HAL_DSI_STATE_BUSY;
+
+  /* Disable the DSI wrapper */
+  __HAL_DSI_WRAPPER_DISABLE(hdsi);
+
+  /* Disable the DSI host */
+  __HAL_DSI_DISABLE(hdsi);
+
+  /* D-PHY clock and digital disable */
+  hdsi->Instance->PCTLR &= ~(DSI_PCTLR_CKE | DSI_PCTLR_DEN);
+
+  /* Turn off the DSI PLL */
+  __HAL_DSI_PLL_DISABLE(hdsi);
+
+  /* Disable the regulator */
+  __HAL_DSI_REG_DISABLE(hdsi);
+
+#if (USE_HAL_DSI_REGISTER_CALLBACKS == 1)
+  if (hdsi->MspDeInitCallback == NULL)
+  {
+    hdsi->MspDeInitCallback = HAL_DSI_MspDeInit;
+  }
+  /* DeInit the low level hardware */
+  hdsi->MspDeInitCallback(hdsi);
+#else
+  /* DeInit the low level hardware */
+  HAL_DSI_MspDeInit(hdsi);
+#endif /* USE_HAL_DSI_REGISTER_CALLBACKS */
+
+  /* Initialise the error code */
+  hdsi->ErrorCode = HAL_DSI_ERROR_NONE;
+
+  /* Initialize the DSI state*/
+  hdsi->State = HAL_DSI_STATE_RESET;
+
+  /* Release Lock */
+  __HAL_UNLOCK(hdsi);
+
+  return HAL_OK;
+}

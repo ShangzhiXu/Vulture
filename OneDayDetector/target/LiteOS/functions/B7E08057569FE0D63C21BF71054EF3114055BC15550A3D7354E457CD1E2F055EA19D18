@@ -1,0 +1,29 @@
+HAL_StatusTypeDef HAL_HCD_DeInit(HCD_HandleTypeDef *hhcd)
+{
+  /* Check the HCD handle allocation */
+  if (hhcd == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  hhcd->State = HAL_HCD_STATE_BUSY;
+
+#if (USE_HAL_HCD_REGISTER_CALLBACKS == 1U)
+  if (hhcd->MspDeInitCallback == NULL)
+  {
+    hhcd->MspDeInitCallback = HAL_HCD_MspDeInit; /* Legacy weak MspDeInit  */
+  }
+
+  /* DeInit the low level hardware */
+  hhcd->MspDeInitCallback(hhcd);
+#else
+  /* DeInit the low level hardware: CLOCK, NVIC.*/
+  HAL_HCD_MspDeInit(hhcd);
+#endif /* USE_HAL_HCD_REGISTER_CALLBACKS */
+
+  __HAL_HCD_DISABLE(hhcd);
+
+  hhcd->State = HAL_HCD_STATE_RESET;
+
+  return HAL_OK;
+}

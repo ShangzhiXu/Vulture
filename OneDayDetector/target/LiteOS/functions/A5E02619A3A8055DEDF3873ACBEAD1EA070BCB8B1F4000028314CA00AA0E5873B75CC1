@@ -1,0 +1,32 @@
+lv_obj_t * lv_indev_search_obj(lv_obj_t * obj, lv_point_t * point)
+{
+    lv_obj_t * found_p = NULL;
+
+    /*If the point is on this object check its children too*/
+    if(lv_obj_hittest(obj, point)) {
+        lv_obj_t * i;
+
+        _LV_LL_READ(obj->child_ll, i) {
+            found_p = lv_indev_search_obj(i, point);
+
+            /*If a child was found then break*/
+            if(found_p != NULL) {
+                break;
+            }
+        }
+
+        /*If then the children was not ok, and this obj is clickable
+         * and it or its parent is not hidden then save this object*/
+        if(found_p == NULL && lv_obj_get_click(obj) != false) {
+            lv_obj_t * hidden_i = obj;
+            while(hidden_i != NULL) {
+                if(lv_obj_get_hidden(hidden_i) == true) break;
+                hidden_i = lv_obj_get_parent(hidden_i);
+            }
+            /*No parent found with hidden == true*/
+            if(hidden_i == NULL) found_p = obj;
+        }
+    }
+
+    return found_p;
+}

@@ -1,0 +1,74 @@
+static snmp_err_t usmusertable_get_instance(const u32_t *column, const u32_t *row_oid, u8_t row_oid_len, struct snmp_node_instance *cell_instance)
+{
+  const char *engineid;
+  u8_t eid_len;
+
+  u32_t engineid_oid[SNMP_V3_MAX_ENGINE_ID_LENGTH];
+
+  u8_t name_len;
+  u8_t engineid_len;
+
+  u8_t name_start;
+  u8_t engineid_start;
+
+  LWIP_UNUSED_ARG(column);
+
+  snmpv3_get_engine_id(&engineid, &eid_len);
+
+  engineid_len = (u8_t)row_oid[0];
+  engineid_start = 1;
+
+  if (engineid_len != eid_len) {
+    /* EngineID length does not match! */
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  if (engineid_len > row_oid_len) {
+    /* row OID doesn't contain enough data according to engineid_len.*/
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  /* check if incoming OID length and if values are in plausible range */
+  if (!snmp_oid_in_range(&row_oid[engineid_start], engineid_len, usmUserTable_oid_ranges, engineid_len)) {
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  snmp_engineid_to_oid(engineid, engineid_oid, engineid_len);
+
+  /* Verify EngineID */
+  if (snmp_oid_equal(&row_oid[engineid_start], engineid_len, engineid_oid, engineid_len)) {
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  name_len = (u8_t)row_oid[engineid_start + engineid_len];
+  name_start = engineid_start + engineid_len + 1;
+
+  if (name_len > SNMP_V3_MAX_USER_LENGTH) {
+    /* specified name is too long */
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  if (1 + engineid_len + 1 + name_len != row_oid_len) {
+    /* Length of EngineID and name does not match row oid length. (+2 for length fields)*/
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  /* check if incoming OID length and if values are in plausible range */
+  if (!snmp_oid_in_range(&row_oid[name_start], name_len, usmUserTable_oid_ranges, name_len)) {
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  /* Verify if user exists */
+  memset(username, 0, sizeof(username));
+  snmp_oid_to_name(username, &row_oid[name_start], name_len);
+  if (snmpv3_get_user(username, NULL, NULL, NULL, NULL) != ERR_OK) {
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  /* Save name in reference pointer to make it easier to handle later on */
+  cell_instance->reference.ptr = username;
+  cell_instance->reference_len = name_len;
+
+  /* user was found */
+  return SNMP_ERR_NOERROR;
+}

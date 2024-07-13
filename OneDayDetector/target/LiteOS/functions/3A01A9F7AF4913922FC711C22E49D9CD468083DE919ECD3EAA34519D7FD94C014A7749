@@ -1,0 +1,45 @@
+HAL_StatusTypeDef  HAL_JPEG_Pause(JPEG_HandleTypeDef *hjpeg, uint32_t XferSelection)
+{
+  uint32_t mask = 0;
+
+  assert_param(IS_JPEG_PAUSE_RESUME_STATE(XferSelection));
+
+  if ((hjpeg->Context & JPEG_CONTEXT_METHOD_MASK) == JPEG_CONTEXT_DMA)
+  {
+    if ((XferSelection & JPEG_PAUSE_RESUME_INPUT) == JPEG_PAUSE_RESUME_INPUT)
+    {
+      hjpeg->Context |= JPEG_CONTEXT_PAUSE_INPUT;
+      mask |= JPEG_DMA_IDMA;
+    }
+    if ((XferSelection & JPEG_PAUSE_RESUME_OUTPUT) == JPEG_PAUSE_RESUME_OUTPUT)
+    {
+      hjpeg->Context |= JPEG_CONTEXT_PAUSE_OUTPUT;
+      mask |= JPEG_DMA_ODMA;
+    }
+    JPEG_DISABLE_DMA(hjpeg, mask);
+
+  }
+  else if ((hjpeg->Context & JPEG_CONTEXT_METHOD_MASK) == JPEG_CONTEXT_IT)
+  {
+
+    if ((XferSelection & JPEG_PAUSE_RESUME_INPUT) == JPEG_PAUSE_RESUME_INPUT)
+    {
+      hjpeg->Context |= JPEG_CONTEXT_PAUSE_INPUT;
+      mask |= (JPEG_IT_IFT | JPEG_IT_IFNF);
+    }
+    if ((XferSelection & JPEG_PAUSE_RESUME_OUTPUT) == JPEG_PAUSE_RESUME_OUTPUT)
+    {
+      hjpeg->Context |= JPEG_CONTEXT_PAUSE_OUTPUT;
+      mask |= (JPEG_IT_OFT | JPEG_IT_OFNE | JPEG_IT_EOC);
+    }
+    __HAL_JPEG_DISABLE_IT(hjpeg, mask);
+
+  }
+  else
+  {
+    /* Nothing to do */
+  }
+
+  /* Return function status */
+  return HAL_OK;
+}

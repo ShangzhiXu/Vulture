@@ -1,0 +1,43 @@
+HAL_StatusTypeDef HAL_DMAEx_MultiBufferStart(DMA_HandleTypeDef *hdma, uint32_t SrcAddress, uint32_t DstAddress, uint32_t SecondMemAddress, uint32_t DataLength)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  
+  /* Check the parameters */
+  assert_param(IS_DMA_BUFFER_SIZE(DataLength));
+  
+  /* Memory-to-memory transfer not supported in double buffering mode */
+  if (hdma->Init.Direction == DMA_MEMORY_TO_MEMORY)
+  {
+    hdma->ErrorCode = HAL_DMA_ERROR_NOT_SUPPORTED;
+    status = HAL_ERROR;
+  }
+  else
+  {
+    /* Process Locked */
+    __HAL_LOCK(hdma);
+    
+    if(HAL_DMA_STATE_READY == hdma->State)
+    {
+      /* Change DMA peripheral state */
+      hdma->State = HAL_DMA_STATE_BUSY; 
+      
+      /* Enable the double buffer mode */
+      hdma->Instance->CR |= (uint32_t)DMA_SxCR_DBM;
+      
+      /* Configure DMA Stream destination address */
+      hdma->Instance->M1AR = SecondMemAddress;
+      
+      /* Configure the source, destination address and the data length */
+      DMA_MultiBufferSetConfig(hdma, SrcAddress, DstAddress, DataLength);
+      
+      /* Enable the peripheral */
+      __HAL_DMA_ENABLE(hdma);
+    }
+    else
+    {
+      /* Return error status */
+      status = HAL_BUSY;
+    }
+  }
+  return status;
+}

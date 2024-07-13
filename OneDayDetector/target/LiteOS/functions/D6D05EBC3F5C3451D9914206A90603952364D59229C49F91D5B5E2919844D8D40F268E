@@ -1,0 +1,24 @@
+HAL_StatusTypeDef HAL_PWREx_DisableBkUpReg(void)
+{
+  uint32_t tickstart = 0;
+  
+  /* Disable Backup regulator */
+  PWR->CSR1 &= (uint32_t)~((uint32_t)PWR_CSR1_BRE);
+  
+  /* Workaround for the following hardware bug: */
+  /* Id 19: PWR : No STANDBY wake-up when Back-up RAM enabled (ref. Errata Sheet p23) */
+  PWR->CSR1 |= PWR_CSR1_EIWUP;
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  /* Wait till Backup regulator ready flag is set */  
+  while(__HAL_PWR_GET_FLAG(PWR_FLAG_BRR) != RESET)
+  {
+    if((HAL_GetTick() - tickstart ) > PWR_BKPREG_TIMEOUT_VALUE)
+    {
+      return HAL_TIMEOUT;
+    } 
+  }
+  return HAL_OK;
+}

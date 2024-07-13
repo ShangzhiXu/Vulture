@@ -1,0 +1,84 @@
+HAL_StatusTypeDef HAL_IRDA_Receive(IRDA_HandleTypeDef *hirda, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+{
+  uint16_t* tmp = 0;
+  uint32_t  tmp_state = 0;
+  
+  tmp_state = hirda->State;
+  if((tmp_state == HAL_IRDA_STATE_READY) || (tmp_state == HAL_IRDA_STATE_BUSY_TX))
+  {
+    if((pData == NULL) || (Size == 0)) 
+    {
+      return  HAL_ERROR;
+    }
+    
+    /* Process Locked */
+    __HAL_LOCK(hirda);
+    
+    hirda->ErrorCode = HAL_IRDA_ERROR_NONE;
+    if(hirda->State == HAL_IRDA_STATE_BUSY_TX) 
+    {
+      hirda->State = HAL_IRDA_STATE_BUSY_TX_RX;
+    }
+    else
+    {
+      hirda->State = HAL_IRDA_STATE_BUSY_RX;
+    }
+    hirda->RxXferSize = Size;
+    hirda->RxXferCount = Size;
+    /* Check the remain data to be received */
+    while(hirda->RxXferCount > 0)
+    {
+      if(hirda->Init.WordLength == IRDA_WORDLENGTH_9B)
+      {
+        if(IRDA_WaitOnFlagUntilTimeout(hirda, IRDA_FLAG_RXNE, RESET, Timeout) != HAL_OK)
+        { 
+          return HAL_TIMEOUT;
+        }
+        tmp = (uint16_t*) pData ;
+        if(hirda->Init.Parity == IRDA_PARITY_NONE)
+        {
+          *tmp = (uint16_t)(hirda->Instance->DR & IRDA_DR_MASK_U16_9DATABITS);
+          pData +=2;
+        }
+        else
+        {
+          *tmp = (uint16_t)(hirda->Instance->DR & IRDA_DR_MASK_U16_8DATABITS);
+          pData +=1;
+        }
+      } 
+      else
+      {
+        if(IRDA_WaitOnFlagUntilTimeout(hirda, IRDA_FLAG_RXNE, RESET, Timeout) != HAL_OK)
+        { 
+          return HAL_TIMEOUT;
+        }
+        if(hirda->Init.Parity == IRDA_PARITY_NONE)
+        {
+          *pData++ = (uint8_t)(hirda->Instance->DR & IRDA_DR_MASK_U8_8DATABITS);
+        }
+        else
+        {
+          *pData++ = (uint8_t)(hirda->Instance->DR & IRDA_DR_MASK_U8_7DATABITS);
+        }
+      }
+      hirda->RxXferCount--;
+    }
+    if(hirda->State == HAL_IRDA_STATE_BUSY_TX_RX) 
+    {
+      hirda->State = HAL_IRDA_STATE_BUSY_TX;
+    }
+    else
+    {
+      hirda->State = HAL_IRDA_STATE_READY;
+    }
+    
+    /* Process Unlocked */
+    __HAL_UNLOCK(hirda);
+    
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;   
+  }
+}

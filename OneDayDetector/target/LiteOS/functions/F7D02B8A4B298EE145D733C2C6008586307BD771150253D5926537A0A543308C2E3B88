@@ -1,0 +1,21 @@
+static void I2C_DMASlaveReceiveCplt(DMA_HandleTypeDef *hdma)
+{
+  I2C_HandleTypeDef *hi2c = (I2C_HandleTypeDef *)(((DMA_HandleTypeDef *)hdma)->Parent); /* Derogation MISRAC2012-Rule-11.5 */
+  uint32_t tmpoptions = hi2c->XferOptions;
+
+  if ((__HAL_DMA_GET_COUNTER(hi2c->hdmarx) == 0U) && \
+      (tmpoptions != I2C_NO_OPTION_FRAME))
+  {
+    /* Disable DMA Request */
+    hi2c->Instance->CR1 &= ~I2C_CR1_RXDMAEN;
+
+    /* Call I2C Slave Sequential complete process */
+    I2C_ITSlaveSeqCplt(hi2c);
+  }
+  else
+  {
+    /* No specific action, Master fully manage the generation of STOP condition */
+    /* Mean that this generation can arrive at any time, at the end or during DMA process */
+    /* So STOP condition should be manage through Interrupt treatment */
+  }
+}

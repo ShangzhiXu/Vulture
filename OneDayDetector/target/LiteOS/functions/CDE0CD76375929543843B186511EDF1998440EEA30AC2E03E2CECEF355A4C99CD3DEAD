@@ -1,0 +1,30 @@
+HAL_StatusTypeDef HAL_SDRAM_Read_16b(SDRAM_HandleTypeDef *hsdram, uint32_t *pAddress, uint16_t *pDstBuffer, uint32_t BufferSize)
+{
+  __IO uint16_t *pSdramAddress = (uint16_t *)pAddress;
+  
+  /* Process Locked */
+  __HAL_LOCK(hsdram);
+  
+  /* Check the SDRAM controller state */
+  if(hsdram->State == HAL_SDRAM_STATE_BUSY)
+  {
+    return HAL_BUSY;
+  }
+  else if(hsdram->State == HAL_SDRAM_STATE_PRECHARGED)
+  {
+    return  HAL_ERROR; 
+  }  
+  
+  /* Read data from source */
+  for(; BufferSize != 0; BufferSize--)
+  {
+    *pDstBuffer = *(__IO uint16_t *)pSdramAddress;  
+    pDstBuffer++;
+    pSdramAddress++;               
+  }
+  
+  /* Process Unlocked */
+  __HAL_UNLOCK(hsdram);       
+  
+  return HAL_OK; 
+}

@@ -1,0 +1,40 @@
+HAL_StatusTypeDef HAL_CAN_AbortTxRequest(CAN_HandleTypeDef *hcan, uint32_t TxMailboxes)
+{
+  /* Check function parameters */
+  assert_param(IS_CAN_TX_MAILBOX_LIST(TxMailboxes));
+
+  if ((hcan->State == HAL_CAN_STATE_READY) ||
+      (hcan->State == HAL_CAN_STATE_LISTENING))
+  {
+    /* Check Tx Mailbox 0 */
+    if ((TxMailboxes & CAN_TX_MAILBOX0) != RESET)
+    {
+      /* Add cancellation request for Tx Mailbox 0 */
+      SET_BIT(hcan->Instance->TSR, CAN_TSR_ABRQ0);
+    }
+
+    /* Check Tx Mailbox 1 */
+    if ((TxMailboxes & CAN_TX_MAILBOX1) != RESET)
+    {
+      /* Add cancellation request for Tx Mailbox 1 */
+      SET_BIT(hcan->Instance->TSR, CAN_TSR_ABRQ1);
+    }
+
+    /* Check Tx Mailbox 2 */
+    if ((TxMailboxes & CAN_TX_MAILBOX2) != RESET)
+    {
+      /* Add cancellation request for Tx Mailbox 2 */
+      SET_BIT(hcan->Instance->TSR, CAN_TSR_ABRQ2);
+    }
+
+    /* Return function status */
+    return HAL_OK;
+  }
+  else
+  {
+    /* Update error code */
+    hcan->ErrorCode |= HAL_CAN_ERROR_NOT_INITIALIZED;
+
+    return HAL_ERROR;
+  }
+}

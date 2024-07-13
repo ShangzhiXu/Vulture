@@ -1,0 +1,29 @@
+LargestIntegralType _mock(const char * const function, const char* const file,
+                          const int line) {
+    void *result;
+    const int rc = get_symbol_value(&global_function_result_map_head,
+                                    &function, 1, &result);
+    if (rc) {
+        SymbolValue * const symbol = (SymbolValue*)result;
+        const LargestIntegralType value = symbol->value;
+        global_last_mock_value_location = symbol->location;
+        if (rc == 1) {
+            free(symbol);
+        }
+        return value;
+    } else {
+        print_error("ERROR: " SOURCE_LOCATION_FORMAT " - Could not get value "
+                    "to mock function %s\n", file, line, function);
+        if (source_location_is_set(&global_last_mock_value_location)) {
+            print_error("Previously returned mock value was declared at "
+                        SOURCE_LOCATION_FORMAT "\n",
+                        global_last_mock_value_location.file,
+                        global_last_mock_value_location.line);
+        } else {
+            print_error("There were no previously returned mock values for "
+                        "this test.\n");
+        }
+        exit_test(1);
+    }
+    return 0;
+}

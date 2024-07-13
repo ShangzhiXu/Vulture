@@ -1,0 +1,37 @@
+VOID OsTicklessUpdate(UINT32 irqnum)
+{
+    UINT32 cycles, ticks;
+    UINT32 cyclesPertick;
+    UINT32 sleepTicks;
+    UINT32 intSave = LOS_IntLock();
+
+    sleepTicks = OsTicklessSleepTickGet();
+    if (sleepTicks == 0) {
+        LOS_IntRestore(intSave);
+        return;
+    }
+
+    cyclesPertick = GET_SYS_CLOCK() / LOSCFG_BASE_CORE_TICK_PER_SECOND;
+    if (irqnum == OS_TICK_INT_NUM) {
+        OsSysTimeUpdate(sleepTicks);
+    } else {
+        cycles = HalClockGetTickTimerCycles();
+        cycles = (sleepTicks * cyclesPertick) - cycles;
+        ticks = cycles / cyclesPertick;
+        if (ticks < sleepTicks) {
+            cycles = cycles % cyclesPertick;
+            OsSysTimeUpdate(ticks + 1);
+            HalClockTickTimerReload(cyclesPertick - cycles);
+        } else {
+            /*
+             * If ticks is greater or equal to sleepTicks, it means the tick has already
+             * arrived, it should compensate with the sleepTicks just as that will be done
+             * in tick handler.
+             */
+            OsSysTimeUpdate(sleepTicks);
+        }
+    }
+    OsTicklessSleepTickSet(0);
+
+    LOS_IntRestore(intSave);
+}

@@ -1,0 +1,30 @@
+static void chap_input(ppp_pcb *pcb, unsigned char *pkt, int pktlen) {
+	unsigned char code, id;
+	int len;
+
+	if (pktlen < CHAP_HDRLEN)
+		return;
+	GETCHAR(code, pkt);
+	GETCHAR(id, pkt);
+	GETSHORT(len, pkt);
+	if (len < CHAP_HDRLEN || len > pktlen)
+		return;
+	len -= CHAP_HDRLEN;
+
+	switch (code) {
+	case CHAP_CHALLENGE:
+		chap_respond(pcb, id, pkt, len);
+		break;
+#if PPP_SERVER
+	case CHAP_RESPONSE:
+		chap_handle_response(pcb, id, pkt, len);
+		break;
+#endif /* PPP_SERVER */
+	case CHAP_FAILURE:
+	case CHAP_SUCCESS:
+		chap_handle_status(pcb, code, id, pkt, len);
+		break;
+	default:
+		break;
+	}
+}

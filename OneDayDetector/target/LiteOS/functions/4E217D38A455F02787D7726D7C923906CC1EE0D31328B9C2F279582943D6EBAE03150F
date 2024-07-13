@@ -1,0 +1,64 @@
+mdns_handle_response(struct mdns_packet *pkt)
+{
+  struct mdns_host* mdns = NETIF_TO_HOST(pkt->netif);
+
+  /* Ignore all questions */
+  while (pkt->questions_left) {
+    struct mdns_question q;
+    err_t res;
+
+    res = mdns_read_question(pkt, &q);
+    if (res != ERR_OK) {
+      LWIP_DEBUGF(MDNS_DEBUG, ("MDNS: Failed to parse question, skipping response packet\n"));
+      return;
+    }
+  }
+
+  while (pkt->answers_left) {
+    struct mdns_answer ans;
+    err_t res;
+
+    res = mdns_read_answer(pkt, &ans);
+    if (res != ERR_OK) {
+      LWIP_DEBUGF(MDNS_DEBUG, ("MDNS: Failed to parse answer, skipping response packet\n"));
+      return;
+    }
+
+    LWIP_DEBUGF(MDNS_DEBUG, ("MDNS: Answer for domain "));
+    mdns_domain_debug_print(&ans.info.domain);
+    LWIP_DEBUGF(MDNS_DEBUG, (" type %d class %d\n", ans.info.type, ans.info.klass));
+
+    /*"Apparently conflicting Multicast DNS responses received *before* the first probe packet is sent MUST
+      be silently ignored" so drop answer if we haven't started probing yet*/
+    if ((mdns->probing_state == MDNS_PROBING_ONGOING) && (mdns->probes_sent > 0)) {
+      struct mdns_domain domain;
+      u8_t i;
+      u8_t conflict = 0;
+
+      res = mdns_build_host_domain(&domain, mdns);
+      if (res == ERR_OK && mdns_domain_eq(&ans.info.domain, &domain)) {
+        LWIP_DEBUGF(MDNS_DEBUG, ("MDNS: Probe response matches host domain!"));
+        conflict = 1;
+      }
+
+      for (i = 0; i < MDNS_MAX_SERVICES; i++) {
+        struct mdns_service* service = mdns->services[i];
+        if (!service) {
+          continue;
+        }
+        res = mdns_build_service_domain(&domain, service, 1);
+        if ((res == ERR_OK) && mdns_domain_eq(&ans.info.domain, &domain)) {
+          LWIP_DEBUGF(MDNS_DEBUG, ("MDNS: Probe response matches service domain!"));
+          conflict = 1;
+        }
+      }
+
+      if (conflict != 0) {
+        sys_untimeout(mdns_probe, pkt->netif);
+        if (mdns_name_result_cb != NULL) {
+          mdns_name_result_cb(pkt->netif, MDNS_PROBING_CONFLICT);
+        }
+      }
+    }
+  }
+}

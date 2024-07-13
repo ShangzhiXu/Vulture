@@ -1,0 +1,21 @@
+static void ccp_down(fsm *f) {
+    ppp_pcb *pcb = f->pcb;
+#if MPPE_SUPPORT
+    ccp_options *go = &pcb->ccp_gotoptions;
+#endif /* MPPE_SUPPORT */
+
+    if (pcb->ccp_localstate & RACK_PENDING)
+	UNTIMEOUT(ccp_rack_timeout, f);
+    pcb->ccp_localstate = 0;
+    ccp_set(pcb, 1, 0, 0, 0);
+#if MPPE_SUPPORT
+    if (go->mppe) {
+	go->mppe = 0;
+	if (pcb->lcp_fsm.state == PPP_FSM_OPENED) {
+	    /* If LCP is not already going down, make sure it does. */
+	    ppp_error("MPPE disabled");
+	    lcp_close(pcb, "MPPE disabled");
+	}
+    }
+#endif /* MPPE_SUPPORT */
+}

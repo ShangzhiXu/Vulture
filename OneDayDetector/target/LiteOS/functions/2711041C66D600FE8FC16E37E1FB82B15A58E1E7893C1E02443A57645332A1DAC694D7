@@ -1,0 +1,46 @@
+smtp_send_body(struct smtp_session *s, struct altcp_pcb *pcb)
+{
+  err_t err;
+
+  if (s->state == SMTP_BODY) {
+#if SMTP_BODYDH
+    if (s->bodydh) {
+      smtp_send_body_data_handler(s, pcb);
+    } else
+#endif /* SMTP_BODYDH */
+    {
+      u16_t send_len = (u16_t)(s->body_len - s->body_sent);
+      if (send_len > 0) {
+        u16_t snd_buf = altcp_sndbuf(pcb);
+        if (send_len > snd_buf) {
+          send_len = snd_buf;
+        }
+        if (send_len > 0) {
+          /* try to send something out */
+          err = altcp_write(pcb, &s->body[s->body_sent], (u16_t)send_len, TCP_WRITE_FLAG_COPY);
+          if (err == ERR_OK) {
+            s->timer = SMTP_TIMEOUT_DATABLOCK;
+            s->body_sent = (u16_t)(s->body_sent + send_len);
+            if (s->body_sent < s->body_len) {
+              LWIP_DEBUGF(SMTP_DEBUG_STATE, ("smtp_send_body: %d of %d bytes written\n",
+                s->body_sent, s->body_len));
+            }
+          }
+        }
+      }
+    }
+    if (s->body_sent == s->body_len) {
+      /* the whole body has been written, write last line */
+      LWIP_DEBUGF(SMTP_DEBUG_STATE, ("smtp_send_body: body completely written (%d bytes), appending end-of-body\n",
+        s->body_len));
+      err = altcp_write(pcb, SMTP_CMD_BODY_FINISHED, SMTP_CMD_BODY_FINISHED_LEN, 0);
+      if (err == ERR_OK) {
+        s->timer = SMTP_TIMEOUT_DATATERM;
+        LWIP_DEBUGF(SMTP_DEBUG_STATE, ("smtp_send_body: end-of-body written, changing state to %s\n",
+          smtp_state_str[SMTP_QUIT]));
+        /* last line written, change state, wait for confirmation */
+        s->state = SMTP_QUIT;
+      }
+    }
+  }
+}

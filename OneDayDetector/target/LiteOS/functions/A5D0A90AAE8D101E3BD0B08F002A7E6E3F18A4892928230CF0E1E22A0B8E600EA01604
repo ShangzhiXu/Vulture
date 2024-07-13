@@ -1,0 +1,19 @@
+uint32_t BSP_EEPROM_ReadBuffer(uint8_t* pBuffer, uint16_t ReadAddr, uint16_t* NumByteToRead)
+{  
+  uint32_t buffersize = *NumByteToRead;
+  
+  /* Set the pointer to the Number of data to be read. This pointer will be used 
+     by the DMA Transfer Completer interrupt Handler in order to reset the 
+     variable to 0. User should check on this variable in order to know if the 
+     DMA transfer has been complete or not. */
+  EEPROMDataRead = *NumByteToRead;
+  
+  if(EEPROM_IO_ReadData(EEPROMAddress, ReadAddr, pBuffer, buffersize) != HAL_OK)
+  {
+    BSP_EEPROM_TIMEOUT_UserCallback();
+    return EEPROM_FAIL;
+  }
+
+  /* If all operations OK, return EEPROM_OK (0) */
+  return EEPROM_OK;
+}

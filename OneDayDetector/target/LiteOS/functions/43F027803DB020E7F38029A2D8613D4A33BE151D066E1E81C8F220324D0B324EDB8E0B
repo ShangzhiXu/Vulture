@@ -1,0 +1,29 @@
+static int chapms2_check_success(ppp_pcb *pcb, unsigned char *msg, int len, unsigned char *private_) {
+	LWIP_UNUSED_ARG(pcb);
+
+	if ((len < MS_AUTH_RESPONSE_LENGTH + 2) ||
+	    strncmp((char *)msg, "S=", 2) != 0) {
+		/* Packet does not start with "S=" */
+		ppp_error("MS-CHAPv2 Success packet is badly formed.");
+		return 0;
+	}
+	msg += 2;
+	len -= 2;
+	if (len < MS_AUTH_RESPONSE_LENGTH
+	    || memcmp(msg, private_, MS_AUTH_RESPONSE_LENGTH)) {
+		/* Authenticator Response did not match expected. */
+		ppp_error("MS-CHAPv2 mutual authentication failed.");
+		return 0;
+	}
+	/* Authenticator Response matches. */
+	msg += MS_AUTH_RESPONSE_LENGTH; /* Eat it */
+	len -= MS_AUTH_RESPONSE_LENGTH;
+	if ((len >= 3) && !strncmp((char *)msg, " M=", 3)) {
+		msg += 3; /* Eat the delimiter */
+	} else if (len) {
+		/* Packet has extra text which does not begin " M=" */
+		ppp_error("MS-CHAPv2 Success packet is badly formed.");
+		return 0;
+	}
+	return 1;
+}

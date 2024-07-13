@@ -1,0 +1,33 @@
+static int pk_write_rsa_pubkey( unsigned char **p, unsigned char *start,
+                                mbedtls_rsa_context *rsa )
+{
+    int ret;
+    size_t len = 0;
+    mbedtls_mpi T;
+
+    mbedtls_mpi_init( &T );
+
+    /* Export E */
+    if ( ( ret = mbedtls_rsa_export( rsa, NULL, NULL, NULL, NULL, &T ) ) != 0 ||
+         ( ret = mbedtls_asn1_write_mpi( p, start, &T ) ) < 0 )
+        goto end_of_export;
+    len += ret;
+
+    /* Export N */
+    if ( ( ret = mbedtls_rsa_export( rsa, &T, NULL, NULL, NULL, NULL ) ) != 0 ||
+         ( ret = mbedtls_asn1_write_mpi( p, start, &T ) ) < 0 )
+        goto end_of_export;
+    len += ret;
+
+end_of_export:
+
+    mbedtls_mpi_free( &T );
+    if( ret < 0 )
+        return( ret );
+
+    MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_len( p, start, len ) );
+    MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_tag( p, start, MBEDTLS_ASN1_CONSTRUCTED |
+                                                 MBEDTLS_ASN1_SEQUENCE ) );
+
+    return( (int) len );
+}

@@ -1,0 +1,32 @@
+LITE_OS_SEC_TEXT_INIT STATIC VOID OsTaskCBRecycleToFree(VOID)
+{
+    LosTaskCB *taskCB = NULL;
+    VOID *poolTmp = NULL;
+#ifdef LOSCFG_TASK_STACK_PROTECT
+    UINTPTR MMUProtectAddr;
+#endif
+    while (!LOS_ListEmpty(&g_taskRecycleList)) {
+        poolTmp = (VOID *)m_aucSysMem1;
+        taskCB = OS_TCB_FROM_PENDLIST(LOS_DL_LIST_FIRST(&g_taskRecycleList));
+        LOS_ListDelete(LOS_DL_LIST_FIRST(&g_taskRecycleList));
+        LOS_ListAdd(&g_losFreeTask, &taskCB->pendList);
+#ifdef LOSCFG_TASK_STACK_PROTECT
+        MMUProtectAddr = taskCB->topOfStack - MMU_4K;
+        OsTaskStackProtect(MMUProtectAddr, MMU_4K, ACCESS_PERM_RW_RW);
+#ifdef LOSCFG_EXC_INTERACTION
+        if (MMUProtectAddr < (UINTPTR)m_aucSysMem1) {
+            poolTmp = (VOID *)m_aucSysMem0;
+        }
+#endif
+        (VOID)LOS_MemFree(poolTmp, (VOID *)MMUProtectAddr);
+#else
+#ifdef LOSCFG_EXC_INTERACTION
+        if (taskCB->topOfStack < (UINTPTR)m_aucSysMem1) {
+            poolTmp = (VOID *)m_aucSysMem0;
+        }
+#endif
+        (VOID)LOS_MemFree(poolTmp, (VOID *)taskCB->topOfStack);
+#endif
+        taskCB->topOfStack = 0;
+    }
+}

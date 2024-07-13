@@ -1,0 +1,20 @@
+HAL_StatusTypeDef USB_EPClearStall(USB_OTG_GlobalTypeDef *USBx, USB_OTG_EPTypeDef *ep)
+{
+  if (ep->is_in == 1)
+  {
+    USBx_INEP(ep->num)->DIEPCTL &= ~USB_OTG_DIEPCTL_STALL;
+    if (ep->type == EP_TYPE_INTR || ep->type == EP_TYPE_BULK)
+    {
+       USBx_INEP(ep->num)->DIEPCTL |= USB_OTG_DIEPCTL_SD0PID_SEVNFRM; /* DATA0 */
+    }
+  }
+  else
+  {
+    USBx_OUTEP(ep->num)->DOEPCTL &= ~USB_OTG_DOEPCTL_STALL;
+    if (ep->type == EP_TYPE_INTR || ep->type == EP_TYPE_BULK)
+    {
+      USBx_OUTEP(ep->num)->DOEPCTL |= USB_OTG_DOEPCTL_SD0PID_SEVNFRM; /* DATA0 */
+    }
+  }
+  return HAL_OK;
+}

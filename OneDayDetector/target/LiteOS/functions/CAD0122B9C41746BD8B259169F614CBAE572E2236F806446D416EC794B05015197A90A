@@ -1,0 +1,20 @@
+pppos_disconnect(ppp_pcb *ppp, void *ctx)
+{
+  pppos_pcb *pppos = (pppos_pcb *)ctx;
+  PPPOS_DECL_PROTECT(lev);
+
+  PPPOS_PROTECT(lev);
+  pppos->open = 0;
+  PPPOS_UNPROTECT(lev);
+
+  /* If PPP_INPROC_IRQ_SAFE is used we cannot call
+   * pppos_input_free_current_packet() here because
+   * rx IRQ might still call pppos_input().
+   */
+#if !PPP_INPROC_IRQ_SAFE
+  /* input pbuf left ? */
+  pppos_input_free_current_packet(pppos);
+#endif /* !PPP_INPROC_IRQ_SAFE */
+
+  ppp_link_end(ppp); /* notify upper layers */
+}

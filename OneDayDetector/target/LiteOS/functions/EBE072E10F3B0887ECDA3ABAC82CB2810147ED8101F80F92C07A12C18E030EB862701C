@@ -1,0 +1,31 @@
+HAL_StatusTypeDef HAL_RNG_DeInit(RNG_HandleTypeDef *hrng)
+{ 
+  /* Check the RNG handle allocation */
+  if(hrng == NULL)
+  {
+    return HAL_ERROR;
+  }
+  
+#if defined(RNG_CR_CED)
+  /* Clear Clock Error Detection bit */
+  CLEAR_BIT(hrng->Instance->CR, RNG_CR_CED);
+#endif /* defined(RNG_CR_CED) */
+
+  /* Disable the RNG Peripheral */
+  CLEAR_BIT(hrng->Instance->CR, RNG_CR_IE | RNG_CR_RNGEN);
+
+  /* Clear RNG interrupt status flags */
+  CLEAR_BIT(hrng->Instance->SR, RNG_SR_CEIS | RNG_SR_SEIS);
+
+  /* DeInit the low level hardware */
+  HAL_RNG_MspDeInit(hrng);
+
+  /* Update the RNG state */
+  hrng->State = HAL_RNG_STATE_RESET; 
+
+  /* Release Lock */
+  __HAL_UNLOCK(hrng);
+
+  /* Return the function status */
+  return HAL_OK;
+}

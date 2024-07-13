@@ -1,0 +1,20 @@
+STATIC VOID WaitAllCpuStop(UINT32 cpuid)
+{
+    UINT32 i;
+    UINT32 time = 0;
+
+    while (time < EXC_WAIT_TIME) {
+        for (i = 0; i < LOSCFG_KERNEL_CORE_NUM; i++) {
+            if ((i != cpuid) && (g_percpu[i].excFlag == CPU_RUNNING)) {
+                LOS_Mdelay(EXC_WAIT_INTER);
+                time += EXC_WAIT_INTER;
+                break;
+            }
+        }
+        /* Other CPUs are all haletd or in the exc. */
+        if (i == LOSCFG_KERNEL_CORE_NUM) {
+            break;
+        }
+    }
+    return;
+}

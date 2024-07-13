@@ -1,0 +1,4 @@
+#define IS_NVIC_DEVICE_IRQ(IRQ)                ((IRQ) >= 0x00)
+#define IS_NVIC_PREEMPTION_PRIORITY(PRIORITY)  ((PRIORITY) < 0x4)
+#define IS_SYSTICK_CLK_SOURCE(SOURCE) (((SOURCE) == SYSTICK_CLKSOURCE_HCLK) || \
+                                      ((SOURCE) == SYSTICK_CLKSOURCE_HCLK_DIV8))

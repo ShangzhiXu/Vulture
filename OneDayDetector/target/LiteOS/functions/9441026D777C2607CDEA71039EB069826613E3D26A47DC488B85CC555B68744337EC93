@@ -1,0 +1,93 @@
+lv_obj_t * lv_list_add_btn(lv_obj_t * list, const void * img_src, const char * txt)
+{
+    LV_ASSERT_OBJ(list, LV_OBJX_NAME);
+
+    lv_obj_t * last_btn = lv_list_get_prev_btn(list, NULL);
+
+    /*The coordinates may changed due to autofit so revert them at the end*/
+    lv_coord_t pos_x_ori = lv_obj_get_x(list);
+    lv_coord_t pos_y_ori = lv_obj_get_y(list);
+
+    lv_obj_t * scrl =  lv_page_get_scrllable(list);
+    lv_obj_add_protect(scrl, LV_PROTECT_CHILD_CHG);
+
+    /*Create a list element with the image an the text*/
+    lv_obj_t * btn;
+    btn = lv_btn_create(list, NULL);
+
+    lv_obj_add_protect(btn, LV_PROTECT_CHILD_CHG);
+
+    /*Save the original signal function because it will be required in `lv_list_btn_signal`*/
+    if(ancestor_btn_signal == NULL) ancestor_btn_signal = lv_obj_get_signal_cb(btn);
+
+    /*Set the default styles*/
+    lv_theme_apply(btn, LV_THEME_LIST_BTN);
+
+    lv_page_glue_obj(btn, true);
+    lv_btn_set_layout(btn, LV_LAYOUT_ROW_MID);
+
+    lv_layout_t list_layout = lv_list_get_layout(list);
+    bool layout_ver = false;
+    if(list_layout == LV_LAYOUT_COLUMN_MID || list_layout == LV_LAYOUT_COLUMN_LEFT ||
+       list_layout == LV_LAYOUT_COLUMN_RIGHT) {
+        layout_ver = true;
+    }
+
+    if(layout_ver) {
+        lv_btn_set_fit2(btn, LV_FIT_PARENT, LV_FIT_TIGHT);
+    }
+    else {
+        lv_coord_t w = last_btn ? lv_obj_get_width(last_btn) : (LV_DPI * 3) / 2;
+        lv_btn_set_fit2(btn, LV_FIT_NONE, LV_FIT_TIGHT);
+        lv_obj_set_width(btn, w);
+    }
+
+
+    lv_obj_add_protect(btn, LV_PROTECT_PRESS_LOST);
+    lv_obj_set_signal_cb(btn, lv_list_btn_signal);
+
+
+#if LV_USE_IMG != 0
+    lv_obj_t * img = NULL;
+    if(img_src) {
+        img = lv_img_create(btn, NULL);
+        lv_img_set_src(img, img_src);
+        lv_obj_set_click(img, false);
+        if(img_signal == NULL) img_signal = lv_obj_get_signal_cb(img);
+    }
+#endif
+    if(txt != NULL) {
+        lv_obj_t * label = lv_label_create(btn, NULL);
+        lv_label_set_text(label, txt);
+        lv_obj_set_click(label, false);
+        lv_label_set_long_mode(label, LV_LABEL_LONG_SROLL_CIRC);
+        if(lv_obj_get_base_dir(btn) == LV_BIDI_DIR_RTL) {
+            lv_coord_t pad = lv_obj_get_style_pad_left(btn, LV_BTN_PART_MAIN);
+            lv_obj_set_width(label, label->coords.x2 - btn->coords.x1 - pad);
+        }
+        else {
+            lv_coord_t pad = lv_obj_get_style_pad_right(btn, LV_BTN_PART_MAIN);
+            lv_obj_set_width(label, btn->coords.x2 - label->coords.x1 - pad);
+        }
+        if(label_signal == NULL) label_signal = lv_obj_get_signal_cb(label);
+    }
+
+#if LV_USE_GROUP
+    /* If this is the first item to be added to the list and the list is
+     * focused, select it */
+    {
+        lv_group_t * g = lv_obj_get_group(list);
+        if(lv_list_get_next_btn(list, NULL) == btn && lv_group_get_focused(g) == list) {
+            lv_list_focus_btn(list, btn);
+        }
+    }
+#endif
+
+    lv_obj_clear_protect(scrl, LV_PROTECT_CHILD_CHG);
+    lv_obj_clear_protect(btn, LV_PROTECT_CHILD_CHG);
+    btn->signal_cb(btn, LV_SIGNAL_CHILD_CHG, NULL);
+
+    lv_obj_set_pos(list, pos_x_ori, pos_y_ori);
+
+    return btn;
+}

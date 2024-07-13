@@ -1,0 +1,37 @@
+static void fix_filename_for_c(char *qualifiedName, size_t max_len)
+{
+  struct file_entry *f;
+  size_t len = strlen(qualifiedName);
+  char *new_name = (char *)malloc(len + 2);
+  int filename_ok;
+  int cnt = 0;
+  size_t i;
+  if (len + 3 == max_len) {
+    printf("File name too long: \"%s\"\n", qualifiedName);
+    exit(-1);
+  }
+  strcpy(new_name, qualifiedName);
+  for (i = 0; i < len; i++) {
+    if (!is_valid_char_for_c_var(new_name[i])) {
+      new_name[i] = '_';
+    }
+  }
+  do {
+    filename_ok = 1;
+    for (f = first_file; f != NULL; f = f->next) {
+      if (!strcmp(f->filename_c, new_name)) {
+        filename_ok = 0;
+        cnt++;
+        /* try next unique file name */
+        sprintf(&new_name[len], "%d", cnt);
+        break;
+      }
+    }
+  } while (!filename_ok && (cnt < 999));
+  if (!filename_ok) {
+    printf("Failed to get unique file name: \"%s\"\n", qualifiedName);
+    exit(-1);
+  }
+  strcpy(qualifiedName, new_name);
+  free(new_name);
+}

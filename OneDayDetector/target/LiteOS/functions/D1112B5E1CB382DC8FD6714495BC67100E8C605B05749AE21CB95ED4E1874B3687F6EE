@@ -1,0 +1,40 @@
+dhcp_timeout(struct netif *netif)
+{
+  struct dhcp *dhcp = netif_dhcp_data(netif);
+
+  LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE, ("dhcp_timeout()\n"));
+  /* back-off period has passed, or server selection timed out */
+  if ((dhcp->state == DHCP_STATE_BACKING_OFF) || (dhcp->state == DHCP_STATE_SELECTING)) {
+    LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE, ("dhcp_timeout(): restarting discovery\n"));
+    dhcp_discover(netif);
+    /* receiving the requested lease timed out */
+  } else if (dhcp->state == DHCP_STATE_REQUESTING) {
+    LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("dhcp_timeout(): REQUESTING, DHCP request timed out\n"));
+    if (dhcp->tries <= 5) {
+      dhcp_select(netif);
+    } else {
+      LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("dhcp_timeout(): REQUESTING, releasing, restarting\n"));
+      dhcp_release_and_stop(netif);
+      dhcp_start(netif);
+    }
+#if DHCP_DOES_ARP_CHECK
+    /* received no ARP reply for the offered address (which is good) */
+  } else if (dhcp->state == DHCP_STATE_CHECKING) {
+    LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("dhcp_timeout(): CHECKING, ARP request timed out\n"));
+    if (dhcp->tries <= 1) {
+      dhcp_check(netif);
+      /* no ARP replies on the offered address,
+         looks like the IP address is indeed free */
+    } else {
+      /* bind the interface to the offered address */
+      dhcp_bind(netif);
+    }
+#endif /* DHCP_DOES_ARP_CHECK */
+  } else if (dhcp->state == DHCP_STATE_REBOOTING) {
+    if (dhcp->tries < REBOOT_TRIES) {
+      dhcp_reboot(netif);
+    } else {
+      dhcp_discover(netif);
+    }
+  }
+}

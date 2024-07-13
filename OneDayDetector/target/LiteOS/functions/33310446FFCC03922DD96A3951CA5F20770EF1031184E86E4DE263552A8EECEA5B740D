@@ -1,0 +1,78 @@
+static void JPEG_ReadInputData(JPEG_HandleTypeDef *hjpeg, uint32_t nbRequestWords)
+{
+  uint32_t nbBytes = 0, nBwords, index, Dataword, inputCount;
+
+  if ((hjpeg->InDataLength == 0UL) || (nbRequestWords == 0UL))
+  {
+    /* No more Input data : nothing to do*/
+    (void) HAL_JPEG_Pause(hjpeg, JPEG_PAUSE_RESUME_INPUT);
+  }
+  else if (hjpeg->InDataLength > hjpeg->JpegInCount)
+  {
+    nbBytes = hjpeg->InDataLength - hjpeg->JpegInCount;
+  }
+  else if (hjpeg->InDataLength == hjpeg->JpegInCount)
+  {
+    /*Call HAL_JPEG_GetDataCallback to get new data */
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+    hjpeg->GetDataCallback(hjpeg, hjpeg->JpegInCount);
+#else
+    HAL_JPEG_GetDataCallback(hjpeg, hjpeg->JpegInCount);
+#endif /*USE_HAL_JPEG_REGISTER_CALLBACKS*/
+
+    if (hjpeg->InDataLength > 4UL)
+    {
+      hjpeg->InDataLength = hjpeg->InDataLength - (hjpeg->InDataLength % 4UL);
+    }
+    hjpeg->JpegInCount = 0;
+    nbBytes = hjpeg->InDataLength;
+  }
+  else
+  {
+    /* Nothing to do */
+  }
+  if (((hjpeg->Context &  JPEG_CONTEXT_PAUSE_INPUT) == 0UL) && (nbBytes > 0UL))
+  {
+    nBwords = nbBytes / 4UL;
+    if (nBwords >= nbRequestWords)
+    {
+      for (index = 0; index < nbRequestWords; index++)
+      {
+        inputCount = hjpeg->JpegInCount;
+        hjpeg->Instance->DIR = (((uint32_t)(hjpeg->pJpegInBuffPtr[inputCount])) | \
+                                (((uint32_t)(hjpeg->pJpegInBuffPtr[inputCount + 1UL])) << 8) | \
+                                (((uint32_t)(hjpeg->pJpegInBuffPtr[inputCount + 2UL])) << 16) | \
+                                (((uint32_t)(hjpeg->pJpegInBuffPtr[inputCount + 3UL])) << 24));
+
+        hjpeg->JpegInCount += 4UL;
+      }
+    }
+    else /*nBwords < nbRequestWords*/
+    {
+      if (nBwords > 0UL)
+      {
+        for (index = 0; index < nBwords; index++)
+        {
+          inputCount = hjpeg->JpegInCount;
+          hjpeg->Instance->DIR = (((uint32_t)(hjpeg->pJpegInBuffPtr[inputCount])) | \
+                                  (((uint32_t)(hjpeg->pJpegInBuffPtr[inputCount + 1UL])) << 8) | \
+                                  (((uint32_t)(hjpeg->pJpegInBuffPtr[inputCount + 2UL])) << 16) | \
+                                  (((uint32_t)(hjpeg->pJpegInBuffPtr[inputCount + 3UL])) << 24));
+
+          hjpeg->JpegInCount += 4UL;
+        }
+      }
+      else
+      {
+        /* end of file*/
+        Dataword = 0;
+        for (index = 0; index < nbBytes; index++)
+        {
+          Dataword |= (uint32_t)hjpeg->pJpegInBuffPtr[hjpeg->JpegInCount] << (8UL * (index & 0x03UL));
+          hjpeg->JpegInCount++;
+        }
+        hjpeg->Instance->DIR = Dataword;
+      }
+    }
+  }
+}

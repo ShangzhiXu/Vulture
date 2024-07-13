@@ -1,0 +1,36 @@
+HAL_StatusTypeDef HAL_SMARTCARD_Receive_IT(SMARTCARD_HandleTypeDef *hsc, uint8_t *pData, uint16_t Size)
+{
+  /* Check that a Rx process is not already ongoing */
+  if(hsc->RxState == HAL_SMARTCARD_STATE_READY)
+  {
+    if((pData == NULL) || (Size == 0U))
+    {
+      return HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hsc);
+
+    hsc->pRxBuffPtr = pData;
+    hsc->RxXferSize = Size;
+    hsc->RxXferCount = Size;
+
+    hsc->ErrorCode = HAL_SMARTCARD_ERROR_NONE;
+    hsc->RxState = HAL_SMARTCARD_STATE_BUSY_RX;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hsc);
+
+    /* Enable the SMARTCARD Parity Error and Data Register not empty Interrupts */
+    SET_BIT(hsc->Instance->CR1, USART_CR1_PEIE| USART_CR1_RXNEIE);
+
+    /* Enable the SMARTCARD Error Interrupt: (Frame error, noise error, overrun error) */
+    SET_BIT(hsc->Instance->CR3, USART_CR3_EIE);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

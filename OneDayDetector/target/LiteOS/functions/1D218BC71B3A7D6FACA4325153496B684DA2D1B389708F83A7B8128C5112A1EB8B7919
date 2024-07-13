@@ -1,0 +1,73 @@
+void HAL_I2C_ER_IRQHandler(I2C_HandleTypeDef *hi2c)
+{
+  HAL_I2C_ModeTypeDef tmp1;
+  uint32_t tmp2;
+  HAL_I2C_StateTypeDef tmp3;
+  uint32_t tmp4;
+  uint32_t sr1itflags = READ_REG(hi2c->Instance->SR1);
+  uint32_t itsources  = READ_REG(hi2c->Instance->CR2);
+  uint32_t error      = HAL_I2C_ERROR_NONE;
+  HAL_I2C_ModeTypeDef CurrentMode   = hi2c->Mode;
+
+  /* I2C Bus error interrupt occurred ----------------------------------------*/
+  if ((I2C_CHECK_FLAG(sr1itflags, I2C_FLAG_BERR) != RESET) && (I2C_CHECK_IT_SOURCE(itsources, I2C_IT_ERR) != RESET))
+  {
+    error |= HAL_I2C_ERROR_BERR;
+
+    /* Clear BERR flag */
+    __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_BERR);
+  }
+
+  /* I2C Arbitration Lost error interrupt occurred ---------------------------*/
+  if ((I2C_CHECK_FLAG(sr1itflags, I2C_FLAG_ARLO) != RESET) && (I2C_CHECK_IT_SOURCE(itsources, I2C_IT_ERR) != RESET))
+  {
+    error |= HAL_I2C_ERROR_ARLO;
+
+    /* Clear ARLO flag */
+    __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_ARLO);
+  }
+
+  /* I2C Acknowledge failure error interrupt occurred ------------------------*/
+  if ((I2C_CHECK_FLAG(sr1itflags, I2C_FLAG_AF) != RESET) && (I2C_CHECK_IT_SOURCE(itsources, I2C_IT_ERR) != RESET))
+  {
+    tmp1 = CurrentMode;
+    tmp2 = hi2c->XferCount;
+    tmp3 = hi2c->State;
+    tmp4 = hi2c->PreviousState;
+    if ((tmp1 == HAL_I2C_MODE_SLAVE) && (tmp2 == 0U) && \
+        ((tmp3 == HAL_I2C_STATE_BUSY_TX) || (tmp3 == HAL_I2C_STATE_BUSY_TX_LISTEN) || \
+         ((tmp3 == HAL_I2C_STATE_LISTEN) && (tmp4 == I2C_STATE_SLAVE_BUSY_TX))))
+    {
+      I2C_Slave_AF(hi2c);
+    }
+    else
+    {
+      /* Clear AF flag */
+      __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_AF);
+
+      error |= HAL_I2C_ERROR_AF;
+
+      /* Do not generate a STOP in case of Slave receive non acknowledge during transfer (mean not at the end of transfer) */
+      if ((CurrentMode == HAL_I2C_MODE_MASTER) || (CurrentMode == HAL_I2C_MODE_MEM))
+      {
+        /* Generate Stop */
+        SET_BIT(hi2c->Instance->CR1, I2C_CR1_STOP);
+      }
+    }
+  }
+
+  /* I2C Over-Run/Under-Run interrupt occurred -------------------------------*/
+  if ((I2C_CHECK_FLAG(sr1itflags, I2C_FLAG_OVR) != RESET) && (I2C_CHECK_IT_SOURCE(itsources, I2C_IT_ERR) != RESET))
+  {
+    error |= HAL_I2C_ERROR_OVR;
+    /* Clear OVR flag */
+    __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_OVR);
+  }
+
+  /* Call the Error Callback in case of Error detected -----------------------*/
+  if (error != HAL_I2C_ERROR_NONE)
+  {
+    hi2c->ErrorCode |= error;
+    I2C_ITError(hi2c);
+  }
+}

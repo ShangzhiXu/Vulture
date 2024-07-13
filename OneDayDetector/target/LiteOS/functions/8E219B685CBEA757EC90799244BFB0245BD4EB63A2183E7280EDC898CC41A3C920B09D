@@ -1,0 +1,48 @@
+tcp_create_segment(const struct tcp_pcb *pcb, struct pbuf *p, u8_t hdrflags, u32_t seqno, u8_t optflags)
+{
+  struct tcp_seg *seg;
+  u8_t optlen;
+
+  LWIP_ASSERT("tcp_create_segment: invalid pcb", pcb != NULL);
+  LWIP_ASSERT("tcp_create_segment: invalid pbuf", p != NULL);
+
+  optlen = LWIP_TCP_OPT_LENGTH_SEGMENT(optflags, pcb);
+
+  if ((seg = (struct tcp_seg *)memp_malloc(MEMP_TCP_SEG)) == NULL) {
+    LWIP_DEBUGF(TCP_OUTPUT_DEBUG | LWIP_DBG_LEVEL_SERIOUS, ("tcp_create_segment: no memory.\n"));
+    pbuf_free(p);
+    return NULL;
+  }
+  seg->flags = optflags;
+  seg->next = NULL;
+  seg->p = p;
+  LWIP_ASSERT("p->tot_len >= optlen", p->tot_len >= optlen);
+  seg->len = p->tot_len - optlen;
+#if TCP_OVERSIZE_DBGCHECK
+  seg->oversize_left = 0;
+#endif /* TCP_OVERSIZE_DBGCHECK */
+#if TCP_CHECKSUM_ON_COPY
+  seg->chksum = 0;
+  seg->chksum_swapped = 0;
+  /* check optflags */
+  LWIP_ASSERT("invalid optflags passed: TF_SEG_DATA_CHECKSUMMED",
+              (optflags & TF_SEG_DATA_CHECKSUMMED) == 0);
+#endif /* TCP_CHECKSUM_ON_COPY */
+
+  /* build TCP header */
+  if (pbuf_add_header(p, TCP_HLEN)) {
+    LWIP_DEBUGF(TCP_OUTPUT_DEBUG | LWIP_DBG_LEVEL_SERIOUS, ("tcp_create_segment: no room for TCP header in pbuf.\n"));
+    TCP_STATS_INC(tcp.err);
+    tcp_seg_free(seg);
+    return NULL;
+  }
+  seg->tcphdr = (struct tcp_hdr *)seg->p->payload;
+  seg->tcphdr->src = lwip_htons(pcb->local_port);
+  seg->tcphdr->dest = lwip_htons(pcb->remote_port);
+  seg->tcphdr->seqno = lwip_htonl(seqno);
+  /* ackno is set in tcp_output */
+  TCPH_HDRLEN_FLAGS_SET(seg->tcphdr, (5 + optlen / 4), hdrflags);
+  /* wnd and chksum are set in tcp_output */
+  seg->tcphdr->urgp = 0;
+  return seg;
+}

@@ -1,0 +1,50 @@
+SECUREC_INLINE int SecInitFloatBuffer(SecFloatAdapt *floatAdapt, const SecChar *format, SecFormatAttr *attr)
+{
+    floatAdapt->allocatedFmtStr = NULL;
+    floatAdapt->fmtStr = NULL;
+    floatAdapt->floatBuffer = NULL;
+    /* Compute the precision value */
+    if (attr->precision < 0) {
+        attr->precision = SECUREC_FLOAT_DEFAULT_PRECISION;
+    }
+    /*
+     * Calc buffer size to store double value
+     * The maximum length of SECUREC_MAX_WIDTH_LEN is enough
+     */
+    if ((attr->flags & SECUREC_FLAG_LONG_DOUBLE) != 0) {
+        if (attr->precision > (SECUREC_MAX_WIDTH_LEN - SECUREC_FLOAT_BUFSIZE_LB)) {
+            return -1;
+        }
+        /* Long double needs to meet the basic print length */
+        floatAdapt->bufferSize = SECUREC_FLOAT_BUFSIZE_LB + attr->precision + SECUREC_FLOAT_BUF_EXT;
+    } else {
+        if (attr->precision > (SECUREC_MAX_WIDTH_LEN - SECUREC_FLOAT_BUFSIZE)) {
+            return -1;
+        }
+        /* Double needs to meet the basic print length */
+        floatAdapt->bufferSize = SECUREC_FLOAT_BUFSIZE + attr->precision + SECUREC_FLOAT_BUF_EXT;
+    }
+    if (attr->fldWidth > floatAdapt->bufferSize) {
+        floatAdapt->bufferSize = attr->fldWidth + SECUREC_FLOAT_BUF_EXT;
+    }
+
+    if (floatAdapt->bufferSize > SECUREC_BUFFER_SIZE) {
+        /* The current vlaue of SECUREC_BUFFER_SIZE could NOT store the formatted float string */
+        floatAdapt->floatBuffer = (char *)SECUREC_MALLOC(((size_t)(unsigned int)floatAdapt->bufferSize));
+        if (floatAdapt->floatBuffer == NULL) {
+            return -1;
+        }
+        attr->text.str = floatAdapt->floatBuffer;
+    } else {
+        attr->text.str = attr->buffer.str; /* Output buffer for float string with default size */
+    }
+
+    if (SecInitFloatFmt(floatAdapt, format) != 0) {
+        if (floatAdapt->floatBuffer != NULL) {
+            SECUREC_FREE(floatAdapt->floatBuffer);
+            floatAdapt->floatBuffer = NULL;
+        }
+        return -1;
+    }
+    return 0;
+}

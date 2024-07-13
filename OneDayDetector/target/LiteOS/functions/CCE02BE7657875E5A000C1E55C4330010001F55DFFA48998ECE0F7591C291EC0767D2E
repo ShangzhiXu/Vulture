@@ -1,0 +1,25 @@
+uint32_t LL_RCC_GetSWPMIClockFreq(uint32_t SWPMIxSource)
+{
+  uint32_t swpmi_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_SWPMI_CLKSOURCE(SWPMIxSource));
+
+  /* SWPMI1CLK clock frequency */
+  switch (LL_RCC_GetSWPMIClockSource(SWPMIxSource))
+  {
+    case LL_RCC_SWPMI1_CLKSOURCE_HSI:        /* SWPMI1 Clock is HSI Osc. */
+      if (LL_RCC_HSI_IsReady())
+      {
+        swpmi_frequency = HSI_VALUE;
+      }
+      break;
+
+    case LL_RCC_SWPMI1_CLKSOURCE_PCLK1:      /* SWPMI1 Clock is PCLK1 */
+    default:
+      swpmi_frequency = RCC_GetPCLK1ClockFreq(RCC_GetHCLKClockFreq(RCC_GetSystemClockFreq()));
+      break;
+  }
+
+  return swpmi_frequency;
+}

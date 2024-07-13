@@ -1,0 +1,59 @@
+static void draw_disc_grad(lv_obj_t * cpicker, const lv_area_t * mask)
+{
+    lv_coord_t w = lv_obj_get_width(cpicker);
+    lv_coord_t h = lv_obj_get_height(cpicker);
+    lv_coord_t cx = cpicker->coords.x1 + w / 2;
+    lv_coord_t cy = cpicker->coords.y1 + h / 2;
+    lv_coord_t r = w / 2;
+
+    lv_draw_line_dsc_t line_dsc;
+    lv_draw_line_dsc_init(&line_dsc);
+    lv_obj_init_draw_line_dsc(cpicker, LV_CPICKER_PART_MAIN, &line_dsc);
+
+    line_dsc.width = (r * 628 / (360 / LV_CPICKER_DEF_QF)) / 100;
+    line_dsc.width += 2;
+    uint16_t i;
+    lv_coord_t cir_w = lv_obj_get_style_scale_width(cpicker, LV_CPICKER_PART_MAIN);
+
+    /* The inner line ends will be masked out.
+     * So make lines a little bit longer because the masking makes a more even result */
+    lv_coord_t cir_w_extra = cir_w + line_dsc.width;
+
+    for(i = 0; i <= 360; i += LV_CPICKER_DEF_QF) {
+        line_dsc.color = angle_to_mode_color(cpicker, i);
+
+        lv_point_t p[2];
+        p[0].x = cx + (r * _lv_trigo_sin(i) >> LV_TRIGO_SHIFT);
+        p[0].y = cy + (r * _lv_trigo_sin(i + 90) >> LV_TRIGO_SHIFT);
+        p[1].x = cx + ((r - cir_w_extra) * _lv_trigo_sin(i) >> LV_TRIGO_SHIFT);
+        p[1].y = cy + ((r - cir_w_extra) * _lv_trigo_sin(i + 90) >> LV_TRIGO_SHIFT);
+
+        lv_draw_line(&p[0], &p[1], mask, &line_dsc);
+    }
+
+
+    /*Mask out the inner area*/
+    lv_draw_rect_dsc_t bg_dsc;
+    lv_draw_rect_dsc_init(&bg_dsc);
+    lv_obj_init_draw_rect_dsc(cpicker, LV_CPICKER_PART_MAIN, &bg_dsc);
+    bg_dsc.radius = LV_RADIUS_CIRCLE;
+
+    lv_area_t area_mid;
+    lv_area_copy(&area_mid, &cpicker->coords);
+    area_mid.x1 += cir_w;
+    area_mid.y1 += cir_w;
+    area_mid.x2 -= cir_w;
+    area_mid.y2 -= cir_w;
+
+    lv_draw_rect(&area_mid, mask, &bg_dsc);
+
+    lv_style_int_t inner = lv_obj_get_style_pad_inner(cpicker, LV_CPICKER_PART_MAIN);
+    lv_color_t color = lv_cpicker_get_color(cpicker);
+    bg_dsc.bg_color = color;
+    area_mid.x1 += inner;
+    area_mid.y1 += inner;
+    area_mid.x2 -= inner;
+    area_mid.y2 -= inner;
+
+    lv_draw_rect(&area_mid, mask, &bg_dsc);
+}

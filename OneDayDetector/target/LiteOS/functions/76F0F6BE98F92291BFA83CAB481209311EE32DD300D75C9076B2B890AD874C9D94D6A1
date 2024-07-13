@@ -1,0 +1,31 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 LOS_MemInfoGet(VOID *pool, LOS_MEM_POOL_STATUS *status)
+{
+    LosHeapStatus heapStatus;
+    UINT32 err;
+    UINT32 intSave;
+
+    if ((pool == NULL) || (status == NULL)) {
+        return LOS_NOK;
+    }
+
+    MEM_LOCK(intSave);
+
+    err = OsHeapStatisticsGet(pool, &heapStatus);
+    if (err != LOS_OK) {
+        MEM_UNLOCK(intSave);
+        return LOS_NOK;
+    }
+
+    status->uwTotalUsedSize   = heapStatus.totalUsedSize;
+    status->uwTotalFreeSize   = heapStatus.totalFreeSize;
+    status->uwMaxFreeNodeSize = heapStatus.maxFreeNodeSize;
+    status->uwUsedNodeNum  = heapStatus.usedNodeNum;
+    status->uwFreeNodeNum  = heapStatus.freeNodeNum;
+
+#ifdef LOSCFG_MEM_TASK_STAT
+    status->uwUsageWaterLine = heapStatus.usageWaterLine;
+#endif
+
+    MEM_UNLOCK(intSave);
+    return LOS_OK;
+}

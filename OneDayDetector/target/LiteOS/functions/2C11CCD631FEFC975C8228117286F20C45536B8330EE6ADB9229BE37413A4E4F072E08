@@ -1,0 +1,39 @@
+static uint8_t QSPI_WriteEnable(QSPI_HandleTypeDef *hqspi)
+{
+  QSPI_CommandTypeDef     s_command;
+  QSPI_AutoPollingTypeDef s_config;
+  
+  /* Enable write operations */
+  s_command.InstructionMode   = QSPI_INSTRUCTION_4_LINES;
+  s_command.Instruction       = WRITE_ENABLE_CMD;
+  s_command.AddressMode       = QSPI_ADDRESS_NONE;
+  s_command.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
+  s_command.DataMode          = QSPI_DATA_NONE;
+  s_command.DummyCycles       = 0;
+  s_command.DdrMode           = QSPI_DDR_MODE_DISABLE;
+  s_command.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;
+  s_command.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
+  
+  if (HAL_QSPI_Command(hqspi, &s_command, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    return QSPI_ERROR;
+  }
+  
+  /* Configure automatic polling mode to wait for write enabling */  
+  s_config.Match           = MX25L512_SR_WREN;
+  s_config.Mask            = MX25L512_SR_WREN;
+  s_config.MatchMode       = QSPI_MATCH_MODE_AND;
+  s_config.StatusBytesSize = 1;
+  s_config.Interval        = 0x10;
+  s_config.AutomaticStop   = QSPI_AUTOMATIC_STOP_ENABLE;
+  
+  s_command.Instruction    = READ_STATUS_REG_CMD;
+  s_command.DataMode       = QSPI_DATA_4_LINES;
+  
+  if (HAL_QSPI_AutoPolling(hqspi, &s_command, &s_config, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    return QSPI_ERROR;
+  }
+  
+  return QSPI_OK;
+}

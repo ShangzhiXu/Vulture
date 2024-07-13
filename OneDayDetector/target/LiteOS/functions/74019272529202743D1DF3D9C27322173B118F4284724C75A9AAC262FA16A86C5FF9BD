@@ -1,0 +1,57 @@
+HAL_StatusTypeDef HAL_TIM_DMABurst_WriteStop(TIM_HandleTypeDef *htim, uint32_t BurstRequestSrc)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  /* Check the parameters */
+  assert_param(IS_TIM_DMA_SOURCE(BurstRequestSrc));
+
+  /* Abort the DMA transfer (at least disable the DMA channel) */
+  switch (BurstRequestSrc)
+  {
+    case TIM_DMA_UPDATE:
+    {
+      status = HAL_DMA_Abort_IT(htim->hdma[TIM_DMA_ID_UPDATE]);
+      break;
+    }
+    case TIM_DMA_CC1:
+    {
+      status = HAL_DMA_Abort_IT(htim->hdma[TIM_DMA_ID_CC1]);
+      break;
+    }
+    case TIM_DMA_CC2:
+    {
+      status = HAL_DMA_Abort_IT(htim->hdma[TIM_DMA_ID_CC2]);
+      break;
+    }
+    case TIM_DMA_CC3:
+    {
+      status =  HAL_DMA_Abort_IT(htim->hdma[TIM_DMA_ID_CC3]);
+      break;
+    }
+    case TIM_DMA_CC4:
+    {
+      status = HAL_DMA_Abort_IT(htim->hdma[TIM_DMA_ID_CC4]);
+      break;
+    }
+    case TIM_DMA_COM:
+    {
+      status = HAL_DMA_Abort_IT(htim->hdma[TIM_DMA_ID_COMMUTATION]);
+      break;
+    }
+    case TIM_DMA_TRIGGER:
+    {
+      status = HAL_DMA_Abort_IT(htim->hdma[TIM_DMA_ID_TRIGGER]);
+      break;
+    }
+    default:
+      break;
+  }
+
+  if (HAL_OK == status)
+  {
+    /* Disable the TIM Update DMA request */
+    __HAL_TIM_DISABLE_DMA(htim, BurstRequestSrc);
+  }
+
+  /* Return function status */
+  return status;
+}

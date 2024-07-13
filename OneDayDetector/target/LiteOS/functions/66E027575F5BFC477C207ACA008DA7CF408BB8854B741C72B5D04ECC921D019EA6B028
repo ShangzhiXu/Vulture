@@ -1,0 +1,34 @@
+HAL_StatusTypeDef HAL_MMC_DeInit(MMC_HandleTypeDef *hmmc)
+{
+  /* Check the MMC handle allocation */
+  if(hmmc == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_SDIO_ALL_INSTANCE(hmmc->Instance));
+
+  hmmc->State = HAL_MMC_STATE_BUSY;
+
+  /* Set MMC power state to off */
+  MMC_PowerOFF(hmmc);
+
+#if defined (USE_HAL_MMC_REGISTER_CALLBACKS) && (USE_HAL_MMC_REGISTER_CALLBACKS == 1U)
+  if(hmmc->MspDeInitCallback == NULL)
+  {
+    hmmc->MspDeInitCallback = HAL_MMC_MspDeInit;
+  }
+
+  /* DeInit the low level hardware */
+  hmmc->MspDeInitCallback(hmmc);
+#else
+  /* De-Initialize the MSP layer */
+  HAL_MMC_MspDeInit(hmmc);
+#endif
+
+  hmmc->ErrorCode = HAL_MMC_ERROR_NONE;
+  hmmc->State = HAL_MMC_STATE_RESET;
+
+  return HAL_OK;
+}

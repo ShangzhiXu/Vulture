@@ -1,0 +1,13 @@
+    MQTTClient client;
+    uint8_t connection_update_flag;
+    mqtt_device_info_s device_info;
+    mqtt_dynamic_info_s dynamic_info;
+    char *  got_password;
+    uint8_t has_device_id;
+    uint8_t init_flag;
+    mqtt_param_s params;
+    uint8_t reserve[2];
+    uint8_t reserve[3];
+    mqtt_static_connection_info_s save_info;
+    mqtt_dynamic_connect_state_e state;
+    char *sub_topic;

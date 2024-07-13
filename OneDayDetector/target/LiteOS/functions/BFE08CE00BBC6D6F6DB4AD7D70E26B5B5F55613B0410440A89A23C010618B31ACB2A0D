@@ -1,0 +1,27 @@
+LITE_OS_SEC_TEXT_MINOR INT32 OsTabCompletion(CHAR *cmdKey, UINT32 *len)
+{
+    INT32 count = 0;
+    CHAR *space = NULL;
+    CHAR *cmdMainStr = cmdKey;
+
+    if ((cmdKey == NULL) || (len == NULL)) {
+        return (INT32)OS_ERROR;
+    }
+
+    /* cut left space */
+    while (*cmdMainStr == SPACE) {
+        cmdMainStr++;
+    }
+
+    /* try to find space in remain */
+    space = strrchr(cmdMainStr, SPACE);
+    if ((space == NULL) && (*cmdMainStr != '\0')) {
+        count = OsTabMatchCmd(cmdKey, len);
+    }
+
+    if (count == 0) {
+        count = OsTabMatchFile(cmdKey, len);
+    }
+
+    return count;
+}

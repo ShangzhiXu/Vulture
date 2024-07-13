@@ -1,0 +1,56 @@
+STATIC UINT32 OsMuxPendForPosix(pthread_mutex_t *mutex, UINT32 timeout)
+{
+    UINT32 retErr;
+    UINT32 intSave;
+    MuxBaseCB *muxPended = &mutex->stLock;
+    LosTaskCB *runTask = NULL;
+
+    SCHEDULER_LOCK(intSave);
+    if ((muxPended->muxList.pstPrev == NULL) ||
+        (muxPended->muxList.pstNext == NULL)) {
+        /* This is for mutex macro initialization. */
+        muxPended->muxCount = 0;
+        muxPended->owner = NULL;
+        LOS_ListInit(&muxPended->muxList);
+    }
+    runTask = OsCurrTaskGet();
+    if (muxPended->muxCount == 0) {
+        muxPended->muxCount++;
+        muxPended->owner = runTask;
+        OsMuxDlockNodeInsertHook(runTask->taskId, muxPended);
+
+        if ((runTask->priority > mutex->stAttr.prioceiling) &&
+            (mutex->stAttr.protocol == PTHREAD_PRIO_PROTECT)) {
+            LOS_BitmapSet(&runTask->priBitMap, runTask->priority);
+            OsTaskPriModify(runTask, mutex->stAttr.prioceiling);
+        }
+
+        SCHEDULER_UNLOCK(intSave);
+        return LOS_OK;
+    }
+
+    if ((muxPended->owner == runTask) &&
+        (mutex->stAttr.type == PTHREAD_MUTEX_RECURSIVE)) {
+        muxPended->muxCount++;
+        SCHEDULER_UNLOCK(intSave);
+        return LOS_OK;
+    }
+
+    if (!OsPreemptableInSched()) {
+        retErr = LOS_ERRNO_MUX_PEND_IN_LOCK;
+        goto LOS_ERREND;
+    }
+
+    OsMuxBitmapSet(mutex, runTask, muxPended);
+    retErr = OsMuxPendOp(runTask, muxPended, timeout, &intSave);
+    if (retErr != LOS_OK) {
+        goto LOS_ERREND;
+    }
+
+    SCHEDULER_UNLOCK(intSave);
+    return LOS_OK;
+
+LOS_ERREND:
+    SCHEDULER_UNLOCK(intSave);
+    return retErr;
+}

@@ -1,0 +1,23 @@
+INT32 OsShellCmdReadExcInfo(INT32 argc, const CHAR **argv)
+{
+    LogReadWriteFunc hook = NULL;
+    UINT32 recordSpace = OsGetExcInfoLen();
+
+    (VOID)argc;
+    (VOID)argv;
+
+    CHAR *buf = (CHAR*)LOS_MemAlloc((void *)OS_SYS_MEM_ADDR, recordSpace + 1);
+    if (buf == NULL) {
+        return LOS_NOK;
+    }
+    (void)memset_s(buf, recordSpace + 1, 0, recordSpace + 1);
+
+    hook = OsGetExcInfoRW();
+    if (hook != NULL) {
+        hook(OsGetExcInfoDumpAddr(), recordSpace, 1, buf);
+    }
+    PRINTK("%s\n", buf);
+    (VOID)LOS_MemFree((void *)OS_SYS_MEM_ADDR, buf);
+    buf = NULL;
+    return LOS_OK;
+}

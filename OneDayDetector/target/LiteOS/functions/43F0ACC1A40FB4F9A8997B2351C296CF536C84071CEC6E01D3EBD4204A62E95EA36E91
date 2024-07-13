@@ -1,0 +1,48 @@
+int mbedtls_sha512_update_ret( mbedtls_sha512_context *ctx,
+                               const unsigned char *input,
+                               size_t ilen )
+{
+    int ret;
+    size_t fill;
+    unsigned int left;
+
+    SHA512_VALIDATE_RET( ctx != NULL );
+    SHA512_VALIDATE_RET( ilen == 0 || input != NULL );
+
+    if( ilen == 0 )
+        return( 0 );
+
+    left = (unsigned int) (ctx->total[0] & 0x7F);
+    fill = 128 - left;
+
+    ctx->total[0] += (uint64_t) ilen;
+
+    if( ctx->total[0] < (uint64_t) ilen )
+        ctx->total[1]++;
+
+    if( left && ilen >= fill )
+    {
+        memcpy( (void *) (ctx->buffer + left), input, fill );
+
+        if( ( ret = mbedtls_internal_sha512_process( ctx, ctx->buffer ) ) != 0 )
+            return( ret );
+
+        input += fill;
+        ilen  -= fill;
+        left = 0;
+    }
+
+    while( ilen >= 128 )
+    {
+        if( ( ret = mbedtls_internal_sha512_process( ctx, input ) ) != 0 )
+            return( ret );
+
+        input += 128;
+        ilen  -= 128;
+    }
+
+    if( ilen > 0 )
+        memcpy( (void *) (ctx->buffer + left), input, ilen );
+
+    return( 0 );
+}

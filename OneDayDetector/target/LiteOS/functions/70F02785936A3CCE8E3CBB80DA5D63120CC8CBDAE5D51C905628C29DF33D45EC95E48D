@@ -1,0 +1,40 @@
+HAL_StatusTypeDef HAL_CEC_SetDeviceAddress(CEC_HandleTypeDef *hcec, uint16_t CEC_OwnAddress)
+{
+  /* Check the parameters */
+  assert_param(IS_CEC_OWN_ADDRESS(CEC_OwnAddress));
+
+  if ((hcec->gState == HAL_CEC_STATE_READY) && (hcec->RxState == HAL_CEC_STATE_READY))
+  {
+    /* Process Locked */
+    __HAL_LOCK(hcec);
+
+    hcec->gState = HAL_CEC_STATE_BUSY;
+
+    /* Disable the Peripheral */
+    __HAL_CEC_DISABLE(hcec);
+
+    if (CEC_OwnAddress != CEC_OWN_ADDRESS_NONE)
+    {
+      hcec->Instance->CFGR |= ((uint32_t)CEC_OwnAddress << 16);
+    }
+    else
+    {
+      hcec->Instance->CFGR &= ~(CEC_CFGR_OAR);
+    }
+
+    hcec->gState = HAL_CEC_STATE_READY;
+    hcec->ErrorCode = HAL_CEC_ERROR_NONE;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hcec);
+
+    /* Enable the Peripheral */
+    __HAL_CEC_ENABLE(hcec);
+
+    return  HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

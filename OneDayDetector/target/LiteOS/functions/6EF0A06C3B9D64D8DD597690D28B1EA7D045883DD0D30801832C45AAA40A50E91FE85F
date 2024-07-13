@@ -1,0 +1,36 @@
+HAL_StatusTypeDef HAL_FMPI2CEx_ConfigAnalogFilter(FMPI2C_HandleTypeDef *hfmpi2c, uint32_t AnalogFilter)
+{
+  /* Check the parameters */
+  assert_param(IS_FMPI2C_ALL_INSTANCE(hfmpi2c->Instance));
+  assert_param(IS_FMPI2C_ANALOG_FILTER(AnalogFilter));
+
+  if (hfmpi2c->State == HAL_FMPI2C_STATE_READY)
+  {
+    /* Process Locked */
+    __HAL_LOCK(hfmpi2c);
+
+    hfmpi2c->State = HAL_FMPI2C_STATE_BUSY;
+
+    /* Disable the selected FMPI2C peripheral */
+    __HAL_FMPI2C_DISABLE(hfmpi2c);
+
+    /* Reset FMPI2Cx ANOFF bit */
+    hfmpi2c->Instance->CR1 &= ~(FMPI2C_CR1_ANFOFF);
+
+    /* Set analog filter bit*/
+    hfmpi2c->Instance->CR1 |= AnalogFilter;
+
+    __HAL_FMPI2C_ENABLE(hfmpi2c);
+
+    hfmpi2c->State = HAL_FMPI2C_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hfmpi2c);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

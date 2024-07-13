@@ -1,0 +1,75 @@
+void *atiny_net_bind(const char *host, const char *port, int proto)
+{
+#if defined (LOSCFG_LWIP_IPV4) || defined (WITH_LINUX)
+
+    struct sockaddr_in sock_addr;
+    int port_i;
+    int ret = ATINY_NET_ERR;
+    atiny_net_context *ctx;
+
+    if ((port == NULL) || ((proto != ATINY_PROTO_UDP) && (proto != ATINY_PROTO_TCP))) {
+        return NULL;
+    }
+
+    ctx = atiny_malloc(sizeof(atiny_net_context));
+
+    sscanf(port, "%d", &port_i);
+    sock_addr.sin_family = AF_INET;
+    sock_addr.sin_port = lwip_htons(port_i);
+    sock_addr.sin_addr.s_addr = (host == NULL ? IPADDR_ANY : inet_addr(host));
+    sock_addr.sin_len = sizeof(struct sockaddr_in);
+
+    ctx->fd = socket(AF_INET,
+        proto == ATINY_PROTO_TCP ? SOCK_STREAM : SOCK_DGRAM,
+        proto == ATINY_PROTO_TCP ? IPPROTO_TCP : IPPROTO_UDP);
+
+    if (ctx->fd < 0) {
+        ret = ATINY_NET_SOCKET_FAILED;
+        atiny_free(ctx);
+        return NULL;
+    }
+
+    int n = 1;
+    if ((ret = setsockopt(ctx->fd, SOL_SOCKET, SO_REUSEADDR, (const char *)&n, sizeof(n))) != 0) {
+        ret = ATINY_NET_SOCKET_FAILED;
+        goto exit_failed;
+    }
+
+    ret = bind(ctx->fd, (struct sockaddr*)&sock_addr, sizeof(struct sockaddr));
+    if (ret < 0) {
+        ret = ATINY_NET_BIND_FAILED;
+        goto exit_failed;
+    }
+
+    if (proto == ATINY_PROTO_TCP) {
+        ret = listen(ctx->fd, 20);
+        if (ret < 0) {
+            ret = ATINY_NET_LISTEN_FAILED;
+            goto exit_failed;
+        }
+    }
+    return ctx;
+
+exit_failed:
+        close(ctx->fd);
+        atiny_free(ctx);
+        return NULL;
+
+#elif defined(LOSCFG_COMPONNETS_NET_AT)
+    atiny_net_context *ctx;
+    ctx = atiny_malloc(sizeof(atiny_net_context));
+    if (ctx == NULL) {
+        SOCKET_LOG("malloc failed for socket context");
+        return NULL;
+    }
+
+    ctx->fd = at_api_bind(host, port, proto);
+    if (ctx->fd < 0) {
+        SOCKET_LOG("unkown host or port");
+        atiny_free(ctx);
+        ctx = NULL;
+    }
+    return ctx;
+#endif
+    return NULL;
+}

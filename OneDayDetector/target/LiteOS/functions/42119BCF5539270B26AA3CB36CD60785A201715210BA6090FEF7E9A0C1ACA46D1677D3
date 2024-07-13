@@ -1,0 +1,55 @@
+STATIC UINT32 OsHwiDelShared(HwiHandleInfo *head, const HWI_IRQ_PARAM_S *irqParam)
+{
+    HwiHandleInfo *hwiFormtmp = NULL;
+    HwiHandleInfo *hwiForm = NULL;
+    UINT32 find = FALSE;
+    UINT32 intSave;
+
+    HWI_LOCK(intSave);
+
+    if ((head->shareMode & IRQF_SHARED) && ((irqParam == NULL) || (irqParam->pDevId == NULL))) {
+        HWI_UNLOCK(intSave);
+        return OS_ERRNO_HWI_SHARED_ERROR;
+    }
+
+    if ((head->next != NULL) && !(head->shareMode & IRQF_SHARED)) {
+        hwiForm = head->next;
+        if (hwiForm->registerInfo) {
+            (VOID) LOS_MemFree(m_aucSysMem0, (VOID *)hwiForm->registerInfo);
+        }
+        (VOID) LOS_MemFree(m_aucSysMem0, hwiForm);
+        head->next = NULL;
+        head->respCount = 0;
+
+        HWI_UNLOCK(intSave);
+        return LOS_OK;
+    }
+
+    hwiFormtmp = head;
+    hwiForm = head->next;
+    while (hwiForm != NULL) {
+        if (((HWI_IRQ_PARAM_S *)(hwiForm->registerInfo))->pDevId != irqParam->pDevId) {
+            hwiFormtmp = hwiForm;
+            hwiForm = hwiForm->next;
+        } else {
+            hwiFormtmp->next = hwiForm->next;
+            (VOID) LOS_MemFree(m_aucSysMem0, (VOID *)hwiForm->registerInfo);
+            (VOID) LOS_MemFree(m_aucSysMem0, hwiForm);
+
+            find = TRUE;
+            break;
+        }
+    }
+
+    if (!find) {
+        HWI_UNLOCK(intSave);
+        return OS_ERRNO_HWI_HWINUM_UNCREATE;
+    }
+
+    if (head->next == NULL) {
+        head->shareMode = 0;
+    }
+
+    HWI_UNLOCK(intSave);
+    return LOS_OK;
+}

@@ -1,0 +1,16 @@
+STATIC UINT32 OsAppTaskCreate(VOID)
+{
+    UINT32 taskId;
+    TSK_INIT_PARAM_S appTask;
+
+    (VOID)memset_s(&appTask, sizeof(TSK_INIT_PARAM_S), 0, sizeof(TSK_INIT_PARAM_S));
+    appTask.pfnTaskEntry = (TSK_ENTRY_FUNC)app_init;
+    appTask.uwStackSize = LOSCFG_BASE_CORE_TSK_DEFAULT_STACK_SIZE;
+    appTask.pcName = "app_Task";
+    appTask.usTaskPrio = LOSCFG_BASE_CORE_TSK_DEFAULT_PRIO;
+    appTask.uwResved = LOS_TASK_STATUS_DETACHED;
+#ifdef LOSCFG_KERNEL_SMP
+    appTask.usCpuAffiMask = CPUID_TO_AFFI_MASK(ArchCurrCpuid());
+#endif
+    return LOS_TaskCreate(&taskId, &appTask);
+}

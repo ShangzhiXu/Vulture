@@ -1,0 +1,32 @@
+LITE_OS_SEC_TEXT_INIT UINT32 LOS_QueueCreate(CHAR *queueName, UINT16 len, UINT32 *queueId,
+                                             UINT32 flags, UINT16 maxMsgSize)
+{
+    UINT32 ret;
+    UINT8 *queueMem = NULL;
+    UINT16 msgSize;
+    (VOID)queueName;
+    (VOID)flags;
+
+    ret = OsQueueCreateParameterCheck(len, queueId, maxMsgSize);
+    if (ret != LOS_OK) {
+        return ret;
+    }
+
+    msgSize = maxMsgSize + sizeof(UINT32);
+    /*
+     * Memory allocation is time-consuming, to shorten the time of disable interrupt,
+     * move the memory allocation to here.
+     */
+    queueMem = (UINT8 *)LOS_MemAlloc(m_aucSysMem1, (UINT32)len * msgSize);
+    if (queueMem == NULL) {
+        return LOS_ERRNO_QUEUE_CREATE_NO_MEMORY;
+    }
+
+    ret = OsQueueCreateInternal(len, queueId, msgSize, queueMem, OS_QUEUE_ALLOC_DYNAMIC);
+    if (ret != LOS_OK) {
+        (VOID)LOS_MemFree(m_aucSysMem1, queueMem);
+        return ret;
+    }
+
+    return LOS_OK;
+}

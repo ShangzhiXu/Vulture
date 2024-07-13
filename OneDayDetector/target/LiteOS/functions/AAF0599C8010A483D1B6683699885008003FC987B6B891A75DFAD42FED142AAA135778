@@ -1,0 +1,40 @@
+static int pack_storage_write_software_end(pack_storage_device_api_s *this, pack_download_result_e result,
+    uint32_t total_len)
+{
+    pack_storage_device_s *device;
+    int ret = PACK_OK;
+
+    if (this == NULL) {
+        PACK_LOG("null pointer");
+        return PACK_ERR;
+    }
+
+    device = pack_storage_get_storage_device(this);
+
+    do {
+        if (pack_wr_write_end(&device->writer) != PACK_OK) {
+            ret = PACK_ERR;
+            break;
+        }
+
+        if (result != PACK_DOWNLOAD_OK) {
+            break;
+        }
+
+        if (pack_head_check(&device->head, total_len) != PACK_OK) {
+            ret = PACK_ERR;
+            PACK_LOG("check err,len %u", total_len);
+            break;
+        }
+    } while (0);
+
+    device->total_len = total_len;
+
+    /* current download finish, clear the save data */
+    if (result == PACK_DOWNLOAD_OK) {
+        pack_head_destroy(&device->head);
+        pack_wr_destroy(&device->writer);
+    }
+
+    return ret;
+}

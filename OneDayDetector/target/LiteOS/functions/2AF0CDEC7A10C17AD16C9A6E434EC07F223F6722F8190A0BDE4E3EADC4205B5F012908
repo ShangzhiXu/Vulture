@@ -1,0 +1,39 @@
+UINT32 OsBinTreeInsert(const VOID *node, UINT32 nodeLen, BinNode **leaf,
+                       BinNode *(*GetMyBinNode)(UINT32 *nodeId),
+                       INT32 (*CompareNode)(const VOID *node1, const VOID *node2))
+{
+    UINT32 nodeId;
+    INT32 result;
+    BinNode **currentNode = leaf;
+
+    if (leaf == NULL) {
+        return OS_INVALID;
+    }
+
+    do {
+        if (*currentNode != NULL) {
+            result = CompareNode(node, (const VOID *)(*currentNode));
+            if (result == 0) {
+                return (*currentNode)->nodeId;
+            } else if (result < 0) {
+                currentNode = (BinNode **)(&((*currentNode)->left));
+            } else {
+                currentNode = (BinNode **)(&((*currentNode)->right));
+            }
+        } else {
+            (*currentNode) = GetMyBinNode(&nodeId);
+            if (*currentNode == NULL) {
+                return OS_INVALID;
+            }
+
+            (VOID)memcpy_s((*currentNode)->keyValue, (nodeLen - sizeof(BinNode)),
+                ((BinNode *)node)->keyValue, (nodeLen - sizeof(BinNode)));
+            (*currentNode)->nodeId = nodeId;
+            /* initialize the children to NULL */
+            (*currentNode)->left = NULL;
+            (*currentNode)->right = NULL;
+
+            return (*currentNode)->nodeId;
+        }
+    } while (1);
+}

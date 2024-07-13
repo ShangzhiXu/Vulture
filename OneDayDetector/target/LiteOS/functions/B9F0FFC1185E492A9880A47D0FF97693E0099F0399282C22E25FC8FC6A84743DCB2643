@@ -1,0 +1,34 @@
+uint8_t acc_auth_operate(lwm2m_context_t *contextP, lwm2m_uri_t *uri,
+                         OBJ_ACC_OPERATE op, uint16_t serverId)
+{
+    uint8_t ret;
+    lwm2m_object_t *accCtrlObjP = NULL;
+    acc_ctrl_oi_t *accCtrlOiP = NULL;
+
+    if (prv_get_srv_cnt(contextP->serverList) <= 1) {
+        return COAP_NO_ERROR;
+    }
+
+    if (serverId == 0) {
+        return COAP_NO_ERROR;
+    }
+
+    accCtrlObjP = (lwm2m_object_t *)LWM2M_LIST_FIND(contextP->objectList, LWM2M_ACL_OBJECT_ID);
+    if (accCtrlObjP == NULL) {
+        return COAP_401_UNAUTHORIZED;
+    }
+
+    accCtrlOiP = (acc_ctrl_oi_t *)(accCtrlObjP->instanceList);
+    if (accCtrlOiP == NULL) {
+        return COAP_401_UNAUTHORIZED;
+    }
+
+    if ((ret = prv_pre_auth_check(accCtrlOiP, uri, op, serverId)) != COAP_NO_ERROR) {
+        return ret;
+    }
+
+    if ((ret = prv_post_action_check(uri, op)) != COAP_NO_ERROR) {
+        return ret;
+    }
+    return COAP_NO_ERROR;
+}

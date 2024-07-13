@@ -1,0 +1,41 @@
+static uint8_t prv_device_execute(uint16_t instanceId,
+                                  uint16_t resourceId,
+                                  uint8_t *buffer,
+                                  int length,
+                                  lwm2m_object_t *objectP)
+{
+    int result;
+    // this is a single instance object
+    if (instanceId != 0) {
+        return COAP_404_NOT_FOUND;
+    }
+
+    if (length != 0) {
+        return COAP_400_BAD_REQUEST;
+    }
+
+    switch (resourceId) {
+    case RES_M_REBOOT: {
+        g_reboot = 1;
+        return COAP_204_CHANGED;
+    }
+    case RES_O_FACTORY_RESET: {
+        result = atiny_cmd_ioctl(ATINY_DO_FACTORY_RESET, NULL, 0);
+        if (result == ATINY_OK) {
+            return COAP_204_CHANGED;
+        } else {
+            return COAP_503_SERVICE_UNAVAILABLE;
+        }
+    }
+    case RES_O_RESET_ERROR_CODE: {
+        result = atiny_cmd_ioctl(ATINY_DO_RESET_DEV_ERR, NULL, 0);
+        if (result == ATINY_OK) {
+            return COAP_204_CHANGED;
+        } else {
+            return COAP_503_SERVICE_UNAVAILABLE;
+        }
+    }
+    default:
+        return COAP_405_METHOD_NOT_ALLOWED;
+    }
+}

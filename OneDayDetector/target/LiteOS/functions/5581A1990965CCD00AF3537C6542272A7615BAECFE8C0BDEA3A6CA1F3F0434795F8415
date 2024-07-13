@@ -1,0 +1,187 @@
+static HAL_StatusTypeDef RCCEx_PLLSAI1_Config(RCC_PLLSAI1InitTypeDef *PllSai1, uint32_t Divider)
+{
+  uint32_t tickstart = 0U;
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* check for PLLSAI1 Parameters used to output PLLSAI1CLK */
+  /* P, Q and R dividers are verified in each specific divider case below */
+  assert_param(IS_RCC_PLLSAI1SOURCE(PllSai1->PLLSAI1Source));
+  assert_param(IS_RCC_PLLSAI1M_VALUE(PllSai1->PLLSAI1M));
+  assert_param(IS_RCC_PLLSAI1N_VALUE(PllSai1->PLLSAI1N));
+  assert_param(IS_RCC_PLLSAI1CLOCKOUT_VALUE(PllSai1->PLLSAI1ClockOut));
+
+  /* Check that PLLSAI1 clock source and divider M can be applied */
+  if(__HAL_RCC_GET_PLL_OSCSOURCE() != RCC_PLLSOURCE_NONE)
+  {
+    /* PLL clock source and divider M already set, check that no request for change  */
+    if((__HAL_RCC_GET_PLL_OSCSOURCE() != PllSai1->PLLSAI1Source)
+       ||
+       (PllSai1->PLLSAI1Source == RCC_PLLSOURCE_NONE)
+#if !defined(RCC_PLLSAI1M_DIV_1_16_SUPPORT)
+       ||
+       (((READ_BIT(RCC->PLLCFGR, RCC_PLLCFGR_PLLM) >> RCC_PLLCFGR_PLLM_Pos) + 1U) != PllSai1->PLLSAI1M)
+#endif
+      )
+    {
+      status = HAL_ERROR;
+    }
+  }
+  else
+  {
+    /* Check PLLSAI1 clock source availability */
+    switch(PllSai1->PLLSAI1Source)
+    {
+    case RCC_PLLSOURCE_MSI:
+      if(HAL_IS_BIT_CLR(RCC->CR, RCC_CR_MSIRDY))
+      {
+        status = HAL_ERROR;
+      }
+      break;
+    case RCC_PLLSOURCE_HSI:
+      if(HAL_IS_BIT_CLR(RCC->CR, RCC_CR_HSIRDY))
+      {
+        status = HAL_ERROR;
+      }
+      break;
+    case RCC_PLLSOURCE_HSE:
+      if(HAL_IS_BIT_CLR(RCC->CR, RCC_CR_HSERDY) && HAL_IS_BIT_CLR(RCC->CR, RCC_CR_HSEBYP))
+      {
+        status = HAL_ERROR;
+      }
+      break;
+    default:
+      status = HAL_ERROR;
+      break;
+    }
+
+    if(status == HAL_OK)
+    {
+#if defined(RCC_PLLSAI1M_DIV_1_16_SUPPORT)
+      /* Set PLLSAI1 clock source */
+      MODIFY_REG(RCC->PLLCFGR, RCC_PLLCFGR_PLLSRC, PllSai1->PLLSAI1Source);
+#else
+      /* Set PLLSAI1 clock source and divider M */
+      MODIFY_REG(RCC->PLLCFGR, RCC_PLLCFGR_PLLSRC | RCC_PLLCFGR_PLLM, PllSai1->PLLSAI1Source | (PllSai1->PLLSAI1M - 1U) << RCC_PLLCFGR_PLLM_Pos);
+#endif
+    }
+  }
+
+  if(status == HAL_OK)
+  {
+    /* Disable the PLLSAI1 */
+    __HAL_RCC_PLLSAI1_DISABLE();
+
+    /* Get Start Tick*/
+    tickstart = HAL_GetTick();
+
+    /* Wait till PLLSAI1 is ready to be updated */
+    while(READ_BIT(RCC->CR, RCC_CR_PLLSAI1RDY) != RESET)
+    {
+      if((HAL_GetTick() - tickstart) > PLLSAI1_TIMEOUT_VALUE)
+      {
+        status = HAL_TIMEOUT;
+        break;
+      }
+    }
+
+    if(status == HAL_OK)
+    {
+      if(Divider == DIVIDER_P_UPDATE)
+      {
+        assert_param(IS_RCC_PLLSAI1P_VALUE(PllSai1->PLLSAI1P));
+#if defined(RCC_PLLSAI1M_DIV_1_16_SUPPORT)
+
+        /* Configure the PLLSAI1 Division factor M, P and Multiplication factor N*/
+#if defined(RCC_PLLSAI1P_DIV_2_31_SUPPORT)
+        MODIFY_REG(RCC->PLLSAI1CFGR,
+                   RCC_PLLSAI1CFGR_PLLSAI1N | RCC_PLLSAI1CFGR_PLLSAI1PDIV | RCC_PLLSAI1CFGR_PLLSAI1M,
+                   (PllSai1->PLLSAI1N << RCC_PLLSAI1CFGR_PLLSAI1N_Pos) |
+                   (PllSai1->PLLSAI1P << RCC_PLLSAI1CFGR_PLLSAI1PDIV_Pos) |
+                   ((PllSai1->PLLSAI1M - 1U) << RCC_PLLSAI1CFGR_PLLSAI1M_Pos));
+#else
+        MODIFY_REG(RCC->PLLSAI1CFGR,
+                   RCC_PLLSAI1CFGR_PLLSAI1N | RCC_PLLSAI1CFGR_PLLSAI1P | RCC_PLLSAI1CFGR_PLLSAI1M,
+                   (PllSai1->PLLSAI1N << RCC_PLLSAI1CFGR_PLLSAI1N_Pos) |
+                   ((PllSai1->PLLSAI1P >> 4U) << RCC_PLLSAI1CFGR_PLLSAI1P_Pos) |
+                   ((PllSai1->PLLSAI1M - 1U) << RCC_PLLSAI1CFGR_PLLSAI1M_Pos));
+#endif /* RCC_PLLSAI1P_DIV_2_31_SUPPORT */
+
+#else
+        /* Configure the PLLSAI1 Division factor P and Multiplication factor N*/
+#if defined(RCC_PLLSAI1P_DIV_2_31_SUPPORT)
+        MODIFY_REG(RCC->PLLSAI1CFGR,
+                   RCC_PLLSAI1CFGR_PLLSAI1N | RCC_PLLSAI1CFGR_PLLSAI1PDIV,
+                   (PllSai1->PLLSAI1N << RCC_PLLSAI1CFGR_PLLSAI1N_Pos) |
+                   (PllSai1->PLLSAI1P << RCC_PLLSAI1CFGR_PLLSAI1PDIV_Pos));
+#else
+        MODIFY_REG(RCC->PLLSAI1CFGR,
+                   RCC_PLLSAI1CFGR_PLLSAI1N | RCC_PLLSAI1CFGR_PLLSAI1P,
+                   (PllSai1->PLLSAI1N << RCC_PLLSAI1CFGR_PLLSAI1N_Pos) |
+                   ((PllSai1->PLLSAI1P >> 4U) << RCC_PLLSAI1CFGR_PLLSAI1P_Pos));
+#endif /* RCC_PLLSAI1P_DIV_2_31_SUPPORT */
+
+#endif /* RCC_PLLSAI1M_DIV_1_16_SUPPORT */
+      }
+      else if(Divider == DIVIDER_Q_UPDATE)
+      {
+        assert_param(IS_RCC_PLLSAI1Q_VALUE(PllSai1->PLLSAI1Q));
+#if defined(RCC_PLLSAI1M_DIV_1_16_SUPPORT)
+        /* Configure the PLLSAI1 Division factor M, Q and Multiplication factor N*/
+        MODIFY_REG(RCC->PLLSAI1CFGR,
+                   RCC_PLLSAI1CFGR_PLLSAI1N | RCC_PLLSAI1CFGR_PLLSAI1Q | RCC_PLLSAI1CFGR_PLLSAI1M,
+                   (PllSai1->PLLSAI1N << RCC_PLLSAI1CFGR_PLLSAI1N_Pos) |
+                   (((PllSai1->PLLSAI1Q >> 1U) - 1U) << RCC_PLLSAI1CFGR_PLLSAI1Q_Pos) |
+                   ((PllSai1->PLLSAI1M - 1U) << RCC_PLLSAI1CFGR_PLLSAI1M_Pos));
+#else
+        /* Configure the PLLSAI1 Division factor Q and Multiplication factor N*/
+        MODIFY_REG(RCC->PLLSAI1CFGR,
+                   RCC_PLLSAI1CFGR_PLLSAI1N | RCC_PLLSAI1CFGR_PLLSAI1Q,
+                   (PllSai1->PLLSAI1N << RCC_PLLSAI1CFGR_PLLSAI1N_Pos) |
+                   (((PllSai1->PLLSAI1Q >> 1U) - 1U) << RCC_PLLSAI1CFGR_PLLSAI1Q_Pos));
+#endif /* RCC_PLLSAI1M_DIV_1_16_SUPPORT */
+      }
+      else
+      {
+        assert_param(IS_RCC_PLLSAI1R_VALUE(PllSai1->PLLSAI1R));
+#if defined(RCC_PLLSAI1M_DIV_1_16_SUPPORT)
+        /* Configure the PLLSAI1 Division factor M, R and Multiplication factor N*/
+        MODIFY_REG(RCC->PLLSAI1CFGR,
+                   RCC_PLLSAI1CFGR_PLLSAI1N | RCC_PLLSAI1CFGR_PLLSAI1R | RCC_PLLSAI1CFGR_PLLSAI1M,
+                   (PllSai1->PLLSAI1N << RCC_PLLSAI1CFGR_PLLSAI1N_Pos) |
+                   (((PllSai1->PLLSAI1R >> 1U) - 1U) << RCC_PLLSAI1CFGR_PLLSAI1R_Pos) |
+                   ((PllSai1->PLLSAI1M - 1U) << RCC_PLLSAI1CFGR_PLLSAI1M_Pos));
+#else
+        /* Configure the PLLSAI1 Division factor R and Multiplication factor N*/
+        MODIFY_REG(RCC->PLLSAI1CFGR,
+                   RCC_PLLSAI1CFGR_PLLSAI1N | RCC_PLLSAI1CFGR_PLLSAI1R,
+                   (PllSai1->PLLSAI1N << RCC_PLLSAI1CFGR_PLLSAI1N_Pos) |
+                   (((PllSai1->PLLSAI1R >> 1U) - 1U) << RCC_PLLSAI1CFGR_PLLSAI1R_Pos));
+#endif /* RCC_PLLSAI1M_DIV_1_16_SUPPORT */
+      }
+
+      /* Enable the PLLSAI1 again by setting PLLSAI1ON to 1*/
+      __HAL_RCC_PLLSAI1_ENABLE();
+
+      /* Get Start Tick*/
+      tickstart = HAL_GetTick();
+
+      /* Wait till PLLSAI1 is ready */
+      while(READ_BIT(RCC->CR, RCC_CR_PLLSAI1RDY) == RESET)
+      {
+        if((HAL_GetTick() - tickstart) > PLLSAI1_TIMEOUT_VALUE)
+        {
+          status = HAL_TIMEOUT;
+          break;
+        }
+      }
+
+      if(status == HAL_OK)
+      {
+        /* Configure the PLLSAI1 Clock output(s) */
+        __HAL_RCC_PLLSAI1CLKOUT_ENABLE(PllSai1->PLLSAI1ClockOut);
+      }
+    }
+  }
+
+  return status;
+}

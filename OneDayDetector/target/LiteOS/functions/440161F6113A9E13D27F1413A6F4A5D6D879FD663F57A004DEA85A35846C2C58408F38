@@ -1,0 +1,43 @@
+UINT32 Example_MsgQueue(VOID)
+{
+    UINT32 ret;
+    UINT32 task1, task2;
+    TSK_INIT_PARAM_S stInitParam1;
+
+    /* create task1 */
+    printf("Kernel message queue demo begin.\n");
+    stInitParam1.pfnTaskEntry = (TSK_ENTRY_FUNC)send_Entry;
+    stInitParam1.usTaskPrio = 9;
+    stInitParam1.uwStackSize = LOSCFG_BASE_CORE_TSK_DEFAULT_STACK_SIZE;
+    stInitParam1.pcName = "sendQueue";
+    LOS_TaskLock(); // lock task schedue
+    ret = LOS_TaskCreate(&task1, &stInitParam1);
+    if (ret != LOS_OK) {
+        printf("Create task1 failed, error : %x.\n", ret);
+        return ret;
+    }
+
+    /* create task2 */
+    stInitParam1.pfnTaskEntry = (TSK_ENTRY_FUNC)recv_Entry;
+    ret = LOS_TaskCreate(&task2, &stInitParam1);
+    if (ret != LOS_OK) {
+        printf("Create task2 failed, error : %x.\n", ret);
+        return ret;
+    }
+
+    /* create queue */
+    ret = LOS_QueueCreate("queue", 5, &g_demoQueue, 0, 24);
+    if (ret != LOS_OK) {
+        printf("Create queue failed, error : %x.\n", ret);
+    }
+
+    printf("Create the queue ok.\n");
+    LOS_TaskUnlock(); // unlock task schedue
+
+    LOS_TaskDelay(500);
+
+    LOS_TaskDelete(task1);
+    LOS_TaskDelete(task2);
+
+    return LOS_OK;
+}

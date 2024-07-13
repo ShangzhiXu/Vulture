@@ -1,0 +1,39 @@
+static uint8_t prv_read(uint16_t instanceId,
+                        int *numDataP,
+                        lwm2m_data_t **dataArrayP,
+                        lwm2m_data_cfg_t *dataCfg,
+                        lwm2m_object_t *objectP)
+{
+    plat_instance_t *targetP;
+    uint8_t ret;
+    int new_data_flag = false;
+
+    targetP = (plat_instance_t *)lwm2m_list_find(objectP->instanceList, instanceId);
+    if (targetP == NULL) {
+        ATINY_LOG(LOG_ERR, "plat inst not found %d", instanceId);
+        return COAP_404_NOT_FOUND;
+    }
+
+    if (*numDataP == 0) {
+        *dataArrayP = lwm2m_data_new(1);
+        if (*dataArrayP == NULL) {
+            ATINY_LOG(LOG_ERR, "lwm2m_data_new null");
+            return COAP_500_INTERNAL_SERVER_ERROR;
+        }
+
+        *numDataP = 1;
+        (*dataArrayP)[0].id = 0;
+        new_data_flag = true;
+    }
+
+    ret = prv_read_data(targetP, *numDataP, *dataArrayP, dataCfg);
+    if (ret != COAP_205_CONTENT) {
+        prv_destroy_data_buf(*numDataP, *dataArrayP);
+        if (new_data_flag) {
+            lwm2m_free(*dataArrayP);
+            *dataArrayP = NULL;
+        }
+    }
+
+    return ret;
+}

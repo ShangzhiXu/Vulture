@@ -1,0 +1,26 @@
+netconn_listen_with_backlog(struct netconn *conn, u8_t backlog)
+{
+#if LWIP_TCP
+  API_MSG_VAR_DECLARE(msg);
+  err_t err;
+
+  /* This does no harm. If TCP_LISTEN_BACKLOG is off, backlog is unused. */
+  LWIP_UNUSED_ARG(backlog);
+
+  LWIP_ERROR("netconn_listen: invalid conn", (conn != NULL), return ERR_ARG;);
+
+  API_MSG_VAR_ALLOC(msg);
+  API_MSG_VAR_REF(msg).conn = conn;
+#if TCP_LISTEN_BACKLOG
+  API_MSG_VAR_REF(msg).msg.lb.backlog = backlog;
+#endif /* TCP_LISTEN_BACKLOG */
+  err = netconn_apimsg(lwip_netconn_do_listen, &API_MSG_VAR_REF(msg));
+  API_MSG_VAR_FREE(msg);
+
+  return err;
+#else /* LWIP_TCP */
+  LWIP_UNUSED_ARG(conn);
+  LWIP_UNUSED_ARG(backlog);
+  return ERR_ARG;
+#endif /* LWIP_TCP */
+}

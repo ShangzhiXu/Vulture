@@ -1,0 +1,38 @@
+bridgeif_add_port(struct netif *bridgeif, struct netif *portif)
+{
+  bridgeif_private_t *br;
+  bridgeif_port_t *port;
+
+  LWIP_ASSERT("bridgeif != NULL", bridgeif != NULL);
+  LWIP_ASSERT("bridgeif->state != NULL", bridgeif->state != NULL);
+  LWIP_ASSERT("portif != NULL", portif != NULL);
+
+  if (!(portif->flags & NETIF_FLAG_ETHARP) || !(portif->flags & NETIF_FLAG_ETHERNET)) {
+    /* can only add ETHERNET/ETHARP interfaces */
+    return ERR_VAL;
+  }
+
+  br = (bridgeif_private_t *)bridgeif->state;
+
+  if (br->num_ports >= br->max_ports) {
+    return ERR_VAL;
+  }
+  port = &br->ports[br->num_ports];
+  port->port_netif = portif;
+  port->port_num = br->num_ports;
+  port->bridge = br;
+  br->num_ports++;
+
+  /* let the port call us on input */
+#if BRIDGEIF_PORT_NETIFS_OUTPUT_DIRECT
+  portif->input = bridgeif_input;
+#else
+  portif->input = bridgeif_tcpip_input;
+#endif
+  /* store pointer to bridge in netif */
+  netif_set_client_data(portif, bridgeif_netif_client_id, port);
+  /* remove ETHARP flag to prevent sending report events on netif-up */
+  netif_clear_flags(portif, NETIF_FLAG_ETHARP);
+
+  return ERR_OK;
+}

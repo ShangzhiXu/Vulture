@@ -1,0 +1,18 @@
+    mbedtls_mpi D;              /*!<  The private exponent. */
+    mbedtls_mpi DP;             /*!<  <code>D % (P - 1)</code>. */
+    mbedtls_mpi DQ;             /*!<  <code>D % (Q - 1)</code>. */
+    mbedtls_mpi E;              /*!<  The public exponent. */
+    mbedtls_mpi N;              /*!<  The public modulus. */
+    mbedtls_mpi P;              /*!<  The first prime factor. */
+    mbedtls_mpi Q;              /*!<  The second prime factor. */
+    mbedtls_mpi QP;             /*!<  <code>1 / (Q % P)</code>. */
+    mbedtls_mpi RN;             /*!<  cached <code>R^2 mod N</code>. */
+    mbedtls_mpi RP;             /*!<  cached <code>R^2 mod P</code>. */
+    mbedtls_mpi RQ;             /*!<  cached <code>R^2 mod Q</code>. */
+    mbedtls_mpi Vf;             /*!<  The cached un-blinding value. */
+    mbedtls_mpi Vi;             /*!<  The cached blinding value. */
+    int hash_id;                /*!< Hash identifier of mbedtls_md_type_t type,
+    size_t len;                 /*!<  The size of \p N in Bytes. */
+    mbedtls_threading_mutex_t mutex;    /*!<  Thread-safety mutex. */
+    int padding;                /*!< Selects padding mode:
+    int ver;                    /*!<  Always 0.*/

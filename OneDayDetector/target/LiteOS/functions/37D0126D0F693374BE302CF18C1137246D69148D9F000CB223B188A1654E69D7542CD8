@@ -1,0 +1,24 @@
+snmp_asn1_enc_oid_cnt(const u32_t *oid, u16_t oid_len, u16_t *octets_needed)
+{
+  u32_t sub_id;
+
+  *octets_needed = 0;
+  if (oid_len > 1) {
+    /* compressed prefix in one octet */
+    (*octets_needed)++;
+    oid_len -= 2;
+    oid += 2;
+  }
+  while (oid_len > 0) {
+    oid_len--;
+    sub_id = *oid;
+
+    sub_id >>= 7;
+    (*octets_needed)++;
+    while (sub_id > 0) {
+      sub_id >>= 7;
+      (*octets_needed)++;
+    }
+    oid++;
+  }
+}

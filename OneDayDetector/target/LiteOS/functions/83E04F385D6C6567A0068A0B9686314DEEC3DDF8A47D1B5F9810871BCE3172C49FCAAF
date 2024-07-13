@@ -1,0 +1,25 @@
+SECUREC_INLINE void SecUpdateXpxFlags(SecFormatAttr *attr, SecChar ch)
+{
+    /* Use unsigned lower hex output for 'x' */
+    attr->digits = g_itoaLowerDigits;
+    attr->radix = SECUREC_RADIX_HEX;
+    switch (ch) {
+        case SECUREC_CHAR('p'):
+            /* Print a pointer */
+            SecUpdatePointFlags(attr);
+            break;
+        case SECUREC_CHAR('X'): /* fall-through */ /* FALLTHRU */
+            /* Unsigned upper hex output */
+            attr->digits = g_itoaUpperDigits;
+            /* fall-through */ /* FALLTHRU */
+        default:
+            /* For %#x or %#X */
+            if ((attr->flags & SECUREC_FLAG_ALTERNATE) != 0) {
+                /* Alternate form means '0x' prefix */
+                attr->prefix[0] = SECUREC_CHAR('0');
+                attr->prefix[1] = (SecChar)(attr->digits[16]); /* 16 for 'x' or 'X' */
+                attr->prefixLen = SECUREC_PREFIX_LEN;
+            }
+            break;
+    }
+}

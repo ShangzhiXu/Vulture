@@ -1,0 +1,20 @@
+udp_new_port(void)
+{
+  u16_t n = 0;
+  struct udp_pcb *pcb;
+
+again:
+  if (udp_port++ == UDP_LOCAL_PORT_RANGE_END) {
+    udp_port = UDP_LOCAL_PORT_RANGE_START;
+  }
+  /* Check all PCBs. */
+  for (pcb = udp_pcbs; pcb != NULL; pcb = pcb->next) {
+    if (pcb->local_port == udp_port) {
+      if (++n > (UDP_LOCAL_PORT_RANGE_END - UDP_LOCAL_PORT_RANGE_START)) {
+        return 0;
+      }
+      goto again;
+    }
+  }
+  return udp_port;
+}

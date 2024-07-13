@@ -1,0 +1,12 @@
+VOID OsKernelSecPteInit(UINTPTR startAddr, UINTPTR len, UINT64 flag)
+{
+    g_mmuOsPage.page_addr = startAddr;
+    g_mmuOsPage.page_length = len;
+    g_mmuOsPage.page_descriptor_addr = (UINTPTR)g_secondPageTableOs;
+    if (g_mmuOsPage.page_length > SECOND_PAGE_TABLE_MAPPING_LEN(g_secondPageTableOs)) {
+        PRINT_ERR("the mapping size of os second page is 0x%llx, sholud be not bigger than 0x%llx\n",
+                  g_mmuOsPage.page_length, (UINT64)SECOND_PAGE_TABLE_MAPPING_LEN(g_secondPageTableOs));
+        return;
+    }
+    ArchSecPageEnable(&g_mmuOsPage, flag);
+}

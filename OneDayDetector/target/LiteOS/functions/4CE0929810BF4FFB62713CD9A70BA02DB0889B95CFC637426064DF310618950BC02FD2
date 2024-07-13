@@ -1,0 +1,26 @@
+static uint32_t SAI_InterruptFlag(SAI_HandleTypeDef *hsai, uint32_t mode)
+{
+  uint32_t tmpIT = SAI_IT_OVRUDR;
+
+  if(mode == SAI_MODE_IT)
+  {
+    tmpIT|= SAI_IT_FREQ;
+  }
+
+  if((hsai->Init.Protocol == SAI_AC97_PROTOCOL) &&
+    ((hsai->Init.AudioMode == SAI_MODESLAVE_RX) || (hsai->Init.AudioMode == SAI_MODEMASTER_RX)))
+  {
+    tmpIT|= SAI_IT_CNRDY;
+  }
+
+  if((hsai->Init.AudioMode == SAI_MODESLAVE_RX) || (hsai->Init.AudioMode == SAI_MODESLAVE_TX))
+  {
+    tmpIT|= SAI_IT_AFSDET | SAI_IT_LFSDET;
+  }
+  else
+  {
+    /* hsai has been configured in master mode */
+    tmpIT|= SAI_IT_WCKCFG;
+  }
+  return tmpIT;
+}

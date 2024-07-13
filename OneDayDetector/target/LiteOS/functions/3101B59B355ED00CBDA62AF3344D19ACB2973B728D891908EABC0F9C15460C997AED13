@@ -1,0 +1,24 @@
+static int atiny_fota_idle_state_report_result(atiny_fota_state_s *thi)
+{
+    int ret = ATINY_ERR;
+    atiny_fota_idle_state_s *idle_stat = (atiny_fota_idle_state_s *)thi;
+    int state;
+    lwm2m_data_cfg_t dataCfg = {0};
+
+    ASSERT_THIS(return ATINY_ARG_INVALID);
+
+    if (!idle_stat->report_flag) {
+        return ATINY_OK;
+    }
+
+    idle_stat->report_flag = false;
+
+    state = ((ATINY_OK == idle_stat->report_result) ?  ATINY_FOTA_IDLE : ATINY_FOTA_DOWNLOADED);
+    atiny_fota_manager_set_update_result(thi->manager, (ATINY_OK == idle_stat->report_result) ? ATINY_FIRMWARE_UPDATE_SUCCESS : ATINY_FIRMWARE_UPDATE_FAIL);
+    atiny_fota_manager_save_rpt_state(thi->manager, state);
+    atiny_fota_manager_get_data_cfg(thi->manager, &dataCfg);
+    ret = lwm2m_send_notify(atiny_fota_manager_get_lwm2m_context(thi->manager),
+                            &idle_stat->observe_info, state, &dataCfg);
+    ATINY_LOG(LOG_INFO, "lwm2m_send_notify result %d, state %d", ret, state);
+    return ret;
+}

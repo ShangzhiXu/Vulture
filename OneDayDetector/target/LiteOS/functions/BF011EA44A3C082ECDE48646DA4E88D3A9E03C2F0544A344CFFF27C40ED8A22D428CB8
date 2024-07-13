@@ -1,0 +1,42 @@
+static int32_t bg36_close(int32_t id)
+{
+    int ret;
+    QUEUE_BUFF qbuf = {0};
+    char *cmd2 = "AT+QISTATE=1,";
+    char cmd[64] = {0};
+
+    UINT32 qlen = sizeof(QUEUE_BUFF);
+
+    (void)snprintf(cmd, 64, "%s%d\r", cmd2, (int)id);
+    (void)bg36_cmd(cmd, strlen(cmd), "+QISTATE:", NULL, NULL);
+    ret = bg36_close_sock((int)id);
+    if (ret != AT_OK) {
+        AT_LOG("close no reply, continue. sockid:%d", (int)id);
+        (void)LOS_TaskDelay(10000);
+        (void)bg36_close_sock((int)id);
+        (void)LOS_TaskDelay(10000);
+        (void)bg36_cmd(cmd, strlen(cmd), "+QISTATE:", NULL, NULL);
+    }
+
+    sockinfo[id].used_flag = false;
+    at.linkid[id].usable = false;
+
+    if (sockinfo[id].buf != NULL) {
+        at_free(sockinfo[id].buf);
+    }
+
+    do {
+        qbuf.addr = NULL;
+        ret = LOS_QueueReadCopy(at.linkid[id].qid, &qbuf, &qlen, 0);
+        if ((ret == LOS_OK) && (qbuf.addr != NULL)) {
+            at_free(qbuf.addr);
+        }
+    } while (ret == LOS_OK);
+
+    ret = LOS_QueueDelete(at.linkid[id].qid);
+    if (ret != LOS_OK) {
+        AT_LOG("LOS_QueueDelete failed, ret is %d!,qid %d", ret, at.linkid[id].qid);
+    }
+
+    return ret;
+}

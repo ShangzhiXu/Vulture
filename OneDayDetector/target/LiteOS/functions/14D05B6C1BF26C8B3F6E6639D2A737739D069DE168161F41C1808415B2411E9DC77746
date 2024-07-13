@@ -1,0 +1,25 @@
+static HAL_StatusTypeDef RTC_WriteAlarmCounter(RTC_HandleTypeDef* hrtc, uint32_t AlarmCounter)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  
+  /* Set Initialization mode */
+  if(RTC_EnterInitMode(hrtc) != HAL_OK)
+  {
+    status = HAL_ERROR;
+  } 
+  else
+  {
+    /* Set RTC COUNTER MSB word */
+    WRITE_REG(hrtc->Instance->ALRH, (AlarmCounter >> 16));
+    /* Set RTC COUNTER LSB word */
+    WRITE_REG(hrtc->Instance->ALRL, (AlarmCounter & RTC_ALRL_RTC_ALR));
+    
+    /* Wait for synchro */
+    if(RTC_ExitInitMode(hrtc) != HAL_OK)
+    {       
+      status = HAL_ERROR;
+    }
+  }
+
+  return status;
+}

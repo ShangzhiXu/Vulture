@@ -1,0 +1,18 @@
+static void chap_protrej(ppp_pcb *pcb) {
+
+#if PPP_SERVER
+	if (pcb->chap_server.flags & TIMEOUT_PENDING) {
+		pcb->chap_server.flags &= ~TIMEOUT_PENDING;
+		UNTIMEOUT(chap_timeout, pcb);
+	}
+	if (pcb->chap_server.flags & AUTH_STARTED) {
+		pcb->chap_server.flags = 0;
+		auth_peer_fail(pcb, PPP_CHAP);
+	}
+#endif /* PPP_SERVER */
+	if ((pcb->chap_client.flags & (AUTH_STARTED|AUTH_DONE)) == AUTH_STARTED) {
+		pcb->chap_client.flags &= ~AUTH_STARTED;
+		ppp_error("CHAP authentication failed due to protocol-reject");
+		auth_withpeer_fail(pcb, PPP_CHAP);
+	}
+}

@@ -1,0 +1,37 @@
+tcp_ListenerTable_get_next_cell_instance_and_value(const u32_t *column, struct snmp_obj_id *row_oid, union snmp_variant_value *value, u32_t *value_len)
+{
+  struct tcp_pcb_listen *pcb;
+  struct snmp_next_oid_state state;
+  /* 1x tcpListenerLocalAddressType + 1x OID len + 16x tcpListenerLocalAddress  + 1x tcpListenerLocalPort */
+  u32_t  result_temp[19];
+
+  LWIP_UNUSED_ARG(value_len);
+
+  /* init struct to search next oid */
+  snmp_next_oid_init(&state, row_oid->id, row_oid->len, result_temp, LWIP_ARRAYSIZE(result_temp));
+
+  /* iterate over all possible OIDs to find the next one */
+  pcb = tcp_listen_pcbs.listen_pcbs;
+  while (pcb != NULL) {
+    u8_t idx = 0;
+    u32_t test_oid[LWIP_ARRAYSIZE(result_temp)];
+
+    /* tcpListenerLocalAddressType + tcpListenerLocalAddress + tcpListenerLocalPort */
+    idx += snmp_ip_port_to_oid(&pcb->local_ip, pcb->local_port, &test_oid[idx]);
+
+    /* check generated OID: is it a candidate for the next one? */
+    snmp_next_oid_check(&state, test_oid, idx, NULL);
+
+    pcb = pcb->next;
+  }
+
+  /* did we find a next one? */
+  if (state.status == SNMP_NEXT_OID_STATUS_SUCCESS) {
+    snmp_oid_assign(row_oid, state.next_oid, state.next_oid_len);
+    /* fill in object properties */
+    return tcp_ListenerTable_get_cell_value_core(column, value);
+  } else {
+    /* not found */
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+}

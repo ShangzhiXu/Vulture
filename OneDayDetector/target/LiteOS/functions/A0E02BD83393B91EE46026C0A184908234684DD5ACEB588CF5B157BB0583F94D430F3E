@@ -1,0 +1,28 @@
+osStatus osDelay(uint32_t millisec)
+{
+    UINT32 interval;
+    UINT32 ret;
+
+    if (OS_INT_ACTIVE) {
+        return osErrorISR;
+    }
+
+    if (millisec == 0) {
+        return osOK;
+    }
+
+    /* check if in idle we use udelay instead */
+    if (OsGetIdleTaskId()  == LOS_CurTaskIDGet()) {
+        PRINT_ERR("Idle Task Do Not Support Delay!\n");
+        return osOK;
+    }
+
+    interval = LOS_MS2Tick(millisec);
+
+    ret = LOS_TaskDelay(interval);
+    if (ret == LOS_OK) {
+        return osEventTimeout;
+    } else {
+        return osErrorResource;
+    }
+}

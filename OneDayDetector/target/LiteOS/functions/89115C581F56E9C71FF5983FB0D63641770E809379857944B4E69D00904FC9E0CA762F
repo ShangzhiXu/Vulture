@@ -1,0 +1,73 @@
+HAL_StatusTypeDef HAL_DSI_LongWrite(DSI_HandleTypeDef *hdsi,
+                                    uint32_t ChannelID,
+                                    uint32_t Mode,
+                                    uint32_t NbParams,
+                                    uint32_t Param1,
+                                    uint8_t *ParametersTable)
+{
+  uint32_t uicounter, nbBytes, count;
+  uint32_t tickstart;
+  uint32_t fifoword;
+  uint8_t *pparams = ParametersTable;
+
+  /* Process locked */
+  __HAL_LOCK(hdsi);
+
+  /* Check the parameters */
+  assert_param(IS_DSI_LONG_WRITE_PACKET_TYPE(Mode));
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  /* Wait for Command FIFO Empty */
+  while ((hdsi->Instance->GPSR & DSI_GPSR_CMDFE) == 0U)
+  {
+    /* Check for the Timeout */
+    if ((HAL_GetTick() - tickstart) > DSI_TIMEOUT_VALUE)
+    {
+      /* Process Unlocked */
+      __HAL_UNLOCK(hdsi);
+
+      return HAL_TIMEOUT;
+    }
+  }
+
+  /* Set the DCS code on payload byte 1, and the other parameters on the write FIFO command*/
+  fifoword = Param1;
+  nbBytes = (NbParams < 3U) ? NbParams : 3U;
+
+  for (count = 0U; count < nbBytes; count++)
+  {
+    fifoword |= (((uint32_t)(*(pparams + count))) << (8U + (8U * count)));
+  }
+  hdsi->Instance->GPDR = fifoword;
+
+  uicounter = NbParams - nbBytes;
+  pparams += nbBytes;
+  /* Set the Next parameters on the write FIFO command*/
+  while (uicounter != 0U)
+  {
+    nbBytes = (uicounter < 4U) ? uicounter : 4U;
+    fifoword = 0U;
+    for (count = 0U; count < nbBytes; count++)
+    {
+      fifoword |= (((uint32_t)(*(pparams + count))) << (8U * count));
+    }
+    hdsi->Instance->GPDR = fifoword;
+
+    uicounter -= nbBytes;
+    pparams += nbBytes;
+  }
+
+  /* Configure the packet to send a long DCS command */
+  DSI_ConfigPacketHeader(hdsi->Instance,
+                         ChannelID,
+                         Mode,
+                         ((NbParams + 1U) & 0x00FFU),
+                         (((NbParams + 1U) & 0xFF00U) >> 8U));
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hdsi);
+
+  return HAL_OK;
+}

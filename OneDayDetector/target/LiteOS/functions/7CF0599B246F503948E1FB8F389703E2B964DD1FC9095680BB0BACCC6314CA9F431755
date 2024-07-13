@@ -1,0 +1,37 @@
+int32_t at_cmd_in_callback(const int8_t *cmd, int32_t len,
+                    int32_t (*handle_data)(const int8_t *data, uint32_t len),  uint32_t timeout)
+{
+    int32_t ret = AT_FAILED;
+
+    if (handle_data != NULL) {
+        if (LOS_MuxPend(at.trx_mux, 0) != AT_OK) {
+            return AT_FAILED;
+        }
+    }
+
+    LOS_MuxPend(at.cmd_mux, LOS_WAIT_FOREVER);
+    at_transmit((uint8_t *)cmd, len, 1);
+
+    if (handle_data != NULL) {
+        at_listener *listener = NULL;
+
+        listener = at_malloc(sizeof(*listener));
+        if (listener == NULL) {
+            AT_LOG("at_malloc fail");
+            goto EXIT;
+        }
+        memset(listener, 0, sizeof(*listener));
+
+        listener->handle_data = handle_data;
+        listener->expire_time = at_get_time() + timeout;
+        at_listener_list_add(listener);
+    }
+    ret = AT_OK;
+
+EXIT:
+    LOS_MuxPost(at.cmd_mux);
+
+    AT_LOG("len %ld,cmd %s", len, cmd);
+
+    return ret;
+}

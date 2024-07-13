@@ -1,0 +1,21 @@
+dns_local_addhost(const char *hostname, const ip_addr_t *addr)
+{
+  struct local_hostlist_entry *entry;
+  size_t namelen;
+  char *entry_name;
+  LWIP_ASSERT("invalid host name (NULL)", hostname != NULL);
+  namelen = strlen(hostname);
+  LWIP_ASSERT("namelen <= DNS_LOCAL_HOSTLIST_MAX_NAMELEN", namelen <= DNS_LOCAL_HOSTLIST_MAX_NAMELEN);
+  entry = (struct local_hostlist_entry *)memp_malloc(MEMP_LOCALHOSTLIST);
+  if (entry == NULL) {
+    return ERR_MEM;
+  }
+  entry_name = (char *)entry + sizeof(struct local_hostlist_entry);
+  MEMCPY(entry_name, hostname, namelen);
+  entry_name[namelen] = 0;
+  entry->name = entry_name;
+  ip_addr_copy(entry->addr, *addr);
+  entry->next = local_hostlist_dynamic;
+  local_hostlist_dynamic = entry;
+  return ERR_OK;
+}

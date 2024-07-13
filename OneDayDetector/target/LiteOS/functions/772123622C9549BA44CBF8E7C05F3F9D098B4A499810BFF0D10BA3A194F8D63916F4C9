@@ -1,0 +1,98 @@
+static int prv_split(uint8_t *buffer,
+                     size_t bufferLen,
+                     int *tokenStartP,
+                     int *tokenLenP,
+                     int *valueStartP,
+                     int *valueLenP)
+{
+    size_t index;
+    _itemState step;
+
+    index = 0;
+    step = _STEP_START;
+
+    index = prv_skipSpace(buffer + index, bufferLen - index);
+    if (index == bufferLen) return -1;
+
+    while ((index < bufferLen)
+            && (buffer[index] != ','))
+    {
+        switch (step)
+        {
+        case _STEP_START:
+            if (buffer[index] != '"') return -1;
+            *tokenStartP = index + 1;
+            step = _STEP_TOKEN;
+            break;
+
+        case _STEP_TOKEN:
+            if (buffer[index] == '"')
+            {
+                *tokenLenP = index - *tokenStartP;
+                step = _STEP_ANY_SEPARATOR;
+            }
+            break;
+
+        case _STEP_ANY_SEPARATOR:
+            if (buffer[index] != ':') return -1;
+            step = _STEP_SEPARATOR;
+            break;
+
+        case _STEP_SEPARATOR:
+            if (buffer[index] == '"')
+            {
+                *valueStartP = index;
+                step = _STEP_QUOTED_VALUE;
+            }
+            else if (!prv_isReserved(buffer[index]))
+            {
+                *valueStartP = index;
+                step = _STEP_VALUE;
+            }
+            else
+            {
+                return -1;
+            }
+            break;
+
+        case _STEP_QUOTED_VALUE:
+            if (buffer[index] == '"' && buffer[index - 1] != '\\' )
+            {
+                *valueLenP = index - *valueStartP + 1;
+                step = _STEP_DONE;
+            }
+            break;
+
+        case _STEP_VALUE:
+            if (prv_isWhiteSpace(buffer[index]))
+            {
+                *valueLenP = index - *valueStartP;
+                step = _STEP_DONE;
+            }
+            break;
+
+        case _STEP_DONE:
+        default:
+            return -1;
+        }
+
+        index++;
+        if (step == _STEP_START
+                || step == _STEP_ANY_SEPARATOR
+                || step == _STEP_SEPARATOR
+                || step == _STEP_DONE)
+        {
+            index += prv_skipSpace(buffer + index, bufferLen - index);
+        }
+    }
+
+    if (step == _STEP_VALUE)
+    {
+        *valueLenP = index - *valueStartP;
+        step = _STEP_DONE;
+    }
+
+    if (step != _STEP_DONE) return -1;
+
+    return (int)index;
+}

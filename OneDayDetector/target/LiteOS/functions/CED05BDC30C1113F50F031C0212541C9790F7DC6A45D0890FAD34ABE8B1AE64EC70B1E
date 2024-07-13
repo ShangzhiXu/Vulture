@@ -1,0 +1,21 @@
+osStatus osTimerStop(osTimerId timer_id)
+{
+    LosSwtmrCB *swtmrCB = (LosSwtmrCB *)timer_id;
+    UINT32 ret;
+
+    if (swtmrCB == NULL) {
+        return osErrorParameter;
+    }
+    if (OS_INT_ACTIVE) {
+        return osErrorISR;
+    }
+
+    ret = LOS_SwtmrStop(swtmrCB->timerId);
+    if (ret == LOS_OK) {
+        return osOK;
+    } else if (ret == LOS_ERRNO_SWTMR_ID_INVALID) {
+        return osErrorParameter;
+    } else {
+        return osErrorResource;
+    }
+}

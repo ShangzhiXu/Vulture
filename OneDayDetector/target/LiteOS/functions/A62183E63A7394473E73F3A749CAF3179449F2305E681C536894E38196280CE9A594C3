@@ -1,0 +1,103 @@
+HAL_StatusTypeDef HAL_IRDA_RegisterCallback(IRDA_HandleTypeDef *hirda, HAL_IRDA_CallbackIDTypeDef CallbackID,
+                                            pIRDA_CallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    /* Update the error code */
+    hirda->ErrorCode |= HAL_IRDA_ERROR_INVALID_CALLBACK;
+
+    return HAL_ERROR;
+  }
+  /* Process locked */
+  __HAL_LOCK(hirda);
+
+  if (hirda->gState == HAL_IRDA_STATE_READY)
+  {
+    switch (CallbackID)
+    {
+      case HAL_IRDA_TX_HALFCOMPLETE_CB_ID :
+        hirda->TxHalfCpltCallback = pCallback;
+        break;
+
+      case HAL_IRDA_TX_COMPLETE_CB_ID :
+        hirda->TxCpltCallback = pCallback;
+        break;
+
+      case HAL_IRDA_RX_HALFCOMPLETE_CB_ID :
+        hirda->RxHalfCpltCallback = pCallback;
+        break;
+
+      case HAL_IRDA_RX_COMPLETE_CB_ID :
+        hirda->RxCpltCallback = pCallback;
+        break;
+
+      case HAL_IRDA_ERROR_CB_ID :
+        hirda->ErrorCallback = pCallback;
+        break;
+
+      case HAL_IRDA_ABORT_COMPLETE_CB_ID :
+        hirda->AbortCpltCallback = pCallback;
+        break;
+
+      case HAL_IRDA_ABORT_TRANSMIT_COMPLETE_CB_ID :
+        hirda->AbortTransmitCpltCallback = pCallback;
+        break;
+
+      case HAL_IRDA_ABORT_RECEIVE_COMPLETE_CB_ID :
+        hirda->AbortReceiveCpltCallback = pCallback;
+        break;
+
+      case HAL_IRDA_MSPINIT_CB_ID :
+        hirda->MspInitCallback = pCallback;
+        break;
+
+      case HAL_IRDA_MSPDEINIT_CB_ID :
+        hirda->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hirda->ErrorCode |= HAL_IRDA_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if (hirda->gState == HAL_IRDA_STATE_RESET)
+  {
+    switch (CallbackID)
+    {
+      case HAL_IRDA_MSPINIT_CB_ID :
+        hirda->MspInitCallback = pCallback;
+        break;
+
+      case HAL_IRDA_MSPDEINIT_CB_ID :
+        hirda->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hirda->ErrorCode |= HAL_IRDA_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    hirda->ErrorCode |= HAL_IRDA_ERROR_INVALID_CALLBACK;
+
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hirda);
+
+  return status;
+}

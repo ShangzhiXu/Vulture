@@ -1,0 +1,14 @@
+VOID OsPriQueueEnqueue(LOS_DL_LIST *queueNode, UINT32 priority)
+{
+    LosTaskCB   *task = NULL;
+    LOS_DL_LIST *priQueues = NULL;
+    UINT32      cpuid;
+
+    task = LOS_DL_LIST_ENTRY(queueNode, LosTaskCB, pendList);
+
+    /* choose an appropriate cpu to run */
+    cpuid = OsSchedPickCpu(task);
+
+    /* add the task to the cpu per-core pri-queue */
+    OsPriQueueAdd(&g_priqueue[cpuid], task, QUEUE_TAIL);
+}

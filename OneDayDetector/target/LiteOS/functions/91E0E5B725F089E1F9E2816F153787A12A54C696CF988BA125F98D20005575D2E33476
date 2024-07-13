@@ -1,0 +1,23 @@
+sntp_initialize_request(struct sntp_msg *req)
+{
+  memset(req, 0, SNTP_MSG_LEN);
+  req->li_vn_mode = SNTP_LI_NO_WARNING | SNTP_VERSION | SNTP_MODE_CLIENT;
+
+#if SNTP_CHECK_RESPONSE >= 2 || SNTP_COMP_ROUNDTRIP
+  {
+    s32_t secs;
+    u32_t sec, frac;
+    /* Get the transmit timestamp */
+    SNTP_GET_SYSTEM_TIME_NTP(secs, frac);
+    sec  = lwip_htonl((u32_t)secs);
+    frac = lwip_htonl(frac);
+
+# if SNTP_CHECK_RESPONSE >= 2
+    sntp_last_timestamp_sent.sec  = sec;
+    sntp_last_timestamp_sent.frac = frac;
+# endif
+    req->transmit_timestamp[0] = sec;
+    req->transmit_timestamp[1] = frac;
+  }
+#endif /* SNTP_CHECK_RESPONSE >= 2 || SNTP_COMP_ROUNDTRIP */
+}

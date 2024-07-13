@@ -1,0 +1,31 @@
+lv_chart_series_t * lv_chart_add_series(lv_obj_t * chart, lv_color_t color)
+{
+    LV_ASSERT_OBJ(chart, LV_OBJX_NAME);
+
+    lv_chart_ext_t * ext    = lv_obj_get_ext_attr(chart);
+    lv_chart_series_t * ser = _lv_ll_ins_head(&ext->series_ll);
+    LV_ASSERT_MEM(ser);
+    if(ser == NULL) return NULL;
+
+    lv_coord_t def = LV_CHART_POINT_DEF;
+
+    ser->color  = color;
+    ser->points = lv_mem_alloc(sizeof(lv_coord_t) * ext->point_cnt);
+    LV_ASSERT_MEM(ser->points);
+    if(ser->points == NULL) {
+        _lv_ll_remove(&ext->series_ll, ser);
+        lv_mem_free(ser);
+        return NULL;
+    }
+
+    ser->start_point = 0;
+
+    uint16_t i;
+    lv_coord_t * p_tmp = ser->points;
+    for(i = 0; i < ext->point_cnt; i++) {
+        *p_tmp = def;
+        p_tmp++;
+    }
+
+    return ser;
+}

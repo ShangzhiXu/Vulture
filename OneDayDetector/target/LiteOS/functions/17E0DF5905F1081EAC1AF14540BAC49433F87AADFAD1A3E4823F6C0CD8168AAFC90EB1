@@ -1,0 +1,18 @@
+int hal_spi_flash_get_id(void)
+{
+    uint8_t tmp1 = 0;
+    uint8_t tmp2 = 0;
+    uint8_t tmp3 = 0;
+
+    SPI_FLASH_CS_ENABLE();
+
+    if (prv_spi_flash_send_byte(SPI_FLASH_JedecDeviceID, NULL) != -1) {
+        (void)prv_spi_flash_send_byte(SPI_FLASH_DUMMY_BYTE, &tmp1);
+        (void)prv_spi_flash_send_byte(SPI_FLASH_DUMMY_BYTE, &tmp2);
+        (void)prv_spi_flash_send_byte(SPI_FLASH_DUMMY_BYTE, &tmp3);
+    }
+
+    SPI_FLASH_CS_DISABLE();
+
+    return (tmp1 << CHOOSE_BIT_16) | (tmp2 << CHOOSE_BIT_8) | tmp3;
+}

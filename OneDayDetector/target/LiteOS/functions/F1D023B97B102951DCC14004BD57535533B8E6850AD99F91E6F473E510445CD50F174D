@@ -1,0 +1,19 @@
+HAL_StatusTypeDef HAL_PWREx_EnableBkUpReg(void)
+{
+  uint32_t tickstart = 0U;
+
+  *(__IO uint32_t *) CSR_BRE_BB = (uint32_t)ENABLE;
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  /* Wait till Backup regulator ready flag is set */  
+  while(__HAL_PWR_GET_FLAG(PWR_FLAG_BRR) == RESET)
+  {
+    if((HAL_GetTick() - tickstart ) > PWR_BKPREG_TIMEOUT_VALUE)
+    {
+      return HAL_TIMEOUT;
+    } 
+  }
+  return HAL_OK;
+}

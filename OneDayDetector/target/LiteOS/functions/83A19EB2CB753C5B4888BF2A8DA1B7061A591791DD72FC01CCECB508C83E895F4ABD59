@@ -1,0 +1,229 @@
+HAL_StatusTypeDef HAL_ADC_ConfigChannel(ADC_HandleTypeDef* hadc, ADC_ChannelConfTypeDef* sConfig)
+{
+  HAL_StatusTypeDef tmp_hal_status = HAL_OK;
+  uint32_t tmpOffsetShifted;
+  __IO uint32_t wait_loop_index = 0;
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+  assert_param(IS_ADC_REGULAR_RANK(sConfig->Rank));
+  assert_param(IS_ADC_SAMPLE_TIME(sConfig->SamplingTime));
+  assert_param(IS_ADC_SINGLE_DIFFERENTIAL(sConfig->SingleDiff));
+  assert_param(IS_ADC_OFFSET_NUMBER(sConfig->OffsetNumber));
+  assert_param(IS_ADC_RANGE(ADC_GET_RESOLUTION(hadc), sConfig->Offset));
+  
+  /* if ROVSE is set, the value of the OFFSETy_EN bit in ADCx_OFRy register is  
+     ignored (considered as reset) */
+  assert_param(!((sConfig->OffsetNumber != ADC_OFFSET_NONE) && (hadc->Init.OversamplingMode == ENABLE)));  
+  
+  /* Verification of channel number */
+  if (sConfig->SingleDiff != ADC_DIFFERENTIAL_ENDED)
+  {
+     assert_param(IS_ADC_CHANNEL(hadc, sConfig->Channel));
+  }
+  else
+  {
+    assert_param(IS_ADC_DIFF_CHANNEL(hadc, sConfig->Channel));
+  }
+  
+  /* Process locked */
+  __HAL_LOCK(hadc);
+  
+  /* Parameters update conditioned to ADC state:                              */
+  /* Parameters that can be updated when ADC is disabled or enabled without   */
+  /* conversion on going on regular group:                                    */
+  /*  - Channel number                                                        */
+  /*  - Channel rank                                                          */
+  if (ADC_IS_CONVERSION_ONGOING_REGULAR(hadc) == RESET)
+  {
+    #if !defined (USE_FULL_ASSERT)
+    /* Correspondance for compatibility with legacy definition of             */
+    /* sequencer ranks in direct number format. This correspondance can       */
+    /* be done only on ranks 1 to 5 due to literal values.                    */
+    /* Note: Sequencer ranks in direct number format are no more used         */
+    /*       and are detected by activating USE_FULL_ASSERT feature.          */
+    if (sConfig->Rank <= 5U)
+    {
+      switch (sConfig->Rank)
+      {
+        case 2U: sConfig->Rank = ADC_REGULAR_RANK_2; break;
+        case 3U: sConfig->Rank = ADC_REGULAR_RANK_3; break;
+        case 4U: sConfig->Rank = ADC_REGULAR_RANK_4; break;
+        case 5U: sConfig->Rank = ADC_REGULAR_RANK_5; break;
+        /* case 1U */
+        default: sConfig->Rank = ADC_REGULAR_RANK_1;
+      }
+    }
+    #endif
+    
+    /* Set ADC group regular sequence: channel on the selected scan sequence rank */
+    LL_ADC_REG_SetSequencerRanks(hadc->Instance, sConfig->Rank, sConfig->Channel);
+    
+    /* Parameters update conditioned to ADC state:                              */
+    /* Parameters that can be updated when ADC is disabled or enabled without   */
+    /* conversion on going on regular group:                                    */
+    /*  - Channel sampling time                                                 */
+    /*  - Channel offset                                                        */
+    if (ADC_IS_CONVERSION_ONGOING_REGULAR_INJECTED(hadc) == RESET)
+    {
+#if defined(ADC_SMPR1_SMPPLUS)
+      /* Manage specific case of sampling time 3.5 cycles replacing 2.5 cyles */
+      if(sConfig->SamplingTime == ADC_SAMPLETIME_3CYCLES_5)
+      {
+        /* Set sampling time of the selected ADC channel */
+        LL_ADC_SetChannelSamplingTime(hadc->Instance, sConfig->Channel, LL_ADC_SAMPLINGTIME_2CYCLES_5);
+        
+        /* Set ADC sampling time common configuration */
+        LL_ADC_SetSamplingTimeCommonConfig(hadc->Instance, LL_ADC_SAMPLINGTIME_COMMON_3C5_REPL_2C5);
+      }
+      else
+      {
+        /* Set sampling time of the selected ADC channel */
+        LL_ADC_SetChannelSamplingTime(hadc->Instance, sConfig->Channel, sConfig->SamplingTime);
+        
+        /* Set ADC sampling time common configuration */
+        LL_ADC_SetSamplingTimeCommonConfig(hadc->Instance, LL_ADC_SAMPLINGTIME_COMMON_DEFAULT);
+      }
+#else
+      /* Set sampling time of the selected ADC channel */
+      LL_ADC_SetChannelSamplingTime(hadc->Instance, sConfig->Channel, sConfig->SamplingTime);
+#endif
+      
+      /* Configure the offset: offset enable/disable, channel, offset value */
+
+      /* Shift the offset with respect to the selected ADC resolution. */
+      /* Offset has to be left-aligned on bit 11, the LSB (right bits) are set to 0 */
+      tmpOffsetShifted = ADC_OFFSET_SHIFT_RESOLUTION(hadc, sConfig->Offset);
+     
+      if(sConfig->OffsetNumber != ADC_OFFSET_NONE)
+      {
+        /* Set ADC selected offset number */
+        LL_ADC_SetOffset(hadc->Instance, sConfig->OffsetNumber, sConfig->Channel, tmpOffsetShifted);
+         
+      }
+      else
+      {
+        /* Scan each offset register to check if the selected channel is targeted. */
+        /* If this is the case, the corresponding offset number is disabled.       */
+        if(__LL_ADC_CHANNEL_TO_DECIMAL_NB(LL_ADC_GetOffsetChannel(hadc->Instance, LL_ADC_OFFSET_1)) == __LL_ADC_CHANNEL_TO_DECIMAL_NB(sConfig->Channel))
+        {
+          LL_ADC_SetOffsetState(hadc->Instance, LL_ADC_OFFSET_1, LL_ADC_OFFSET_DISABLE);
+        }
+        if(__LL_ADC_CHANNEL_TO_DECIMAL_NB(LL_ADC_GetOffsetChannel(hadc->Instance, LL_ADC_OFFSET_2)) == __LL_ADC_CHANNEL_TO_DECIMAL_NB(sConfig->Channel))
+        {
+          LL_ADC_SetOffsetState(hadc->Instance, LL_ADC_OFFSET_2, LL_ADC_OFFSET_DISABLE);
+        }
+        if(__LL_ADC_CHANNEL_TO_DECIMAL_NB(LL_ADC_GetOffsetChannel(hadc->Instance, LL_ADC_OFFSET_3)) == __LL_ADC_CHANNEL_TO_DECIMAL_NB(sConfig->Channel))
+        {
+          LL_ADC_SetOffsetState(hadc->Instance, LL_ADC_OFFSET_3, LL_ADC_OFFSET_DISABLE);
+        }
+        if(__LL_ADC_CHANNEL_TO_DECIMAL_NB(LL_ADC_GetOffsetChannel(hadc->Instance, LL_ADC_OFFSET_4)) == __LL_ADC_CHANNEL_TO_DECIMAL_NB(sConfig->Channel))
+        {
+          LL_ADC_SetOffsetState(hadc->Instance, LL_ADC_OFFSET_4, LL_ADC_OFFSET_DISABLE);
+        }
+      }
+    }
+    
+    /* Parameters update conditioned to ADC state:                              */
+    /* Parameters that can be updated only when ADC is disabled:                */
+    /*  - Single or differential mode                                           */
+    /*  - Internal measurement channels: Vbat/VrefInt/TempSensor                */
+    if (ADC_IS_ENABLE(hadc) == RESET)
+    {
+      /* Set mode single-ended or differential input of the selected ADC channel */
+      LL_ADC_SetChannelSingleDiff(hadc->Instance, sConfig->Channel, sConfig->SingleDiff);
+      
+      /* Configuration of differential mode */
+      if (sConfig->SingleDiff == ADC_DIFFERENTIAL_ENDED)
+      {
+        /* Set sampling time of the selected ADC channel */
+        LL_ADC_SetChannelSamplingTime(hadc->Instance, __LL_ADC_DECIMAL_NB_TO_CHANNEL(__LL_ADC_CHANNEL_TO_DECIMAL_NB(sConfig->Channel) + 1), sConfig->SamplingTime);
+      }
+      
+      /* Management of internal measurement channels: Vbat/VrefInt/TempSensor.  */
+      /* If internal channel selected, enable dedicated internal buffers and    */
+      /* paths.                                                                 */
+      /* Note: these internal measurement paths can be disabled using           */
+      /* HAL_ADC_DeInit().                                                      */
+         
+      /* Configuration of common ADC parameters                                 */
+      /* If the requested internal measurement path has already been enabled,   */
+      /* bypass the configuration processing.                                   */
+      if (( (sConfig->Channel == ADC_CHANNEL_TEMPSENSOR) &&
+            ((LL_ADC_GetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(hadc->Instance)) & LL_ADC_PATH_INTERNAL_TEMPSENSOR) == 0U)) ||
+          ( (sConfig->Channel == ADC_CHANNEL_VBAT)       &&
+            ((LL_ADC_GetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(hadc->Instance)) & LL_ADC_PATH_INTERNAL_VBAT) == 0U))       ||
+          ( (sConfig->Channel == ADC_CHANNEL_VREFINT)    &&
+            ((LL_ADC_GetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(hadc->Instance)) & LL_ADC_PATH_INTERNAL_VREFINT) == 0U))
+         )
+      {
+        /* Configuration of common ADC parameters (continuation)                */
+  
+        /* Software is allowed to change common parameters only when all ADCs   */
+        /* of the common group are disabled.                                    */
+        if ((ADC_IS_ENABLE(hadc) == RESET)   &&
+           (ADC_ANY_OTHER_ENABLED(hadc) == RESET) )
+        {
+          if (sConfig->Channel == ADC_CHANNEL_TEMPSENSOR)
+          {
+            if (ADC_TEMPERATURE_SENSOR_INSTANCE(hadc)) 
+            {
+              LL_ADC_SetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(hadc->Instance), LL_ADC_PATH_INTERNAL_TEMPSENSOR | LL_ADC_GetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(hadc->Instance)));
+              
+              /* Delay for temperature sensor stabilization time */
+              /* Wait loop initialization and execution */
+              /* Note: Variable divided by 2 to compensate partially          */
+              /*       CPU processing cycles.                                 */
+              wait_loop_index = (LL_ADC_DELAY_TEMPSENSOR_STAB_US * (SystemCoreClock / (1000000 * 2)));
+              while(wait_loop_index != 0)
+              {
+                wait_loop_index--;
+              }
+            }
+          }
+          else if (sConfig->Channel == ADC_CHANNEL_VBAT)
+          {
+            if (ADC_BATTERY_VOLTAGE_INSTANCE(hadc))
+            {
+              LL_ADC_SetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(hadc->Instance), LL_ADC_PATH_INTERNAL_VBAT | LL_ADC_GetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(hadc->Instance)));
+            }
+          }
+          else if (sConfig->Channel == ADC_CHANNEL_VREFINT)
+          {
+            if (ADC_VREFINT_INSTANCE(hadc))
+            {
+              LL_ADC_SetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(hadc->Instance), LL_ADC_PATH_INTERNAL_VREFINT | LL_ADC_GetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(hadc->Instance)));
+            }
+          }
+        }
+        /* If the requested internal measurement path has already been          */
+        /* enabled and other ADC of the common group are enabled, internal      */
+        /* measurement paths cannot be enabled.                                 */
+        else  
+        {
+          /* Update ADC state machine to error */
+          SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_CONFIG);
+          
+          tmp_hal_status = HAL_ERROR;
+        }
+      }
+    }
+  }
+  
+  /* If a conversion is on going on regular group, no update on regular       */
+  /* channel could be done on neither of the channel configuration structure  */
+  /* parameters.                                                              */
+  else
+  {
+    /* Update ADC state machine to error */
+    SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_CONFIG);
+    
+    tmp_hal_status = HAL_ERROR;
+  }
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+  
+  /* Return function status */
+  return tmp_hal_status;
+}

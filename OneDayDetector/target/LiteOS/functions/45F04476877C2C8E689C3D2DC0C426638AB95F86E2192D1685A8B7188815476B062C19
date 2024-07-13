@@ -1,0 +1,32 @@
+HAL_StatusTypeDef HAL_TSC_IOConfig(TSC_HandleTypeDef *htsc, TSC_IOConfigTypeDef *config)
+{
+  /* Check the parameters */
+  assert_param(IS_TSC_ALL_INSTANCE(htsc->Instance));
+  assert_param(IS_TSC_GROUP(config->ChannelIOs));
+  assert_param(IS_TSC_GROUP(config->ShieldIOs));
+  assert_param(IS_TSC_GROUP(config->SamplingIOs));
+
+  /* Process locked */
+  __HAL_LOCK(htsc);
+
+  /* Stop acquisition */
+  __HAL_TSC_STOP_ACQ(htsc);
+
+  /* Disable Schmitt trigger hysteresis on all used TSC IOs */
+  htsc->Instance->IOHCR = (~(config->ChannelIOs | config->ShieldIOs | config->SamplingIOs));
+
+  /* Set channel and shield IOs */
+  htsc->Instance->IOCCR = (config->ChannelIOs | config->ShieldIOs);
+
+  /* Set sampling IOs */
+  htsc->Instance->IOSCR = config->SamplingIOs;
+
+  /* Set groups to be acquired */
+  htsc->Instance->IOGCSR = TSC_extract_groups(config->ChannelIOs);
+
+  /* Process unlocked */
+  __HAL_UNLOCK(htsc);
+
+  /* Return function status */
+  return HAL_OK;
+}

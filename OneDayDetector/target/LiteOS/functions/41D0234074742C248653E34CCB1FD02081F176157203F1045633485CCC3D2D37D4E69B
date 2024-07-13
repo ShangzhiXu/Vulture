@@ -1,0 +1,11 @@
+mqtt_disconnect(mqtt_client_t *client)
+{
+  LWIP_ASSERT_CORE_LOCKED();
+  LWIP_ASSERT("mqtt_disconnect: client != NULL", client);
+  /* If connection in not already closed */
+  if (client->conn_state != TCP_DISCONNECTED) {
+    /* Set conn_state before calling mqtt_close to prevent callback from being called */
+    client->conn_state = TCP_DISCONNECTED;
+    mqtt_close(client, (mqtt_connection_status_t)0);
+  }
+}

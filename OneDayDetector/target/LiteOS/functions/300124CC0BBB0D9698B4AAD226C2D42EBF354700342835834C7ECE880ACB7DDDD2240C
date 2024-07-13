@@ -1,0 +1,45 @@
+udp_endpointTable_get_cell_value(const u32_t *column, const u32_t *row_oid, u8_t row_oid_len, union snmp_variant_value *value, u32_t *value_len)
+{
+  ip_addr_t local_ip, remote_ip;
+  u16_t local_port, remote_port;
+  struct udp_pcb *pcb;
+  u8_t idx = 0;
+
+  LWIP_UNUSED_ARG(value_len);
+
+  /* udpEndpointLocalAddressType + udpEndpointLocalAddress + udpEndpointLocalPort */
+  idx += snmp_oid_to_ip_port(&row_oid[idx], row_oid_len - idx, &local_ip, &local_port);
+  if (idx == 0) {
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  /* udpEndpointRemoteAddressType + udpEndpointRemoteAddress + udpEndpointRemotePort */
+  idx += snmp_oid_to_ip_port(&row_oid[idx], row_oid_len - idx, &remote_ip, &remote_port);
+  if (idx == 0) {
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  /* udpEndpointInstance */
+  if (row_oid_len < (idx + 1)) {
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+  if (row_oid[idx] != 0) {
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  /* find udp_pcb with requested ip and port*/
+  pcb = udp_pcbs;
+  while (pcb != NULL) {
+    if (ip_addr_cmp(&local_ip, &pcb->local_ip) &&
+        (local_port == pcb->local_port) &&
+        ip_addr_cmp(&remote_ip, &pcb->remote_ip) &&
+        (remote_port == pcb->remote_port)) {
+      /* fill in object properties */
+      return udp_endpointTable_get_cell_value_core(column, value);
+    }
+    pcb = pcb->next;
+  }
+
+  /* not found */
+  return SNMP_ERR_NOSUCHINSTANCE;
+}

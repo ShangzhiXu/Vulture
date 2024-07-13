@@ -1,0 +1,119 @@
+HAL_StatusTypeDef HAL_NAND_Write_Page_8b(NAND_HandleTypeDef *hnand, NAND_AddressTypeDef *pAddress, uint8_t *pBuffer, uint32_t NumPageToWrite)
+{
+  __IO uint32_t index = 0U;
+  uint32_t tickstart = 0U;
+  uint32_t deviceaddress = 0U, size = 0U, numPagesWritten = 0U, nandaddress = 0U;
+  
+  /* Process Locked */
+  __HAL_LOCK(hnand);  
+
+  /* Check the NAND controller state */
+  if(hnand->State == HAL_NAND_STATE_BUSY)
+  {
+     return HAL_BUSY;
+  }
+  
+  /* Identify the device address */
+  if(hnand->Init.NandBank == FMC_NAND_BANK2)
+  {
+    deviceaddress = NAND_DEVICE1;
+  }
+  else
+  {
+    deviceaddress = NAND_DEVICE2;
+  }
+  
+  /* Update the NAND controller state */ 
+  hnand->State = HAL_NAND_STATE_BUSY;
+  
+  /* NAND raw address calculation */
+  nandaddress = ARRAY_ADDRESS(pAddress, hnand);
+    
+  /* Page(s) write loop */
+  while((NumPageToWrite != 0U) && (nandaddress < ((hnand->Config.BlockSize) * (hnand->Config.BlockNbr))))
+  {
+    /* update the buffer size */
+    size = hnand->Config.PageSize + ((hnand->Config.PageSize) * numPagesWritten);
+    
+    /* Send write page command sequence */
+    *(__IO uint8_t *)((uint32_t)(deviceaddress | CMD_AREA)) = NAND_CMD_AREA_A;
+    *(__IO uint8_t *)((uint32_t)(deviceaddress | CMD_AREA)) = NAND_CMD_WRITE0;
+
+    /* Cards with page size <= 512 bytes */
+    if((hnand->Config.PageSize) <= 512U)
+    {
+      if (((hnand->Config.BlockSize)*(hnand->Config.BlockNbr)) <= 65535U)
+      {
+        *(__IO uint8_t *)((uint32_t)(deviceaddress | ADDR_AREA)) = 0x00;
+        *(__IO uint8_t *)((uint32_t)(deviceaddress | ADDR_AREA)) = ADDR_1ST_CYCLE(nandaddress);
+        *(__IO uint8_t *)((uint32_t)(deviceaddress | ADDR_AREA)) = ADDR_2ND_CYCLE(nandaddress);
+      }
+      else /* ((hnand->Config.BlockSize)*(hnand->Config.BlockNbr)) > 65535 */
+      {
+        *(__IO uint8_t *)((uint32_t)(deviceaddress | ADDR_AREA)) = 0x00;
+        *(__IO uint8_t *)((uint32_t)(deviceaddress | ADDR_AREA)) = ADDR_1ST_CYCLE(nandaddress);
+        *(__IO uint8_t *)((uint32_t)(deviceaddress | ADDR_AREA)) = ADDR_2ND_CYCLE(nandaddress);
+        *(__IO uint8_t *)((uint32_t)(deviceaddress | ADDR_AREA)) = ADDR_3RD_CYCLE(nandaddress);
+      }
+    }
+    else /* (hnand->Config.PageSize) > 512 */
+    {
+      if (((hnand->Config.BlockSize)*(hnand->Config.BlockNbr)) <= 65535U)
+      {
+        *(__IO uint8_t *)((uint32_t)(deviceaddress | ADDR_AREA)) = 0x00;
+        *(__IO uint8_t *)((uint32_t)(deviceaddress | ADDR_AREA)) = 0x00;
+        *(__IO uint8_t *)((uint32_t)(deviceaddress | ADDR_AREA)) = ADDR_1ST_CYCLE(nandaddress);
+        *(__IO uint8_t *)((uint32_t)(deviceaddress | ADDR_AREA)) = ADDR_2ND_CYCLE(nandaddress);
+      }
+      else /* ((hnand->Config.BlockSize)*(hnand->Config.BlockNbr)) > 65535 */
+      {
+        *(__IO uint8_t *)((uint32_t)(deviceaddress | ADDR_AREA)) = 0x00;
+        *(__IO uint8_t *)((uint32_t)(deviceaddress | ADDR_AREA)) = 0x00;
+        *(__IO uint8_t *)((uint32_t)(deviceaddress | ADDR_AREA)) = ADDR_1ST_CYCLE(nandaddress);
+        *(__IO uint8_t *)((uint32_t)(deviceaddress | ADDR_AREA)) = ADDR_2ND_CYCLE(nandaddress);
+        __DSB();
+        *(__IO uint8_t *)((uint32_t)(deviceaddress | ADDR_AREA)) = ADDR_3RD_CYCLE(nandaddress);
+        __DSB();
+      }
+    }
+  
+
+    /* Write data to memory */
+    for(; index < size; index++)
+    {
+      *(__IO uint8_t *)deviceaddress = *(uint8_t *)pBuffer++;
+    }
+   
+    *(__IO uint8_t *)((uint32_t)(deviceaddress | CMD_AREA)) = NAND_CMD_WRITE_TRUE1;
+
+    /* Get tick */
+    tickstart = HAL_GetTick();
+
+    /* Read status until NAND is ready */
+    while(HAL_NAND_Read_Status(hnand) != NAND_READY)
+    {
+      
+      if((HAL_GetTick() - tickstart ) > NAND_WRITE_TIMEOUT)
+      {
+        return HAL_TIMEOUT; 
+      }
+    }
+ 
+    /* Increment written pages number */
+    numPagesWritten++;
+    
+    /* Decrement pages to write */
+    NumPageToWrite--;
+    
+    /* Increment the NAND address */
+    nandaddress = (uint32_t)(nandaddress + 1U);
+  }
+  
+  /* Update the NAND controller state */ 
+  hnand->State = HAL_NAND_STATE_READY;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hnand);
+  
+  return HAL_OK;
+}

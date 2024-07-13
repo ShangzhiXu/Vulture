@@ -1,0 +1,21 @@
+static void DMA_CalcDMAMUXChannelBaseAndMask(DMA_HandleTypeDef *hdma)
+{
+  uint32_t channel_number = 0;
+  DMAMUX_Channel_TypeDef *DMAMUX1_ChannelBase;
+
+  /* check if instance is not outside the DMA channel range */
+  if ((uint32_t)hdma->Instance < (uint32_t)DMA2_Channel1)
+  {
+    /* DMA1 */
+    DMAMUX1_ChannelBase = DMAMUX1_Channel0;
+  }
+  else
+  {
+    /* DMA2 */
+    DMAMUX1_ChannelBase = DMAMUX1_Channel7;
+  }
+  channel_number = (((uint32_t)hdma->Instance & 0xFF) - 8) / 20;
+  hdma->DMAmuxChannel = (DMAMUX_Channel_TypeDef *)(uint32_t)((uint32_t)DMAMUX1_ChannelBase + (hdma->ChannelIndex >> 2) * ((uint32_t)DMAMUX1_Channel1 - (uint32_t)DMAMUX1_Channel0));
+  hdma->DMAmuxChannelStatus = DMAMUX1_ChannelStatus;
+  hdma->DMAmuxChannelStatusMask = 1U << channel_number;
+}

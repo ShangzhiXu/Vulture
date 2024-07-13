@@ -1,0 +1,27 @@
+static HAL_StatusTypeDef FLASH_OB_RDPConfig(uint32_t RDPLevel)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Check the parameters */
+  assert_param(IS_OB_RDP_LEVEL(RDPLevel));
+    
+  /* Wait for last operation to be completed */
+  status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+
+  if(status == HAL_OK)
+  { 
+    /* Configure the RDP level in the option bytes register */
+    MODIFY_REG(FLASH->OPTR, FLASH_OPTR_RDP, RDPLevel);
+    
+    /* Set OPTSTRT Bit */
+    SET_BIT(FLASH->CR, FLASH_CR_OPTSTRT);
+    
+    /* Wait for last operation to be completed */
+    status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+
+    /* If the option byte program operation is completed, disable the OPTSTRT Bit */
+    CLEAR_BIT(FLASH->CR, FLASH_CR_OPTSTRT);
+  }
+
+  return status;            
+}

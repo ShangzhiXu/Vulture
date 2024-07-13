@@ -1,0 +1,44 @@
+UINT32 osAppInit(VOID)
+{
+#ifdef LOSCFG_PLATFORM_OSAPPINIT
+    UINT32 ret;
+#ifdef LOSCFG_FS_VFS
+    los_vfs_init();
+#endif
+
+#ifdef LOSCFG_COMPAT_LINUX
+
+#ifdef LOSCFG_COMPAT_LINUX_HRTIMER
+    ret = HrtimersInit();
+    if (ret != LOS_OK) {
+        PRINT_ERR("HrtimersInit error\n");
+        return ret;
+    }
+#endif
+
+#ifdef LOSCFG_BASE_CORE_SWTMR
+    g_pstSystemWq = create_workqueue("system_wq");
+#endif
+
+#endif
+    ret = OsAppTaskCreate();
+    PRINTK("osAppInit\n");
+    if (ret != LOS_OK) {
+        return ret;
+    }
+#ifdef LOSCFG_MEM_RECORDINFO
+    ret = OsMemShowTaskCreate();
+    if (ret != LOS_OK) {
+        PRINTK("create memshow_Task error %u\n", ret);
+        return ret;
+    }
+    PRINTK("create memshow_Task ok\n");
+#endif
+#ifdef LOSCFG_KERNEL_TICKLESS
+    LOS_TicklessEnable();
+#endif
+
+#endif /* LOSCFG_PLATFORM_OSAPPINIT */
+
+    return 0;
+}

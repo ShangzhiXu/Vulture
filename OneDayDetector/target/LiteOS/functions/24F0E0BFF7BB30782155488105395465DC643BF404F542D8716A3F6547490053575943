@@ -1,0 +1,25 @@
+void BSP_LCD_DrawEllipse(int Xpos, int Ypos, int XRadius, int YRadius)
+{
+  int x = 0, y = -YRadius, err = 2-2*XRadius, e2;
+  float K = 0, rad1 = 0, rad2 = 0;
+
+  rad1 = XRadius;
+  rad2 = YRadius;
+
+  K = (float)(rad2/rad1);
+
+  do {
+    BSP_LCD_DrawPixel((Xpos-(uint16_t)(x/K)), (Ypos+y), DrawProp[ActiveLayer].TextColor);
+    BSP_LCD_DrawPixel((Xpos+(uint16_t)(x/K)), (Ypos+y), DrawProp[ActiveLayer].TextColor);
+    BSP_LCD_DrawPixel((Xpos+(uint16_t)(x/K)), (Ypos-y), DrawProp[ActiveLayer].TextColor);
+    BSP_LCD_DrawPixel((Xpos-(uint16_t)(x/K)), (Ypos-y), DrawProp[ActiveLayer].TextColor);
+
+    e2 = err;
+    if (e2 <= x) {
+      err += ++x*2+1;
+      if (-y == x && e2 <= y) e2 = 0;
+    }
+    if (e2 > y) err += ++y*2+1;
+  }
+  while (y <= 0);
+}

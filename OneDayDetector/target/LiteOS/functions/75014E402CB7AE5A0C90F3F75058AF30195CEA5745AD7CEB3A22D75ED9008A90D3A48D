@@ -1,0 +1,51 @@
+static void fsm_rconfack(fsm *f, int id, u_char *inp, int len) {
+    ppp_pcb *pcb = f->pcb;
+
+    if (id != f->reqid || f->seen_ack)		/* Expected id? */
+	return;					/* Nope, toss... */
+    if( !(f->callbacks->ackci? (*f->callbacks->ackci)(f, inp, len):
+	  (len == 0)) ){
+	/* Ack is bad - ignore it */
+	ppp_error("Received bad configure-ack: %P", inp, len);
+	return;
+    }
+    f->seen_ack = 1;
+    f->rnakloops = 0;
+
+    switch (f->state) {
+    case PPP_FSM_CLOSED:
+    case PPP_FSM_STOPPED:
+	fsm_sdata(f, TERMACK, id, NULL, 0);
+	break;
+
+    case PPP_FSM_REQSENT:
+	f->state = PPP_FSM_ACKRCVD;
+	f->retransmits = pcb->settings.fsm_max_conf_req_transmits;
+	break;
+
+    case PPP_FSM_ACKRCVD:
+	/* Huh? an extra valid Ack? oh well... */
+	UNTIMEOUT(fsm_timeout, f);	/* Cancel timeout */
+	fsm_sconfreq(f, 0);
+	f->state = PPP_FSM_REQSENT;
+	break;
+
+    case PPP_FSM_ACKSENT:
+	UNTIMEOUT(fsm_timeout, f);	/* Cancel timeout */
+	f->state = PPP_FSM_OPENED;
+	f->retransmits = pcb->settings.fsm_max_conf_req_transmits;
+	if (f->callbacks->up)
+	    (*f->callbacks->up)(f);	/* Inform upper layers */
+	break;
+
+    case PPP_FSM_OPENED:
+	/* Go down and restart negotiation */
+	if (f->callbacks->down)
+	    (*f->callbacks->down)(f);	/* Inform upper layers */
+	fsm_sconfreq(f, 0);		/* Send initial Configure-Request */
+	f->state = PPP_FSM_REQSENT;
+	break;
+    default:
+	break;
+    }
+}

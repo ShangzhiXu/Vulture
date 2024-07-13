@@ -1,0 +1,44 @@
+tcp_fasttmr(void)
+{
+  struct tcp_pcb *pcb;
+
+  ++tcp_timer_ctr;
+
+tcp_fasttmr_start:
+  pcb = tcp_active_pcbs;
+
+  while (pcb != NULL) {
+    if (pcb->last_timer != tcp_timer_ctr) {
+      struct tcp_pcb *next;
+      pcb->last_timer = tcp_timer_ctr;
+      /* send delayed ACKs */
+      if (pcb->flags & TF_ACK_DELAY) {
+        LWIP_DEBUGF(TCP_DEBUG, ("tcp_fasttmr: delayed ACK\n"));
+        tcp_ack_now(pcb);
+        tcp_output(pcb);
+        tcp_clear_flags(pcb, TF_ACK_DELAY | TF_ACK_NOW);
+      }
+      /* send pending FIN */
+      if (pcb->flags & TF_CLOSEPEND) {
+        LWIP_DEBUGF(TCP_DEBUG, ("tcp_fasttmr: pending FIN\n"));
+        tcp_clear_flags(pcb, TF_CLOSEPEND);
+        tcp_close_shutdown_fin(pcb);
+      }
+
+      next = pcb->next;
+
+      /* If there is data which was previously "refused" by upper layer */
+      if (pcb->refused_data != NULL) {
+        tcp_active_pcbs_changed = 0;
+        tcp_process_refused_data(pcb);
+        if (tcp_active_pcbs_changed) {
+          /* application callback has changed the pcb list: restart the loop */
+          goto tcp_fasttmr_start;
+        }
+      }
+      pcb = next;
+    } else {
+      pcb = pcb->next;
+    }
+  }
+}

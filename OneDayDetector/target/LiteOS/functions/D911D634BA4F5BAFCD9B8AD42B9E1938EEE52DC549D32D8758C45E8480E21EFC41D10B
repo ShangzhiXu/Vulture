@@ -1,0 +1,40 @@
+HAL_StatusTypeDef HAL_SD_GetCardStatus(SD_HandleTypeDef *hsd, HAL_SD_CardStatusTypeDef *pStatus)
+{
+  uint32_t sd_status[16];
+  uint32_t errorstate;
+
+  errorstate = SD_SendSDStatus(hsd, sd_status);
+  if(errorstate != HAL_SD_ERROR_NONE)
+  {
+    /* Clear all the static flags */
+    __HAL_SD_CLEAR_FLAG(hsd, SDIO_STATIC_FLAGS);
+    hsd->ErrorCode |= errorstate;
+    hsd->State = HAL_SD_STATE_READY;
+    return HAL_ERROR;
+  }
+  else
+  {
+    pStatus->DataBusWidth = (uint8_t)((sd_status[0] & 0xC0U) >> 6U);
+
+    pStatus->SecuredMode = (uint8_t)((sd_status[0] & 0x20U) >> 5U);
+
+    pStatus->CardType = (uint16_t)(((sd_status[0] & 0x00FF0000U) >> 8U) | ((sd_status[0] & 0xFF000000U) >> 24U));
+
+    pStatus->ProtectedAreaSize = (((sd_status[1] & 0xFFU) << 24U)    | ((sd_status[1] & 0xFF00U) << 8U) |
+                                  ((sd_status[1] & 0xFF0000U) >> 8U) | ((sd_status[1] & 0xFF000000U) >> 24U));
+
+    pStatus->SpeedClass = (uint8_t)(sd_status[2] & 0xFFU);
+
+    pStatus->PerformanceMove = (uint8_t)((sd_status[2] & 0xFF00U) >> 8U);
+
+    pStatus->AllocationUnitSize = (uint8_t)((sd_status[2] & 0xF00000U) >> 20U);
+
+    pStatus->EraseSize = (uint16_t)(((sd_status[2] & 0xFF000000U) >> 16U) | (sd_status[3] & 0xFFU));
+
+    pStatus->EraseTimeout = (uint8_t)((sd_status[3] & 0xFC00U) >> 10U);
+
+    pStatus->EraseOffset = (uint8_t)((sd_status[3] & 0x0300U) >> 8U);
+  }
+
+  return HAL_OK;
+}

@@ -1,0 +1,41 @@
+char *__nl_langinfo_l(nl_item item, locale_t loc)
+{
+	int cat = item >> 16;
+	int idx = item & 65535;
+	const char *str;
+/* loc->cat not support */
+#ifndef __LITEOS__
+	if (item == CODESET) return loc->cat[LC_CTYPE] ? "UTF-8" : "ASCII";
+
+	/* _NL_LOCALE_NAME extension */
+	if (idx == 65535 && cat < LC_ALL)
+		return loc->cat[cat] ? (char *)loc->cat[cat]->name : "C";
+#endif
+	
+	switch (cat) {
+	case LC_NUMERIC:
+		if (idx > 1) return "";
+		str = c_numeric;
+		break;
+	case LC_TIME:
+		if (idx > 0x31) return "";
+		str = c_time;
+		break;
+	case LC_MONETARY:
+		if (idx > 0) return "";
+		str = "";
+		break;
+	case LC_MESSAGES:
+		if (idx > 3) return "";
+		str = c_messages;
+		break;
+	default:
+		return "";
+	}
+
+	for (; idx; idx--, str++) for (; *str; str++);
+#ifndef __LITEOS__
+	if (cat != LC_NUMERIC && *str) str = LCTRANS(str, cat, loc);
+#endif
+	return (char *)str;
+}

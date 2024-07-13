@@ -1,0 +1,71 @@
+lwip_netconn_do_close(void *m)
+{
+  struct api_msg *msg = (struct api_msg *)m;
+
+#if LWIP_TCP
+  enum netconn_state state = msg->conn->state;
+  /* First check if this is a TCP netconn and if it is in a correct state
+      (LISTEN doesn't support half shutdown) */
+  if ((msg->conn->pcb.tcp != NULL) &&
+      (NETCONNTYPE_GROUP(msg->conn->type) == NETCONN_TCP) &&
+      ((msg->msg.sd.shut == NETCONN_SHUT_RDWR) || (state != NETCONN_LISTEN))) {
+    /* Check if we are in a connected state */
+    if (state == NETCONN_CONNECT) {
+      /* TCP connect in progress: cannot shutdown */
+      msg->err = ERR_CONN;
+    } else if (state == NETCONN_WRITE) {
+#if LWIP_NETCONN_FULLDUPLEX
+      if (msg->msg.sd.shut & NETCONN_SHUT_WR) {
+        /* close requested, abort running write */
+        sys_sem_t *write_completed_sem;
+        LWIP_ASSERT("msg->conn->current_msg != NULL", msg->conn->current_msg != NULL);
+        write_completed_sem = LWIP_API_MSG_SEM(msg->conn->current_msg);
+        msg->conn->current_msg->err = ERR_CLSD;
+        msg->conn->current_msg = NULL;
+        msg->conn->state = NETCONN_NONE;
+        state = NETCONN_NONE;
+        sys_sem_signal(write_completed_sem);
+      } else {
+        LWIP_ASSERT("msg->msg.sd.shut == NETCONN_SHUT_RD", msg->msg.sd.shut == NETCONN_SHUT_RD);
+        /* In this case, let the write continue and do not interfere with
+           conn->current_msg or conn->state! */
+        msg->err = tcp_shutdown(msg->conn->pcb.tcp, 1, 0);
+      }
+    }
+    if (state == NETCONN_NONE) {
+#else /* LWIP_NETCONN_FULLDUPLEX */
+      msg->err = ERR_INPROGRESS;
+    } else {
+#endif /* LWIP_NETCONN_FULLDUPLEX */
+      if (msg->msg.sd.shut & NETCONN_SHUT_RD) {
+#if LWIP_NETCONN_FULLDUPLEX
+        /* Mark mboxes invalid */
+        netconn_mark_mbox_invalid(msg->conn);
+#else /* LWIP_NETCONN_FULLDUPLEX */
+        netconn_drain(msg->conn);
+#endif /* LWIP_NETCONN_FULLDUPLEX */
+      }
+      LWIP_ASSERT("already writing or closing", msg->conn->current_msg == NULL);
+      msg->conn->state = NETCONN_CLOSE;
+      msg->conn->current_msg = msg;
+#if LWIP_TCPIP_CORE_LOCKING
+      if (lwip_netconn_do_close_internal(msg->conn, 0) != ERR_OK) {
+        LWIP_ASSERT("state!", msg->conn->state == NETCONN_CLOSE);
+        UNLOCK_TCPIP_CORE();
+        sys_arch_sem_wait(LWIP_API_MSG_SEM(msg), 0);
+        LOCK_TCPIP_CORE();
+        LWIP_ASSERT("state!", msg->conn->state == NETCONN_NONE);
+      }
+#else /* LWIP_TCPIP_CORE_LOCKING */
+      lwip_netconn_do_close_internal(msg->conn);
+#endif /* LWIP_TCPIP_CORE_LOCKING */
+      /* for tcp netconns, lwip_netconn_do_close_internal ACKs the message */
+      return;
+    }
+  } else
+#endif /* LWIP_TCP */
+  {
+    msg->err = ERR_CONN;
+  }
+  TCPIP_APIMSG_ACK(msg);
+}

@@ -1,0 +1,48 @@
+HAL_StatusTypeDef USB_StopHost(USB_OTG_GlobalTypeDef *USBx)
+{
+  uint8_t index;
+  uint32_t count = 0;
+  uint32_t value = 0;
+  
+  USB_DisableGlobalInt(USBx);
+  
+    /* Flush FIFO */
+  USB_FlushTxFifo(USBx, 0x10);
+  USB_FlushRxFifo(USBx);
+  
+  /* Flush out any leftover queued requests. */
+  for (index = 0; index <= 15; index++)
+  {
+    value = USBx_HC(index)->HCCHAR;
+    value |=  USB_OTG_HCCHAR_CHDIS;
+    value &= ~USB_OTG_HCCHAR_CHENA;
+    value &= ~USB_OTG_HCCHAR_EPDIR;
+    USBx_HC(index)->HCCHAR = value;
+  }
+  
+  /* Halt all channels to put them into a known state. */
+  for (index = 0; index <= 15; index++)
+  {
+    value = USBx_HC(index)->HCCHAR ;
+    value |= USB_OTG_HCCHAR_CHDIS;
+    value |= USB_OTG_HCCHAR_CHENA;
+    value &= ~USB_OTG_HCCHAR_EPDIR;
+    USBx_HC(index)->HCCHAR = value;
+    
+    do
+    {
+      if (++count > 1000)
+      {
+        break;
+      }
+    }
+    while ((USBx_HC(index)->HCCHAR & USB_OTG_HCCHAR_CHENA) == USB_OTG_HCCHAR_CHENA);
+  }
+  
+  /* Clear any pending Host interrupts */
+  USBx_HOST->HAINT = 0xFFFFFFFF;
+  USBx->GINTSTS = 0xFFFFFFFF;
+  USB_EnableGlobalInt(USBx);
+  
+  return HAL_OK;
+}

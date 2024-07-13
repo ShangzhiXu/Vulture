@@ -1,0 +1,44 @@
+static int get_symbol_value(
+        ListNode * const head, const char * const symbol_names[],
+        const size_t number_of_symbol_names, void **output) {
+    const char* symbol_name;
+    ListNode *target_node;
+    assert_true(head);
+    assert_true(symbol_names);
+    assert_true(number_of_symbol_names);
+    assert_true(output);
+    symbol_name = symbol_names[0];
+
+    if (list_find(head, symbol_name, symbol_names_match, &target_node)) {
+        SymbolMapValue *map_value;
+        ListNode *child_list;
+        int return_value = 0;
+        assert_true(target_node);
+        assert_true(target_node->value);
+
+        map_value = (SymbolMapValue*)target_node->value;
+        child_list = &map_value->symbol_values_list_head;
+
+        if (number_of_symbol_names == 1) {
+            ListNode *value_node = NULL;
+            return_value = list_first(child_list, &value_node);
+            assert_true(return_value);
+            *output = (void*) value_node->value;
+            return_value = value_node->refcount;
+            if (--value_node->refcount == 0) {
+                list_remove_free(value_node, NULL, NULL);
+            }
+        } else {
+            return_value = get_symbol_value(
+                child_list, &symbol_names[1], number_of_symbol_names - 1,
+                output);
+        }
+        if (list_empty(child_list)) {
+            list_remove_free(target_node, free_symbol_map_value, (void*)0);
+        }
+        return return_value;
+    } else {
+        print_error("No entries for symbol %s.\n", symbol_name);
+    }
+    return 0;
+}

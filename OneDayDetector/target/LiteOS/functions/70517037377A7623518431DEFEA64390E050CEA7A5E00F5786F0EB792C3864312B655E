@@ -1,0 +1,169 @@
+HAL_StatusTypeDef HAL_RCCEx_PeriphCLKConfig(RCC_PeriphCLKInitTypeDef  *PeriphClkInit)
+{
+  uint32_t tickstart = 0, temp_reg = 0;
+#if defined(STM32F105xC) || defined(STM32F107xC)
+  uint32_t  pllactive = 0;
+#endif /* STM32F105xC || STM32F107xC */
+
+  /* Check the parameters */
+  assert_param(IS_RCC_PERIPHCLOCK(PeriphClkInit->PeriphClockSelection));
+  
+  /*------------------------------- RTC/LCD Configuration ------------------------*/ 
+  if ((((PeriphClkInit->PeriphClockSelection) & RCC_PERIPHCLK_RTC) == RCC_PERIPHCLK_RTC))
+  {
+    /* check for RTC Parameters used to output RTCCLK */
+    assert_param(IS_RCC_RTCCLKSOURCE(PeriphClkInit->RTCClockSelection));
+
+    /* Enable Power Clock*/
+    __HAL_RCC_PWR_CLK_ENABLE();
+    
+    /* Enable write access to Backup domain */
+    SET_BIT(PWR->CR, PWR_CR_DBP);
+    
+    /* Wait for Backup domain Write protection disable */
+    tickstart = HAL_GetTick();
+    
+    while((PWR->CR & PWR_CR_DBP) == RESET)
+    {
+      if((HAL_GetTick() - tickstart) > RCC_DBP_TIMEOUT_VALUE)
+      {
+        return HAL_TIMEOUT;
+      }      
+    }
+      
+    /* Reset the Backup domain only if the RTC Clock source selection is modified from reset value */ 
+    temp_reg = (RCC->BDCR & RCC_BDCR_RTCSEL);
+    if((temp_reg != 0x00000000U) && (temp_reg != (PeriphClkInit->RTCClockSelection & RCC_BDCR_RTCSEL)))
+    {
+      /* Store the content of BDCR register before the reset of Backup Domain */
+      temp_reg = (RCC->BDCR & ~(RCC_BDCR_RTCSEL));
+      /* RTC Clock selection can be changed only if the Backup Domain is reset */
+      __HAL_RCC_BACKUPRESET_FORCE();
+      __HAL_RCC_BACKUPRESET_RELEASE();
+      /* Restore the Content of BDCR register */
+      RCC->BDCR = temp_reg;
+
+      /* Wait for LSERDY if LSE was enabled */
+      if (HAL_IS_BIT_SET(temp_reg, RCC_BDCR_LSEON))
+      {
+        /* Get timeout */
+        tickstart = HAL_GetTick();
+      
+        /* Wait till LSE is ready */  
+        while(__HAL_RCC_GET_FLAG(RCC_FLAG_LSERDY) == RESET)
+        {
+          if((HAL_GetTick() - tickstart) > RCC_LSE_TIMEOUT_VALUE)
+          {
+            return HAL_TIMEOUT;
+          }      
+        }  
+      }
+    }
+    __HAL_RCC_RTC_CONFIG(PeriphClkInit->RTCClockSelection); 
+  }
+
+  /*------------------------------ ADC clock Configuration ------------------*/ 
+  if(((PeriphClkInit->PeriphClockSelection) & RCC_PERIPHCLK_ADC) == RCC_PERIPHCLK_ADC)
+  {
+    /* Check the parameters */
+    assert_param(IS_RCC_ADCPLLCLK_DIV(PeriphClkInit->AdcClockSelection));
+    
+    /* Configure the ADC clock source */
+    __HAL_RCC_ADC_CONFIG(PeriphClkInit->AdcClockSelection);
+  }
+
+#if defined(STM32F105xC) || defined(STM32F107xC)
+  /*------------------------------ I2S2 Configuration ------------------------*/ 
+  if(((PeriphClkInit->PeriphClockSelection) & RCC_PERIPHCLK_I2S2) == RCC_PERIPHCLK_I2S2)
+  {
+    /* Check the parameters */
+    assert_param(IS_RCC_I2S2CLKSOURCE(PeriphClkInit->I2s2ClockSelection));
+
+    /* Configure the I2S2 clock source */
+    __HAL_RCC_I2S2_CONFIG(PeriphClkInit->I2s2ClockSelection);
+  }
+
+  /*------------------------------ I2S3 Configuration ------------------------*/ 
+  if(((PeriphClkInit->PeriphClockSelection) & RCC_PERIPHCLK_I2S3) == RCC_PERIPHCLK_I2S3)
+  {
+    /* Check the parameters */
+    assert_param(IS_RCC_I2S3CLKSOURCE(PeriphClkInit->I2s3ClockSelection));
+    
+    /* Configure the I2S3 clock source */
+    __HAL_RCC_I2S3_CONFIG(PeriphClkInit->I2s3ClockSelection);
+  }
+
+  /*------------------------------ PLL I2S Configuration ----------------------*/ 
+  /* Check that PLLI2S need to be enabled */
+  if (HAL_IS_BIT_SET(RCC->CFGR2, RCC_CFGR2_I2S2SRC) || HAL_IS_BIT_SET(RCC->CFGR2, RCC_CFGR2_I2S3SRC))
+  {
+    /* Update flag to indicate that PLL I2S should be active */
+    pllactive = 1;
+  }
+
+  /* Check if PLL I2S need to be enabled */
+  if (pllactive == 1)
+  {
+    /* Enable PLL I2S only if not active */
+    if (HAL_IS_BIT_CLR(RCC->CR, RCC_CR_PLL3ON))
+    {
+      /* Check the parameters */
+      assert_param(IS_RCC_PLLI2S_MUL(PeriphClkInit->PLLI2S.PLLI2SMUL));
+      assert_param(IS_RCC_HSE_PREDIV2(PeriphClkInit->PLLI2S.HSEPrediv2Value));
+
+      /* Prediv2 can be written only when the PLL2 is disabled. */
+      /* Return an error only if new value is different from the programmed value */
+      if (HAL_IS_BIT_SET(RCC->CR,RCC_CR_PLL2ON) && \
+        (__HAL_RCC_HSE_GET_PREDIV2() != PeriphClkInit->PLLI2S.HSEPrediv2Value))
+      {
+        return HAL_ERROR;
+      }
+
+      /* Configure the HSE prediv2 factor --------------------------------*/
+      __HAL_RCC_HSE_PREDIV2_CONFIG(PeriphClkInit->PLLI2S.HSEPrediv2Value);
+
+      /* Configure the main PLLI2S multiplication factors. */
+      __HAL_RCC_PLLI2S_CONFIG(PeriphClkInit->PLLI2S.PLLI2SMUL);
+      
+      /* Enable the main PLLI2S. */
+      __HAL_RCC_PLLI2S_ENABLE();
+      
+      /* Get Start Tick*/
+      tickstart = HAL_GetTick();
+      
+      /* Wait till PLLI2S is ready */
+      while(__HAL_RCC_GET_FLAG(RCC_FLAG_PLLI2SRDY)  == RESET)
+      {
+        if((HAL_GetTick() - tickstart ) > PLLI2S_TIMEOUT_VALUE)
+        {
+          return HAL_TIMEOUT;
+        }
+      }
+    }
+    else
+    {
+      /* Return an error only if user wants to change the PLLI2SMUL whereas PLLI2S is active */
+      if (READ_BIT(RCC->CFGR2, RCC_CFGR2_PLL3MUL) != PeriphClkInit->PLLI2S.PLLI2SMUL)
+      {
+          return HAL_ERROR;
+      }
+    }
+  }
+#endif /* STM32F105xC || STM32F107xC */
+
+#if defined(STM32F102x6) || defined(STM32F102xB) || defined(STM32F103x6)\
+ || defined(STM32F103xB) || defined(STM32F103xE) || defined(STM32F103xG)\
+ || defined(STM32F105xC) || defined(STM32F107xC)
+  /*------------------------------ USB clock Configuration ------------------*/ 
+  if(((PeriphClkInit->PeriphClockSelection) & RCC_PERIPHCLK_USB) == RCC_PERIPHCLK_USB)
+  {
+    /* Check the parameters */
+    assert_param(IS_RCC_USBPLLCLK_DIV(PeriphClkInit->UsbClockSelection));
+    
+    /* Configure the USB clock source */
+    __HAL_RCC_USB_CONFIG(PeriphClkInit->UsbClockSelection);
+  }
+#endif /* STM32F102x6 || STM32F102xB || STM32F103x6 || STM32F103xB || STM32F103xE || STM32F103xG || STM32F105xC || STM32F107xC */
+
+  return HAL_OK;
+}

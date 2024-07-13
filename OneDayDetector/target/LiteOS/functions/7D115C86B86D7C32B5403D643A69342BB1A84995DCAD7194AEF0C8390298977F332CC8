@@ -1,0 +1,34 @@
+static int handle_rcv_msg(cJSON *msg)
+{
+    cJSON *items[5] = {0};
+    const char *names[5] = {MQTT_SERVICEID, MQTT_CMD, MQTT_PARAS, MQTT_HAS_MORE, MQTT_MID};
+    int ret;
+    cJSON *body = NULL;
+    uint32_t i;
+
+    for (i = 0; i < array_size(items); i++) {
+        items[i] = cJSON_GetObjectItem(msg, names[i]);
+        if (names[i] == NULL) {
+            ATINY_LOG(LOG_ERR, "cJSON_GetObjectItem %s fail", names[i]);
+            return ATINY_ERR;
+        }
+    }
+
+    if ((items[SERVERID_IDX]->string == NULL)
+        || (items[CMD_IDX]->string == NULL)
+        || ((items[HAS_MORE_IDX]->valueint != MQTT_NO_MORE_DATA) && (items[HAS_MORE_IDX]->valueint != MQTT_MORE_DATA))) {
+        ATINY_LOG(LOG_ERR, "null or err para hasMore %d", items[3]->valueint);
+        return ATINY_ERR;
+    }
+
+    ret = proc_rcv_msg(items[SERVERID_IDX]->string, items[CMD_IDX]->string,
+        items[PARAS_IDX], items[HAS_MORE_IDX]->valueint, items[MID_IDX]->valueint);
+    body = get_resp_body();
+    if (body == NULL) {
+        ATINY_LOG(LOG_ERR, "get_resp_body fail");
+        return ATINY_ERR;
+    }
+
+    return send_msg_resp(items[MID_IDX]->valueint, (ret == ATINY_OK) ? MQTT_ERR_CODE_OK : MQTT_ERR_CODE_ERR,
+        MQTT_NO_MORE_DATA, body);
+}

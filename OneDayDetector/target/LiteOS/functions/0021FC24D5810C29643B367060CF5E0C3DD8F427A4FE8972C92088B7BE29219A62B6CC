@@ -1,0 +1,53 @@
+LosMemDynNode *OsMemNodePrevTryGet(VOID *pool, LosMemDynNode **node, const VOID *ptr)
+{
+    UINTPTR nodeShouldBe;
+    LosMemDynNode *nodeCur = NULL;
+    LosMemPoolInfo *poolInfo = (LosMemPoolInfo *)pool;
+    LosMemDynNode *nodePre = OS_MEM_END_NODE(pool, poolInfo->poolSize);
+
+    for (nodeCur = OS_MEM_FIRST_NODE(pool);
+         nodeCur < OS_MEM_END_NODE(pool, poolInfo->poolSize);
+         nodeCur = OS_MEM_NEXT_NODE(nodeCur)) {
+        if (!OsMemChecksumVerify(&(nodeCur->selfNode))) {
+            PRINT_ERR("[%s]: the node information of current node is bad !!\n", __FUNCTION__);
+            OsMemDispCtlNode(&(nodeCur->selfNode));
+
+            PRINT_ERR("the detailed information of previous node:\n");
+            OsMemDispMoreDetails(nodePre);
+
+            /* due to the every step's checksum verify, nodePre is trustful */
+            if (OsMemBackupDoRestore(pool, nodePre, nodeCur) != LOS_OK) {
+                return NULL;
+            }
+        }
+
+        if (!OsMemChecksumVerify(&(nodeCur->backupNode))) {
+            PRINT_ERR("[%s]: the backup node information in current node is bad !!\n", __FUNCTION__);
+            OsMemDispCtlNode(&(nodeCur->backupNode));
+
+            if (nodePre != NULL) {
+                PRINT_ERR("the detailed information of previous node:\n");
+                OsMemDispMoreDetails(nodePre);
+            }
+
+            if (OsMemBackupSetup4Next(pool, nodeCur) != LOS_OK) {
+                return NULL;
+            }
+        }
+
+        nodeShouldBe = (UINTPTR)nodeCur + nodeCur->selfNode.gapSize + sizeof(LosMemDynNode);
+        if (nodeShouldBe == (UINTPTR)ptr) {
+            *node = nodeCur;
+            return nodePre;
+        }
+
+        if (OS_MEM_NEXT_NODE(nodeCur) > (LosMemDynNode *)ptr) {
+            OsMemDispWildPointerMsg(nodeCur, ptr);
+            break;
+        }
+
+        nodePre = nodeCur;
+    }
+
+    return NULL;
+}

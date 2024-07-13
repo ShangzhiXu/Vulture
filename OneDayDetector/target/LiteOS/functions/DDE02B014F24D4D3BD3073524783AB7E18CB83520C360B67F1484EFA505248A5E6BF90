@@ -1,0 +1,28 @@
+static void SAI_DMAError(DMA_HandleTypeDef *hdma)
+{
+  SAI_HandleTypeDef* hsai = ( SAI_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+
+  /* Set SAI error code */
+  hsai->ErrorCode |= HAL_SAI_ERROR_DMA;
+
+  if((hsai->hdmatx->ErrorCode == HAL_DMA_ERROR_TE) || (hsai->hdmarx->ErrorCode == HAL_DMA_ERROR_TE))
+  {
+    /* Disable the SAI DMA request */
+    hsai->Instance->CR1 &= ~SAI_xCR1_DMAEN;
+
+    /* Disable SAI peripheral */
+    SAI_Disable(hsai);
+
+    /* Set the SAI state ready to be able to start again the process */
+    hsai->State = HAL_SAI_STATE_READY;
+
+    /* Initialize XferCount */
+    hsai->XferCount = 0U;
+  }
+  /* SAI error Callback */
+#if (USE_HAL_SAI_REGISTER_CALLBACKS == 1)
+  hsai->ErrorCallback(hsai);
+#else
+  HAL_SAI_ErrorCallback(hsai);
+#endif /* USE_HAL_SAI_REGISTER_CALLBACKS */
+}

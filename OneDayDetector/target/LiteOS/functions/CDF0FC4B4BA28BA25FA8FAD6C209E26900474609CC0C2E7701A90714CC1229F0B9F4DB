@@ -1,0 +1,45 @@
+static void USART_DMAReceiveCplt(DMA_HandleTypeDef *hdma)
+{
+  USART_HandleTypeDef* husart = (USART_HandleTypeDef*)(hdma->Parent);
+  
+  /* DMA Normal mode */
+  if ( HAL_IS_BIT_CLR(hdma->Instance->CCR, DMA_CCR_CIRC) )
+  {
+    husart->RxXferCount = 0;
+    
+    /* Disable PE and ERR (Frame error, noise error, overrun error) interrupts */
+    CLEAR_BIT(husart->Instance->CR1, USART_CR1_PEIE);
+    CLEAR_BIT(husart->Instance->CR3, USART_CR3_EIE);
+    
+    /* Disable the DMA RX transfer for the receiver request by resetting the DMAR bit
+    in USART CR3 register */
+    CLEAR_BIT(husart->Instance->CR3, USART_CR3_DMAR);
+    /* similarly, disable the DMA TX transfer that was started to provide the
+    clock to the slave device */
+    CLEAR_BIT(husart->Instance->CR3, USART_CR3_DMAT);
+    
+    if(husart->State == HAL_USART_STATE_BUSY_RX)
+    {
+      HAL_USART_RxCpltCallback(husart);
+    }
+    /* The USART state is HAL_USART_STATE_BUSY_TX_RX */
+    else
+    {
+      HAL_USART_TxRxCpltCallback(husart);
+    }
+    husart->State= HAL_USART_STATE_READY;
+  }
+  /* DMA circular mode */
+  else
+  {
+    if(husart->State == HAL_USART_STATE_BUSY_RX)
+    {
+      HAL_USART_RxCpltCallback(husart);
+    }
+    /* The USART state is HAL_USART_STATE_BUSY_TX_RX */
+    else
+    {
+      HAL_USART_TxRxCpltCallback(husart);
+    }
+  }
+}

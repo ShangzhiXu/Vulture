@@ -1,0 +1,102 @@
+dhcp_bind(struct netif *netif)
+{
+  u32_t timeout;
+  struct dhcp *dhcp;
+  ip4_addr_t sn_mask, gw_addr;
+  LWIP_ERROR("dhcp_bind: netif != NULL", (netif != NULL), return;);
+  dhcp = netif_dhcp_data(netif);
+  LWIP_ERROR("dhcp_bind: dhcp != NULL", (dhcp != NULL), return;);
+  LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE, ("dhcp_bind(netif=%p) %c%c%"U16_F"\n", (void *)netif, netif->name[0], netif->name[1], (u16_t)netif->num));
+
+  /* reset time used of lease */
+  dhcp->lease_used = 0;
+
+  if (dhcp->offered_t0_lease != 0xffffffffUL) {
+    /* set renewal period timer */
+    LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE, ("dhcp_bind(): t0 renewal timer %"U32_F" secs\n", dhcp->offered_t0_lease));
+    timeout = (dhcp->offered_t0_lease + DHCP_COARSE_TIMER_SECS / 2) / DHCP_COARSE_TIMER_SECS;
+    if (timeout > 0xffff) {
+      timeout = 0xffff;
+    }
+    dhcp->t0_timeout = (u16_t)timeout;
+    if (dhcp->t0_timeout == 0) {
+      dhcp->t0_timeout = 1;
+    }
+    LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("dhcp_bind(): set request timeout %"U32_F" msecs\n", dhcp->offered_t0_lease * 1000));
+  }
+
+  /* temporary DHCP lease? */
+  if (dhcp->offered_t1_renew != 0xffffffffUL) {
+    /* set renewal period timer */
+    LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE, ("dhcp_bind(): t1 renewal timer %"U32_F" secs\n", dhcp->offered_t1_renew));
+    timeout = (dhcp->offered_t1_renew + DHCP_COARSE_TIMER_SECS / 2) / DHCP_COARSE_TIMER_SECS;
+    if (timeout > 0xffff) {
+      timeout = 0xffff;
+    }
+    dhcp->t1_timeout = (u16_t)timeout;
+    if (dhcp->t1_timeout == 0) {
+      dhcp->t1_timeout = 1;
+    }
+    LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("dhcp_bind(): set request timeout %"U32_F" msecs\n", dhcp->offered_t1_renew * 1000));
+    dhcp->t1_renew_time = dhcp->t1_timeout;
+  }
+  /* set renewal period timer */
+  if (dhcp->offered_t2_rebind != 0xffffffffUL) {
+    LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE, ("dhcp_bind(): t2 rebind timer %"U32_F" secs\n", dhcp->offered_t2_rebind));
+    timeout = (dhcp->offered_t2_rebind + DHCP_COARSE_TIMER_SECS / 2) / DHCP_COARSE_TIMER_SECS;
+    if (timeout > 0xffff) {
+      timeout = 0xffff;
+    }
+    dhcp->t2_timeout = (u16_t)timeout;
+    if (dhcp->t2_timeout == 0) {
+      dhcp->t2_timeout = 1;
+    }
+    LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("dhcp_bind(): set request timeout %"U32_F" msecs\n", dhcp->offered_t2_rebind * 1000));
+    dhcp->t2_rebind_time = dhcp->t2_timeout;
+  }
+
+  /* If we have sub 1 minute lease, t2 and t1 will kick in at the same time. */
+  if ((dhcp->t1_timeout >= dhcp->t2_timeout) && (dhcp->t2_timeout > 0)) {
+    dhcp->t1_timeout = 0;
+  }
+
+  if (dhcp->subnet_mask_given) {
+    /* copy offered network mask */
+    ip4_addr_copy(sn_mask, dhcp->offered_sn_mask);
+  } else {
+    /* subnet mask not given, choose a safe subnet mask given the network class */
+    u8_t first_octet = ip4_addr1(&dhcp->offered_ip_addr);
+    if (first_octet <= 127) {
+      ip4_addr_set_u32(&sn_mask, PP_HTONL(0xff000000UL));
+    } else if (first_octet >= 192) {
+      ip4_addr_set_u32(&sn_mask, PP_HTONL(0xffffff00UL));
+    } else {
+      ip4_addr_set_u32(&sn_mask, PP_HTONL(0xffff0000UL));
+    }
+  }
+
+  ip4_addr_copy(gw_addr, dhcp->offered_gw_addr);
+  /* gateway address not given? */
+  if (ip4_addr_isany_val(gw_addr)) {
+    /* copy network address */
+    ip4_addr_get_network(&gw_addr, &dhcp->offered_ip_addr, &sn_mask);
+    /* use first host address on network as gateway */
+    ip4_addr_set_u32(&gw_addr, ip4_addr_get_u32(&gw_addr) | PP_HTONL(0x00000001UL));
+  }
+
+#if LWIP_DHCP_AUTOIP_COOP
+  if (dhcp->autoip_coop_state == DHCP_AUTOIP_COOP_STATE_ON) {
+    autoip_stop(netif);
+    dhcp->autoip_coop_state = DHCP_AUTOIP_COOP_STATE_OFF;
+  }
+#endif /* LWIP_DHCP_AUTOIP_COOP */
+
+  LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_STATE, ("dhcp_bind(): IP: 0x%08"X32_F" SN: 0x%08"X32_F" GW: 0x%08"X32_F"\n",
+              ip4_addr_get_u32(&dhcp->offered_ip_addr), ip4_addr_get_u32(&sn_mask), ip4_addr_get_u32(&gw_addr)));
+  /* netif is now bound to DHCP leased address - set this before assigning the address
+     to ensure the callback can use dhcp_supplied_address() */
+  dhcp_set_state(dhcp, DHCP_STATE_BOUND);
+
+  netif_set_addr(netif, &dhcp->offered_ip_addr, &sn_mask, &gw_addr);
+  /* interface is used by routing now that an address is set */
+}

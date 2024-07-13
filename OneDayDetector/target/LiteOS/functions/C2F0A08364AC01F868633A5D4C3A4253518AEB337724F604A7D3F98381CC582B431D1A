@@ -1,0 +1,31 @@
+int mq_unlink(const char *mqName)
+{
+    INT32 ret = 0;
+    struct mqarray *mqueueCB = NULL;
+
+    if (MqNameCheck(mqName) == -1) {
+        return -1;
+    }
+
+    (VOID)pthread_mutex_lock(&g_mqueueMutex);
+    mqueueCB = GetMqueueCBByName(mqName);
+    if (mqueueCB == NULL) {
+        errno = ENOENT;
+        goto ERROUT_UNLOCK;
+    }
+
+    if (mqueueCB->mq_personal != NULL) {
+        errno = EINTR;
+        mqueueCB->unlinkflag = TRUE;
+        goto ERROUT_UNLOCK;
+    } else {
+        ret = DoMqueueDelete(mqueueCB);
+    }
+
+    (VOID)pthread_mutex_unlock(&g_mqueueMutex);
+    return ret;
+
+ERROUT_UNLOCK:
+    (VOID)pthread_mutex_unlock(&g_mqueueMutex);
+    return -1;
+}

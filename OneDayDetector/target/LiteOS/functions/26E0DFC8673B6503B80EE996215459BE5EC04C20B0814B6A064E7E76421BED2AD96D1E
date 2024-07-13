@@ -1,0 +1,27 @@
+static void SPI_RxISR(SPI_HandleTypeDef *hspi)
+{
+  /* Receive data in 8 Bit mode */
+  if(hspi->Init.DataSize == SPI_DATASIZE_8BIT)
+  {
+    (*hspi->pRxBuffPtr++) = hspi->Instance->DR;
+  }
+  /* Receive data in 16 Bit mode */
+  else
+  {
+    *((uint16_t*)hspi->pRxBuffPtr) = hspi->Instance->DR;
+    hspi->pRxBuffPtr+=2;
+  }
+    hspi->RxXferCount--;
+
+  /* Enable CRC Transmission */
+  if((hspi->RxXferCount == 1) && (hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE))
+  {
+    /* Set CRC Next to calculate CRC on Rx side */
+    SET_BIT(hspi->Instance->CR1, SPI_CR1_CRCNEXT);
+  }
+
+  if(hspi->RxXferCount == 0)
+  {
+    SPI_RxCloseIRQHandler(hspi);
+  }
+}

@@ -1,0 +1,18 @@
+nd6_new_onlink_prefix(const ip6_addr_t *prefix, struct netif *netif)
+{
+  s8_t i;
+
+  /* Create new entry. */
+  for (i = 0; i < LWIP_ND6_NUM_PREFIXES; ++i) {
+    if ((prefix_list[i].netif == NULL) ||
+        (prefix_list[i].invalidation_timer == 0)) {
+      /* Found empty prefix entry. */
+      prefix_list[i].netif = netif;
+      ip6_addr_set(&(prefix_list[i].prefix), prefix);
+      return i;
+    }
+  }
+
+  /* Entry not available. */
+  return -1;
+}

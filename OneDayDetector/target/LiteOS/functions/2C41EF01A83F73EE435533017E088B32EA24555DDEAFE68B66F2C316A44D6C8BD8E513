@@ -1,0 +1,140 @@
+ErrorStatus LL_ADC_DeInit(ADC_TypeDef *ADCx)
+{
+  ErrorStatus status = SUCCESS;
+  
+  __IO uint32_t timeout_cpu_cycles = 0U;
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(ADCx));
+  
+  /* Disable ADC instance if not already disabled.                            */
+  if(LL_ADC_IsEnabled(ADCx) == 1U)
+  {
+    /* Set ADC group regular trigger source to SW start to ensure to not      */
+    /* have an external trigger event occurring during the conversion stop    */
+    /* ADC disable process.                                                   */
+    LL_ADC_REG_SetTriggerSource(ADCx, LL_ADC_REG_TRIG_SOFTWARE);
+    
+    /* Stop potential ADC conversion on going on ADC group regular.           */
+    if(LL_ADC_REG_IsConversionOngoing(ADCx) != 0U)
+    {
+      if(LL_ADC_REG_IsStopConversionOngoing(ADCx) == 0U)
+      {
+        LL_ADC_REG_StopConversion(ADCx);
+      }
+    }
+    
+    /* Wait for ADC conversions are effectively stopped                       */
+    timeout_cpu_cycles = ADC_TIMEOUT_STOP_CONVERSION_CPU_CYCLES;
+    while (LL_ADC_REG_IsStopConversionOngoing(ADCx) == 1U)
+    {
+      if(timeout_cpu_cycles-- == 0U)
+      {
+        /* Time-out error */
+        status = ERROR;
+      }
+    }
+    
+    /* Disable the ADC instance */
+    LL_ADC_Disable(ADCx);
+    
+    /* Wait for ADC instance is effectively disabled */
+    timeout_cpu_cycles = ADC_TIMEOUT_DISABLE_CPU_CYCLES;
+    while (LL_ADC_IsDisableOngoing(ADCx) == 1U)
+    {
+      if(timeout_cpu_cycles-- == 0U)
+      {
+        /* Time-out error */
+        status = ERROR;
+      }
+    }
+  }
+  
+  /* Check whether ADC state is compliant with expected state */
+  if(READ_BIT(ADCx->CR,
+              (  ADC_CR_ADSTP | ADC_CR_ADSTART
+               | ADC_CR_ADDIS | ADC_CR_ADEN   )
+             )
+     == 0U)
+  {
+    /* ========== Reset ADC registers ========== */
+    /* Reset register IER */
+    CLEAR_BIT(ADCx->IER,
+              (  LL_ADC_IT_ADRDY
+               | LL_ADC_IT_EOC
+               | LL_ADC_IT_EOS
+               | LL_ADC_IT_OVR
+               | LL_ADC_IT_EOSMP
+               | LL_ADC_IT_AWD1 )
+             );
+    
+    /* Reset register ISR */
+    SET_BIT(ADCx->ISR,
+            (  LL_ADC_FLAG_ADRDY
+             | LL_ADC_FLAG_EOC
+             | LL_ADC_FLAG_EOS
+             | LL_ADC_FLAG_OVR
+             | LL_ADC_FLAG_EOSMP
+             | LL_ADC_FLAG_AWD1 )
+           );
+    
+    /* Reset register CR */
+    /* Bits ADC_CR_ADCAL, ADC_CR_ADSTP, ADC_CR_ADSTART are in access mode     */
+    /* "read-set": no direct reset applicable.                                */
+    /* No action on register CR */
+    
+    /* Reset register CFGR1 */
+    CLEAR_BIT(ADCx->CFGR1,
+              (  ADC_CFGR1_AWDCH   | ADC_CFGR1_AWDEN  | ADC_CFGR1_AWDSGL  | ADC_CFGR1_DISCEN
+               | ADC_CFGR1_AUTOFF  | ADC_CFGR1_WAIT   | ADC_CFGR1_CONT    | ADC_CFGR1_OVRMOD
+               | ADC_CFGR1_EXTEN   | ADC_CFGR1_EXTSEL | ADC_CFGR1_ALIGN   | ADC_CFGR1_RES
+               | ADC_CFGR1_SCANDIR | ADC_CFGR1_DMACFG | ADC_CFGR1_DMAEN                     )
+             );
+    
+    /* Reset register CFGR2 */
+    /* Note: Update of ADC clock mode is conditioned to ADC state disabled:   */
+    /*       already done above.                                              */
+    CLEAR_BIT(ADCx->CFGR2, ADC_CFGR2_CKMODE);
+    
+    /* Reset register SMPR */
+    CLEAR_BIT(ADCx->SMPR, ADC_SMPR_SMP);
+
+    /* Reset register TR */
+    MODIFY_REG(ADCx->TR, ADC_TR_HT | ADC_TR_LT, ADC_TR_HT);
+    
+    /* Reset register CHSELR */
+#if defined(ADC_CCR_VBATEN)
+    CLEAR_BIT(ADCx->CHSELR,
+              (  ADC_CHSELR_CHSEL18 | ADC_CHSELR_CHSEL17 | ADC_CHSELR_CHSEL16
+               | ADC_CHSELR_CHSEL15 | ADC_CHSELR_CHSEL14 | ADC_CHSELR_CHSEL13 | ADC_CHSELR_CHSEL12
+               | ADC_CHSELR_CHSEL11 | ADC_CHSELR_CHSEL10 | ADC_CHSELR_CHSEL9  | ADC_CHSELR_CHSEL8
+               | ADC_CHSELR_CHSEL7  | ADC_CHSELR_CHSEL6  | ADC_CHSELR_CHSEL5  | ADC_CHSELR_CHSEL4
+               | ADC_CHSELR_CHSEL3  | ADC_CHSELR_CHSEL2  | ADC_CHSELR_CHSEL1  | ADC_CHSELR_CHSEL0 )
+             );
+#else
+    CLEAR_BIT(ADCx->CHSELR,
+              (                       ADC_CHSELR_CHSEL17 | ADC_CHSELR_CHSEL16
+               | ADC_CHSELR_CHSEL15 | ADC_CHSELR_CHSEL14 | ADC_CHSELR_CHSEL13 | ADC_CHSELR_CHSEL12
+               | ADC_CHSELR_CHSEL11 | ADC_CHSELR_CHSEL10 | ADC_CHSELR_CHSEL9  | ADC_CHSELR_CHSEL8
+               | ADC_CHSELR_CHSEL7  | ADC_CHSELR_CHSEL6  | ADC_CHSELR_CHSEL5  | ADC_CHSELR_CHSEL4
+               | ADC_CHSELR_CHSEL3  | ADC_CHSELR_CHSEL2  | ADC_CHSELR_CHSEL1  | ADC_CHSELR_CHSEL0 )
+             );
+#endif
+    
+    /* Reset register DR */
+    /* bits in access mode read only, no direct reset applicable */
+    
+  }
+  else
+  {
+    /* ADC instance is in an unknown state */
+    /* Need to performing a hard reset of ADC instance, using high level      */
+    /* clock source RCC ADC reset.                                            */
+    /* Caution: On this STM32 serie, if several ADC instances are available   */
+    /*          on the selected device, RCC ADC reset will reset              */
+    /*          all ADC instances belonging to the common ADC instance.       */
+    status = ERROR;
+  }
+  
+  return status;
+}

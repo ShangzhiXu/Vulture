@@ -1,0 +1,8 @@
+#define BIN_TO_CHUNK(i) (MEM_TO_CHUNK(&mal.bins[i].head))
+#define CHUNK_PSIZE(c) ((c)->psize & -2)
+#define CHUNK_SIZE(c) ((c)->csize & -2)
+#define CHUNK_TO_MEM(c) (void *)((char *)(c) + OVERHEAD)
+#define IS_MMAPPED(c) !((c)->csize & (C_INUSE))
+#define MEM_TO_CHUNK(p) (struct chunk *)((char *)(p) - OVERHEAD)
+#define NEXT_CHUNK(c) ((struct chunk *)((char *)(c) + CHUNK_SIZE(c)))
+#define PREV_CHUNK(c) ((struct chunk *)((char *)(c) - CHUNK_PSIZE(c)))

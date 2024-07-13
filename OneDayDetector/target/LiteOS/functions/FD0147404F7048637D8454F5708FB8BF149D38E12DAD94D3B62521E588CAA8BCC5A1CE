@@ -1,0 +1,48 @@
+static uint32_t MMC_PowerON(MMC_HandleTypeDef *hmmc)
+{
+  __IO uint32_t count = 0;
+  uint32_t response = 0, validvoltage = 0;
+  uint32_t errorstate = HAL_MMC_ERROR_NONE;
+  
+  /* CMD0: GO_IDLE_STATE */
+  errorstate = SDMMC_CmdGoIdleState(hmmc->Instance);
+  if(errorstate != HAL_MMC_ERROR_NONE)
+  {
+    return errorstate;
+  }
+  
+  while(validvoltage == 0)
+  {
+    if(count++ == SDMMC_MAX_VOLT_TRIAL)
+    {
+      return HAL_MMC_ERROR_INVALID_VOLTRANGE;
+    }
+    
+    /* SEND CMD1 APP_CMD with MMC_HIGH_VOLTAGE_RANGE(0xC0FF8000) as argument */
+    errorstate = SDMMC_CmdOpCondition(hmmc->Instance, eMMC_HIGH_VOLTAGE_RANGE);
+    if(errorstate != HAL_MMC_ERROR_NONE)
+    {
+      return HAL_MMC_ERROR_UNSUPPORTED_FEATURE;
+    }
+    
+    /* Get command response */
+    response = SDMMC_GetResponse(hmmc->Instance, SDMMC_RESP1);
+    
+    /* Get operating voltage*/
+    validvoltage = (((response >> 31) == 1) ? 1 : 0);
+  }
+  
+  /* When power routine is finished and command returns valid voltage */
+  if ((response & MMC_HIGH_VOLTAGE_RANGE) == MMC_HIGH_VOLTAGE_RANGE)
+  {
+    /* When voltage range of the card is within 2.7V and 3.6V */
+    hmmc->MmcCard.CardType = MMC_HIGH_VOLTAGE_CARD;
+  }
+  else
+  {
+    /* When voltage range of the card is within 1.65V and 1.95V or 2.7V and 3.6V */
+    hmmc->MmcCard.CardType = MMC_DUAL_VOLTAGE_CARD;
+  }
+  
+  return HAL_MMC_ERROR_NONE;
+}

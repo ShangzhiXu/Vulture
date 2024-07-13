@@ -1,0 +1,58 @@
+void lv_textarea_del_char(lv_obj_t * ta)
+{
+    LV_ASSERT_OBJ(ta, LV_OBJX_NAME);
+
+    lv_textarea_ext_t * ext = lv_obj_get_ext_attr(ta);
+    uint16_t cur_pos  = ext->cursor.pos;
+
+    if(cur_pos == 0) return;
+
+    ta_insert_replace = NULL;
+    char del_buf[2]   = {LV_KEY_DEL, '\0'};
+    lv_event_send(ta, LV_EVENT_INSERT, del_buf);
+    if(ta_insert_replace) {
+        if(ta_insert_replace[0] == '\0') return; /*Drop this text*/
+
+        /*Add the replaced text directly it's different from the original*/
+        if(strcmp(ta_insert_replace, del_buf)) {
+            lv_textarea_add_text(ta, ta_insert_replace);
+            return;
+        }
+    }
+
+    char * label_txt = lv_label_get_text(ext->label);
+
+    /*Delete a character*/
+    _lv_txt_cut(label_txt, ext->cursor.pos - 1, 1);
+    /*Refresh the label*/
+    lv_label_set_text(ext->label, label_txt);
+    lv_textarea_clear_selection(ta);
+
+
+    /*If the textarea became empty, invalidate it to hide the placeholder*/
+    if(ext->placeholder_txt) {
+        const char * txt = lv_label_get_text(ext->label);
+        if(txt[0] == '\0') lv_obj_invalidate(ta);
+    }
+
+    /*Don't let 'width == 0' because cursor will not be visible*/
+    if(lv_obj_get_width(ext->label) == 0) {
+        lv_style_int_t border_width = lv_obj_get_style_border_width(ta, LV_TEXTAREA_PART_CURSOR);
+        lv_obj_set_width(ext->label, border_width == 0 ? 1 : border_width);
+    }
+
+    if(ext->pwd_mode != 0) {
+        uint32_t byte_pos = _lv_txt_encoded_get_byte_id(ext->pwd_tmp, ext->cursor.pos - 1);
+        _lv_txt_cut(ext->pwd_tmp, ext->cursor.pos - 1, _lv_txt_encoded_size(&label_txt[byte_pos]));
+
+        ext->pwd_tmp = lv_mem_realloc(ext->pwd_tmp, strlen(ext->pwd_tmp) + 1);
+        LV_ASSERT_MEM(ext->pwd_tmp);
+        if(ext->pwd_tmp == NULL) return;
+    }
+
+    /*Move the cursor to the place of the deleted character*/
+    lv_textarea_set_cursor_pos(ta, ext->cursor.pos - 1);
+
+    lv_event_send(ta, LV_EVENT_VALUE_CHANGED, NULL);
+
+}

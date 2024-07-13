@@ -1,0 +1,57 @@
+static HAL_StatusTypeDef HASH_WriteData(HASH_HandleTypeDef *hhash, uint8_t *pInBuffer, uint32_t Size)
+{
+  uint32_t buffercounter;
+  __IO uint32_t inputaddr = (uint32_t) pInBuffer;
+  
+  for(buffercounter = 0; buffercounter < Size; buffercounter+=4)
+  {
+    /* Write input data 4 bytes at a time */
+    HASH->DIN = *(uint32_t*)inputaddr;
+    inputaddr+=4;
+    
+    /* If the suspension flag has been raised and if the processing is not about
+       to end, suspend processing */
+    if ((hhash->SuspendRequest == HAL_HASH_SUSPEND) && ((buffercounter+4) < Size))
+    {
+      /* Wait for DINIS = 1, which occurs when 16 32-bit locations are free 
+         in the input buffer */
+      if (__HAL_HASH_GET_FLAG(HASH_FLAG_DINIS)) 
+      {
+        /* Reset SuspendRequest */
+        hhash->SuspendRequest = HAL_HASH_SUSPEND_NONE;
+      
+        /* Depending whether the key or the input data were fed to the IP, the feeding point
+           reached at suspension time is not saved in the same handle fields */ 
+        if ((hhash->Phase == HAL_HASH_PHASE_PROCESS) || (hhash->Phase == HAL_HASH_PHASE_HMAC_STEP_2))
+        {
+          /* Save current reading and writing locations of Input and Output buffers */
+          hhash->pHashInBuffPtr =  (uint8_t *)inputaddr;
+          /* Save the number of bytes that remain to be processed at this point */
+          hhash->HashInCount    =  Size - (buffercounter + 4);
+        }
+        else if ((hhash->Phase == HAL_HASH_PHASE_HMAC_STEP_1) || (hhash->Phase == HAL_HASH_PHASE_HMAC_STEP_3))
+        {
+          /* Save current reading and writing locations of Input and Output buffers */
+          hhash->pHashKeyBuffPtr  =  (uint8_t *)inputaddr;
+          /* Save the number of bytes that remain to be processed at this point */
+          hhash->HashKeyCount  =  Size - (buffercounter + 4);        
+        }
+        else
+        {
+          /* Unexpected phase: unlock process and report error */
+          hhash->State = HAL_HASH_STATE_READY;
+          __HAL_UNLOCK(hhash);
+          return HAL_ERROR;
+        }
+      
+        /* Set the HASH state to Suspended and exit to stop entering data */
+        hhash->State = HAL_HASH_STATE_SUSPENDED;
+        
+        return HAL_OK;
+      } /* if (__HAL_HASH_GET_FLAG(HASH_FLAG_DINIS))  */
+    } /* if ((hhash->SuspendRequest == HAL_HASH_SUSPEND) && ((buffercounter+4) < Size)) */
+  }   /* for(buffercounter = 0; buffercounter < Size; buffercounter+=4)                 */
+  
+  /* At this point, all the data have been entered to the IP: exit */
+  return  HAL_OK; 
+}

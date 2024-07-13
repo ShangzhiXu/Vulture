@@ -1,0 +1,35 @@
+HAL_StatusTypeDef HAL_TIMEx_RemapConfig(TIM_HandleTypeDef *htim, uint32_t Remap)
+{
+  uint32_t tmpor1 = 0;
+  uint32_t tmpor2 = 0;
+
+  __HAL_LOCK(htim);
+
+  /* Check parameters */
+  assert_param(IS_TIM_REMAP_INSTANCE(htim->Instance));
+  assert_param(IS_TIM_REMAP(Remap));
+
+  /* Set ETR_SEL bit field (if required) */
+  if (IS_TIM_ETRSEL_INSTANCE(htim->Instance))
+  {
+    tmpor2 = htim->Instance->OR2;
+    tmpor2 &= ~TIMx_ETRSEL_MASK;
+    tmpor2 |= (Remap & TIMx_ETRSEL_MASK);
+
+    /* Set TIMx_OR2 */
+    htim->Instance->OR2 = tmpor2;
+  }
+
+  /* Set other remapping capabilities */
+  tmpor1 = Remap;
+  tmpor1 &= ~TIMx_ETRSEL_MASK;
+
+  /* Set TIMx_OR1 */
+  htim->Instance->OR1 = tmpor1;
+
+  htim->State = HAL_TIM_STATE_READY;
+
+  __HAL_UNLOCK(htim);
+
+  return HAL_OK;
+}

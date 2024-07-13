@@ -1,0 +1,66 @@
+static inline double exp_inline(double_t x, double_t xtail, uint32_t sign_bias)
+{
+	uint32_t abstop;
+	uint64_t ki, idx, top, sbits;
+	/* double_t for better performance on targets with FLT_EVAL_METHOD==2.  */
+	double_t kd, z, r, r2, scale, tail, tmp;
+
+	abstop = top12(x) & 0x7ff;
+	if (predict_false(abstop - top12(0x1p-54) >=
+			  top12(512.0) - top12(0x1p-54))) {
+		if (abstop - top12(0x1p-54) >= 0x80000000) {
+			/* Avoid spurious underflow for tiny x.  */
+			/* Note: 0 is common input.  */
+			double_t one = WANT_ROUNDING ? 1.0 + x : 1.0;
+			return sign_bias ? -one : one;
+		}
+		if (abstop >= top12(1024.0)) {
+			/* Note: inf and nan are already handled.  */
+			if (asuint64(x) >> 63)
+				return __math_uflow(sign_bias);
+			else
+				return __math_oflow(sign_bias);
+		}
+		/* Large x is special cased below.  */
+		abstop = 0;
+	}
+
+	/* exp(x) = 2^(k/N) * exp(r), with exp(r) in [2^(-1/2N),2^(1/2N)].  */
+	/* x = ln2/N*k + r, with int k and r in [-ln2/2N, ln2/2N].  */
+	z = InvLn2N * x;
+#if TOINT_INTRINSICS
+	kd = roundtoint(z);
+	ki = converttoint(z);
+#elif EXP_USE_TOINT_NARROW
+	/* z - kd is in [-0.5-2^-16, 0.5] in all rounding modes.  */
+	kd = eval_as_double(z + Shift);
+	ki = asuint64(kd) >> 16;
+	kd = (double_t)(int32_t)ki;
+#else
+	/* z - kd is in [-1, 1] in non-nearest rounding modes.  */
+	kd = eval_as_double(z + Shift);
+	ki = asuint64(kd);
+	kd -= Shift;
+#endif
+	r = x + kd * NegLn2hiN + kd * NegLn2loN;
+	/* The code assumes 2^-200 < |xtail| < 2^-8/N.  */
+	r += xtail;
+	/* 2^(k/N) ~= scale * (1 + tail).  */
+	idx = 2 * (ki % N);
+	top = (ki + sign_bias) << (52 - EXP_TABLE_BITS);
+	tail = asdouble(T[idx]);
+	/* This is only a valid scale when -1023*N < k < 1024*N.  */
+	sbits = T[idx + 1] + top;
+	/* exp(x) = 2^(k/N) * exp(r) ~= scale + scale * (tail + exp(r) - 1).  */
+	/* Evaluation is optimized assuming superscalar pipelined execution.  */
+	r2 = r * r;
+	/* Without fma the worst case error is 0.25/N ulp larger.  */
+	/* Worst case error is less than 0.5+1.11/N+(abs poly error * 2^53) ulp.  */
+	tmp = tail + r + r2 * (C2 + r * C3) + r2 * r2 * (C4 + r * C5);
+	if (predict_false(abstop == 0))
+		return specialcase(tmp, sbits, ki);
+	scale = asdouble(sbits);
+	/* Note: tmp == 0 or |tmp| > 2^-200 and scale > 2^-739, so there
+	   is no spurious underflow here even without fma.  */
+	return eval_as_double(scale + scale * tmp);
+}

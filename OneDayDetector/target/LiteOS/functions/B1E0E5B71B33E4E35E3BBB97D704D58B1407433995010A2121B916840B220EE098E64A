@@ -1,0 +1,29 @@
+static void IRDA_DMAReceiveCplt(DMA_HandleTypeDef *hdma)
+{
+  IRDA_HandleTypeDef *hirda = (IRDA_HandleTypeDef *)((DMA_HandleTypeDef *)hdma)->Parent;
+
+  /* DMA Normal mode */
+  if ((hdma->Instance->CR & DMA_SxCR_CIRC) == 0U)
+  {
+    hirda->RxXferCount = 0U;
+
+    /* Disable PE and ERR (Frame error, noise error, overrun error) interrupts */
+    CLEAR_BIT(hirda->Instance->CR1, USART_CR1_PEIE);
+    CLEAR_BIT(hirda->Instance->CR3, USART_CR3_EIE);
+
+    /* Disable the DMA transfer for the receiver request by resetting the DMAR bit
+       in the IRDA CR3 register */
+    CLEAR_BIT(hirda->Instance->CR3, USART_CR3_DMAR);
+
+    /* At end of Rx process, restore hirda->RxState to Ready */
+    hirda->RxState = HAL_IRDA_STATE_READY;
+  }
+
+#if (USE_HAL_IRDA_REGISTER_CALLBACKS == 1)
+  /* Call registered Rx complete callback */
+  hirda->RxCpltCallback(hirda);
+#else
+  /* Call legacy weak Rx complete callback */
+  HAL_IRDA_RxCpltCallback(hirda);
+#endif /* USE_HAL_IRDA_REGISTER_CALLBACKS */
+}

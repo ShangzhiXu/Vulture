@@ -1,0 +1,74 @@
+void HAL_MDIOS_IRQHandler(MDIOS_HandleTypeDef *hmdios)
+{
+  /* Write Register Interrupt enabled ? */
+  if(__HAL_MDIOS_GET_IT_SOURCE(hmdios, MDIOS_IT_WRITE) != RESET)
+  {
+    /* Write register flag */
+    if(HAL_MDIOS_GetWrittenRegAddress(hmdios) != RESET)
+    {
+#if (USE_HAL_MDIOS_REGISTER_CALLBACKS == 1)
+        /* Call registered Write complete callback */
+        hmdios->WriteCpltCallback(hmdios);
+#else
+      /* Write callback function */
+      HAL_MDIOS_WriteCpltCallback(hmdios);
+#endif /* USE_HAL_MDIOS_REGISTER_CALLBACKS */
+      
+      /* Clear write register flag */
+      HAL_MDIOS_ClearWriteRegAddress(hmdios, MDIOS_ALL_REG_FLAG);
+    }
+  }
+  
+  /* Read Register Interrupt enabled ? */
+  if(__HAL_MDIOS_GET_IT_SOURCE(hmdios, MDIOS_IT_READ) != RESET)
+  {
+    /* Read register flag */
+    if(HAL_MDIOS_GetReadRegAddress(hmdios) != RESET)
+    {
+#if (USE_HAL_MDIOS_REGISTER_CALLBACKS == 1)
+      /* Call registered Read complete callback */
+      hmdios->ReadCpltCallback(hmdios);
+#else
+      /* Read callback function  */
+      HAL_MDIOS_ReadCpltCallback(hmdios);
+#endif /* USE_HAL_MDIOS_REGISTER_CALLBACKS */
+      
+      /* Clear read register flag */
+      HAL_MDIOS_ClearReadRegAddress(hmdios, MDIOS_ALL_REG_FLAG);
+    }
+  }
+  
+  /* Error Interrupt enabled ? */
+  if(__HAL_MDIOS_GET_IT_SOURCE(hmdios, MDIOS_IT_ERROR) != RESET)
+  {
+    /* All Errors Flag */
+    if(__HAL_MDIOS_GET_ERROR_FLAG(hmdios, MDIOS_ALL_ERRORS_FLAG) !=RESET)
+    {
+#if (USE_HAL_MDIOS_REGISTER_CALLBACKS == 1)
+      /* Call registered Error callback */
+      hmdios->ErrorCallback(hmdios);
+#else
+      /* Error Callback */
+      HAL_MDIOS_ErrorCallback(hmdios);
+#endif /* USE_HAL_MDIOS_REGISTER_CALLBACKS */
+      
+      /* Clear errors flag */
+      __HAL_MDIOS_CLEAR_ERROR_FLAG(hmdios, MDIOS_ALL_ERRORS_FLAG);
+    }
+  }
+   
+  /* check MDIOS WAKEUP exti flag */
+  if(__HAL_MDIOS_WAKEUP_EXTI_GET_FLAG() != RESET)
+  {
+#if (USE_HAL_MDIOS_REGISTER_CALLBACKS == 1)
+    /* Call registered WakeUp callback */
+    hmdios->WakeUpCallback(hmdios);
+#else
+    /* MDIOS WAKEUP interrupt user callback */
+    HAL_MDIOS_WakeUpCallback(hmdios);
+#endif /* USE_HAL_MDIOS_REGISTER_CALLBACKS */
+
+    /* Clear MDIOS WAKEUP Exti pending bit */
+    __HAL_MDIOS_WAKEUP_EXTI_CLEAR_FLAG();
+  }
+}

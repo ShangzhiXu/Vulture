@@ -1,0 +1,60 @@
+HAL_StatusTypeDef HAL_ETH_ReadPHYRegister(ETH_HandleTypeDef *heth, uint16_t PHYReg, uint32_t *RegValue)
+{
+  uint32_t tmpreg = 0;     
+  uint32_t tickstart = 0;
+  
+  /* Check parameters */
+  assert_param(IS_ETH_PHY_ADDRESS(heth->Init.PhyAddress));
+  
+  /* Check the ETH peripheral state */
+  if(heth->State == HAL_ETH_STATE_BUSY_RD)
+  {
+    return HAL_BUSY;
+  }
+  /* Set ETH HAL State to BUSY_RD */
+  heth->State = HAL_ETH_STATE_BUSY_RD;
+  
+  /* Get the ETHERNET MACMIIAR value */
+  tmpreg = heth->Instance->MACMIIAR;
+  
+  /* Keep only the CSR Clock Range CR[2:0] bits value */
+  tmpreg &= ~ETH_MACMIIAR_CR_MASK;
+  
+  /* Prepare the MII address register value */
+  tmpreg |=(((uint32_t)heth->Init.PhyAddress << 11) & ETH_MACMIIAR_PA); /* Set the PHY device address   */
+  tmpreg |=(((uint32_t)PHYReg<<6) & ETH_MACMIIAR_MR);                   /* Set the PHY register address */
+  tmpreg &= ~ETH_MACMIIAR_MW;                                           /* Set the read mode            */
+  tmpreg |= ETH_MACMIIAR_MB;                                            /* Set the MII Busy bit         */
+  
+  /* Write the result value into the MII Address register */
+  heth->Instance->MACMIIAR = tmpreg;
+  
+  /* Get tick */
+  tickstart = HAL_GetTick();
+  
+  /* Check for the Busy flag */
+  while((tmpreg & ETH_MACMIIAR_MB) == ETH_MACMIIAR_MB)
+  {
+    /* Check for the Timeout */
+    if((HAL_GetTick() - tickstart ) > PHY_READ_TO)
+    {
+      heth->State= HAL_ETH_STATE_READY;
+  
+      /* Process Unlocked */
+      __HAL_UNLOCK(heth);
+    
+      return HAL_TIMEOUT;
+    }
+    
+    tmpreg = heth->Instance->MACMIIAR;
+  }
+  
+  /* Get MACMIIDR value */
+  *RegValue = (uint16_t)(heth->Instance->MACMIIDR);
+  
+  /* Set ETH HAL State to READY */
+  heth->State = HAL_ETH_STATE_READY;
+  
+  /* Return function status */
+  return HAL_OK;
+}

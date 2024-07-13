@@ -1,0 +1,213 @@
+uint32_t HAL_RCCEx_GetPeriphCLKFreq(uint32_t PeriphClk)
+{
+  /* frequency == 0 : means that no available frequency for the peripheral */
+  uint32_t frequency = 0U;
+  
+  uint32_t srcclk = 0U;
+#if defined(USB)
+  uint32_t pllmull = 0U, pllsource = 0U, predivfactor = 0U;
+#endif /* USB */
+
+  /* Check the parameters */
+  assert_param(IS_RCC_PERIPHCLOCK(PeriphClk));
+  
+  switch (PeriphClk)
+  {
+  case RCC_PERIPHCLK_RTC:
+    {
+      /* Get the current RTC source */
+      srcclk = __HAL_RCC_GET_RTC_SOURCE();
+
+      /* Check if LSE is ready and if RTC clock selection is LSE */
+      if ((srcclk == RCC_RTCCLKSOURCE_LSE) && (HAL_IS_BIT_SET(RCC->BDCR, RCC_BDCR_LSERDY)))
+      {
+        frequency = LSE_VALUE;
+      }
+      /* Check if LSI is ready and if RTC clock selection is LSI */
+      else if ((srcclk == RCC_RTCCLKSOURCE_LSI) && (HAL_IS_BIT_SET(RCC->CSR, RCC_CSR_LSIRDY)))
+      {
+        frequency = LSI_VALUE;
+      }
+      /* Check if HSE is ready  and if RTC clock selection is HSI_DIV32*/
+      else if ((srcclk == RCC_RTCCLKSOURCE_HSE_DIV32) && (HAL_IS_BIT_SET(RCC->CR, RCC_CR_HSERDY)))
+      {
+        frequency = HSE_VALUE / 32U;
+      }
+      break;
+    }
+  case RCC_PERIPHCLK_USART1:
+    {
+      /* Get the current USART1 source */
+      srcclk = __HAL_RCC_GET_USART1_SOURCE();
+
+      /* Check if USART1 clock selection is PCLK1 */
+      if (srcclk == RCC_USART1CLKSOURCE_PCLK1)
+      {
+        frequency = HAL_RCC_GetPCLK1Freq();
+      }
+      /* Check if HSI is ready and if USART1 clock selection is HSI */
+      else if ((srcclk == RCC_USART1CLKSOURCE_HSI) && (HAL_IS_BIT_SET(RCC->CR, RCC_CR_HSIRDY)))
+      {
+        frequency = HSI_VALUE;
+      }
+      /* Check if USART1 clock selection is SYSCLK */
+      else if (srcclk == RCC_USART1CLKSOURCE_SYSCLK)
+      {
+        frequency = HAL_RCC_GetSysClockFreq();
+      }
+      /* Check if LSE is ready  and if USART1 clock selection is LSE */
+      else if ((srcclk == RCC_USART1CLKSOURCE_LSE) && (HAL_IS_BIT_SET(RCC->BDCR, RCC_BDCR_LSERDY)))
+      {
+        frequency = LSE_VALUE;
+      }
+      break;
+    }
+#if defined(RCC_CFGR3_USART2SW)
+  case RCC_PERIPHCLK_USART2:
+    {
+      /* Get the current USART2 source */
+      srcclk = __HAL_RCC_GET_USART2_SOURCE();
+
+      /* Check if USART2 clock selection is PCLK1 */
+      if (srcclk == RCC_USART2CLKSOURCE_PCLK1)
+      {
+        frequency = HAL_RCC_GetPCLK1Freq();
+      }
+      /* Check if HSI is ready and if USART2 clock selection is HSI */
+      else if ((srcclk == RCC_USART2CLKSOURCE_HSI) && (HAL_IS_BIT_SET(RCC->CR, RCC_CR_HSIRDY)))
+      {
+        frequency = HSI_VALUE;
+      }
+      /* Check if USART2 clock selection is SYSCLK */
+      else if (srcclk == RCC_USART2CLKSOURCE_SYSCLK)
+      {
+        frequency = HAL_RCC_GetSysClockFreq();
+      }
+      /* Check if LSE is ready  and if USART2 clock selection is LSE */
+      else if ((srcclk == RCC_USART2CLKSOURCE_LSE) && (HAL_IS_BIT_SET(RCC->BDCR, RCC_BDCR_LSERDY)))
+      {
+        frequency = LSE_VALUE;
+      }
+      break;
+    }
+#endif /* RCC_CFGR3_USART2SW */
+#if defined(RCC_CFGR3_USART3SW)
+  case RCC_PERIPHCLK_USART3:
+    {
+      /* Get the current USART3 source */
+      srcclk = __HAL_RCC_GET_USART3_SOURCE();
+
+      /* Check if USART3 clock selection is PCLK1 */
+      if (srcclk == RCC_USART3CLKSOURCE_PCLK1)
+      {
+        frequency = HAL_RCC_GetPCLK1Freq();
+      }
+      /* Check if HSI is ready and if USART3 clock selection is HSI */
+      else if ((srcclk == RCC_USART3CLKSOURCE_HSI) && (HAL_IS_BIT_SET(RCC->CR, RCC_CR_HSIRDY)))
+      {
+        frequency = HSI_VALUE;
+      }
+      /* Check if USART3 clock selection is SYSCLK */
+      else if (srcclk == RCC_USART3CLKSOURCE_SYSCLK)
+      {
+        frequency = HAL_RCC_GetSysClockFreq();
+      }
+      /* Check if LSE is ready  and if USART3 clock selection is LSE */
+      else if ((srcclk == RCC_USART3CLKSOURCE_LSE) && (HAL_IS_BIT_SET(RCC->BDCR, RCC_BDCR_LSERDY)))
+      {
+        frequency = LSE_VALUE;
+      }
+      break;
+    }
+#endif /* RCC_CFGR3_USART3SW */
+  case RCC_PERIPHCLK_I2C1:
+    {
+      /* Get the current I2C1 source */
+      srcclk = __HAL_RCC_GET_I2C1_SOURCE();
+
+      /* Check if HSI is ready and if I2C1 clock selection is HSI */
+      if ((srcclk == RCC_I2C1CLKSOURCE_HSI) && (HAL_IS_BIT_SET(RCC->CR, RCC_CR_HSIRDY)))
+      {
+        frequency = HSI_VALUE;
+      }
+      /* Check if I2C1 clock selection is SYSCLK */
+      else if (srcclk == RCC_I2C1CLKSOURCE_SYSCLK)
+      {
+        frequency = HAL_RCC_GetSysClockFreq();
+      }
+      break;
+    }
+#if defined(USB)
+  case RCC_PERIPHCLK_USB:
+    {
+      /* Get the current USB source */
+      srcclk = __HAL_RCC_GET_USB_SOURCE();
+
+      /* Check if PLL is ready and if USB clock selection is PLL */
+      if ((srcclk == RCC_USBCLKSOURCE_PLL) && (HAL_IS_BIT_SET(RCC->CR, RCC_CR_PLLRDY)))
+      {
+        /* Get PLL clock source and multiplication factor ----------------------*/
+        pllmull      = RCC->CFGR & RCC_CFGR_PLLMUL;
+        pllsource    = RCC->CFGR & RCC_CFGR_PLLSRC;
+        pllmull      = (pllmull >> RCC_CFGR_PLLMUL_BITNUMBER) + 2U;
+        predivfactor = (RCC->CFGR2 & RCC_CFGR2_PREDIV) + 1U;
+
+        if (pllsource == RCC_CFGR_PLLSRC_HSE_PREDIV)
+        {
+          /* HSE used as PLL clock source : frequency = HSE/PREDIV * PLLMUL */
+          frequency = (HSE_VALUE/predivfactor) * pllmull;
+        }
+#if defined(RCC_CR2_HSI48ON)
+        else if (pllsource == RCC_CFGR_PLLSRC_HSI48_PREDIV)
+        {
+          /* HSI48 used as PLL clock source : frequency = HSI48/PREDIV * PLLMUL */
+          frequency = (HSI48_VALUE / predivfactor) * pllmull;
+        }
+#endif /* RCC_CR2_HSI48ON */
+        else
+        {
+#if defined(STM32F042x6) || defined(STM32F048xx) || defined(STM32F078xx) || defined(STM32F072xB) || defined(STM32F070xB)
+          /* HSI used as PLL clock source : frequency = HSI/PREDIV * PLLMUL */
+          frequency = (HSI_VALUE / predivfactor) * pllmull;
+#else
+          /* HSI used as PLL clock source : frequency = HSI/2U * PLLMUL */
+          frequency = (HSI_VALUE >> 1U) * pllmull;
+#endif /* STM32F042x6 || STM32F048xx || STM32F072xB || STM32F078xx || STM32F070xB */
+        }
+      }
+#if defined(RCC_CR2_HSI48ON)
+      /* Check if HSI48 is ready and if USB clock selection is HSI48 */
+      else if ((srcclk == RCC_USBCLKSOURCE_HSI48) && (HAL_IS_BIT_SET(RCC->CR2, RCC_CR2_HSI48RDY)))
+      {
+        frequency = HSI48_VALUE;
+      }
+#endif /* RCC_CR2_HSI48ON */
+      break;
+    }
+#endif /* USB */
+#if defined(CEC)
+  case RCC_PERIPHCLK_CEC:
+    {
+      /* Get the current CEC source */
+      srcclk = __HAL_RCC_GET_CEC_SOURCE();
+
+      /* Check if HSI is ready and if CEC clock selection is HSI */
+      if ((srcclk == RCC_CECCLKSOURCE_HSI) && (HAL_IS_BIT_SET(RCC->CR, RCC_CR_HSIRDY)))
+      {
+        frequency = HSI_VALUE;
+      }
+      /* Check if LSE is ready  and if CEC clock selection is LSE */
+      else if ((srcclk == RCC_CECCLKSOURCE_LSE) && (HAL_IS_BIT_SET(RCC->BDCR, RCC_BDCR_LSERDY)))
+      {
+        frequency = LSE_VALUE;
+      }
+      break;
+    }
+#endif /* CEC */
+  default: 
+    {
+      break;
+    }
+  }
+  return(frequency);
+}

@@ -1,0 +1,63 @@
+STATIC struct mqpersonal *DoMqueueCreate(const struct mq_attr *attr, const CHAR *mqName, INT32 openFlag)
+{
+    struct mq_attr defaultAttr = { 0, MQ_MAX_MSG_NUM, MQ_MAX_MSG_LEN, 0 };
+    struct mqarray *mqueueCB = NULL;
+    UINT32 err;
+    UINT32 mqueueId;
+
+    if (attr == NULL) {
+        attr = &defaultAttr;
+    } else if ((attr->mq_maxmsg < 0) || (attr->mq_maxmsg > (long int)USHRT_MAX) ||
+               (attr->mq_msgsize < 0) || (attr->mq_msgsize > (long int)(USHRT_MAX - sizeof(UINT32)))) {
+        errno = EINVAL;
+        goto ERROUT;
+    }
+
+    err = LOS_QueueCreate(NULL, attr->mq_maxmsg, &mqueueId, 0, attr->mq_msgsize);
+    if (map_errno(err) != ENOERR) {
+        goto ERROUT;
+    }
+
+    if (g_queueTable[GET_QUEUE_INDEX(mqueueId)].mqcb == NULL) {
+        mqueueCB = &(g_queueTable[GET_QUEUE_INDEX(mqueueId)]);
+        mqueueCB->mq_id = mqueueId;
+    }
+
+    if (mqueueCB == NULL) {
+        errno = EINVAL;
+        goto ERROUT_FREE_QUEUE;
+    }
+
+    if (GetMqueueCBByID(mqueueCB->mq_id, &(mqueueCB->mqcb)) != LOS_OK) {
+        errno = ENOSPC;
+        goto ERROUT_FREE_QUEUE;
+    }
+
+    mqueueCB->mq_personal = (struct mqpersonal *)LOS_MemAlloc(OS_SYS_MEM_ADDR, sizeof(struct mqpersonal));
+    if (mqueueCB->mq_personal == NULL) {
+        mqueueCB->mqcb->queueHandle = NULL;
+        mqueueCB->mqcb = NULL;
+        errno = ENOSPC;
+        goto ERROUT_FREE_QUEUE;
+    }
+
+    if (strncpy_s(mqueueCB->mq_name, PATH_MAX, mqName, PATH_MAX - 1) != EOK) {
+        errno = EINVAL;
+        goto ERROUT_FREE_MEM;
+    }
+    mqueueCB->unlinkflag = FALSE;
+    mqueueCB->mq_personal->mq_status = MQ_USE_MAGIC;
+    mqueueCB->mq_personal->mq_next = NULL;
+    mqueueCB->mq_personal->mq_posixdes = mqueueCB;
+    mqueueCB->mq_personal->mq_flags = (INT32)((UINT32)openFlag | ((UINT32)attr->mq_flags & (UINT32)FNONBLOCK));
+
+    return mqueueCB->mq_personal;
+
+ERROUT_FREE_MEM:
+    (VOID)LOS_MemFree(OS_SYS_MEM_ADDR, mqueueCB->mq_personal);
+    mqueueCB->mq_personal = NULL;
+ERROUT_FREE_QUEUE:
+    (VOID)LOS_QueueDelete(mqueueId);
+ERROUT:
+    return (struct mqpersonal *)-1;
+}

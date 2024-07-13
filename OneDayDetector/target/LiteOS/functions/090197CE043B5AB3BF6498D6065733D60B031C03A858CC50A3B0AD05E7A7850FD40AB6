@@ -1,0 +1,43 @@
+int mbedtls_aes_cmac_prf_128( const unsigned char *key, size_t key_length,
+                              const unsigned char *input, size_t in_len,
+                              unsigned char *output )
+{
+    int ret;
+    const mbedtls_cipher_info_t *cipher_info;
+    unsigned char zero_key[MBEDTLS_AES_BLOCK_SIZE];
+    unsigned char int_key[MBEDTLS_AES_BLOCK_SIZE];
+
+    if( key == NULL || input == NULL || output == NULL )
+        return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+
+    cipher_info = mbedtls_cipher_info_from_type( MBEDTLS_CIPHER_AES_128_ECB );
+    if( cipher_info == NULL )
+    {
+        /* Failing at this point must be due to a build issue */
+        ret = MBEDTLS_ERR_CIPHER_FEATURE_UNAVAILABLE;
+        goto exit;
+    }
+
+    if( key_length == MBEDTLS_AES_BLOCK_SIZE )
+    {
+        /* Use key as is */
+        memcpy( int_key, key, MBEDTLS_AES_BLOCK_SIZE );
+    }
+    else
+    {
+        memset( zero_key, 0, MBEDTLS_AES_BLOCK_SIZE );
+
+        ret = mbedtls_cipher_cmac( cipher_info, zero_key, 128, key,
+                                   key_length, int_key );
+        if( ret != 0 )
+            goto exit;
+    }
+
+    ret = mbedtls_cipher_cmac( cipher_info, int_key, 128, input, in_len,
+                               output );
+
+exit:
+    mbedtls_platform_zeroize( int_key, sizeof( int_key ) );
+
+    return( ret );
+}

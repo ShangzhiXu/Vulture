@@ -1,0 +1,44 @@
+int los_fs_unmount(const char *path)
+{
+    struct mount_point *mp;
+    struct mount_point *prev;
+    const char *tmp = NULL;
+    int ret = LOS_NOK;
+
+    if (path == NULL) {
+        return ret;
+    }
+
+    LOS_MuxPend(fs_mutex, LOS_WAIT_FOREVER);
+
+    mp = los_mp_find(path, &tmp);
+
+    if ((mp == NULL) || (tmp == NULL) || (*tmp != '\0') || (mp->m_refs != 0)) {
+        goto post_exit;
+    }
+
+    if (mount_points == mp) {
+        mount_points = mp->m_next;
+    } else {
+        for (prev = mount_points; prev != NULL; prev = prev->m_next) {
+            if (prev->m_next != mp) {
+                continue;
+            }
+
+            prev->m_next = mp->m_next;
+            break;
+        }
+    }
+
+    LOS_MuxDelete(mp->m_mutex);
+
+    mp->m_fs->fs_refs--;
+
+    free(mp);
+
+    ret = LOS_OK;
+
+post_exit:
+    LOS_MuxPost(fs_mutex);
+    return ret;
+}

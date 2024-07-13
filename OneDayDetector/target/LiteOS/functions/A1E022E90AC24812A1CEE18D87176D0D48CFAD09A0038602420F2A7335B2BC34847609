@@ -1,0 +1,21 @@
+static void generate_merge_tests(void)
+{
+    size_t i = 0;
+    char *patchedtext = NULL;
+
+    /* Generate Merge tests: */
+    for (i = 0; i < 15; i++)
+    {
+        cJSON *from = cJSON_Parse(merges[i][0]);
+        cJSON *to = cJSON_Parse(merges[i][2]);
+        cJSON *patch = cJSONUtils_GenerateMergePatch(from,to);
+        from = cJSONUtils_MergePatch(from,patch);
+        patchedtext = cJSON_PrintUnformatted(from);
+        TEST_ASSERT_EQUAL_STRING(merges[i][2], patchedtext);
+
+        cJSON_Delete(from);
+        cJSON_Delete(to);
+        cJSON_Delete(patch);
+        free(patchedtext);
+    }
+}

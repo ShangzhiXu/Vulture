@@ -1,0 +1,39 @@
+__weak HAL_StatusTypeDef HAL_DAC_Stop_DMA(DAC_HandleTypeDef* hdac, uint32_t Channel)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Check the parameters */
+  assert_param(IS_DAC_CHANNEL(Channel));
+  
+  /* Disable the selected DAC channel DMA request */
+  CLEAR_BIT(hdac->Instance->CR, DAC_CR_DMAEN1 << Channel);
+    
+  /* Disable the Peripharal */
+  __HAL_DAC_DISABLE(hdac, Channel);
+  
+  /* Disable the DMA Channel */
+  /* Channel1 is used */
+  if (Channel == DAC_CHANNEL_1)
+  {
+    status = HAL_DMA_Abort(hdac->DMA_Handle1);
+  }
+  else /* Channel2 is used for */
+  {
+    status = HAL_DMA_Abort(hdac->DMA_Handle2);
+  }
+  
+  /* Check if DMA Channel effectively disabled */
+  if (status != HAL_OK)
+  {
+    /* Update ADC state machine to error */
+    hdac->State = HAL_DAC_STATE_ERROR;      
+  }
+  else
+  {
+    /* Change DAC state */
+    hdac->State = HAL_DAC_STATE_READY;
+  }
+  
+  /* Return function status */
+  return status;
+}

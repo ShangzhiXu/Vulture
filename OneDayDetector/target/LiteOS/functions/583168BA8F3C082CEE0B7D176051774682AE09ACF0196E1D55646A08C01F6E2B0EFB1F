@@ -1,0 +1,61 @@
+HAL_StatusTypeDef HAL_DSI_ConfigAdaptedCommandMode(DSI_HandleTypeDef *hdsi, DSI_CmdCfgTypeDef *CmdCfg)
+{
+  /* Process locked */
+  __HAL_LOCK(hdsi);
+
+  /* Check the parameters */
+  assert_param(IS_DSI_COLOR_CODING(CmdCfg->ColorCoding));
+  assert_param(IS_DSI_TE_SOURCE(CmdCfg->TearingEffectSource));
+  assert_param(IS_DSI_TE_POLARITY(CmdCfg->TearingEffectPolarity));
+  assert_param(IS_DSI_AUTOMATIC_REFRESH(CmdCfg->AutomaticRefresh));
+  assert_param(IS_DSI_VS_POLARITY(CmdCfg->VSyncPol));
+  assert_param(IS_DSI_TE_ACK_REQUEST(CmdCfg->TEAcknowledgeRequest));
+  assert_param(IS_DSI_DE_POLARITY(CmdCfg->DEPolarity));
+  assert_param(IS_DSI_VSYNC_POLARITY(CmdCfg->VSPolarity));
+  assert_param(IS_DSI_HSYNC_POLARITY(CmdCfg->HSPolarity));
+
+  /* Select command mode by setting CMDM and DSIM bits */
+  hdsi->Instance->MCR |= DSI_MCR_CMDM;
+  hdsi->Instance->WCFGR &= ~DSI_WCFGR_DSIM;
+  hdsi->Instance->WCFGR |= DSI_WCFGR_DSIM;
+
+  /* Select the virtual channel for the LTDC interface traffic */
+  hdsi->Instance->LVCIDR &= ~DSI_LVCIDR_VCID;
+  hdsi->Instance->LVCIDR |= CmdCfg->VirtualChannelID;
+
+  /* Configure the polarity of control signals */
+  hdsi->Instance->LPCR &= ~(DSI_LPCR_DEP | DSI_LPCR_VSP | DSI_LPCR_HSP);
+  hdsi->Instance->LPCR |= (CmdCfg->DEPolarity | CmdCfg->VSPolarity | CmdCfg->HSPolarity);
+
+  /* Select the color coding for the host */
+  hdsi->Instance->LCOLCR &= ~DSI_LCOLCR_COLC;
+  hdsi->Instance->LCOLCR |= CmdCfg->ColorCoding;
+
+  /* Select the color coding for the wrapper */
+  hdsi->Instance->WCFGR &= ~DSI_WCFGR_COLMUX;
+  hdsi->Instance->WCFGR |= ((CmdCfg->ColorCoding) << 1U);
+
+  /* Configure the maximum allowed size for write memory command */
+  hdsi->Instance->LCCR &= ~DSI_LCCR_CMDSIZE;
+  hdsi->Instance->LCCR |= CmdCfg->CommandSize;
+
+  /* Configure the tearing effect source and polarity and select the refresh mode */
+  hdsi->Instance->WCFGR &= ~(DSI_WCFGR_TESRC | DSI_WCFGR_TEPOL | DSI_WCFGR_AR | DSI_WCFGR_VSPOL);
+  hdsi->Instance->WCFGR |= (CmdCfg->TearingEffectSource | CmdCfg->TearingEffectPolarity | CmdCfg->AutomaticRefresh |
+                            CmdCfg->VSyncPol);
+
+  /* Configure the tearing effect acknowledge request */
+  hdsi->Instance->CMCR &= ~DSI_CMCR_TEARE;
+  hdsi->Instance->CMCR |= CmdCfg->TEAcknowledgeRequest;
+
+  /* Enable the Tearing Effect interrupt */
+  __HAL_DSI_ENABLE_IT(hdsi, DSI_IT_TE);
+
+  /* Enable the End of Refresh interrupt */
+  __HAL_DSI_ENABLE_IT(hdsi, DSI_IT_ER);
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hdsi);
+
+  return HAL_OK;
+}

@@ -1,0 +1,16 @@
+static void expect_memory_setup(
+        const char* const function, const char* const parameter,
+        const char* const file, const int line,
+        const void * const memory, const size_t size,
+        const CheckParameterValue check_function, const int count) {
+    CheckMemoryData * const check_data = malloc(sizeof(*check_data) + size);
+    void * const mem = (void*)(check_data + 1);
+    declare_initialize_value_pointer_pointer(check_data_pointer, check_data);
+    assert_true(memory);
+    assert_true(size);
+    memcpy(mem, memory, size);
+    check_data->memory = mem;
+    check_data->size = size;
+    _expect_check(function, parameter, file, line, check_function,
+                  check_data_pointer.value, &check_data->event, count);
+}

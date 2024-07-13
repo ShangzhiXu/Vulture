@@ -1,0 +1,17 @@
+altcp_tcp_listen(struct altcp_pcb *conn, u8_t backlog, err_t *err)
+{
+  struct tcp_pcb *pcb;
+  struct tcp_pcb *lpcb;
+  if (conn == NULL) {
+    return NULL;
+  }
+  ALTCP_TCP_ASSERT_CONN(conn);
+  pcb = (struct tcp_pcb *)conn->state;
+  lpcb = tcp_listen_with_backlog_and_err(pcb, backlog, err);
+  if (lpcb != NULL) {
+    conn->state = lpcb;
+    tcp_accept(lpcb, altcp_tcp_accept);
+    return conn;
+  }
+  return NULL;
+}

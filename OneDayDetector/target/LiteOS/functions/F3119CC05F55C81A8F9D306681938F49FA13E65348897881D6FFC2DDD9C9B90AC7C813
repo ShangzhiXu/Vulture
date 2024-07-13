@@ -1,0 +1,69 @@
+int object_getRegisterPayloadBufferLength(lwm2m_context_t *contextP)
+{
+    size_t index;
+    int result;
+    lwm2m_object_t *objectP;
+    char buffer[REG_OBJECT_MIN_LEN + 5];
+
+    LOG("Entering");
+    index = strlen(REG_START);
+
+    if ((contextP->altPath != NULL)
+            && (contextP->altPath[0] != 0))
+    {
+        index += strlen(contextP->altPath);
+    }
+    else
+    {
+        index += strlen(REG_DEFAULT_PATH); // "/"
+    }
+
+    index += strlen(REG_LWM2M_RESOURCE_TYPE);//">;rt=\"oma.lwm2m\";ct=11543,"
+
+    for (objectP = contextP->objectList; objectP != NULL; objectP = objectP->next)
+    {
+        size_t start;
+        size_t length;
+
+        if (objectP->objID == LWM2M_SECURITY_OBJECT_ID) continue;
+
+        start = index;
+        result = prv_getObjectTemplate((uint8_t *)buffer, sizeof(buffer), objectP->objID);
+        if (result < 0) return 0;
+        length = result;
+        index += length;
+
+        if (objectP->instanceList == NULL)
+        {
+            index -= 1;
+            index += strlen(REG_PATH_END); //">,"
+        }
+        else
+        {
+            lwm2m_list_t *targetP;
+            for (targetP = objectP->instanceList ; targetP != NULL ; targetP = targetP->next)
+            {
+                if (index != start + length)
+                {
+                    index += length;
+                }
+
+                result = utils_intToText(targetP->id, (uint8_t *)buffer, sizeof(buffer));
+                if (result == 0) return 0;
+                index += result;
+
+                index += strlen(REG_PATH_END);
+            }
+        }
+    }
+
+    index += 1;  // account for trailing null
+
+    // Note that object_getRegisterPayload() has REG_PATH_END added after each
+    // object or instance, and then the trailing comma is replaced by null. The
+    // trailing nulls are not counted as part of the payload length, so this
+    // will return a size two bytes greater than what
+    // object_getRegisterPayload() returns.
+
+    return index;
+}

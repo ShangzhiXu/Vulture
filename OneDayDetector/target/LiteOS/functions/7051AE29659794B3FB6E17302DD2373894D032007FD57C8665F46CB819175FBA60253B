@@ -1,0 +1,139 @@
+HAL_StatusTypeDef HAL_SD_GetCardCSD(SD_HandleTypeDef *hsd, HAL_SD_CardCSDTypeDef *pCSD)
+{
+  uint32_t tmp = 0;
+  
+  /* Byte 0 */
+  tmp = (hsd->CSD[0] & 0xFF000000U) >> 24;
+  pCSD->CSDStruct      = (uint8_t)((tmp & 0xC0) >> 6);
+  pCSD->SysSpecVersion = (uint8_t)((tmp & 0x3C) >> 2);
+  pCSD->Reserved1      = tmp & 0x03;
+  
+  /* Byte 1 */
+  tmp = (hsd->CSD[0] & 0x00FF0000) >> 16;
+  pCSD->TAAC = (uint8_t)tmp;
+  
+  /* Byte 2 */
+  tmp = (hsd->CSD[0] & 0x0000FF00) >> 8;
+  pCSD->NSAC = (uint8_t)tmp;
+  
+  /* Byte 3 */
+  tmp = hsd->CSD[0] & 0x000000FF;
+  pCSD->MaxBusClkFrec = (uint8_t)tmp;
+  
+  /* Byte 4 */
+  tmp = (hsd->CSD[1] & 0xFF000000U) >> 24;
+  pCSD->CardComdClasses = (uint16_t)(tmp << 4);
+  
+  /* Byte 5 */
+  tmp = (hsd->CSD[1] & 0x00FF0000U) >> 16;
+  pCSD->CardComdClasses |= (uint16_t)((tmp & 0xF0) >> 4);
+  pCSD->RdBlockLen       = (uint8_t)(tmp & 0x0F);
+  
+  /* Byte 6 */
+  tmp = (hsd->CSD[1] & 0x0000FF00U) >> 8;
+  pCSD->PartBlockRead   = (uint8_t)((tmp & 0x80) >> 7);
+  pCSD->WrBlockMisalign = (uint8_t)((tmp & 0x40) >> 6);
+  pCSD->RdBlockMisalign = (uint8_t)((tmp & 0x20) >> 5);
+  pCSD->DSRImpl         = (uint8_t)((tmp & 0x10) >> 4);
+  pCSD->Reserved2       = 0; /*!< Reserved */
+       
+  if(hsd->SdCard.CardType == CARD_SDSC)
+  {
+    pCSD->DeviceSize = (tmp & 0x03) << 10;
+    
+    /* Byte 7 */
+    tmp = (uint8_t)(hsd->CSD[1] & 0x000000FFU);
+    pCSD->DeviceSize |= (tmp) << 2;
+    
+    /* Byte 8 */
+    tmp = (uint8_t)((hsd->CSD[2] & 0xFF000000U) >> 24);
+    pCSD->DeviceSize |= (tmp & 0xC0) >> 6;
+    
+    pCSD->MaxRdCurrentVDDMin = (tmp & 0x38) >> 3;
+    pCSD->MaxRdCurrentVDDMax = (tmp & 0x07);
+    
+    /* Byte 9 */
+    tmp = (uint8_t)((hsd->CSD[2] & 0x00FF0000U) >> 16);
+    pCSD->MaxWrCurrentVDDMin = (tmp & 0xE0) >> 5;
+    pCSD->MaxWrCurrentVDDMax = (tmp & 0x1C) >> 2;
+    pCSD->DeviceSizeMul      = (tmp & 0x03) << 1;
+    /* Byte 10 */
+    tmp = (uint8_t)((hsd->CSD[2] & 0x0000FF00U) >> 8);
+    pCSD->DeviceSizeMul |= (tmp & 0x80) >> 7;
+    
+    hsd->SdCard.BlockNbr  = (pCSD->DeviceSize + 1) ;
+    hsd->SdCard.BlockNbr *= (1 << (pCSD->DeviceSizeMul + 2));
+    hsd->SdCard.BlockSize = 1 << (pCSD->RdBlockLen);
+
+    hsd->SdCard.LogBlockNbr =  (hsd->SdCard.BlockNbr) * ((hsd->SdCard.BlockSize) / 512); 
+    hsd->SdCard.LogBlockSize = 512;
+  }
+  else if(hsd->SdCard.CardType == CARD_SDHC_SDXC)
+  {
+    /* Byte 7 */
+    tmp = (uint8_t)(hsd->CSD[1] & 0x000000FFU);
+    pCSD->DeviceSize = (tmp & 0x3F) << 16;
+    
+    /* Byte 8 */
+    tmp = (uint8_t)((hsd->CSD[2] & 0xFF000000U) >> 24);
+    
+    pCSD->DeviceSize |= (tmp << 8);
+    
+    /* Byte 9 */
+    tmp = (uint8_t)((hsd->CSD[2] & 0x00FF0000U) >> 16);
+    
+    pCSD->DeviceSize |= (tmp);
+    
+    /* Byte 10 */
+    tmp = (uint8_t)((hsd->CSD[2] & 0x0000FF00U) >> 8);
+    
+    hsd->SdCard.LogBlockNbr = hsd->SdCard.BlockNbr = (((uint64_t)pCSD->DeviceSize + 1) * 1024);
+    hsd->SdCard.LogBlockSize = hsd->SdCard.BlockSize = 512;
+  }
+  else
+  {
+    /* Clear all the static flags */
+    __HAL_SD_CLEAR_FLAG(hsd, SDMMC_STATIC_FLAGS);   
+    hsd->ErrorCode |= HAL_SD_ERROR_UNSUPPORTED_FEATURE;
+    hsd->State = HAL_SD_STATE_READY;
+    return HAL_ERROR;
+  }
+  
+  pCSD->EraseGrSize = (tmp & 0x40) >> 6;
+  pCSD->EraseGrMul  = (tmp & 0x3F) << 1;
+  
+  /* Byte 11 */
+  tmp = (uint8_t)(hsd->CSD[2] & 0x000000FF);
+  pCSD->EraseGrMul     |= (tmp & 0x80) >> 7;
+  pCSD->WrProtectGrSize = (tmp & 0x7F);
+  
+  /* Byte 12 */
+  tmp = (uint8_t)((hsd->CSD[3] & 0xFF000000U) >> 24);
+  pCSD->WrProtectGrEnable = (tmp & 0x80) >> 7;
+  pCSD->ManDeflECC        = (tmp & 0x60) >> 5;
+  pCSD->WrSpeedFact       = (tmp & 0x1C) >> 2;
+  pCSD->MaxWrBlockLen     = (tmp & 0x03) << 2;
+  
+  /* Byte 13 */
+  tmp = (uint8_t)((hsd->CSD[3] & 0x00FF0000) >> 16);
+  pCSD->MaxWrBlockLen      |= (tmp & 0xC0) >> 6;
+  pCSD->WriteBlockPaPartial = (tmp & 0x20) >> 5;
+  pCSD->Reserved3           = 0;
+  pCSD->ContentProtectAppli = (tmp & 0x01);
+  
+  /* Byte 14 */
+  tmp = (uint8_t)((hsd->CSD[3] & 0x0000FF00) >> 8);
+  pCSD->FileFormatGrouop = (tmp & 0x80) >> 7;
+  pCSD->CopyFlag         = (tmp & 0x40) >> 6;
+  pCSD->PermWrProtect    = (tmp & 0x20) >> 5;
+  pCSD->TempWrProtect    = (tmp & 0x10) >> 4;
+  pCSD->FileFormat       = (tmp & 0x0C) >> 2;
+  pCSD->ECC              = (tmp & 0x03);
+  
+  /* Byte 15 */
+  tmp = (uint8_t)(hsd->CSD[3] & 0x000000FF);
+  pCSD->CSD_CRC   = (tmp & 0xFE) >> 1;
+  pCSD->Reserved4 = 1;
+  
+  return HAL_OK;
+}

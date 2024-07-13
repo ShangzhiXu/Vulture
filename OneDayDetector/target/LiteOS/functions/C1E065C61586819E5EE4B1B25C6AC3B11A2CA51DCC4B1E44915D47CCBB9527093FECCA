@@ -1,0 +1,38 @@
+LITE_OS_SEC_TEXT_MINOR BOOL OsCmdKeyCheck(CHAR *cmdKey)
+{
+    CHAR *temp = cmdKey;
+    enum Stat {
+        STAT_NONE,
+        STAT_DIGIT,
+        STAT_OTHER
+    } state = STAT_NONE;
+
+    if (strlen(cmdKey) >= CMD_KEY_LEN) {
+        return FALSE;
+    }
+
+    while (*temp != '\0') {
+        if (!((*temp <= '9') && (*temp >= '0')) &&
+            !((*temp <= 'z') && (*temp >= 'a')) &&
+            !((*temp <= 'Z') && (*temp >= 'A')) &&
+            (*temp != '_') && (*temp != '-')) {
+            return FALSE;
+        }
+
+        if ((*temp >= '0') && (*temp <= '9')) {
+            if (state == STAT_NONE) {
+                state = STAT_DIGIT;
+            }
+        } else {
+            state = STAT_OTHER;
+        }
+
+        temp++;
+    }
+
+    if (state == STAT_DIGIT) {
+        return FALSE;
+    }
+
+    return TRUE;
+}

@@ -1,0 +1,43 @@
+JOYState_TypeDef BSP_JOY_GetState(void)
+{
+  JOYState_TypeDef state;
+  uint16_t  KeyConvertedValue = 0;
+  
+ /* Start the conversion process */
+  HAL_ADC_Start(&hnucleo_Adc);
+  
+  /* Wait for the end of conversion */
+  if (HAL_ADC_PollForConversion(&hnucleo_Adc, 10) != HAL_TIMEOUT)
+  {
+    /* Get the converted value of regular channel */
+    KeyConvertedValue = HAL_ADC_GetValue(&hnucleo_Adc);
+  }
+  
+  if((KeyConvertedValue > 2010) && (KeyConvertedValue < 2090))
+  {
+    state = JOY_UP;
+  }
+  else if((KeyConvertedValue > 680) && (KeyConvertedValue < 780))
+  {
+    state = JOY_RIGHT;
+  }
+  else if((KeyConvertedValue > 1270) && (KeyConvertedValue < 1350))
+  {
+    state = JOY_SEL;
+  }
+  else if((KeyConvertedValue > 50) && (KeyConvertedValue < 130))
+  {
+    state = JOY_DOWN;
+  }
+  else if((KeyConvertedValue > 3680) && (KeyConvertedValue < 3760))
+  {
+    state = JOY_LEFT;
+  }
+  else
+  {
+    state = JOY_NONE;
+  }
+  
+  /* Return the code of the Joystick key pressed */
+  return state;
+}

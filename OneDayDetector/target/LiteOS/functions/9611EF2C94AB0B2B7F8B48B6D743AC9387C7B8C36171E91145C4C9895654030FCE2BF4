@@ -1,0 +1,66 @@
+int main( int argc, char *argv[] )
+{
+    int ret = 1, i;
+    int exit_code = MBEDTLS_EXIT_FAILURE;
+    const mbedtls_md_info_t *md_info;
+    mbedtls_md_context_t md_ctx;
+
+    mbedtls_md_init( &md_ctx );
+
+    if( argc == 1 )
+    {
+        const int *list;
+
+        mbedtls_printf( "print mode:  generic_sum <mbedtls_md> <file> <file> ...\n" );
+        mbedtls_printf( "check mode:  generic_sum <mbedtls_md> -c <checksum file>\n" );
+
+        mbedtls_printf( "\nAvailable message digests:\n" );
+        list = mbedtls_md_list();
+        while( *list )
+        {
+            md_info = mbedtls_md_info_from_type( *list );
+            mbedtls_printf( "  %s\n", mbedtls_md_get_name( md_info ) );
+            list++;
+        }
+
+#if defined(_WIN32)
+        mbedtls_printf( "\n  Press Enter to exit this program.\n" );
+        fflush( stdout ); getchar();
+#endif
+
+        mbedtls_exit( exit_code );
+    }
+
+    /*
+     * Read the MD from the command line
+     */
+    md_info = mbedtls_md_info_from_string( argv[1] );
+    if( md_info == NULL )
+    {
+        mbedtls_fprintf( stderr, "Message Digest '%s' not found\n", argv[1] );
+        mbedtls_exit( exit_code );
+    }
+    if( mbedtls_md_setup( &md_ctx, md_info, 0 ) )
+    {
+        mbedtls_fprintf( stderr, "Failed to initialize context.\n" );
+        mbedtls_exit( exit_code );
+    }
+
+    ret = 0;
+    if( argc == 4 && strcmp( "-c", argv[2] ) == 0 )
+    {
+        ret |= generic_check( md_info, argv[3] );
+        goto exit;
+    }
+
+    for( i = 2; i < argc; i++ )
+        ret |= generic_print( md_info, argv[i] );
+
+    if ( ret == 0 )
+        exit_code = MBEDTLS_EXIT_SUCCESS;
+
+exit:
+    mbedtls_md_free( &md_ctx );
+
+    mbedtls_exit( exit_code );
+}

@@ -1,0 +1,36 @@
+LITE_OS_SEC_TEXT_MINOR VOID *LOS_MemRealloc(VOID *pool, VOID *ptr, UINT32 size)
+{
+    UINT32 intSave;
+    VOID *newPtr = NULL;
+    BOOL isSlabMem = FALSE;
+
+    if (OS_MEM_NODE_GET_USED_FLAG(size) || OS_MEM_NODE_GET_ALIGNED_FLAG(size) || (pool == NULL)) {
+        return NULL;
+    }
+
+    if (ptr == NULL) {
+        newPtr = LOS_MemAlloc(pool, size);
+        goto OUT;
+    }
+
+    if (size == 0) {
+        (VOID)LOS_MemFree(pool, ptr);
+        goto OUT;
+    }
+
+    MEM_LOCK(intSave);
+
+    newPtr = OsMemReallocSlab(pool, ptr, &isSlabMem, size);
+    if (isSlabMem == TRUE) {
+        goto OUT_UNLOCK;
+    }
+
+    newPtr = OsMemRealloc(pool, ptr, size);
+
+OUT_UNLOCK:
+    MEM_UNLOCK(intSave);
+OUT:
+
+    LOS_TRACE(MEM_REALLOC, pool, (UINTPTR)ptr, size);
+    return newPtr;
+}

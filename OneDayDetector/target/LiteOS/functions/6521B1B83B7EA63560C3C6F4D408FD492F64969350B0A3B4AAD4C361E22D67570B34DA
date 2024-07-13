@@ -1,0 +1,55 @@
+pppoe_connect(ppp_pcb *ppp, void *ctx)
+{
+  err_t err;
+  struct pppoe_softc *sc = (struct pppoe_softc *)ctx;
+  lcp_options *lcp_wo;
+  lcp_options *lcp_ao;
+#if PPP_IPV4_SUPPORT && VJ_SUPPORT
+  ipcp_options *ipcp_wo;
+  ipcp_options *ipcp_ao;
+#endif /* PPP_IPV4_SUPPORT && VJ_SUPPORT */
+
+  sc->sc_session = 0;
+  sc->sc_ac_cookie_len = 0;
+  sc->sc_padi_retried = 0;
+  sc->sc_padr_retried = 0;
+  /* changed to real address later */
+  MEMCPY(&sc->sc_dest, ethbroadcast.addr, sizeof(sc->sc_dest));
+#ifdef PPPOE_SERVER
+  /* wait PADI if IFF_PASSIVE */
+  if ((sc->sc_sppp.pp_if.if_flags & IFF_PASSIVE)) {
+    return 0;
+  }
+#endif
+
+  lcp_wo = &ppp->lcp_wantoptions;
+  lcp_wo->mru = sc->sc_ethif->mtu-PPPOE_HEADERLEN-2; /* two byte PPP protocol discriminator, then IP data */
+  lcp_wo->neg_asyncmap = 0;
+  lcp_wo->neg_pcompression = 0;
+  lcp_wo->neg_accompression = 0;
+  lcp_wo->passive = 0;
+  lcp_wo->silent = 0;
+
+  lcp_ao = &ppp->lcp_allowoptions;
+  lcp_ao->mru = sc->sc_ethif->mtu-PPPOE_HEADERLEN-2; /* two byte PPP protocol discriminator, then IP data */
+  lcp_ao->neg_asyncmap = 0;
+  lcp_ao->neg_pcompression = 0;
+  lcp_ao->neg_accompression = 0;
+
+#if PPP_IPV4_SUPPORT && VJ_SUPPORT
+  ipcp_wo = &ppp->ipcp_wantoptions;
+  ipcp_wo->neg_vj = 0;
+  ipcp_wo->old_vj = 0;
+
+  ipcp_ao = &ppp->ipcp_allowoptions;
+  ipcp_ao->neg_vj = 0;
+  ipcp_ao->old_vj = 0;
+#endif /* PPP_IPV4_SUPPORT && VJ_SUPPORT */
+
+  /* save state, in case we fail to send PADI */
+  sc->sc_state = PPPOE_STATE_PADI_SENT;
+  if ((err = pppoe_send_padi(sc)) != 0) {
+    PPPDEBUG(LOG_DEBUG, ("pppoe: %c%c%"U16_F": failed to send PADI, error=%d\n", sc->sc_ethif->name[0], sc->sc_ethif->name[1], sc->sc_ethif->num, err));
+  }
+  sys_timeout(PPPOE_DISC_TIMEOUT, pppoe_timeout, sc);
+}

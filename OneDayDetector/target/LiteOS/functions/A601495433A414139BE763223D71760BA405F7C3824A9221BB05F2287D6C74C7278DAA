@@ -1,0 +1,40 @@
+void lv_obj_invalidate_area(const lv_obj_t * obj, const lv_area_t * area)
+{
+    LV_ASSERT_OBJ(obj, LV_OBJX_NAME);
+
+    if(lv_obj_get_hidden(obj)) return;
+
+    /*Invalidate the object only if it belongs to the 'LV_GC_ROOT(_lv_act_scr)'*/
+    lv_obj_t * obj_scr = lv_obj_get_screen(obj);
+    lv_disp_t * disp   = lv_obj_get_disp(obj_scr);
+    if(obj_scr == lv_disp_get_scr_act(disp) || obj_scr == lv_disp_get_layer_top(disp) ||
+       obj_scr == lv_disp_get_layer_sys(disp)) {
+
+        /*Truncate the area to the object*/
+        lv_area_t obj_coords;
+        lv_coord_t ext_size = obj->ext_draw_pad;
+        lv_area_copy(&obj_coords, &obj->coords);
+        obj_coords.x1 -= ext_size;
+        obj_coords.y1 -= ext_size;
+        obj_coords.x2 += ext_size;
+        obj_coords.y2 += ext_size;
+
+        bool is_common;
+        lv_area_t area_trunc;
+
+        is_common = _lv_area_intersect(&area_trunc, area, &obj_coords);
+        if(is_common == false) return;  /*The area is not on the object*/
+
+        /*Truncate recursively to the parents*/
+        lv_obj_t * par = lv_obj_get_parent(obj);
+        while(par != NULL) {
+            is_common = _lv_area_intersect(&area_trunc, &area_trunc, &par->coords);
+            if(is_common == false) break;       /*If no common parts with parent break;*/
+            if(lv_obj_get_hidden(par)) return; /*If the parent is hidden then the child is hidden and won't be drawn*/
+
+            par = lv_obj_get_parent(par);
+        }
+
+        if(is_common) _lv_inv_area(disp, &area_trunc);
+    }
+}

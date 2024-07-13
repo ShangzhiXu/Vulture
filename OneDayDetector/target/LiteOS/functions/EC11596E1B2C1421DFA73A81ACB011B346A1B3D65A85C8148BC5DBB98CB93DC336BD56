@@ -1,0 +1,52 @@
+lv_obj_t * lv_checkbox_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+    LV_LOG_TRACE("check box create started");
+
+    /*Create the ancestor basic object*/
+    lv_obj_t * cb = lv_btn_create(par, copy);
+    LV_ASSERT_MEM(cb);
+    if(cb == NULL) return NULL;
+
+    if(ancestor_signal == NULL) ancestor_signal = lv_obj_get_signal_cb(cb);
+
+    lv_checkbox_ext_t * ext = lv_obj_allocate_ext_attr(cb, sizeof(lv_checkbox_ext_t));
+    LV_ASSERT_MEM(ext);
+    if(ext == NULL) {
+        lv_obj_del(cb);
+        return NULL;
+    }
+
+    ext->bullet = NULL;
+    ext->label  = NULL;
+
+    lv_obj_set_signal_cb(cb, lv_checkbox_signal);
+
+    /*Init the new checkbox object*/
+    if(copy == NULL) {
+        ext->bullet = lv_obj_create(cb, NULL);
+        lv_obj_set_click(ext->bullet, false);
+
+        ext->label = lv_label_create(cb, NULL);
+
+        lv_checkbox_set_text(cb, "Check box");
+        lv_btn_set_layout(cb, LV_LAYOUT_ROW_MID);
+        lv_btn_set_fit(cb, LV_FIT_TIGHT);
+        lv_btn_set_checkable(cb, true);
+        lv_obj_add_protect(cb, LV_PROTECT_PRESS_LOST);
+
+        lv_theme_apply(cb, LV_THEME_CHECKBOX);
+
+    }
+    else {
+        lv_checkbox_ext_t * copy_ext = lv_obj_get_ext_attr(copy);
+        ext->bullet            = lv_obj_create(cb, copy_ext->bullet);
+        ext->label             = lv_label_create(cb, copy_ext->label);
+
+        /*Refresh the style with new signal function*/
+        //        lv_obj_refresh_style(cb);
+    }
+
+    LV_LOG_INFO("check box created");
+
+    return cb;
+}

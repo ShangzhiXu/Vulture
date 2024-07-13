@@ -1,0 +1,27 @@
+static bool_t atgetsignal(char *devname, int *signal)
+{
+    bool_t ret = false;
+    char *argv[6];
+    int argc;
+    int position = -1;
+    char atrcvbuf[CN_AT_LEN];
+    int result = -1;
+    memset(argv, 0, sizeof(argv));
+    memset(atrcvbuf, 0, sizeof(atrcvbuf));
+    argc = AtCmd(devname, "AT+CSQ", atrcvbuf, CN_AT_LEN, 6, argv);
+    if (argc > 0) {
+        position = strinargs(argc, argv, "OK");
+        if ((position != 0) && (position != -1)) {
+            sscanf(argv[position - 1], "+CSQ: %d", &result);
+        } else {
+            result = -1;
+        }
+    }
+    if (signal != NULL) {
+        *signal = result;
+    }
+    if (result > 0) {
+        ret = true;
+    }
+    return ret;
+}

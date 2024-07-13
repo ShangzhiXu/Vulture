@@ -1,0 +1,33 @@
+static void ChapMS2(ppp_pcb *pcb, const u_char *rchallenge, const u_char *PeerChallenge,
+	const char *user, const char *secret, int secret_len, unsigned char *response,
+	u_char authResponse[], int authenticator) {
+    /* ARGSUSED */
+    LWIP_UNUSED_ARG(authenticator);
+#if !MPPE_SUPPORT
+    LWIP_UNUSED_ARG(pcb);
+#endif /* !MPPE_SUPPORT */
+
+    BZERO(response, MS_CHAP2_RESPONSE_LEN);
+
+    /* Generate the Peer-Challenge if requested, or copy it if supplied. */
+    if (!PeerChallenge)
+	magic_random_bytes(&response[MS_CHAP2_PEER_CHALLENGE], MS_CHAP2_PEER_CHAL_LEN);
+    else
+	MEMCPY(&response[MS_CHAP2_PEER_CHALLENGE], PeerChallenge,
+	      MS_CHAP2_PEER_CHAL_LEN);
+
+    /* Generate the NT-Response */
+    ChapMS2_NT(rchallenge, &response[MS_CHAP2_PEER_CHALLENGE], user,
+	       secret, secret_len, &response[MS_CHAP2_NTRESP]);
+
+    /* Generate the Authenticator Response. */
+    GenerateAuthenticatorResponsePlain(secret, secret_len,
+				       &response[MS_CHAP2_NTRESP],
+				       &response[MS_CHAP2_PEER_CHALLENGE],
+				       rchallenge, user, authResponse);
+
+#if MPPE_SUPPORT
+    SetMasterKeys(pcb, secret, secret_len,
+		  &response[MS_CHAP2_NTRESP], authenticator);
+#endif /* MPPE_SUPPORT */
+}

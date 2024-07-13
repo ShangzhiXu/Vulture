@@ -1,0 +1,85 @@
+sni_entry *sni_parse( char *sni_string )
+{
+    sni_entry *cur = NULL, *new = NULL;
+    char *p = sni_string;
+    char *end = p;
+    char *crt_file, *key_file, *ca_file, *auth_str;
+#if defined(MBEDTLS_X509_CRL_PARSE_C)
+    char *crl_file;
+#endif
+
+    while( *end != '\0' )
+        ++end;
+    *end = ',';
+
+    while( p <= end )
+    {
+        if( ( new = mbedtls_calloc( 1, sizeof( sni_entry ) ) ) == NULL )
+        {
+            sni_free( cur );
+            return( NULL );
+        }
+
+        GET_ITEM( new->name );
+        GET_ITEM( crt_file );
+        GET_ITEM( key_file );
+        GET_ITEM( ca_file );
+#if defined(MBEDTLS_X509_CRL_PARSE_C)
+        GET_ITEM( crl_file );
+#endif
+        GET_ITEM( auth_str );
+
+        if( ( new->cert = mbedtls_calloc( 1, sizeof( mbedtls_x509_crt ) ) ) == NULL ||
+            ( new->key = mbedtls_calloc( 1, sizeof( mbedtls_pk_context ) ) ) == NULL )
+            goto error;
+
+        mbedtls_x509_crt_init( new->cert );
+        mbedtls_pk_init( new->key );
+
+        if( mbedtls_x509_crt_parse_file( new->cert, crt_file ) != 0 ||
+            mbedtls_pk_parse_keyfile( new->key, key_file, "" ) != 0 )
+            goto error;
+
+        if( strcmp( ca_file, "-" ) != 0 )
+        {
+            if( ( new->ca = mbedtls_calloc( 1, sizeof( mbedtls_x509_crt ) ) ) == NULL )
+                goto error;
+
+            mbedtls_x509_crt_init( new->ca );
+
+            if( mbedtls_x509_crt_parse_file( new->ca, ca_file ) != 0 )
+                goto error;
+        }
+
+#if defined(MBEDTLS_X509_CRL_PARSE_C)
+        if( strcmp( crl_file, "-" ) != 0 )
+        {
+            if( ( new->crl = mbedtls_calloc( 1, sizeof( mbedtls_x509_crl ) ) ) == NULL )
+                goto error;
+
+            mbedtls_x509_crl_init( new->crl );
+
+            if( mbedtls_x509_crl_parse_file( new->crl, crl_file ) != 0 )
+                goto error;
+        }
+#endif
+
+        if( strcmp( auth_str, "-" ) != 0 )
+        {
+            if( ( new->authmode = get_auth_mode( auth_str ) ) < 0 )
+                goto error;
+        }
+        else
+            new->authmode = DFL_AUTH_MODE;
+
+        new->next = cur;
+        cur = new;
+    }
+
+    return( cur );
+
+error:
+    sni_free( new );
+    sni_free( cur );
+    return( NULL );
+}

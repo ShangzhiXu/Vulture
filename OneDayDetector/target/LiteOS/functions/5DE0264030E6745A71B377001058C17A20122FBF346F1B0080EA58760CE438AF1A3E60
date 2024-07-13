@@ -1,0 +1,24 @@
+static int ramfs_opendir(struct dir *dir, const char *path_in_mp)
+{
+    struct ramfs_element *ramfs_dir;
+    struct mount_point *mp = dir->d_mp;
+
+    ramfs_dir = ramfs_file_find(mp, path_in_mp, &path_in_mp);
+
+    if ((ramfs_dir == NULL) || (*path_in_mp != '\0')) {
+        VFS_ERRNO_SET(ENOENT);
+        return -1;
+    }
+
+    if (ramfs_dir->type != RAMFS_TYPE_DIR) {
+        VFS_ERRNO_SET(ENOTDIR);
+        return -1;
+    }
+
+    ramfs_dir->refs++;
+
+    dir->d_data = (void *)ramfs_dir;
+    dir->d_offset = 0;
+
+    return 0;
+}

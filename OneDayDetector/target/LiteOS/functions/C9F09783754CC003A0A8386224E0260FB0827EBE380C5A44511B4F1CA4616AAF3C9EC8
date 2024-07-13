@@ -1,0 +1,26 @@
+static void app_data_report(void)
+{
+    int cnt = 0;
+
+    while (1) {
+        if (g_phandle != NULL) {
+            cJSON *profile_data[1] = {0};
+            if (create_profile_data(profile_data, cnt) == ATINY_OK) {
+                char *msg = NULL;
+                msg = create_json_data(profile_data, 1);
+                if (msg != NULL) {
+                    int ret = atiny_mqtt_data_send(g_phandle, msg, strnlen(msg, MAX_LEN), MQTT_QOS_LEAST_ONCE);
+                    ATINY_LOG(LOG_INFO, "report ret:%d, cnt %d", ret, cnt);
+                    if (ret == ATINY_OK) {
+                        ATINY_LOG(LOG_DEBUG, "report data %s\n", msg);
+                    }
+                    atiny_free(msg);
+                }
+            }
+        } else {
+            ATINY_LOG(LOG_ERR, "g_phandle null");
+        }
+        (void)LOS_TaskDelay(10 * 1000);
+        cnt++;
+    }
+}

@@ -1,0 +1,23 @@
+ppp_pcb *pppos_create(struct netif *pppif, pppos_output_cb_fn output_cb,
+       ppp_link_status_cb_fn link_status_cb, void *ctx_cb)
+{
+  pppos_pcb *pppos;
+  ppp_pcb *ppp;
+  LWIP_ASSERT_CORE_LOCKED();
+
+  pppos = (pppos_pcb *)LWIP_MEMPOOL_ALLOC(PPPOS_PCB);
+  if (pppos == NULL) {
+    return NULL;
+  }
+
+  ppp = ppp_new(pppif, &pppos_callbacks, pppos, link_status_cb, ctx_cb);
+  if (ppp == NULL) {
+    LWIP_MEMPOOL_FREE(PPPOS_PCB, pppos);
+    return NULL;
+  }
+
+  memset(pppos, 0, sizeof(pppos_pcb));
+  pppos->ppp = ppp;
+  pppos->output_cb = output_cb;
+  return ppp;
+}

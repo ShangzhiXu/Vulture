@@ -1,0 +1,58 @@
+static void prv_requestBootstrap(lwm2m_context_t *context,
+                                 lwm2m_server_t *bootstrapServer)
+{
+    char query[PRV_QUERY_BUFFER_LENGTH];
+    int query_length = 0;
+    int res;
+
+    LOG("Entering");
+
+    query_length = utils_stringCopy(query, PRV_QUERY_BUFFER_LENGTH, QUERY_STARTER QUERY_NAME);
+    if (query_length < 0)
+    {
+        bootstrapServer->status = STATE_BS_FAILING;
+        return;
+    }
+    res = utils_stringCopy(query + query_length, PRV_QUERY_BUFFER_LENGTH - query_length, context->endpointName);
+    if (res < 0)
+    {
+        bootstrapServer->status = STATE_BS_FAILING;
+        return;
+    }
+    query_length += res;
+
+    if (bootstrapServer->sessionH == NULL)
+    {
+        bootstrapServer->sessionH = lwm2m_connect_server(bootstrapServer->secObjInstID, context->userData, false);
+    }
+
+    if (bootstrapServer->sessionH != NULL)
+    {
+        lwm2m_transaction_t *transaction = NULL;
+
+        LOG("Bootstrap server connection opened");
+
+        transaction = transaction_new(bootstrapServer->sessionH, COAP_POST, NULL, NULL, context->nextMID++, 4, NULL);
+        if (transaction == NULL)
+        {
+            bootstrapServer->status = STATE_BS_FAILING;
+            return;
+        }
+
+        coap_set_header_uri_path(transaction->message, "/"URI_BOOTSTRAP_SEGMENT);
+        coap_set_header_uri_query(transaction->message, query);
+        transaction->callback = prv_handleBootstrapReply;
+        transaction->userData = (void *)bootstrapServer;
+        context->transactionList = (lwm2m_transaction_t *)LWM2M_LIST_ADD(context->transactionList, transaction);
+        if (transaction_send(context, transaction) == 0)
+        {
+            LOG("CI bootstrap requested to BS server");
+            bootstrapServer->status = STATE_BS_INITIATED;
+        }
+    }
+    else
+    {
+        LOG("Connecting bootstrap server failed");
+        bootstrapServer->status = STATE_BS_FAILED;
+    }
+}

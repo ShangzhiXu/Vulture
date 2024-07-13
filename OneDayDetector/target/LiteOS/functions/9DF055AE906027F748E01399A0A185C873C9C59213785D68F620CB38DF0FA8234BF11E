@@ -1,0 +1,30 @@
+static void check_idle(void *arg) {
+    ppp_pcb *pcb = (ppp_pcb*)arg;
+    struct ppp_idle idle;
+    time_t itime;
+    int tlim;
+
+    if (!get_idle_time(pcb, &idle))
+	return;
+#if 0 /* UNUSED */
+    if (idle_time_hook != 0) {
+	tlim = idle_time_hook(&idle);
+    } else {
+#endif /* UNUSED */
+	itime = LWIP_MIN(idle.xmit_idle, idle.recv_idle);
+	tlim = pcb->settings.idle_time_limit - itime;
+#if 0 /* UNUSED */
+    }
+#endif /* UNUSED */
+    if (tlim <= 0) {
+	/* link is idle: shut it down. */
+	ppp_notice("Terminating connection due to lack of activity.");
+	pcb->err_code = PPPERR_IDLETIMEOUT;
+	lcp_close(pcb, "Link inactive");
+#if 0 /* UNUSED */
+	need_holdoff = 0;
+#endif /* UNUSED */
+    } else {
+	TIMEOUT(check_idle, (void*)pcb, tlim);
+    }
+}

@@ -1,0 +1,33 @@
+static void FLASH_MassErase(uint32_t Banks)
+{
+  /* Check the parameters */
+  assert_param(IS_FLASH_BANK(Banks));
+
+  /* Clean the error context */
+  pFlash.ErrorCode = HAL_FLASH_ERROR_NONE;
+
+#if defined(FLASH_BANK2_END)
+  if(Banks == FLASH_BANK_BOTH)
+  {
+    /* bank1 & bank2 will be erased*/
+    SET_BIT(FLASH->CR, FLASH_CR_MER);
+    SET_BIT(FLASH->CR2, FLASH_CR2_MER);
+    SET_BIT(FLASH->CR, FLASH_CR_STRT);
+    SET_BIT(FLASH->CR2, FLASH_CR2_STRT);
+  }
+  else if(Banks == FLASH_BANK_2)
+  {
+    /*Only bank2 will be erased*/
+    SET_BIT(FLASH->CR2, FLASH_CR2_MER);
+    SET_BIT(FLASH->CR2, FLASH_CR2_STRT);
+  }
+  else
+  {
+#endif /* FLASH_BANK2_END */
+    /* Only bank1 will be erased*/
+    SET_BIT(FLASH->CR, FLASH_CR_MER);
+    SET_BIT(FLASH->CR, FLASH_CR_STRT);
+#if defined(FLASH_BANK2_END)
+  }
+#endif /* FLASH_BANK2_END */
+}

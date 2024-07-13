@@ -1,0 +1,75 @@
+int mbedtls_entropy_self_test( int verbose )
+{
+    int ret = 1;
+#if !defined(MBEDTLS_TEST_NULL_ENTROPY)
+    mbedtls_entropy_context ctx;
+    unsigned char buf[MBEDTLS_ENTROPY_BLOCK_SIZE] = { 0 };
+    unsigned char acc[MBEDTLS_ENTROPY_BLOCK_SIZE] = { 0 };
+    size_t i, j;
+#endif /* !MBEDTLS_TEST_NULL_ENTROPY */
+
+    if( verbose != 0 )
+        mbedtls_printf( "  ENTROPY test: " );
+
+#if !defined(MBEDTLS_TEST_NULL_ENTROPY)
+    mbedtls_entropy_init( &ctx );
+
+    /* First do a gather to make sure we have default sources */
+    if( ( ret = mbedtls_entropy_gather( &ctx ) ) != 0 )
+        goto cleanup;
+
+    ret = mbedtls_entropy_add_source( &ctx, entropy_dummy_source, NULL, 16,
+                                      MBEDTLS_ENTROPY_SOURCE_WEAK );
+    if( ret != 0 )
+        goto cleanup;
+
+    if( ( ret = mbedtls_entropy_update_manual( &ctx, buf, sizeof buf ) ) != 0 )
+        goto cleanup;
+
+    /*
+     * To test that mbedtls_entropy_func writes correct number of bytes:
+     * - use the whole buffer and rely on ASan to detect overruns
+     * - collect entropy 8 times and OR the result in an accumulator:
+     *   any byte should then be 0 with probably 2^(-64), so requiring
+     *   each of the 32 or 64 bytes to be non-zero has a false failure rate
+     *   of at most 2^(-58) which is acceptable.
+     */
+    for( i = 0; i < 8; i++ )
+    {
+        if( ( ret = mbedtls_entropy_func( &ctx, buf, sizeof( buf ) ) ) != 0 )
+            goto cleanup;
+
+        for( j = 0; j < sizeof( buf ); j++ )
+            acc[j] |= buf[j];
+    }
+
+    for( j = 0; j < sizeof( buf ); j++ )
+    {
+        if( acc[j] == 0 )
+        {
+            ret = 1;
+            goto cleanup;
+        }
+    }
+
+#if defined(MBEDTLS_ENTROPY_HARDWARE_ALT)
+    if( ( ret = mbedtls_entropy_source_self_test( 0 ) ) != 0 )
+        goto cleanup;
+#endif
+
+cleanup:
+    mbedtls_entropy_free( &ctx );
+#endif /* !MBEDTLS_TEST_NULL_ENTROPY */
+
+    if( verbose != 0 )
+    {
+        if( ret != 0 )
+            mbedtls_printf( "failed\n" );
+        else
+            mbedtls_printf( "passed\n" );
+
+        mbedtls_printf( "\n" );
+    }
+
+    return( ret != 0 );
+}

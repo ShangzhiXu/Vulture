@@ -1,0 +1,23 @@
+tcp_output_alloc_header_common(u32_t ackno, u16_t optlen, u16_t datalen,
+                        u32_t seqno_be /* already in network byte order */,
+                        u16_t src_port, u16_t dst_port, u8_t flags, u16_t wnd)
+{
+  struct tcp_hdr *tcphdr;
+  struct pbuf *p;
+
+  p = pbuf_alloc(PBUF_IP, TCP_HLEN + optlen + datalen, PBUF_RAM);
+  if (p != NULL) {
+    LWIP_ASSERT("check that first pbuf can hold struct tcp_hdr",
+                (p->len >= TCP_HLEN + optlen));
+    tcphdr = (struct tcp_hdr *)p->payload;
+    tcphdr->src = lwip_htons(src_port);
+    tcphdr->dest = lwip_htons(dst_port);
+    tcphdr->seqno = seqno_be;
+    tcphdr->ackno = lwip_htonl(ackno);
+    TCPH_HDRLEN_FLAGS_SET(tcphdr, (5 + optlen / 4), flags);
+    tcphdr->wnd = lwip_htons(wnd);
+    tcphdr->chksum = 0;
+    tcphdr->urgp = 0;
+  }
+  return p;
+}

@@ -1,0 +1,27 @@
+http_kill_oldest_connection(u8_t ssi_required)
+{
+  struct http_state *hs = http_connections;
+  struct http_state *hs_free_next = NULL;
+  while (hs && hs->next) {
+#if LWIP_HTTPD_SSI
+    if (ssi_required) {
+      if (hs->next->ssi != NULL) {
+        hs_free_next = hs;
+      }
+    } else
+#else /* LWIP_HTTPD_SSI */
+    LWIP_UNUSED_ARG(ssi_required);
+#endif /* LWIP_HTTPD_SSI */
+    {
+      hs_free_next = hs;
+    }
+    LWIP_ASSERT("broken list", hs != hs->next);
+    hs = hs->next;
+  }
+  if (hs_free_next != NULL) {
+    LWIP_ASSERT("hs_free_next->next != NULL", hs_free_next->next != NULL);
+    LWIP_ASSERT("hs_free_next->next->pcb != NULL", hs_free_next->next->pcb != NULL);
+    /* send RST when killing a connection because of memory shortage */
+    http_close_or_abort_conn(hs_free_next->next->pcb, hs_free_next->next, 1); /* this also unlinks the http_state from the list */
+  }
+}

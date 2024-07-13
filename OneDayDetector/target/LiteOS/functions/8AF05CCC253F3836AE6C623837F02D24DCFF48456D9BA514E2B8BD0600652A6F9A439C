@@ -1,0 +1,36 @@
+int mbedtls_padlock_xcryptecb( mbedtls_aes_context *ctx,
+                       int mode,
+                       const unsigned char input[16],
+                       unsigned char output[16] )
+{
+    int ebx = 0;
+    uint32_t *rk;
+    uint32_t *blk;
+    uint32_t *ctrl;
+    unsigned char buf[256];
+
+    rk  = ctx->rk;
+    blk = MBEDTLS_PADLOCK_ALIGN16( buf );
+    memcpy( blk, input, 16 );
+
+     ctrl = blk + 4;
+    *ctrl = 0x80 | ctx->nr | ( ( ctx->nr + ( mode^1 ) - 10 ) << 9 );
+
+    asm( "pushfl                        \n\t"
+         "popfl                         \n\t"
+         "movl    %%ebx, %0             \n\t"
+         "movl    $1, %%ecx             \n\t"
+         "movl    %2, %%edx             \n\t"
+         "movl    %3, %%ebx             \n\t"
+         "movl    %4, %%esi             \n\t"
+         "movl    %4, %%edi             \n\t"
+         ".byte  0xf3,0x0f,0xa7,0xc8    \n\t"
+         "movl    %1, %%ebx             \n\t"
+         : "=m" (ebx)
+         :  "m" (ebx), "m" (ctrl), "m" (rk), "m" (blk)
+         : "memory", "ecx", "edx", "esi", "edi" );
+
+    memcpy( output, blk, 16 );
+
+    return( 0 );
+}

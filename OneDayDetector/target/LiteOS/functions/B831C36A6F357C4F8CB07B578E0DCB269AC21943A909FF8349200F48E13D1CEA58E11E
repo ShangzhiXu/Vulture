@@ -1,0 +1,109 @@
+void HAL_ADC_IRQHandler(ADC_HandleTypeDef* hadc)
+{
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+  assert_param(IS_FUNCTIONAL_STATE(hadc->Init.ContinuousConvMode));
+  assert_param(IS_ADC_REGULAR_NB_CONV(hadc->Init.NbrOfConversion));
+  
+  
+  /* ========== Check End of Conversion flag for regular group ========== */
+  if(__HAL_ADC_GET_IT_SOURCE(hadc, ADC_IT_EOC))
+  {
+    if(__HAL_ADC_GET_FLAG(hadc, ADC_FLAG_EOC) )
+    {
+      /* Update state machine on conversion status if not in error state */
+      if (HAL_IS_BIT_CLR(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL))
+      {
+        /* Set ADC state */
+        SET_BIT(hadc->State, HAL_ADC_STATE_REG_EOC); 
+      }
+      
+      /* Determine whether any further conversion upcoming on group regular   */
+      /* by external trigger, continuous mode or scan sequence on going.      */
+      /* Note: On STM32F1 devices, in case of sequencer enabled               */
+      /*       (several ranks selected), end of conversion flag is raised     */
+      /*       at the end of the sequence.                                    */
+      if(ADC_IS_SOFTWARE_START_REGULAR(hadc)        && 
+         (hadc->Init.ContinuousConvMode == DISABLE)   )
+      {
+        /* Disable ADC end of conversion interrupt on group regular */
+        __HAL_ADC_DISABLE_IT(hadc, ADC_IT_EOC);
+        
+        /* Set ADC state */
+        CLEAR_BIT(hadc->State, HAL_ADC_STATE_REG_BUSY);   
+        
+        if (HAL_IS_BIT_CLR(hadc->State, HAL_ADC_STATE_INJ_BUSY))
+        {
+          SET_BIT(hadc->State, HAL_ADC_STATE_READY);
+        }
+      }
+
+      /* Conversion complete callback */
+      HAL_ADC_ConvCpltCallback(hadc);
+      
+      /* Clear regular group conversion flag */
+      __HAL_ADC_CLEAR_FLAG(hadc, ADC_FLAG_STRT | ADC_FLAG_EOC);
+    }
+  }
+  
+  /* ========== Check End of Conversion flag for injected group ========== */
+  if(__HAL_ADC_GET_IT_SOURCE(hadc, ADC_IT_JEOC))
+  {
+    if(__HAL_ADC_GET_FLAG(hadc, ADC_FLAG_JEOC))
+    {
+      /* Update state machine on conversion status if not in error state */
+      if (HAL_IS_BIT_CLR(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL))
+      {
+        /* Set ADC state */
+        SET_BIT(hadc->State, HAL_ADC_STATE_INJ_EOC);
+      }
+
+      /* Determine whether any further conversion upcoming on group injected  */
+      /* by external trigger, scan sequence on going or by automatic injected */
+      /* conversion from group regular (same conditions as group regular      */
+      /* interruption disabling above).                                       */
+      /* Note: On STM32F1 devices, in case of sequencer enabled               */
+      /*       (several ranks selected), end of conversion flag is raised     */
+      /*       at the end of the sequence.                                    */
+      if(ADC_IS_SOFTWARE_START_INJECTED(hadc)                     || 
+         (HAL_IS_BIT_CLR(hadc->Instance->CR1, ADC_CR1_JAUTO) &&     
+         (ADC_IS_SOFTWARE_START_REGULAR(hadc)        &&
+          (hadc->Init.ContinuousConvMode == DISABLE)   )        )   )
+      {
+        /* Disable ADC end of conversion interrupt on group injected */
+        __HAL_ADC_DISABLE_IT(hadc, ADC_IT_JEOC);
+        
+        /* Set ADC state */
+        CLEAR_BIT(hadc->State, HAL_ADC_STATE_INJ_BUSY);   
+
+        if (HAL_IS_BIT_CLR(hadc->State, HAL_ADC_STATE_REG_BUSY))
+        { 
+          SET_BIT(hadc->State, HAL_ADC_STATE_READY);
+        }
+      }
+
+      /* Conversion complete callback */ 
+      HAL_ADCEx_InjectedConvCpltCallback(hadc);
+      
+      /* Clear injected group conversion flag */
+      __HAL_ADC_CLEAR_FLAG(hadc, (ADC_FLAG_JSTRT | ADC_FLAG_JEOC));
+    }
+  }
+   
+  /* ========== Check Analog watchdog flags ========== */
+  if(__HAL_ADC_GET_IT_SOURCE(hadc, ADC_IT_AWD))
+  {
+    if(__HAL_ADC_GET_FLAG(hadc, ADC_FLAG_AWD))
+    {
+      /* Set ADC state */
+      SET_BIT(hadc->State, HAL_ADC_STATE_AWD1);
+      
+      /* Level out of window callback */ 
+      HAL_ADC_LevelOutOfWindowCallback(hadc);
+      
+      /* Clear the ADC analog watchdog flag */
+      __HAL_ADC_CLEAR_FLAG(hadc, ADC_FLAG_AWD);
+    }
+  }
+  
+}

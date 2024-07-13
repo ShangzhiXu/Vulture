@@ -1,0 +1,23 @@
+altcp_proxyconnect_connect(struct altcp_pcb *conn, const ip_addr_t *ipaddr, u16_t port, altcp_connected_fn connected)
+{
+  altcp_proxyconnect_state_t *state;
+
+  if ((conn == NULL) || (ipaddr == NULL)) {
+    return ERR_VAL;
+  }
+  state = (altcp_proxyconnect_state_t *)conn->state;
+  if (state == NULL) {
+    return ERR_VAL;
+  }
+  if (state->flags & ALTCP_PROXYCONNECT_FLAGS_CONNECT_STARTED) {
+    return ERR_VAL;
+  }
+  state->flags |= ALTCP_PROXYCONNECT_FLAGS_CONNECT_STARTED;
+
+  conn->connected = connected;
+  /* connect to our proxy instead, but store the requested address and port */
+  ip_addr_copy(state->outer_addr, *ipaddr);
+  state->outer_port = port;
+
+  return altcp_connect(conn->inner_conn, &state->conf->proxy_addr, state->conf->proxy_port, altcp_proxyconnect_lower_connected);
+}

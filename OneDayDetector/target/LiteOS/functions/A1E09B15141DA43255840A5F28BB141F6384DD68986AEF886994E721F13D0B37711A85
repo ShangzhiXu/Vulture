@@ -1,0 +1,26 @@
+void NetworkDisconnect(Network *n)
+{
+    mqtt_security_info_s *info = NULL;
+    if (n == NULL) {
+        ATINY_LOG(LOG_FATAL, "invalid params.\n");
+        return;
+    }
+
+    info = n->get_security_info();
+    switch (info->security_type) {
+        case MQTT_SECURITY_TYPE_NONE :
+            los_mqtt_disconnect(n->ctx);
+            break;
+        case MQTT_SECURITY_TYPE_PSK:
+        case MQTT_SECURITY_TYPE_CA:
+            dtls_ssl_destroy(n->ctx);
+            break;
+        default :
+            ATINY_LOG(LOG_WARNING, "unknow proto : %d\n", info->security_type);
+            break;
+    }
+
+    n->ctx = NULL;
+
+    return;
+}

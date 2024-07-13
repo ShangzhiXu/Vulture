@@ -1,0 +1,35 @@
+HAL_StatusTypeDef HAL_TIMEx_ConfigBreakDeadTime(TIM_HandleTypeDef *htim,
+                                                TIM_BreakDeadTimeConfigTypeDef *sBreakDeadTimeConfig)
+{
+  /* Check the parameters */
+  assert_param(IS_TIM_BREAK_INSTANCE(htim->Instance));
+  assert_param(IS_TIM_OSSR_STATE(sBreakDeadTimeConfig->OffStateRunMode));
+  assert_param(IS_TIM_OSSI_STATE(sBreakDeadTimeConfig->OffStateIDLEMode));
+  assert_param(IS_TIM_LOCK_LEVEL(sBreakDeadTimeConfig->LockLevel));
+  assert_param(IS_TIM_DEADTIME(sBreakDeadTimeConfig->DeadTime));
+  assert_param(IS_TIM_BREAK_STATE(sBreakDeadTimeConfig->BreakState));
+  assert_param(IS_TIM_BREAK_POLARITY(sBreakDeadTimeConfig->BreakPolarity));
+  assert_param(IS_TIM_AUTOMATIC_OUTPUT_STATE(sBreakDeadTimeConfig->AutomaticOutput));
+
+  /* Process Locked */
+  __HAL_LOCK(htim);
+
+  htim->State = HAL_TIM_STATE_BUSY;
+
+  /* Set the Lock level, the Break enable Bit and the Polarity, the OSSR State,
+     the OSSI State, the dead time value and the Automatic Output Enable Bit */
+  htim->Instance->BDTR = (uint32_t)sBreakDeadTimeConfig->OffStateRunMode  |
+                                   sBreakDeadTimeConfig->OffStateIDLEMode |
+                                   sBreakDeadTimeConfig->LockLevel        |
+                                   sBreakDeadTimeConfig->DeadTime         |
+                                   sBreakDeadTimeConfig->BreakState       |
+                                   sBreakDeadTimeConfig->BreakPolarity    |
+                                   sBreakDeadTimeConfig->AutomaticOutput;
+
+
+  htim->State = HAL_TIM_STATE_READY;
+
+  __HAL_UNLOCK(htim);
+
+  return HAL_OK;
+}

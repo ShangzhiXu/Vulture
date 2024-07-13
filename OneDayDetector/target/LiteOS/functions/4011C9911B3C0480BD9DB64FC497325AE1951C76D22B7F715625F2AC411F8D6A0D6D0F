@@ -1,0 +1,84 @@
+HAL_StatusTypeDef HAL_DSI_SetSlewRateAndDelayTuning(DSI_HandleTypeDef *hdsi, uint32_t CommDelay, uint32_t Lane,
+                                                    uint32_t Value)
+{
+  /* Process locked */
+  __HAL_LOCK(hdsi);
+
+  /* Check function parameters */
+  assert_param(IS_DSI_COMMUNICATION_DELAY(CommDelay));
+  assert_param(IS_DSI_LANE_GROUP(Lane));
+
+  switch (CommDelay)
+  {
+    case DSI_SLEW_RATE_HSTX:
+      if (Lane == DSI_CLOCK_LANE)
+      {
+        /* High-Speed Transmission Slew Rate Control on Clock Lane */
+        hdsi->Instance->WPCR[1U] &= ~DSI_WPCR1_HSTXSRCCL;
+        hdsi->Instance->WPCR[1U] |= Value << 16U;
+      }
+      else if (Lane == DSI_DATA_LANES)
+      {
+        /* High-Speed Transmission Slew Rate Control on Data Lanes */
+        hdsi->Instance->WPCR[1U] &= ~DSI_WPCR1_HSTXSRCDL;
+        hdsi->Instance->WPCR[1U] |= Value << 18U;
+      }
+      else
+      {
+        /* Process unlocked */
+        __HAL_UNLOCK(hdsi);
+
+        return HAL_ERROR;
+      }
+      break;
+    case DSI_SLEW_RATE_LPTX:
+      if (Lane == DSI_CLOCK_LANE)
+      {
+        /* Low-Power transmission Slew Rate Compensation on Clock Lane */
+        hdsi->Instance->WPCR[1U] &= ~DSI_WPCR1_LPSRCCL;
+        hdsi->Instance->WPCR[1U] |= Value << 6U;
+      }
+      else if (Lane == DSI_DATA_LANES)
+      {
+        /* Low-Power transmission Slew Rate Compensation on Data Lanes */
+        hdsi->Instance->WPCR[1U] &= ~DSI_WPCR1_LPSRCDL;
+        hdsi->Instance->WPCR[1U] |= Value << 8U;
+      }
+      else
+      {
+        /* Process unlocked */
+        __HAL_UNLOCK(hdsi);
+
+        return HAL_ERROR;
+      }
+      break;
+    case DSI_HS_DELAY:
+      if (Lane == DSI_CLOCK_LANE)
+      {
+        /* High-Speed Transmission Delay on Clock Lane */
+        hdsi->Instance->WPCR[1U] &= ~DSI_WPCR1_HSTXDCL;
+        hdsi->Instance->WPCR[1U] |= Value;
+      }
+      else if (Lane == DSI_DATA_LANES)
+      {
+        /* High-Speed Transmission Delay on Data Lanes */
+        hdsi->Instance->WPCR[1U] &= ~DSI_WPCR1_HSTXDDL;
+        hdsi->Instance->WPCR[1U] |= Value << 2U;
+      }
+      else
+      {
+        /* Process unlocked */
+        __HAL_UNLOCK(hdsi);
+
+        return HAL_ERROR;
+      }
+      break;
+    default:
+      break;
+  }
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hdsi);
+
+  return HAL_OK;
+}

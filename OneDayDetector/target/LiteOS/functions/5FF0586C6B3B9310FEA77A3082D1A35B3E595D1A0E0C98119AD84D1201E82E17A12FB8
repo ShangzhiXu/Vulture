@@ -1,0 +1,31 @@
+int mbedtls_chacha20_crypt( const unsigned char key[32],
+                            const unsigned char nonce[12],
+                            uint32_t counter,
+                            size_t data_len,
+                            const unsigned char* input,
+                            unsigned char* output )
+{
+    mbedtls_chacha20_context ctx;
+    int ret;
+
+    CHACHA20_VALIDATE_RET( key != NULL );
+    CHACHA20_VALIDATE_RET( nonce != NULL );
+    CHACHA20_VALIDATE_RET( data_len == 0 || input  != NULL );
+    CHACHA20_VALIDATE_RET( data_len == 0 || output != NULL );
+
+    mbedtls_chacha20_init( &ctx );
+
+    ret = mbedtls_chacha20_setkey( &ctx, key );
+    if( ret != 0 )
+        goto cleanup;
+
+    ret = mbedtls_chacha20_starts( &ctx, nonce, counter );
+    if( ret != 0 )
+        goto cleanup;
+
+    ret = mbedtls_chacha20_update( &ctx, data_len, input, output );
+
+cleanup:
+    mbedtls_chacha20_free( &ctx );
+    return( ret );
+}

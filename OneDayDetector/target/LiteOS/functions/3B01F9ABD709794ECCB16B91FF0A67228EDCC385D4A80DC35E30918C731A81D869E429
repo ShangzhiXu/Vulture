@@ -1,0 +1,66 @@
+void HAL_CEC_IRQHandler(CEC_HandleTypeDef *hcec)
+{
+  /* Save error status register for further error handling purposes */
+  hcec->ErrorCode = READ_BIT(hcec->Instance->ESR, CEC_ESR_ALL_ERROR);
+
+  /* Transmit error */
+  if((__HAL_CEC_GET_FLAG(hcec, CEC_FLAG_TERR) != RESET))
+  {
+    /* Acknowledgement of the error */
+    __HAL_CEC_CLEAR_FLAG(hcec, CEC_FLAG_TERR);
+    
+    /* Check if a receive process is ongoing or not */
+    if(hcec->State == HAL_CEC_STATE_BUSY_TX_RX) 
+    {
+      /* Interrupts are not disabled due to reception still ongoing */
+      
+      hcec->State = HAL_CEC_STATE_BUSY_RX;
+    }
+    else
+    {
+      /* Disable the CEC Transmission Interrupts */
+      __HAL_CEC_DISABLE_IT(hcec, CEC_IT_IE);
+    
+      hcec->State = HAL_CEC_STATE_READY;
+    }    
+  }
+  
+  /* Receive error */
+  if((__HAL_CEC_GET_FLAG(hcec, CEC_FLAG_RERR) != RESET))
+  {
+    /* Acknowledgement of the error */
+    __HAL_CEC_CLEAR_FLAG(hcec, CEC_FLAG_RERR);
+    
+    /* Check if a transmit process is ongoing or not */
+    if(hcec->State == HAL_CEC_STATE_BUSY_TX_RX) 
+    {
+      /* Interrupts are not disabled due to reception still ongoing */
+      
+      hcec->State = HAL_CEC_STATE_BUSY_TX;
+    }
+    else
+    {
+      /* Disable the CEC Transmission Interrupts */
+      __HAL_CEC_DISABLE_IT(hcec, CEC_IT_IE);
+      
+      hcec->State = HAL_CEC_STATE_READY;
+    }
+  } 
+  
+  if ((hcec->ErrorCode & CEC_ESR_ALL_ERROR) != 0)
+  {
+    HAL_CEC_ErrorCallback(hcec);
+  }
+  
+  /* Transmit byte request or block transfer finished */
+  if((__HAL_CEC_GET_FLAG(hcec, CEC_FLAG_TBTRF) != RESET))
+  {
+    CEC_Transmit_IT(hcec);
+  }  
+
+  /* Receive byte or block transfer finished */
+  if((__HAL_CEC_GET_FLAG(hcec, CEC_FLAG_RBTF) != RESET))
+  {
+    CEC_Receive_IT(hcec);
+  }
+}

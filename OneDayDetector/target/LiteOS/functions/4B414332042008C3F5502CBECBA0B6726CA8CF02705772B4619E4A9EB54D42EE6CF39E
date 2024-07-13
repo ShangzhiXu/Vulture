@@ -1,0 +1,97 @@
+static u8_t *get_file_data(const char *filename, int *file_size, int can_be_compressed, int *is_compressed)
+{
+  FILE *inFile;
+  size_t fsize = 0;
+  u8_t *buf;
+  size_t r;
+  int rs;
+  LWIP_UNUSED_ARG(r); /* for LWIP_NOASSERT */
+  inFile = fopen(filename, "rb");
+  if (inFile == NULL) {
+    printf("Failed to open file \"%s\"\n", filename);
+    exit(-1);
+  }
+  fseek(inFile, 0, SEEK_END);
+  rs = ftell(inFile);
+  if (rs < 0) {
+    printf("ftell failed with %d\n", errno);
+    exit(-1);
+  }
+  fsize = (size_t)rs;
+  fseek(inFile, 0, SEEK_SET);
+  buf = (u8_t *)malloc(fsize);
+  LWIP_ASSERT("buf != NULL", buf != NULL);
+  r = fread(buf, 1, fsize, inFile);
+  LWIP_ASSERT("r == fsize", r == fsize);
+  *file_size = fsize;
+  *is_compressed = 0;
+#if MAKEFS_SUPPORT_DEFLATE
+  overallDataBytes += fsize;
+  if (deflateNonSsiFiles) {
+    if (can_be_compressed) {
+      if (fsize < OUT_BUF_SIZE) {
+        u8_t *ret_buf;
+        tdefl_status status;
+        size_t in_bytes = fsize;
+        size_t out_bytes = OUT_BUF_SIZE;
+        const void *next_in = buf;
+        void *next_out = s_outbuf;
+        /* create tdefl() compatible flags (we have to compose the low-level flags ourselves, or use tdefl_create_comp_flags_from_zip_params() but that means MINIZ_NO_ZLIB_APIS can't be defined). */
+        mz_uint comp_flags = s_tdefl_num_probes[MZ_MIN(10, deflate_level)] | ((deflate_level <= 3) ? TDEFL_GREEDY_PARSING_FLAG : 0);
+        if (!deflate_level) {
+          comp_flags |= TDEFL_FORCE_ALL_RAW_BLOCKS;
+        }
+        status = tdefl_init(&g_deflator, NULL, NULL, comp_flags);
+        if (status != TDEFL_STATUS_OKAY) {
+          printf("tdefl_init() failed!\n");
+          exit(-1);
+        }
+        memset(s_outbuf, 0, sizeof(s_outbuf));
+        status = tdefl_compress(&g_deflator, next_in, &in_bytes, next_out, &out_bytes, TDEFL_FINISH);
+        if (status != TDEFL_STATUS_DONE) {
+          printf("deflate failed: %d\n", status);
+          exit(-1);
+        }
+        LWIP_ASSERT("out_bytes <= COPY_BUFSIZE", out_bytes <= OUT_BUF_SIZE);
+        if (out_bytes < fsize) {
+          ret_buf = (u8_t *)malloc(out_bytes);
+          LWIP_ASSERT("ret_buf != NULL", ret_buf != NULL);
+          memcpy(ret_buf, s_outbuf, out_bytes);
+          {
+            /* sanity-check compression be inflating and comparing to the original */
+            tinfl_status dec_status;
+            tinfl_decompressor inflator;
+            size_t dec_in_bytes = out_bytes;
+            size_t dec_out_bytes = OUT_BUF_SIZE;
+            next_out = s_checkbuf;
+
+            tinfl_init(&inflator);
+            memset(s_checkbuf, 0, sizeof(s_checkbuf));
+            dec_status = tinfl_decompress(&inflator, (const mz_uint8 *)ret_buf, &dec_in_bytes, s_checkbuf, (mz_uint8 *)next_out, &dec_out_bytes, 0);
+            LWIP_ASSERT("tinfl_decompress failed", dec_status == TINFL_STATUS_DONE);
+            LWIP_ASSERT("tinfl_decompress size mismatch", fsize == dec_out_bytes);
+            LWIP_ASSERT("decompressed memcmp failed", !memcmp(s_checkbuf, buf, fsize));
+          }
+          /* free original buffer, use compressed data + size */
+          free(buf);
+          buf = ret_buf;
+          *file_size = out_bytes;
+          printf(" - deflate: %d bytes -> %d bytes (%.02f%%)" NEWLINE, (int)fsize, (int)out_bytes, (float)((out_bytes * 100.0) / fsize));
+          deflatedBytesReduced += (size_t)(fsize - out_bytes);
+          *is_compressed = 1;
+        } else {
+          printf(" - uncompressed: (would be %d bytes larger using deflate)" NEWLINE, (int)(out_bytes - fsize));
+        }
+      } else {
+        printf(" - uncompressed: (file is larger than deflate bufer)" NEWLINE);
+      }
+    } else {
+      printf(" - cannot be compressed" NEWLINE);
+    }
+  }
+#else
+  LWIP_UNUSED_ARG(can_be_compressed);
+#endif
+  fclose(inFile);
+  return buf;
+}

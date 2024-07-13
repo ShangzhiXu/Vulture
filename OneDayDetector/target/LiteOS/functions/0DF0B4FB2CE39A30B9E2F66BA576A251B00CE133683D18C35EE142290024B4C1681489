@@ -1,0 +1,19 @@
+smtp_send_mail_int(void *arg)
+{
+  struct smtp_send_request *req = (struct smtp_send_request*)arg;
+  err_t err;
+
+  LWIP_ASSERT_CORE_LOCKED();
+  LWIP_ASSERT("smtp_send_mail_int: no argument given", arg != NULL);
+
+  if (req->static_data) {
+    err = smtp_send_mail_static(req->from, req->to, req->subject, req->body,
+      req->callback_fn, req->callback_arg);
+  } else {
+    err = smtp_send_mail(req->from, req->to, req->subject, req->body,
+      req->callback_fn, req->callback_arg);
+  }
+  if ((err != ERR_OK) && (req->callback_fn != NULL)) {
+    req->callback_fn(req->callback_arg, SMTP_RESULT_ERR_UNKNOWN, 0, err);
+  }
+}

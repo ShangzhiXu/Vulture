@@ -1,0 +1,54 @@
+HAL_StatusTypeDef HAL_IRDA_AbortTransmit_IT(IRDA_HandleTypeDef *hirda)
+{
+  /* Disable TXEIE and TCIE interrupts */
+#if defined(USART_CR1_FIFOEN)
+  CLEAR_BIT(hirda->Instance->CR1, (USART_CR1_TXEIE_TXFNFIE | USART_CR1_TCIE));
+#else
+  CLEAR_BIT(hirda->Instance->CR1, (USART_CR1_TXEIE | USART_CR1_TCIE));
+#endif
+
+  /* Disable the IRDA DMA Tx request if enabled */
+  if (HAL_IS_BIT_SET(hirda->Instance->CR3, USART_CR3_DMAT))
+  {
+    CLEAR_BIT(hirda->Instance->CR3, USART_CR3_DMAT);
+
+    /* Abort the IRDA DMA Tx channel : use non blocking DMA Abort API (callback) */
+    if(hirda->hdmatx != NULL)
+    {
+      /* Set the IRDA DMA Abort callback : 
+         will lead to call HAL_IRDA_AbortCpltCallback() at end of DMA abort procedure */
+      hirda->hdmatx->XferAbortCallback = IRDA_DMATxOnlyAbortCallback;
+
+      /* Abort DMA TX */
+      if(HAL_DMA_Abort_IT(hirda->hdmatx) != HAL_OK)
+      {
+        /* Call Directly hirda->hdmatx->XferAbortCallback function in case of error */
+        hirda->hdmatx->XferAbortCallback(hirda->hdmatx);
+      }
+    }
+    else
+    {
+      /* Reset Tx transfer counter */
+      hirda->TxXferCount = 0; 
+
+      /* Restore hirda->gState to Ready */
+      hirda->gState = HAL_IRDA_STATE_READY;
+
+      /* As no DMA to be aborted, call directly user Abort complete callback */
+      HAL_IRDA_AbortTransmitCpltCallback(hirda);
+    }
+  }
+  else
+  {
+    /* Reset Tx transfer counter */
+    hirda->TxXferCount = 0; 
+
+    /* Restore hirda->gState to Ready */
+    hirda->gState = HAL_IRDA_STATE_READY;
+
+    /* As no DMA to be aborted, call directly user Abort complete callback */
+    HAL_IRDA_AbortTransmitCpltCallback(hirda);
+  }
+
+  return HAL_OK;
+}

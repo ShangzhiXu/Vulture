@@ -1,0 +1,67 @@
+int mbedtls_cipher_cmac_update( mbedtls_cipher_context_t *ctx,
+                                const unsigned char *input, size_t ilen )
+{
+    mbedtls_cmac_context_t* cmac_ctx;
+    unsigned char *state;
+    int ret = 0;
+    size_t n, j, olen, block_size;
+
+    if( ctx == NULL || ctx->cipher_info == NULL || input == NULL ||
+        ctx->cmac_ctx == NULL )
+        return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+
+    cmac_ctx = ctx->cmac_ctx;
+    block_size = ctx->cipher_info->block_size;
+    state = ctx->cmac_ctx->state;
+
+    /* Is there data still to process from the last call, that's greater in
+     * size than a block? */
+    if( cmac_ctx->unprocessed_len > 0 &&
+        ilen > block_size - cmac_ctx->unprocessed_len )
+    {
+        memcpy( &cmac_ctx->unprocessed_block[cmac_ctx->unprocessed_len],
+                input,
+                block_size - cmac_ctx->unprocessed_len );
+
+        cmac_xor_block( state, cmac_ctx->unprocessed_block, state, block_size );
+
+        if( ( ret = mbedtls_cipher_update( ctx, state, block_size, state,
+                                           &olen ) ) != 0 )
+        {
+           goto exit;
+        }
+
+        input += block_size - cmac_ctx->unprocessed_len;
+        ilen -= block_size - cmac_ctx->unprocessed_len;
+        cmac_ctx->unprocessed_len = 0;
+    }
+
+    /* n is the number of blocks including any final partial block */
+    n = ( ilen + block_size - 1 ) / block_size;
+
+    /* Iterate across the input data in block sized chunks, excluding any
+     * final partial or complete block */
+    for( j = 1; j < n; j++ )
+    {
+        cmac_xor_block( state, input, state, block_size );
+
+        if( ( ret = mbedtls_cipher_update( ctx, state, block_size, state,
+                                           &olen ) ) != 0 )
+           goto exit;
+
+        ilen -= block_size;
+        input += block_size;
+    }
+
+    /* If there is data left over that wasn't aligned to a block */
+    if( ilen > 0 )
+    {
+        memcpy( &cmac_ctx->unprocessed_block[cmac_ctx->unprocessed_len],
+                input,
+                ilen );
+        cmac_ctx->unprocessed_len += ilen;
+    }
+
+exit:
+    return( ret );
+}

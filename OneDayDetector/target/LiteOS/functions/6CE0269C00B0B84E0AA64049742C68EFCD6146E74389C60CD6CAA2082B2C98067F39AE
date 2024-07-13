@@ -1,0 +1,18 @@
+SECUREC_INLINE void SecAssignFloat(const char *floatStr, int numberWidth, void *argPtr)
+{
+    char *endPtr = NULL;
+    double d;
+#if SECUREC_SUPPORT_STRTOLD
+    if (numberWidth == SECUREC_NUM_WIDTH_LONG_LONG) {
+        long double d2 = strtold(floatStr, &endPtr);
+        *(long double UNALIGNED *)(argPtr) = d2;
+        return;
+    }
+#endif
+    d = strtod(floatStr, &endPtr);
+    if (numberWidth > SECUREC_NUM_WIDTH_INT) {
+        *(double UNALIGNED *)(argPtr) = (double)d;
+    } else {
+        *(float UNALIGNED *)(argPtr) = (float)d;
+    }
+}

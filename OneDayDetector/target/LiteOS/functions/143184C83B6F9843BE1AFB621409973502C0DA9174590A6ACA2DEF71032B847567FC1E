@@ -1,0 +1,103 @@
+HAL_StatusTypeDef HAL_SPI_TransmitReceive_DMA(SPI_HandleTypeDef *hspi, uint8_t *pTxData, uint8_t *pRxData, uint16_t Size)
+{
+  if((hspi->State == HAL_SPI_STATE_READY) || \
+     ((hspi->Init.Mode == SPI_MODE_MASTER) && (hspi->Init.Direction == SPI_DIRECTION_2LINES) && (hspi->State == HAL_SPI_STATE_BUSY_RX)))
+  {
+    if((pTxData == NULL ) || (pRxData == NULL ) || (Size == 0))
+    {
+      return  HAL_ERROR;
+    }
+
+    /* Check the parameters */
+    assert_param(IS_SPI_DIRECTION_2LINES(hspi->Init.Direction));
+    
+    /* Process locked */
+    __HAL_LOCK(hspi);
+
+    /* Don't overwrite in case of HAL_SPI_STATE_BUSY_RX */
+    if(hspi->State != HAL_SPI_STATE_BUSY_RX)
+    {
+      hspi->State = HAL_SPI_STATE_BUSY_TX_RX;
+    }
+
+    /* Configure communication */
+    hspi->ErrorCode   = HAL_SPI_ERROR_NONE;
+
+    hspi->pTxBuffPtr  = (uint8_t*)pTxData;
+    hspi->TxXferSize  = Size;
+    hspi->TxXferCount = Size;
+
+    hspi->pRxBuffPtr  = (uint8_t*)pRxData;
+    hspi->RxXferSize  = Size;
+    hspi->RxXferCount = Size;
+
+    /*Init field not used in handle to zero */
+    hspi->RxISR = 0;
+    hspi->TxISR = 0;
+
+    /* Reset CRC Calculation */
+    if(hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+    {
+      SPI_RESET_CRC(hspi);
+    }
+
+    /* Check if we are in Rx only or in Rx/Tx Mode and configure the DMA transfer complete callback */
+    if(hspi->State == HAL_SPI_STATE_BUSY_RX)
+    {
+      /* Set the SPI Rx DMA Half transfer complete callback */
+      hspi->hdmarx->XferHalfCpltCallback = SPI_DMAHalfReceiveCplt;
+      
+      hspi->hdmarx->XferCpltCallback = SPI_DMAReceiveCplt;
+    }
+    else
+    {
+      /* Set the SPI Tx/Rx DMA Half transfer complete callback */
+      hspi->hdmarx->XferHalfCpltCallback = SPI_DMAHalfTransmitReceiveCplt;
+  
+      hspi->hdmarx->XferCpltCallback = SPI_DMATransmitReceiveCplt;
+    }
+
+    /* Set the DMA error callback */
+    hspi->hdmarx->XferErrorCallback = SPI_DMAError;
+
+    /* Enable the Rx DMA Channel */
+    HAL_DMA_Start_IT(hspi->hdmarx, (uint32_t)&hspi->Instance->DR, (uint32_t)hspi->pRxBuffPtr, hspi->RxXferCount);
+
+    /* Enable Rx DMA Request */  
+    SET_BIT(hspi->Instance->CR2, SPI_CR2_RXDMAEN);
+
+    /* Set the SPI Tx DMA transfer complete callback as NULL because the communication closing
+    is performed in DMA reception complete callback  */
+    if(hspi->State == HAL_SPI_STATE_BUSY_TX_RX)
+    {
+      /* Set the DMA error callback */
+      hspi->hdmatx->XferErrorCallback = SPI_DMAError;
+    }
+    else
+    {
+      hspi->hdmatx->XferErrorCallback = NULL;
+    }
+    
+    /* Enable the Tx DMA Channel */
+    HAL_DMA_Start_IT(hspi->hdmatx, (uint32_t)hspi->pTxBuffPtr, (uint32_t)&hspi->Instance->DR, hspi->TxXferCount);
+
+    /* Check if the SPI is already enabled */ 
+    if((hspi->Instance->CR1 & SPI_CR1_SPE) != SPI_CR1_SPE)
+    {
+      /* Enable SPI peripheral */
+      __HAL_SPI_ENABLE(hspi);
+    }
+
+    /* Enable Tx DMA Request */  
+    SET_BIT(hspi->Instance->CR2, SPI_CR2_TXDMAEN);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hspi);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

@@ -1,0 +1,101 @@
+static HAL_StatusTypeDef FLASH_OB_PCROPConfig(uint32_t PCROPConfig, uint32_t PCROPStartAddr, uint32_t PCROPEndAddr)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t reg_value = 0;
+  uint32_t bank1_addr;
+#if defined (STM32L471xx) || defined (STM32L475xx) || defined (STM32L476xx) || defined (STM32L485xx) || defined (STM32L486xx) || \
+    defined (STM32L496xx) || defined (STM32L4A6xx) || \
+    defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined (STM32L4S9xx)
+  uint32_t bank2_addr;
+#endif
+
+  /* Check the parameters */
+  assert_param(IS_FLASH_BANK_EXCLUSIVE(PCROPConfig & FLASH_BANK_BOTH));
+  assert_param(IS_OB_PCROP_RDP(PCROPConfig & FLASH_PCROP1ER_PCROP_RDP));
+  assert_param(IS_FLASH_MAIN_MEM_ADDRESS(PCROPStartAddr));
+  assert_param(IS_FLASH_MAIN_MEM_ADDRESS(PCROPEndAddr));
+
+  /* Wait for last operation to be completed */
+  status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+
+  if(status == HAL_OK)
+  {
+#if defined (STM32L471xx) || defined (STM32L475xx) || defined (STM32L476xx) || defined (STM32L485xx) || defined (STM32L486xx) || \
+    defined (STM32L496xx) || defined (STM32L4A6xx) || \
+    defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined (STM32L4S9xx)
+    /* Get the information about the bank swapping */
+    if (READ_BIT(SYSCFG->MEMRMP, SYSCFG_MEMRMP_FB_MODE) == 0)
+    {
+      bank1_addr = FLASH_BASE;
+      bank2_addr = FLASH_BASE + FLASH_BANK_SIZE;
+    }
+    else
+    {
+      bank1_addr = FLASH_BASE + FLASH_BANK_SIZE;
+      bank2_addr = FLASH_BASE;
+    }
+#else
+    bank1_addr = FLASH_BASE;
+#endif
+    
+#if defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined (STM32L4S9xx)
+    if (READ_BIT(FLASH->OPTR, FLASH_OPTR_DBANK) == RESET)
+    {
+      /* Configure the Proprietary code readout protection */
+      if((PCROPConfig & FLASH_BANK_BOTH) == FLASH_BANK_1)
+      {
+        reg_value = ((PCROPStartAddr - FLASH_BASE) >> 4);
+        MODIFY_REG(FLASH->PCROP1SR, FLASH_PCROP1SR_PCROP1_STRT, reg_value);
+        
+        reg_value = ((PCROPEndAddr - FLASH_BASE) >> 4);
+        MODIFY_REG(FLASH->PCROP1ER, FLASH_PCROP1ER_PCROP1_END, reg_value);
+      }
+      else if((PCROPConfig & FLASH_BANK_BOTH) == FLASH_BANK_2)
+      {
+        reg_value = ((PCROPStartAddr - FLASH_BASE) >> 4);
+        MODIFY_REG(FLASH->PCROP2SR, FLASH_PCROP2SR_PCROP2_STRT, reg_value);
+        
+        reg_value = ((PCROPEndAddr - FLASH_BASE) >> 4);
+        MODIFY_REG(FLASH->PCROP2ER, FLASH_PCROP2ER_PCROP2_END, reg_value);
+      }
+    }
+    else
+#endif
+    {
+      /* Configure the Proprietary code readout protection */
+      if((PCROPConfig & FLASH_BANK_BOTH) == FLASH_BANK_1)
+      {
+        reg_value = ((PCROPStartAddr - bank1_addr) >> 3);
+        MODIFY_REG(FLASH->PCROP1SR, FLASH_PCROP1SR_PCROP1_STRT, reg_value);
+        
+        reg_value = ((PCROPEndAddr - bank1_addr) >> 3);
+        MODIFY_REG(FLASH->PCROP1ER, FLASH_PCROP1ER_PCROP1_END, reg_value);
+      }
+#if defined (STM32L471xx) || defined (STM32L475xx) || defined (STM32L476xx) || defined (STM32L485xx) || defined (STM32L486xx) || \
+    defined (STM32L496xx) || defined (STM32L4A6xx) || \
+    defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined (STM32L4S9xx)
+      else if((PCROPConfig & FLASH_BANK_BOTH) == FLASH_BANK_2)
+      {
+        reg_value = ((PCROPStartAddr - bank2_addr) >> 3);
+        MODIFY_REG(FLASH->PCROP2SR, FLASH_PCROP2SR_PCROP2_STRT, reg_value);
+        
+        reg_value = ((PCROPEndAddr - bank2_addr) >> 3);
+        MODIFY_REG(FLASH->PCROP2ER, FLASH_PCROP2ER_PCROP2_END, reg_value);
+      }
+#endif
+    }
+    
+    MODIFY_REG(FLASH->PCROP1ER, FLASH_PCROP1ER_PCROP_RDP, (PCROPConfig & FLASH_PCROP1ER_PCROP_RDP));
+    
+    /* Set OPTSTRT Bit */
+    SET_BIT(FLASH->CR, FLASH_CR_OPTSTRT);
+    
+    /* Wait for last operation to be completed */
+    status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+
+    /* If the option byte program operation is completed, disable the OPTSTRT Bit */
+    CLEAR_BIT(FLASH->CR, FLASH_CR_OPTSTRT);
+  }
+  
+  return status;
+}

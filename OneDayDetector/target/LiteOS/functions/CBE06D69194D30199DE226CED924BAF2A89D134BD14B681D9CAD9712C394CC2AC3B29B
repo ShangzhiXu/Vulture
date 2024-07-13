@@ -1,0 +1,16 @@
+igmp_timeout(struct netif *netif, struct igmp_group *group)
+{
+  /* If the state is IGMP_GROUP_DELAYING_MEMBER then we send a report for this group
+     (unless it is the allsystems group) */
+  if ((group->group_state == IGMP_GROUP_DELAYING_MEMBER) &&
+      (!(ip4_addr_cmp(&(group->group_address), &allsystems)))) {
+    LWIP_DEBUGF(IGMP_DEBUG, ("igmp_timeout: report membership for group with address "));
+    ip4_addr_debug_print_val(IGMP_DEBUG, group->group_address);
+    LWIP_DEBUGF(IGMP_DEBUG, (" on if %p\n", (void *)netif));
+
+    group->group_state = IGMP_GROUP_IDLE_MEMBER;
+
+    IGMP_STATS_INC(igmp.tx_report);
+    igmp_send(netif, group, IGMP_V2_MEMB_REPORT);
+  }
+}

@@ -1,0 +1,20 @@
+pppos_recv_config(ppp_pcb *ppp, void *ctx, u32_t accm, int pcomp, int accomp)
+{
+  int i;
+  pppos_pcb *pppos = (pppos_pcb *)ctx;
+  PPPOS_DECL_PROTECT(lev);
+  LWIP_UNUSED_ARG(ppp);
+  LWIP_UNUSED_ARG(pcomp);
+  LWIP_UNUSED_ARG(accomp);
+
+  /* Load the ACCM bits for the 32 control codes. */
+  PPPOS_PROTECT(lev);
+  for (i = 0; i < 32 / 8; i++) {
+    pppos->in_accm[i] = (u8_t)(accm >> (i * 8));
+  }
+  PPPOS_UNPROTECT(lev);
+
+  PPPDEBUG(LOG_INFO, ("pppos_recv_config[%d]: in_accm=%X %X %X %X\n",
+            pppos->ppp->netif->num,
+            pppos->in_accm[0], pppos->in_accm[1], pppos->in_accm[2], pppos->in_accm[3]));
+}

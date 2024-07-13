@@ -1,0 +1,17 @@
+uint8_t object_writeInstance(lwm2m_context_t *contextP,
+                             lwm2m_uri_t *uriP,
+                             lwm2m_data_t *dataP)
+{
+    lwm2m_object_t *targetP;
+
+    LOG_URI(uriP);
+    targetP = (lwm2m_object_t *)LWM2M_LIST_FIND(contextP->objectList, uriP->objectId);
+    if (NULL == targetP) return COAP_404_NOT_FOUND;
+
+    if (NULL == targetP->writeFunc)
+    {
+        return COAP_405_METHOD_NOT_ALLOWED;
+    }
+
+    return targetP->writeFunc(dataP->id, dataP->value.asChildren.count, dataP->value.asChildren.array, targetP);
+}

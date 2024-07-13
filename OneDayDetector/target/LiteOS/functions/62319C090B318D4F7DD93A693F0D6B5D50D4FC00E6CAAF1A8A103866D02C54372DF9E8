@@ -1,0 +1,91 @@
+HAL_StatusTypeDef HAL_COMP_Init(COMP_HandleTypeDef *hcomp)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t regshift = COMP_CSR_COMP1_SHIFT;
+  
+  /* Check the COMP handle allocation and lock status */
+  if((hcomp == NULL) || ((hcomp->State & COMP_STATE_BIT_LOCK) != RESET))
+  {
+    status = HAL_ERROR;
+  }
+  else
+  {
+    /* Check the parameter */
+    assert_param(IS_COMP_ALL_INSTANCE(hcomp->Instance));
+    assert_param(IS_COMP_INVERTINGINPUT(hcomp->Init.InvertingInput));
+    assert_param(IS_COMP_NONINVERTINGINPUT(hcomp->Init.NonInvertingInput));
+    assert_param(IS_COMP_OUTPUT(hcomp->Init.Output));
+    assert_param(IS_COMP_OUTPUTPOL(hcomp->Init.OutputPol));
+    assert_param(IS_COMP_HYSTERESIS(hcomp->Init.Hysteresis));
+    assert_param(IS_COMP_MODE(hcomp->Init.Mode));
+    
+    if(hcomp->Init.NonInvertingInput == COMP_NONINVERTINGINPUT_DAC1SWITCHCLOSED)
+    {
+      assert_param(IS_COMP_DAC1SWITCH_INSTANCE(hcomp->Instance));
+    }
+  
+    if(hcomp->Init.WindowMode != COMP_WINDOWMODE_DISABLE)
+    {
+      assert_param(IS_COMP_WINDOWMODE_INSTANCE(hcomp->Instance));
+    }
+
+    /* Init SYSCFG and the low level hardware to access comparators */
+    __HAL_RCC_SYSCFG_CLK_ENABLE();  
+    
+#if (USE_HAL_COMP_REGISTER_CALLBACKS == 1)
+    /* Init the COMP Callback settings */
+    hcomp->TriggerCallback = HAL_COMP_TriggerCallback; /* Legacy weak callback */
+
+    if (hcomp->MspInitCallback == NULL)
+    {
+      hcomp->MspInitCallback = HAL_COMP_MspInit; /* Legacy weak MspInit  */
+    }
+
+    /* Init the low level hardware */
+    hcomp->MspInitCallback(hcomp);
+#else
+    /* Init the low level hardware : SYSCFG to access comparators */
+    HAL_COMP_MspInit(hcomp);
+#endif /* USE_HAL_COMP_REGISTER_CALLBACKS */
+
+    if(hcomp->State == HAL_COMP_STATE_RESET)
+    {
+      /* Allocate lock resource and initialize it */
+      hcomp->Lock = HAL_UNLOCKED;
+    }
+
+    /* Change COMP peripheral state */
+    hcomp->State = HAL_COMP_STATE_BUSY;
+
+    /* Set COMP parameters */
+    /*     Set COMPxINSEL bits according to hcomp->Init.InvertingInput value        */
+    /*     Set COMPxOUTSEL bits according to hcomp->Init.Output value               */
+    /*     Set COMPxPOL bit according to hcomp->Init.OutputPol value                */
+    /*     Set COMPxHYST bits according to hcomp->Init.Hysteresis value             */
+    /*     Set COMPxMODE bits according to hcomp->Init.Mode value                   */
+    if(hcomp->Instance == COMP2)
+    {
+      regshift = COMP_CSR_COMP2_SHIFT;
+    }
+    MODIFY_REG(COMP->CSR, 
+               (COMP_CSR_COMPxINSEL  | COMP_CSR_COMPxNONINSEL_MASK | \
+                COMP_CSR_COMPxOUTSEL | COMP_CSR_COMPxPOL           | \
+                COMP_CSR_COMPxHYST   | COMP_CSR_COMPxMODE) << regshift,
+               (hcomp->Init.InvertingInput    | \
+                hcomp->Init.NonInvertingInput | \
+                hcomp->Init.Output            | \
+                hcomp->Init.OutputPol         | \
+                hcomp->Init.Hysteresis        | \
+                hcomp->Init.Mode) << regshift);   
+    
+    if(hcomp->Init.WindowMode != COMP_WINDOWMODE_DISABLE)
+    {
+      COMP->CSR |= COMP_CSR_WNDWEN;
+    }
+
+    /* Initialize the COMP state*/
+    hcomp->State = HAL_COMP_STATE_READY;
+  }
+  
+  return status;
+}

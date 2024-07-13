@@ -1,0 +1,50 @@
+rfc7668_input(struct pbuf * p, struct netif *netif)
+{
+  u8_t * puc;
+
+  MIB2_STATS_NETIF_ADD(netif, ifinoctets, p->tot_len);
+
+  /* Load first header byte */
+  puc = (u8_t*)p->payload;
+  
+  /* no IP header compression */
+  if (*puc == 0x41) {
+    LWIP_DEBUGF(LWIP_LOWPAN6_DECOMPRESSION_DEBUG, ("Completed packet, removing dispatch: 0x%2x \n", *puc));
+    /* This is a complete IPv6 packet, just skip header byte. */
+    pbuf_remove_header(p, 1);
+  /* IPHC header compression */
+  } else if ((*puc & 0xe0 )== 0x60) {
+    LWIP_DEBUGF(LWIP_LOWPAN6_DECOMPRESSION_DEBUG, ("Completed packet, decompress dispatch: 0x%2x \n", *puc));
+    /* IPv6 headers are compressed using IPHC. */
+    p = lowpan6_decompress(p, 0, rfc7668_context, &rfc7668_peer_addr, &rfc7668_local_addr);
+    /* if no pbuf is returned, handle as discarded packet */
+    if (p == NULL) {
+      MIB2_STATS_NETIF_INC(netif, ifindiscards);
+      return ERR_OK;
+    }
+  /* invalid header byte, discard */
+  } else {
+    LWIP_DEBUGF(LWIP_LOWPAN6_DECOMPRESSION_DEBUG, ("Completed packet, discarding: 0x%2x \n", *puc));
+    MIB2_STATS_NETIF_INC(netif, ifindiscards);
+    pbuf_free(p);
+    return ERR_OK;
+  }
+  /* @todo: distinguish unicast/multicast */
+  MIB2_STATS_NETIF_INC(netif, ifinucastpkts);
+
+#if LWIP_RFC7668_IP_UNCOMPRESSED_DEBUG
+  {
+    u16_t i;
+    LWIP_DEBUGF(LWIP_RFC7668_IP_UNCOMPRESSED_DEBUG, ("IPv6 payload:\n"));
+    for (i = 0; i < p->len; i++) {
+      if ((i%4)==0) {
+        LWIP_DEBUGF(LWIP_RFC7668_IP_UNCOMPRESSED_DEBUG, ("\n"));
+      }
+      LWIP_DEBUGF(LWIP_RFC7668_IP_UNCOMPRESSED_DEBUG, ("%2X ", *((uint8_t *)p->payload+i)));
+    }
+    LWIP_DEBUGF(LWIP_RFC7668_IP_UNCOMPRESSED_DEBUG, ("\np->len: %d\n", p->len));
+  }
+#endif
+  /* pass data to ip6_input */
+  return ip6_input(p, netif);
+}

@@ -1,0 +1,31 @@
+UINT32 OsSlabMemCheck(const VOID *pool, VOID* ptr)
+{
+    struct LosSlabControlHeader *slabMem = OsSlabCtrlHdrGet(pool);
+    UINT32 retBlkSz = (UINT32)-1;
+#ifndef LOSCFG_KERNEL_MEM_SLAB_AUTO_EXPANSION_MODE
+    OsSlabAllocator *slabAlloc = NULL;
+#endif
+    UINT32 idx;
+    OsSlabBlockNode *slabNode = OS_SLAB_BLOCK_HEAD_GET(ptr);
+
+    if ((!OS_ALLOC_FROM_SLAB_CHECK(slabNode)) ||
+        (slabMem->slabClass[SLAB_MEM_COUNT - 1].blkSz < (OS_SLAB_BLOCK_SIZE_GET(slabNode)))) {
+        return retBlkSz;
+    }
+
+    for (idx = 0; idx < SLAB_MEM_COUNT; idx++) {
+        if (slabMem->slabClass[idx].blkSz >= OS_SLAB_BLOCK_SIZE_GET(slabNode)) {
+#ifdef LOSCFG_KERNEL_MEM_SLAB_AUTO_EXPANSION_MODE
+            retBlkSz = OsGetBlkSzStrollBuckets(slabNode, &(slabMem->slabClass[idx]));
+#else
+            slabAlloc = slabMem->slabClass[idx].alloc;
+            if (OsSlabAllocatorCheck(slabAlloc, slabNode) == TRUE) {
+                retBlkSz = slabMem->slabClass[idx].blkSz;
+            }
+#endif
+            return retBlkSz;
+        }
+    }
+
+    return retBlkSz;
+}

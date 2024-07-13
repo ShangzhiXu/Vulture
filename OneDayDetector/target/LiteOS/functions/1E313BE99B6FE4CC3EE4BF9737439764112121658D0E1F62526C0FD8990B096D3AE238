@@ -1,0 +1,129 @@
+static HAL_StatusTypeDef HASH_IT(HASH_HandleTypeDef *hhash)
+{
+  if (hhash->State == HAL_HASH_STATE_BUSY)
+  {
+    /* ITCounter must not be equal to 0 at this point. Report an error if this is the case. */
+    if(hhash->HashITCounter == 0U)
+    {
+      /* Disable Interrupts */
+      __HAL_HASH_DISABLE_IT(HASH_IT_DINI|HASH_IT_DCI);
+      /* HASH state set back to Ready to prevent any issue in user code
+         present in HAL_HASH_ErrorCallback() */
+      hhash->State = HAL_HASH_STATE_READY;
+      return HAL_ERROR;
+    }
+    else if (hhash->HashITCounter == 1U)
+    {
+     /* This is the first call to HASH_IT, the first input data are about to be
+        entered in the IP. A specific processing is carried out at this point to
+        start-up the processing. */
+      hhash->HashITCounter = 2U;
+    }
+    else
+    {
+      /* Cruise speed reached, HashITCounter remains equal to 3 until the end of
+        the HASH processing or the end of the current step for HMAC processing. */
+      hhash->HashITCounter = 3U;
+    }
+
+    /* If digest is ready */
+    if (__HAL_HASH_GET_FLAG(HASH_FLAG_DCIS))
+    {
+      /* Read the digest */
+      HASH_GetDigest(hhash->pHashOutBuffPtr, HASH_DIGEST_LENGTH());
+
+      /* Disable Interrupts */
+      __HAL_HASH_DISABLE_IT(HASH_IT_DINI|HASH_IT_DCI);
+      /* Change the HASH state */
+      hhash->State = HAL_HASH_STATE_READY;
+      /* Call digest computation complete call back */
+#if (USE_HAL_HASH_REGISTER_CALLBACKS == 1)
+      hhash->DgstCpltCallback(hhash);
+#else
+      HAL_HASH_DgstCpltCallback(hhash);
+#endif /* USE_HAL_HASH_REGISTER_CALLBACKS */
+
+      return HAL_OK;
+    }
+
+    /* If IP ready to accept new data */
+    if (__HAL_HASH_GET_FLAG(HASH_FLAG_DINIS))
+    {
+
+      /* If the suspension flag has been raised and if the processing is not about
+         to end, suspend processing */
+      if ( (hhash->HashInCount != 0U) &&  (hhash->SuspendRequest == HAL_HASH_SUSPEND))
+      {
+        /* Disable Interrupts */
+        __HAL_HASH_DISABLE_IT(HASH_IT_DINI|HASH_IT_DCI);
+
+        /* Reset SuspendRequest */
+        hhash->SuspendRequest = HAL_HASH_SUSPEND_NONE;
+
+        /* Change the HASH state */
+        hhash->State = HAL_HASH_STATE_SUSPENDED;
+
+        return HAL_OK;
+      }
+
+      /* Enter input data in the IP thru HASH_Write_Block_Data() call and
+        check whether the digest calculation has been triggered */
+      if (HASH_Write_Block_Data(hhash) == HASH_DIGEST_CALCULATION_STARTED)
+      {
+        /* Call Input data transfer complete call back
+           (called at the end of each step for HMAC) */
+#if (USE_HAL_HASH_REGISTER_CALLBACKS == 1)
+        hhash->InCpltCallback(hhash);
+#else
+        HAL_HASH_InCpltCallback(hhash);
+#endif /* USE_HAL_HASH_REGISTER_CALLBACKS */
+
+        if (hhash->Phase == HAL_HASH_PHASE_HMAC_STEP_1)
+        {
+          /* Wait until IP is not busy anymore */
+          if (HASH_WaitOnFlagUntilTimeout(hhash, HASH_FLAG_BUSY, SET, HASH_TIMEOUTVALUE) != HAL_OK)
+          {
+            /* Disable Interrupts */
+            __HAL_HASH_DISABLE_IT(HASH_IT_DINI|HASH_IT_DCI);
+            return HAL_TIMEOUT;
+          }
+          /* Initialization start for HMAC STEP 2 */
+          hhash->Phase = HAL_HASH_PHASE_HMAC_STEP_2;        /* Move phase from Step 1 to Step 2 */
+          __HAL_HASH_SET_NBVALIDBITS(hhash->HashBuffSize);  /* Set NBLW for the input message */
+          hhash->HashInCount = hhash->HashBuffSize;         /* Set the input data size (in bytes) */
+          hhash->pHashInBuffPtr = hhash->pHashMsgBuffPtr;   /* Set the input data address */
+          hhash->HashITCounter = 1;                         /* Set ITCounter to 1 to indicate the start of a new phase */
+          __HAL_HASH_ENABLE_IT(HASH_IT_DINI);               /* Enable IT (was disabled in HASH_Write_Block_Data) */
+        }
+        else if (hhash->Phase == HAL_HASH_PHASE_HMAC_STEP_2)
+        {
+          /* Wait until IP is not busy anymore */
+          if (HASH_WaitOnFlagUntilTimeout(hhash, HASH_FLAG_BUSY, SET, HASH_TIMEOUTVALUE) != HAL_OK)
+          {
+            /* Disable Interrupts */
+            __HAL_HASH_DISABLE_IT(HASH_IT_DINI|HASH_IT_DCI);
+            return HAL_TIMEOUT;
+          }
+          /* Initialization start for HMAC STEP 3 */
+          hhash->Phase = HAL_HASH_PHASE_HMAC_STEP_3;         /* Move phase from Step 2 to Step 3 */
+          __HAL_HASH_SET_NBVALIDBITS(hhash->Init.KeySize);   /* Set NBLW for the key */
+          hhash->HashInCount = hhash->Init.KeySize;          /* Set the key size (in bytes) */
+          hhash->pHashInBuffPtr = hhash->Init.pKey;          /* Set the key address */
+          hhash->HashITCounter = 1;                          /* Set ITCounter to 1 to indicate the start of a new phase */
+          __HAL_HASH_ENABLE_IT(HASH_IT_DINI);                /* Enable IT (was disabled in HASH_Write_Block_Data) */
+        }
+        else
+        {
+          /* Nothing to do */
+        }
+      } /* if (HASH_Write_Block_Data(hhash) == HASH_DIGEST_CALCULATION_STARTED) */
+    }  /* if (__HAL_HASH_GET_FLAG(HASH_FLAG_DINIS))*/
+
+    /* Return function status */
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

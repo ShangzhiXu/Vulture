@@ -1,0 +1,43 @@
+void lv_debug_log_error(const char * msg, uint64_t value)
+{
+    static const char hex[] = "0123456789ABCDEF";
+
+    size_t msg_len = strlen(msg);
+    uint32_t value_len = sizeof(unsigned long int);
+
+    if(msg_len < 230) {
+        char buf[255];
+        char * bufp = buf;
+
+        /*Add the function name*/
+        _lv_memcpy(bufp, msg, msg_len);
+        bufp += msg_len;
+
+        /*Add value in hey*/
+        *bufp = ' ';
+        bufp ++;
+        *bufp = '(';
+        bufp ++;
+        *bufp = '0';
+        bufp ++;
+        *bufp = 'x';
+        bufp ++;
+
+        int8_t i;
+        for(i = value_len * 2 - 1; i >= 0; i--) {
+            uint8_t x = (unsigned long int)((unsigned long int)value >> (i * 4)) & 0xF;
+
+            *bufp = hex[x];
+            bufp++;
+        }
+
+        *bufp = ')';
+        bufp ++;
+
+        *bufp = '\0';
+        LV_LOG_ERROR(buf);
+    }
+    else {
+        LV_LOG_ERROR(msg);
+    }
+}

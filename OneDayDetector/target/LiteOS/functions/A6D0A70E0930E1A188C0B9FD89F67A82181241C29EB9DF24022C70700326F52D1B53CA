@@ -1,0 +1,18 @@
+lwip_netconn_do_dns_found(const char *name, const ip_addr_t *ipaddr, void *arg)
+{
+  struct dns_api_msg *msg = (struct dns_api_msg *)arg;
+
+  /* we trust the internal implementation to be correct :-) */
+  LWIP_UNUSED_ARG(name);
+
+  if (ipaddr == NULL) {
+    /* timeout or memory error */
+    API_EXPR_DEREF(msg->err) = ERR_VAL;
+  } else {
+    /* address was resolved */
+    API_EXPR_DEREF(msg->err) = ERR_OK;
+    API_EXPR_DEREF(msg->addr) = *ipaddr;
+  }
+  /* wake up the application task waiting in netconn_gethostbyname */
+  sys_sem_signal(API_EXPR_REF_SEM(msg->sem));
+}

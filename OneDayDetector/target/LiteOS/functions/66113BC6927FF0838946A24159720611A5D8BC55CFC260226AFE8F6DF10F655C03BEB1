@@ -1,0 +1,64 @@
+HAL_StatusTypeDef HAL_FLASHEx_Erase_IT(FLASH_EraseInitTypeDef *pEraseInit)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process Locked */
+  __HAL_LOCK(&pFlash);
+
+  /* Check the parameters */
+  assert_param(IS_FLASH_TYPEERASE(pEraseInit->TypeErase));
+
+  pFlash.ErrorCode = HAL_FLASH_ERROR_NONE;
+
+  /* Deactivate the cache if they are activated to avoid data misbehavior */
+  if(READ_BIT(FLASH->ACR, FLASH_ACR_ICEN) != RESET)
+  {
+    /* Disable instruction cache  */
+    __HAL_FLASH_INSTRUCTION_CACHE_DISABLE();
+    
+    if(READ_BIT(FLASH->ACR, FLASH_ACR_DCEN) != RESET)
+    {
+      /* Disable data cache  */
+      __HAL_FLASH_DATA_CACHE_DISABLE();
+      pFlash.CacheToReactivate = FLASH_CACHE_ICACHE_DCACHE_ENABLED;
+    }
+    else
+    {
+      pFlash.CacheToReactivate = FLASH_CACHE_ICACHE_ENABLED;
+    }
+  }
+  else if(READ_BIT(FLASH->ACR, FLASH_ACR_DCEN) != RESET)
+  {
+    /* Disable data cache  */
+    __HAL_FLASH_DATA_CACHE_DISABLE();
+    pFlash.CacheToReactivate = FLASH_CACHE_DCACHE_ENABLED;
+  }
+  else
+  {
+    pFlash.CacheToReactivate = FLASH_CACHE_DISABLED;
+  }
+
+  /* Enable End of Operation and Error interrupts */
+  __HAL_FLASH_ENABLE_IT(FLASH_IT_EOP | FLASH_IT_OPERR);
+
+  pFlash.Bank = pEraseInit->Banks;
+
+  if (pEraseInit->TypeErase == FLASH_TYPEERASE_MASSERASE)
+  {
+    /* Mass erase to be done */
+    pFlash.ProcedureOnGoing = FLASH_PROC_MASS_ERASE;
+    FLASH_MassErase(pEraseInit->Banks);
+  }
+  else
+  {
+    /* Erase by page to be done */
+    pFlash.ProcedureOnGoing = FLASH_PROC_PAGE_ERASE;
+    pFlash.NbPagesToErase = pEraseInit->NbPages;
+    pFlash.Page = pEraseInit->Page;
+
+    /*Erase 1st page and wait for IT */
+    FLASH_PageErase(pEraseInit->Page, pEraseInit->Banks);
+  }
+  
+  return status;
+}

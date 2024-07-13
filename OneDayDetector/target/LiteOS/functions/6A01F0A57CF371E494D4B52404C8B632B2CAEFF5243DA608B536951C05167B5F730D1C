@@ -1,0 +1,57 @@
+zepif_udp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p,
+               const ip_addr_t *addr, u16_t port)
+{
+  err_t err;
+  struct netif *netif_lowpan6 = (struct netif *)arg;
+  struct zep_hdr *zep;
+
+  LWIP_ASSERT("arg != NULL", arg != NULL);
+  LWIP_ASSERT("pcb != NULL", pcb != NULL);
+  LWIP_UNUSED_ARG(pcb); /* for LWIP_NOASSERT */
+  LWIP_UNUSED_ARG(addr);
+  LWIP_UNUSED_ARG(port);
+  if (p == NULL) {
+    return;
+  }
+
+  /* Parse and hide the ZEP header */
+  if (p->len < sizeof(struct zep_hdr)) {
+    /* need the zep_hdr in one piece */
+    goto err_return;
+  }
+  zep = (struct zep_hdr *)p->payload;
+  if (zep->prot_id[0] != 'E') {
+    goto err_return;
+  }
+  if (zep->prot_id[1] != 'X') {
+    goto err_return;
+  }
+  if (zep->prot_version != 2) {
+    /* we only support this version for now */
+    goto err_return;
+  }
+  if (zep->type != 1) {
+    goto err_return;
+  }
+  if (zep->crc_mode != 1) {
+    goto err_return;
+  }
+  if (zep->len != p->tot_len - sizeof(struct zep_hdr)) {
+    goto err_return;
+  }
+  /* everything seems to be OK, hide the ZEP header */
+  if (pbuf_remove_header(p, sizeof(struct zep_hdr))) {
+    goto err_return;
+  }
+  /* TODO Check CRC? */
+  /* remove CRC trailer */
+  pbuf_realloc(p, p->tot_len - 2);
+
+  /* Call into 6LoWPAN code. */
+  err = netif_lowpan6->input(p, netif_lowpan6);
+  if (err == ERR_OK) {
+    return;
+  }
+err_return:
+  pbuf_free(p);
+}

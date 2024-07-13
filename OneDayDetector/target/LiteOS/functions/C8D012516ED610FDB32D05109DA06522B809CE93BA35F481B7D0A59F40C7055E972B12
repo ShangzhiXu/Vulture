@@ -1,0 +1,20 @@
+INT32 OsShellDeinit(INT32 consoleId)
+{
+    ShellCB *shellCB = NULL;
+
+#ifdef LOSCFG_SHELL_CONSOLE
+    CONSOLE_CB *consoleCB = OsGetConsoleByID(consoleId);
+    if (consoleCB == NULL) {
+        PRINT_ERR("shell deinit error.\n");
+        return -1;
+    }
+
+    shellCB = (ShellCB *)consoleCB->shellHandle;
+    consoleCB->shellHandle = NULL;
+#else
+    shellCB = g_shellCB;
+#endif
+    ShellTaskDeinit(shellCB);
+
+    return 0;
+}

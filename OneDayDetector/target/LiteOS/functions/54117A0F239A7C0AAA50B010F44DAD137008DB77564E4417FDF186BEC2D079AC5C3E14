@@ -1,0 +1,47 @@
+lv_res_t lv_img_decoder_built_in_info(lv_img_decoder_t * decoder, const void * src, lv_img_header_t * header)
+{
+    (void)decoder; /*Unused*/
+
+    lv_img_src_t src_type = lv_img_src_get_type(src);
+    if(src_type == LV_IMG_SRC_VARIABLE) {
+        lv_img_cf_t cf = ((lv_img_dsc_t *)src)->header.cf;
+        if(cf < CF_BUILT_IN_FIRST || cf > CF_BUILT_IN_LAST) return LV_RES_INV;
+
+        header->w  = ((lv_img_dsc_t *)src)->header.w;
+        header->h  = ((lv_img_dsc_t *)src)->header.h;
+        header->cf = ((lv_img_dsc_t *)src)->header.cf;
+    }
+#if LV_USE_FILESYSTEM
+    else if(src_type == LV_IMG_SRC_FILE) {
+        lv_fs_file_t file;
+        lv_fs_res_t res;
+        uint32_t rn;
+        res = lv_fs_open(&file, src, LV_FS_MODE_RD);
+        if(res == LV_FS_RES_OK) {
+            res = lv_fs_read(&file, header, sizeof(lv_img_header_t), &rn);
+            lv_fs_close(&file);
+            if(res != LV_FS_RES_OK || rn != sizeof(lv_img_header_t)) {
+                LV_LOG_WARN("Image get info get read file header");
+                return LV_RES_INV;
+            }
+        }
+
+        if(header->cf < CF_BUILT_IN_FIRST || header->cf > CF_BUILT_IN_LAST) return LV_RES_INV;
+
+    }
+#endif
+    else if(src_type == LV_IMG_SRC_SYMBOL) {
+        /*The size depend on the font but it is unknown here. It should be handled outside of the
+         * function*/
+        header->w = 1;
+        header->h = 1;
+        /* Symbols always have transparent parts. Important because of cover check in the design
+         * function. The actual value doesn't matter because lv_draw_label will draw it*/
+        header->cf = LV_IMG_CF_ALPHA_1BIT;
+    }
+    else {
+        LV_LOG_WARN("Image get info found unknown src type");
+        return LV_RES_INV;
+    }
+    return LV_RES_OK;
+}

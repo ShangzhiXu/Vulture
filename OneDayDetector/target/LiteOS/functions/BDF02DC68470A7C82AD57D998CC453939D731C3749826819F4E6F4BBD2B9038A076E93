@@ -1,0 +1,29 @@
+VOID OsMutexDlockCheck(VOID)
+{
+    UINT32 loop, intSave;
+    UINT32 taskId;
+    CHAR *name = NULL;
+    LosTaskCB *taskCB = NULL;
+    MuxDLinkCB *muxDLCB = NULL;
+
+    SCHEDULER_LOCK(intSave);
+    for (loop = 0; loop < g_taskMaxNum; loop++) {
+        taskCB = (LosTaskCB *)g_taskCBArray + loop;
+        if (taskCB->taskStatus & OS_TASK_STATUS_UNUSED) {
+            continue;
+        }
+
+        muxDLCB = &g_muxDeadlockCBArray[taskCB->taskId];
+        if ((LOS_TickCountGet() - muxDLCB->lastAccessTime) > OS_MUX_DEADLOCK_CHECK_THRESHOLD) {
+            name = taskCB->taskName;
+            taskId = taskCB->taskId;
+            SCHEDULER_UNLOCK(intSave);
+            PRINTK("Task_name:%s, ID:0x%x, holds the Mutexs below:\n", name, taskId);
+            OsTaskHoldMutexList(muxDLCB);
+            OsDeadlockBackTrace(taskCB);
+            PRINTK("\n");
+            SCHEDULER_LOCK(intSave);
+        }
+    }
+    SCHEDULER_UNLOCK(intSave);
+}

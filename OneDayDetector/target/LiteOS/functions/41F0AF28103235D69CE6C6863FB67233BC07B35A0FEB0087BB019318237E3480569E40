@@ -1,0 +1,35 @@
+static void lv_refr_area_part(const lv_area_t * area_p)
+{
+    lv_disp_buf_t * vdb = lv_disp_get_buf(disp_refr);
+
+    /*In non double buffered mode, before rendering the next part wait until the previous image is
+     * flushed*/
+    if(lv_disp_is_double_buf(disp_refr) == false) {
+        while(vdb->flushing) {
+            if(disp_refr->driver.wait_cb) disp_refr->driver.wait_cb(&disp_refr->driver);
+        }
+    }
+
+    lv_obj_t * top_p;
+
+    /*Get the new mask from the original area and the act. VDB
+     It will be a part of 'area_p'*/
+    lv_area_t start_mask;
+    _lv_area_intersect(&start_mask, area_p, &vdb->area);
+
+    /*Get the most top object which is not covered by others*/
+    top_p = lv_refr_get_top_obj(&start_mask, lv_disp_get_scr_act(disp_refr));
+
+    /*Do the refreshing from the top object*/
+    lv_refr_obj_and_children(top_p, &start_mask);
+
+    /*Also refresh top and sys layer unconditionally*/
+    lv_refr_obj_and_children(lv_disp_get_layer_top(disp_refr), &start_mask);
+    lv_refr_obj_and_children(lv_disp_get_layer_sys(disp_refr), &start_mask);
+
+    /* In true double buffered mode flush only once when all areas were rendered.
+     * In normal mode flush after every area */
+    if(lv_disp_is_true_double_buf(disp_refr) == false) {
+        lv_refr_vdb_flush();
+    }
+}

@@ -1,0 +1,70 @@
+HAL_StatusTypeDef HAL_SMBUS_Slave_Receive_IT(SMBUS_HandleTypeDef *hsmbus, uint8_t *pData, uint16_t Size, uint32_t XferOptions)
+{
+  /* Check the parameters */
+  assert_param(IS_SMBUS_TRANSFER_OPTIONS_REQUEST(XferOptions));
+
+  if (hsmbus->State == HAL_SMBUS_STATE_LISTEN)
+  {
+    if ((pData == NULL) || (Size == 0U))
+    {
+      return  HAL_ERROR;
+    }
+
+    /* Disable Interrupts, to prevent preemption during treatment in case of multicall */
+    SMBUS_Disable_IRQ(hsmbus, SMBUS_IT_ADDR | SMBUS_IT_RX);
+
+    /* Process Locked */
+    __HAL_LOCK(hsmbus);
+
+    hsmbus->State |= HAL_SMBUS_STATE_SLAVE_BUSY_RX;
+    hsmbus->ErrorCode = HAL_SMBUS_ERROR_NONE;
+
+    /* Set SBC bit to manage Acknowledge at each bit */
+    hsmbus->Instance->CR1 |= I2C_CR1_SBC;
+
+    /* Enable Address Acknowledge */
+    hsmbus->Instance->CR2 &= ~I2C_CR2_NACK;
+
+    /* Prepare transfer parameters */
+    hsmbus->pBuffPtr = pData;
+    hsmbus->XferSize = Size;
+    hsmbus->XferCount = Size;
+    hsmbus->XferOptions = XferOptions;
+
+    /* Convert OTHER_xxx XferOptions if any */
+    SMBUS_ConvertOtherXferOptions(hsmbus);
+
+    /* Set NBYTE to receive */
+    /* If XferSize equal "1", or XferSize equal "2" with PEC requested (mean 1 data byte + 1 PEC byte */
+    /* no need to set RELOAD bit mode, a ACK will be automatically generated in that case */
+    /* else need to set RELOAD bit mode to generate an automatic ACK at each byte Received */
+    /* This RELOAD bit will be reset for last BYTE to be receive in SMBUS_Slave_ISR */
+    if ((hsmbus->XferSize == 1U) || ((hsmbus->XferSize == 2U) && (SMBUS_GET_PEC_MODE(hsmbus) != RESET)))
+    {
+      SMBUS_TransferConfig(hsmbus, 0U, hsmbus->XferSize, hsmbus->XferOptions, SMBUS_NO_STARTSTOP);
+    }
+    else
+    {
+      SMBUS_TransferConfig(hsmbus, 0U, 1U, hsmbus->XferOptions | SMBUS_RELOAD_MODE, SMBUS_NO_STARTSTOP);
+    }
+
+    /* Clear ADDR flag after prepare the transfer parameters */
+    /* This action will generate an acknowledge to the HOST */
+    __HAL_SMBUS_CLEAR_FLAG(hsmbus, SMBUS_FLAG_ADDR);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hsmbus);
+
+    /* Note : The SMBUS interrupts must be enabled after unlocking current process
+              to avoid the risk of SMBUS interrupt handle execution before current
+              process unlock */
+    /* REnable ADDR interrupt */
+    SMBUS_Enable_IRQ(hsmbus, SMBUS_IT_RX | SMBUS_IT_ADDR);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_ERROR;
+  }
+}

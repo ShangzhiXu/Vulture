@@ -1,0 +1,37 @@
+void HAL_CRYPEx_Read_SuspendRegisters(CRYP_HandleTypeDef *hcryp, uint8_t* Output)
+{
+  uint32_t outputaddr = (uint32_t)Output;
+  
+  /* In case of GCM payload phase encryption, check that suspension can be carried out */
+  if (READ_BIT(hcryp->Instance->CR, (AES_CR_GCMPH|AES_CR_MODE)) == (CRYP_PAYLOAD_PHASE|CRYP_ALGOMODE_ENCRYPT))
+  {
+    /* Ensure that Busy flag is reset */
+    if(CRYP_WaitOnBusyFlagReset(hcryp, CRYP_BUSY_TIMEOUTVALUE) != HAL_OK)  
+    { 
+      hcryp->ErrorCode |= HAL_CRYP_BUSY_ERROR;
+      hcryp->State = HAL_CRYP_STATE_ERROR;
+              
+      /* Process Unlocked */
+      __HAL_UNLOCK(hcryp);  
+    
+      HAL_CRYP_ErrorCallback(hcryp);
+      return ;
+    }
+  } 
+    
+  *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->SUSP7R);
+  outputaddr+=4;
+  *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->SUSP6R);
+  outputaddr+=4;
+  *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->SUSP5R);
+  outputaddr+=4;
+  *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->SUSP4R);
+  outputaddr+=4;
+  *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->SUSP3R);
+  outputaddr+=4;
+  *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->SUSP2R);
+  outputaddr+=4;
+  *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->SUSP1R); 
+  outputaddr+=4;
+  *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->SUSP0R);   
+}

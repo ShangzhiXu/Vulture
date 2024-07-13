@@ -1,0 +1,16 @@
+LITE_OS_SEC_TEXT STATIC UINT32 OsSwtmrTimeGet(const LosSwtmrCB *swtmr)
+{
+    SortLinkAttribute *sortLinkHeader = NULL;
+
+#ifdef LOSCFG_KERNEL_SMP
+    /*
+     * the timer is running on the specific processor,
+     * we need search the timer from that processor's sortlink.
+     */
+    sortLinkHeader = &g_percpu[swtmr->cpuid].swtmrSortLink;
+#else
+    sortLinkHeader = &g_percpu[0].swtmrSortLink;
+#endif
+
+    return OsSortLinkGetTargetExpireTime(sortLinkHeader, &swtmr->sortList);
+}

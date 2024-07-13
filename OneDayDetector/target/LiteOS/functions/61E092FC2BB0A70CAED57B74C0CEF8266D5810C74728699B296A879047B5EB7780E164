@@ -1,0 +1,28 @@
+dns_correct_response(u8_t idx, u32_t ttl)
+{
+  struct dns_table_entry *entry = &dns_table[idx];
+
+  entry->state = DNS_STATE_DONE;
+
+  LWIP_DEBUGF(DNS_DEBUG, ("dns_recv: \"%s\": response = ", entry->name));
+  ip_addr_debug_print_val(DNS_DEBUG, entry->ipaddr);
+  LWIP_DEBUGF(DNS_DEBUG, ("\n"));
+
+  /* read the answer resource record's TTL, and maximize it if needed */
+  entry->ttl = ttl;
+  if (entry->ttl > DNS_MAX_TTL) {
+    entry->ttl = DNS_MAX_TTL;
+  }
+  dns_call_found(idx, &entry->ipaddr);
+
+  if (entry->ttl == 0) {
+    /* RFC 883, page 29: "Zero values are
+       interpreted to mean that the RR can only be used for the
+       transaction in progress, and should not be cached."
+       -> flush this entry now */
+    /* entry reused during callback? */
+    if (entry->state == DNS_STATE_DONE) {
+      entry->state = DNS_STATE_UNUSED;
+    }
+  }
+}

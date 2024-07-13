@@ -1,0 +1,16 @@
+SECUREC_INLINE void SecFormatLongDouble(SecFormatAttr *attr, const SecFloatAdapt *floatAdapt, long double ldValue)
+{
+    int fldWidth = (((attr->flags & SECUREC_FLAG_LEFT) != 0) ? (-attr->fldWidth) : attr->fldWidth);
+    if (attr->dynWidth != 0 && attr->dynPrecision != 0) {
+        attr->textLen = SecFormatFloat(attr->text.str, floatAdapt->fmtStr, fldWidth, attr->precision, ldValue);
+    } else if (attr->dynWidth != 0) {
+        attr->textLen = SecFormatFloat(attr->text.str, floatAdapt->fmtStr, fldWidth, ldValue);
+    } else if (attr->dynPrecision != 0) {
+        attr->textLen = SecFormatFloat(attr->text.str, floatAdapt->fmtStr, attr->precision, ldValue);
+    } else {
+        attr->textLen = SecFormatFloat(attr->text.str, floatAdapt->fmtStr, ldValue);
+    }
+    if (attr->textLen < 0 || attr->textLen >= floatAdapt->bufferSize) {
+        attr->textLen = 0;
+    }
+}

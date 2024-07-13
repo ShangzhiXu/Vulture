@@ -1,0 +1,31 @@
+void HAL_RCCEx_DisableLSCO(void)
+{
+  FlagStatus       pwrclkchanged = RESET;
+  FlagStatus       backupchanged = RESET;
+
+  /* Update LSCOEN bit in Backup Domain control register */
+  if(__HAL_RCC_PWR_IS_CLK_DISABLED())
+  {
+    __HAL_RCC_PWR_CLK_ENABLE();
+    pwrclkchanged = SET;
+  }
+  if(HAL_IS_BIT_CLR(PWR->CR1, PWR_CR1_DBP))
+  {
+    /* Enable access to the backup domain */
+    HAL_PWR_EnableBkUpAccess();
+    backupchanged = SET;
+  }
+
+  CLEAR_BIT(RCC->BDCR, RCC_BDCR_LSCOEN);
+
+  /* Restore previous configuration */
+  if(backupchanged == SET)
+  {
+    /* Disable access to the backup domain */
+    HAL_PWR_DisableBkUpAccess();
+  }
+  if(pwrclkchanged == SET)
+  {
+    __HAL_RCC_PWR_CLK_DISABLE();
+  }
+}

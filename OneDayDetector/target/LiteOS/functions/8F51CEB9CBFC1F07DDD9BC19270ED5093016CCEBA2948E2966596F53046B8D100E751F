@@ -1,0 +1,177 @@
+HAL_StatusTypeDef HAL_JPEG_ConfigEncoding(JPEG_HandleTypeDef *hjpeg, JPEG_ConfTypeDef *pConf)
+{
+  uint32_t error;
+  uint32_t numberMCU, hfactor, vfactor, hMCU, vMCU;
+
+  /* Check the JPEG handle allocation */
+  if ((hjpeg == NULL) || (pConf == NULL))
+  {
+    return HAL_ERROR;
+  }
+  else
+  {
+    /* Check the parameters */
+    assert_param(IS_JPEG_COLORSPACE(pConf->ColorSpace));
+    assert_param(IS_JPEG_CHROMASUBSAMPLING(pConf->ChromaSubsampling));
+    assert_param(IS_JPEG_IMAGE_QUALITY(pConf->ImageQuality));
+
+    /* Process Locked */
+    __HAL_LOCK(hjpeg);
+
+    if (hjpeg->State == HAL_JPEG_STATE_READY)
+    {
+      hjpeg->State = HAL_JPEG_STATE_BUSY;
+
+      hjpeg->Conf.ColorSpace          =  pConf->ColorSpace;
+      hjpeg->Conf.ChromaSubsampling   =  pConf->ChromaSubsampling;
+      hjpeg->Conf.ImageHeight         =  pConf->ImageHeight;
+      hjpeg->Conf.ImageWidth          =  pConf->ImageWidth;
+      hjpeg->Conf.ImageQuality        =  pConf->ImageQuality;
+
+      /* Reset the Color Space : by default only one quantization table is used*/
+      hjpeg->Instance->CONFR1 &= ~JPEG_CONFR1_COLORSPACE;
+
+      /* Set Number of color components*/
+      if (hjpeg->Conf.ColorSpace == JPEG_GRAYSCALE_COLORSPACE)
+      {
+        /*Gray Scale is only one component 8x8 blocks i.e 4:4:4*/
+        hjpeg->Conf.ChromaSubsampling = JPEG_444_SUBSAMPLING;
+
+        JPEG_SetColorGrayScale(hjpeg);
+        /* Set quantization table 0*/
+        error = JPEG_Set_Quantization_Mem(hjpeg, hjpeg->QuantTable0, (hjpeg->Instance->QMEM0));
+      }
+      else if (hjpeg->Conf.ColorSpace == JPEG_YCBCR_COLORSPACE)
+      {
+        /*
+           Set the Color Space for YCbCr : 2 quantization tables are used
+           one for Luminance(Y) and one for both Chrominances (Cb & Cr)
+          */
+        hjpeg->Instance->CONFR1 |= JPEG_CONFR1_COLORSPACE_0;
+
+        JPEG_SetColorYCBCR(hjpeg);
+
+        /* Set quantization table 0*/
+        error  = JPEG_Set_Quantization_Mem(hjpeg, hjpeg->QuantTable0, (hjpeg->Instance->QMEM0));
+        /*By default quantization table 0 for component 0 and quantization table 1 for both components 1 and 2*/
+        error |= JPEG_Set_Quantization_Mem(hjpeg, hjpeg->QuantTable1, (hjpeg->Instance->QMEM1));
+
+        if ((hjpeg->Context & JPEG_CONTEXT_CUSTOM_TABLES) != 0UL)
+        {
+          /*Use user customized quantization tables , 1 table per component*/
+          /* use 3 quantization tables , one for each component*/
+          hjpeg->Instance->CONFR1 &= (~JPEG_CONFR1_COLORSPACE);
+          hjpeg->Instance->CONFR1 |= JPEG_CONFR1_COLORSPACE_1;
+
+          error |= JPEG_Set_Quantization_Mem(hjpeg, hjpeg->QuantTable2, (hjpeg->Instance->QMEM2));
+
+          /*Use Quantization 1 table for component 1*/
+          hjpeg->Instance->CONFR5 &= (~JPEG_CONFR5_QT);
+          hjpeg->Instance->CONFR5 |=  JPEG_CONFR5_QT_0;
+
+          /*Use Quantization 2 table for component 2*/
+          hjpeg->Instance->CONFR6 &= (~JPEG_CONFR6_QT);
+          hjpeg->Instance->CONFR6 |=  JPEG_CONFR6_QT_1;
+        }
+      }
+      else /* ColorSpace == JPEG_CMYK_COLORSPACE */
+      {
+        JPEG_SetColorCMYK(hjpeg);
+
+        /* Set quantization table 0*/
+        error  = JPEG_Set_Quantization_Mem(hjpeg, hjpeg->QuantTable0, (hjpeg->Instance->QMEM0));
+        /*By default quantization table 0 for All components*/
+
+        if ((hjpeg->Context & JPEG_CONTEXT_CUSTOM_TABLES) != 0UL)
+        {
+          /*Use user customized quantization tables , 1 table per component*/
+          /* use 4 quantization tables , one for each component*/
+          hjpeg->Instance->CONFR1 |= JPEG_CONFR1_COLORSPACE;
+
+          error |= JPEG_Set_Quantization_Mem(hjpeg, hjpeg->QuantTable1, (hjpeg->Instance->QMEM1));
+          error |= JPEG_Set_Quantization_Mem(hjpeg, hjpeg->QuantTable2, (hjpeg->Instance->QMEM2));
+          error |= JPEG_Set_Quantization_Mem(hjpeg, hjpeg->QuantTable3, (hjpeg->Instance->QMEM3));
+
+          /*Use Quantization 1 table for component 1*/
+          hjpeg->Instance->CONFR5 |=  JPEG_CONFR5_QT_0;
+
+          /*Use Quantization 2 table for component 2*/
+          hjpeg->Instance->CONFR6 |=  JPEG_CONFR6_QT_1;
+
+          /*Use Quantization 3 table for component 3*/
+          hjpeg->Instance->CONFR7 |=  JPEG_CONFR7_QT;
+        }
+      }
+
+      if (error != 0UL)
+      {
+        hjpeg->ErrorCode = HAL_JPEG_ERROR_QUANT_TABLE;
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(hjpeg);
+
+        /* Set the JPEG State to ready */
+        hjpeg->State = HAL_JPEG_STATE_READY;
+
+        return  HAL_ERROR;
+      }
+      /* Set the image size*/
+      /* set the number of lines*/
+      MODIFY_REG(hjpeg->Instance->CONFR1, JPEG_CONFR1_YSIZE, ((hjpeg->Conf.ImageHeight & 0x0000FFFFUL) << 16));
+      /* set the number of pixels per line*/
+      MODIFY_REG(hjpeg->Instance->CONFR3, JPEG_CONFR3_XSIZE, ((hjpeg->Conf.ImageWidth & 0x0000FFFFUL) << 16));
+
+
+      if (hjpeg->Conf.ChromaSubsampling == JPEG_420_SUBSAMPLING) /* 4:2:0*/
+      {
+        hfactor = 16;
+        vfactor = 16;
+      }
+      else if (hjpeg->Conf.ChromaSubsampling == JPEG_422_SUBSAMPLING) /* 4:2:2*/
+      {
+        hfactor = 16;
+        vfactor = 8;
+      }
+      else /* Default is 8x8 MCU,  4:4:4*/
+      {
+        hfactor = 8;
+        vfactor = 8;
+      }
+
+      hMCU = (hjpeg->Conf.ImageWidth / hfactor);
+      if ((hjpeg->Conf.ImageWidth % hfactor) != 0UL)
+      {
+        hMCU++; /*+1 for horizontal incomplete MCU */
+      }
+
+      vMCU = (hjpeg->Conf.ImageHeight / vfactor);
+      if ((hjpeg->Conf.ImageHeight % vfactor) != 0UL)
+      {
+        vMCU++; /*+1 for vertical incomplete MCU */
+      }
+
+      numberMCU = (hMCU * vMCU) - 1UL; /* Bit Field JPEG_CONFR2_NMCU shall be set to NB_MCU - 1*/
+      /* Set the number of MCU*/
+      hjpeg->Instance->CONFR2 = (numberMCU & JPEG_CONFR2_NMCU);
+
+      hjpeg->Context |= JPEG_CONTEXT_CONF_ENCODING;
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hjpeg);
+
+      /* Set the JPEG State to ready */
+      hjpeg->State = HAL_JPEG_STATE_READY;
+
+      /* Return function status */
+      return HAL_OK;
+    }
+    else
+    {
+      /* Process Unlocked */
+      __HAL_UNLOCK(hjpeg);
+
+      /* Return function status */
+      return HAL_BUSY;
+    }
+  }
+}

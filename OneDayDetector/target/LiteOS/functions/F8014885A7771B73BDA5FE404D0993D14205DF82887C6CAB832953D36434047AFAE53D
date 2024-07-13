@@ -1,0 +1,68 @@
+HAL_StatusTypeDef HAL_UART_Receive_DMA(UART_HandleTypeDef *huart, uint8_t *pData, uint16_t Size)
+{
+  /* Check that a Rx process is not already ongoing */
+  if (huart->RxState == HAL_UART_STATE_READY)
+  {
+    if ((pData == NULL) || (Size == 0U))
+    {
+      return HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(huart);
+
+    huart->pRxBuffPtr = pData;
+    huart->RxXferSize = Size;
+
+    huart->ErrorCode = HAL_UART_ERROR_NONE;
+    huart->RxState = HAL_UART_STATE_BUSY_RX;
+
+    if (huart->hdmarx != NULL)
+    {
+      /* Set the UART DMA transfer complete callback */
+      huart->hdmarx->XferCpltCallback = UART_DMAReceiveCplt;
+
+      /* Set the UART DMA Half transfer complete callback */
+      huart->hdmarx->XferHalfCpltCallback = UART_DMARxHalfCplt;
+
+      /* Set the DMA error callback */
+      huart->hdmarx->XferErrorCallback = UART_DMAError;
+
+      /* Set the DMA abort callback */
+      huart->hdmarx->XferAbortCallback = NULL;
+
+      /* Enable the DMA channel */
+      if (HAL_DMA_Start_IT(huart->hdmarx, (uint32_t)&huart->Instance->RDR, (uint32_t)huart->pRxBuffPtr, Size) != HAL_OK)
+      {
+        /* Set error code to DMA */
+        huart->ErrorCode = HAL_UART_ERROR_DMA;
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(huart);
+
+        /* Restore huart->gState to ready */
+        huart->gState = HAL_UART_STATE_READY;
+
+        return HAL_ERROR;
+      }
+    }
+    /* Process Unlocked */
+    __HAL_UNLOCK(huart);
+
+    /* Enable the UART Parity Error Interrupt */
+    SET_BIT(huart->Instance->CR1, USART_CR1_PEIE);
+
+    /* Enable the UART Error Interrupt: (Frame error, noise error, overrun error) */
+    SET_BIT(huart->Instance->CR3, USART_CR3_EIE);
+
+    /* Enable the DMA transfer for the receiver request by setting the DMAR bit
+    in the UART CR3 register */
+    SET_BIT(huart->Instance->CR3, USART_CR3_DMAR);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

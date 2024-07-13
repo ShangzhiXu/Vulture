@@ -1,0 +1,68 @@
+static HAL_StatusTypeDef SMBUS_Slave_STOPF(SMBUS_HandleTypeDef *hsmbus)
+{
+  /* Declaration of temporary variable to prevent undefined behavior of volatile usage */
+  uint32_t CurrentState = hsmbus->State;
+
+  /* Disable EVT, BUF and ERR interrupt */
+  __HAL_SMBUS_DISABLE_IT(hsmbus, SMBUS_IT_EVT | SMBUS_IT_BUF | SMBUS_IT_ERR);
+
+  /* Clear STOPF flag */
+  __HAL_SMBUS_CLEAR_STOPFLAG(hsmbus);
+
+  /* Disable Acknowledge */
+  CLEAR_BIT(hsmbus->Instance->CR1, I2C_CR1_ACK);
+
+  /* All data are not transferred, so set error code accordingly */
+  if (hsmbus->XferCount != 0U)
+  {
+    /* Store Last receive data if any */
+    if (__HAL_SMBUS_GET_FLAG(hsmbus, SMBUS_FLAG_BTF) == SET)
+    {
+      /* Read data from DR */
+      (*hsmbus->pBuffPtr++) = hsmbus->Instance->DR;
+
+      if (hsmbus->XferCount > 0)
+      {
+        hsmbus->XferSize--;
+        hsmbus->XferCount--;
+      }
+    }
+
+    /* Store Last receive data if any */
+    if (__HAL_SMBUS_GET_FLAG(hsmbus, SMBUS_FLAG_RXNE) == SET)
+    {
+      /* Read data from DR */
+      (*hsmbus->pBuffPtr++) = hsmbus->Instance->DR;
+
+      if (hsmbus->XferCount > 0)
+      {
+        hsmbus->XferSize--;
+        hsmbus->XferCount--;
+      }
+    }
+  }
+
+  if (hsmbus->ErrorCode != HAL_SMBUS_ERROR_NONE)
+  {
+    /* Call the corresponding callback to inform upper layer of End of Transfer */
+    SMBUS_ITError(hsmbus);
+  }
+  else
+  {
+    if ((CurrentState == HAL_SMBUS_STATE_LISTEN) || (CurrentState == HAL_SMBUS_STATE_BUSY_RX_LISTEN)  || \
+        (CurrentState == HAL_SMBUS_STATE_BUSY_TX_LISTEN))
+    {
+      hsmbus->XferOptions = SMBUS_NO_OPTION_FRAME;
+      hsmbus->PreviousState = HAL_SMBUS_STATE_READY;
+      hsmbus->State = HAL_SMBUS_STATE_READY;
+      hsmbus->Mode = HAL_SMBUS_MODE_NONE;
+
+#if (USE_HAL_SMBUS_REGISTER_CALLBACKS == 1)
+      hsmbus->ListenCpltCallback(hsmbus);
+#else
+      HAL_SMBUS_ListenCpltCallback(hsmbus);
+#endif /* USE_HAL_SMBUS_REGISTER_CALLBACKS */
+    }
+  }
+  return HAL_OK;
+}

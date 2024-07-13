@@ -1,0 +1,19 @@
+err_t ppp_connect(ppp_pcb *pcb, u16_t holdoff) {
+  LWIP_ASSERT_CORE_LOCKED();
+  if (pcb->phase != PPP_PHASE_DEAD) {
+    return ERR_ALREADY;
+  }
+
+  PPPDEBUG(LOG_DEBUG, ("ppp_connect[%d]: holdoff=%d\n", pcb->netif->num, holdoff));
+
+  magic_randomize();
+
+  if (holdoff == 0) {
+    ppp_do_connect(pcb);
+    return ERR_OK;
+  }
+
+  new_phase(pcb, PPP_PHASE_HOLDOFF);
+  sys_timeout((u32_t)(holdoff*1000), ppp_do_connect, pcb);
+  return ERR_OK;
+}

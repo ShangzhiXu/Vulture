@@ -1,0 +1,34 @@
+HAL_StatusTypeDef HAL_PCD_EP_SetStall(PCD_HandleTypeDef *hpcd, uint8_t ep_addr)
+{
+  PCD_EPTypeDef *ep;
+
+  if (((uint32_t)ep_addr & EP_ADDR_MSK) > hpcd->Init.dev_endpoints)
+  {
+    return HAL_ERROR;
+  }
+
+  if ((0x80U & ep_addr) == 0x80U)
+  {
+    ep = &hpcd->IN_ep[ep_addr & EP_ADDR_MSK];
+    ep->is_in = 1U;
+  }
+  else
+  {
+    ep = &hpcd->OUT_ep[ep_addr];
+    ep->is_in = 0U;
+  }
+
+  ep->is_stall = 1U;
+  ep->num = ep_addr & EP_ADDR_MSK;
+
+  __HAL_LOCK(hpcd);
+
+  (void)USB_EPSetStall(hpcd->Instance, ep);
+  if ((ep_addr & EP_ADDR_MSK) == 0U)
+  {
+    (void)USB_EP0_OutStart(hpcd->Instance, (uint8_t *)hpcd->Setup);
+  }
+  __HAL_UNLOCK(hpcd);
+
+  return HAL_OK;
+}

@@ -1,0 +1,37 @@
+HAL_StatusTypeDef HAL_DSI_ConfigPhyTimer(DSI_HandleTypeDef *hdsi, DSI_PHY_TimerTypeDef *PhyTimers)
+{
+  uint32_t maxTime;
+  /* Process locked */
+  __HAL_LOCK(hdsi);
+
+  maxTime = (PhyTimers->ClockLaneLP2HSTime > PhyTimers->ClockLaneHS2LPTime) ? PhyTimers->ClockLaneLP2HSTime :
+            PhyTimers->ClockLaneHS2LPTime;
+
+  /* Clock lane timer configuration */
+
+  /* In Automatic Clock Lane control mode, the DSI Host can turn off the clock lane between two
+     High-Speed transmission.
+     To do so, the DSI Host calculates the time required for the clock lane to change from HighSpeed
+     to Low-Power and from Low-Power to High-Speed.
+     This timings are configured by the HS2LP_TIME and LP2HS_TIME in the DSI Host Clock Lane Timer Configuration Register (DSI_CLTCR).
+     But the DSI Host is not calculating LP2HS_TIME + HS2LP_TIME but 2 x HS2LP_TIME.
+
+     Workaround : Configure HS2LP_TIME and LP2HS_TIME with the same value being the max of HS2LP_TIME or LP2HS_TIME.
+    */
+  hdsi->Instance->CLTCR &= ~(DSI_CLTCR_LP2HS_TIME | DSI_CLTCR_HS2LP_TIME);
+  hdsi->Instance->CLTCR |= (maxTime | ((maxTime) << 16U));
+
+  /* Data lane timer configuration */
+  hdsi->Instance->DLTCR &= ~(DSI_DLTCR_MRD_TIME | DSI_DLTCR_LP2HS_TIME | DSI_DLTCR_HS2LP_TIME);
+  hdsi->Instance->DLTCR |= (PhyTimers->DataLaneMaxReadTime | ((PhyTimers->DataLaneLP2HSTime) << 16U) | ((
+                              PhyTimers->DataLaneHS2LPTime) << 24U));
+
+  /* Configure the wait period to request HS transmission after a stop state */
+  hdsi->Instance->PCONFR &= ~DSI_PCONFR_SW_TIME;
+  hdsi->Instance->PCONFR |= ((PhyTimers->StopWaitTime) << 8U);
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hdsi);
+
+  return HAL_OK;
+}

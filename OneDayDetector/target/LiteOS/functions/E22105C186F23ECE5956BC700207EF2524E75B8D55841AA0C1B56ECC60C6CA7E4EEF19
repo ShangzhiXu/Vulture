@@ -1,0 +1,79 @@
+HAL_StatusTypeDef HAL_PCD_Init(PCD_HandleTypeDef *hpcd)
+{
+  uint32_t index = 0U;
+  
+  /* Check the PCD handle allocation */
+  if(hpcd == NULL)
+  {
+    return HAL_ERROR;
+  }
+  
+  /* Check the parameters */
+  assert_param(IS_PCD_ALL_INSTANCE(hpcd->Instance));
+  
+  if(hpcd->State == HAL_PCD_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hpcd->Lock = HAL_UNLOCKED;
+
+    /* Init the low level hardware : GPIO, CLOCK, NVIC... */
+    HAL_PCD_MspInit(hpcd);
+  }
+
+  hpcd->State = HAL_PCD_STATE_BUSY;
+
+  /* Disable the Interrupts */
+  __HAL_PCD_DISABLE(hpcd);
+
+  /*Init the Core (common init.) */
+  USB_CoreInit(hpcd->Instance, hpcd->Init);
+
+  /* Force Device Mode*/
+  USB_SetCurrentMode(hpcd->Instance , USB_DEVICE_MODE);
+
+  /* Init endpoints structures */
+  for (index = 0; index < hpcd->Init.dev_endpoints ; index++)
+  {
+    /* Init ep structure */
+    hpcd->IN_ep[index].is_in = 1;
+    hpcd->IN_ep[index].num = index;
+    hpcd->IN_ep[index].tx_fifo_num = index;
+    /* Control until ep is activated */
+    hpcd->IN_ep[index].type = EP_TYPE_CTRL;
+    hpcd->IN_ep[index].maxpacket =  0;
+    hpcd->IN_ep[index].xfer_buff = 0;
+    hpcd->IN_ep[index].xfer_len = 0;
+  }
+  
+  for (index = 0; index < 15 ; index++)
+  {
+    hpcd->OUT_ep[index].is_in = 0;
+    hpcd->OUT_ep[index].num = index;
+    hpcd->IN_ep[index].tx_fifo_num = index;
+    /* Control until ep is activated */
+    hpcd->OUT_ep[index].type = EP_TYPE_CTRL;
+    hpcd->OUT_ep[index].maxpacket = 0;
+    hpcd->OUT_ep[index].xfer_buff = 0;
+    hpcd->OUT_ep[index].xfer_len = 0;
+  }
+
+  /* Init Device */
+  USB_DevInit(hpcd->Instance, hpcd->Init);
+
+  hpcd->USB_Address = 0;
+  
+  hpcd->State= HAL_PCD_STATE_READY;
+  
+   /* Activate LPM */
+  if (hpcd->Init.lpm_enable ==1)
+  {
+    HAL_PCDEx_ActivateLPM(hpcd);
+  }  
+  /* Activate Battery charging */
+  if (hpcd->Init.battery_charging_enable ==1)
+  {
+    HAL_PCDEx_ActivateBCD(hpcd);
+  }
+  USB_DevDisconnect (hpcd->Instance);  
+  return HAL_OK;
+}

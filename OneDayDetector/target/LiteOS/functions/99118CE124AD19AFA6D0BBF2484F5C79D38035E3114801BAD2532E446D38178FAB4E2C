@@ -1,0 +1,49 @@
+STATIC INT32 OsStrSeparate(CHAR *tabStr, CHAR *strPath, CHAR *nameLooking, UINT32 tabStrLen)
+{
+    CHAR *strEnd = NULL;
+    CHAR *cutPos = NULL;
+    CmdParsed parsed = {0};
+    CHAR *shellWorkingDirectory = OsShellGetWorkingDirectory();
+    INT32 ret;
+
+    ret = OsStrSeparateTabStrGet(&tabStr, &parsed, tabStrLen);
+    if (ret != LOS_OK) {
+        return ret;
+    }
+
+    /* get fullpath str */
+    if (*tabStr != '/') {
+        if (strncpy_s(strPath, CMD_MAX_PATH, shellWorkingDirectory, CMD_MAX_PATH - 1) != EOK) {
+            OsFreeCmdPara(&parsed);
+            return (INT32)OS_ERROR;
+        }
+        if (strcmp(shellWorkingDirectory, "/")) {
+            if (strncat_s(strPath, CMD_MAX_PATH, "/", CMD_MAX_PATH - strlen(strPath) - 1) != EOK) {
+                OsFreeCmdPara(&parsed);
+                return (INT32)OS_ERROR;
+            }
+        }
+    }
+
+    if (strncat_s(strPath, CMD_MAX_PATH, tabStr, CMD_MAX_PATH - strlen(strPath) - 1) != EOK) {
+        OsFreeCmdPara(&parsed);
+        return (INT32)OS_ERROR;
+    }
+
+    /* split str by last '/' */
+    strEnd = strrchr(strPath, '/');
+    if (strEnd != NULL) {
+        if (strncpy_s(nameLooking, CMD_MAX_PATH, strEnd + 1, CMD_MAX_PATH - 1) != EOK) { /* get cmp str */
+            OsFreeCmdPara(&parsed);
+            return (INT32)OS_ERROR;
+        }
+    }
+
+    cutPos = strrchr(strPath, '/');
+    if (cutPos != NULL) {
+        *(cutPos + 1) = '\0';
+    }
+
+    OsFreeCmdPara(&parsed);
+    return LOS_OK;
+}

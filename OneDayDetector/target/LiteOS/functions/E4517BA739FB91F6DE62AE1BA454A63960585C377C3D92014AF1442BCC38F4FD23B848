@@ -1,0 +1,141 @@
+ip6_frag(struct pbuf *p, struct netif *netif, const ip6_addr_t *dest)
+{
+  struct ip6_hdr *original_ip6hdr;
+  struct ip6_hdr *ip6hdr;
+  struct ip6_frag_hdr *frag_hdr;
+  struct pbuf *rambuf;
+#if !LWIP_NETIF_TX_SINGLE_PBUF
+  struct pbuf *newpbuf;
+  u16_t newpbuflen = 0;
+  u16_t left_to_copy;
+#endif
+  static u32_t identification;
+  u16_t left, cop;
+  const u16_t mtu = nd6_get_destination_mtu(dest, netif);
+  const u16_t nfb = (u16_t)((mtu - (IP6_HLEN + IP6_FRAG_HLEN)) & IP6_FRAG_OFFSET_MASK);
+  u16_t fragment_offset = 0;
+  u16_t last;
+  u16_t poff = IP6_HLEN;
+
+  identification++;
+
+  original_ip6hdr = (struct ip6_hdr *)p->payload;
+
+  /* @todo we assume there are no options in the unfragmentable part (IPv6 header). */
+  LWIP_ASSERT("p->tot_len >= IP6_HLEN", p->tot_len >= IP6_HLEN);
+  left = (u16_t)(p->tot_len - IP6_HLEN);
+
+  while (left) {
+    last = (left <= nfb);
+
+    /* Fill this fragment */
+    cop = last ? left : nfb;
+
+#if LWIP_NETIF_TX_SINGLE_PBUF
+    rambuf = pbuf_alloc(PBUF_IP, cop + IP6_FRAG_HLEN, PBUF_RAM);
+    if (rambuf == NULL) {
+      IP6_FRAG_STATS_INC(ip6_frag.memerr);
+      return ERR_MEM;
+    }
+    LWIP_ASSERT("this needs a pbuf in one piece!",
+      (rambuf->len == rambuf->tot_len) && (rambuf->next == NULL));
+    poff += pbuf_copy_partial(p, (u8_t*)rambuf->payload + IP6_FRAG_HLEN, cop, poff);
+    /* make room for the IP header */
+    if (pbuf_add_header(rambuf, IP6_HLEN)) {
+      pbuf_free(rambuf);
+      IP6_FRAG_STATS_INC(ip6_frag.memerr);
+      return ERR_MEM;
+    }
+    /* fill in the IP header */
+    SMEMCPY(rambuf->payload, original_ip6hdr, IP6_HLEN);
+    ip6hdr = (struct ip6_hdr *)rambuf->payload;
+    frag_hdr = (struct ip6_frag_hdr *)((u8_t*)rambuf->payload + IP6_HLEN);
+#else
+    /* When not using a static buffer, create a chain of pbufs.
+     * The first will be a PBUF_RAM holding the link, IPv6, and Fragment header.
+     * The rest will be PBUF_REFs mirroring the pbuf chain to be fragged,
+     * but limited to the size of an mtu.
+     */
+    rambuf = pbuf_alloc(PBUF_LINK, IP6_HLEN + IP6_FRAG_HLEN, PBUF_RAM);
+    if (rambuf == NULL) {
+      IP6_FRAG_STATS_INC(ip6_frag.memerr);
+      return ERR_MEM;
+    }
+    LWIP_ASSERT("this needs a pbuf in one piece!",
+                (p->len >= (IP6_HLEN)));
+    SMEMCPY(rambuf->payload, original_ip6hdr, IP6_HLEN);
+    ip6hdr = (struct ip6_hdr *)rambuf->payload;
+    frag_hdr = (struct ip6_frag_hdr *)((u8_t*)rambuf->payload + IP6_HLEN);
+
+    /* Can just adjust p directly for needed offset. */
+    p->payload = (u8_t *)p->payload + poff;
+    p->len = (u16_t)(p->len - poff);
+    p->tot_len = (u16_t)(p->tot_len - poff);
+
+    left_to_copy = cop;
+    while (left_to_copy) {
+      struct pbuf_custom_ref *pcr;
+      newpbuflen = (left_to_copy < p->len) ? left_to_copy : p->len;
+      /* Is this pbuf already empty? */
+      if (!newpbuflen) {
+        p = p->next;
+        continue;
+      }
+      pcr = ip6_frag_alloc_pbuf_custom_ref();
+      if (pcr == NULL) {
+        pbuf_free(rambuf);
+        IP6_FRAG_STATS_INC(ip6_frag.memerr);
+        return ERR_MEM;
+      }
+      /* Mirror this pbuf, although we might not need all of it. */
+      newpbuf = pbuf_alloced_custom(PBUF_RAW, newpbuflen, PBUF_REF, &pcr->pc, p->payload, newpbuflen);
+      if (newpbuf == NULL) {
+        ip6_frag_free_pbuf_custom_ref(pcr);
+        pbuf_free(rambuf);
+        IP6_FRAG_STATS_INC(ip6_frag.memerr);
+        return ERR_MEM;
+      }
+      pbuf_ref(p);
+      pcr->original = p;
+      pcr->pc.custom_free_function = ip6_frag_free_pbuf_custom;
+
+      /* Add it to end of rambuf's chain, but using pbuf_cat, not pbuf_chain
+       * so that it is removed when pbuf_dechain is later called on rambuf.
+       */
+      pbuf_cat(rambuf, newpbuf);
+      left_to_copy = (u16_t)(left_to_copy - newpbuflen);
+      if (left_to_copy) {
+        p = p->next;
+      }
+    }
+    poff = newpbuflen;
+#endif /* LWIP_NETIF_TX_SINGLE_PBUF */
+
+    /* Set headers */
+    frag_hdr->_nexth = original_ip6hdr->_nexth;
+    frag_hdr->reserved = 0;
+    frag_hdr->_fragment_offset = lwip_htons((u16_t)((fragment_offset & IP6_FRAG_OFFSET_MASK) | (last ? 0 : IP6_FRAG_MORE_FLAG)));
+    frag_hdr->_identification = lwip_htonl(identification);
+
+    IP6H_NEXTH_SET(ip6hdr, IP6_NEXTH_FRAGMENT);
+    IP6H_PLEN_SET(ip6hdr, (u16_t)(cop + IP6_FRAG_HLEN));
+
+    /* No need for separate header pbuf - we allowed room for it in rambuf
+     * when allocated.
+     */
+    IP6_FRAG_STATS_INC(ip6_frag.xmit);
+    netif->output_ip6(netif, rambuf, dest);
+
+    /* Unfortunately we can't reuse rambuf - the hardware may still be
+     * using the buffer. Instead we free it (and the ensuing chain) and
+     * recreate it next time round the loop. If we're lucky the hardware
+     * will have already sent the packet, the free will really free, and
+     * there will be zero memory penalty.
+     */
+
+    pbuf_free(rambuf);
+    left = (u16_t)(left - cop);
+    fragment_offset = (u16_t)(fragment_offset + cop);
+  }
+  return ERR_OK;
+}

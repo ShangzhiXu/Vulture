@@ -1,0 +1,57 @@
+tcp_eff_send_mss_netif(u16_t sendmss, struct netif *outif, const ip_addr_t *dest)
+{
+  u16_t mss_s;
+  u16_t mtu;
+
+  LWIP_UNUSED_ARG(dest); /* in case IPv6 is disabled */
+
+  LWIP_ASSERT("tcp_eff_send_mss_netif: invalid dst_ip", dest != NULL);
+
+#if LWIP_IPV6
+#if LWIP_IPV4
+  if (IP_IS_V6(dest))
+#endif /* LWIP_IPV4 */
+  {
+    /* First look in destination cache, to see if there is a Path MTU. */
+    mtu = nd6_get_destination_mtu(ip_2_ip6(dest), outif);
+  }
+#if LWIP_IPV4
+  else
+#endif /* LWIP_IPV4 */
+#endif /* LWIP_IPV6 */
+#if LWIP_IPV4
+  {
+    if (outif == NULL) {
+      return sendmss;
+    }
+    mtu = outif->mtu;
+  }
+#endif /* LWIP_IPV4 */
+
+  if (mtu != 0) {
+    u16_t offset;
+#if LWIP_IPV6
+#if LWIP_IPV4
+    if (IP_IS_V6(dest))
+#endif /* LWIP_IPV4 */
+    {
+      offset = IP6_HLEN + TCP_HLEN;
+    }
+#if LWIP_IPV4
+    else
+#endif /* LWIP_IPV4 */
+#endif /* LWIP_IPV6 */
+#if LWIP_IPV4
+    {
+      offset = IP_HLEN + TCP_HLEN;
+    }
+#endif /* LWIP_IPV4 */
+    mss_s = (mtu > offset) ? (u16_t)(mtu - offset) : 0;
+    /* RFC 1122, chap 4.2.2.6:
+     * Eff.snd.MSS = min(SendMSS+20, MMS_S) - TCPhdrsize - IPoptionsize
+     * We correct for TCP options in tcp_write(), and don't support IP options.
+     */
+    sendmss = LWIP_MIN(sendmss, mss_s);
+  }
+  return sendmss;
+}

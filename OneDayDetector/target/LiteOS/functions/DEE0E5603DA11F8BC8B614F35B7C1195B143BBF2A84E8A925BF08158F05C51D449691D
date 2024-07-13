@@ -1,0 +1,18 @@
+LITE_OS_SEC_TEXT VOID OsSwtmrStart(LosSwtmrCB *swtmr)
+{
+    if ((swtmr->overrun == 0) && ((swtmr->mode == LOS_SWTMR_MODE_ONCE) ||
+        (swtmr->mode == LOS_SWTMR_MODE_OPP) ||
+        (swtmr->mode == LOS_SWTMR_MODE_NO_SELFDELETE))) {
+        SET_SORTLIST_VALUE(&(swtmr->sortList), swtmr->expiry);
+    } else {
+        SET_SORTLIST_VALUE(&(swtmr->sortList), swtmr->interval);
+    }
+
+    OsAdd2SortLink(&OsPercpuGet()->swtmrSortLink, &swtmr->sortList);
+
+    swtmr->state = OS_SWTMR_STATUS_TICKING;
+
+#ifdef LOSCFG_KERNEL_SMP
+    swtmr->cpuid = ArchCurrCpuid();
+#endif
+}

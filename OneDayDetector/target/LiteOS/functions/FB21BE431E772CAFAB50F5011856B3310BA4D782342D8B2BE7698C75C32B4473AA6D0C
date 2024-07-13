@@ -1,0 +1,89 @@
+void HAL_SPI_IRQHandler(SPI_HandleTypeDef *hspi)
+{
+  uint32_t itsource = hspi->Instance->CR2;
+  uint32_t itflag   = hspi->Instance->SR;
+
+  /* SPI in mode Receiver ----------------------------------------------------*/
+  if (((itflag & SPI_FLAG_OVR) == RESET) &&
+      ((itflag & SPI_FLAG_RXNE) != RESET) && ((itsource & SPI_IT_RXNE) != RESET))
+  {
+    hspi->RxISR(hspi);
+    return;
+  }
+
+  /* SPI in mode Transmitter -------------------------------------------------*/
+  if (((itflag & SPI_FLAG_TXE) != RESET) && ((itsource & SPI_IT_TXE) != RESET))
+  {
+    hspi->TxISR(hspi);
+    return;
+  }
+
+  /* SPI in Error Treatment --------------------------------------------------*/
+  if (((itflag & (SPI_FLAG_MODF | SPI_FLAG_OVR | SPI_FLAG_FRE)) != RESET) && ((itsource & SPI_IT_ERR) != RESET))
+  {
+    /* SPI Overrun error interrupt occurred ----------------------------------*/
+    if ((itflag & SPI_FLAG_OVR) != RESET)
+    {
+      if (hspi->State != HAL_SPI_STATE_BUSY_TX)
+      {
+        SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_OVR);
+        __HAL_SPI_CLEAR_OVRFLAG(hspi);
+      }
+      else
+      {
+        __HAL_SPI_CLEAR_OVRFLAG(hspi);
+        return;
+      }
+    }
+
+    /* SPI Mode Fault error interrupt occurred -------------------------------*/
+    if ((itflag & SPI_FLAG_MODF) != RESET)
+    {
+      SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_MODF);
+      __HAL_SPI_CLEAR_MODFFLAG(hspi);
+    }
+
+    /* SPI Frame error interrupt occurred ------------------------------------*/
+    if ((itflag & SPI_FLAG_FRE) != RESET)
+    {
+      SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_FRE);
+      __HAL_SPI_CLEAR_FREFLAG(hspi);
+    }
+
+    if (hspi->ErrorCode != HAL_SPI_ERROR_NONE)
+    {
+      /* Disable all interrupts */
+      __HAL_SPI_DISABLE_IT(hspi, SPI_IT_RXNE | SPI_IT_TXE | SPI_IT_ERR);
+
+      hspi->State = HAL_SPI_STATE_READY;
+      /* Disable the SPI DMA requests if enabled */
+      if ((HAL_IS_BIT_SET(itsource, SPI_CR2_TXDMAEN)) || (HAL_IS_BIT_SET(itsource, SPI_CR2_RXDMAEN)))
+      {
+        CLEAR_BIT(hspi->Instance->CR2, (SPI_CR2_TXDMAEN | SPI_CR2_RXDMAEN));
+
+        /* Abort the SPI DMA Rx channel */
+        if (hspi->hdmarx != NULL)
+        {
+          /* Set the SPI DMA Abort callback :
+          will lead to call HAL_SPI_ErrorCallback() at end of DMA abort procedure */
+          hspi->hdmarx->XferAbortCallback = SPI_DMAAbortOnError;
+          HAL_DMA_Abort_IT(hspi->hdmarx);
+        }
+        /* Abort the SPI DMA Tx channel */
+        if (hspi->hdmatx != NULL)
+        {
+          /* Set the SPI DMA Abort callback :
+          will lead to call HAL_SPI_ErrorCallback() at end of DMA abort procedure */
+          hspi->hdmatx->XferAbortCallback = SPI_DMAAbortOnError;
+          HAL_DMA_Abort_IT(hspi->hdmatx);
+        }
+      }
+      else
+      {
+        /* Call user error callback */
+        HAL_SPI_ErrorCallback(hspi);
+      }
+    }
+    return;
+  }
+}

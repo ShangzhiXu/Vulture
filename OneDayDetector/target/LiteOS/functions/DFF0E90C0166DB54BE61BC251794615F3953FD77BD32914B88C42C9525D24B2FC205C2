@@ -1,0 +1,31 @@
+void mbedtls_x509_csr_free( mbedtls_x509_csr *csr )
+{
+    mbedtls_x509_name *name_cur;
+    mbedtls_x509_name *name_prv;
+
+    if( csr == NULL )
+        return;
+
+    mbedtls_pk_free( &csr->pk );
+
+#if defined(MBEDTLS_X509_RSASSA_PSS_SUPPORT)
+    mbedtls_free( csr->sig_opts );
+#endif
+
+    name_cur = csr->subject.next;
+    while( name_cur != NULL )
+    {
+        name_prv = name_cur;
+        name_cur = name_cur->next;
+        mbedtls_platform_zeroize( name_prv, sizeof( mbedtls_x509_name ) );
+        mbedtls_free( name_prv );
+    }
+
+    if( csr->raw.p != NULL )
+    {
+        mbedtls_platform_zeroize( csr->raw.p, csr->raw.len );
+        mbedtls_free( csr->raw.p );
+    }
+
+    mbedtls_platform_zeroize( csr, sizeof( mbedtls_x509_csr ) );
+}

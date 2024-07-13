@@ -1,0 +1,36 @@
+static HAL_StatusTypeDef JPEG_DCHuff_BitsVals_To_SizeCodes(JPEG_DCHuffTableTypeDef *DC_BitsValsTable,
+                                                           JPEG_DC_HuffCodeTableTypeDef *DC_SizeCodesTable)
+{
+  HAL_StatusTypeDef error;
+
+  uint32_t k;
+  uint32_t l;
+  uint32_t lastK;
+  uint8_t huffsize[257];
+  uint32_t huffcode[257];
+  error = JPEG_Bits_To_SizeCodes(DC_BitsValsTable->Bits, huffsize, huffcode, &lastK);
+  if (error != HAL_OK)
+  {
+    return  error;
+  }
+  /* Figure C.3: ordering procedure for encoding procedure code tables */
+  k = 0;
+
+  while (k < lastK)
+  {
+    l = DC_BitsValsTable->HuffVal[k];
+    if (l >= JPEG_DC_HUFF_TABLE_SIZE)
+    {
+      return HAL_ERROR; /* Huffman Table overflow error*/
+    }
+    else
+    {
+      DC_SizeCodesTable->HuffmanCode[l] = huffcode[k];
+      DC_SizeCodesTable->CodeLength[l] = huffsize[k] - 1U;
+      k++;
+    }
+  }
+
+  /* Return function status */
+  return HAL_OK;
+}

@@ -1,0 +1,26 @@
+Time64_T mktime64(struct TM *tm)
+{
+    long long t = __tm_to_secs(tm);
+    int dstsec = 0;
+
+    LOCK(lock);
+    if (tm->tm_isdst != 0) {
+        if (CheckWithinDstPeriod(tm, 0) == TRUE) {
+            dstsec = DstForwardSecondGet();
+        }
+        tm->tm_isdst = 0;
+    }
+    t = t - timezone - dstsec;
+    UNLOCK(lock);
+
+    if ((Time64_T)t != t) {
+        goto error;
+    }
+
+    return t;
+
+error:
+    UNLOCK(lock);
+    errno = EOVERFLOW;
+    return -1;
+}

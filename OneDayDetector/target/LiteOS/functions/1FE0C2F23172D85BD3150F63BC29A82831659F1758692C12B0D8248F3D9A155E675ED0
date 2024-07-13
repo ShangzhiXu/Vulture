@@ -1,0 +1,19 @@
+static int chap_verify_response(ppp_pcb *pcb, const char *name, const char *ourname, int id,
+		     const struct chap_digest_type *digest,
+		     const unsigned char *challenge, const unsigned char *response,
+		     char *message, int message_space) {
+	int ok;
+	unsigned char secret[MAXSECRETLEN];
+	int secret_len;
+
+	/* Get the secret that the peer is supposed to know */
+	if (!get_secret(pcb, name, ourname, (char *)secret, &secret_len, 1)) {
+		ppp_error("No CHAP secret found for authenticating %q", name);
+		return 0;
+	}
+	ok = digest->verify_response(pcb, id, name, secret, secret_len, challenge,
+				     response, message, message_space);
+	memset(secret, 0, sizeof(secret));
+
+	return ok;
+}

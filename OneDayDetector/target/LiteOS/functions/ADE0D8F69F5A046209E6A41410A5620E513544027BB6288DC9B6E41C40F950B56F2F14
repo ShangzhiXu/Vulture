@@ -1,0 +1,33 @@
+static int MQTTPacket_decodenb(MQTTTransport *trp)
+{
+    unsigned char c;
+    int rc = MQTTPACKET_READ_ERROR;
+
+    FUNC_ENTRY;
+    if(trp->len == 0) 		/* initialize on first call */
+    {
+        trp->multiplier = 1;
+        trp->rem_len = 0;
+    }
+    do
+    {
+        int frc;
+        if (trp->len >= MAX_NO_OF_REMAINING_LENGTH_BYTES)
+            goto exit;
+        if ((frc = (*trp->getfn)(trp->sck, &c, 1)) == -1)
+            goto exit;
+        if (frc == 0)
+        {
+            rc = 0;
+            goto exit;
+        }
+        ++(trp->len);
+        trp->rem_len += (c & 127) * trp->multiplier;
+        trp->multiplier *= 128;
+    }
+    while ((c & 128) != 0);
+    rc = trp->len;
+exit:
+    FUNC_EXIT_RC(rc);
+    return rc;
+}

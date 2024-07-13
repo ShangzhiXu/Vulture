@@ -1,0 +1,55 @@
+int main(void)
+{
+    int ret;
+    recover_upgrade_type_e upgrade_type = RECOVER_UPGRADE_NONE;
+    uint32_t newbin_size = 0;
+    uint32_t oldbin_size = 0;
+
+    SystemClock_Config();
+    Debug_USART1_UART_Init();
+    hal_spi_flash_config();
+
+    printf("bootloader begin\n");
+
+    ret = register_info();
+    if (ret != 0) {
+        printf("warning: recover register failed\n");
+    }
+
+    printf("info: begin to process upgrade\n");
+    ret = recover_image(&upgrade_type, &newbin_size, &oldbin_size);
+    if (oldbin_size == 0) {
+        oldbin_size = OTA_IMAGE_DOWNLOAD_SIZE;
+    }
+    if (ret == 0) {
+        switch (upgrade_type) {
+            case RECOVER_UPGRADE_NONE:
+                printf("info: normal start up\n");
+                break;
+            case RECOVER_UPGRADE_FULL:
+                printf("info: full upgrade\n");
+                ret = board_update_copy(oldbin_size, newbin_size, OTA_IMAGE_DOWNLOAD_ADDR);
+                if (ret != 0) {
+                    printf("warning: [full] copy newimage to inner flash failed\n");
+                    (void)recover_set_update_fail();
+                }
+                break;
+            case RECOVER_UPGRADE_DIFF:
+                printf("info: diff upgrade\n");
+                ret = board_update_copy(oldbin_size, newbin_size, OTA_IMAGE_DIFF_UPGRADE_ADDR);
+                if (ret != 0) {
+                    printf("warning: [diff] copy newimage to inner flash failed\n");
+                    (void)recover_set_update_fail();
+                }
+                break;
+            default:
+                break;
+        }
+    } else {
+        printf("warning: upgrade failed with ret %d\n", ret);
+    }
+
+    ret = jump(oldbin_size);
+
+    return ret;
+}

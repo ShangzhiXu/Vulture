@@ -1,0 +1,61 @@
+void HAL_CRYP_IRQHandler(CRYP_HandleTypeDef *hcryp)
+{
+  /* Check if error occurred */
+  if (__HAL_CRYP_GET_IT_SOURCE(hcryp, CRYP_IT_ERRIE) != RESET)
+  {
+    /* If Write Error occurred */
+    if (__HAL_CRYP_GET_FLAG(hcryp, CRYP_IT_WRERR) != RESET)
+    {
+      hcryp->ErrorCode |= HAL_CRYP_WRITE_ERROR;
+      hcryp->State = HAL_CRYP_STATE_ERROR;
+    }
+    /* If Read Error occurred */
+    if (__HAL_CRYP_GET_FLAG(hcryp, CRYP_IT_RDERR) != RESET)
+    {
+      hcryp->ErrorCode |= HAL_CRYP_READ_ERROR;
+      hcryp->State = HAL_CRYP_STATE_ERROR;
+    }
+    
+    /* If an error has been reported */
+    if (hcryp->State == HAL_CRYP_STATE_ERROR)
+    {  
+      /* Disable Error and Computation Complete Interrupts */
+      __HAL_CRYP_DISABLE_IT(hcryp, CRYP_IT_CCFIE|CRYP_IT_ERRIE);
+      /* Clear all Interrupt flags */
+      __HAL_CRYP_CLEAR_FLAG(hcryp, CRYP_ERR_CLEAR|CRYP_CCF_CLEAR);
+    
+      /* Process Unlocked */
+      __HAL_UNLOCK(hcryp);  
+    
+      HAL_CRYP_ErrorCallback(hcryp);
+  
+      return; 
+    }
+
+  }
+  
+  /* Check if computation complete interrupt is enabled 
+     and if the computation complete flag is raised */
+  if((__HAL_CRYP_GET_FLAG(hcryp, CRYP_IT_CCF) != RESET) && (__HAL_CRYP_GET_IT_SOURCE(hcryp, CRYP_IT_CCFIE) != RESET))
+  { 
+#if defined(AES_CR_NPBLB)
+    if ((hcryp->Init.ChainingMode == CRYP_CHAINMODE_AES_GCM_GMAC)
+     || (hcryp->Init.ChainingMode == CRYP_CHAINMODE_AES_CCM))
+#else     
+    if ((hcryp->Init.ChainingMode == CRYP_CHAINMODE_AES_GCM_GMAC)
+     || (hcryp->Init.ChainingMode == CRYP_CHAINMODE_AES_CMAC))
+#endif     
+    {
+     /* To ensure proper suspension requests management, CCF flag 
+        is reset in CRYP_AES_Auth_IT() according to the current 
+        phase under handling */
+      CRYP_AES_Auth_IT(hcryp);
+    }
+    else
+    {
+      /* Clear Computation Complete Flag */
+      __HAL_CRYP_CLEAR_FLAG(hcryp, CRYP_CCF_CLEAR);
+      CRYP_AES_IT(hcryp);
+    }
+  }
+}

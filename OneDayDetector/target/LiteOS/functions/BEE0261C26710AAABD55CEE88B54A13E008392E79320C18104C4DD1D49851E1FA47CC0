@@ -1,0 +1,25 @@
+void mbedtls_ssl_cache_free( mbedtls_ssl_cache_context *cache )
+{
+    mbedtls_ssl_cache_entry *cur, *prv;
+
+    cur = cache->chain;
+
+    while( cur != NULL )
+    {
+        prv = cur;
+        cur = cur->next;
+
+        mbedtls_ssl_session_free( &prv->session );
+
+#if defined(MBEDTLS_X509_CRT_PARSE_C)
+        mbedtls_free( prv->peer_cert.p );
+#endif /* MBEDTLS_X509_CRT_PARSE_C */
+
+        mbedtls_free( prv );
+    }
+
+#if defined(MBEDTLS_THREADING_C)
+    mbedtls_mutex_free( &cache->mutex );
+#endif
+    cache->chain = NULL;
+}

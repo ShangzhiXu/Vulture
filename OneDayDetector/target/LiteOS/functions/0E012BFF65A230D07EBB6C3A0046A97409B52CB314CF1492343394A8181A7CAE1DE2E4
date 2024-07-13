@@ -1,0 +1,51 @@
+UINT32 OsHeapStatisticsGet(VOID *pool, LosHeapStatus *status)
+{
+    UINT32 heapUsed = 0;
+    UINT32 maxFreeNodeSize = 0;
+    UINT32 freeNodeNum = 0;
+    UINT32 usedNodeNum = 0;
+
+    struct LosHeapNode *node = NULL;
+    struct LosHeapManager *ramHeap = HEAP_CAST(struct LosHeapManager *, pool);
+
+    if (ramHeap == NULL) {
+        return LOS_NOK;
+    }
+
+    if (status == NULL) {
+        return LOS_NOK;
+    }
+
+    /* heap manager header use heap space */
+    heapUsed += sizeof(struct LosHeapManager);
+
+    node = ramHeap->tail;
+    while (node != NULL) {
+        if (node->used) {
+            heapUsed += (node->size + sizeof(struct LosHeapNode));
+            usedNodeNum++;
+        } else {
+            if (node->size > maxFreeNodeSize) {
+                maxFreeNodeSize = node->size;
+            }
+            freeNodeNum++;
+        }
+        node = node->prev;
+    }
+
+    if (ramHeap->size < heapUsed) {
+        return LOS_NOK;
+    }
+
+    status->totalUsedSize = heapUsed;
+    status->maxFreeNodeSize = maxFreeNodeSize;
+    status->totalFreeSize = ramHeap->size - status->totalUsedSize;
+    status->usedNodeNum = usedNodeNum;
+    status->freeNodeNum = freeNodeNum;
+
+#ifdef LOSCFG_MEM_TASK_STAT
+    status->usageWaterLine = ramHeap->stat.memTotalPeak;
+#endif
+
+    return LOS_OK;
+}

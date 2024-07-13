@@ -1,0 +1,113 @@
+http_init_file(struct http_state *hs, struct fs_file *file, int is_09, const char *uri,
+               u8_t tag_check, char *params)
+{
+#if !LWIP_HTTPD_SUPPORT_V09
+  LWIP_UNUSED_ARG(is_09);
+#endif
+  if (file != NULL) {
+    /* file opened, initialise struct http_state */
+#if !LWIP_HTTPD_DYNAMIC_FILE_READ
+    /* If dynamic read is disabled, file data must be in one piece and available now */
+    LWIP_ASSERT("file->data != NULL", file->data != NULL);
+#endif
+
+#if LWIP_HTTPD_SSI
+    if (tag_check) {
+      struct http_ssi_state *ssi = http_ssi_state_alloc();
+      if (ssi != NULL) {
+        ssi->tag_index = 0;
+        ssi->tag_state = TAG_NONE;
+        ssi->parsed = file->data;
+        ssi->parse_left = file->len;
+        ssi->tag_end = file->data;
+        hs->ssi = ssi;
+      }
+    }
+#else /* LWIP_HTTPD_SSI */
+    LWIP_UNUSED_ARG(tag_check);
+#endif /* LWIP_HTTPD_SSI */
+    hs->handle = file;
+#if LWIP_HTTPD_CGI_SSI
+    if (params != NULL) {
+      /* URI contains parameters, call generic CGI handler */
+      int count;
+#if LWIP_HTTPD_CGI
+      if (http_cgi_paramcount >= 0) {
+        count = http_cgi_paramcount;
+      } else
+#endif
+      {
+        count = extract_uri_parameters(hs, params);
+      }
+      httpd_cgi_handler(file, uri, count, http_cgi_params, http_cgi_param_vals
+#if defined(LWIP_HTTPD_FILE_STATE) && LWIP_HTTPD_FILE_STATE
+                        , file->state
+#endif /* LWIP_HTTPD_FILE_STATE */
+                       );
+    }
+#else /* LWIP_HTTPD_CGI_SSI */
+    LWIP_UNUSED_ARG(params);
+#endif /* LWIP_HTTPD_CGI_SSI */
+    hs->file = file->data;
+    LWIP_ASSERT("File length must be positive!", (file->len >= 0));
+#if LWIP_HTTPD_CUSTOM_FILES
+    if (file->is_custom_file && (file->data == NULL)) {
+      /* custom file, need to read data first (via fs_read_custom) */
+      hs->left = 0;
+    } else
+#endif /* LWIP_HTTPD_CUSTOM_FILES */
+    {
+      hs->left = (u32_t)file->len;
+    }
+    hs->retries = 0;
+#if LWIP_HTTPD_TIMING
+    hs->time_started = sys_now();
+#endif /* LWIP_HTTPD_TIMING */
+#if !LWIP_HTTPD_DYNAMIC_HEADERS
+    LWIP_ASSERT("HTTP headers not included in file system",
+                (hs->handle->flags & FS_FILE_FLAGS_HEADER_INCLUDED) != 0);
+#endif /* !LWIP_HTTPD_DYNAMIC_HEADERS */
+#if LWIP_HTTPD_SUPPORT_V09
+    if (is_09 && ((hs->handle->flags & FS_FILE_FLAGS_HEADER_INCLUDED) != 0)) {
+      /* HTTP/0.9 responses are sent without HTTP header,
+         search for the end of the header. */
+      char *file_start = lwip_strnstr(hs->file, CRLF CRLF, hs->left);
+      if (file_start != NULL) {
+        int diff = file_start + 4 - hs->file;
+        hs->file += diff;
+        hs->left -= (u32_t)diff;
+      }
+    }
+#endif /* LWIP_HTTPD_SUPPORT_V09*/
+  } else {
+    hs->handle = NULL;
+    hs->file = NULL;
+    hs->left = 0;
+    hs->retries = 0;
+  }
+#if LWIP_HTTPD_DYNAMIC_HEADERS
+  /* Determine the HTTP headers to send based on the file extension of
+   * the requested URI. */
+  if ((hs->handle == NULL) || ((hs->handle->flags & FS_FILE_FLAGS_HEADER_INCLUDED) == 0)) {
+    get_http_headers(hs, uri);
+  }
+#else /* LWIP_HTTPD_DYNAMIC_HEADERS */
+  LWIP_UNUSED_ARG(uri);
+#endif /* LWIP_HTTPD_DYNAMIC_HEADERS */
+#if LWIP_HTTPD_SUPPORT_11_KEEPALIVE
+  if (hs->keepalive) {
+#if LWIP_HTTPD_SSI
+    if (hs->ssi != NULL) {
+      hs->keepalive = 0;
+    } else
+#endif /* LWIP_HTTPD_SSI */
+    {
+      if ((hs->handle != NULL) &&
+          ((hs->handle->flags & (FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT)) == FS_FILE_FLAGS_HEADER_INCLUDED)) {
+        hs->keepalive = 0;
+      }
+    }
+  }
+#endif /* LWIP_HTTPD_SUPPORT_11_KEEPALIVE */
+  return ERR_OK;
+}

@@ -1,0 +1,154 @@
+void HAL_DMA2D_IRQHandler(DMA2D_HandleTypeDef *hdma2d)
+{
+  uint32_t isrflags = READ_REG(hdma2d->Instance->ISR);
+  uint32_t crflags = READ_REG(hdma2d->Instance->CR);
+        
+  /* Transfer Error Interrupt management ***************************************/
+  if ((isrflags & DMA2D_FLAG_TE) != RESET)
+  {
+    if ((crflags & DMA2D_IT_TE) != RESET)    
+    {
+      /* Disable the transfer Error interrupt */
+      __HAL_DMA2D_DISABLE_IT(hdma2d, DMA2D_IT_TE);  
+
+      /* Update error code */
+      hdma2d->ErrorCode |= HAL_DMA2D_ERROR_TE;
+    
+      /* Clear the transfer error flag */
+      __HAL_DMA2D_CLEAR_FLAG(hdma2d, DMA2D_FLAG_TE);
+
+      /* Change DMA2D state */
+      hdma2d->State = HAL_DMA2D_STATE_ERROR;
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hdma2d);       
+      
+      if(hdma2d->XferErrorCallback != NULL)
+      {
+        /* Transfer error Callback */
+        hdma2d->XferErrorCallback(hdma2d);
+      }
+    }
+  }
+  /* Configuration Error Interrupt management **********************************/
+  if ((isrflags & DMA2D_FLAG_CE) != RESET)
+  {
+    if ((crflags & DMA2D_IT_CE) != RESET)    
+    {  
+      /* Disable the Configuration Error interrupt */
+      __HAL_DMA2D_DISABLE_IT(hdma2d, DMA2D_IT_CE);
+  
+      /* Clear the Configuration error flag */
+      __HAL_DMA2D_CLEAR_FLAG(hdma2d, DMA2D_FLAG_CE);
+
+      /* Update error code */
+      hdma2d->ErrorCode |= HAL_DMA2D_ERROR_CE;    
+    
+      /* Change DMA2D state */
+      hdma2d->State = HAL_DMA2D_STATE_ERROR;
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hdma2d);       
+      
+      if(hdma2d->XferErrorCallback != NULL)
+      {
+        /* Transfer error Callback */
+        hdma2d->XferErrorCallback(hdma2d);
+      }
+    }
+  }
+  /* CLUT access Error Interrupt management ***********************************/
+  if ((isrflags & DMA2D_FLAG_CAE) != RESET)
+  {
+    if ((crflags & DMA2D_IT_CAE) != RESET)    
+    {    
+      /* Disable the CLUT access error interrupt */
+      __HAL_DMA2D_DISABLE_IT(hdma2d, DMA2D_IT_CAE);
+  
+      /* Clear the CLUT access error flag */
+      __HAL_DMA2D_CLEAR_FLAG(hdma2d, DMA2D_FLAG_CAE);
+
+      /* Update error code */
+      hdma2d->ErrorCode |= HAL_DMA2D_ERROR_CAE;    
+    
+      /* Change DMA2D state */
+      hdma2d->State = HAL_DMA2D_STATE_ERROR;
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hdma2d);       
+      
+      if(hdma2d->XferErrorCallback != NULL)
+      {
+        /* Transfer error Callback */
+        hdma2d->XferErrorCallback(hdma2d);
+      }
+    }
+  }  
+  /* Transfer watermark Interrupt management **********************************/
+  if ((isrflags & DMA2D_FLAG_TW) != RESET)
+  {
+    if ((crflags & DMA2D_IT_TW) != RESET)    
+    {    
+      /* Disable the transfer watermark interrupt */
+      __HAL_DMA2D_DISABLE_IT(hdma2d, DMA2D_IT_TW);
+  
+      /* Clear the transfer watermark flag */  
+      __HAL_DMA2D_CLEAR_FLAG(hdma2d, DMA2D_FLAG_TW);
+
+      /* Transfer watermark Callback */
+      HAL_DMA2D_LineEventCallback(hdma2d);
+    }
+  }  
+  /* Transfer Complete Interrupt management ************************************/
+  if ((isrflags & DMA2D_FLAG_TC) != RESET)
+  {
+    if ((crflags & DMA2D_IT_TC) != RESET)    
+    {   
+      /* Disable the transfer complete interrupt */
+      __HAL_DMA2D_DISABLE_IT(hdma2d, DMA2D_IT_TC);
+  
+      /* Clear the transfer complete flag */  
+      __HAL_DMA2D_CLEAR_FLAG(hdma2d, DMA2D_FLAG_TC);
+
+      /* Update error code */
+      hdma2d->ErrorCode |= HAL_DMA2D_ERROR_NONE;    
+    
+      /* Change DMA2D state */
+      hdma2d->State = HAL_DMA2D_STATE_READY;
+    
+      /* Process Unlocked */
+      __HAL_UNLOCK(hdma2d);       
+      
+      if(hdma2d->XferCpltCallback != NULL)
+      {
+        /* Transfer complete Callback */
+        hdma2d->XferCpltCallback(hdma2d);
+      }         
+    }
+  }
+  /* CLUT Transfer Complete Interrupt management ******************************/
+  if ((isrflags & DMA2D_FLAG_CTC) != RESET)
+  {
+    if ((crflags & DMA2D_IT_CTC) != RESET)    
+    {    
+      /* Disable the CLUT transfer complete interrupt */
+      __HAL_DMA2D_DISABLE_IT(hdma2d, DMA2D_IT_CTC);
+  
+      /* Clear the CLUT transfer complete flag */  
+      __HAL_DMA2D_CLEAR_FLAG(hdma2d, DMA2D_FLAG_CTC);
+
+      /* Update error code */
+      hdma2d->ErrorCode |= HAL_DMA2D_ERROR_NONE;    
+    
+      /* Change DMA2D state */
+      hdma2d->State = HAL_DMA2D_STATE_READY;
+    
+      /* Process Unlocked */
+      __HAL_UNLOCK(hdma2d);       
+      
+      /* CLUT Transfer complete Callback */
+      HAL_DMA2D_CLUTLoadingCpltCallback(hdma2d);         
+    }
+  }  
+  
+}

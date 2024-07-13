@@ -1,0 +1,14 @@
+static int atiny_net_write_sock(void *ctx, const unsigned char *buffer, int len, uint32_t timeout_ms)
+{
+    int fd;
+    struct timeval interval = {timeout_ms / 1000, (timeout_ms % 1000) * 1000};
+
+    fd = ((atiny_net_context *)ctx)->fd;
+    if ((interval.tv_sec < 0) || ((interval.tv_sec == 0) && (interval.tv_usec <= 0))) {
+        interval.tv_sec = 0;
+        interval.tv_usec = 100;
+    }
+
+    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, (char *)&interval, sizeof(struct timeval));
+    return write(fd, buffer, len);
+}

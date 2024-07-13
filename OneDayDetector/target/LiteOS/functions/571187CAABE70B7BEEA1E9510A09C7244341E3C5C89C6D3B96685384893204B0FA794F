@@ -1,0 +1,71 @@
+HAL_StatusTypeDef HAL_USART_TransmitReceive_DMA(USART_HandleTypeDef *husart, uint8_t *pTxData, uint8_t *pRxData, uint16_t Size)
+{
+  uint32_t *tmp=0;
+  
+  if(husart->State == HAL_USART_STATE_READY)
+  {
+    if((pTxData == NULL) || (pRxData == NULL) || (Size == 0)) 
+    {
+      return HAL_ERROR;
+    }
+    /* Process Locked */
+    __HAL_LOCK(husart);
+
+    husart->pRxBuffPtr = pRxData;
+    husart->RxXferSize = Size;
+    husart->pTxBuffPtr = pTxData;
+    husart->TxXferSize = Size;
+
+    husart->ErrorCode = HAL_USART_ERROR_NONE;
+    husart->State = HAL_USART_STATE_BUSY_TX_RX;
+
+    /* Set the USART DMA Rx transfer complete callback */
+    husart->hdmarx->XferCpltCallback = USART_DMAReceiveCplt;
+
+    /* Set the USART DMA Half transfer complete callback */
+    husart->hdmarx->XferHalfCpltCallback = USART_DMARxHalfCplt;
+
+    /* Set the USART DMA Tx transfer complete callback */
+    husart->hdmatx->XferCpltCallback = USART_DMATransmitCplt;
+
+    /* Set the USART DMA Half transfer complete callback */
+    husart->hdmatx->XferHalfCpltCallback = USART_DMATxHalfCplt;
+
+    /* Set the USART DMA Tx transfer error callback */
+    husart->hdmatx->XferErrorCallback = USART_DMAError;
+
+    /* Set the USART DMA Rx transfer error callback */
+    husart->hdmarx->XferErrorCallback = USART_DMAError;
+
+    /* Enable the USART receive DMA channel */
+    tmp = (uint32_t*)&pRxData;
+    HAL_DMA_Start_IT(husart->hdmarx, (uint32_t)&husart->Instance->DR, *(uint32_t*)tmp, Size);
+
+    /* Enable the USART transmit DMA channel */
+    tmp = (uint32_t*)&pTxData;
+    HAL_DMA_Start_IT(husart->hdmatx, *(uint32_t*)tmp, (uint32_t)&husart->Instance->DR, Size);
+    
+    /* Clear the TC flag in the SR register by writing 0 to it */
+    __HAL_USART_CLEAR_FLAG(husart, USART_FLAG_TC);
+
+    /* Clear the Overrun flag: mandatory for the second transfer in circular mode */
+    __HAL_USART_CLEAR_OREFLAG(husart);
+    
+    /* Enable the DMA transfer for the receiver request by setting the DMAR bit 
+       in the USART CR3 register */
+    SET_BIT(husart->Instance->CR3, USART_CR3_DMAR);
+
+    /* Enable the DMA transfer for transmit request by setting the DMAT bit
+       in the USART CR3 register */
+    SET_BIT(husart->Instance->CR3, USART_CR3_DMAT);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(husart);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

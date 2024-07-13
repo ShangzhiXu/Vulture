@@ -1,0 +1,38 @@
+STATIC INT32 GyroOpen(SensorType *sensor, OpenParam *para)
+{
+    UINT32 ret;
+    (VOID)(para);
+
+    Mpu6050Priv *gyro = (Mpu6050Priv *)sensor->priv;
+
+    if ((sensor->sensorStat == SENSOR_STAT_OPEN) && (sensor->interval == g_gyroPeriod)) {
+        return LOS_OK;
+    }
+
+    if (gyro->gyroTimerId != INVALID_TIMER_ID) {
+        ret = LOS_SwtmrDelete(gyro->gyroTimerId);
+        gyro->gyroTimerId = INVALID_TIMER_ID;
+        if (ret != LOS_OK) {
+            PRINT_ERR("delete a timer failed!\n");
+            return LOS_NOK;
+        }
+    }
+
+    // creat a timer, first parameter is ticks.
+    ret = LOS_SwtmrCreate(sensor->interval, LOS_SWTMR_MODE_PERIOD, (SWTMR_PROC_FUNC)GypoTimerFunc, &gyro->gyroTimerId,
+        (UINT32)sensor);
+    if (ret != LOS_OK) {
+        PRINT_ERR("creat a timer failed!\n");
+        return LOS_NOK;
+    }
+
+    ret = LOS_SwtmrStart(gyro->gyroTimerId);
+    if (ret != LOS_OK) {
+        PRINT_ERR("start timer err\n");
+    }
+
+    g_gyroPeriod = sensor->interval;
+
+    PRINTK("gyro on.\n");
+    return LOS_OK;
+}

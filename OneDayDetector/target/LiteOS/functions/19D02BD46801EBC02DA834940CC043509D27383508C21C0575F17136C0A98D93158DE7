@@ -1,0 +1,18 @@
+UINT32 OsShellCmdTaskCntGet(VOID)
+{
+    UINT32 loop;
+    UINT32 taskCnt = 0;
+    UINT32 intSave;
+    LosTaskCB *taskCB = NULL;
+
+    intSave = LOS_IntLock();
+    for (loop = 0; loop < g_taskMaxNum; loop++) {
+        taskCB = (LosTaskCB *)g_taskCBArray + loop;
+        if (taskCB->taskStatus & OS_TASK_STATUS_UNUSED) {
+            continue;
+        }
+        taskCnt++;
+    }
+    LOS_IntRestore(intSave);
+    return taskCnt;
+}

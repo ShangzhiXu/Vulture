@@ -1,0 +1,24 @@
+INT32 uart_hwiCreate(VOID)
+{
+    UINT32 ret;
+    /* uart interrupt priority should be the highest in interrupt preemption mode */
+    ret = LOS_HwiCreate(NUM_HAL_INTERRUPT_UART, 0, 0, (HWI_PROC_FUNC)UartHandler, NULL);
+    if (ret != LOS_OK) {
+        PRINT_ERR("%s,%d, uart interrupt created error:%x\n", __FUNCTION__, __LINE__, ret);
+    } else {
+        /* clear all irqs */
+        UARTREG(UART_REG_BASE, UART_ICR) = 0x3ff;
+
+        /* set fifo trigger level */
+        UARTREG(UART_REG_BASE, UART_IFLS) = 0;
+
+        /* enable rx interrupt */
+        UARTREG(UART_REG_BASE, UART_IMSC) = (1 << 4 | 1 << 6);
+
+        /* enable receive */
+        UARTREG(UART_REG_BASE, UART_CR) |= (1 << 9);
+
+        HalIrqUnmask(NUM_HAL_INTERRUPT_UART);
+    }
+    return ret;
+}

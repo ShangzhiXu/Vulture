@@ -1,0 +1,19 @@
+send_error(const ip_addr_t *addr, u16_t port, enum tftp_error code, const char *str)
+{
+  int str_length = strlen(str);
+  struct pbuf *p;
+  u16_t *payload;
+
+  p = pbuf_alloc(PBUF_TRANSPORT, (u16_t)(TFTP_HEADER_LENGTH + str_length + 1), PBUF_RAM);
+  if (p == NULL) {
+    return;
+  }
+
+  payload = (u16_t *) p->payload;
+  payload[0] = PP_HTONS(TFTP_ERROR);
+  payload[1] = lwip_htons(code);
+  MEMCPY(&payload[2], str, str_length + 1);
+
+  udp_sendto(tftp_state.upcb, p, addr, port);
+  pbuf_free(p);
+}

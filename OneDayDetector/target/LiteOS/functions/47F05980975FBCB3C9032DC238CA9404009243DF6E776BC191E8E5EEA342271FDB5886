@@ -1,0 +1,45 @@
+uint8_t BSP_AUDIO_OUT_Init(uint16_t OutputDevice, uint8_t Volume, uint32_t AudioFreq)
+{ 
+  uint8_t ret = AUDIO_ERROR;
+  uint32_t deviceid = 0x00;
+
+  /* Disable SAI */
+  SAIx_Out_DeInit();
+
+  /* PLL clock is set depending by the AudioFreq (44.1khz vs 48khz groups) */ 
+  BSP_AUDIO_OUT_ClockConfig(&haudio_out_sai, AudioFreq, NULL);
+ 
+  /* SAI data transfer preparation:
+  Prepare the Media to be used for the audio transfer from memory to SAI peripheral */
+  haudio_out_sai.Instance = AUDIO_OUT_SAIx;
+  if(HAL_SAI_GetState(&haudio_out_sai) == HAL_SAI_STATE_RESET)
+  {
+    /* Init the SAI MSP: this __weak function can be redefined by the application*/
+    BSP_AUDIO_OUT_MspInit(&haudio_out_sai, NULL);
+  }
+  SAIx_Out_Init(AudioFreq);
+
+  /* wm8994 codec initialization */
+  deviceid = wm8994_drv.ReadID(AUDIO_I2C_ADDRESS);
+  
+  if((deviceid) == WM8994_ID)
+  {  
+    /* Reset the Codec Registers */
+    wm8994_drv.Reset(AUDIO_I2C_ADDRESS);
+    /* Initialize the audio driver structure */
+    audio_drv = &wm8994_drv; 
+    ret = AUDIO_OK;
+  }
+  else
+  {
+    ret = AUDIO_ERROR;
+  }
+
+  if(ret == AUDIO_OK)
+  {
+    /* Initialize the codec internal registers */
+    audio_drv->Init(AUDIO_I2C_ADDRESS, OutputDevice, Volume, AudioFreq);
+  }
+ 
+  return ret;
+}

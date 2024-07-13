@@ -1,0 +1,14 @@
+tcp_recv_null(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err)
+{
+  LWIP_UNUSED_ARG(arg);
+
+  LWIP_ERROR("tcp_recv_null: invalid pcb", pcb != NULL, return ERR_ARG);
+
+  if (p != NULL) {
+    tcp_recved(pcb, p->tot_len);
+    pbuf_free(p);
+  } else if (err == ERR_OK) {
+    return tcp_close(pcb);
+  }
+  return ERR_OK;
+}

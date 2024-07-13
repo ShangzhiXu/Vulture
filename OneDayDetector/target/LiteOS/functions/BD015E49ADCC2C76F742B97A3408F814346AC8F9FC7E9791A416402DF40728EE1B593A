@@ -1,0 +1,27 @@
+int pack_wr_write_stored_data(pack_writer_s *writer)
+{
+    int ret;
+
+#if (PACK_COMBINE_TO_WRITE_LAST_BLOCK == PACK_YES)
+    if (writer->buffer_stored_len < writer->block_size) {
+        ret = writer->hardware->read_software(writer->hardware, writer->offset,
+            writer->buffer + writer->buffer_stored_len, writer->block_size - writer->buffer_stored_len);
+        if (ret != PACK_OK) {
+            PACK_LOG("read_software fail offset %ld, size %ld ret %d", writer->offset,
+                writer->block_size - writer->buffer_stored_len, ret);
+            return ret;
+        }
+
+        writer->buffer_stored_len = writer->block_size;
+    }
+#endif
+
+    ret = pack_write_data(writer, writer->offset, writer->buffer, writer->buffer_stored_len);
+    if (ret != PACK_OK) {
+        PACK_LOG("write_software err ret %d, offset %u, len %u", ret, writer->offset, writer->buffer_stored_len);
+        return PACK_ERR;
+    }
+
+    writer->offset_flag = false;
+    return PACK_OK;
+}

@@ -1,0 +1,15 @@
+STATIC UINT32 OsHwiDelNoShared(HwiHandleInfo *hwiForm)
+{
+    UINT32 intSave;
+
+    HWI_LOCK(intSave);
+    hwiForm->hook = NULL;
+    if (hwiForm->registerInfo) {
+        (VOID)LOS_MemFree(m_aucSysMem0, (VOID *)hwiForm->registerInfo);
+    }
+    hwiForm->registerInfo = 0;
+    hwiForm->respCount = 0;
+
+    HWI_UNLOCK(intSave);
+    return LOS_OK;
+}

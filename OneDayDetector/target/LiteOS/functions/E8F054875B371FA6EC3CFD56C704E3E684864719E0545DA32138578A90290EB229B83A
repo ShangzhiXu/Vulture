@@ -1,0 +1,30 @@
+HAL_StatusTypeDef HAL_UART_DMAPause(UART_HandleTypeDef *huart)
+{
+  uint32_t dmarequest = 0x00U;
+
+  /* Process Locked */
+  __HAL_LOCK(huart);
+
+  dmarequest = HAL_IS_BIT_SET(huart->Instance->CR3, USART_CR3_DMAT);
+  if ((huart->gState == HAL_UART_STATE_BUSY_TX) && dmarequest)
+  {
+    /* Disable the UART DMA Tx request */
+    CLEAR_BIT(huart->Instance->CR3, USART_CR3_DMAT);
+  }
+
+  dmarequest = HAL_IS_BIT_SET(huart->Instance->CR3, USART_CR3_DMAR);
+  if ((huart->RxState == HAL_UART_STATE_BUSY_RX) && dmarequest)
+  {
+    /* Disable RXNE, PE and ERR (Frame error, noise error, overrun error) interrupts */
+    CLEAR_BIT(huart->Instance->CR1, USART_CR1_PEIE);
+    CLEAR_BIT(huart->Instance->CR3, USART_CR3_EIE);
+
+    /* Disable the UART DMA Rx request */
+    CLEAR_BIT(huart->Instance->CR3, USART_CR3_DMAR);
+  }
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(huart);
+
+  return HAL_OK;
+}

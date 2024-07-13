@@ -1,0 +1,75 @@
+static int chapms2_verify_response(ppp_pcb *pcb, int id, const char *name,
+			const unsigned char *secret, int secret_len,
+			const unsigned char *challenge, const unsigned char *response,
+			char *message, int message_space) {
+	unsigned char md[MS_CHAP2_RESPONSE_LEN];
+	char saresponse[MS_AUTH_RESPONSE_LENGTH+1];
+	int challenge_len, response_len;
+	LWIP_UNUSED_ARG(id);
+
+	challenge_len = *challenge++;	/* skip length, is 16 */
+	response_len = *response++;
+	if (response_len != MS_CHAP2_RESPONSE_LEN)
+		goto bad;	/* not even the right length */
+
+	/* Generate the expected response and our mutual auth. */
+	ChapMS2(pcb, (const u_char*)challenge, (const u_char*)&response[MS_CHAP2_PEER_CHALLENGE], name,
+		(const char *)secret, secret_len, md,
+		(unsigned char *)saresponse, MS_CHAP2_AUTHENTICATOR);
+
+	/* compare MDs and send the appropriate status */
+	/*
+	 * Per RFC 2759, success message must be formatted as
+	 *     "S=<auth_string> M=<message>"
+	 * where
+	 *     <auth_string> is the Authenticator Response (mutual auth)
+	 *     <message> is a text message
+	 *
+	 * However, some versions of Windows (win98 tested) do not know
+	 * about the M=<message> part (required per RFC 2759) and flag
+	 * it as an error (reported incorrectly as an encryption error
+	 * to the user).  Since the RFC requires it, and it can be
+	 * useful information, we supply it if the peer is a conforming
+	 * system.  Luckily (?), win98 sets the Flags field to 0x04
+	 * (contrary to RFC requirements) so we can use that to
+	 * distinguish between conforming and non-conforming systems.
+	 *
+	 * Special thanks to Alex Swiridov <say@real.kharkov.ua> for
+	 * help debugging this.
+	 */
+	if (memcmp(&md[MS_CHAP2_NTRESP], &response[MS_CHAP2_NTRESP],
+		   MS_CHAP2_NTRESP_LEN) == 0) {
+		if (response[MS_CHAP2_FLAGS])
+			ppp_slprintf(message, message_space, "S=%s", saresponse);
+		else
+			ppp_slprintf(message, message_space, "S=%s M=%s",
+				 saresponse, "Access granted");
+		return 1;
+	}
+
+ bad:
+	/*
+	 * Failure message must be formatted as
+	 *     "E=e R=r C=c V=v M=m"
+	 * where
+	 *     e = error code (we use 691, ERROR_AUTHENTICATION_FAILURE)
+	 *     r = retry (we use 1, ok to retry)
+	 *     c = challenge to use for next response, we reuse previous
+	 *     v = Change Password version supported, we use 0
+	 *     m = text message
+	 *
+	 * The M=m part is only for MS-CHAPv2.  Neither win2k nor
+	 * win98 (others untested) display the message to the user anyway.
+	 * They also both ignore the E=e code.
+	 *
+	 * Note that it's safe to reuse the same challenge as we don't
+	 * actually accept another response based on the error message
+	 * (and no clients try to resend a response anyway).
+	 *
+	 * Basically, this whole bit is useless code, even the small
+	 * implementation here is only because of overspecification.
+	 */
+	ppp_slprintf(message, message_space, "E=691 R=1 C=%0.*B V=0 M=%s",
+		 challenge_len, challenge, "Access denied");
+	return 0;
+}

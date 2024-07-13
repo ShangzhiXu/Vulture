@@ -1,0 +1,16 @@
+osThreadId_t osMutexGetOwner(osMutexId_t mutex_id)
+{
+    LosMuxCB *muxCB = (LosMuxCB *)mutex_id;
+    UINT32 intSave;
+    LosTaskCB *taskCB = NULL;
+
+    if ((muxCB == NULL) || OS_INT_ACTIVE) {
+        return NULL;
+    }
+
+    intSave = LOS_IntLock();
+    taskCB = muxCB->owner;
+    LOS_IntRestore(intSave);
+
+    return (osThreadId_t)taskCB;
+}

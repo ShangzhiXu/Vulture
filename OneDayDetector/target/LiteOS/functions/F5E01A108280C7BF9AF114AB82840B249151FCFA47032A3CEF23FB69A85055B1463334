@@ -1,0 +1,19 @@
+SECUREC_INLINE void SecDecodeClearArg(SecScanSpec *spec, va_list argList)
+{
+    va_list argListSave; /* Backup for argList value, this variable don't need initialized */
+    (void)memset(&argListSave, 0, sizeof(va_list)); /* To clear e530 argListSave not initialized */
+#if defined(va_copy)
+    va_copy(argListSave, argList);
+#elif defined(__va_copy)        /* For vxworks */
+    __va_copy(argListSave, argList);
+#else
+    argListSave = argList;
+#endif
+    spec->argPtr = (void *)va_arg(argListSave, void *);
+    /* Get the next argument, size of the array in characters */
+    /* Use 0xffffffffUL mask to Support  pass integer as array length */
+    spec->arrayWidth = ((size_t)(va_arg(argListSave, size_t))) & 0xffffffffUL;
+    va_end(argListSave);
+    /* To clear e438 last value assigned not used , the compiler will optimize this code */
+    (void)argListSave;
+}

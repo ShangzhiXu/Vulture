@@ -1,0 +1,24 @@
+name_of_pn_file()
+{
+	char *user, *path, *file;
+	struct passwd *pw;
+	size_t pl;
+	static bool pnlogged = 0;
+
+	pw = getpwuid(getuid());
+	if (pw == NULL || (user = pw->pw_dir) == NULL || user[0] == 0) {
+		errno = EINVAL;
+		return (NULL);
+	}
+	file = _PATH_PSEUDONYM;
+	pl = strlen(user) + strlen(file) + 2;
+	path = malloc(pl);
+	if (path == NULL)
+		return (NULL);
+	(void) slprintf(path, pl, "%s/%s", user, file);
+	if (!pnlogged) {
+		ppp_dbglog("pseudonym file: %s", path);
+		pnlogged = 1;
+	}
+	return (path);
+}

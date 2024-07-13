@@ -1,0 +1,27 @@
+void lv_arc_set_start_angle(lv_obj_t * arc, uint16_t start)
+{
+    LV_ASSERT_OBJ(arc, LV_OBJX_NAME);
+
+    lv_arc_ext_t * ext = lv_obj_get_ext_attr(arc);
+
+    if(start > 360) start -= 360;
+
+    /*Too large move, the whole arc need to be invalidated anyway*/
+    if(LV_MATH_ABS(start - ext->arc_angle_start) >= 180) {
+        lv_obj_invalidate(arc);
+    }
+    /*Only a smaller incremental move*/
+    else if(ext->arc_angle_start > ext->arc_angle_end && start > ext->arc_angle_end) {
+        inv_arc_area(arc, LV_MATH_MIN(ext->arc_angle_start, start), LV_MATH_MAX(ext->arc_angle_start, start));
+    }
+    /*Only a smaller incremental move*/
+    else  if(ext->arc_angle_start < ext->arc_angle_end && start < ext->arc_angle_end) {
+        inv_arc_area(arc, LV_MATH_MIN(ext->arc_angle_start, start), LV_MATH_MAX(ext->arc_angle_start, start));
+    }
+    /*Crossing the start angle makes the whole arc change*/
+    else {
+        lv_obj_invalidate(arc);
+    }
+
+    ext->arc_angle_start = start;
+}

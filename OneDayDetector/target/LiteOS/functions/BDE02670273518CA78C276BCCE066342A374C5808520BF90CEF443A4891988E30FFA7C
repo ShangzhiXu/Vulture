@@ -1,0 +1,34 @@
+HAL_StatusTypeDef HAL_LCD_UpdateDisplayRequest(LCD_HandleTypeDef *hlcd)
+{
+  uint32_t tickstart = 0x00;
+
+  /* Clear the Update Display Done flag before starting the update display request */
+  __HAL_LCD_CLEAR_FLAG(hlcd, LCD_FLAG_UDD);
+
+  /* Enable the display request */
+  hlcd->Instance->SR |= LCD_SR_UDR;
+
+  /* Get timeout */
+  tickstart = HAL_GetTick();
+
+  /*!< Wait Until the LCD display is done */
+  while(__HAL_LCD_GET_FLAG(hlcd, LCD_FLAG_UDD) == RESET)
+  {
+    if((HAL_GetTick() - tickstart ) > LCD_TIMEOUT_VALUE)
+    {
+      hlcd->ErrorCode = HAL_LCD_ERROR_UDD;
+
+      /* Process Unlocked */
+      __HAL_UNLOCK(hlcd);
+
+      return HAL_TIMEOUT;
+    }
+  }
+
+  hlcd->State = HAL_LCD_STATE_READY;
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(hlcd);
+
+  return HAL_OK;
+}

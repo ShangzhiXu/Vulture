@@ -1,0 +1,40 @@
+void _check_expected(
+        const char * const function_name, const char * const parameter_name,
+        const char* file, const int line, const LargestIntegralType value) {
+    void *result;
+    const char* symbols[] = {function_name, parameter_name};
+    const int rc = get_symbol_value(&global_function_parameter_map_head,
+                                    symbols, 2, &result);
+    if (rc) {
+        CheckParameterEvent * const check = (CheckParameterEvent*)result;
+        int check_succeeded;
+        global_last_parameter_location = check->location;
+        check_succeeded = check->check_value(value, check->check_value_data);
+        if (rc == 1) {
+            free(check);
+        }
+        if (!check_succeeded) {
+            print_error("ERROR: Check of parameter %s, function %s failed\n"
+                        "Expected parameter declared at "
+                        SOURCE_LOCATION_FORMAT "\n",
+                        parameter_name, function_name,
+                        global_last_parameter_location.file,
+                        global_last_parameter_location.line);
+            _fail(file, line);
+        }
+    } else {
+        print_error("ERROR: " SOURCE_LOCATION_FORMAT " - Could not get value "
+                    "to check parameter %s of function %s\n", file, line,
+                    parameter_name, function_name);
+        if (source_location_is_set(&global_last_parameter_location)) {
+            print_error("Previously declared parameter value was declared at "
+                        SOURCE_LOCATION_FORMAT "\n",
+                        global_last_parameter_location.file,
+                        global_last_parameter_location.line);
+        } else {
+            print_error("There were no previously declared parameter values "
+                        "for this test.\n");
+        }
+        exit_test(1);
+    }
+}

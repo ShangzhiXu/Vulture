@@ -1,0 +1,57 @@
+int pack_wr_write(pack_writer_s *writer, uint32_t offset, const uint8_t *buff, uint16_t len)
+{
+    uint16_t write_len = 0;
+    int ret;
+    uint32_t block_size;
+
+    if (pack_wr_check(writer) != PACK_OK) {
+        return PACK_ERR;
+    }
+
+    if (writer->offset_flag && (writer->offset + writer->buffer_stored_len != offset) &&
+        (writer->buffer_stored_len > 0)) {
+        ret = pack_wr_write_stored_data(writer);
+        if (ret != PACK_OK) {
+            return ret;
+        }
+    }
+
+    block_size = writer->hardware->get_block_size(writer->hardware);
+    if (block_size == 0) {
+        PACK_LOG("err block_size is 0");
+        return PACK_ERR;
+    }
+
+    if (offset % block_size) {
+        uint32_t block_begin;
+
+        block_begin = ((offset / block_size) * block_size);
+        ret = pack_wr_begin_not_aligned(writer, block_begin, block_size, offset, buff, len, &write_len);
+        if (ret != PACK_OK) {
+            return ret;
+        }
+
+        buff += write_len;
+        len -= write_len;
+        offset += write_len;
+    }
+
+    if (len <= 0) {
+        return PACK_OK;
+    }
+
+    ret = pack_wr_entire_blocks(writer, offset, block_size, buff, len, &write_len);
+    if (ret != PACK_OK) {
+        return ret;
+    }
+
+    buff += write_len;
+    len -= write_len;
+    offset += write_len;
+
+    if (len <= 0) {
+        return PACK_OK;
+    }
+
+    return pack_wr_end_not_aligned_block(writer, offset, block_size, buff, len);
+}

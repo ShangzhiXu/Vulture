@@ -1,0 +1,61 @@
+lwm2m_object_t *get_server_object(int serverId,
+                                  const char *binding,
+                                  int lifetime,
+                                  bool storing)
+{
+    lwm2m_object_t *serverObj;
+
+    serverObj = (lwm2m_object_t *)lwm2m_malloc(sizeof(lwm2m_object_t));
+
+    if (NULL != serverObj)
+    {
+        server_instance_t *serverInstance;
+
+        memset(serverObj, 0, sizeof(lwm2m_object_t));
+
+        serverObj->objID = LWM2M_SERVER_OBJECT_ID;
+
+        // Manually create an hardcoded server
+        serverInstance = (server_instance_t *)lwm2m_malloc(sizeof(server_instance_t));
+        if (NULL == serverInstance)
+        {
+            lwm2m_free(serverObj);
+            return NULL;
+        }
+
+        memset(serverInstance, 0, sizeof(server_instance_t));
+        serverInstance->instanceId = 0;
+        serverInstance->shortServerId = serverId;
+        if (lifetime <= 0)
+        {
+            serverInstance->lifetime = LWM2M_DEFAULT_LIFETIME;
+        }
+        else
+        {
+            serverInstance->lifetime = lifetime;
+        }
+
+        serverInstance->storing = storing;
+        if(prv_server_check_binding_valid(binding, strlen(binding)))
+        {
+            memcpy(serverInstance->binding, binding, strlen(binding) + 1);
+        }
+        else
+        {
+            lwm2m_free(serverObj);
+            lwm2m_free(serverInstance);
+            return NULL;
+        }
+
+        serverObj->instanceList = LWM2M_LIST_ADD(serverObj->instanceList, serverInstance);
+
+        serverObj->readFunc = prv_server_read;
+        serverObj->discoverFunc = prv_server_discover;
+        serverObj->writeFunc = prv_server_write;
+        serverObj->createFunc = prv_server_create;
+        serverObj->deleteFunc = prv_server_delete;
+        serverObj->executeFunc = prv_server_execute;
+    }
+
+    return serverObj;
+}

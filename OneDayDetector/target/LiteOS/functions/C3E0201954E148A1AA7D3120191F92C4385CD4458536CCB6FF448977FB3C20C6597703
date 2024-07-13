@@ -1,0 +1,15 @@
+STATIC INLINE UINT32 OsMemBackupCheckAndRetore(VOID *pool, VOID *ptr, LosMemDynNode *node)
+{
+    LosMemPoolInfo *poolInfo = (LosMemPoolInfo *)pool;
+    LosMemDynNode *startNode = OS_MEM_FIRST_NODE(pool);
+    LosMemDynNode *endNode   = OS_MEM_END_NODE(pool, poolInfo->poolSize);
+
+    if (OS_MEM_MIDDLE_ADDR(startNode, node, endNode)) {
+        /* GapSize is bad or node is broken, we need to verify & try to restore */
+        if (!OsMemChecksumVerify(&(node->selfNode))) {
+            node = (LosMemDynNode *)((UINTPTR)ptr - OS_MEM_NODE_HEAD_SIZE);
+            return OsMemBackupTryRestore(pool, &node, ptr);
+        }
+    }
+    return LOS_OK;
+}

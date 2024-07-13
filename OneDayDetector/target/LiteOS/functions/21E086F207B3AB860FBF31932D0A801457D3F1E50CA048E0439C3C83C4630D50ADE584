@@ -1,0 +1,18 @@
+STATIC VOID OsMemListAdd(LOS_DL_LIST *listNode, LOS_DL_LIST *node, const VOID *firstNode)
+{
+    LosMemDynNode *dynNode = NULL;
+
+    node->pstNext = listNode->pstNext;
+    node->pstPrev = listNode;
+
+    dynNode = LOS_DL_LIST_ENTRY(node, LosMemDynNode, selfNode.freeNodeInfo);
+    OsMemNodeSave(dynNode);
+
+    listNode->pstNext->pstPrev = node;
+    if ((VOID *)(listNode->pstNext) >= firstNode) {
+        dynNode = LOS_DL_LIST_ENTRY(listNode->pstNext, LosMemDynNode, selfNode.freeNodeInfo);
+        OsMemNodeSave(dynNode);
+    }
+
+    listNode->pstNext = node;
+}

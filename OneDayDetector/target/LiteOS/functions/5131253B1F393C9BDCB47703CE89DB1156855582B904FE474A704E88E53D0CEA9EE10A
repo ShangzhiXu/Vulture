@@ -1,0 +1,118 @@
+void HAL_ADC_IRQHandler(ADC_HandleTypeDef* hadc)
+{
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+  assert_param(IS_FUNCTIONAL_STATE(hadc->Init.ContinuousConvMode));
+  assert_param(IS_ADC_EOC_SELECTION(hadc->Init.EOCSelection));
+  
+  /* ========== Check End of Conversion flag for regular group ========== */
+  if( (__HAL_ADC_GET_FLAG(hadc, ADC_FLAG_EOC) && __HAL_ADC_GET_IT_SOURCE(hadc, ADC_IT_EOC)) || 
+      (__HAL_ADC_GET_FLAG(hadc, ADC_FLAG_EOS) && __HAL_ADC_GET_IT_SOURCE(hadc, ADC_IT_EOS))   )
+  {
+    /* Update state machine on conversion status if not in error state */
+    if (HAL_IS_BIT_CLR(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL))
+    {
+      /* Set ADC state */
+      SET_BIT(hadc->State, HAL_ADC_STATE_REG_EOC); 
+    }
+    
+    /* Determine whether any further conversion upcoming on group regular     */
+    /* by external trigger, continuous mode or scan sequence on going.        */
+    if(ADC_IS_SOFTWARE_START_REGULAR(hadc)        && 
+       (hadc->Init.ContinuousConvMode == DISABLE)   )
+    {
+      /* If End of Sequence is reached, disable interrupts */
+      if( __HAL_ADC_GET_FLAG(hadc, ADC_FLAG_EOS) )
+      {
+        /* Allowed to modify bits ADC_IT_EOC/ADC_IT_EOS only if bit           */
+        /* ADSTART==0 (no conversion on going)                                */
+        if (ADC_IS_CONVERSION_ONGOING_REGULAR(hadc) == RESET)
+        {
+          /* Disable ADC end of single conversion interrupt on group regular */
+          /* Note: Overrun interrupt was enabled with EOC interrupt in        */
+          /* HAL_Start_IT(), but is not disabled here because can be used     */
+          /* by overrun IRQ process below.                                    */
+          __HAL_ADC_DISABLE_IT(hadc, ADC_IT_EOC | ADC_IT_EOS);
+          
+          /* Set ADC state */
+          ADC_STATE_CLR_SET(hadc->State,
+                            HAL_ADC_STATE_REG_BUSY,
+                            HAL_ADC_STATE_READY);
+        }
+        else
+        {
+          /* Change ADC state to error state */
+          SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_CONFIG);
+          
+          /* Set ADC error code to ADC IP internal error */
+          SET_BIT(hadc->ErrorCode, HAL_ADC_ERROR_INTERNAL);
+        }
+      }
+    }
+    
+    /* Note: into callback, to determine if conversion has been triggered     */
+    /*       from EOC or EOS, possibility to use:                             */
+    /*        " if( __HAL_ADC_GET_FLAG(&hadc, ADC_FLAG_EOS)) "                */
+#if (USE_HAL_ADC_REGISTER_CALLBACKS == 1)
+      hadc->ConvCpltCallback(hadc);
+#else
+    HAL_ADC_ConvCpltCallback(hadc);
+#endif /* USE_HAL_ADC_REGISTER_CALLBACKS */
+
+    
+    /* Clear regular group conversion flag */
+    /* Note: in case of overrun set to ADC_OVR_DATA_PRESERVED, end of         */
+    /*       conversion flags clear induces the release of the preserved data.*/
+    /*       Therefore, if the preserved data value is needed, it must be     */
+    /*       read preliminarily into HAL_ADC_ConvCpltCallback().              */
+    __HAL_ADC_CLEAR_FLAG(hadc, (ADC_FLAG_EOC | ADC_FLAG_EOS) );
+  }
+   
+  /* ========== Check Analog watchdog flags ========== */
+  if(__HAL_ADC_GET_FLAG(hadc, ADC_FLAG_AWD) && __HAL_ADC_GET_IT_SOURCE(hadc, ADC_IT_AWD))
+  {
+      /* Set ADC state */
+      SET_BIT(hadc->State, HAL_ADC_STATE_AWD1);
+
+#if (USE_HAL_ADC_REGISTER_CALLBACKS == 1)
+      hadc->LevelOutOfWindowCallback(hadc);
+#else
+    HAL_ADC_LevelOutOfWindowCallback(hadc);
+#endif /* USE_HAL_ADC_REGISTER_CALLBACKS */
+    
+    /* Clear ADC Analog watchdog flag */
+    __HAL_ADC_CLEAR_FLAG(hadc, ADC_FLAG_AWD);
+   
+  }
+  
+  
+  /* ========== Check Overrun flag ========== */
+  if(__HAL_ADC_GET_FLAG(hadc, ADC_FLAG_OVR) && __HAL_ADC_GET_IT_SOURCE(hadc, ADC_IT_OVR))
+  {
+    /* If overrun is set to overwrite previous data (default setting),        */
+    /* overrun event is not considered as an error.                           */
+    /* (cf ref manual "Managing conversions without using the DMA and without */
+    /* overrun ")                                                             */
+    /* Exception for usage with DMA overrun event always considered as an     */
+    /* error.                                                                 */
+    if ((hadc->Init.Overrun == ADC_OVR_DATA_PRESERVED)            ||
+        HAL_IS_BIT_SET(hadc->Instance->CFGR1, ADC_CFGR1_DMAEN)  )
+    {
+      /* Set ADC error code to overrun */
+      SET_BIT(hadc->ErrorCode, HAL_ADC_ERROR_OVR);
+      
+      /* Clear ADC overrun flag */
+      __HAL_ADC_CLEAR_FLAG(hadc, ADC_FLAG_OVR);
+      
+#if (USE_HAL_ADC_REGISTER_CALLBACKS == 1)
+      hadc->ErrorCallback(hadc);
+#else
+      HAL_ADC_ErrorCallback(hadc);
+#endif /* USE_HAL_ADC_REGISTER_CALLBACKS */
+    }
+    
+    /* Clear the Overrun flag */
+    __HAL_ADC_CLEAR_FLAG(hadc, ADC_FLAG_OVR);
+  }
+
+}

@@ -1,0 +1,56 @@
+VOID *LOS_MemRealloc(VOID *pool, VOID *ptr, UINT32 size)
+{
+    VOID *retPtr = NULL;
+    VOID *freePtr = NULL;
+    UINT32 intSave;
+    struct LosHeapNode *node = NULL;
+    UINT32 cpySize;
+    UINT32 gapSize;
+    errno_t rc;
+
+    /* Zero-size requests are treated as free. */
+    if ((ptr != NULL) && (size == 0)) {
+        if (LOS_MemFree(pool, ptr) != LOS_OK) {
+            PRINT_ERR("LOS_MemFree error, pool[%p], pPtr[%p]\n", pool, ptr);
+        }
+    } else if (ptr == NULL) { // Requests with NULL pointers are treated as malloc.
+        retPtr = LOS_MemAlloc(pool, size);
+    } else {
+        MEM_LOCK(intSave);
+
+        UINT32 oldSize = OsSlabMemCheck(pool, ptr);
+        if (oldSize != (UINT32)(-1)) {
+            cpySize = (size > oldSize) ? oldSize : size;
+        } else {
+            /* find the real ptr through gap size */
+            gapSize = *((UINTPTR *)((UINTPTR)ptr - sizeof(UINTPTR)));
+            if (OS_MEM_GET_ALIGN_FLAG(gapSize)) {
+                MEM_UNLOCK(intSave);
+                return NULL;
+            }
+
+            node = ((struct LosHeapNode *)ptr) - 1;
+            cpySize = (size > (node->size)) ? (node->size) : size;
+        }
+
+        MEM_UNLOCK(intSave);
+
+        retPtr = LOS_MemAlloc(pool, size);
+        if (retPtr != NULL) {
+            rc = memcpy_s(retPtr, size, ptr, cpySize);
+            if (rc == EOK) {
+                freePtr = ptr;
+            } else {
+                freePtr = retPtr;
+                retPtr = NULL;
+            }
+
+            if (LOS_MemFree(pool, freePtr) != LOS_OK) {
+                PRINT_ERR("LOS_MemFree error, pool[%p], ptr[%p]\n", pool, freePtr);
+            }
+        }
+    }
+
+    LOS_TRACE(MEM_REALLOC, pool, (UINTPTR)ptr, size);
+    return retPtr;
+}

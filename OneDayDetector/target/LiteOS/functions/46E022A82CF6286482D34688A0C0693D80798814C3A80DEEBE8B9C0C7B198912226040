@@ -1,0 +1,14 @@
+pub_ack_rec_rel_response(mqtt_client_t *client, u8_t msg, u16_t pkt_id, u8_t qos)
+{
+  err_t err = ERR_OK;
+  if (mqtt_output_check_space(&client->output, 2)) {
+    mqtt_output_append_fixed_header(&client->output, msg, 0, qos, 0, 2);
+    mqtt_output_append_u16(&client->output, pkt_id);
+    mqtt_output_send(&client->output, client->conn);
+  } else {
+    LWIP_DEBUGF(MQTT_DEBUG_TRACE, ("pub_ack_rec_rel_response: OOM creating response: %s with pkt_id: %d\n",
+                                   mqtt_msg_type_to_str(msg), pkt_id));
+    err = ERR_MEM;
+  }
+  return err;
+}

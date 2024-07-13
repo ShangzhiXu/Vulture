@@ -1,0 +1,22 @@
+int mbedtls_mpi_mod_mpi( mbedtls_mpi *R, const mbedtls_mpi *A, const mbedtls_mpi *B )
+{
+    int ret;
+    MPI_VALIDATE_RET( R != NULL );
+    MPI_VALIDATE_RET( A != NULL );
+    MPI_VALIDATE_RET( B != NULL );
+
+    if( mbedtls_mpi_cmp_int( B, 0 ) < 0 )
+        return( MBEDTLS_ERR_MPI_NEGATIVE_VALUE );
+
+    MBEDTLS_MPI_CHK( mbedtls_mpi_div_mpi( NULL, R, A, B ) );
+
+    while( mbedtls_mpi_cmp_int( R, 0 ) < 0 )
+      MBEDTLS_MPI_CHK( mbedtls_mpi_add_mpi( R, R, B ) );
+
+    while( mbedtls_mpi_cmp_mpi( R, B ) >= 0 )
+      MBEDTLS_MPI_CHK( mbedtls_mpi_sub_mpi( R, R, B ) );
+
+cleanup:
+
+    return( ret );
+}

@@ -1,0 +1,50 @@
+snmpv3_password_to_key_md5(
+  const u8_t *password,    /* IN */
+  size_t      passwordlen, /* IN */
+  const u8_t *engineID,    /* IN  - pointer to snmpEngineID  */
+  u8_t        engineLength,/* IN  - length of snmpEngineID */
+  u8_t       *key)         /* OUT - pointer to caller 16-octet buffer */
+{
+  mbedtls_md5_context MD;
+  u8_t *cp, password_buf[64];
+  u32_t password_index = 0;
+  u8_t i;
+  u32_t count = 0;
+
+  mbedtls_md5_init(&MD); /* initialize MD5 */
+  mbedtls_md5_starts(&MD);
+
+  /**********************************************/
+  /* Use while loop until we've done 1 Megabyte */
+  /**********************************************/
+  while (count < 1048576) {
+    cp = password_buf;
+    for (i = 0; i < 64; i++) {
+      /*************************************************/
+      /* Take the next octet of the password, wrapping */
+      /* to the beginning of the password as necessary.*/
+      /*************************************************/
+      *cp++ = password[password_index++ % passwordlen];
+    }
+    mbedtls_md5_update(&MD, password_buf, 64);
+    count += 64;
+  }
+  mbedtls_md5_finish(&MD, key); /* tell MD5 we're done */
+
+  /*****************************************************/
+  /* Now localize the key with the engineID and pass   */
+  /* through MD5 to produce final key                  */
+  /* May want to ensure that engineLength <= 32,       */
+  /* otherwise need to use a buffer larger than 64     */
+  /*****************************************************/
+  SMEMCPY(password_buf, key, 16);
+  MEMCPY(password_buf + 16, engineID, engineLength);
+  SMEMCPY(password_buf + 16 + engineLength, key, 16);
+
+  mbedtls_md5_starts(&MD);
+  mbedtls_md5_update(&MD, password_buf, 32 + engineLength);
+  mbedtls_md5_finish(&MD, key);
+
+  mbedtls_md5_free(&MD);
+  return;
+}

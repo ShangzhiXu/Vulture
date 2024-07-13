@@ -1,0 +1,31 @@
+STATIC INT32 OsSetTimeOfDay(const struct timeval64 *tv, const struct timezone *tz)
+{
+    UINT64 nowNsec;
+    UINT32 intSave;
+    struct timespec64 setTime = {0};
+    struct timespec64 hwTime = {0};
+    struct timespec64 realTime = {0};
+    struct timespec64 tmp = {0};
+
+    (VOID)tz;
+    nowNsec = LOS_CurrNanosec();
+    setTime.tv_sec = tv->tv_sec;
+    setTime.tv_nsec = tv->tv_usec * OS_SYS_NS_PER_US;
+    hwTime.tv_sec = nowNsec / OS_SYS_NS_PER_SECOND;
+    hwTime.tv_nsec = (INT64)(nowNsec -  hwTime.tv_sec * OS_SYS_NS_PER_SECOND);
+
+    LOS_SpinLockSave(&g_timeSpin, &intSave);
+    /* stop on-going continuous adjusement */
+    if (g_adjTimeLeft) {
+        g_adjTimeLeft = 0;
+    }
+    realTime = OsTimeSpecAdd(hwTime, g_accDeltaFromAdj);
+    realTime = OsTimeSpecAdd(realTime, g_accDeltaFromSet);
+
+    tmp = OsTimeSpecSub(setTime, realTime);
+    g_accDeltaFromSet = OsTimeSpecAdd(g_accDeltaFromSet, tmp);
+
+    LOS_SpinUnlockRestore(&g_timeSpin, intSave);
+
+    return 0;
+}

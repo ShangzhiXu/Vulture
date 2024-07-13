@@ -1,0 +1,19 @@
+lv_fs_res_t lv_fs_remove(const char * path)
+{
+    if(path == NULL) return LV_FS_RES_INV_PARAM;
+
+    char letter = path[0];
+
+    lv_fs_drv_t * drv = lv_fs_get_drv(letter);
+    if(drv == NULL) return LV_FS_RES_NOT_EX;
+    if(drv->ready_cb != NULL) {
+        if(drv->ready_cb(drv) == false) return LV_FS_RES_HW_ERR;
+    }
+
+    if(drv->remove_cb == NULL) return LV_FS_RES_NOT_IMP;
+
+    const char * real_path = lv_fs_get_real_path(path);
+    lv_fs_res_t res        = drv->remove_cb(drv, real_path);
+
+    return res;
+}

@@ -1,0 +1,29 @@
+static lv_res_t lv_img_decoder_built_in_line_true_color(lv_img_decoder_dsc_t * dsc, lv_coord_t x, lv_coord_t y,
+                                                        lv_coord_t len, uint8_t * buf)
+{
+#if LV_USE_FILESYSTEM
+    lv_img_decoder_built_in_data_t * user_data = dsc->user_data;
+    lv_fs_res_t res;
+    uint8_t px_size = lv_img_cf_get_px_size(dsc->header.cf);
+
+    uint32_t pos = ((y * dsc->header.w + x) * px_size) >> 3;
+    pos += 4; /*Skip the header*/
+    res = lv_fs_seek(user_data->f, pos);
+    if(res != LV_FS_RES_OK) {
+        LV_LOG_WARN("Built-in image decoder seek failed");
+        return LV_RES_INV;
+    }
+    uint32_t btr = len * (px_size >> 3);
+    uint32_t br  = 0;
+    lv_fs_read(user_data->f, buf, btr, &br);
+    if(res != LV_FS_RES_OK || btr != br) {
+        LV_LOG_WARN("Built-in image decoder read failed");
+        return LV_RES_INV;
+    }
+
+    return LV_RES_OK;
+#else
+    LV_LOG_WARN("Image built-in decoder cannot read file because LV_USE_FILESYSTEM = 0");
+    return LV_RES_INV;
+#endif
+}

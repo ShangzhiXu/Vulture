@@ -1,0 +1,34 @@
+int pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr)
+{
+    int ret = ENOERR;
+
+    if (cond == NULL) {
+        return EINVAL;
+    }
+
+    if (attr != NULL) {
+        if ((attr->clock != CLOCK_MONOTONIC) && (attr->clock != CLOCK_REALTIME)) {
+            PRINT_ERR("%s: clockAttr only supports CLOCK_MONOTONIC and CLOCK_REALTIME.\n", __FUNCTION__);
+            return EINVAL;
+        }
+        cond->stCondAttr.clock = attr->clock;
+    } else {
+        cond->stCondAttr.clock = CLOCK_REALTIME;
+    }
+
+    (VOID)LOS_EventInit(&(cond->event));
+
+    cond->mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
+    if (cond->mutex == NULL) {
+        return ENOMEM;
+    }
+
+    (VOID)pthread_mutex_init(cond->mutex, NULL);
+
+    cond->value = 0;
+    (VOID)pthread_mutex_lock(cond->mutex);
+    cond->count = 0;
+    (VOID)pthread_mutex_unlock(cond->mutex);
+
+    return ret;
+}

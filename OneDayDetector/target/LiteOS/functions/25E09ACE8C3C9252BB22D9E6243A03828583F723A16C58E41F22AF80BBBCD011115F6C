@@ -1,0 +1,20 @@
+LITE_OS_SEC_TEXT VOID OsSwtmrTask(VOID)
+{
+    UINT32 ret, swtmrHandlerQueue;
+    SwtmrHandlerItemPtr swtmrHandler = NULL;
+    UINT32 readSize;
+    readSize = sizeof(CHAR *);
+
+    swtmrHandlerQueue = OsPercpuGet()->swtmrHandlerQueue;
+    for (;;) {
+        ret = LOS_QueueReadCopy(swtmrHandlerQueue, &swtmrHandler, &readSize, LOS_WAIT_FOREVER);
+        if ((ret == LOS_OK) && (readSize == sizeof(CHAR *))) {
+            SWTMR_PROC_FUNC handler = swtmrHandler->handler;
+            UINTPTR arg = swtmrHandler->arg;
+            (VOID)LOS_MemFree(m_aucSysMem0, swtmrHandler);
+            if (handler != NULL) {
+                handler(arg);
+            }
+        }
+    }
+}

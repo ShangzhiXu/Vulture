@@ -1,0 +1,32 @@
+UINT32 OsMemMulPoolDeinit(const VOID *pool)
+{
+    UINT32 ret = LOS_NOK;
+    VOID *nextPool = NULL;
+    VOID *curPool = NULL;
+
+    do {
+        if (pool == NULL) {
+            break;
+        }
+
+        if (pool == g_poolHead) {
+            g_poolHead = ((LosMemPoolInfo *)g_poolHead)->nextPool;
+            ret = LOS_OK;
+            break;
+        }
+
+        curPool = g_poolHead;
+        nextPool = g_poolHead;
+        while (nextPool != NULL) {
+            if (pool == nextPool) {
+                ((LosMemPoolInfo *)curPool)->nextPool = ((LosMemPoolInfo *)nextPool)->nextPool;
+                ret = LOS_OK;
+                break;
+            }
+            curPool = nextPool;
+            nextPool = ((LosMemPoolInfo *)nextPool)->nextPool;
+        }
+    } while (0);
+
+    return ret;
+}

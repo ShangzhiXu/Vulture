@@ -1,0 +1,43 @@
+HAL_StatusTypeDef  FMC_NORSRAM_Extended_Timing_Init(FMC_NORSRAM_EXTENDED_TypeDef *Device, FMC_NORSRAM_TimingTypeDef *Timing, uint32_t Bank, uint32_t ExtendedMode)
+{  
+  uint32_t tmpr = 0;
+ 
+  /* Check the parameters */
+  assert_param(IS_FMC_EXTENDED_MODE(ExtendedMode));
+  
+  /* Set NORSRAM device timing register for write configuration, if extended mode is used */
+  if(ExtendedMode == FMC_EXTENDED_MODE_ENABLE)
+  {
+    /* Check the parameters */
+    assert_param(IS_FMC_NORSRAM_EXTENDED_DEVICE(Device));  
+    assert_param(IS_FMC_ADDRESS_SETUP_TIME(Timing->AddressSetupTime));
+    assert_param(IS_FMC_ADDRESS_HOLD_TIME(Timing->AddressHoldTime));
+    assert_param(IS_FMC_DATASETUP_TIME(Timing->DataSetupTime));
+    assert_param(IS_FMC_TURNAROUND_TIME(Timing->BusTurnAroundDuration));
+    assert_param(IS_FMC_CLK_DIV(Timing->CLKDivision));
+    assert_param(IS_FMC_DATA_LATENCY(Timing->DataLatency));
+    assert_param(IS_FMC_ACCESS_MODE(Timing->AccessMode));
+    assert_param(IS_FMC_NORSRAM_BANK(Bank));  
+    
+    /* Get the BWTR register value */
+    tmpr = Device->BWTR[Bank];
+
+    /* Clear ADDSET, ADDHLD, DATAST, BUSTURN, CLKDIV, DATLAT and ACCMOD bits */
+    tmpr &= ((uint32_t)~(FMC_BWTR1_ADDSET  | FMC_BWTR1_ADDHLD | FMC_BWTR1_DATAST | \
+                         FMC_BWTR1_BUSTURN | FMC_BWTR1_ACCMOD));
+    
+    tmpr |= (uint32_t)(Timing->AddressSetupTime                 |\
+                      ((Timing->AddressHoldTime) << 4)          |\
+                      ((Timing->DataSetupTime) << 8)            |\
+                      ((Timing->BusTurnAroundDuration) << 16)   |\
+                      (Timing->AccessMode));
+
+    Device->BWTR[Bank] = tmpr;
+  }
+  else
+  {
+    Device->BWTR[Bank] = 0x0FFFFFFF;
+  }   
+  
+  return HAL_OK;  
+}

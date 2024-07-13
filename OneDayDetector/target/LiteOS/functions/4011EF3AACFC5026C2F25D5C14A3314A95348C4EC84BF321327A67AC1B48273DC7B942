@@ -1,0 +1,53 @@
+void at_recv_task(void)
+{
+    uint32_t recv_len = 0;
+    uint8_t *tmp = at.userdata;
+    int ret = 0;
+    recv_buff recv_buf;
+    UINT32 rlen = sizeof(recv_buff);
+
+    while (1) {
+        uint32_t wait_time = at_get_queue_wait_time();
+        ret = LOS_QueueReadCopy(at.rid, &recv_buf, &rlen, wait_time);
+        if (ret != LOS_OK) {
+            continue;
+        }
+
+        if (recv_buf.msg_type == AT_TASK_QUIT) {
+            AT_LOG("at recv task quit");
+            break;
+        }
+
+        LOS_MuxPend(at.cmd_mux, LOS_WAIT_FOREVER);
+        at_rm_timeout_nodes();
+		LOS_MuxPost(at.cmd_mux);
+
+        if (at.step_callback) {
+            at.step_callback();
+        }
+
+        if (recv_buf.msg_type != AT_USART_RX) {
+            AT_LOG("at recv msg sent done");
+            continue;
+        }
+
+        memset(tmp, 0, at_user_conf.user_buf_len);
+        recv_len = read_resp(tmp, &recv_buf);
+        if (recv_len <= 0) {
+            AT_LOG("err, recv_len = %ld", recv_len);
+            continue;
+        }
+
+        AT_LOG_DEBUG("recv len = %lu buf = %s ", recv_len, tmp);
+
+        ret = cloud_cmd_matching((int8_t *)tmp, recv_len);
+        if (ret > 0) {
+            continue;
+        }
+
+        LOS_MuxPend(at.cmd_mux, LOS_WAIT_FOREVER);
+        at_rm_timeout_nodes();
+        at_handle_resp((int8_t *)tmp, recv_len);
+        LOS_MuxPost(at.cmd_mux);
+    }
+}

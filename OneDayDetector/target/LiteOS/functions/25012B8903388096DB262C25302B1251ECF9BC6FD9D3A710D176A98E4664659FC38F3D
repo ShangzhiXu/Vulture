@@ -1,0 +1,38 @@
+static int prv_spi2inner_copy(uint32_t addr_source, int32_t image_len)
+{
+    int ret;
+    int32_t copy_len;
+    uint8_t buf[OTA_COPY_BUF_SIZE];
+    uint32_t addr_dest = OTA_DEFAULT_IMAGE_ADDR;
+
+    ret = hal_flash_erase(addr_dest, image_len);
+    if (ret != 0) {
+        OTA_LOG("write inner flash failed");
+        return OTA_ERRNO_INNER_FLASH_WRITE;
+    }
+
+    while (image_len > 0) {
+        copy_len = image_len > OTA_COPY_BUF_SIZE ? OTA_COPY_BUF_SIZE : image_len;
+
+        ret = hal_spi_flash_read(buf, copy_len, addr_source);
+        if (ret != 0) {
+            (void)hal_flash_lock();
+            OTA_LOG("read spi flash failed");
+            return OTA_ERRNO_SPI_FLASH_READ;
+        }
+        addr_source += copy_len;
+
+        ret = hal_flash_write(buf, copy_len, &addr_dest);
+        if (ret != 0) {
+            (void)hal_flash_lock();
+            OTA_LOG("write inner flash failed");
+            return OTA_ERRNO_INNER_FLASH_WRITE;
+        }
+
+        image_len -= copy_len;
+    }
+
+    (void)hal_flash_lock();
+
+    return OTA_ERRNO_OK;
+}

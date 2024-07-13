@@ -1,0 +1,33 @@
+tcp_oos_insert_segment(struct tcp_seg *cseg, struct tcp_seg *next)
+{
+  struct tcp_seg *old_seg;
+
+  LWIP_ASSERT("tcp_oos_insert_segment: invalid cseg", cseg != NULL);
+
+  if (TCPH_FLAGS(cseg->tcphdr) & TCP_FIN) {
+    /* received segment overlaps all following segments */
+    tcp_segs_free(next);
+    next = NULL;
+  } else {
+    /* delete some following segments
+       oos queue may have segments with FIN flag */
+    while (next &&
+           TCP_SEQ_GEQ((seqno + cseg->len),
+                       (next->tcphdr->seqno + next->len))) {
+      /* cseg with FIN already processed */
+      if (TCPH_FLAGS(next->tcphdr) & TCP_FIN) {
+        TCPH_SET_FLAG(cseg->tcphdr, TCP_FIN);
+      }
+      old_seg = next;
+      next = next->next;
+      tcp_seg_free(old_seg);
+    }
+    if (next &&
+        TCP_SEQ_GT(seqno + cseg->len, next->tcphdr->seqno)) {
+      /* We need to trim the incoming segment. */
+      cseg->len = (u16_t)(next->tcphdr->seqno - seqno);
+      pbuf_realloc(cseg->p, cseg->len);
+    }
+  }
+  cseg->next = next;
+}

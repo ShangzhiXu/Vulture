@@ -1,0 +1,76 @@
+HAL_StatusTypeDef USB_SetTurnaroundTime(USB_OTG_GlobalTypeDef *USBx,
+                                        uint32_t hclk, uint8_t speed)
+{
+  uint32_t UsbTrd;
+
+  /* The USBTRD is configured according to the tables below, depending on AHB frequency
+  used by application. In the low AHB frequency range it is used to stretch enough the USB response
+  time to IN tokens, the USB turnaround time, so to compensate for the longer AHB read access
+  latency to the Data FIFO */
+  if (speed == USB_OTG_SPEED_FULL)
+  {
+    if ((hclk >= 14200000U) && (hclk < 15000000U))
+    {
+      /* hclk Clock Range between 14.2-15 MHz */
+      UsbTrd = 0xFU;
+    }
+    else if ((hclk >= 15000000U) && (hclk < 16000000U))
+    {
+      /* hclk Clock Range between 15-16 MHz */
+      UsbTrd = 0xEU;
+    }
+    else if ((hclk >= 16000000U) && (hclk < 17200000U))
+    {
+      /* hclk Clock Range between 16-17.2 MHz */
+      UsbTrd = 0xDU;
+    }
+    else if ((hclk >= 17200000U) && (hclk < 18500000U))
+    {
+      /* hclk Clock Range between 17.2-18.5 MHz */
+      UsbTrd = 0xCU;
+    }
+    else if ((hclk >= 18500000U) && (hclk < 20000000U))
+    {
+      /* hclk Clock Range between 18.5-20 MHz */
+      UsbTrd = 0xBU;
+    }
+    else if ((hclk >= 20000000U) && (hclk < 21800000U))
+    {
+      /* hclk Clock Range between 20-21.8 MHz */
+      UsbTrd = 0xAU;
+    }
+    else if ((hclk >= 21800000U) && (hclk < 24000000U))
+    {
+      /* hclk Clock Range between 21.8-24 MHz */
+      UsbTrd = 0x9U;
+    }
+    else if ((hclk >= 24000000U) && (hclk < 27700000U))
+    {
+      /* hclk Clock Range between 24-27.7 MHz */
+      UsbTrd = 0x8U;
+    }
+    else if ((hclk >= 27700000U) && (hclk < 32000000U))
+    {
+      /* hclk Clock Range between 27.7-32 MHz */
+      UsbTrd = 0x7U;
+    }
+    else /* if(hclk >= 32000000) */
+    {
+      /* hclk Clock Range between 32-200 MHz */
+      UsbTrd = 0x6U;
+    }
+  }
+  else if (speed == USB_OTG_SPEED_HIGH)
+  {
+    UsbTrd = USBD_HS_TRDT_VALUE;
+  }
+  else
+  {
+    UsbTrd = USBD_DEFAULT_TRDT_VALUE;
+  }
+
+  USBx->GUSBCFG &= ~USB_OTG_GUSBCFG_TRDT;
+  USBx->GUSBCFG |= (uint32_t)((UsbTrd << 10) & USB_OTG_GUSBCFG_TRDT);
+
+  return HAL_OK;
+}

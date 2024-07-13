@@ -1,0 +1,58 @@
+void UnityAssertDoubleSpecial(const UNITY_DOUBLE actual,
+                              const char* msg,
+                              const UNITY_LINE_TYPE lineNumber,
+                              const UNITY_FLOAT_TRAIT_T style)
+{
+    const char* trait_names[] = {UnityStrInf, UnityStrNegInf, UnityStrNaN, UnityStrDet};
+    UNITY_INT should_be_trait = ((UNITY_INT)style & 1);
+    UNITY_INT is_trait        = !should_be_trait;
+    UNITY_INT trait_index     = (UNITY_INT)(style >> 1);
+
+    RETURN_IF_FAIL_OR_IGNORE;
+
+    switch (style)
+    {
+        case UNITY_FLOAT_IS_INF:
+        case UNITY_FLOAT_IS_NOT_INF:
+            is_trait = isinf(actual) && (actual > 0);
+            break;
+        case UNITY_FLOAT_IS_NEG_INF:
+        case UNITY_FLOAT_IS_NOT_NEG_INF:
+            is_trait = isinf(actual) && (actual < 0);
+            break;
+
+        case UNITY_FLOAT_IS_NAN:
+        case UNITY_FLOAT_IS_NOT_NAN:
+            is_trait = isnan(actual) ? 1 : 0;
+            break;
+
+        case UNITY_FLOAT_IS_DET: /* A determinate number is non infinite and not NaN. */
+        case UNITY_FLOAT_IS_NOT_DET:
+            is_trait = !isinf(actual) && !isnan(actual);
+            break;
+
+        default:
+            trait_index = 0;
+            trait_names[0] = UnityStrInvalidFloatTrait;
+            break;
+    }
+
+    if (is_trait != should_be_trait)
+    {
+        UnityTestResultsFailBegin(lineNumber);
+        UnityPrint(UnityStrExpected);
+        if (!should_be_trait)
+            UnityPrint(UnityStrNot);
+        UnityPrint(trait_names[trait_index]);
+        UnityPrint(UnityStrWas);
+#ifndef UNITY_EXCLUDE_FLOAT_PRINT
+        UnityPrintFloat(actual);
+#else
+        if (should_be_trait)
+            UnityPrint(UnityStrNot);
+        UnityPrint(trait_names[trait_index]);
+#endif
+        UnityAddMsgIfSpecified(msg);
+        UNITY_FAIL_AND_BAIL;
+    }
+}

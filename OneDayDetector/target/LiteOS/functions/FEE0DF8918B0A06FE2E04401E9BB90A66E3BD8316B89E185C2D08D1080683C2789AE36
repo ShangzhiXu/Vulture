@@ -1,0 +1,28 @@
+slipif_rxbyte_enqueue(struct netif *netif, u8_t data)
+{
+  struct pbuf *p;
+  struct slipif_priv *priv = (struct slipif_priv *)netif->state;
+  SYS_ARCH_DECL_PROTECT(old_level);
+
+  p = slipif_rxbyte(netif, data);
+  if (p != NULL) {
+    SYS_ARCH_PROTECT(old_level);
+    if (priv->rxpackets != NULL) {
+#if SLIP_RX_QUEUE
+      /* queue multiple pbufs */
+      struct pbuf *q = p;
+      while (q->next != NULL) {
+        q = q->next;
+      }
+      q->next = p;
+    } else {
+#else /* SLIP_RX_QUEUE */
+      pbuf_free(priv->rxpackets);
+    }
+    {
+#endif /* SLIP_RX_QUEUE */
+      priv->rxpackets = p;
+    }
+    SYS_ARCH_UNPROTECT(old_level);
+  }
+}

@@ -1,0 +1,64 @@
+size_t utils_floatToText(double data,
+                         uint8_t *string,
+                         size_t length)
+{
+    size_t intLength;
+    size_t decLength;
+    int64_t intPart;
+    double decPart;
+
+    if (data <= (double)INT64_MIN || data >= (double)INT64_MAX) return 0;
+
+    intPart = (int64_t)data;
+    decPart = data - intPart;
+    if (decPart < 0)
+    {
+        decPart = 1 - decPart;
+    }
+    else
+    {
+        decPart = 1 + decPart;
+    }
+
+    if (decPart <= 1 + FLT_EPSILON)
+    {
+        decPart = 0;
+    }
+
+    if (intPart == 0 && data < 0)
+    {
+        // deal with numbers between -1 and 0
+        if (length < 4) return 0;   // "-0.n"
+        string[0] = '-';
+        string[1] = '0';
+        intLength = 2;
+    }
+    else
+    {
+        intLength = utils_intToText(intPart, string, length);
+        if (intLength == 0) return 0;
+    }
+    decLength = 0;
+    if (decPart >= FLT_EPSILON)
+    {
+        double noiseFloor;
+
+        if (intLength >= length - 1) return 0;
+
+        noiseFloor = FLT_EPSILON;
+        do
+        {
+            decPart *= 10;
+            noiseFloor *= 10;
+        }
+        while (decPart - (int64_t)decPart > noiseFloor);
+
+        decLength = utils_intToText(decPart, string + intLength, length - intLength);
+        if (decLength <= 1) return 0;
+
+        // replace the leading 1 with a dot
+        string[intLength] = '.';
+    }
+
+    return intLength + decLength;
+}

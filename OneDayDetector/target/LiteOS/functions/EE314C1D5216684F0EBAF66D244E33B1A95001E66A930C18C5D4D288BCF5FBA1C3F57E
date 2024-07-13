@@ -1,0 +1,102 @@
+HAL_StatusTypeDef HAL_RTC_SetDate(RTC_HandleTypeDef *hrtc, RTC_DateTypeDef *sDate, uint32_t Format)
+{
+  uint32_t counter_time = 0, counter_alarm = 0, hours = 0;
+  
+  /* Check input parameters */
+  if((hrtc == NULL) || (sDate == NULL))
+  {
+     return HAL_ERROR;
+  }
+  
+  /* Check the parameters */
+  assert_param(IS_RTC_FORMAT(Format));
+  
+ /* Process Locked */ 
+ __HAL_LOCK(hrtc);
+  
+  hrtc->State = HAL_RTC_STATE_BUSY; 
+  
+  if(Format == RTC_FORMAT_BIN)
+  {   
+    assert_param(IS_RTC_YEAR(sDate->Year));
+    assert_param(IS_RTC_MONTH(sDate->Month));
+    assert_param(IS_RTC_DATE(sDate->Date)); 
+
+    /* Change the current date */
+    hrtc->DateToUpdate.Year  = sDate->Year;
+    hrtc->DateToUpdate.Month = sDate->Month;
+    hrtc->DateToUpdate.Date  = sDate->Date;
+  }
+  else
+  {   
+    assert_param(IS_RTC_YEAR(RTC_Bcd2ToByte(sDate->Year)));
+    assert_param(IS_RTC_MONTH(RTC_Bcd2ToByte(sDate->Month)));
+    assert_param(IS_RTC_DATE(RTC_Bcd2ToByte(sDate->Date)));
+    
+    /* Change the current date */
+    hrtc->DateToUpdate.Year  = RTC_Bcd2ToByte(sDate->Year);
+    hrtc->DateToUpdate.Month = RTC_Bcd2ToByte(sDate->Month);
+    hrtc->DateToUpdate.Date  = RTC_Bcd2ToByte(sDate->Date);
+  }
+
+  /* WeekDay set by user can be ignored because automatically calculated */
+  hrtc->DateToUpdate.WeekDay = RTC_WeekDayNum(hrtc->DateToUpdate.Year, hrtc->DateToUpdate.Month, hrtc->DateToUpdate.Date);
+  sDate->WeekDay = hrtc->DateToUpdate.WeekDay;
+
+  /* Reset time to be aligned on the same day */
+  /* Read the time counter*/
+  counter_time = RTC_ReadTimeCounter(hrtc);
+
+  /* Fill the structure fields with the read parameters */
+  hours = counter_time / 3600;
+  if (hours > 24)
+  {
+    /* Set updated time in decreasing counter by number of days elapsed */
+    counter_time -= ((hours / 24) * 24 * 3600);
+    /* Write time counter in RTC registers */
+    if (RTC_WriteTimeCounter(hrtc, counter_time) != HAL_OK)
+    {
+      /* Set RTC state */
+      hrtc->State = HAL_RTC_STATE_ERROR;
+      
+      /* Process Unlocked */ 
+      __HAL_UNLOCK(hrtc);
+      
+      return HAL_ERROR;
+    }
+
+    /* Read current Alarm counter in RTC registers */
+    counter_alarm = RTC_ReadAlarmCounter(hrtc);
+
+    /* Set again alarm to match with new time if enabled */
+    if (counter_alarm != RTC_ALARM_RESETVALUE)
+    {
+      if(counter_alarm < counter_time)
+      {
+        /* Add 1 day to alarm counter*/
+        counter_alarm += (uint32_t)(24 * 3600);
+        
+        /* Write new Alarm counter in RTC registers */
+        if (RTC_WriteAlarmCounter(hrtc, counter_alarm) != HAL_OK)
+        {
+          /* Set RTC state */
+          hrtc->State = HAL_RTC_STATE_ERROR;
+          
+          /* Process Unlocked */ 
+          __HAL_UNLOCK(hrtc);
+          
+          return HAL_ERROR;
+        }
+      }
+    }
+    
+
+  }
+
+  hrtc->State = HAL_RTC_STATE_READY ;
+  
+  /* Process Unlocked */ 
+  __HAL_UNLOCK(hrtc);
+  
+  return HAL_OK;    
+}

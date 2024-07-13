@@ -1,0 +1,82 @@
+int mbedtls_rsa_rsaes_oaep_encrypt( mbedtls_rsa_context *ctx,
+                            int (*f_rng)(void *, unsigned char *, size_t),
+                            void *p_rng,
+                            int mode,
+                            const unsigned char *label, size_t label_len,
+                            size_t ilen,
+                            const unsigned char *input,
+                            unsigned char *output )
+{
+    size_t olen;
+    int ret;
+    unsigned char *p = output;
+    unsigned int hlen;
+    const mbedtls_md_info_t *md_info;
+    mbedtls_md_context_t md_ctx;
+
+    RSA_VALIDATE_RET( ctx != NULL );
+    RSA_VALIDATE_RET( mode == MBEDTLS_RSA_PRIVATE ||
+                      mode == MBEDTLS_RSA_PUBLIC );
+    RSA_VALIDATE_RET( output != NULL );
+    RSA_VALIDATE_RET( input != NULL );
+    RSA_VALIDATE_RET( label_len == 0 || label != NULL );
+
+    if( mode == MBEDTLS_RSA_PRIVATE && ctx->padding != MBEDTLS_RSA_PKCS_V21 )
+        return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+
+    if( f_rng == NULL )
+        return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+
+    md_info = mbedtls_md_info_from_type( (mbedtls_md_type_t) ctx->hash_id );
+    if( md_info == NULL )
+        return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+
+    olen = ctx->len;
+    hlen = mbedtls_md_get_size( md_info );
+
+    /* first comparison checks for overflow */
+    if( ilen + 2 * hlen + 2 < ilen || olen < ilen + 2 * hlen + 2 )
+        return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+
+    memset( output, 0, olen );
+
+    *p++ = 0;
+
+    /* Generate a random octet string seed */
+    if( ( ret = f_rng( p_rng, p, hlen ) ) != 0 )
+        return( MBEDTLS_ERR_RSA_RNG_FAILED + ret );
+
+    p += hlen;
+
+    /* Construct DB */
+    if( ( ret = mbedtls_md( md_info, label, label_len, p ) ) != 0 )
+        return( ret );
+    p += hlen;
+    p += olen - 2 * hlen - 2 - ilen;
+    *p++ = 1;
+    memcpy( p, input, ilen );
+
+    mbedtls_md_init( &md_ctx );
+    if( ( ret = mbedtls_md_setup( &md_ctx, md_info, 0 ) ) != 0 )
+        goto exit;
+
+    /* maskedDB: Apply dbMask to DB */
+    if( ( ret = mgf_mask( output + hlen + 1, olen - hlen - 1, output + 1, hlen,
+                          &md_ctx ) ) != 0 )
+        goto exit;
+
+    /* maskedSeed: Apply seedMask to seed */
+    if( ( ret = mgf_mask( output + 1, hlen, output + hlen + 1, olen - hlen - 1,
+                          &md_ctx ) ) != 0 )
+        goto exit;
+
+exit:
+    mbedtls_md_free( &md_ctx );
+
+    if( ret != 0 )
+        return( ret );
+
+    return( ( mode == MBEDTLS_RSA_PUBLIC )
+            ? mbedtls_rsa_public(  ctx, output, output )
+            : mbedtls_rsa_private( ctx, f_rng, p_rng, output, output ) );
+}

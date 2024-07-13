@@ -1,0 +1,20 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 ShellTask(VOID *param)
+{
+    UINT32 ret;
+    ShellCB *shellCB = (ShellCB *)param;
+
+    while (1) {
+        PRINTK("\nHuawei LiteOS # ");
+        ret = LOS_EventRead(&shellCB->shellEvent, SHELL_CMD_EVENT_MASK,
+                            LOS_WAITMODE_OR | LOS_WAITMODE_CLR, LOS_WAIT_FOREVER);
+        if (ret == SHELL_CMD_PARSE_EVENT) {
+            ShellCmdProcess(shellCB);
+        } else if (ret == SHELL_CMD_EXIT_EVENT) {
+            break;
+        }
+    }
+    OsShellKeyDeInit(shellCB);
+    (VOID)LOS_EventDestroy(&shellCB->shellEvent);
+    (VOID)LOS_MemFree((VOID *)m_aucSysMem0, shellCB);
+    return 0;
+}

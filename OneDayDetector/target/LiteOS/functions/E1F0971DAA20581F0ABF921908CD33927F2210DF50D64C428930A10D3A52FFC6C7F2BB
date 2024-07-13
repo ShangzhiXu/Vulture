@@ -1,0 +1,35 @@
+HAL_StatusTypeDef HAL_RTC_GetDate(RTC_HandleTypeDef *hrtc, RTC_DateTypeDef *sDate, uint32_t Format)
+{
+  RTC_TimeTypeDef stime = {0};
+  
+  /* Check input parameters */
+  if((hrtc == NULL) || (sDate == NULL))
+  {
+     return HAL_ERROR;
+  }
+  
+  /* Check the parameters */
+  assert_param(IS_RTC_FORMAT(Format));
+  
+  /* Call HAL_RTC_GetTime function to update date if counter higher than 24 hours */
+  if (HAL_RTC_GetTime(hrtc, &stime, RTC_FORMAT_BIN) != HAL_OK)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Fill the structure fields with the read parameters */
+  sDate->WeekDay  = hrtc->DateToUpdate.WeekDay;
+  sDate->Year     = hrtc->DateToUpdate.Year;
+  sDate->Month    = hrtc->DateToUpdate.Month;
+  sDate->Date     = hrtc->DateToUpdate.Date;
+
+  /* Check the input parameters format */
+  if(Format != RTC_FORMAT_BIN)
+  {    
+    /* Convert the date structure parameters to BCD format */
+    sDate->Year   = (uint8_t)RTC_ByteToBcd2(sDate->Year);
+    sDate->Month  = (uint8_t)RTC_ByteToBcd2(sDate->Month);
+    sDate->Date   = (uint8_t)RTC_ByteToBcd2(sDate->Date);  
+  }
+  return HAL_OK;
+}

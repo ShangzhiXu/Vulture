@@ -1,0 +1,47 @@
+SECUREC_INLINE int SecDecodeLeadByte(SecScanSpec *spec, const SecUnsignedChar **format, SecFileStream *stream)
+{
+#if SECUREC_HAVE_MBTOWC
+    const SecUnsignedChar *fmt = *format;
+    int ch1 = (int)spec->ch;
+    int ch2 = SecGetChar(stream, &(spec->charCount));
+    spec->ch = (SecInt)ch2;
+    if (*fmt == SECUREC_CHAR('\0') || (int)(*fmt) != ch2) {
+        /* LSD in console mode, ungetc twice may cause problem */
+        SecUnGetChar(ch2, stream, &(spec->charCount));
+        SecUnGetChar(ch1, stream, &(spec->charCount));
+        return -1;
+    }
+    ++fmt;
+    if ((unsigned int)MB_CUR_MAX >= SECUREC_UTF8_BOM_HEADER_SIZE &&
+        (((unsigned char)ch1 & SECUREC_UTF8_LEAD_1ST) == SECUREC_UTF8_LEAD_1ST) &&
+        (((unsigned char)ch2 & SECUREC_UTF8_LEAD_2ND) == SECUREC_UTF8_LEAD_2ND)) {
+        /* This char is very likely to be a UTF-8 char */
+        wchar_t tempWChar;
+        char temp[SECUREC_MULTI_BYTE_MAX_LEN];
+        int ch3 = (int)SecGetChar(stream, &(spec->charCount));
+        spec->ch = (SecInt)ch3;
+        if (*fmt == SECUREC_CHAR('\0') || (int)(*fmt) != ch3) {
+            SecUnGetChar(ch3, stream, &(spec->charCount));
+            return -1;
+        }
+        temp[0] = (char)ch1;
+        temp[1] = (char)ch2; /* 1 index of second character */
+        temp[2] = (char)ch3; /* 2 index of third character */
+        temp[3] = '\0';      /* 3 of string terminator position */
+        if (mbtowc(&tempWChar, temp, sizeof(temp)) > 0) {
+            /* Succeed */
+            ++fmt;
+            --spec->charCount;
+        } else {
+            SecUnGetChar(ch3, stream, &(spec->charCount));
+        }
+    }
+    --spec->charCount;    /* Only count as one character read */
+    *format = fmt;
+    return 0;
+#else
+    SecUnGetChar(spec->ch, stream, &(spec->charCount));
+    (void)format; /* To clear e438 last value assigned not used , the compiler will optimize this code */
+    return -1;
+#endif
+}

@@ -1,0 +1,70 @@
+HAL_StatusTypeDef ADC_Enable(ADC_HandleTypeDef* hadc)
+{
+  uint32_t tickstart = 0;
+  __IO uint32_t wait_loop_index = 0;
+  
+  /* ADC enable and wait for ADC ready (in case of ADC is disabled or         */
+  /* enabling phase not yet completed: flag ADC ready not yet set).           */
+  /* Timeout implemented to not be stuck if ADC cannot be enabled (possible   */
+  /* causes: ADC clock not running, ...).                                     */
+  if (ADC_IS_ENABLE(hadc) == RESET)
+  {
+    /* Check if conditions to enable the ADC are fulfilled */
+    if (ADC_ENABLING_CONDITIONS(hadc) == RESET)
+    {
+      /* Update ADC state machine to error */
+      SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL);
+      
+      /* Set ADC error code to ADC IP internal error */
+      SET_BIT(hadc->ErrorCode, HAL_ADC_ERROR_INTERNAL);
+      
+      return HAL_ERROR;
+    }
+    
+    /* Enable the ADC peripheral */
+    LL_ADC_Enable(hadc->Instance);
+    
+    /* Delay for ADC stabilization time */
+    /* Wait loop initialization and execution */
+    /* Note: Variable divided by 2 to compensate partially                    */
+    /*       CPU processing cycles.                                           */
+    wait_loop_index = (LL_ADC_DELAY_INTERNAL_REGUL_STAB_US * (SystemCoreClock / (1000000 * 2)));
+    while(wait_loop_index != 0)
+    {
+      wait_loop_index--;
+    }
+
+    /* Wait for ADC effectively enabled */
+    tickstart = HAL_GetTick();
+    
+    while(__HAL_ADC_GET_FLAG(hadc, ADC_FLAG_RDY) == RESET)
+    {
+      /*  If ADEN bit is set less than 4 ADC clock cycles after the ADCAL bit 
+          has been cleared (after a calibration), ADEN bit is reset by the 
+          calibration logic.
+          The workaround is to continue setting ADEN until ADRDY is becomes 1.
+          Additionally, ADC_ENABLE_TIMEOUT is defined to encompass this
+          4 ADC clock cycle duration */
+      /* Note: Test of ADC enabled required due to hardware constraint to     */
+      /*       not enable ADC if already enabled.                             */
+      if(LL_ADC_IsEnabled(hadc->Instance) == 0)
+      {
+        LL_ADC_Enable(hadc->Instance);
+      }
+      
+      if((HAL_GetTick() - tickstart) > ADC_ENABLE_TIMEOUT)
+      {
+        /* Update ADC state machine to error */
+        SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL);
+        
+        /* Set ADC error code to ADC IP internal error */
+        SET_BIT(hadc->ErrorCode, HAL_ADC_ERROR_INTERNAL);
+        
+        return HAL_ERROR;
+      }
+    }
+  }
+   
+  /* Return HAL status */
+  return HAL_OK;
+}

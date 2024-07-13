@@ -1,0 +1,111 @@
+HAL_StatusTypeDef HAL_OSPIM_Config(OSPI_HandleTypeDef *hospi, OSPIM_CfgTypeDef *cfg, uint32_t Timeout)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t instance = 0;
+  uint8_t index = 0, ospi_enabled = 0, other_instance = 0;
+  OSPIM_CfgTypeDef IOM_cfg[OSPI_NB_INSTANCE];
+
+  /* Check the parameters of the OctoSPI IO Manager configuration structure */
+  assert_param(IS_OSPIM_PORT(cfg->ClkPort));
+  assert_param(IS_OSPIM_PORT(cfg->DQSPort));
+  assert_param(IS_OSPIM_PORT(cfg->NCSPort));
+  assert_param(IS_OSPIM_IO_PORT(cfg->IOLowPort));
+  assert_param(IS_OSPIM_IO_PORT(cfg->IOHighPort));
+  
+  if (hospi->Instance == OCTOSPI1)
+  {
+    instance = 0;
+    other_instance = 1;
+  }
+  else
+  {
+    instance = 1;
+    other_instance = 0;
+  }
+
+  /**************** Get current configuration of the instances ****************/
+  for (index = 0; index < OSPI_NB_INSTANCE; index++)
+  {
+    if (OSPIM_GetConfig(index+1, &(IOM_cfg[index])) != HAL_OK)
+    {
+      status = HAL_ERROR;
+      hospi->ErrorCode = HAL_OSPI_ERROR_INVALID_PARAM;
+    }
+  }
+  
+  if (status == HAL_OK)
+  {
+    /********** Disable both OctoSPI to configure OctoSPI IO Manager **********/
+    if ((OCTOSPI1->CR & OCTOSPI_CR_EN) != 0)
+    {
+      CLEAR_BIT(OCTOSPI1->CR, OCTOSPI_CR_EN);
+      ospi_enabled |= 0x1;
+    }
+    if ((OCTOSPI2->CR & OCTOSPI_CR_EN) != 0)
+    {
+      CLEAR_BIT(OCTOSPI2->CR, OCTOSPI_CR_EN);
+      ospi_enabled |= 0x2;
+    }
+    
+    /***************** Deactivation of previous configuration *****************/
+    if (IOM_cfg[instance].ClkPort != 0)
+    {
+      CLEAR_BIT(OCTOSPIM->PCR[(IOM_cfg[instance].ClkPort-1)],          OCTOSPIM_PCR_CLKEN);
+      CLEAR_BIT(OCTOSPIM->PCR[(IOM_cfg[instance].DQSPort-1)],          OCTOSPIM_PCR_DQSEN);
+      CLEAR_BIT(OCTOSPIM->PCR[(IOM_cfg[instance].NCSPort-1)],          OCTOSPIM_PCR_NCSEN);
+      CLEAR_BIT(OCTOSPIM->PCR[((IOM_cfg[instance].IOLowPort&0xF)-1)],  OCTOSPIM_PCR_IOLEN);
+      CLEAR_BIT(OCTOSPIM->PCR[((IOM_cfg[instance].IOHighPort&0xF)-1)], OCTOSPIM_PCR_IOHEN);
+    }
+    
+    /********************* Deactivation of other instance *********************/
+    if ((cfg->ClkPort == IOM_cfg[other_instance].ClkPort) || (cfg->DQSPort == IOM_cfg[other_instance].DQSPort)     ||
+        (cfg->NCSPort == IOM_cfg[other_instance].NCSPort) || (cfg->IOLowPort == IOM_cfg[other_instance].IOLowPort) ||
+        (cfg->IOHighPort == IOM_cfg[other_instance].IOHighPort))
+    {
+      CLEAR_BIT(OCTOSPIM->PCR[(IOM_cfg[other_instance].ClkPort-1)],          OCTOSPIM_PCR_CLKEN);
+      CLEAR_BIT(OCTOSPIM->PCR[(IOM_cfg[other_instance].DQSPort-1)],          OCTOSPIM_PCR_DQSEN);
+      CLEAR_BIT(OCTOSPIM->PCR[(IOM_cfg[other_instance].NCSPort-1)],          OCTOSPIM_PCR_NCSEN);
+      CLEAR_BIT(OCTOSPIM->PCR[((IOM_cfg[other_instance].IOLowPort&0xF)-1)],  OCTOSPIM_PCR_IOLEN);
+      CLEAR_BIT(OCTOSPIM->PCR[((IOM_cfg[other_instance].IOHighPort&0xF)-1)], OCTOSPIM_PCR_IOHEN);
+    }
+    
+    /******************** Activation of new configuration *********************/
+    MODIFY_REG(OCTOSPIM->PCR[(cfg->ClkPort-1)], (OCTOSPIM_PCR_CLKEN | OCTOSPIM_PCR_CLKSRC), (OCTOSPIM_PCR_CLKEN | (instance << OCTOSPIM_PCR_CLKSRC_Pos)));
+    MODIFY_REG(OCTOSPIM->PCR[(cfg->DQSPort-1)], (OCTOSPIM_PCR_DQSEN | OCTOSPIM_PCR_DQSSRC), (OCTOSPIM_PCR_DQSEN | (instance << OCTOSPIM_PCR_DQSSRC_Pos)));
+    MODIFY_REG(OCTOSPIM->PCR[(cfg->NCSPort-1)], (OCTOSPIM_PCR_NCSEN | OCTOSPIM_PCR_NCSSRC), (OCTOSPIM_PCR_NCSEN | (instance << OCTOSPIM_PCR_NCSSRC_Pos)));
+    
+    if ((cfg->IOLowPort & OCTOSPIM_PCR_IOLEN) != 0)
+    {
+      MODIFY_REG(OCTOSPIM->PCR[((cfg->IOLowPort&0xF)-1)], (OCTOSPIM_PCR_IOLEN | OCTOSPIM_PCR_IOLSRC), 
+                 (OCTOSPIM_PCR_IOLEN | (instance << POSITION_VAL(OCTOSPIM_PCR_IOLSRC_1))));
+    }
+    else
+    {
+      MODIFY_REG(OCTOSPIM->PCR[((cfg->IOLowPort&0xF)-1)], (OCTOSPIM_PCR_IOHEN | OCTOSPIM_PCR_IOHSRC), 
+                 (OCTOSPIM_PCR_IOHEN | (instance << POSITION_VAL(OCTOSPIM_PCR_IOHSRC_1))));
+    }
+    if ((cfg->IOHighPort & OCTOSPIM_PCR_IOLEN) != 0)
+    {
+      MODIFY_REG(OCTOSPIM->PCR[((cfg->IOHighPort&0xF)-1)], (OCTOSPIM_PCR_IOLEN | OCTOSPIM_PCR_IOLSRC), 
+                 (OCTOSPIM_PCR_IOLEN | OCTOSPIM_PCR_IOLSRC_0 | (instance << POSITION_VAL(OCTOSPIM_PCR_IOLSRC_1))));
+    }
+    else
+    {
+      MODIFY_REG(OCTOSPIM->PCR[((cfg->IOHighPort&0xF)-1)], (OCTOSPIM_PCR_IOHEN | OCTOSPIM_PCR_IOHSRC), 
+                 (OCTOSPIM_PCR_IOHEN | OCTOSPIM_PCR_IOHSRC_0 | (instance << POSITION_VAL(OCTOSPIM_PCR_IOHSRC_1))));
+    }
+    
+    /******* Re-enable both OctoSPI after configure OctoSPI IO Manager ********/
+    if ((ospi_enabled & 0x1) != 0)
+    {
+      SET_BIT(OCTOSPI1->CR, OCTOSPI_CR_EN);
+    }
+    if ((ospi_enabled & 0x2) != 0)
+    {
+      SET_BIT(OCTOSPI2->CR, OCTOSPI_CR_EN);
+    }
+  }
+
+  /* Return function status */
+  return status;
+}

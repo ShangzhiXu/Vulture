@@ -1,0 +1,81 @@
+altcp_mbedtls_handle_rx_appldata(struct altcp_pcb *conn, altcp_mbedtls_state_t *state)
+{
+  int ret;
+  LWIP_ASSERT("state != NULL", state != NULL);
+  if (!(state->flags & ALTCP_MBEDTLS_FLAGS_HANDSHAKE_DONE)) {
+    /* handshake not done yet */
+    return ERR_VAL;
+  }
+  do {
+    /* allocate a full-sized unchained PBUF_POOL: this is for RX! */
+    struct pbuf *buf = pbuf_alloc(PBUF_RAW, PBUF_POOL_BUFSIZE, PBUF_POOL);
+    if (buf == NULL) {
+      /* We're short on pbufs, try again later from 'poll' or 'recv' callbacks.
+         @todo: close on excessive allocation failures or leave this up to upper conn? */
+      return ERR_OK;
+    }
+
+    /* decrypt application data, this pulls encrypted RX data off state->rx pbuf chain */
+    ret = mbedtls_ssl_read(&state->ssl_context, (unsigned char *)buf->payload, PBUF_POOL_BUFSIZE);
+    if (ret < 0) {
+      if (ret == MBEDTLS_ERR_SSL_CLIENT_RECONNECT) {
+        /* client is initiating a new connection using the same source port -> close connection or make handshake */
+        LWIP_DEBUGF(ALTCP_MBEDTLS_DEBUG, ("new connection on same source port\n"));
+        LWIP_ASSERT("TODO: new connection on same source port, close this connection", 0);
+      } else if ((ret != MBEDTLS_ERR_SSL_WANT_READ) && (ret != MBEDTLS_ERR_SSL_WANT_WRITE)) {
+        if (ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
+          LWIP_DEBUGF(ALTCP_MBEDTLS_DEBUG, ("connection was closed gracefully\n"));
+        } else if (ret == MBEDTLS_ERR_NET_CONN_RESET) {
+          LWIP_DEBUGF(ALTCP_MBEDTLS_DEBUG, ("connection was reset by peer\n"));
+        }
+        pbuf_free(buf);
+        return ERR_OK;
+      } else {
+        pbuf_free(buf);
+        return ERR_OK;
+      }
+      pbuf_free(buf);
+      altcp_abort(conn);
+      return ERR_ABRT;
+    } else {
+      err_t err;
+      if (ret) {
+        LWIP_ASSERT("bogus receive length", ret <= PBUF_POOL_BUFSIZE);
+        /* trim pool pbuf to actually decoded length */
+        pbuf_realloc(buf, (u16_t)ret);
+
+        state->bio_bytes_appl += ret;
+        if (mbedtls_ssl_get_bytes_avail(&state->ssl_context) == 0) {
+          /* Record is done, now we know the share between application and protocol bytes
+             and can adjust the RX window by the protocol bytes.
+             The rest is 'recved' by the application calling our 'recved' fn. */
+          int overhead_bytes;
+          LWIP_ASSERT("bogus byte counts", state->bio_bytes_read > state->bio_bytes_appl);
+          overhead_bytes = state->bio_bytes_read - state->bio_bytes_appl;
+          altcp_mbedtls_lower_recved(conn->inner_conn, overhead_bytes);
+          state->bio_bytes_read = 0;
+          state->bio_bytes_appl = 0;
+        }
+
+        if (state->rx_app == NULL) {
+          state->rx_app = buf;
+        } else {
+          pbuf_cat(state->rx_app, buf);
+        }
+      } else {
+        pbuf_free(buf);
+        buf = NULL;
+      }
+      err = altcp_mbedtls_pass_rx_data(conn, state);
+      if (err != ERR_OK) {
+        if (err == ERR_ABRT) {
+          /* recv callback needs to return this as the pcb is deallocated */
+          return ERR_ABRT;
+        }
+        /* we hide all other errors as we retry feeding the pbuf to the app later */
+        return ERR_OK;
+      }
+    }
+  } while (ret > 0);
+  return ERR_OK;
+}

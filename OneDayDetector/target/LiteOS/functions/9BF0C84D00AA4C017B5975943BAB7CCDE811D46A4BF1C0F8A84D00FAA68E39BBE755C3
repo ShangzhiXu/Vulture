@@ -1,0 +1,27 @@
+UINT32 OsMemMulPoolInit(VOID *pool, UINT32 size)
+{
+    VOID *nextPool = g_poolHead;
+    VOID *curPool = g_poolHead;
+    UINTPTR poolEnd;
+    while (nextPool != NULL) {
+        poolEnd = (UINTPTR)nextPool + LOS_MemPoolSizeGet(nextPool);
+        if (((pool <= nextPool) && (((UINTPTR)pool + size) > (UINTPTR)nextPool)) ||
+            (((UINTPTR)pool < poolEnd) && (((UINTPTR)pool + size) >= poolEnd))) {
+            PRINT_ERR("pool [%p, %p) conflict with pool [%p, %p)\n",
+                      pool, (UINTPTR)pool + size,
+                      nextPool, (UINTPTR)nextPool + LOS_MemPoolSizeGet(nextPool));
+            return LOS_NOK;
+        }
+        curPool = nextPool;
+        nextPool = ((LosMemPoolInfo *)nextPool)->nextPool;
+    }
+
+    if (g_poolHead == NULL) {
+        g_poolHead = pool;
+    } else {
+        ((LosMemPoolInfo *)curPool)->nextPool = pool;
+    }
+
+    ((LosMemPoolInfo *)pool)->nextPool = NULL;
+    return LOS_OK;
+}

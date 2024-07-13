@@ -1,0 +1,35 @@
+HAL_StatusTypeDef HAL_USARTEx_SetTxFifoThreshold(USART_HandleTypeDef *husart, uint32_t Threshold)
+{
+  uint32_t tmpcr1 = 0;
+  
+  /* Check parameters */
+  assert_param(IS_UART_FIFO_INSTANCE(husart->Instance));
+  assert_param(IS_USART_TXFIFO_THRESHOLD(Threshold));
+
+  /* Process Locked */
+  __HAL_LOCK(husart);
+  
+  husart->State = HAL_USART_STATE_BUSY;
+  
+  /* Save actual USART configuration */
+  tmpcr1 = READ_REG(husart->Instance->CR1);
+  
+  /* Disable USART */
+  __HAL_USART_DISABLE(husart);
+  
+  /* Update TX threshold configuration */
+  MODIFY_REG(husart->Instance->CR3, USART_CR3_TXFTCFG, Threshold);
+  
+  /* Determine the number of data to process during RX/TX ISR execution */
+  USARTEx_SetNbDataToProcess(husart);
+  
+  /* Restore USART configuration */
+  WRITE_REG(husart->Instance->CR1, tmpcr1);
+  
+  husart->State = HAL_USART_STATE_READY;
+  
+  /* Process Unlocked */
+  __HAL_UNLOCK(husart);
+  
+  return HAL_OK;
+}

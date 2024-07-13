@@ -1,0 +1,44 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 LOS_TaskCpuAffiSet(UINT32 taskId, UINT16 cpuAffiMask)
+{
+#ifdef LOSCFG_KERNEL_SMP
+    LosTaskCB *taskCB = NULL;
+    UINT32 intSave;
+    BOOL needSched = FALSE;
+    UINT16 currCpuMask;
+
+    if (OS_TASK_ID_CHECK_INVALID(taskId)) {
+        return LOS_ERRNO_TSK_ID_INVALID;
+    }
+
+    if (!(cpuAffiMask & LOSCFG_KERNEL_CPU_MASK)) {
+        return LOS_ERRNO_TSK_CPU_AFFINITY_MASK_ERR;
+    }
+
+    taskCB = OS_TCB_FROM_TID(taskId);
+    if (taskCB->taskFlags & OS_TASK_FLAG_SYSTEM) {
+        return LOS_ERRNO_TSK_OPERATE_SYSTEM_TASK;
+    }
+
+    SCHEDULER_LOCK(intSave);
+    if (taskCB->taskStatus & OS_TASK_STATUS_UNUSED) {
+        SCHEDULER_UNLOCK(intSave);
+        return LOS_ERRNO_TSK_NOT_CREATED;
+    }
+
+    taskCB->cpuAffiMask = cpuAffiMask;
+    currCpuMask = CPUID_TO_AFFI_MASK(taskCB->currCpu);
+    if (!(currCpuMask & cpuAffiMask)) {
+        needSched = TRUE;
+        taskCB->signal = SIGNAL_AFFI;
+    }
+    SCHEDULER_UNLOCK(intSave);
+
+    if (needSched && OS_SCHEDULER_ACTIVE) {
+        LOS_MpSchedule(currCpuMask);
+        LOS_Schedule();
+    }
+#endif
+    (VOID)taskId;
+    (VOID)cpuAffiMask;
+    return LOS_OK;
+}

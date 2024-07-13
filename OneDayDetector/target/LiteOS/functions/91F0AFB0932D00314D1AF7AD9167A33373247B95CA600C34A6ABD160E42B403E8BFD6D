@@ -1,0 +1,50 @@
+HAL_StatusTypeDef HAL_TIMEx_PWMN_Stop_DMA(TIM_HandleTypeDef *htim, uint32_t Channel)
+{
+  /* Check the parameters */
+  assert_param(IS_TIM_CCXN_INSTANCE(htim->Instance, Channel));
+
+  switch (Channel)
+  {
+    case TIM_CHANNEL_1:
+    {
+      /* Disable the TIM Capture/Compare 1 DMA request */
+      __HAL_TIM_DISABLE_DMA(htim, TIM_DMA_CC1);
+      (void)HAL_DMA_Abort_IT(htim->hdma[TIM_DMA_ID_CC1]);
+      break;
+    }
+
+    case TIM_CHANNEL_2:
+    {
+      /* Disable the TIM Capture/Compare 2 DMA request */
+      __HAL_TIM_DISABLE_DMA(htim, TIM_DMA_CC2);
+      (void)HAL_DMA_Abort_IT(htim->hdma[TIM_DMA_ID_CC2]);
+      break;
+    }
+
+    case TIM_CHANNEL_3:
+    {
+      /* Disable the TIM Capture/Compare 3 DMA request */
+      __HAL_TIM_DISABLE_DMA(htim, TIM_DMA_CC3);
+      (void)HAL_DMA_Abort_IT(htim->hdma[TIM_DMA_ID_CC3]);
+      break;
+    }
+
+    default:
+      break;
+  }
+
+  /* Disable the complementary PWM output */
+  TIM_CCxNChannelCmd(htim->Instance, Channel, TIM_CCxN_DISABLE);
+
+  /* Disable the Main Output */
+  __HAL_TIM_MOE_DISABLE(htim);
+
+  /* Disable the Peripheral */
+  __HAL_TIM_DISABLE(htim);
+
+  /* Change the htim state */
+  htim->State = HAL_TIM_STATE_READY;
+
+  /* Return function status */
+  return HAL_OK;
+}

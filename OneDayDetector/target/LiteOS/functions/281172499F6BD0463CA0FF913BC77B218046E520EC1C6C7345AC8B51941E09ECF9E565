@@ -1,0 +1,71 @@
+HAL_StatusTypeDef HAL_HASH_UnRegisterCallback(HASH_HandleTypeDef *hhash, HAL_HASH_CallbackIDTypeDef CallbackID)
+{
+HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process locked */
+  __HAL_LOCK(hhash);
+
+  if(HAL_HASH_STATE_READY == hhash->State)
+  {
+    switch (CallbackID)
+    {
+    case HAL_HASH_INPUTCPLT_CB_ID :
+      hhash->InCpltCallback = HAL_HASH_InCpltCallback;     /* Legacy weak (surcharged) input completion callback */
+      break;
+
+    case HAL_HASH_DGSTCPLT_CB_ID :
+      hhash->DgstCpltCallback = HAL_HASH_DgstCpltCallback; /* Legacy weak (surcharged) digest computation completion callback */
+      break;
+
+    case HAL_HASH_ERROR_CB_ID :
+      hhash->ErrorCallback = HAL_HASH_ErrorCallback;       /* Legacy weak (surcharged) error callback */
+      break;
+
+    case HAL_HASH_MSPINIT_CB_ID :
+      hhash->MspInitCallback = HAL_HASH_MspInit;           /* Legacy weak (surcharged) Msp Init */
+      break;
+
+    case HAL_HASH_MSPDEINIT_CB_ID :
+      hhash->MspDeInitCallback = HAL_HASH_MspDeInit;       /* Legacy weak (surcharged) Msp DeInit */
+      break;
+
+    default :
+     /* Update the error code */
+     hhash->ErrorCode |= HAL_HASH_ERROR_INVALID_CALLBACK;
+     /* update return status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else if(HAL_HASH_STATE_RESET == hhash->State)
+  {
+    switch (CallbackID)
+    {
+    case HAL_HASH_MSPINIT_CB_ID :
+      hhash->MspInitCallback = HAL_HASH_MspInit;           /* Legacy weak (surcharged) Msp Init */
+      break;
+
+    case HAL_HASH_MSPDEINIT_CB_ID :
+      hhash->MspDeInitCallback = HAL_HASH_MspDeInit;       /* Legacy weak (surcharged) Msp DeInit */
+      break;
+
+    default :
+     /* Update the error code */
+     hhash->ErrorCode |= HAL_HASH_ERROR_INVALID_CALLBACK;
+     /* update return status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else
+  {
+     /* Update the error code */
+     hhash->ErrorCode |= HAL_HASH_ERROR_INVALID_CALLBACK;
+     /* update return status */
+      status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hhash);
+  return status;
+}

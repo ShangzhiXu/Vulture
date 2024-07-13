@@ -1,0 +1,41 @@
+snmp_err_t snmp_table_get_instance(const u32_t *root_oid, u8_t root_oid_len, struct snmp_node_instance *instance)
+{
+  snmp_err_t ret = SNMP_ERR_NOSUCHINSTANCE;
+  const struct snmp_table_node *table_node = (const struct snmp_table_node *)(const void *)instance->node;
+
+  LWIP_UNUSED_ARG(root_oid);
+  LWIP_UNUSED_ARG(root_oid_len);
+
+  /* check min. length (fixed row entry definition, column, row instance oid with at least one entry */
+  /* fixed row entry always has oid 1 */
+  if ((instance->instance_oid.len >= 3) && (instance->instance_oid.id[0] == 1)) {
+    /* search column */
+    const struct snmp_table_col_def *col_def = table_node->columns;
+    u16_t i = table_node->column_count;
+    while (i > 0) {
+      if (col_def->index == instance->instance_oid.id[1]) {
+        break;
+      }
+
+      col_def++;
+      i--;
+    }
+
+    if (i > 0) {
+      /* everything may be overwritten by get_cell_instance_method() in order to implement special handling for single columns/cells */
+      instance->asn1_type = col_def->asn1_type;
+      instance->access    = col_def->access;
+      instance->get_value = table_node->get_value;
+      instance->set_test  = table_node->set_test;
+      instance->set_value = table_node->set_value;
+
+      ret = table_node->get_cell_instance(
+              &(instance->instance_oid.id[1]),
+              &(instance->instance_oid.id[2]),
+              instance->instance_oid.len - 2,
+              instance);
+    }
+  }
+
+  return ret;
+}

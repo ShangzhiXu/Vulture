@@ -1,0 +1,39 @@
+lwip_netconn_do_connected(void *arg, struct tcp_pcb *pcb, err_t err)
+{
+  struct netconn *conn;
+  int was_blocking;
+  sys_sem_t *op_completed_sem = NULL;
+
+  LWIP_UNUSED_ARG(pcb);
+
+  conn = (struct netconn *)arg;
+
+  if (conn == NULL) {
+    return ERR_VAL;
+  }
+
+  LWIP_ASSERT("conn->state == NETCONN_CONNECT", conn->state == NETCONN_CONNECT);
+  LWIP_ASSERT("(conn->current_msg != NULL) || conn->in_non_blocking_connect",
+              (conn->current_msg != NULL) || IN_NONBLOCKING_CONNECT(conn));
+
+  if (conn->current_msg != NULL) {
+    conn->current_msg->err = err;
+    op_completed_sem = LWIP_API_MSG_SEM(conn->current_msg);
+  }
+  if ((NETCONNTYPE_GROUP(conn->type) == NETCONN_TCP) && (err == ERR_OK)) {
+    setup_tcp(conn);
+  }
+  was_blocking = !IN_NONBLOCKING_CONNECT(conn);
+  SET_NONBLOCKING_CONNECT(conn, 0);
+  LWIP_ASSERT("blocking connect state error",
+              (was_blocking && op_completed_sem != NULL) ||
+              (!was_blocking && op_completed_sem == NULL));
+  conn->current_msg = NULL;
+  conn->state = NETCONN_NONE;
+  API_EVENT(conn, NETCONN_EVT_SENDPLUS, 0);
+
+  if (was_blocking) {
+    sys_sem_signal(op_completed_sem);
+  }
+  return ERR_OK;
+}

@@ -1,0 +1,30 @@
+LITE_OS_SEC_TEXT_INIT VOID OsTaskEntry(UINT32 taskId)
+{
+    LosTaskCB *taskCB = NULL;
+    VOID *ret = NULL;
+
+    LOS_ASSERT(OS_TSK_GET_INDEX(taskId) < g_taskMaxNum);
+
+    /*
+     * task scheduler needs to be protected throughout the whole process
+     * from interrupt and other cores. release task spinlock and enable
+     * interrupt in sequence at the task entry.
+     */
+    LOS_SpinUnlock(&g_taskSpin);
+    (VOID)LOS_IntUnLock();
+
+    taskCB = OS_TCB_FROM_TID(taskId);
+
+#ifdef LOSCFG_OBSOLETE_API
+    ret = taskCB->taskEntry(taskCB->args[0], taskCB->args[1], taskCB->args[2],
+        taskCB->args[3]); /* 0~3: just for args array index */
+#else
+    ret = taskCB->taskEntry(taskCB->args);
+#endif
+
+    if (OsTaskDeleteCheckDetached(taskCB)) {
+        OsTaskDeleteDetached(taskCB);
+    } else {
+        OsTaskDeleteJoined(taskCB, ret);
+    }
+}

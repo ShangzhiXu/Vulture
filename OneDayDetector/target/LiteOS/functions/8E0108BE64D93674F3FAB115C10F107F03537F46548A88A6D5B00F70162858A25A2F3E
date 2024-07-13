@@ -1,0 +1,55 @@
+static void test_dir_read_normal(void **state)
+{
+    int fd;
+    int ret;
+
+    if (fs_type != TEST_FS_SPIFFS)
+    {
+        (void)los_unlink(dir_name);
+
+        ret = los_mkdir(dir_name, 0);
+        assert_int_equal(ret, 0);
+    }
+
+    fd = los_open(path_name, O_CREAT | O_RDWR | O_TRUNC);
+    assert_in_range(fd, 0, LOS_MAX_FILES);
+
+    ret = los_close(fd);
+    assert_int_equal(ret, 0);
+
+    struct dir *dir = los_opendir(dir_name);
+    assert_true(dir != NULL);
+
+    struct dirent *dirent = los_readdir(dir);
+    assert_true(dirent != NULL && dirent->name[0] != 0);
+    if (fs_type == TEST_FS_FATFS)
+    {
+        assert_true(strcasecmp(dirent->name, LOS_FILE) == 0);
+    }
+
+    if (fs_type != TEST_FS_SPIFFS)
+    {
+        dirent = los_readdir(dir);
+        assert_true(dirent == NULL || dirent->name[0] == 0);
+    }
+
+    ret = los_closedir(dir);
+    assert_int_equal(ret, 0);
+
+    ret = los_unlink(path_name);
+    assert_int_equal(ret, 0);
+
+    dir = los_opendir(dir_name);
+    assert_true(dir != NULL);
+
+    if (fs_type != TEST_FS_SPIFFS)
+    {
+        dirent = los_readdir(dir);
+        // when reading a empty directory, jffs2 returns NULL,
+        // and fatfs returns dirent with name ""
+        assert_true(dirent == NULL || dirent->name[0] == 0);
+    }
+
+    ret = los_closedir(dir);
+    assert_int_equal(ret, 0);
+}

@@ -1,0 +1,34 @@
+void FLASH_PageErase(uint32_t Page, uint32_t Banks)
+{
+  /* Check the parameters */
+  assert_param(IS_FLASH_PAGE(Page));
+
+#if defined (STM32L471xx) || defined (STM32L475xx) || defined (STM32L476xx) || defined (STM32L485xx) || defined (STM32L486xx) || \
+    defined (STM32L496xx) || defined (STM32L4A6xx) || \
+    defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined (STM32L4S9xx)
+#if defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined (STM32L4S9xx)
+  if(READ_BIT(FLASH->OPTR, FLASH_OPTR_DBANK) == RESET)
+  {
+    CLEAR_BIT(FLASH->CR, FLASH_CR_BKER);
+  }
+  else
+#endif
+  {
+    assert_param(IS_FLASH_BANK_EXCLUSIVE(Banks));
+
+    if((Banks & FLASH_BANK_1) != RESET)
+    {
+      CLEAR_BIT(FLASH->CR, FLASH_CR_BKER);
+    }
+    else
+    {
+      SET_BIT(FLASH->CR, FLASH_CR_BKER);
+    }
+  }
+#endif
+
+  /* Proceed to erase the page */
+  MODIFY_REG(FLASH->CR, FLASH_CR_PNB, (Page << POSITION_VAL(FLASH_CR_PNB)));
+  SET_BIT(FLASH->CR, FLASH_CR_PER);
+  SET_BIT(FLASH->CR, FLASH_CR_STRT);
+}

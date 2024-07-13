@@ -1,0 +1,61 @@
+float powf(float x, float y)
+{
+	uint32_t sign_bias = 0;
+	uint32_t ix, iy;
+
+	ix = asuint(x);
+	iy = asuint(y);
+	if (predict_false(ix - 0x00800000 >= 0x7f800000 - 0x00800000 ||
+			  zeroinfnan(iy))) {
+		/* Either (x < 0x1p-126 or inf or nan) or (y is 0 or inf or nan).  */
+		if (predict_false(zeroinfnan(iy))) {
+			if (2 * iy == 0)
+				return issignalingf_inline(x) ? x + y : 1.0f;
+			if (ix == 0x3f800000)
+				return issignalingf_inline(y) ? x + y : 1.0f;
+			if (2 * ix > 2u * 0x7f800000 ||
+			    2 * iy > 2u * 0x7f800000)
+				return x + y;
+			if (2 * ix == 2 * 0x3f800000)
+				return 1.0f;
+			if ((2 * ix < 2 * 0x3f800000) == !(iy & 0x80000000))
+				return 0.0f; /* |x|<1 && y==inf or |x|>1 && y==-inf.  */
+			return y * y;
+		}
+		if (predict_false(zeroinfnan(ix))) {
+			float_t x2 = x * x;
+			if (ix & 0x80000000 && checkint(iy) == 1)
+				x2 = -x2;
+			/* Without the barrier some versions of clang hoist the 1/x2 and
+			   thus division by zero exception can be signaled spuriously.  */
+			return iy & 0x80000000 ? fp_barrierf(1 / x2) : x2;
+		}
+		/* x and y are non-zero finite.  */
+		if (ix & 0x80000000) {
+			/* Finite x < 0.  */
+			int yint = checkint(iy);
+			if (yint == 0)
+				return __math_invalidf(x);
+			if (yint == 1)
+				sign_bias = SIGN_BIAS;
+			ix &= 0x7fffffff;
+		}
+		if (ix < 0x00800000) {
+			/* Normalize subnormal x so exponent becomes negative.  */
+			ix = asuint(x * 0x1p23f);
+			ix &= 0x7fffffff;
+			ix -= 23 << 23;
+		}
+	}
+	double_t logx = log2_inline(ix);
+	double_t ylogx = y * logx; /* cannot overflow, y is single prec.  */
+	if (predict_false((asuint64(ylogx) >> 47 & 0xffff) >=
+			  asuint64(126.0 * POWF_SCALE) >> 47)) {
+		/* |y*log(x)| >= 126.  */
+		if (ylogx > 0x1.fffffffd1d571p+6 * POWF_SCALE)
+			return __math_oflowf(sign_bias);
+		if (ylogx <= -150.0 * POWF_SCALE)
+			return __math_uflowf(sign_bias);
+	}
+	return exp2_inline(ylogx, sign_bias);
+}

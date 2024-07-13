@@ -1,0 +1,50 @@
+static void USART_SetConfig(USART_HandleTypeDef *husart)
+{
+  /* Check the parameters */
+  assert_param(IS_USART_POLARITY(husart->Init.CLKPolarity));
+  assert_param(IS_USART_PHASE(husart->Init.CLKPhase));
+  assert_param(IS_USART_LASTBIT(husart->Init.CLKLastBit));
+  assert_param(IS_USART_BAUDRATE(husart->Init.BaudRate));  
+  assert_param(IS_USART_WORD_LENGTH(husart->Init.WordLength));
+  assert_param(IS_USART_STOPBITS(husart->Init.StopBits));
+  assert_param(IS_USART_PARITY(husart->Init.Parity));
+  assert_param(IS_USART_MODE(husart->Init.Mode));
+
+  /* The LBCL, CPOL and CPHA bits have to be selected when both the transmitter and the
+     receiver are disabled (TE=RE=0) to ensure that the clock pulses function correctly. */
+  CLEAR_BIT(husart->Instance->CR1, ((uint32_t)(USART_CR1_TE | USART_CR1_RE)));
+
+  /*---------------------------- USART CR2 Configuration ---------------------*/
+  /* Configure the USART Clock, CPOL, CPHA and LastBit -----------------------*/
+  /* Set CPOL bit according to husart->Init.CLKPolarity value */
+  /* Set CPHA bit according to husart->Init.CLKPhase value */
+  /* Set LBCL bit according to husart->Init.CLKLastBit value */
+  /* Set Stop Bits: Set STOP[13:12] bits according to husart->Init.StopBits value */
+  /* Write to USART CR2 */
+  MODIFY_REG(husart->Instance->CR2, 
+             (uint32_t)(USART_CR2_CPHA | USART_CR2_CPOL | USART_CR2_CLKEN | USART_CR2_LBCL | USART_CR2_STOP),
+             ((uint32_t)(USART_CLOCK_ENABLE| husart->Init.CLKPolarity | husart->Init.CLKPhase| husart->Init.CLKLastBit | husart->Init.StopBits)));
+
+  /*-------------------------- USART CR1 Configuration -----------------------*/
+  /* Configure the USART Word Length, Parity and mode: 
+     Set the M bits according to husart->Init.WordLength value 
+     Set PCE and PS bits according to husart->Init.Parity value
+     Set TE and RE bits according to husart->Init.Mode value */
+  MODIFY_REG(husart->Instance->CR1, 
+             (uint32_t)(USART_CR1_M | USART_CR1_PCE | USART_CR1_PS | USART_CR1_TE | USART_CR1_RE),
+             (uint32_t)husart->Init.WordLength | husart->Init.Parity | husart->Init.Mode);
+
+  /*-------------------------- USART CR3 Configuration -----------------------*/  
+  /* Clear CTSE and RTSE bits */
+  CLEAR_BIT(husart->Instance->CR3, (uint32_t)(USART_CR3_RTSE | USART_CR3_CTSE));
+
+  /*-------------------------- USART BRR Configuration -----------------------*/
+  if((husart->Instance == USART1))
+  {
+    husart->Instance->BRR = USART_BRR(HAL_RCC_GetPCLK2Freq(), husart->Init.BaudRate);
+  }
+  else
+  {
+    husart->Instance->BRR = USART_BRR(HAL_RCC_GetPCLK1Freq(), husart->Init.BaudRate);
+  }
+}

@@ -1,0 +1,35 @@
+static HAL_StatusTypeDef SMBUS_Enable_IRQ(SMBUS_HandleTypeDef *hsmbus, uint16_t InterruptRequest)
+{
+  uint32_t tmpisr = 0U;
+
+  if ((InterruptRequest & SMBUS_IT_ALERT) == SMBUS_IT_ALERT)
+  {
+    /* Enable ERR interrupt */
+    tmpisr |= SMBUS_IT_ERRI;
+  }
+
+  if ((InterruptRequest & SMBUS_IT_ADDR) == SMBUS_IT_ADDR)
+  {
+    /* Enable ADDR, STOP interrupt */
+    tmpisr |= SMBUS_IT_ADDRI | SMBUS_IT_STOPI | SMBUS_IT_NACKI | SMBUS_IT_ERRI;
+  }
+
+  if ((InterruptRequest & SMBUS_IT_TX) == SMBUS_IT_TX)
+  {
+    /* Enable ERR, TC, STOP, NACK, RXI interrupt */
+    tmpisr |= SMBUS_IT_ERRI | SMBUS_IT_TCI | SMBUS_IT_STOPI | SMBUS_IT_NACKI | SMBUS_IT_TXI;
+  }
+
+  if ((InterruptRequest & SMBUS_IT_RX) == SMBUS_IT_RX)
+  {
+    /* Enable ERR, TC, STOP, NACK, TXI interrupt */
+    tmpisr |= SMBUS_IT_ERRI | SMBUS_IT_TCI | SMBUS_IT_STOPI | SMBUS_IT_NACKI | SMBUS_IT_RXI;
+  }
+
+  /* Enable interrupts only at the end */
+  /* to avoid the risk of SMBUS interrupt handle execution before */
+  /* all interrupts requested done */
+  __HAL_SMBUS_ENABLE_IT(hsmbus, tmpisr);
+
+  return HAL_OK;
+}

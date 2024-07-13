@@ -1,0 +1,33 @@
+static HAL_SD_ErrorTypedef SD_SendStatus(SD_HandleTypeDef *hsd, uint32_t *pCardStatus)
+{
+  SDIO_CmdInitTypeDef sdio_cmdinitstructure = {0};
+  HAL_SD_ErrorTypedef errorstate = SD_OK;
+  
+  if(pCardStatus == NULL)
+  {
+    errorstate = SD_INVALID_PARAMETER;
+    
+    return errorstate;
+  }
+  
+  /* Send Status command */
+  sdio_cmdinitstructure.Argument         = (uint32_t)(hsd->RCA << 16);
+  sdio_cmdinitstructure.CmdIndex         = SD_CMD_SEND_STATUS;
+  sdio_cmdinitstructure.Response         = SDIO_RESPONSE_SHORT;
+  sdio_cmdinitstructure.WaitForInterrupt = SDIO_WAIT_NO;
+  sdio_cmdinitstructure.CPSM             = SDIO_CPSM_ENABLE;
+  SDIO_SendCommand(hsd->Instance, &sdio_cmdinitstructure);
+  
+  /* Check for error conditions */
+  errorstate = SD_CmdResp1Error(hsd, SD_CMD_SEND_STATUS);
+  
+  if(errorstate != SD_OK)
+  {
+    return errorstate;
+  }
+  
+  /* Get SD card status */
+  *pCardStatus = SDIO_GetResponse(hsd->Instance, SDIO_RESP1);
+  
+  return errorstate;
+}

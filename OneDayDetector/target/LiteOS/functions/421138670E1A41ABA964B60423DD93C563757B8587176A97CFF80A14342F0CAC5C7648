@@ -1,0 +1,77 @@
+void HAL_DCMI_IRQHandler(DCMI_HandleTypeDef *hdcmi)
+{ 
+  uint32_t misflags = READ_REG(hdcmi->Instance->MISR);
+ 
+  /* Synchronization error interrupt management *******************************/
+  if ((misflags & DCMI_MIS_ERR_MIS) != RESET)  
+  {
+    /* Clear the Synchronization error flag */
+    __HAL_DCMI_CLEAR_FLAG(hdcmi, DCMI_FLAG_ERRRI);
+
+    /* Update error code */
+    hdcmi->ErrorCode |= HAL_DCMI_ERROR_SYNC;
+  }
+  
+  /* Overflow interrupt management ********************************************/
+  if ((misflags & DCMI_MIS_OVR_MIS) != RESET)    
+  {
+    /* Clear the Overflow flag */
+    __HAL_DCMI_CLEAR_FLAG(hdcmi, DCMI_FLAG_OVRRI);
+
+    /* Update error code */
+    hdcmi->ErrorCode |= HAL_DCMI_ERROR_OVR;    
+  }
+  
+  if (hdcmi->ErrorCode != HAL_DCMI_ERROR_NONE)
+  {
+    /* Change DCMI state */
+    hdcmi->State = HAL_DCMI_STATE_READY;    
+
+    /* Set the overflow callback */
+    hdcmi->DMA_Handle->XferAbortCallback = DCMI_DMAError;
+    
+    /* Abort the DMA Transfer */
+    HAL_DMA_Abort_IT(hdcmi->DMA_Handle);
+
+    /* Error Callback */
+    HAL_DCMI_ErrorCallback(hdcmi);    
+  }
+  
+  /* Line Interrupt management ************************************************/
+  if ((misflags & DCMI_MIS_LINE_MIS) != RESET)  
+  {
+    /* Clear the Line interrupt flag */  
+    __HAL_DCMI_CLEAR_FLAG(hdcmi, DCMI_FLAG_LINERI);
+
+    /* Line interrupt Callback */
+    HAL_DCMI_LineEventCallback(hdcmi);
+  }
+  
+  /* VSYNC interrupt management ***********************************************/
+  if ((misflags & DCMI_MIS_VSYNC_MIS) != RESET)    
+  {
+    /* Clear the VSYNC flag */
+    __HAL_DCMI_CLEAR_FLAG(hdcmi, DCMI_FLAG_VSYNCRI);
+
+    /* VSYNC Callback */
+    HAL_DCMI_VsyncEventCallback(hdcmi);
+  }
+  
+  /* End of Frame interrupt management ****************************************/
+  if ((misflags & DCMI_MIS_FRAME_MIS) != RESET)      
+  {
+    /* Disable the Line interrupt when using snapshot mode */
+    if ((hdcmi->Instance->CR & DCMI_CR_CM) == DCMI_MODE_SNAPSHOT)
+    {
+      __HAL_DCMI_DISABLE_IT(hdcmi, DCMI_IT_LINE|DCMI_IT_VSYNC|DCMI_IT_ERR|DCMI_IT_OVR);
+      /* Change the DCMI state */
+      hdcmi->State = HAL_DCMI_STATE_READY;       
+    }
+
+    /* Clear the End of Frame flag */
+    __HAL_DCMI_CLEAR_FLAG(hdcmi, DCMI_FLAG_FRAMERI);
+
+    /* End of Frame Callback */
+    HAL_DCMI_FrameEventCallback(hdcmi);
+  }
+}

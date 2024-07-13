@@ -1,0 +1,35 @@
+static HAL_StatusTypeDef SMBUS_SlaveTransmit_TXE(SMBUS_HandleTypeDef *hsmbus)
+{
+  /* Declaration of temporary variables to prevent undefined behavior of volatile usage */
+  uint32_t CurrentState = hsmbus->State;
+
+  if (hsmbus->XferCount != 0U)
+  {
+    /* Write data to DR */
+    hsmbus->Instance->DR = (*hsmbus->pBuffPtr++);
+    hsmbus->XferCount--;
+
+    if ((hsmbus->XferCount == 2U) && (SMBUS_GET_PEC_MODE(hsmbus) == SMBUS_PEC_ENABLE) && ((hsmbus->XferOptions == SMBUS_FIRST_AND_LAST_FRAME_WITH_PEC) || (hsmbus->XferOptions == SMBUS_LAST_FRAME_WITH_PEC)))
+    {
+      hsmbus->XferCount--;
+    }
+
+    if ((hsmbus->XferCount == 0U) && (CurrentState == (HAL_SMBUS_STATE_BUSY_TX_LISTEN)))
+    {
+      /* Last Byte is received, disable Interrupt */
+      __HAL_SMBUS_DISABLE_IT(hsmbus, SMBUS_IT_BUF);
+
+      /* Set state at HAL_SMBUS_STATE_LISTEN */
+      hsmbus->PreviousState = SMBUS_STATE_SLAVE_BUSY_TX;
+      hsmbus->State = HAL_SMBUS_STATE_LISTEN;
+
+      /* Call the corresponding callback to inform upper layer of End of Transfer */
+#if (USE_HAL_SMBUS_REGISTER_CALLBACKS == 1)
+      hsmbus->SlaveTxCpltCallback(hsmbus);
+#else
+      HAL_SMBUS_SlaveTxCpltCallback(hsmbus);
+#endif /* USE_HAL_SMBUS_REGISTER_CALLBACKS */
+    }
+  }
+  return HAL_OK;
+}

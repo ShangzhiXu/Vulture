@@ -1,0 +1,5 @@
+    UINT16 semCount;     /**< number of available semaphores */
+    UINT32 semId;        /**< Semaphore control structure ID, COUNT(UINT16)|INDEX(UINT16) */
+    LOS_DL_LIST semList; /**< List of tasks that are waiting on a semaphore */
+    UINT8 semStat;       /**< Semaphore state, enum LosSemState */
+    UINT8 semType;       /**< Semaphore Type, enum LosSemType */

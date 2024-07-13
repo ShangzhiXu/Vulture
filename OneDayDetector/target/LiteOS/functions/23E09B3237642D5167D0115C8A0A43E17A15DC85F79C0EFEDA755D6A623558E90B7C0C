@@ -1,0 +1,32 @@
+HAL_StatusTypeDef HAL_RCCEx_DisablePLL2(void)
+{
+  uint32_t tickstart = 0;
+
+  /* This bit can not be cleared if the PLL2 clock is used indirectly as system 
+    clock (i.e. it is used as PLL clock entry that is used as system clock). */
+  if((__HAL_RCC_GET_PLL_OSCSOURCE() == RCC_PLLSOURCE_HSE) && \
+        (__HAL_RCC_GET_SYSCLK_SOURCE() == RCC_SYSCLKSOURCE_STATUS_PLLCLK) && \
+        ((READ_BIT(RCC->CFGR2,RCC_CFGR2_PREDIV1SRC)) == RCC_CFGR2_PREDIV1SRC_PLL2))
+  {
+    return HAL_ERROR;
+  }
+  else
+  {
+    /* Disable the main PLL2. */
+    __HAL_RCC_PLL2_DISABLE();
+
+    /* Get Start Tick*/
+    tickstart = HAL_GetTick();
+    
+    /* Wait till PLL2 is disabled */  
+    while(__HAL_RCC_GET_FLAG(RCC_FLAG_PLL2RDY)  != RESET)
+    {
+      if((HAL_GetTick() - tickstart ) > PLL2_TIMEOUT_VALUE)
+      {
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+
+  return HAL_OK;
+}

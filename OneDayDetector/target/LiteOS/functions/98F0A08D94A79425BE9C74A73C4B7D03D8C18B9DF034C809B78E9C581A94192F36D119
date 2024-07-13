@@ -1,0 +1,31 @@
+static s32_t spiffs_page_index_check(spiffs *fs, spiffs_fd *fd, spiffs_page_ix pix, spiffs_span_ix spix)
+{
+    s32_t res = SPIFFS_OK;
+    if (pix == (spiffs_page_ix) - 1)
+    {
+        // referring to page 0xffff...., bad object index
+        return SPIFFS_ERR_INDEX_FREE;
+    }
+    if (pix % SPIFFS_PAGES_PER_BLOCK(fs) < SPIFFS_OBJ_LOOKUP_PAGES(fs))
+    {
+        // referring to an object lookup page, bad object index
+        return SPIFFS_ERR_INDEX_LU;
+    }
+    if (pix > SPIFFS_MAX_PAGES(fs))
+    {
+        // referring to a bad page
+        return SPIFFS_ERR_INDEX_INVALID;
+    }
+#if SPIFFS_PAGE_CHECK
+    spiffs_page_header ph;
+    res = _spiffs_rd(
+              fs, SPIFFS_OP_T_OBJ_IX | SPIFFS_OP_C_READ,
+              fd->file_nbr,
+              SPIFFS_PAGE_TO_PADDR(fs, pix),
+              sizeof(spiffs_page_header),
+              (u8_t *)&ph);
+    SPIFFS_CHECK_RES(res);
+    SPIFFS_VALIDATE_OBJIX(ph, fd->obj_id, spix);
+#endif
+    return res;
+}

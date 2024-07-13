@@ -1,0 +1,35 @@
+netifapi_netif_add(struct netif *netif,
+#if LWIP_IPV4
+                   const ip4_addr_t *ipaddr, const ip4_addr_t *netmask, const ip4_addr_t *gw,
+#endif /* LWIP_IPV4 */
+                   void *state, netif_init_fn init, netif_input_fn input)
+{
+  err_t err;
+  NETIFAPI_VAR_DECLARE(msg);
+  NETIFAPI_VAR_ALLOC(msg);
+
+#if LWIP_IPV4
+  if (ipaddr == NULL) {
+    ipaddr = IP4_ADDR_ANY4;
+  }
+  if (netmask == NULL) {
+    netmask = IP4_ADDR_ANY4;
+  }
+  if (gw == NULL) {
+    gw = IP4_ADDR_ANY4;
+  }
+#endif /* LWIP_IPV4 */
+
+  NETIFAPI_VAR_REF(msg).netif = netif;
+#if LWIP_IPV4
+  NETIFAPI_VAR_REF(msg).msg.add.ipaddr  = NETIFAPI_VAR_REF(ipaddr);
+  NETIFAPI_VAR_REF(msg).msg.add.netmask = NETIFAPI_VAR_REF(netmask);
+  NETIFAPI_VAR_REF(msg).msg.add.gw      = NETIFAPI_VAR_REF(gw);
+#endif /* LWIP_IPV4 */
+  NETIFAPI_VAR_REF(msg).msg.add.state   = state;
+  NETIFAPI_VAR_REF(msg).msg.add.init    = init;
+  NETIFAPI_VAR_REF(msg).msg.add.input   = input;
+  err = tcpip_api_call(netifapi_do_netif_add, &API_VAR_REF(msg).call);
+  NETIFAPI_VAR_FREE(msg);
+  return err;
+}

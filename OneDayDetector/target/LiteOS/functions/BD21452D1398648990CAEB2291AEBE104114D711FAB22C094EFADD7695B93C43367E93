@@ -1,0 +1,51 @@
+static void lv_cont_layout_row(lv_obj_t * cont)
+{
+
+    lv_layout_t type = lv_cont_get_layout(cont);
+    lv_obj_t * child;
+
+    /*Adjust margin and get the alignment type*/
+    lv_align_t align;
+    lv_coord_t vpad_corr;
+    lv_bidi_dir_t base_dir = lv_obj_get_base_dir(cont);
+    switch(type) {
+        case LV_LAYOUT_ROW_TOP:
+            vpad_corr = lv_obj_get_style_pad_top(cont, LV_CONT_PART_MAIN);
+            align     = base_dir == LV_BIDI_DIR_RTL ? LV_ALIGN_IN_TOP_RIGHT : LV_ALIGN_IN_TOP_LEFT;
+            break;
+        case LV_LAYOUT_ROW_MID:
+            vpad_corr = 0;
+            align     = base_dir == LV_BIDI_DIR_RTL ? LV_ALIGN_IN_RIGHT_MID : LV_ALIGN_IN_LEFT_MID;
+            break;
+        case LV_LAYOUT_ROW_BOTTOM:
+            vpad_corr = -lv_obj_get_style_pad_bottom(cont, LV_CONT_PART_MAIN);
+            align     = base_dir == LV_BIDI_DIR_RTL ? LV_ALIGN_IN_BOTTOM_RIGHT : LV_ALIGN_IN_BOTTOM_LEFT;
+            break;
+        default:
+            vpad_corr = 0;
+            align     = base_dir == LV_BIDI_DIR_RTL ? LV_ALIGN_IN_TOP_RIGHT : LV_ALIGN_IN_TOP_LEFT;
+            break;
+    }
+
+    /* Disable child change action because the children will be moved a lot
+     * an unnecessary child change signals could be sent*/
+    lv_obj_add_protect(cont, LV_PROTECT_CHILD_CHG);
+
+    /* Align the children */
+    lv_coord_t last_cord;
+    if(base_dir == LV_BIDI_DIR_RTL) last_cord = lv_obj_get_style_pad_right(cont, LV_CONT_PART_MAIN);
+    else last_cord = lv_obj_get_style_pad_left(cont, LV_CONT_PART_MAIN);
+
+    lv_coord_t inner = lv_obj_get_style_pad_inner(cont, LV_CONT_PART_MAIN);
+
+    _LV_LL_READ_BACK(cont->child_ll, child) {
+        if(lv_obj_get_hidden(child) != false || lv_obj_is_protected(child, LV_PROTECT_POS) != false) continue;
+
+        if(base_dir == LV_BIDI_DIR_RTL) lv_obj_align(child, cont, align, -last_cord, vpad_corr);
+        else lv_obj_align(child, cont, align, last_cord, vpad_corr);
+
+        last_cord += lv_obj_get_width(child) + inner;
+    }
+
+    lv_obj_clear_protect(cont, LV_PROTECT_CHILD_CHG);
+}

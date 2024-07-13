@@ -1,0 +1,21 @@
+static FRESULT load_obj_xdir (
+	DIR* dp,			/* Blank directory object to be used to access containing direcotry */
+	const FFOBJID* obj	/* Object with its containing directory information */
+)
+{
+	FRESULT res;
+
+	/* Open object containing directory */
+	dp->obj.fs = obj->fs;
+	dp->obj.sclust = obj->c_scl;
+	dp->obj.stat = (BYTE)obj->c_size;
+	dp->obj.objsize = obj->c_size & 0xFFFFFF00;
+	dp->obj.n_frag = 0;
+	dp->blk_ofs = obj->c_ofs;
+
+	res = dir_sdi(dp, dp->blk_ofs);	/* Goto object's entry block */
+	if (res == FR_OK) {
+		res = load_xdir(dp);		/* Load the object's entry block */
+	}
+	return res;
+}

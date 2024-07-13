@@ -1,0 +1,50 @@
+HAL_StatusTypeDef HAL_HASH_DeInit(HASH_HandleTypeDef *hhash)
+{
+  /* Check the HASH handle allocation */
+  if(hhash == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Change the HASH state */
+  hhash->State = HAL_HASH_STATE_BUSY;
+
+  /* Set the default HASH phase */
+  hhash->Phase = HAL_HASH_PHASE_READY;
+
+  /* Reset HashInCount, HashITCounter and HashBuffSize */
+  hhash->HashInCount = 0;
+  hhash->HashBuffSize = 0;
+  hhash->HashITCounter = 0;
+  /* Reset digest calculation bridle (MDMAT bit control) */
+  hhash->DigestCalculationDisable = RESET;
+
+#if (USE_HAL_HASH_REGISTER_CALLBACKS == 1)
+    if(hhash->MspDeInitCallback == NULL)
+    {
+      hhash->MspDeInitCallback = HAL_HASH_MspDeInit;
+    }
+
+    /* DeInit the low level hardware */
+    hhash->MspDeInitCallback(hhash);
+#else
+  /* DeInit the low level hardware: CLOCK, NVIC */
+  HAL_HASH_MspDeInit(hhash);
+#endif /* (USE_HAL_HASH_REGISTER_CALLBACKS) */
+
+
+  /* Reset HASH handle status */
+  hhash->Status = HAL_OK;
+
+  /* Set the HASH state to Ready */
+  hhash->State = HAL_HASH_STATE_RESET;
+
+  /* Initialise the error code */
+  hhash->ErrorCode = HAL_HASH_ERROR_NONE;
+
+  /* Reset multi buffers accumulation flag */
+  hhash->Accumulation = 0U;
+
+  /* Return function status */
+  return HAL_OK;
+}

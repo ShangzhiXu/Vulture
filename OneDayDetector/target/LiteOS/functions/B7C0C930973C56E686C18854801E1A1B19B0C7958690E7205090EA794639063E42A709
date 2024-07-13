@@ -1,0 +1,17 @@
+VOID LOS_ExcInfoRegHook(UINTPTR startAddr, UINT32 len, CHAR *buf, LogReadWriteFunc hook)
+{
+    if ((hook == NULL) || (buf == NULL)) {
+        PRINT_ERR("Buf or hook is null.\n");
+        return;
+    }
+
+    g_excInfoPool.dumpAddr = startAddr;
+    g_excInfoPool.len = len;
+    /*
+     * offset inited to MAX, and then assigned to 0 in exc handler when it happens,
+     * which make sure that PrintExcInfo only be called in exc handler.
+     */
+    g_excInfoPool.offset = 0xFFFFFFFF;
+    g_excInfoPool.buf = buf;
+    g_dumpHook = hook;
+}

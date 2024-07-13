@@ -1,0 +1,17 @@
+void spiffs_cache_fd_release(spiffs *fs, spiffs_cache_page *cp)
+{
+    if (cp == 0) return;
+    u32_t i;
+    spiffs_fd *fds = (spiffs_fd *)fs->fd_space;
+    for (i = 0; i < fs->fd_count; i++)
+    {
+        spiffs_fd *cur_fd = &fds[i];
+        if (cur_fd->file_nbr != 0 && cur_fd->cache_page == cp)
+        {
+            cur_fd->cache_page = 0;
+        }
+    }
+    spiffs_cache_page_free(fs, cp->ix, 0);
+
+    cp->obj_id = 0;
+}

@@ -1,0 +1,30 @@
+int mbedtls_md2_update_ret( mbedtls_md2_context *ctx,
+                            const unsigned char *input,
+                            size_t ilen )
+{
+    int ret;
+    size_t fill;
+
+    while( ilen > 0 )
+    {
+        if( ilen > 16 - ctx->left )
+            fill = 16 - ctx->left;
+        else
+            fill = ilen;
+
+        memcpy( ctx->buffer + ctx->left, input, fill );
+
+        ctx->left += fill;
+        input += fill;
+        ilen  -= fill;
+
+        if( ctx->left == 16 )
+        {
+            ctx->left = 0;
+            if( ( ret = mbedtls_internal_md2_process( ctx ) ) != 0 )
+                return( ret );
+        }
+    }
+
+    return( 0 );
+}

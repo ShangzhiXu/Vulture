@@ -1,0 +1,29 @@
+SECUREC_INLINE int SecInitFloatFmt(SecFloatAdapt *floatFmt, const SecChar *format)
+{
+    const SecChar *fmt = format - 2;  /* Sub 2 to the position before 'f' or 'g' */
+    int fmtStrLen;
+    int i;
+
+    SecSeekToFrontPercent(&fmt);
+    /* Now fmt point to '%' */
+    fmtStrLen = (int)(size_t)(format - fmt) + 1;   /* With ending terminator */
+    if (fmtStrLen > (int)sizeof(floatFmt->buffer)) {
+        /* When buffer is NOT enough, alloc a new buffer */
+        floatFmt->allocatedFmtStr = (char *)SECUREC_MALLOC((size_t)((unsigned int)fmtStrLen));
+        if (floatFmt->allocatedFmtStr == NULL) {
+            return -1;
+        }
+        floatFmt->fmtStr = floatFmt->allocatedFmtStr;
+    } else {
+        floatFmt->fmtStr = floatFmt->buffer;
+        floatFmt->allocatedFmtStr = NULL; /* Must set to NULL, later code free memory based on this identity */
+    }
+
+    for (i = 0; i < fmtStrLen - 1; ++i) {
+        /* Convert wchar to char */
+        floatFmt->fmtStr[i] = (char)(fmt[i]);  /* Copy the format string */
+    }
+    floatFmt->fmtStr[fmtStrLen - 1] = '\0';
+
+    return 0;
+}

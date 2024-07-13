@@ -1,0 +1,89 @@
+ip4_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inp)
+{
+  struct netif *netif;
+
+  PERF_START;
+  LWIP_UNUSED_ARG(inp);
+
+  if (!ip4_canforward(p)) {
+    goto return_noroute;
+  }
+
+  /* RFC3927 2.7: do not forward link-local addresses */
+  if (ip4_addr_islinklocal(ip4_current_dest_addr())) {
+    LWIP_DEBUGF(IP_DEBUG, ("ip4_forward: not forwarding LLA %"U16_F".%"U16_F".%"U16_F".%"U16_F"\n",
+                           ip4_addr1_16(ip4_current_dest_addr()), ip4_addr2_16(ip4_current_dest_addr()),
+                           ip4_addr3_16(ip4_current_dest_addr()), ip4_addr4_16(ip4_current_dest_addr())));
+    goto return_noroute;
+  }
+
+  /* Find network interface where to forward this IP packet to. */
+  netif = ip4_route_src(ip4_current_src_addr(), ip4_current_dest_addr());
+  if (netif == NULL) {
+    LWIP_DEBUGF(IP_DEBUG, ("ip4_forward: no forwarding route for %"U16_F".%"U16_F".%"U16_F".%"U16_F" found\n",
+                           ip4_addr1_16(ip4_current_dest_addr()), ip4_addr2_16(ip4_current_dest_addr()),
+                           ip4_addr3_16(ip4_current_dest_addr()), ip4_addr4_16(ip4_current_dest_addr())));
+    /* @todo: send ICMP_DUR_NET? */
+    goto return_noroute;
+  }
+#if !IP_FORWARD_ALLOW_TX_ON_RX_NETIF
+  /* Do not forward packets onto the same network interface on which
+   * they arrived. */
+  if (netif == inp) {
+    LWIP_DEBUGF(IP_DEBUG, ("ip4_forward: not bouncing packets back on incoming interface.\n"));
+    goto return_noroute;
+  }
+#endif /* IP_FORWARD_ALLOW_TX_ON_RX_NETIF */
+
+  /* decrement TTL */
+  IPH_TTL_SET(iphdr, IPH_TTL(iphdr) - 1);
+  /* send ICMP if TTL == 0 */
+  if (IPH_TTL(iphdr) == 0) {
+    MIB2_STATS_INC(mib2.ipinhdrerrors);
+#if LWIP_ICMP
+    /* Don't send ICMP messages in response to ICMP messages */
+    if (IPH_PROTO(iphdr) != IP_PROTO_ICMP) {
+      icmp_time_exceeded(p, ICMP_TE_TTL);
+    }
+#endif /* LWIP_ICMP */
+    return;
+  }
+
+  /* Incrementally update the IP checksum. */
+  if (IPH_CHKSUM(iphdr) >= PP_HTONS(0xffffU - 0x100)) {
+    IPH_CHKSUM_SET(iphdr, (u16_t)(IPH_CHKSUM(iphdr) + PP_HTONS(0x100) + 1));
+  } else {
+    IPH_CHKSUM_SET(iphdr, (u16_t)(IPH_CHKSUM(iphdr) + PP_HTONS(0x100)));
+  }
+
+  LWIP_DEBUGF(IP_DEBUG, ("ip4_forward: forwarding packet to %"U16_F".%"U16_F".%"U16_F".%"U16_F"\n",
+                         ip4_addr1_16(ip4_current_dest_addr()), ip4_addr2_16(ip4_current_dest_addr()),
+                         ip4_addr3_16(ip4_current_dest_addr()), ip4_addr4_16(ip4_current_dest_addr())));
+
+  IP_STATS_INC(ip.fw);
+  MIB2_STATS_INC(mib2.ipforwdatagrams);
+  IP_STATS_INC(ip.xmit);
+
+  PERF_STOP("ip4_forward");
+  /* don't fragment if interface has mtu set to 0 [loopif] */
+  if (netif->mtu && (p->tot_len > netif->mtu)) {
+    if ((IPH_OFFSET(iphdr) & PP_NTOHS(IP_DF)) == 0) {
+#if IP_FRAG
+      ip4_frag(p, netif, ip4_current_dest_addr());
+#else /* IP_FRAG */
+      /* @todo: send ICMP Destination Unreachable code 13 "Communication administratively prohibited"? */
+#endif /* IP_FRAG */
+    } else {
+#if LWIP_ICMP
+      /* send ICMP Destination Unreachable code 4: "Fragmentation Needed and DF Set" */
+      icmp_dest_unreach(p, ICMP_DUR_FRAG);
+#endif /* LWIP_ICMP */
+    }
+    return;
+  }
+  /* transmit pbuf on chosen interface */
+  netif->output(netif, p, ip4_current_dest_addr());
+  return;
+return_noroute:
+  MIB2_STATS_INC(mib2.ipoutnoroutes);
+}

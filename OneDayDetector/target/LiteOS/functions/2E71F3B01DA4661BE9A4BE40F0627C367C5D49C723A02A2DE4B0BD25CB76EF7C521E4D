@@ -1,0 +1,194 @@
+dns_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port)
+{
+  u8_t i;
+  u16_t txid;
+  u16_t res_idx;
+  struct dns_hdr hdr;
+  struct dns_answer ans;
+  struct dns_query qry;
+  u16_t nquestions, nanswers;
+
+  LWIP_UNUSED_ARG(arg);
+  LWIP_UNUSED_ARG(pcb);
+  LWIP_UNUSED_ARG(port);
+
+  /* is the dns message big enough ? */
+  if (p->tot_len < (SIZEOF_DNS_HDR + SIZEOF_DNS_QUERY)) {
+    LWIP_DEBUGF(DNS_DEBUG, ("dns_recv: pbuf too small\n"));
+    /* free pbuf and return */
+    goto ignore_packet;
+  }
+
+  /* copy dns payload inside static buffer for processing */
+  if (pbuf_copy_partial(p, &hdr, SIZEOF_DNS_HDR, 0) == SIZEOF_DNS_HDR) {
+    /* Match the ID in the DNS header with the name table. */
+    txid = lwip_htons(hdr.id);
+    for (i = 0; i < DNS_TABLE_SIZE; i++) {
+      struct dns_table_entry *entry = &dns_table[i];
+      if ((entry->state == DNS_STATE_ASKING) &&
+          (entry->txid == txid)) {
+
+        /* We only care about the question(s) and the answers. The authrr
+           and the extrarr are simply discarded. */
+        nquestions = lwip_htons(hdr.numquestions);
+        nanswers   = lwip_htons(hdr.numanswers);
+
+        /* Check for correct response. */
+        if ((hdr.flags1 & DNS_FLAG1_RESPONSE) == 0) {
+          LWIP_DEBUGF(DNS_DEBUG, ("dns_recv: \"%s\": not a response\n", entry->name));
+          goto ignore_packet; /* ignore this packet */
+        }
+        if (nquestions != 1) {
+          LWIP_DEBUGF(DNS_DEBUG, ("dns_recv: \"%s\": response not match to query\n", entry->name));
+          goto ignore_packet; /* ignore this packet */
+        }
+
+#if LWIP_DNS_SUPPORT_MDNS_QUERIES
+        if (!entry->is_mdns)
+#endif /* LWIP_DNS_SUPPORT_MDNS_QUERIES */
+        {
+          /* Check whether response comes from the same network address to which the
+             question was sent. (RFC 5452) */
+          if (!ip_addr_cmp(addr, &dns_servers[entry->server_idx])) {
+            goto ignore_packet; /* ignore this packet */
+          }
+        }
+
+        /* Check if the name in the "question" part match with the name in the entry and
+           skip it if equal. */
+        res_idx = dns_compare_name(entry->name, p, SIZEOF_DNS_HDR);
+        if (res_idx == 0xFFFF) {
+          LWIP_DEBUGF(DNS_DEBUG, ("dns_recv: \"%s\": response not match to query\n", entry->name));
+          goto ignore_packet; /* ignore this packet */
+        }
+
+        /* check if "question" part matches the request */
+        if (pbuf_copy_partial(p, &qry, SIZEOF_DNS_QUERY, res_idx) != SIZEOF_DNS_QUERY) {
+          goto ignore_packet; /* ignore this packet */
+        }
+        if ((qry.cls != PP_HTONS(DNS_RRCLASS_IN)) ||
+            (LWIP_DNS_ADDRTYPE_IS_IPV6(entry->reqaddrtype) && (qry.type != PP_HTONS(DNS_RRTYPE_AAAA))) ||
+            (!LWIP_DNS_ADDRTYPE_IS_IPV6(entry->reqaddrtype) && (qry.type != PP_HTONS(DNS_RRTYPE_A)))) {
+          LWIP_DEBUGF(DNS_DEBUG, ("dns_recv: \"%s\": response not match to query\n", entry->name));
+          goto ignore_packet; /* ignore this packet */
+        }
+        /* skip the rest of the "question" part */
+        if (res_idx + SIZEOF_DNS_QUERY > 0xFFFF) {
+          goto ignore_packet;
+        }
+        res_idx = (u16_t)(res_idx + SIZEOF_DNS_QUERY);
+
+        /* Check for error. If so, call callback to inform. */
+        if (hdr.flags2 & DNS_FLAG2_ERR_MASK) {
+          LWIP_DEBUGF(DNS_DEBUG, ("dns_recv: \"%s\": error in flags\n", entry->name));
+
+          /* if there is another backup DNS server to try
+           * then don't stop the DNS request
+           */
+          if (dns_backupserver_available(entry)) {
+            /* avoid retrying the same server */
+            entry->retries = DNS_MAX_RETRIES-1;
+            entry->tmr     = 1;
+
+            /* contact next available server for this entry */
+            dns_check_entry(i);
+
+            goto ignore_packet;
+          }
+        } else {
+          while ((nanswers > 0) && (res_idx < p->tot_len)) {
+            /* skip answer resource record's host name */
+            res_idx = dns_skip_name(p, res_idx);
+            if (res_idx == 0xFFFF) {
+              goto ignore_packet; /* ignore this packet */
+            }
+
+            /* Check for IP address type and Internet class. Others are discarded. */
+            if (pbuf_copy_partial(p, &ans, SIZEOF_DNS_ANSWER, res_idx) != SIZEOF_DNS_ANSWER) {
+              goto ignore_packet; /* ignore this packet */
+            }
+            if (res_idx + SIZEOF_DNS_ANSWER > 0xFFFF) {
+              goto ignore_packet;
+            }
+            res_idx = (u16_t)(res_idx + SIZEOF_DNS_ANSWER);
+
+            if (ans.cls == PP_HTONS(DNS_RRCLASS_IN)) {
+#if LWIP_IPV4
+              if ((ans.type == PP_HTONS(DNS_RRTYPE_A)) && (ans.len == PP_HTONS(sizeof(ip4_addr_t)))) {
+#if LWIP_IPV4 && LWIP_IPV6
+                if (!LWIP_DNS_ADDRTYPE_IS_IPV6(entry->reqaddrtype))
+#endif /* LWIP_IPV4 && LWIP_IPV6 */
+                {
+                  ip4_addr_t ip4addr;
+                  /* read the IP address after answer resource record's header */
+                  if (pbuf_copy_partial(p, &ip4addr, sizeof(ip4_addr_t), res_idx) != sizeof(ip4_addr_t)) {
+                    goto ignore_packet; /* ignore this packet */
+                  }
+                  ip_addr_copy_from_ip4(dns_table[i].ipaddr, ip4addr);
+                  pbuf_free(p);
+                  /* handle correct response */
+                  dns_correct_response(i, lwip_ntohl(ans.ttl));
+                  return;
+                }
+              }
+#endif /* LWIP_IPV4 */
+#if LWIP_IPV6
+              if ((ans.type == PP_HTONS(DNS_RRTYPE_AAAA)) && (ans.len == PP_HTONS(sizeof(ip6_addr_p_t)))) {
+#if LWIP_IPV4 && LWIP_IPV6
+                if (LWIP_DNS_ADDRTYPE_IS_IPV6(entry->reqaddrtype))
+#endif /* LWIP_IPV4 && LWIP_IPV6 */
+                {
+                  ip6_addr_p_t ip6addr;
+                  /* read the IP address after answer resource record's header */
+                  if (pbuf_copy_partial(p, &ip6addr, sizeof(ip6_addr_p_t), res_idx) != sizeof(ip6_addr_p_t)) {
+                    goto ignore_packet; /* ignore this packet */
+                  }
+                  /* @todo: scope ip6addr? Might be required for link-local addresses at least? */
+                  ip_addr_copy_from_ip6_packed(dns_table[i].ipaddr, ip6addr);
+                  pbuf_free(p);
+                  /* handle correct response */
+                  dns_correct_response(i, lwip_ntohl(ans.ttl));
+                  return;
+                }
+              }
+#endif /* LWIP_IPV6 */
+            }
+            /* skip this answer */
+            if ((int)(res_idx + lwip_htons(ans.len)) > 0xFFFF) {
+              goto ignore_packet; /* ignore this packet */
+            }
+            res_idx = (u16_t)(res_idx + lwip_htons(ans.len));
+            --nanswers;
+          }
+#if LWIP_IPV4 && LWIP_IPV6
+          if ((entry->reqaddrtype == LWIP_DNS_ADDRTYPE_IPV4_IPV6) ||
+              (entry->reqaddrtype == LWIP_DNS_ADDRTYPE_IPV6_IPV4)) {
+            if (entry->reqaddrtype == LWIP_DNS_ADDRTYPE_IPV4_IPV6) {
+              /* IPv4 failed, try IPv6 */
+              dns_table[i].reqaddrtype = LWIP_DNS_ADDRTYPE_IPV6;
+            } else {
+              /* IPv6 failed, try IPv4 */
+              dns_table[i].reqaddrtype = LWIP_DNS_ADDRTYPE_IPV4;
+            }
+            pbuf_free(p);
+            dns_table[i].state = DNS_STATE_NEW;
+            dns_check_entry(i);
+            return;
+          }
+#endif /* LWIP_IPV4 && LWIP_IPV6 */
+          LWIP_DEBUGF(DNS_DEBUG, ("dns_recv: \"%s\": error in response\n", entry->name));
+        }
+        /* call callback to indicate error, clean up memory and return */
+        pbuf_free(p);
+        dns_call_found(i, NULL);
+        dns_table[i].state = DNS_STATE_UNUSED;
+        return;
+      }
+    }
+  }
+
+ignore_packet:
+  /* deallocate memory and return */
+  pbuf_free(p);
+  return;
+}

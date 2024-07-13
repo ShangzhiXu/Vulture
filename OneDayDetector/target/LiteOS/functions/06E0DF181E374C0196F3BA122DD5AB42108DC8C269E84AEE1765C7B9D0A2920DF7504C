@@ -1,0 +1,21 @@
+netif_set_ipaddr(struct netif *netif, const ip4_addr_t *ipaddr)
+{
+  ip_addr_t old_addr;
+
+  LWIP_ERROR("netif_set_ipaddr: invalid netif", netif != NULL, return);
+
+  /* Don't propagate NULL pointer (IPv4 ANY) to subsequent functions */
+  if (ipaddr == NULL) {
+    ipaddr = IP4_ADDR_ANY4;
+  }
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  if (netif_do_set_ipaddr(netif, ipaddr, &old_addr)) {
+#if LWIP_NETIF_EXT_STATUS_CALLBACK
+    netif_ext_callback_args_t args;
+    args.ipv4_changed.old_address = &old_addr;
+    netif_invoke_ext_callback(netif, LWIP_NSC_IPV4_ADDRESS_CHANGED, &args);
+#endif
+  }
+}

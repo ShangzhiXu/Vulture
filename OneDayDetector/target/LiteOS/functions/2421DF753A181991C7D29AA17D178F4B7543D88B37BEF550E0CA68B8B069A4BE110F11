@@ -1,0 +1,64 @@
+int fatfs_mount(const char *path, struct diskio_drv *drv, uint8_t *drive)
+{
+    int s_drive;
+    char dpath[4] = {0};
+    int ret = -1;
+    BYTE *work_buff = NULL;
+    FRESULT res;
+    FATFS *fs = NULL;
+
+    s_drive = fatfs_register(drv);
+    if (s_drive < 0) {
+        PRINT_ERR("failed to register diskio!\n");
+        return s_drive;
+    }
+    fs = (FATFS *)malloc(sizeof(FATFS));
+    if (fs == NULL) {
+        PRINT_ERR("fail to malloc memory in FATFS, <malloc.c> is needed,"
+            "make sure it is added\n");
+        goto err;
+    }
+    memset(fs, 0, sizeof(FATFS));
+    sprintf(dpath, "%d:/", s_drive);
+    res = f_mount(fs, (const TCHAR *)dpath, 1);
+    if (res == FR_NO_FILESYSTEM) {
+        printf("SD no filesystem, format...\r\n");
+        work_buff = (BYTE *)malloc(FF_MAX_SS);
+        if (work_buff == NULL) {
+            goto err_free;
+        }
+        memset(work_buff, 0, FF_MAX_SS);
+        res = f_mkfs((const TCHAR *)dpath, FM_ANY, 0, work_buff, FF_MAX_SS);
+        if (res == FR_OK) {
+            printf("SD format success\r\n");
+            res = f_mount(NULL, (const TCHAR *)dpath, 1);
+            res = f_mount(fs, (const TCHAR *)dpath, 1);
+        } else {
+            printf("SD format fail\r\n");
+        }
+        free(work_buff);
+    } else if (res != FR_OK) {
+        printf("SD mount fail (%d)\r\n", res);
+        PRINT_ERR("failed to mount fatfs, res=%d!\n", res);
+        goto err_free;
+    } else {
+        printf("file system mount success\r\n");
+    }
+    ret = los_fs_mount("fatfs", path, fs);
+    if (ret == LOS_OK) {
+        PRINT_INFO("fatfs mount at %s done!\n", path);
+        *drive = s_drive;
+        fatfs_ptr = fs;
+        return LOS_OK;
+    }
+
+    PRINT_ERR("failed to mount!\n");
+
+err_free:
+    if (fs != NULL) {
+        free(fs);
+    }
+err:
+    fatfs_unregister(s_drive);
+    return ret;
+}

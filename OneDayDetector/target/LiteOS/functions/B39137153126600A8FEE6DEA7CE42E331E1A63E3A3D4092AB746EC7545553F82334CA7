@@ -1,0 +1,166 @@
+static lv_res_t lv_page_scrollable_signal(lv_obj_t * scrl, lv_signal_t sign, void * param)
+{
+
+    if(sign == LV_SIGNAL_GET_STYLE) {
+        return ancestor_signal(scrl, sign, param);
+    }
+
+    lv_res_t res;
+
+    /* Include the ancient signal function */
+    res = ancestor_signal(scrl, sign, param);
+
+    if(res != LV_RES_OK) return res;
+    if(sign == LV_SIGNAL_GET_TYPE) return lv_obj_handle_get_type_signal(param, "");
+
+    lv_obj_t * page               = lv_obj_get_parent(scrl);
+    lv_page_ext_t * page_ext      = lv_obj_get_ext_attr(page);
+
+    if(sign == LV_SIGNAL_COORD_CHG) {
+        lv_obj_t * page_parent = lv_obj_get_parent(page);
+
+        /*Handle scroll propagation*/
+        lv_indev_t * indev = lv_indev_get_act();
+        if(page_ext->scroll_prop  && indev) {
+            lv_point_t * drag_sum = &indev->proc.types.pointer.drag_sum;
+            lv_page_ext_t * parent_ext = lv_obj_get_ext_attr(lv_obj_get_parent(page_parent));
+            if(parent_ext->scroll_prop_obj == NULL) {
+                /*If the dragging just started or scroll is already propagated to this object
+                 *  enable the scroll propagation if the conditions are met*/
+                if((lv_indev_is_dragging(indev) == false || page_ext->scroll_prop_obj) && (drag_sum->y || drag_sum->x)) {
+                    /*Propagate vertically?*/
+                    if((drag_sum->y > 0 && lv_page_on_edge(page, LV_PAGE_EDGE_TOP)) ||
+                       (drag_sum->y < 0 && lv_page_on_edge(page, LV_PAGE_EDGE_BOTTOM))) {
+                        lv_obj_set_drag_parent(page, true);
+                        lv_obj_set_drag_parent(scrl, true);
+                        parent_ext->scroll_prop_obj = page;
+                    }
+                    /*Propagate horizontally?*/
+                    if((drag_sum->x > 0 && lv_page_on_edge(page, LV_PAGE_EDGE_LEFT)) ||
+                       (drag_sum->x < 0 && lv_page_on_edge(page, LV_PAGE_EDGE_RIGHT))) {
+                        lv_obj_set_drag_parent(page, true);
+                        lv_obj_set_drag_parent(scrl, true);
+                        parent_ext->scroll_prop_obj = page;
+                    }
+                }
+            }
+        }
+
+        scrl_reposition(page);
+
+        lv_page_ext_t * ext      = lv_obj_get_ext_attr(page);
+
+        /*The scrollbars are important only if they are visible now or the scrollable's size has changed*/
+        if((ext->scrlbar.hor_draw || ext->scrlbar.ver_draw) ||
+           (lv_obj_get_width(scrl) != lv_area_get_width(param) || lv_obj_get_height(scrl) != lv_area_get_height(param))) {
+            scrlbar_refresh(page);
+        }
+    }
+    else if(sign == LV_SIGNAL_STYLE_CHG) {
+        scrl_reposition(page);
+        scrlbar_refresh(page);
+    }
+    else if(sign == LV_SIGNAL_DRAG_BEGIN) {
+        if(page_ext->scrlbar.mode == LV_SCROLLBAR_MODE_DRAG) {
+            scrlbar_refresh(page);
+        }
+    }
+    else if(sign == LV_SIGNAL_DRAG_END) {
+        /*Scroll propagation is finished on drag end*/
+        if(page_ext->scroll_prop_obj) {
+            lv_obj_t * scroller_page = page_ext->scroll_prop_obj;
+            lv_page_ext_t * scroller_page_ext      = lv_obj_get_ext_attr(scroller_page);
+            page_ext->scroll_prop_obj = NULL;
+            lv_obj_set_drag_parent(scroller_page, false);
+            lv_obj_set_drag_parent(lv_page_get_scrllable(scroller_page), false);
+
+            /*Hide scrollbars if required*/
+            if(scroller_page_ext->scrlbar.mode == LV_SCROLLBAR_MODE_DRAG) {
+                lv_area_t sb_area_tmp;
+                if(scroller_page_ext->scrlbar.hor_draw) {
+                    lv_area_copy(&sb_area_tmp, &scroller_page_ext->scrlbar.hor_area);
+                    sb_area_tmp.x1 += scroller_page->coords.x1;
+                    sb_area_tmp.y1 += scroller_page->coords.y1;
+                    sb_area_tmp.x2 += scroller_page->coords.x1;
+                    sb_area_tmp.y2 += scroller_page->coords.y1;
+                    lv_obj_invalidate_area(scroller_page, &sb_area_tmp);
+                    scroller_page_ext->scrlbar.hor_draw = 0;
+                }
+                if(scroller_page_ext->scrlbar.ver_draw) {
+                    lv_area_copy(&sb_area_tmp, &scroller_page_ext->scrlbar.ver_area);
+                    sb_area_tmp.x1 += scroller_page->coords.x1;
+                    sb_area_tmp.y1 += scroller_page->coords.y1;
+                    sb_area_tmp.x2 += scroller_page->coords.x1;
+                    sb_area_tmp.y2 += scroller_page->coords.y1;
+                    lv_obj_invalidate_area(scroller_page, &sb_area_tmp);
+                    scroller_page_ext->scrlbar.ver_draw = 0;
+                }
+            }
+
+            /*The scrolling can be chained so stop all of them*/
+            lv_page_ext_t * scroller_ext = lv_obj_get_ext_attr(scroller_page);
+            while(scroller_ext->scroll_prop_obj) {
+                scroller_page = scroller_ext->scroll_prop_obj;
+                scroller_ext->scroll_prop_obj = NULL;
+                lv_obj_set_drag_parent(scroller_page, false);
+                lv_obj_set_drag_parent(lv_page_get_scrllable(scroller_page), false);
+
+                /*Hide scrollbars if required*/
+                if(scroller_page_ext->scrlbar.mode == LV_SCROLLBAR_MODE_DRAG) {
+                    scroller_page_ext->scrlbar.hor_draw = 0;
+                    scroller_page_ext->scrlbar.ver_draw = 0;
+                    lv_obj_invalidate(scroller_page);
+                }
+                scroller_ext = lv_obj_get_ext_attr(scroller_page);
+            }
+        }
+
+        /*Hide scrollbars if required*/
+        if(page_ext->scrlbar.mode == LV_SCROLLBAR_MODE_DRAG) {
+            lv_area_t sb_area_tmp;
+            if(page_ext->scrlbar.hor_draw) {
+                lv_area_copy(&sb_area_tmp, &page_ext->scrlbar.hor_area);
+                sb_area_tmp.x1 += page->coords.x1;
+                sb_area_tmp.y1 += page->coords.y1;
+                sb_area_tmp.x2 += page->coords.x1;
+                sb_area_tmp.y2 += page->coords.y1;
+                lv_obj_invalidate_area(page, &sb_area_tmp);
+                page_ext->scrlbar.hor_draw = 0;
+            }
+            if(page_ext->scrlbar.ver_draw) {
+                lv_area_copy(&sb_area_tmp, &page_ext->scrlbar.ver_area);
+                sb_area_tmp.x1 += page->coords.x1;
+                sb_area_tmp.y1 += page->coords.y1;
+                sb_area_tmp.x2 += page->coords.x1;
+                sb_area_tmp.y2 += page->coords.y1;
+                lv_obj_invalidate_area(page, &sb_area_tmp);
+                page_ext->scrlbar.ver_draw = 0;
+            }
+        }
+    }
+    else if(sign == LV_SIGNAL_FOCUS) {
+#if LV_USE_GROUP
+        if(lv_obj_get_group(page)) {
+            lv_group_focus_obj(page);
+        }
+        else
+#endif
+        {
+            res = lv_signal_send(page, LV_SIGNAL_FOCUS, NULL);
+            if(res != LV_RES_OK) return res;
+            res = lv_event_send(page, LV_EVENT_FOCUSED, NULL);
+            if(res != LV_RES_OK) return res;
+        }
+    }
+    else if(sign == LV_SIGNAL_DEFOCUS) {
+        res = lv_signal_send(page, LV_SIGNAL_DEFOCUS, NULL);
+        if(res != LV_RES_OK) return res;
+        res = lv_event_send(page, LV_EVENT_DEFOCUSED, NULL);
+        if(res != LV_RES_OK) return res;
+    }
+    else if(sign == LV_SIGNAL_CLEANUP) {
+        page_ext->scrl = NULL;
+
+    }
+    return res;
+}

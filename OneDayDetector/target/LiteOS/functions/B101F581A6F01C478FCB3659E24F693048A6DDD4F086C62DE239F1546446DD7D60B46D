@@ -1,0 +1,37 @@
+HAL_StatusTypeDef HAL_DFSDM_FilterConfigRegChannel(DFSDM_Filter_HandleTypeDef *hdfsdm_filter,
+                                                   uint32_t                    Channel,
+                                                   uint32_t                    ContinuousMode)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  
+  /* Check parameters */
+  assert_param(IS_DFSDM_FILTER_ALL_INSTANCE(hdfsdm_filter->Instance));
+  assert_param(IS_DFSDM_REGULAR_CHANNEL(Channel));
+  assert_param(IS_DFSDM_CONTINUOUS_MODE(ContinuousMode));
+  
+  /* Check DFSDM filter state */
+  if((hdfsdm_filter->State != HAL_DFSDM_FILTER_STATE_RESET) && 
+     (hdfsdm_filter->State != HAL_DFSDM_FILTER_STATE_ERROR))
+  {
+    /* Configure channel and continuous mode for regular conversion */
+    hdfsdm_filter->Instance->FLTCR1 &= ~(DFSDM_FLTCR1_RCH | DFSDM_FLTCR1_RCONT);
+    if(ContinuousMode == DFSDM_CONTINUOUS_CONV_ON)
+    {
+      hdfsdm_filter->Instance->FLTCR1 |= (uint32_t) (((Channel & DFSDM_MSB_MASK) << DFSDM_FLTCR1_MSB_RCH_OFFSET) |
+                                                     DFSDM_FLTCR1_RCONT);
+    }
+    else
+    {
+      hdfsdm_filter->Instance->FLTCR1 |= (uint32_t) ((Channel & DFSDM_MSB_MASK) << DFSDM_FLTCR1_MSB_RCH_OFFSET);
+    }
+    /* Store continuous mode information */
+    hdfsdm_filter->RegularContMode = ContinuousMode;
+  }  
+  else
+  {
+    status = HAL_ERROR;
+  }
+
+  /* Return function status */
+  return status;
+}

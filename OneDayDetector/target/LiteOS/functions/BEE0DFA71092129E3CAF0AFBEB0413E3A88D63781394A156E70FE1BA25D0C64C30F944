@@ -1,0 +1,17 @@
+VOID OsDumpContextMem(const ExcContext *excBufAddr)
+{
+    UINT32 count = 0;
+    const UINT64 *excReg = NULL;
+
+    for (excReg = &(excBufAddr->X[0]); count <= (DUMPREGS - 1); excReg++, count++) {
+        if (IS_VALID_ADDR(*excReg)) {
+            PrintExcInfo("\ndump mem around X%u:%p", count, (*excReg));
+            OsDumpMemByte(DUMPSIZE, ((*excReg) - (DUMPSIZE >> 1)));
+        }
+    }
+
+    if (IS_VALID_ADDR(excBufAddr->SP)) {
+        PrintExcInfo("\ndump mem around SP:%p", excBufAddr->SP);
+        OsDumpMemByte(DUMPSIZE, (excBufAddr->SP - (DUMPSIZE >> 1)));
+    }
+}

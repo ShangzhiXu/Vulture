@@ -1,0 +1,26 @@
+int uname(struct utsname *name)
+{
+    INT32 ret;
+    if (name == NULL) {
+        return -1;
+    }
+    if (strncpy_s(name->sysname, sizeof(name->sysname), HW_LITEOS_SYSNAME, strlen(HW_LITEOS_SYSNAME) + 1) != EOK) {
+        return -1;
+    }
+
+    if (strncpy_s(name->nodename, sizeof(name->nodename), VENDOR_NAME, strlen(VENDOR_NAME) + 1) != EOK) {
+        return -1;
+    }
+    ret = snprintf_s(name->release, sizeof(name->release), strlen(HW_LITEOS_VER) + 1, "%s", HW_LITEOS_VER);
+    if (ret < 0) {
+        return -1;
+    }
+    ret = snprintf_s(name->version, sizeof(name->version), sizeof(name->version) - 1, "%s %u.%u.%u %s %s\n",
+                     HW_LITEOS_SYSNAME, MAJ_V, MIN_V, REL_V, __DATE__, __TIME__);
+    if (ret < 0) {
+        return -1;
+    }
+    name->machine[0] = '\0';
+    name->domainname[0] = '\0';
+    return 0;
+}

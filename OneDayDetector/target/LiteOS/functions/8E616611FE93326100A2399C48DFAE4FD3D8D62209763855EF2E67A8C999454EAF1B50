@@ -1,0 +1,259 @@
+static int ipcp_nakci(fsm *f, u_char *p, int len, int treat_as_reject) {
+    ppp_pcb *pcb = f->pcb;
+    ipcp_options *go = &pcb->ipcp_gotoptions;
+    u_char citype, cilen, *next;
+#if VJ_SUPPORT
+    u_char cimaxslotindex, cicflag;
+    u_short cishort;
+#endif /* VJ_SUPPORT */
+    u32_t ciaddr1, ciaddr2, l;
+#if LWIP_DNS
+    u32_t cidnsaddr;
+#endif /* LWIP_DNS */
+    ipcp_options no;		/* options we've seen Naks for */
+    ipcp_options try_;		/* options to request next time */
+
+    BZERO(&no, sizeof(no));
+    try_ = *go;
+
+    /*
+     * Any Nak'd CIs must be in exactly the same order that we sent.
+     * Check packet length and CI length at each step.
+     * If we find any deviations, then this packet is bad.
+     */
+#define NAKCIADDRS(opt, neg, code) \
+    if ((neg) && \
+	(cilen = p[1]) == CILEN_ADDRS && \
+	len >= cilen && \
+	p[0] == opt) { \
+	len -= cilen; \
+	INCPTR(2, p); \
+	GETLONG(l, p); \
+	ciaddr1 = lwip_htonl(l); \
+	GETLONG(l, p); \
+	ciaddr2 = lwip_htonl(l); \
+	no.old_addrs = 1; \
+	code \
+    }
+
+#if VJ_SUPPORT
+#define NAKCIVJ(opt, neg, code) \
+    if (go->neg && \
+	((cilen = p[1]) == CILEN_COMPRESS || cilen == CILEN_VJ) && \
+	len >= cilen && \
+	p[0] == opt) { \
+	len -= cilen; \
+	INCPTR(2, p); \
+	GETSHORT(cishort, p); \
+	no.neg = 1; \
+        code \
+    }
+#endif /* VJ_SUPPORT */
+
+#define NAKCIADDR(opt, neg, code) \
+    if (go->neg && \
+	(cilen = p[1]) == CILEN_ADDR && \
+	len >= cilen && \
+	p[0] == opt) { \
+	len -= cilen; \
+	INCPTR(2, p); \
+	GETLONG(l, p); \
+	ciaddr1 = lwip_htonl(l); \
+	no.neg = 1; \
+	code \
+    }
+
+#if LWIP_DNS
+#define NAKCIDNS(opt, neg, code) \
+    if (go->neg && \
+	((cilen = p[1]) == CILEN_ADDR) && \
+	len >= cilen && \
+	p[0] == opt) { \
+	len -= cilen; \
+	INCPTR(2, p); \
+	GETLONG(l, p); \
+	cidnsaddr = lwip_htonl(l); \
+	no.neg = 1; \
+	code \
+    }
+#endif /* LWIP_DNS */
+
+    /*
+     * Accept the peer's idea of {our,his} address, if different
+     * from our idea, only if the accept_{local,remote} flag is set.
+     */
+    NAKCIADDRS(CI_ADDRS, !go->neg_addr && go->old_addrs,
+	       if (treat_as_reject) {
+		   try_.old_addrs = 0;
+	       } else {
+		   if (go->accept_local && ciaddr1) {
+		       /* take his idea of our address */
+		       try_.ouraddr = ciaddr1;
+		   }
+		   if (go->accept_remote && ciaddr2) {
+		       /* take his idea of his address */
+		       try_.hisaddr = ciaddr2;
+		   }
+	       }
+	);
+
+#if VJ_SUPPORT
+    /*
+     * Accept the peer's value of maxslotindex provided that it
+     * is less than what we asked for.  Turn off slot-ID compression
+     * if the peer wants.  Send old-style compress-type option if
+     * the peer wants.
+     */
+    NAKCIVJ(CI_COMPRESSTYPE, neg_vj,
+	    if (treat_as_reject) {
+		try_.neg_vj = 0;
+	    } else if (cilen == CILEN_VJ) {
+		GETCHAR(cimaxslotindex, p);
+		GETCHAR(cicflag, p);
+		if (cishort == IPCP_VJ_COMP) {
+		    try_.old_vj = 0;
+		    if (cimaxslotindex < go->maxslotindex)
+			try_.maxslotindex = cimaxslotindex;
+		    if (!cicflag)
+			try_.cflag = 0;
+		} else {
+		    try_.neg_vj = 0;
+		}
+	    } else {
+		if (cishort == IPCP_VJ_COMP || cishort == IPCP_VJ_COMP_OLD) {
+		    try_.old_vj = 1;
+		    try_.vj_protocol = cishort;
+		} else {
+		    try_.neg_vj = 0;
+		}
+	    }
+	    );
+#endif /* VJ_SUPPORT */
+
+    NAKCIADDR(CI_ADDR, neg_addr,
+	      if (treat_as_reject) {
+		  try_.neg_addr = 0;
+		  try_.old_addrs = 0;
+	      } else if (go->accept_local && ciaddr1) {
+		  /* take his idea of our address */
+		  try_.ouraddr = ciaddr1;
+	      }
+	      );
+
+#if LWIP_DNS
+    NAKCIDNS(CI_MS_DNS1, req_dns1,
+	     if (treat_as_reject) {
+		 try_.req_dns1 = 0;
+	     } else {
+		 try_.dnsaddr[0] = cidnsaddr;
+	     }
+	     );
+
+    NAKCIDNS(CI_MS_DNS2, req_dns2,
+	     if (treat_as_reject) {
+		 try_.req_dns2 = 0;
+	     } else {
+		 try_.dnsaddr[1] = cidnsaddr;
+	     }
+	     );
+#endif /* #if LWIP_DNS */
+
+    /*
+     * There may be remaining CIs, if the peer is requesting negotiation
+     * on an option that we didn't include in our request packet.
+     * If they want to negotiate about IP addresses, we comply.
+     * If they want us to ask for compression, we refuse.
+     * If they want us to ask for ms-dns, we do that, since some
+     * peers get huffy if we don't.
+     */
+    while (len >= CILEN_VOID) {
+	GETCHAR(citype, p);
+	GETCHAR(cilen, p);
+	if ( cilen < CILEN_VOID || (len -= cilen) < 0 )
+	    goto bad;
+	next = p + cilen - 2;
+
+	switch (citype) {
+#if VJ_SUPPORT
+	case CI_COMPRESSTYPE:
+	    if (go->neg_vj || no.neg_vj ||
+		(cilen != CILEN_VJ && cilen != CILEN_COMPRESS))
+		goto bad;
+	    no.neg_vj = 1;
+	    break;
+#endif /* VJ_SUPPORT */
+	case CI_ADDRS:
+	    if ((!go->neg_addr && go->old_addrs) || no.old_addrs
+		|| cilen != CILEN_ADDRS)
+		goto bad;
+	    try_.neg_addr = 0;
+	    GETLONG(l, p);
+	    ciaddr1 = lwip_htonl(l);
+	    if (ciaddr1 && go->accept_local)
+		try_.ouraddr = ciaddr1;
+	    GETLONG(l, p);
+	    ciaddr2 = lwip_htonl(l);
+	    if (ciaddr2 && go->accept_remote)
+		try_.hisaddr = ciaddr2;
+	    no.old_addrs = 1;
+	    break;
+	case CI_ADDR:
+	    if (go->neg_addr || no.neg_addr || cilen != CILEN_ADDR)
+		goto bad;
+	    try_.old_addrs = 0;
+	    GETLONG(l, p);
+	    ciaddr1 = lwip_htonl(l);
+	    if (ciaddr1 && go->accept_local)
+		try_.ouraddr = ciaddr1;
+	    if (try_.ouraddr != 0)
+		try_.neg_addr = 1;
+	    no.neg_addr = 1;
+	    break;
+#if LWIP_DNS
+	case CI_MS_DNS1:
+	    if (go->req_dns1 || no.req_dns1 || cilen != CILEN_ADDR)
+		goto bad;
+	    GETLONG(l, p);
+	    try_.dnsaddr[0] = lwip_htonl(l);
+	    try_.req_dns1 = 1;
+	    no.req_dns1 = 1;
+	    break;
+	case CI_MS_DNS2:
+	    if (go->req_dns2 || no.req_dns2 || cilen != CILEN_ADDR)
+		goto bad;
+	    GETLONG(l, p);
+	    try_.dnsaddr[1] = lwip_htonl(l);
+	    try_.req_dns2 = 1;
+	    no.req_dns2 = 1;
+	    break;
+#endif /* LWIP_DNS */
+#if 0 /* UNUSED - WINS */
+	case CI_MS_WINS1:
+	case CI_MS_WINS2:
+	    if (cilen != CILEN_ADDR)
+		goto bad;
+	    GETLONG(l, p);
+	    ciaddr1 = lwip_htonl(l);
+	    if (ciaddr1)
+		try_.winsaddr[citype == CI_MS_WINS2] = ciaddr1;
+	    break;
+#endif /* UNUSED - WINS */
+	default:
+	    break;
+	}
+	p = next;
+    }
+
+    /*
+     * OK, the Nak is good.  Now we can update state.
+     * If there are any remaining options, we ignore them.
+     */
+    if (f->state != PPP_FSM_OPENED)
+	*go = try_;
+
+    return 1;
+
+bad:
+    IPCPDEBUG(("ipcp_nakci: received bad Nak!"));
+    return 0;
+}

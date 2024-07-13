@@ -1,0 +1,80 @@
+static void indev_proc_release(lv_indev_proc_t * proc)
+{
+    if(proc->wait_until_release != 0) {
+        proc->types.pointer.act_obj  = NULL;
+        proc->types.pointer.last_obj = NULL;
+        proc->pr_timestamp           = 0;
+        proc->longpr_rep_timestamp   = 0;
+        proc->wait_until_release     = 0;
+    }
+    indev_obj_act = proc->types.pointer.act_obj;
+
+    /*Forget the act obj and send a released signal */
+    if(indev_obj_act) {
+
+        /* If the object was protected against press lost then it possible that
+         * the object is already not pressed but still it is the `act_obj`.
+         * In this case send the `LV_SIGNAL_RELEASED/CLICKED` instead of `LV_SIGNAL_PRESS_LOST` if
+         * the indev is ON the `types.pointer.act_obj` */
+        if(lv_obj_is_protected(indev_obj_act, LV_PROTECT_PRESS_LOST)) {
+            indev_obj_act->signal_cb(indev_obj_act, LV_SIGNAL_RELEASED, indev_act);
+            if(indev_reset_check(proc)) return;
+
+            if(proc->types.pointer.drag_in_prog == 0) {
+                if(proc->long_pr_sent == 0) {
+                    lv_event_send(indev_obj_act, LV_EVENT_SHORT_CLICKED, NULL);
+                    if(indev_reset_check(proc)) return;
+                }
+
+                lv_event_send(indev_obj_act, LV_EVENT_CLICKED, NULL);
+                if(indev_reset_check(proc)) return;
+            }
+
+            lv_event_send(indev_obj_act, LV_EVENT_RELEASED, NULL);
+            if(indev_reset_check(proc)) return;
+        }
+        /* The simple case: `act_obj` was not protected against press lost.
+         * If it is already not pressed then `indev_proc_press` would set `indev_obj_act = NULL`*/
+        else {
+            indev_obj_act->signal_cb(indev_obj_act, LV_SIGNAL_RELEASED, indev_act);
+            if(indev_reset_check(proc)) return;
+
+            if(proc->long_pr_sent == 0 && proc->types.pointer.drag_in_prog == 0) {
+                lv_event_send(indev_obj_act, LV_EVENT_SHORT_CLICKED, NULL);
+                if(indev_reset_check(proc)) return;
+            }
+
+            if(proc->types.pointer.drag_in_prog == 0) {
+                lv_event_send(indev_obj_act, LV_EVENT_CLICKED, NULL);
+                if(indev_reset_check(proc)) return;
+            }
+
+            lv_event_send(indev_obj_act, LV_EVENT_RELEASED, NULL);
+            if(indev_reset_check(proc)) return;
+        }
+
+        /*Send LV_EVENT_DRAG_THROW_BEGIN if required */
+        /*If drag parent is active check recursively the drag_parent attribute*/
+        lv_obj_t * drag_obj = get_dragged_obj(indev_obj_act);
+        if(drag_obj) {
+            if(lv_obj_get_drag_throw(drag_obj) && proc->types.pointer.drag_in_prog) {
+                if(drag_obj->signal_cb) drag_obj->signal_cb(drag_obj, LV_SIGNAL_DRAG_THROW_BEGIN, NULL);
+                if(indev_reset_check(proc)) return;
+
+                lv_event_send(drag_obj, LV_EVENT_DRAG_THROW_BEGIN, NULL);
+                if(indev_reset_check(proc)) return;
+            }
+        }
+
+        proc->types.pointer.act_obj = NULL;
+        proc->pr_timestamp          = 0;
+        proc->longpr_rep_timestamp  = 0;
+    }
+
+    /*The reset can be set in the signal function.
+     * In case of reset query ignore the remaining parts.*/
+    if(proc->types.pointer.last_obj != NULL && proc->reset_query == 0) {
+        indev_drag_throw(proc);
+        if(indev_reset_check(proc)) return;
+    }
+}

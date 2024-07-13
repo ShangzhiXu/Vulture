@@ -1,0 +1,43 @@
+void lv_page_start_edge_flash(lv_obj_t * page, lv_page_edge_t edge)
+{
+#if LV_USE_ANIMATION
+    lv_page_ext_t * ext = lv_obj_get_ext_attr(page);
+    if(ext->edge_flash.enabled == 0) return;
+
+    if(ext->edge_flash.left_ip ||
+       ext->edge_flash.right_ip ||
+       ext->edge_flash.top_ip ||
+       ext->edge_flash.bottom_ip) {
+        return;
+    }
+
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, page);
+    lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)edge_flash_anim);
+    lv_anim_set_values(&a, 0, LV_PAGE_END_FLASH_SIZE);
+    lv_anim_set_time(&a, lv_page_get_anim_time(page));
+    lv_anim_set_playback_time(&a, lv_page_get_anim_time(page));
+    lv_anim_set_playback_delay(&a, LV_PAGE_END_ANIM_WAIT_TIME);
+    lv_anim_set_ready_cb(&a, edge_flash_anim_end);
+    lv_anim_start(&a);
+
+    switch(edge) {
+        case LV_PAGE_EDGE_BOTTOM:
+            ext->edge_flash.bottom_ip = 1;
+            break;
+        case LV_PAGE_EDGE_TOP:
+            ext->edge_flash.top_ip = 1;
+            break;
+        case LV_PAGE_EDGE_LEFT:
+            ext->edge_flash.left_ip = 1;
+            break;
+        case LV_PAGE_EDGE_RIGHT:
+            ext->edge_flash.right_ip = 1;
+            break;
+    }
+
+#else
+    (void)page; /*Unused*/
+#endif
+}

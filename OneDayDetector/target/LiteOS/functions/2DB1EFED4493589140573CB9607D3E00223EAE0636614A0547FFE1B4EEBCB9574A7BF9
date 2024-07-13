@@ -1,0 +1,182 @@
+int test3(struct Options options)
+{
+    enum QoS subsqos = QOS2;
+    Network n;
+    MQTTClient c;
+    int rc;
+    const char *test_topic = "C client test3";
+    int wait_seconds = 0;
+    unsigned char buf[100];
+    unsigned char readbuf[100];
+    MQTTConnackData connack;
+    MQTTSubackData suback;
+
+    fprintf(xml, "<testcase classname=\"test3\" name=\"session state\"");
+    global_start_time = start_clock();
+    failures = 0;
+    MyLog(LOGA_INFO, "Starting test 3 - session state");
+
+    NetworkInit(&n);
+    MQTTClientInit(&c, &n, 1000, buf, 100, readbuf, 100);
+
+    MQTTPacket_connectData data = MQTTPacket_connectData_initializer;
+    data.willFlag = 1;
+    data.MQTTVersion = options.MQTTVersion;
+    data.clientID.cstring = (char *)"connack-session-state";
+    data.username.cstring = (char *)"testuser";
+    data.password.cstring = (char *)"testpassword";
+
+    data.keepAliveInterval = 10;
+    data.cleansession = 1;
+
+    data.will.message.cstring = (char *)"will message";
+    data.will.qos = 1;
+    data.will.retained = 0;
+    data.will.topicName.cstring = (char *)"will topic";
+
+    assert("Not connected", MQTTIsConnected(&c) == 0,
+           "isconnected was %d", MQTTIsConnected(&c));
+
+    MyLog(LOGA_DEBUG, "Connecting");
+    rc = NetworkConnect(&n, options.host, options.port);
+    assert("Good rc from TCP connect", rc == MQTT_SUCCESS, "rc was %d", rc);
+    if (rc != MQTT_SUCCESS)
+        goto exit;
+
+    rc = MQTTConnectWithResults(&c, &data, &connack);
+    assert("Good rc from connect", rc == MQTT_SUCCESS, "rc was %d", rc);
+    if (rc != MQTT_SUCCESS)
+        goto exit;
+
+    assert("Good rc in connack", connack.rc == 0, "rc was %d", connack.rc);
+    assert("Session present is 0", connack.sessionPresent == 0,
+           "sessionPresent was %d", connack.sessionPresent);
+
+    assert("Good rc in connack", MQTTIsConnected(&c) == 1,
+           "isconnected was %d", MQTTIsConnected(&c));
+
+    rc = MQTTDisconnect(&c);
+    assert("Disconnect successful", rc == MQTT_SUCCESS, "rc was %d", rc);
+    NetworkDisconnect(&n);
+
+    /* reconnect with cleansession false */
+    data.cleansession = 0;
+    rc = NetworkConnect(&n, options.proxy_host, options.proxy_port);
+    assert("TCP connect successful",  rc == MQTT_SUCCESS, "rc was %d", rc);
+    rc = MQTTConnectWithResults(&c, &data, &connack);
+    assert("Connect successful",  rc == MQTT_SUCCESS, "rc was %d", rc);
+
+    assert("Good rc in connack", connack.rc == 0, "rc was %d", connack.rc);
+    assert("Session present is 0", connack.sessionPresent == 0,
+           "sessionPresent was %d", connack.sessionPresent);
+
+    rc = MQTTSubscribeWithResults(&c, test_topic, subsqos, messageArrived, &suback);
+    assert("Good rc from subscribe", rc == MQTT_SUCCESS, "rc was %d", rc);
+    assert("Granted QoS rc from subscribe", suback.grantedQoS == QOS2,
+           "rc was %d", suback.grantedQoS);
+
+    check_subs_exist(&c, test_topic, 1);
+
+    rc = MQTTSubscribeWithResults(&c, test_topic, subsqos, messageArrived2, &suback);
+    assert("Good rc from subscribe", rc == MQTT_SUCCESS, "rc was %d", rc);
+    assert("Granted QoS rc from subscribe", suback.grantedQoS == QOS2,
+           "rc was %d", suback.grantedQoS);
+
+    check_subs_exist(&c, test_topic, 2);
+
+    rc = MQTTDisconnect(&c);
+    assert("Disconnect successful", rc == MQTT_SUCCESS, "rc was %d", rc);
+    NetworkDisconnect(&n);
+
+    /* reconnect with cleansession false */
+    data.cleansession = 0;
+    rc = NetworkConnect(&n, options.proxy_host, options.proxy_port);
+    assert("TCP connect successful",  rc == MQTT_SUCCESS, "rc was %d", rc);
+    rc = MQTTConnectWithResults(&c, &data, &connack);
+    assert("Connect successful",  rc == MQTT_SUCCESS, "rc was %d", rc);
+
+    assert("Good rc in connack", connack.rc == 0, "rc was %d", connack.rc);
+    assert("Session present is 1", connack.sessionPresent == 1,
+           "sessionPresent was %d", connack.sessionPresent);
+
+    check_subs_exist(&c, test_topic, 2);
+
+    rc = MQTTSubscribeWithResults(&c, test_topic, subsqos, messageArrived, &suback);
+    assert("Good rc from subscribe", rc == MQTT_SUCCESS, "rc was %d", rc);
+    assert("Granted QoS rc from subscribe", suback.grantedQoS == QOS2,
+           "rc was %d", suback.grantedQoS);
+
+    check_subs_exist(&c, test_topic, 1);
+
+    // cause a connection FAILURE
+    memset(&pubmsg, '\0', sizeof(pubmsg));
+    pubmsg.payload = (void *)"TERMINATE";
+    pubmsg.payloadlen = strlen((char *)pubmsg.payload);
+    pubmsg.qos = QOS0;
+    pubmsg.retained = 0;
+    pubmsg.dup = 0;
+    rc = MQTTPublish(&c, "MQTTSAS topic", &pubmsg);
+    assert("Good rc from publish", rc == MQTT_SUCCESS, "rc was %d", rc);
+
+    // wait for failure to be noticed by keepalive
+    wait_seconds = 20;
+    while (MQTTIsConnected(&c) && (wait_seconds-- > 0))
+    {
+        MQTTYield(&c, 1000);
+    }
+    assert("Disconnected", !MQTTIsConnected(&c), "isConnected was %d",
+           MQTTIsConnected(&c));
+    NetworkDisconnect(&n);
+
+    /* reconnect with cleansession false */
+    data.cleansession = 0;
+    rc = NetworkConnect(&n, options.host, options.port);
+    assert("TCP connect successful",  rc == MQTT_SUCCESS, "rc was %d", rc);
+    rc = MQTTConnectWithResults(&c, &data, &connack);
+    assert("Connect successful",  rc == MQTT_SUCCESS, "rc was %d", rc);
+
+    assert("Good rc in connack", connack.rc == 0, "rc was %d", connack.rc);
+    assert("Session present is 1", connack.sessionPresent == 1,
+           "sessionPresent was %d", connack.sessionPresent);
+
+    check_subs_exist(&c, test_topic, 1);
+
+    rc = MQTTSubscribeWithResults(&c, test_topic, subsqos, messageArrived2, &suback);
+    assert("Good rc from subscribe", rc == MQTT_SUCCESS, "rc was %d", rc);
+    assert("Granted QoS rc from subscribe", suback.grantedQoS == QOS2,
+           "rc was %d", suback.grantedQoS);
+
+    check_subs_exist(&c, test_topic, 2);
+
+    rc = MQTTDisconnect(&c);
+    assert("Disconnect successful", rc == MQTT_SUCCESS, "rc was %d", rc);
+    NetworkDisconnect(&n);
+
+    /* reconnect with cleansession true to clean up both server and client state */
+    data.cleansession = 1;
+    rc = NetworkConnect(&n, options.host, options.port);
+    assert("TCP connect successful",  rc == MQTT_SUCCESS, "rc was %d", rc);
+    rc = MQTTConnectWithResults(&c, &data, &connack);
+    assert("Connect successful",  rc == MQTT_SUCCESS, "rc was %d", rc);
+
+    assert("Good rc in connack", connack.rc == 0, "rc was %d", connack.rc);
+    assert("Session present is 0", connack.sessionPresent == 0,
+           "sessionPresent was %d", connack.sessionPresent);
+
+    rc = MQTTSubscribeWithResults(&c, test_topic, subsqos, messageArrived2, &suback);
+    assert("Good rc from subscribe", rc == MQTT_SUCCESS, "rc was %d", rc);
+    assert("Granted QoS rc from subscribe", suback.grantedQoS == QOS2,
+           "rc was %d", suback.grantedQoS);
+
+    check_subs_exist(&c, test_topic, 2);
+
+    rc = MQTTDisconnect(&c);
+    assert("Disconnect successful", rc == MQTT_SUCCESS, "rc was %d", rc);
+    NetworkDisconnect(&n);
+
+exit:
+    MyLog(LOGA_INFO, "TEST2: test %s. %d tests run, %d failures.",
+          (failures == 0) ? "passed" : "failed", tests, failures);
+    write_test_result();
+    return failures;
+}

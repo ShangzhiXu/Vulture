@@ -1,0 +1,71 @@
+int prv_serializeData(lwm2m_data_t *tlvP,
+                      uint8_t *parentUriStr,
+                      size_t parentUriLen,
+                      uint8_t *buffer,
+                      size_t bufferLen)
+{
+    int head;
+    int res;
+
+    head = 0;
+
+    switch (tlvP->type)
+    {
+    case LWM2M_TYPE_OBJECT:
+    case LWM2M_TYPE_OBJECT_INSTANCE:
+    case LWM2M_TYPE_MULTIPLE_RESOURCE:
+    {
+        uint8_t uriStr[URI_MAX_STRING_LEN];
+        size_t uriLen;
+        size_t index;
+
+        if (parentUriLen > 0)
+        {
+            if (URI_MAX_STRING_LEN < parentUriLen) return -1;
+            memcpy(uriStr, parentUriStr, parentUriLen);
+            uriLen = parentUriLen;
+        }
+        else
+        {
+            uriLen = 0;
+        }
+        res = utils_intToText(tlvP->id, uriStr + uriLen, URI_MAX_STRING_LEN - uriLen);
+        if (res <= 0) return -1;
+        uriLen += res;
+        uriStr[uriLen] = '/';
+        uriLen++;
+
+        head = 0;
+        for (index = 0 ; index < tlvP->value.asChildren.count; index++)
+        {
+            res = prv_serializeData(tlvP->value.asChildren.array + index, uriStr, uriLen, buffer + head, bufferLen - head);
+            if (res < 0) return -1;
+            head += res;
+        }
+    }
+    break;
+
+    default:
+        if (bufferLen < JSON_RES_ITEM_URI_SIZE) return -1;
+        memcpy(buffer, JSON_RES_ITEM_URI, JSON_RES_ITEM_URI_SIZE);
+        head = JSON_RES_ITEM_URI_SIZE;
+
+        if (parentUriLen > 0)
+        {
+            if (bufferLen - head < parentUriLen) return -1;
+            memcpy(buffer + head, parentUriStr, parentUriLen);
+            head += parentUriLen;
+        }
+
+        res = utils_intToText(tlvP->id, buffer + head, bufferLen - head);
+        if (res <= 0) return -1;
+        head += res;
+
+        res = prv_serializeValue(tlvP, buffer + head, bufferLen - head);
+        if (res < 0) return -1;
+        head += res;
+        break;
+    }
+
+    return head;
+}

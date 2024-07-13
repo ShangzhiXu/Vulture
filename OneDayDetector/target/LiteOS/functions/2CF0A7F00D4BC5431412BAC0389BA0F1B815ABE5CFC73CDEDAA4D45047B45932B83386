@@ -1,0 +1,15 @@
+LITE_OS_SEC_TEXT_INIT VOID ArchExcInit(VOID)
+{
+#ifndef LOSCFG_ARCH_CORTEX_M0
+    g_hwiVec[HARD_FAULT_IRQN + OS_SYS_VECTOR_CNT] = OsExcHardFault;
+    g_hwiVec[NonMaskableInt_IRQn + OS_SYS_VECTOR_CNT] = OsExcNMI;
+    g_hwiVec[MemoryManagement_IRQn + OS_SYS_VECTOR_CNT] = OsExcMemFault;
+    g_hwiVec[BusFault_IRQn + OS_SYS_VECTOR_CNT] = OsExcBusFault;
+    g_hwiVec[UsageFault_IRQn + OS_SYS_VECTOR_CNT] = OsExcUsageFault;
+    g_hwiVec[SVCall_IRQn + OS_SYS_VECTOR_CNT] = OsExcSvcCall;
+#endif
+    /* Enable USGFAULT, BUSFAULT, MEMFAULT */
+    *(volatile UINT32 *)OS_NVIC_SHCSR |= (USGFAULT | BUSFAULT | MEMFAULT);
+    /* Enable DIV 0 and unaligned exception */
+    *(volatile UINT32 *)OS_NVIC_CCR |= DIV0FAULT;
+}

@@ -1,0 +1,25 @@
+LITE_OS_SEC_TEXT UINT32 LOS_MemFree(VOID *pool, VOID *ptr)
+{
+    UINT32 ret;
+    UINT32 intSave;
+
+    if ((pool == NULL) || (ptr == NULL) ||
+        !IS_ALIGNED(pool, sizeof(VOID *)) || !IS_ALIGNED(ptr, sizeof(VOID *))) {
+        return LOS_NOK;
+    }
+
+    MEM_LOCK(intSave);
+
+    if (OsSlabMemFree(pool, ptr)) {
+        ret = LOS_OK;
+        goto OUT;
+    }
+
+    ret = OsMemFree(pool, ptr);
+OUT:
+    OsLmsSetAfterFree(ptr);
+    MEM_UNLOCK(intSave);
+
+    LOS_TRACE(MEM_FREE, pool, (UINTPTR)ptr);
+    return ret;
+}

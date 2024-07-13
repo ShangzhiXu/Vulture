@@ -1,0 +1,132 @@
+int mbedtls_nist_kw_wrap( mbedtls_nist_kw_context *ctx,
+                          mbedtls_nist_kw_mode_t mode,
+                          const unsigned char *input, size_t in_len,
+                          unsigned char *output, size_t *out_len, size_t out_size )
+{
+    int ret = 0;
+    size_t semiblocks = 0;
+    size_t s;
+    size_t olen, padlen = 0;
+    uint64_t t = 0;
+    unsigned char outbuff[KW_SEMIBLOCK_LENGTH * 2];
+    unsigned char inbuff[KW_SEMIBLOCK_LENGTH * 2];
+    unsigned char *R2 = output + KW_SEMIBLOCK_LENGTH;
+    unsigned char *A = output;
+
+    *out_len = 0;
+    /*
+     * Generate the String to work on
+     */
+    if( mode == MBEDTLS_KW_MODE_KW )
+    {
+        if( out_size < in_len + KW_SEMIBLOCK_LENGTH )
+        {
+            return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+        }
+
+        /*
+         * According to SP 800-38F Table 1, the plaintext length for KW
+         * must be between 2 to 2^54-1 semiblocks inclusive.
+         */
+        if( in_len < 16 ||
+#if SIZE_MAX > 0x1FFFFFFFFFFFFF8
+            in_len > 0x1FFFFFFFFFFFFF8 ||
+#endif
+            in_len % KW_SEMIBLOCK_LENGTH != 0 )
+        {
+            return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+        }
+
+        memcpy( output, NIST_KW_ICV1, KW_SEMIBLOCK_LENGTH );
+        memmove( output + KW_SEMIBLOCK_LENGTH, input, in_len );
+    }
+    else
+    {
+        if( in_len % 8 != 0 )
+        {
+            padlen = ( 8 - ( in_len % 8 ) );
+        }
+
+        if( out_size < in_len + KW_SEMIBLOCK_LENGTH + padlen )
+        {
+            return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+        }
+
+        /*
+         * According to SP 800-38F Table 1, the plaintext length for KWP
+         * must be between 1 and 2^32-1 octets inclusive.
+         */
+        if( in_len < 1
+#if SIZE_MAX > 0xFFFFFFFF
+            || in_len > 0xFFFFFFFF
+#endif
+          )
+        {
+            return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+        }
+
+        memcpy( output, NIST_KW_ICV2, KW_SEMIBLOCK_LENGTH / 2 );
+        PUT_UINT32_BE( ( in_len & 0xffffffff ), output,
+                       KW_SEMIBLOCK_LENGTH / 2 );
+
+        memcpy( output + KW_SEMIBLOCK_LENGTH, input, in_len );
+        memset( output + KW_SEMIBLOCK_LENGTH + in_len, 0, padlen );
+    }
+    semiblocks = ( ( in_len + padlen ) / KW_SEMIBLOCK_LENGTH ) + 1;
+
+    s = 6 * ( semiblocks - 1 );
+
+    if( mode == MBEDTLS_KW_MODE_KWP
+        && in_len <= KW_SEMIBLOCK_LENGTH )
+    {
+        memcpy( inbuff, output, 16 );
+        ret = mbedtls_cipher_update( &ctx->cipher_ctx,
+                                     inbuff, 16, output, &olen );
+        if( ret != 0 )
+            goto cleanup;
+    }
+    else
+    {
+        /*
+         * Do the wrapping function W, as defined in RFC 3394 section 2.2.1
+         */
+        if( semiblocks < MIN_SEMIBLOCKS_COUNT )
+        {
+            ret = MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA;
+            goto cleanup;
+        }
+
+        /* Calculate intermediate values */
+        for( t = 1; t <= s; t++ )
+        {
+            memcpy( inbuff, A, KW_SEMIBLOCK_LENGTH );
+            memcpy( inbuff + KW_SEMIBLOCK_LENGTH, R2, KW_SEMIBLOCK_LENGTH );
+
+            ret = mbedtls_cipher_update( &ctx->cipher_ctx,
+                                         inbuff, 16, outbuff, &olen );
+            if( ret != 0 )
+                goto cleanup;
+
+            memcpy( A, outbuff, KW_SEMIBLOCK_LENGTH );
+            calc_a_xor_t( A, t );
+
+            memcpy( R2, outbuff + KW_SEMIBLOCK_LENGTH, KW_SEMIBLOCK_LENGTH );
+            R2 += KW_SEMIBLOCK_LENGTH;
+            if( R2 >= output + ( semiblocks * KW_SEMIBLOCK_LENGTH ) )
+                R2 = output + KW_SEMIBLOCK_LENGTH;
+        }
+    }
+
+    *out_len = semiblocks * KW_SEMIBLOCK_LENGTH;
+
+cleanup:
+
+    if( ret != 0)
+    {
+        memset( output, 0, semiblocks * KW_SEMIBLOCK_LENGTH );
+    }
+    mbedtls_platform_zeroize( inbuff, KW_SEMIBLOCK_LENGTH * 2 );
+    mbedtls_platform_zeroize( outbuff, KW_SEMIBLOCK_LENGTH * 2 );
+
+    return( ret );
+}

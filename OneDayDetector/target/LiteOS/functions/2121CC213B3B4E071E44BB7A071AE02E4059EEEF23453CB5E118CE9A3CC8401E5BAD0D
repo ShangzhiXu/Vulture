@@ -1,0 +1,68 @@
+HAL_StatusTypeDef HAL_SD_Init(SD_HandleTypeDef *hsd)
+{ 
+  /* Check the SD handle allocation */
+  if(hsd == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_SDMMC_ALL_INSTANCE(hsd->Instance));
+  assert_param(IS_SDMMC_CLOCK_EDGE(hsd->Init.ClockEdge));
+#if !defined(STM32L4R5xx) && !defined(STM32L4R7xx) && !defined(STM32L4R9xx) && !defined(STM32L4S5xx) && !defined(STM32L4S7xx) && !defined(STM32L4S9xx)
+  assert_param(IS_SDMMC_CLOCK_BYPASS(hsd->Init.ClockBypass));
+#endif /* !STM32L4R5xx && !STM32L4R7xx && !STM32L4R9xx && !STM32L4S5xx && !STM32L4S7xx && !STM32L4S9xx */
+  assert_param(IS_SDMMC_CLOCK_POWER_SAVE(hsd->Init.ClockPowerSave));
+  assert_param(IS_SDMMC_BUS_WIDE(hsd->Init.BusWide));
+  assert_param(IS_SDMMC_HARDWARE_FLOW_CONTROL(hsd->Init.HardwareFlowControl));
+  assert_param(IS_SDMMC_CLKDIV(hsd->Init.ClockDiv));
+
+  if(hsd->State == HAL_SD_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hsd->Lock = HAL_UNLOCKED;
+    /* Init the low level hardware : GPIO, CLOCK, CORTEX...etc */
+    HAL_SD_MspInit(hsd);
+  }
+
+  hsd->State = HAL_SD_STATE_BUSY;
+
+  /* Initialize the Card parameters */
+  if (HAL_SD_InitCard(hsd) != HAL_OK)
+  {
+    return HAL_ERROR;
+  }
+
+#if defined(STM32L4R5xx) || defined(STM32L4R7xx) || defined(STM32L4R9xx) || defined(STM32L4S5xx) || defined(STM32L4S7xx) || defined(STM32L4S9xx)
+  /* Configure the bus wide */
+  if(HAL_SD_ConfigWideBusOperation(hsd, hsd->Init.BusWide) != HAL_OK)
+  {
+    return HAL_ERROR;
+  }
+  
+  if(hsd->Init.Transceiver == SDMMC_TRANSCEIVER_ENABLE)
+  {
+    if((hsd->SdCard.CardSpeed  == CARD_ULTRA_HIGH_SPEED) || 
+       (hsd->SdCard.CardType == CARD_SDHC_SDXC))
+    {
+      hsd->Instance->CLKCR |= 0x00100000;
+      /* Enable High Speed */
+      if(HAL_SDEx_HighSpeed(hsd) != HAL_OK)
+      {
+        return HAL_ERROR;
+      }
+    }
+  }
+#endif /* STM32L4R5xx || STM32L4R7xx || STM32L4R9xx || STM32L4S5xx || STM32L4S7xx || STM32L4S9xx */
+
+  /* Initialize the error code */
+  hsd->ErrorCode = HAL_SD_ERROR_NONE;
+  
+  /* Initialize the SD operation */
+  hsd->Context = SD_CONTEXT_NONE;
+  
+  /* Initialize the SD state */
+  hsd->State = HAL_SD_STATE_READY;
+
+  return HAL_OK;
+}

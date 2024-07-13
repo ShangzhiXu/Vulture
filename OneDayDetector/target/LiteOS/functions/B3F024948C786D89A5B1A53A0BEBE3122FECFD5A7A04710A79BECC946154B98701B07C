@@ -1,0 +1,31 @@
+tcp_pcb_remove(struct tcp_pcb **pcblist, struct tcp_pcb *pcb)
+{
+  LWIP_ASSERT("tcp_pcb_remove: invalid pcb", pcb != NULL);
+  LWIP_ASSERT("tcp_pcb_remove: invalid pcblist", pcblist != NULL);
+
+  TCP_RMV(pcblist, pcb);
+
+  tcp_pcb_purge(pcb);
+
+  /* if there is an outstanding delayed ACKs, send it */
+  if ((pcb->state != TIME_WAIT) &&
+      (pcb->state != LISTEN) &&
+      (pcb->flags & TF_ACK_DELAY)) {
+    tcp_ack_now(pcb);
+    tcp_output(pcb);
+  }
+
+  if (pcb->state != LISTEN) {
+    LWIP_ASSERT("unsent segments leaking", pcb->unsent == NULL);
+    LWIP_ASSERT("unacked segments leaking", pcb->unacked == NULL);
+#if TCP_QUEUE_OOSEQ
+    LWIP_ASSERT("ooseq segments leaking", pcb->ooseq == NULL);
+#endif /* TCP_QUEUE_OOSEQ */
+  }
+
+  pcb->state = CLOSED;
+  /* reset the local port to prevent the pcb from being 'bound' */
+  pcb->local_port = 0;
+
+  LWIP_ASSERT("tcp_pcb_remove: tcp_pcbs_sane()", tcp_pcbs_sane());
+}

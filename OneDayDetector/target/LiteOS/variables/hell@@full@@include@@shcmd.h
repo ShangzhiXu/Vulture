@@ -1,0 +1,14 @@
+    CmdItem *cmd;
+    CmdCallBackFunc cmdHook;
+    CHAR *cmdKey;
+    CmdItemNode cmdList;
+    CHAR cmdString[0];
+    CmdType cmdType;
+    UINT32 count;
+    UINT32 initMagicFlag;
+    LOS_DL_LIST list;
+    LOS_DL_LIST list;
+    UINT32 listNum;
+    UINT32 muxLock;
+    UINT32 paraNum;
+    CmdVerifyTransID transIdHook;

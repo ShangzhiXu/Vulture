@@ -1,0 +1,54 @@
+HAL_StatusTypeDef HAL_PWREx_DisableGPIOPullDown(uint32_t GPIO, uint32_t GPIONumber)
+{
+  assert_param(IS_PWR_GPIO(GPIO));
+  assert_param(IS_PWR_GPIO_BIT_NUMBER(GPIONumber));
+   
+  switch (GPIO)
+  {
+    case PWR_GPIO_A:
+       CLEAR_BIT(PWR->PDCRA, (GPIONumber & (~(PWR_GPIO_BIT_13|PWR_GPIO_BIT_15))));
+       break;
+    case PWR_GPIO_B:
+       CLEAR_BIT(PWR->PDCRB, (GPIONumber & (~(PWR_GPIO_BIT_4))));
+       break; 
+    case PWR_GPIO_C:
+       CLEAR_BIT(PWR->PDCRC, GPIONumber);
+       break;
+#if defined(GPIOD)
+    case PWR_GPIO_D:
+       CLEAR_BIT(PWR->PDCRD, GPIONumber);
+       break;
+#endif
+#if defined(GPIOE)
+    case PWR_GPIO_E:
+       CLEAR_BIT(PWR->PDCRE, GPIONumber);
+       break;
+#endif
+#if defined(GPIOF) 
+    case PWR_GPIO_F:
+       CLEAR_BIT(PWR->PDCRF, GPIONumber);
+       break;
+#endif
+#if defined(GPIOG)
+    case PWR_GPIO_G:
+       CLEAR_BIT(PWR->PDCRG, GPIONumber);
+       break;
+#endif
+    case PWR_GPIO_H:
+#if defined (STM32L496xx) || defined (STM32L4A6xx)
+       CLEAR_BIT(PWR->PDCRH, ((GPIONumber & PWR_PORTH_AVAILABLE_PINS) & (~(PWR_GPIO_BIT_3))));
+#else       
+       CLEAR_BIT(PWR->PDCRH, (GPIONumber & PWR_PORTH_AVAILABLE_PINS));
+#endif     
+       break; 
+#if defined(GPIOI)
+    case PWR_GPIO_I:
+       CLEAR_BIT(PWR->PDCRI, (GPIONumber & PWR_PORTI_AVAILABLE_PINS));
+       break;
+#endif
+    default:
+       return HAL_ERROR;
+  }
+  
+  return HAL_OK;
+}

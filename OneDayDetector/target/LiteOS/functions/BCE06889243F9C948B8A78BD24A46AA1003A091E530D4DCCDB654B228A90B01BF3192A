@@ -1,0 +1,16 @@
+icmp6_send_response(struct pbuf *p, u8_t code, u32_t data, u8_t type)
+{
+  const struct ip6_addr *reply_src, *reply_dest;
+  struct netif *netif = ip_current_netif();
+
+  LWIP_ASSERT("icmpv6 packet not a direct response", netif != NULL);
+  reply_dest = ip6_current_src_addr();
+
+  /* Select an address to use as source. */
+  reply_src = ip_2_ip6(ip6_select_source_address(netif, reply_dest));
+  if (reply_src == NULL) {
+    ICMP6_STATS_INC(icmp6.rterr);
+    return;
+  }
+  icmp6_send_response_with_addrs_and_netif(p, code, data, type, reply_src, reply_dest, netif);
+}

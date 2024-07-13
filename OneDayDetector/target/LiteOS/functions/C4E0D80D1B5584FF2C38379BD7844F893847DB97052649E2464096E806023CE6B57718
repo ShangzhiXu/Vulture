@@ -1,0 +1,20 @@
+static void I2S_DMAError(DMA_HandleTypeDef *hdma)
+{
+  I2S_HandleTypeDef *hi2s = (I2S_HandleTypeDef *)((DMA_HandleTypeDef *)hdma)->Parent; /* Derogation MISRAC2012-Rule-11.5 */
+
+  /* Disable Rx and Tx DMA Request */
+  CLEAR_BIT(hi2s->Instance->CR2, (SPI_CR2_RXDMAEN | SPI_CR2_TXDMAEN));
+  hi2s->TxXferCount = 0U;
+  hi2s->RxXferCount = 0U;
+
+  hi2s->State = HAL_I2S_STATE_READY;
+
+  /* Set the error code and execute error callback*/
+  SET_BIT(hi2s->ErrorCode, HAL_I2S_ERROR_DMA);
+  /* Call user error callback */
+#if (USE_HAL_I2S_REGISTER_CALLBACKS == 1U)
+  hi2s->ErrorCallback(hi2s);
+#else
+  HAL_I2S_ErrorCallback(hi2s);
+#endif /* USE_HAL_I2S_REGISTER_CALLBACKS */
+}

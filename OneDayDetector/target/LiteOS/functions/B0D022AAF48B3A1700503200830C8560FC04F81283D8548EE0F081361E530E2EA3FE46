@@ -1,0 +1,13 @@
+long lrint(double x)
+{
+	uint32_t abstop = asuint64(x)>>32 & 0x7fffffff;
+	uint64_t sign = asuint64(x) & (1ULL << 63);
+
+	if (abstop < 0x41dfffff) {
+		/* |x| < 0x7ffffc00, no overflow */
+		double_t toint = asdouble(asuint64(1/EPS) | sign);
+		double_t y = x + toint - toint;
+		return (long)y;
+	}
+	return lrint_slow(x);
+}

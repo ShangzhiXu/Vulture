@@ -1,0 +1,33 @@
+static void cjson_delete_item_from_array_should_not_broken_list_structure(void)
+{
+    const char expected_json1[] = "{\"rd\":[{\"a\":\"123\"}]}";
+    const char expected_json2[] = "{\"rd\":[{\"a\":\"123\"},{\"b\":\"456\"}]}";
+    const char expected_json3[] = "{\"rd\":[{\"b\":\"456\"}]}";
+    char *str1 = NULL;
+    char *str2 = NULL;
+    char *str3 = NULL;
+
+    cJSON *root = cJSON_Parse("{}");
+
+    cJSON *array = cJSON_AddArrayToObject(root, "rd");
+    cJSON *item1 = cJSON_Parse("{\"a\":\"123\"}");
+    cJSON *item2 = cJSON_Parse("{\"b\":\"456\"}");
+
+    cJSON_AddItemToArray(array, item1);
+    str1 = cJSON_PrintUnformatted(root);
+    TEST_ASSERT_EQUAL_STRING(expected_json1, str1);
+    free(str1);
+
+    cJSON_AddItemToArray(array, item2);
+    str2 = cJSON_PrintUnformatted(root);
+    TEST_ASSERT_EQUAL_STRING(expected_json2, str2);
+    free(str2);
+
+    /* this should not broken list structure */
+    cJSON_DeleteItemFromArray(array, 0);
+    str3 = cJSON_PrintUnformatted(root);
+    TEST_ASSERT_EQUAL_STRING(expected_json3, str3);
+    free(str3);
+
+    cJSON_Delete(root);
+}

@@ -1,0 +1,12 @@
+dhcp_option_trailer(u16_t options_out_len, u8_t *options, struct pbuf *p_out)
+{
+  options[options_out_len++] = DHCP_OPTION_END;
+  /* packet is too small, or not 4 byte aligned? */
+  while (((options_out_len < DHCP_MIN_OPTIONS_LEN) || (options_out_len & 3)) &&
+         (options_out_len < DHCP_OPTIONS_LEN)) {
+    /* add a fill/padding byte */
+    options[options_out_len++] = 0;
+  }
+  /* shrink the pbuf to the actual content length */
+  pbuf_realloc(p_out, (u16_t)(sizeof(struct dhcp_msg) - DHCP_OPTIONS_LEN + options_out_len));
+}

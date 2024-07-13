@@ -1,0 +1,93 @@
+HAL_StatusTypeDef HAL_PCD_RegisterCallback(PCD_HandleTypeDef *hpcd, HAL_PCD_CallbackIDTypeDef CallbackID, pPCD_CallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    /* Update the error code */
+    hpcd->ErrorCode |= HAL_PCD_ERROR_INVALID_CALLBACK;
+    return HAL_ERROR;
+  }
+  /* Process locked */
+  __HAL_LOCK(hpcd);
+
+  if (hpcd->State == HAL_PCD_STATE_READY)
+  {
+    switch (CallbackID)
+    {
+      case HAL_PCD_SOF_CB_ID :
+        hpcd->SOFCallback = pCallback;
+        break;
+
+      case HAL_PCD_SETUPSTAGE_CB_ID :
+        hpcd->SetupStageCallback = pCallback;
+        break;
+
+      case HAL_PCD_RESET_CB_ID :
+        hpcd->ResetCallback = pCallback;
+        break;
+
+      case HAL_PCD_SUSPEND_CB_ID :
+        hpcd->SuspendCallback = pCallback;
+        break;
+
+      case HAL_PCD_RESUME_CB_ID :
+        hpcd->ResumeCallback = pCallback;
+        break;
+
+      case HAL_PCD_CONNECT_CB_ID :
+        hpcd->ConnectCallback = pCallback;
+        break;
+
+      case HAL_PCD_DISCONNECT_CB_ID :
+        hpcd->DisconnectCallback = pCallback;
+        break;
+
+      case HAL_PCD_MSPINIT_CB_ID :
+        hpcd->MspInitCallback = pCallback;
+        break;
+
+      case HAL_PCD_MSPDEINIT_CB_ID :
+        hpcd->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hpcd->ErrorCode |= HAL_PCD_ERROR_INVALID_CALLBACK;
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if (hpcd->State == HAL_PCD_STATE_RESET)
+  {
+    switch (CallbackID)
+    {
+      case HAL_PCD_MSPINIT_CB_ID :
+        hpcd->MspInitCallback = pCallback;
+        break;
+
+      case HAL_PCD_MSPDEINIT_CB_ID :
+        hpcd->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hpcd->ErrorCode |= HAL_PCD_ERROR_INVALID_CALLBACK;
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    hpcd->ErrorCode |= HAL_PCD_ERROR_INVALID_CALLBACK;
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hpcd);
+  return status;
+}

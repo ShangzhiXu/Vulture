@@ -1,0 +1,48 @@
+HAL_StatusTypeDef HAL_FLASHEx_AdvOBProgram (FLASH_AdvOBProgramInitTypeDef *pAdvOBInit)
+{
+  HAL_StatusTypeDef status = HAL_ERROR;
+  
+  /* Check the parameters */
+  assert_param(IS_OBEX(pAdvOBInit->OptionType));
+
+  /*Program PCROP option byte*/
+  if(((pAdvOBInit->OptionType) & OPTIONBYTE_PCROP) == OPTIONBYTE_PCROP)
+  {
+    /* Check the parameters */
+    assert_param(IS_PCROPSTATE(pAdvOBInit->PCROPState));
+    if((pAdvOBInit->PCROPState) == OB_PCROP_STATE_ENABLE)
+    {
+      /*Enable of Write protection on the selected Sector*/
+#if defined(STM32F401xC) || defined(STM32F401xE) || defined(STM32F410Tx) || defined(STM32F410Cx) || defined(STM32F410Rx) ||\
+    defined(STM32F411xE) || defined(STM32F446xx) || defined(STM32F412Zx) || defined(STM32F412Vx) || defined(STM32F412Rx) ||\
+    defined(STM32F412Cx) || defined(STM32F413xx) || defined(STM32F423xx)
+      status = FLASH_OB_EnablePCROP(pAdvOBInit->Sectors);
+#else  /* STM32F427xx || STM32F437xx || STM32F429xx|| STM32F439xx || STM32F469xx || STM32F479xx */
+      status = FLASH_OB_EnablePCROP(pAdvOBInit->SectorsBank1, pAdvOBInit->SectorsBank2, pAdvOBInit->Banks);
+#endif /* STM32F401xC || STM32F401xE || STM32F410xx || STM32F411xE || STM32F446xx || STM32F412Zx || STM32F412Vx || STM32F412Rx || STM32F412Cx ||
+          STM32F413xx || STM32F423xx */
+    }
+    else
+    {
+      /*Disable of Write protection on the selected Sector*/
+#if defined(STM32F401xC) || defined(STM32F401xE) || defined(STM32F410Tx) || defined(STM32F410Cx) || defined(STM32F410Rx) ||\
+    defined(STM32F411xE) || defined(STM32F446xx) || defined(STM32F412Zx) || defined(STM32F412Vx) || defined(STM32F412Rx) ||\
+    defined(STM32F412Cx) || defined(STM32F413xx) || defined(STM32F423xx)
+      status = FLASH_OB_DisablePCROP(pAdvOBInit->Sectors);
+#else /* STM32F427xx || STM32F437xx || STM32F429xx|| STM32F439xx || STM32F469xx || STM32F479xx */
+      status = FLASH_OB_DisablePCROP(pAdvOBInit->SectorsBank1, pAdvOBInit->SectorsBank2, pAdvOBInit->Banks);
+#endif /* STM32F401xC || STM32F401xE || STM32F410xx || STM32F411xE || STM32F446xx || STM32F412Zx || STM32F412Vx || STM32F412Rx || STM32F412Cx ||
+          STM32F413xx || STM32F423xx */
+    }
+  }
+   
+#if defined(STM32F427xx) || defined(STM32F437xx) || defined(STM32F429xx) || defined(STM32F439xx) || defined(STM32F469xx) || defined(STM32F479xx)
+  /*Program BOOT config option byte*/
+  if(((pAdvOBInit->OptionType) & OPTIONBYTE_BOOTCONFIG) == OPTIONBYTE_BOOTCONFIG)
+  {
+    status = FLASH_OB_BootConfig(pAdvOBInit->BootConfig);
+  }
+#endif /* STM32F427xx || STM32F437xx || STM32F429xx || STM32F439xx || STM32F469xx || STM32F479xx */
+
+  return status;
+}

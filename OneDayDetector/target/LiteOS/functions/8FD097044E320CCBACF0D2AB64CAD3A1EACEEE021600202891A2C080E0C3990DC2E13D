@@ -1,0 +1,14 @@
+tcp_poll(struct tcp_pcb *pcb, tcp_poll_fn poll, u8_t interval)
+{
+  LWIP_ASSERT_CORE_LOCKED();
+
+  LWIP_ERROR("tcp_poll: invalid pcb", pcb != NULL, return);
+  LWIP_ASSERT("invalid socket state for poll", pcb->state != LISTEN);
+
+#if LWIP_CALLBACK_API
+  pcb->poll = poll;
+#else /* LWIP_CALLBACK_API */
+  LWIP_UNUSED_ARG(poll);
+#endif /* LWIP_CALLBACK_API */
+  pcb->pollinterval = interval;
+}

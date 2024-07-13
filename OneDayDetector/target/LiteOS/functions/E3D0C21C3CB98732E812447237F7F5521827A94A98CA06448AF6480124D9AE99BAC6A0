@@ -1,0 +1,22 @@
+int mbedtls_mpi_safe_cond_assign( mbedtls_mpi *X, const mbedtls_mpi *Y, unsigned char assign )
+{
+    int ret = 0;
+    size_t i;
+    MPI_VALIDATE_RET( X != NULL );
+    MPI_VALIDATE_RET( Y != NULL );
+
+    /* make sure assign is 0 or 1 in a time-constant manner */
+    assign = (assign | (unsigned char)-assign) >> 7;
+
+    MBEDTLS_MPI_CHK( mbedtls_mpi_grow( X, Y->n ) );
+
+    X->s = X->s * ( 1 - assign ) + Y->s * assign;
+
+    mpi_safe_cond_assign( Y->n, X->p, Y->p, assign );
+
+    for( i = Y->n; i < X->n; i++ )
+        X->p[i] *= ( 1 - assign );
+
+cleanup:
+    return( ret );
+}

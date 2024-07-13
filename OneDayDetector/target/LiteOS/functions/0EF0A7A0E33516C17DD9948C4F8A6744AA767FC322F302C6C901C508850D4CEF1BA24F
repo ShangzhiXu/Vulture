@@ -1,0 +1,23 @@
+STATIC VOID CreatBlockMap(const BlockCB *blockCB)
+{
+    UINT64 tbl = blockCB->tbl;
+    UINT64 flags = blockCB->flags;
+    UINT64 phys = blockCB->phys;
+    UINT64 start = blockCB->start;
+    UINT64 end = blockCB->end;
+    UINT64 blockShift = blockCB->blockShift;
+    UINT64 offsetGB = (end - start) >> SHIFT_1G;
+
+    phys = phys >> blockShift;
+    start = start >> blockShift;
+    start &= ITEM_MASK;
+    phys = flags | (phys << blockShift);
+    end = end >> blockShift;
+    end &= ITEM_MASK;
+    end += offsetGB << ADDR_WIDTH_DIFF;
+    while (start <= end) {
+        *(UINT64 *)(tbl + (start * BYTES_PER_ITEM)) = phys;
+        start++;
+        phys += ((UINT64)1UL << blockShift);
+    }
+}

@@ -1,0 +1,100 @@
+HAL_StatusTypeDef HAL_USART_RegisterCallback(USART_HandleTypeDef *husart, HAL_USART_CallbackIDTypeDef CallbackID,
+                                             pUSART_CallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    /* Update the error code */
+    husart->ErrorCode |= HAL_USART_ERROR_INVALID_CALLBACK;
+
+    return HAL_ERROR;
+  }
+  /* Process locked */
+  __HAL_LOCK(husart);
+
+  if (husart->State == HAL_USART_STATE_READY)
+  {
+    switch (CallbackID)
+    {
+      case HAL_USART_TX_HALFCOMPLETE_CB_ID :
+        husart->TxHalfCpltCallback = pCallback;
+        break;
+
+      case HAL_USART_TX_COMPLETE_CB_ID :
+        husart->TxCpltCallback = pCallback;
+        break;
+
+      case HAL_USART_RX_HALFCOMPLETE_CB_ID :
+        husart->RxHalfCpltCallback = pCallback;
+        break;
+
+      case HAL_USART_RX_COMPLETE_CB_ID :
+        husart->RxCpltCallback = pCallback;
+        break;
+
+      case HAL_USART_TX_RX_COMPLETE_CB_ID :
+        husart->TxRxCpltCallback = pCallback;
+        break;
+
+      case HAL_USART_ERROR_CB_ID :
+        husart->ErrorCallback = pCallback;
+        break;
+
+      case HAL_USART_ABORT_COMPLETE_CB_ID :
+        husart->AbortCpltCallback = pCallback;
+        break;
+
+
+      case HAL_USART_MSPINIT_CB_ID :
+        husart->MspInitCallback = pCallback;
+        break;
+
+      case HAL_USART_MSPDEINIT_CB_ID :
+        husart->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        husart->ErrorCode |= HAL_USART_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if (husart->State == HAL_USART_STATE_RESET)
+  {
+    switch (CallbackID)
+    {
+      case HAL_USART_MSPINIT_CB_ID :
+        husart->MspInitCallback = pCallback;
+        break;
+
+      case HAL_USART_MSPDEINIT_CB_ID :
+        husart->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        husart->ErrorCode |= HAL_USART_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    husart->ErrorCode |= HAL_USART_ERROR_INVALID_CALLBACK;
+
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(husart);
+
+  return status;
+}

@@ -1,0 +1,73 @@
+void lv_textarea_set_cursor_pos(lv_obj_t * ta, int16_t pos)
+{
+    LV_ASSERT_OBJ(ta, LV_OBJX_NAME);
+
+    lv_textarea_ext_t * ext = lv_obj_get_ext_attr(ta);
+    if(ext->cursor.pos == pos) return;
+
+    uint16_t len = _lv_txt_get_encoded_length(lv_label_get_text(ext->label));
+
+    if(pos < 0) pos = len + pos;
+
+    if(pos > len || pos == LV_TEXTAREA_CURSOR_LAST) pos = len;
+
+    ext->cursor.pos = pos;
+
+    /*Position the label to make the cursor visible*/
+    lv_obj_t * label_par = lv_obj_get_parent(ext->label);
+    lv_point_t cur_pos;
+    const lv_font_t * font = lv_obj_get_style_text_font(ta, LV_TEXTAREA_PART_BG);
+    lv_style_int_t top = lv_obj_get_style_pad_top(ta, LV_TEXTAREA_PART_BG);
+    lv_style_int_t bottom = lv_obj_get_style_pad_bottom(ta, LV_TEXTAREA_PART_BG);
+    lv_area_t label_cords;
+    lv_area_t ta_cords;
+    lv_label_get_letter_pos(ext->label, pos, &cur_pos);
+    lv_obj_get_coords(ta, &ta_cords);
+    lv_obj_get_coords(ext->label, &label_cords);
+
+    /*Check the top*/
+    lv_coord_t font_h = lv_font_get_line_height(font);
+    if(lv_obj_get_y(label_par) + cur_pos.y < 0) {
+        lv_obj_set_y(label_par, -cur_pos.y + top);
+    }
+
+    /*Check the bottom*/
+    if(label_cords.y1 + cur_pos.y + font_h + bottom > ta_cords.y2) {
+        lv_obj_set_y(label_par, -(cur_pos.y - lv_obj_get_height(ta) + font_h + top + bottom));
+    }
+    /*Check the left (use the font_h as general unit)*/
+    if(lv_obj_get_x(label_par) + cur_pos.x < font_h) {
+        lv_obj_set_x(label_par, -cur_pos.x + font_h);
+    }
+
+    lv_style_int_t right = lv_obj_get_style_pad_right(ta, LV_TEXTAREA_PART_BG);
+    lv_style_int_t left = lv_obj_get_style_pad_left(ta, LV_TEXTAREA_PART_BG);
+    /*Check the right (use the font_h as general unit)*/
+    if(label_cords.x1 + cur_pos.x + font_h + right > ta_cords.x2) {
+        lv_obj_set_x(label_par, -(cur_pos.x - lv_obj_get_width(ta) + font_h + left + right));
+    }
+
+    ext->cursor.valid_x = cur_pos.x;
+
+#if LV_USE_ANIMATION
+    if(ext->cursor.blink_time) {
+        /*Reset cursor blink animation*/
+        lv_anim_path_t path;
+        lv_anim_path_init(&path);
+        lv_anim_path_set_cb(&path, lv_anim_path_step);
+
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, ta);
+        lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)cursor_blink_anim);
+        lv_anim_set_time(&a, ext->cursor.blink_time);
+        lv_anim_set_playback_time(&a, ext->cursor.blink_time);
+        lv_anim_set_values(&a, 1, 0);
+        lv_anim_set_path(&a, &path);
+        lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+        lv_anim_start(&a);
+    }
+#endif
+
+    refr_cursor_area(ta);
+}

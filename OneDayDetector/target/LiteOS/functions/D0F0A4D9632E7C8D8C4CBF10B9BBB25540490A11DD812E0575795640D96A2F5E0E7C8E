@@ -1,0 +1,48 @@
+HAL_StatusTypeDef HAL_DAC_Start(DAC_HandleTypeDef* hdac, uint32_t Channel)
+{
+  uint32_t tmp1 = 0U, tmp2 = 0U;
+  
+  /* Check the parameters */
+  assert_param(IS_DAC_CHANNEL(Channel));
+  
+  /* Process locked */
+  __HAL_LOCK(hdac);
+  
+  /* Change DAC state */
+  hdac->State = HAL_DAC_STATE_BUSY;
+  
+  /* Enable the Peripheral */
+  __HAL_DAC_ENABLE(hdac, Channel);
+  
+  if(Channel == DAC_CHANNEL_1)
+  {
+    tmp1 = hdac->Instance->CR & DAC_CR_TEN1;
+    tmp2 = hdac->Instance->CR & DAC_CR_TSEL1;
+    /* Check if software trigger enabled */
+    if((tmp1 ==  DAC_CR_TEN1) && (tmp2 ==  DAC_CR_TSEL1))
+    {
+      /* Enable the selected DAC software conversion */
+      hdac->Instance->SWTRIGR |= (uint32_t)DAC_SWTRIGR_SWTRIG1;
+    }
+  }
+  else
+  {
+    tmp1 = hdac->Instance->CR & DAC_CR_TEN2;
+    tmp2 = hdac->Instance->CR & DAC_CR_TSEL2;    
+    /* Check if software trigger enabled */
+    if((tmp1 == DAC_CR_TEN2) && (tmp2 == DAC_CR_TSEL2))
+    {
+      /* Enable the selected DAC software conversion*/
+      hdac->Instance->SWTRIGR |= (uint32_t)DAC_SWTRIGR_SWTRIG2;
+    }
+  }
+  
+  /* Change DAC state */
+  hdac->State = HAL_DAC_STATE_READY;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hdac);
+    
+  /* Return function status */
+  return HAL_OK;
+}

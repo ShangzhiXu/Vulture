@@ -1,0 +1,36 @@
+static int32_t sota_new_ver_process(const ota_pcp_head_s *head, const uint8_t *pbuf)
+{
+    char ver[VER_LEN];
+    ota_ver_notify_t *notify = (ota_ver_notify_t *)pbuf;
+
+    (void)g_flash_op.get_ver(ver, VER_LEN);
+    if (strncmp(ver, (const char *)notify->ver, VER_LEN) == 0) {
+        SOTA_LOG("Already latest version %s", notify->ver);
+        sota_send_response_code(MSG_NOTIFY_NEW_VER, DEV_LATEST_VER);
+        g_at_update_record.state = IDLE;
+        return SOTA_OK;
+    }
+
+    SOTA_LOG("Notify ver %s,%x, record ver:%s,%x", notify->ver, notify->ver_chk_code, g_at_update_record.ver,
+        g_at_update_record.ver_chk_code);
+    if ((strncmp(g_at_update_record.ver, (const char *)notify->ver, VER_LEN) == 0) &&
+        (notify->ver_chk_code == g_at_update_record.ver_chk_code)) {
+        SOTA_LOG("state %d, downloaded %d blocks", g_at_update_record.state, g_at_update_record.block_num);
+        if ((g_at_update_record.block_num < g_at_update_record.block_totalnum) &&
+            (g_at_update_record.state == DOWNLOADING)) {
+            sota_send_request_block((char *)notify->ver);
+            return SOTA_DOWNLOADING;
+        } else if ((g_at_update_record.block_num == g_at_update_record.block_totalnum) &&
+            (g_at_update_record.state == UPDATING)) {
+            sota_send_response_code(MSG_DOWNLOAD_STATE, DEV_OK);
+            return SOTA_UPDATING;
+        } else if ((g_at_update_record.block_num == g_at_update_record.block_totalnum) &&
+            (g_at_update_record.state == UPDATED)) {
+            return SOTA_UPDATED;
+        }
+    }
+
+    sota_reset_record_info(notify);
+    sota_send_request_block((char *)notify->ver);
+    return SOTA_DOWNLOADING;
+}

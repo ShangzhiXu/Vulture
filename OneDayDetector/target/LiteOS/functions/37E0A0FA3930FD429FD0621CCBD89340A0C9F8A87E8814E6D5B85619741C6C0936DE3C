@@ -1,0 +1,19 @@
+static uint32_t UTILS_GetPLLOutputFrequency(uint32_t PLL_InputFrequency, LL_UTILS_PLLInitTypeDef *UTILS_PLLInitStruct)
+{
+  uint32_t pllfreq = 0U;
+
+  /* Check the parameters */
+  assert_param(IS_LL_UTILS_PLLMUL_VALUE(UTILS_PLLInitStruct->PLLMul));
+
+  /* Check different PLL parameters according to RM                          */
+  /* The application software must set correctly the PLL multiplication factor to 
+     be in the range 16-48MHz */
+#if defined(RCC_PLLSRC_PREDIV1_SUPPORT)
+  pllfreq = __LL_RCC_CALC_PLLCLK_FREQ(PLL_InputFrequency, UTILS_PLLInitStruct->PLLMul, UTILS_PLLInitStruct->PLLDiv);
+#else
+  pllfreq = __LL_RCC_CALC_PLLCLK_FREQ(PLL_InputFrequency / (UTILS_PLLInitStruct->Prediv + 1U), UTILS_PLLInitStruct->PLLMul);
+#endif /*RCC_PLLSRC_PREDIV1_SUPPORT*/
+  assert_param(IS_LL_UTILS_PLL_FREQUENCY(pllfreq));
+
+  return pllfreq;
+}

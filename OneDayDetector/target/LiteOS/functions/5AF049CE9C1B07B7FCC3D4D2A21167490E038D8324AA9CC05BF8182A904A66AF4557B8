@@ -1,0 +1,51 @@
+static int cmac_test_wth_cipher( int verbose,
+                                 const char* testname,
+                                 const unsigned char* key,
+                                 int keybits,
+                                 const unsigned char* messages,
+                                 const unsigned int message_lengths[4],
+                                 const unsigned char* expected_result,
+                                 mbedtls_cipher_type_t cipher_type,
+                                 int block_size,
+                                 int num_tests )
+{
+    const mbedtls_cipher_info_t *cipher_info;
+    int i, ret = 0;
+    unsigned char output[MBEDTLS_CIPHER_BLKSIZE_MAX];
+
+    cipher_info = mbedtls_cipher_info_from_type( cipher_type );
+    if( cipher_info == NULL )
+    {
+        /* Failing at this point must be due to a build issue */
+        ret = MBEDTLS_ERR_CIPHER_FEATURE_UNAVAILABLE;
+        goto exit;
+    }
+
+    for( i = 0; i < num_tests; i++ )
+    {
+        if( verbose != 0 )
+            mbedtls_printf( "  %s CMAC #%u: ", testname, i + 1 );
+
+        if( ( ret = mbedtls_cipher_cmac( cipher_info, key, keybits, messages,
+                                         message_lengths[i], output ) ) != 0 )
+        {
+            if( verbose != 0 )
+                mbedtls_printf( "failed\n" );
+            goto exit;
+        }
+
+        if( ( ret = memcmp( output, &expected_result[i * block_size], block_size ) ) != 0 )
+        {
+            if( verbose != 0 )
+                mbedtls_printf( "failed\n" );
+            goto exit;
+        }
+
+        if( verbose != 0 )
+            mbedtls_printf( "passed\n" );
+    }
+    ret = 0;
+
+exit:
+    return( ret );
+}

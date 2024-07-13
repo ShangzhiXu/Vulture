@@ -1,0 +1,77 @@
+lv_obj_t * lv_chart_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+    LV_LOG_TRACE("chart create started");
+
+    /*Create the ancestor basic object*/
+    lv_obj_t * chart = lv_obj_create(par, copy);
+    LV_ASSERT_MEM(chart);
+    if(chart == NULL) return NULL;
+
+    /*Allocate the object type specific extended data*/
+    lv_chart_ext_t * ext = lv_obj_allocate_ext_attr(chart, sizeof(lv_chart_ext_t));
+    LV_ASSERT_MEM(ext);
+    if(ext == NULL) {
+        lv_obj_del(chart);
+        return NULL;
+    }
+
+    _lv_ll_init(&ext->series_ll, sizeof(lv_chart_series_t));
+
+    ext->ymin                  = LV_CHART_YMIN_DEF;
+    ext->ymax                  = LV_CHART_YMAX_DEF;
+    ext->hdiv_cnt              = LV_CHART_HDIV_DEF;
+    ext->vdiv_cnt              = LV_CHART_VDIV_DEF;
+    ext->point_cnt             = LV_CHART_PNUM_DEF;
+    ext->type                  = LV_CHART_TYPE_LINE;
+    ext->update_mode           = LV_CHART_UPDATE_MODE_SHIFT;
+    _lv_memset_00(&ext->x_axis, sizeof(ext->x_axis));
+    _lv_memset_00(&ext->y_axis, sizeof(ext->y_axis));
+    _lv_memset_00(&ext->secondary_y_axis, sizeof(ext->secondary_y_axis));
+    ext->x_axis.major_tick_len = LV_CHART_TICK_LENGTH_AUTO;
+    ext->x_axis.minor_tick_len = LV_CHART_TICK_LENGTH_AUTO;
+    ext->y_axis.major_tick_len = LV_CHART_TICK_LENGTH_AUTO;
+    ext->y_axis.minor_tick_len = LV_CHART_TICK_LENGTH_AUTO;
+    ext->secondary_y_axis.major_tick_len = LV_CHART_TICK_LENGTH_AUTO;
+    ext->secondary_y_axis.minor_tick_len = LV_CHART_TICK_LENGTH_AUTO;
+
+
+    lv_style_list_init(&ext->style_series_bg);
+    lv_style_list_init(&ext->style_series);
+
+    if(ancestor_design == NULL) ancestor_design = lv_obj_get_design_cb(chart);
+    if(ancestor_signal == NULL) ancestor_signal = lv_obj_get_signal_cb(chart);
+
+    lv_obj_set_signal_cb(chart, lv_chart_signal);
+    lv_obj_set_design_cb(chart, lv_chart_design);
+
+    /*Init the new chart background object*/
+    if(copy == NULL) {
+        lv_obj_set_size(chart, LV_DPI * 3, LV_DPI * 2);
+
+        lv_theme_apply(chart, LV_THEME_CHART);
+
+    }
+    else {
+        lv_chart_ext_t * ext_copy = lv_obj_get_ext_attr(copy);
+
+        lv_style_list_copy(&ext->style_series, &ext_copy->style_series);
+        lv_style_list_copy(&ext->style_series_bg, &ext_copy->style_series_bg);
+
+        ext->type       = ext_copy->type;
+        ext->ymin       = ext_copy->ymin;
+        ext->ymax       = ext_copy->ymax;
+        ext->hdiv_cnt   = ext_copy->hdiv_cnt;
+        ext->vdiv_cnt   = ext_copy->vdiv_cnt;
+        ext->point_cnt  = ext_copy->point_cnt;
+        _lv_memcpy(&ext->x_axis, &ext_copy->x_axis, sizeof(lv_chart_axis_cfg_t));
+        _lv_memcpy(&ext->y_axis, &ext_copy->y_axis, sizeof(lv_chart_axis_cfg_t));
+        _lv_memcpy(&ext->secondary_y_axis, &ext_copy->secondary_y_axis, sizeof(lv_chart_axis_cfg_t));
+
+        /*Refresh the style with new signal function*/
+        lv_obj_refresh_style(chart, LV_STYLE_PROP_ALL);
+    }
+
+    LV_LOG_INFO("chart created");
+
+    return chart;
+}

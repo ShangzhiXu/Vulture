@@ -1,0 +1,36 @@
+int ConnectNetwork(Network *n, char *addr, int port)
+{
+    SlSockAddrIn_t sAddr;
+    int addrSize;
+    int retVal;
+    unsigned long ipAddress;
+
+    sl_NetAppDnsGetHostByName(addr, strlen(addr), &ipAddress, AF_INET);
+
+    sAddr.sin_family = AF_INET;
+    sAddr.sin_port = sl_Htons((unsigned short)port);
+    sAddr.sin_addr.s_addr = sl_Htonl(ipAddress);
+
+    addrSize = sizeof(SlSockAddrIn_t);
+
+    n->my_socket = sl_Socket(SL_AF_INET, SL_SOCK_STREAM, 0);
+    if( n->my_socket < 0 )
+    {
+        // error
+        return -1;
+    }
+
+    retVal = sl_Connect(n->my_socket, ( SlSockAddr_t *)&sAddr, addrSize);
+    if( retVal < 0 )
+    {
+        // error
+        sl_Close(n->my_socket);
+        return retVal;
+    }
+
+    SysTickIntRegister(SysTickIntHandler);
+    SysTickPeriodSet(80000);
+    SysTickEnable();
+
+    return retVal;
+}

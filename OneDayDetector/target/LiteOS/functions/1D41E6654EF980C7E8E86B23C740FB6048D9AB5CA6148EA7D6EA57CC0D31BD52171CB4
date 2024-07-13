@@ -1,0 +1,121 @@
+void HAL_PCD_IRQHandler(PCD_HandleTypeDef *hpcd)
+{
+  if (__HAL_PCD_GET_FLAG(hpcd, USB_ISTR_CTR))
+  {
+    /* servicing of the endpoint correct transfer interrupt */
+    /* clear of the CTR flag into the sub */
+    (void)PCD_EP_ISR_Handler(hpcd);
+  }
+
+  if (__HAL_PCD_GET_FLAG(hpcd, USB_ISTR_RESET))
+  {
+    __HAL_PCD_CLEAR_FLAG(hpcd, USB_ISTR_RESET);
+
+#if (USE_HAL_PCD_REGISTER_CALLBACKS == 1U)
+    hpcd->ResetCallback(hpcd);
+#else
+    HAL_PCD_ResetCallback(hpcd);
+#endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
+
+    (void)HAL_PCD_SetAddress(hpcd, 0U);
+  }
+
+  if (__HAL_PCD_GET_FLAG(hpcd, USB_ISTR_PMAOVR))
+  {
+    __HAL_PCD_CLEAR_FLAG(hpcd, USB_ISTR_PMAOVR);
+  }
+
+  if (__HAL_PCD_GET_FLAG(hpcd, USB_ISTR_ERR))
+  {
+    __HAL_PCD_CLEAR_FLAG(hpcd, USB_ISTR_ERR);
+  }
+
+  if (__HAL_PCD_GET_FLAG(hpcd, USB_ISTR_WKUP))
+  {
+    hpcd->Instance->CNTR &= (uint16_t) ~(USB_CNTR_LPMODE);
+    hpcd->Instance->CNTR &= (uint16_t) ~(USB_CNTR_FSUSP);
+
+    if (hpcd->LPM_State == LPM_L1)
+    {
+      hpcd->LPM_State = LPM_L0;
+#if (USE_HAL_PCD_REGISTER_CALLBACKS == 1U)
+      hpcd->LPMCallback(hpcd, PCD_LPM_L0_ACTIVE);
+#else
+      HAL_PCDEx_LPM_Callback(hpcd, PCD_LPM_L0_ACTIVE);
+#endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
+    }
+
+#if (USE_HAL_PCD_REGISTER_CALLBACKS == 1U)
+    hpcd->ResumeCallback(hpcd);
+#else
+    HAL_PCD_ResumeCallback(hpcd);
+#endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
+
+    __HAL_PCD_CLEAR_FLAG(hpcd, USB_ISTR_WKUP);
+  }
+
+  if (__HAL_PCD_GET_FLAG(hpcd, USB_ISTR_SUSP))
+  {
+    /* Force low-power mode in the macrocell */
+    hpcd->Instance->CNTR |= USB_CNTR_FSUSP;
+
+    /* clear of the ISTR bit must be done after setting of CNTR_FSUSP */
+    __HAL_PCD_CLEAR_FLAG(hpcd, USB_ISTR_SUSP);
+
+    hpcd->Instance->CNTR |= USB_CNTR_LPMODE;
+
+    if (__HAL_PCD_GET_FLAG(hpcd, USB_ISTR_WKUP) == 0U)
+    {
+#if (USE_HAL_PCD_REGISTER_CALLBACKS == 1U)
+      hpcd->SuspendCallback(hpcd);
+#else
+      HAL_PCD_SuspendCallback(hpcd);
+#endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
+    }
+  }
+
+  /* Handle LPM Interrupt */
+  if (__HAL_PCD_GET_FLAG(hpcd, USB_ISTR_L1REQ))
+  {
+    __HAL_PCD_CLEAR_FLAG(hpcd, USB_ISTR_L1REQ);
+    if (hpcd->LPM_State == LPM_L0)
+    {
+      /* Force suspend and low-power mode before going to L1 state*/
+      hpcd->Instance->CNTR |= USB_CNTR_LPMODE;
+      hpcd->Instance->CNTR |= USB_CNTR_FSUSP;
+
+      hpcd->LPM_State = LPM_L1;
+      hpcd->BESL = ((uint32_t)hpcd->Instance->LPMCSR & USB_LPMCSR_BESL) >> 2;
+#if (USE_HAL_PCD_REGISTER_CALLBACKS == 1U)
+      hpcd->LPMCallback(hpcd, PCD_LPM_L1_ACTIVE);
+#else
+      HAL_PCDEx_LPM_Callback(hpcd, PCD_LPM_L1_ACTIVE);
+#endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
+    }
+    else
+    {
+#if (USE_HAL_PCD_REGISTER_CALLBACKS == 1U)
+      hpcd->SuspendCallback(hpcd);
+#else
+      HAL_PCD_SuspendCallback(hpcd);
+#endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
+    }
+  }
+
+  if (__HAL_PCD_GET_FLAG(hpcd, USB_ISTR_SOF))
+  {
+    __HAL_PCD_CLEAR_FLAG(hpcd, USB_ISTR_SOF);
+
+#if (USE_HAL_PCD_REGISTER_CALLBACKS == 1U)
+    hpcd->SOFCallback(hpcd);
+#else
+    HAL_PCD_SOFCallback(hpcd);
+#endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
+  }
+
+  if (__HAL_PCD_GET_FLAG(hpcd, USB_ISTR_ESOF))
+  {
+    /* clear ESOF flag in ISTR */
+    __HAL_PCD_CLEAR_FLAG(hpcd, USB_ISTR_ESOF);
+  }
+}

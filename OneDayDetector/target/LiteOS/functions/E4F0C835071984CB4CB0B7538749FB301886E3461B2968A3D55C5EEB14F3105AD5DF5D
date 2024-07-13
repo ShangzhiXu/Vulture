@@ -1,0 +1,33 @@
+static void SD_DMATxAbort(DMA_HandleTypeDef *hdma)
+{
+  SD_HandleTypeDef* hsd = (SD_HandleTypeDef* )(hdma->Parent);
+  HAL_SD_CardStateTypeDef CardState;
+
+  /* Clear All flags */
+  __HAL_SD_CLEAR_FLAG(hsd, SDIO_STATIC_DATA_FLAGS);
+
+  CardState = HAL_SD_GetCardState(hsd);
+  hsd->State = HAL_SD_STATE_READY;
+  hsd->Context = SD_CONTEXT_NONE;
+  if((CardState == HAL_SD_CARD_RECEIVING) || (CardState == HAL_SD_CARD_SENDING))
+  {
+    hsd->ErrorCode |= SDMMC_CmdStopTransfer(hsd->Instance);
+  }
+
+  if(hsd->ErrorCode == HAL_SD_ERROR_NONE)
+  {
+#if (USE_HAL_SD_REGISTER_CALLBACKS == 1)
+    hsd->AbortCpltCallback(hsd);
+#else
+    HAL_SD_AbortCallback(hsd);
+#endif
+  }
+  else
+  {
+#if (USE_HAL_SD_REGISTER_CALLBACKS == 1)
+    hsd->ErrorCallback(hsd);
+#else
+    HAL_SD_ErrorCallback(hsd);
+#endif
+  }
+}

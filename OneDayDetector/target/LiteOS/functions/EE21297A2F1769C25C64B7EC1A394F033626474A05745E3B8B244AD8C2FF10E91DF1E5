@@ -1,0 +1,85 @@
+void HAL_DMA_IRQHandler(DMA_HandleTypeDef *hdma)
+{
+  /* Transfer Error Interrupt management ***************************************/
+  if(__HAL_DMA_GET_FLAG(hdma, __HAL_DMA_GET_TE_FLAG_INDEX(hdma)) != RESET)
+  {
+    if(__HAL_DMA_GET_IT_SOURCE(hdma, DMA_IT_TE) != RESET)
+    {
+      /* Disable the transfer error interrupt */
+      __HAL_DMA_DISABLE_IT(hdma, DMA_IT_TE);
+      
+      /* Clear the transfer error flag */
+      __HAL_DMA_CLEAR_FLAG(hdma, __HAL_DMA_GET_TE_FLAG_INDEX(hdma));
+      
+      /* Update error code */
+      SET_BIT(hdma->ErrorCode, HAL_DMA_ERROR_TE);
+      
+      /* Change the DMA state */
+      hdma->State = HAL_DMA_STATE_ERROR;
+      
+      /* Process Unlocked */
+      __HAL_UNLOCK(hdma); 
+      
+      if (hdma->XferErrorCallback != NULL)
+      {
+        /* Transfer error callback */
+        hdma->XferErrorCallback(hdma);
+      }
+    }
+  }
+
+  /* Half Transfer Complete Interrupt management ******************************/
+  if(__HAL_DMA_GET_FLAG(hdma, __HAL_DMA_GET_HT_FLAG_INDEX(hdma)) != RESET)
+  {
+    if(__HAL_DMA_GET_IT_SOURCE(hdma, DMA_IT_HT) != RESET)
+    { 
+      /* Disable the half transfer interrupt if the DMA mode is not CIRCULAR */
+      if((hdma->Instance->CCR & DMA_CCR_CIRC) == 0)
+      {
+        /* Disable the half transfer interrupt */
+        __HAL_DMA_DISABLE_IT(hdma, DMA_IT_HT);
+      }
+      /* Clear the half transfer complete flag */
+      __HAL_DMA_CLEAR_FLAG(hdma, __HAL_DMA_GET_HT_FLAG_INDEX(hdma));
+
+      /* Change DMA peripheral state */
+      hdma->State = HAL_DMA_STATE_READY_HALF;
+
+      if(hdma->XferHalfCpltCallback != NULL)
+      {
+        /* Half transfer callback */
+        hdma->XferHalfCpltCallback(hdma);
+      }
+    }
+  }
+  
+  /* Transfer Complete Interrupt management ***********************************/
+  if(__HAL_DMA_GET_FLAG(hdma, __HAL_DMA_GET_TC_FLAG_INDEX(hdma)) != RESET)
+  {
+    if(__HAL_DMA_GET_IT_SOURCE(hdma, DMA_IT_TC) != RESET)
+    {
+      if((hdma->Instance->CCR & DMA_CCR_CIRC) == 0)
+      {
+        /* Disable the transfer complete interrupt */
+        __HAL_DMA_DISABLE_IT(hdma, DMA_IT_TC);
+      }
+      /* Clear the transfer complete flag */
+      __HAL_DMA_CLEAR_FLAG(hdma, __HAL_DMA_GET_TC_FLAG_INDEX(hdma));
+    
+      /* Update error code */
+      SET_BIT(hdma->ErrorCode, HAL_DMA_ERROR_NONE);
+
+      /* Change the DMA state */
+      hdma->State = HAL_DMA_STATE_READY;
+    
+      /* Process Unlocked */
+      __HAL_UNLOCK(hdma);
+    
+      if(hdma->XferCpltCallback != NULL)
+      {       
+        /* Transfer complete callback */
+        hdma->XferCpltCallback(hdma);
+      }
+    }
+  }
+}

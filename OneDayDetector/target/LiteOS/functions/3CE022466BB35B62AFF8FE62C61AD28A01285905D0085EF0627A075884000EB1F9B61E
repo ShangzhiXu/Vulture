@@ -1,0 +1,33 @@
+static HAL_StatusTypeDef USART_WaitOnFlagUntilTimeout(USART_HandleTypeDef *husart, uint32_t Flag, FlagStatus Status, uint32_t Tickstart, uint32_t Timeout)
+{
+  /* Wait until flag is set */
+  while ((__HAL_USART_GET_FLAG(husart, Flag) ? SET : RESET) == Status)
+  {
+    /* Check for the Timeout */
+    if (Timeout != HAL_MAX_DELAY)
+    {
+      if ((Timeout == 0U) || ((HAL_GetTick() - Tickstart) > Timeout))
+      {
+        /* Disable the USART Transmit Complete Interrupt */
+        CLEAR_BIT(husart->Instance->CR1, USART_CR1_TXEIE);
+
+        /* Disable the USART RXNE Interrupt */
+        CLEAR_BIT(husart->Instance->CR1, USART_CR1_RXNEIE);
+
+        /* Disable the USART Parity Error Interrupt */
+        CLEAR_BIT(husart->Instance->CR1, USART_CR1_PEIE);
+
+        /* Disable the USART Error Interrupt: (Frame error, noise error, overrun error) */
+        CLEAR_BIT(husart->Instance->CR3, USART_CR3_EIE);
+
+        husart->State = HAL_USART_STATE_READY;
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(husart);
+
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+  return HAL_OK;
+}

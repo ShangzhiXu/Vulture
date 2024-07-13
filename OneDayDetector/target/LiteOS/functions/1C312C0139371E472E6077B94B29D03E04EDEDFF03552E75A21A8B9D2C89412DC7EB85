@@ -1,0 +1,94 @@
+HAL_StatusTypeDef HAL_SD_ConfigWideBusOperation(SD_HandleTypeDef *hsd, uint32_t WideMode)
+{
+  SDMMC_InitTypeDef Init;
+  uint32_t errorstate = HAL_SD_ERROR_NONE;
+  
+  /* Check the parameters */
+  assert_param(IS_SDMMC_BUS_WIDE(WideMode));
+  
+  /* Change State */
+  hsd->State = HAL_SD_STATE_BUSY;
+  
+  if(hsd->SdCard.CardType != CARD_SECURED) 
+  {
+    if(WideMode == SDMMC_BUS_WIDE_8B)
+    {
+      hsd->ErrorCode |= HAL_SD_ERROR_UNSUPPORTED_FEATURE;
+    }
+    else if(WideMode == SDMMC_BUS_WIDE_4B)
+    {
+      errorstate = SD_WideBus_Enable(hsd);
+      
+      hsd->ErrorCode |= errorstate;
+    }
+    else if(WideMode == SDMMC_BUS_WIDE_1B)
+    {
+      errorstate = SD_WideBus_Disable(hsd);
+      
+      hsd->ErrorCode |= errorstate;
+    }
+    else
+    {
+      /* WideMode is not a valid argument*/
+      hsd->ErrorCode |= HAL_SD_ERROR_PARAM;
+    }
+  }  
+  else
+  {
+    /* MMC Card does not support this feature */
+    hsd->ErrorCode |= HAL_SD_ERROR_UNSUPPORTED_FEATURE;
+  }
+  
+  if(hsd->ErrorCode != HAL_SD_ERROR_NONE)
+  {
+    /* Clear all the static flags */
+    __HAL_SD_CLEAR_FLAG(hsd, SDMMC_STATIC_FLAGS);
+    hsd->State = HAL_SD_STATE_READY;
+    return HAL_ERROR;
+  }
+  else
+  {
+    /* Configure the SDMMC peripheral */
+    Init.ClockEdge           = hsd->Init.ClockEdge;
+#if !defined(STM32L4R5xx) && !defined(STM32L4R7xx) && !defined(STM32L4R9xx) && !defined(STM32L4S5xx) && !defined(STM32L4S7xx) && !defined(STM32L4S9xx)
+    Init.ClockBypass         = hsd->Init.ClockBypass;
+#endif /* !STM32L4R5xx && !STM32L4R7xx && !STM32L4R9xx && !STM32L4S5xx && !STM32L4S7xx && !STM32L4S9xx */
+    Init.ClockPowerSave      = hsd->Init.ClockPowerSave;
+    Init.BusWide             = WideMode;
+    Init.HardwareFlowControl = hsd->Init.HardwareFlowControl;
+#if defined(STM32L4R5xx) || defined(STM32L4R7xx) || defined(STM32L4R9xx) || defined(STM32L4S5xx) || defined(STM32L4S7xx) || defined(STM32L4S9xx)
+#if 0
+    /* Check if user Clock div < Normal speed 25Mhz, no change in Clockdiv */
+    // if(hsd->Init.ClockDiv >= SDMMC_NSpeed_CLK_DIV)
+    if(hsd->Init.ClockDiv >= SDMMC_TRANSFER_CLK_DIV)
+    {
+      Init.ClockDiv = hsd->Init.ClockDiv;
+    }
+    else
+    {
+      if(hsd->SdCard.CardSpeed == CARD_ULTRA_HIGH_SPEED)
+      {
+        Init.ClockDiv = hsd->Init.ClockDiv;
+      }
+      else
+      {
+        /* No High speed SD card */
+        // Init.ClockDiv = SDMMC_NSpeed_CLK_DIV;
+        Init.ClockDiv = SDMMC_TRANSFER_CLK_DIV;
+      }
+    }
+#else
+    Init.ClockDiv            = hsd->Init.ClockDiv;
+#endif
+#else
+    Init.ClockDiv            = hsd->Init.ClockDiv;
+#endif /* STM32L4R5xx || STM32L4R7xx || STM32L4R9xx || STM32L4S5xx || STM32L4S7xx || STM32L4S9xx */
+
+    SDMMC_Init(hsd->Instance, Init);
+  }
+
+  /* Change State */
+  hsd->State = HAL_SD_STATE_READY;
+  
+  return HAL_OK;
+}

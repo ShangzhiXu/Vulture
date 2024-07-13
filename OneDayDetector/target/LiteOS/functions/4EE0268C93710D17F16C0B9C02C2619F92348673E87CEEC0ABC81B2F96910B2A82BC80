@@ -1,0 +1,24 @@
+int sni_callback( void *p_info, mbedtls_ssl_context *ssl,
+                  const unsigned char *name, size_t name_len )
+{
+    const sni_entry *cur = (const sni_entry *) p_info;
+
+    while( cur != NULL )
+    {
+        if( name_len == strlen( cur->name ) &&
+            memcmp( name, cur->name, name_len ) == 0 )
+        {
+            if( cur->ca != NULL )
+                mbedtls_ssl_set_hs_ca_chain( ssl, cur->ca, cur->crl );
+
+            if( cur->authmode != DFL_AUTH_MODE )
+                mbedtls_ssl_set_hs_authmode( ssl, cur->authmode );
+
+            return( mbedtls_ssl_set_hs_own_cert( ssl, cur->cert, cur->key ) );
+        }
+
+        cur = cur->next;
+    }
+
+    return( -1 );
+}

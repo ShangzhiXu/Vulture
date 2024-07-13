@@ -1,0 +1,40 @@
+static uint32_t JPEG_GetQuality(JPEG_HandleTypeDef *hjpeg)
+{
+  uint32_t quality = 0;
+  uint32_t quantRow, quantVal, scale, i, j;
+  __IO uint32_t *tableAddress = hjpeg->Instance->QMEM0;
+
+  i = 0;
+  while (i < (JPEG_QUANT_TABLE_SIZE - 3UL))
+  {
+    quantRow = *tableAddress;
+    for (j = 0; j < 4UL; j++)
+    {
+      quantVal = (quantRow >> (8UL * j)) & 0xFFUL;
+      if (quantVal == 1UL)
+      {
+        /* if Quantization value = 1 then quality is 100%*/
+        quality += 100UL;
+      }
+      else
+      {
+        /* Note that the quantization coefficients must be specified in the table in zigzag order */
+        scale = (quantVal * 100UL) / ((uint32_t) hjpeg->QuantTable0[JPEG_ZIGZAG_ORDER[i + j]]);
+
+        if (scale <= 100UL)
+        {
+          quality += (200UL - scale) / 2UL;
+        }
+        else
+        {
+          quality += 5000UL / scale;
+        }
+      }
+    }
+
+    i += 4UL;
+    tableAddress ++;
+  }
+
+  return (quality / 64UL);
+}

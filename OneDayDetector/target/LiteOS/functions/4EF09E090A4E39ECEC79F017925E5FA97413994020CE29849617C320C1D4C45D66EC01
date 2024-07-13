@@ -1,0 +1,18 @@
+STATIC VOID CreatPmdTable(UINT64 pteTableAddr, UINT64 startAddr, UINT64 endAddr)
+{
+    UINT64 tbl = PMD_PAGE_GET(startAddr);
+    UINT64 indexStart = startAddr >> SHIFT_2M;
+    UINT64 indexEnd = endAddr >> SHIFT_2M;
+    UINT64 index;
+
+    indexStart &= ITEM_MASK;
+    indexEnd &= ITEM_MASK;
+    indexEnd += ((endAddr - startAddr) >> SHIFT_1G) << ADDR_WIDTH_DIFF;
+
+    for (index = indexStart; index <= indexEnd; ++index) {
+        *(UINT64 *)(tbl + (index * BYTES_PER_ITEM)) = pteTableAddr | MMU_PTE_L012_DESCRIPTOR_TABLE;
+        pteTableAddr += PAGE_SIZE;
+    }
+    v8_dma_clean_range(tbl + (indexStart * BYTES_PER_ITEM), tbl + (indexEnd * BYTES_PER_ITEM));
+    __asm__ __volatile__("tlbi    vmalle1");
+}

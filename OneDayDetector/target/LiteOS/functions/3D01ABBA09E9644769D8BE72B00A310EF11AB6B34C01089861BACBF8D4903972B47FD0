@@ -1,0 +1,41 @@
+void atiny_event_handle(module_type_t type, int code, const char *arg, int arg_len)
+{
+    switch (type) {
+    case MODULE_LWM2M: {
+        if (code == STATE_REGISTERED) {
+            atiny_event_notify(ATINY_REG_OK, NULL, 0);
+#ifdef CONFIG_FEATURE_FOTA
+            (void)atiny_fota_manager_repot_result(atiny_fota_manager_get_instance());
+#endif
+        } else if (code == STATE_REG_FAILED) {
+            atiny_event_notify(ATINY_REG_FAIL, NULL, 0);
+        }
+        break;
+    }
+    case MODULE_NET: {
+        break;
+    }
+    case MODULE_URI: {
+        if ((arg == NULL) || (arg_len < sizeof(lwm2m_uri_t))) {
+            break;
+        }
+
+        if (code == OBSERVE_UNSUBSCRIBE) {
+            if (dm_isUriOpaqueHandle((lwm2m_uri_t *)arg)) {
+                atiny_report_type_e rpt_type = APP_DATA;
+                atiny_event_notify(ATINY_DATA_UNSUBSCRIBLE, (char *)&rpt_type, sizeof(rpt_type));
+            }
+            (void)atiny_clear_rpt_data((lwm2m_uri_t *)arg, SENT_FAIL);
+        } else if (code == OBSERVE_SUBSCRIBE) {
+            if (dm_isUriOpaqueHandle((lwm2m_uri_t *)arg)) {
+                atiny_report_type_e rpt_type = APP_DATA;
+                atiny_event_notify(ATINY_DATA_SUBSCRIBLE, (char *)&rpt_type, sizeof(rpt_type));
+            }
+        }
+
+        break;
+    }
+    default:
+        break;
+    }
+}

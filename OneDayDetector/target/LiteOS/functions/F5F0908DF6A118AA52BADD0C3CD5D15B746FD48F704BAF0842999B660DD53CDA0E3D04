@@ -1,0 +1,33 @@
+static ssize_t ramfs_write(struct file *file, const char *buff, size_t bytes)
+{
+    struct mount_point *mp = file->f_mp;
+    struct ramfs_element *ramfs_file = (struct ramfs_element *)file->f_data;
+
+    if (file->f_offset < 0) {
+        file->f_offset = 0;
+    }
+
+    if (file->f_offset + bytes > ramfs_file->f.size) {
+        char *p;
+
+        p = LOS_MemRealloc(((struct ramfs_mount_point *)mp->m_data)->memory, ramfs_file->f.content,
+            file->f_offset + bytes);
+        if (p != NULL) {
+            ramfs_file->f.content = p;
+            ramfs_file->f.size = file->f_offset + bytes;
+        } else {
+            if (ramfs_file->f.size <= (size_t)file->f_offset) {
+                VFS_ERRNO_SET(ENOMEM);
+                return (ssize_t)-1;
+            }
+
+            bytes = ramfs_file->f.size - file->f_offset;
+        }
+    }
+
+    memcpy(ramfs_file->f.content + file->f_offset, buff, bytes);
+
+    file->f_offset += bytes;
+
+    return bytes;
+}

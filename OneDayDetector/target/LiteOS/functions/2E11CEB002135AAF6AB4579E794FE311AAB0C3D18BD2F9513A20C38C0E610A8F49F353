@@ -1,0 +1,50 @@
+LITE_OS_SEC_TEXT_INIT VOID OsExcHandleEntry(UINT32 excType, ExcContext *excBufAddr)
+{
+#if (LOSCFG_KERNEL_SMP == YES)
+    /* use halt ipi to stop other active cores */
+    UINT32 target = (UINT32)(OS_MP_CPU_ALL & ~CPUID_TO_AFFI_MASK(ArchCurrCpuid()));
+    HalIrqSendIpi(target, LOS_MP_IPI_HALT);
+
+    OsPercpuGet()->excFlag = CPU_EXC;
+    LOCKDEP_CLEAR_LOCKS();
+    CheckAllCpuStatus();
+#endif
+
+#ifdef LOSCFG_SHELL_EXCINFO_DUMP
+    LogReadWriteFunc func = OsGetExcInfoRW();
+#endif
+
+    g_curNestCount++;
+
+    if (g_excHook != NULL) {
+        if (g_curNestCount == 1) {
+#ifdef LOSCFG_SHELL_EXCINFO_DUMP
+            if (func != NULL) {
+                OsSetExcInfoOffset(0);
+                OsIrqNestingCntSet(0); /* 0: int nest count */
+                OsRecordExcInfoTime();
+                OsIrqNestingCntSet(1); /* 1: int nest count */
+            }
+#endif
+            g_excHook(excType, excBufAddr);
+        } else {
+            OsCallStackInfo();
+        }
+
+#ifdef LOSCFG_SHELL_EXCINFO_DUMP
+        if (func != NULL) {
+            PrintExcInfo("Be sure your space bigger than OsOsGetExcInfoOffset():0x%x\n", OsGetExcInfoOffset());
+            OsIrqNestingCntSet(0);     /* 0: int nest count */
+            func(OsGetExcInfoDumpAddr(), OsGetExcInfoLen(), 0, OsGetExcInfoBuf());
+            OsIrqNestingCntSet(1);     /* 1: int nest count */
+        }
+#endif
+    }
+#ifdef LOSCFG_EXC_INTERACTION
+    OsKeepExcInteractionTask();
+#endif
+
+    while (1) {
+        ;
+    }
+}

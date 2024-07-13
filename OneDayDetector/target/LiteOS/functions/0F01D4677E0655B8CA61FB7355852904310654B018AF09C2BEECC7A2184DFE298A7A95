@@ -1,0 +1,62 @@
+static bool prv_convertValue(_record_t *recordP,
+                             lwm2m_data_t *targetP)
+{
+    switch (recordP->type)
+    {
+    case _TYPE_FALSE:
+        lwm2m_data_encode_bool(false, targetP);
+        break;
+    case _TYPE_TRUE:
+        lwm2m_data_encode_bool(true, targetP);
+        break;
+    case _TYPE_FLOAT:
+    {
+        size_t i;
+
+        i = 0;
+        while (i < recordP->valueLen
+                && recordP->value[i] != '.')
+        {
+            i++;
+        }
+        if (i == recordP->valueLen)
+        {
+            int64_t value;
+
+            if ( 1 != utils_textToInt(recordP->value,
+                                      recordP->valueLen,
+                                      &value))
+            {
+                return false;
+            }
+
+            lwm2m_data_encode_int(value, targetP);
+        }
+        else
+        {
+            double value;
+
+            if ( 1 != utils_textToFloat(recordP->value,
+                                        recordP->valueLen,
+                                        &value))
+            {
+                return false;
+            }
+
+            lwm2m_data_encode_float(value, targetP);
+        }
+    }
+    break;
+
+    case _TYPE_STRING:
+        lwm2m_data_encode_opaque(recordP->value, recordP->valueLen, targetP);
+        targetP->type = LWM2M_TYPE_STRING;
+        break;
+
+    case _TYPE_UNSET:
+    default:
+        return false;
+    }
+
+    return true;
+}

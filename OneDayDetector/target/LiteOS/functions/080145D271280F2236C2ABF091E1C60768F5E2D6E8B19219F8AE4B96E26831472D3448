@@ -1,0 +1,42 @@
+static void lcp_up(fsm *f) {
+    ppp_pcb *pcb = f->pcb;
+    lcp_options *wo = &pcb->lcp_wantoptions;
+    lcp_options *ho = &pcb->lcp_hisoptions;
+    lcp_options *go = &pcb->lcp_gotoptions;
+    lcp_options *ao = &pcb->lcp_allowoptions;
+    int mtu, mru;
+
+    if (!go->neg_magicnumber)
+	go->magicnumber = 0;
+    if (!ho->neg_magicnumber)
+	ho->magicnumber = 0;
+
+    /*
+     * Set our MTU to the smaller of the MTU we wanted and
+     * the MRU our peer wanted.  If we negotiated an MRU,
+     * set our MRU to the larger of value we wanted and
+     * the value we got in the negotiation.
+     * Note on the MTU: the link MTU can be the MRU the peer wanted,
+     * the interface MTU is set to the lowest of that, the
+     * MTU we want to use, and our link MRU.
+     */
+    mtu = ho->neg_mru? ho->mru: PPP_MRU;
+    mru = go->neg_mru? LWIP_MAX(wo->mru, go->mru): PPP_MRU;
+#ifdef HAVE_MULTILINK
+    if (!(multilink && go->neg_mrru && ho->neg_mrru))
+#endif /* HAVE_MULTILINK */
+	netif_set_mtu(pcb, LWIP_MIN(LWIP_MIN(mtu, mru), ao->mru));
+    ppp_send_config(pcb, mtu,
+		    (ho->neg_asyncmap? ho->asyncmap: 0xffffffff),
+		    ho->neg_pcompression, ho->neg_accompression);
+    ppp_recv_config(pcb, mru,
+		    (pcb->settings.lax_recv? 0: go->neg_asyncmap? go->asyncmap: 0xffffffff),
+		    go->neg_pcompression, go->neg_accompression);
+
+    if (ho->neg_mru)
+	pcb->peer_mru = ho->mru;
+
+    lcp_echo_lowerup(f->pcb);  /* Enable echo messages */
+
+    link_established(pcb);
+}

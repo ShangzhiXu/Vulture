@@ -1,0 +1,71 @@
+void LCD_DrawLine(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2)
+{
+    uint16_t t;
+    int xerr = 0, yerr = 0, delta_x, delta_y, distance;
+    int incx, incy, row, col;
+    uint32_t i = 0;
+
+    if(y1 == y2)
+    {
+        /*快速画水平线*/
+        LCD_Address_Set(x1, y1, x2, y2);
+
+        for(i = 0; i < x2 - x1; i++)
+        {
+            lcd_buf[2 * i] = POINT_COLOR >> 8;
+            lcd_buf[2 * i + 1] = POINT_COLOR;
+        }
+
+        LCD_DC(1);
+        LCD_SPI_Send(lcd_buf, (x2 - x1) * 2);
+        return;
+    }
+
+    delta_x = x2 - x1;
+    delta_y = y2 - y1;
+    row = x1;
+    col = y1;
+
+    if(delta_x > 0)incx = 1;
+
+    else if(delta_x == 0)incx = 0;
+
+    else
+    {
+        incx = -1;
+        delta_x = -delta_x;
+    }
+
+    if(delta_y > 0)incy = 1;
+
+    else if(delta_y == 0)incy = 0;
+
+    else
+    {
+        incy = -1;
+        delta_y = -delta_y;
+    }
+
+    if(delta_x > delta_y)distance = delta_x;
+
+    else distance = delta_y;
+
+    for(t = 0; t <= distance + 1; t++)
+    {
+        LCD_Draw_Point(row, col);
+        xerr += delta_x ;
+        yerr += delta_y ;
+
+        if(xerr > distance)
+        {
+            xerr -= distance;
+            row += incx;
+        }
+
+        if(yerr > distance)
+        {
+            yerr -= distance;
+            col += incy;
+        }
+    }
+}

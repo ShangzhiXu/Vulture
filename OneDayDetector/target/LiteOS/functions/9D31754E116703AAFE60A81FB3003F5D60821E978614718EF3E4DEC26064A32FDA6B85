@@ -1,0 +1,115 @@
+int mbedtls_entropy_func( void *data, unsigned char *output, size_t len )
+{
+    int ret, count = 0, i, done;
+    mbedtls_entropy_context *ctx = (mbedtls_entropy_context *) data;
+    unsigned char buf[MBEDTLS_ENTROPY_BLOCK_SIZE];
+
+    if( len > MBEDTLS_ENTROPY_BLOCK_SIZE )
+        return( MBEDTLS_ERR_ENTROPY_SOURCE_FAILED );
+
+#if defined(MBEDTLS_ENTROPY_NV_SEED)
+    /* Update the NV entropy seed before generating any entropy for outside
+     * use.
+     */
+    if( ctx->initial_entropy_run == 0 )
+    {
+        ctx->initial_entropy_run = 1;
+        if( ( ret = mbedtls_entropy_update_nv_seed( ctx ) ) != 0 )
+            return( ret );
+    }
+#endif
+
+#if defined(MBEDTLS_THREADING_C)
+    if( ( ret = mbedtls_mutex_lock( &ctx->mutex ) ) != 0 )
+        return( ret );
+#endif
+
+    /*
+     * Always gather extra entropy before a call
+     */
+    do
+    {
+        if( count++ > ENTROPY_MAX_LOOP )
+        {
+            ret = MBEDTLS_ERR_ENTROPY_SOURCE_FAILED;
+            goto exit;
+        }
+
+        if( ( ret = entropy_gather_internal( ctx ) ) != 0 )
+            goto exit;
+
+        done = 1;
+        for( i = 0; i < ctx->source_count; i++ )
+            if( ctx->source[i].size < ctx->source[i].threshold )
+                done = 0;
+    }
+    while( ! done );
+
+    memset( buf, 0, MBEDTLS_ENTROPY_BLOCK_SIZE );
+
+#if defined(MBEDTLS_ENTROPY_SHA512_ACCUMULATOR)
+    /*
+     * Note that at this stage it is assumed that the accumulator was started
+     * in a previous call to entropy_update(). If this is not guaranteed, the
+     * code below will fail.
+     */
+    if( ( ret = mbedtls_sha512_finish_ret( &ctx->accumulator, buf ) ) != 0 )
+        goto exit;
+
+    /*
+     * Reset accumulator and counters and recycle existing entropy
+     */
+    mbedtls_sha512_free( &ctx->accumulator );
+    mbedtls_sha512_init( &ctx->accumulator );
+    if( ( ret = mbedtls_sha512_starts_ret( &ctx->accumulator, 0 ) ) != 0 )
+        goto exit;
+    if( ( ret = mbedtls_sha512_update_ret( &ctx->accumulator, buf,
+                                           MBEDTLS_ENTROPY_BLOCK_SIZE ) ) != 0 )
+        goto exit;
+
+    /*
+     * Perform second SHA-512 on entropy
+     */
+    if( ( ret = mbedtls_sha512_ret( buf, MBEDTLS_ENTROPY_BLOCK_SIZE,
+                                    buf, 0 ) ) != 0 )
+        goto exit;
+#else /* MBEDTLS_ENTROPY_SHA512_ACCUMULATOR */
+    if( ( ret = mbedtls_sha256_finish_ret( &ctx->accumulator, buf ) ) != 0 )
+        goto exit;
+
+    /*
+     * Reset accumulator and counters and recycle existing entropy
+     */
+    mbedtls_sha256_free( &ctx->accumulator );
+    mbedtls_sha256_init( &ctx->accumulator );
+    if( ( ret = mbedtls_sha256_starts_ret( &ctx->accumulator, 0 ) ) != 0 )
+        goto exit;
+    if( ( ret = mbedtls_sha256_update_ret( &ctx->accumulator, buf,
+                                           MBEDTLS_ENTROPY_BLOCK_SIZE ) ) != 0 )
+        goto exit;
+
+    /*
+     * Perform second SHA-256 on entropy
+     */
+    if( ( ret = mbedtls_sha256_ret( buf, MBEDTLS_ENTROPY_BLOCK_SIZE,
+                                    buf, 0 ) ) != 0 )
+        goto exit;
+#endif /* MBEDTLS_ENTROPY_SHA512_ACCUMULATOR */
+
+    for( i = 0; i < ctx->source_count; i++ )
+        ctx->source[i].size = 0;
+
+    memcpy( output, buf, len );
+
+    ret = 0;
+
+exit:
+    mbedtls_platform_zeroize( buf, sizeof( buf ) );
+
+#if defined(MBEDTLS_THREADING_C)
+    if( mbedtls_mutex_unlock( &ctx->mutex ) != 0 )
+        return( MBEDTLS_ERR_THREADING_MUTEX_ERROR );
+#endif
+
+    return( ret );
+}

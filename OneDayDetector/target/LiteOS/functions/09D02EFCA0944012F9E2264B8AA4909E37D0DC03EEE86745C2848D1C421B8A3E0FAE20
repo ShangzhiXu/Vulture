@@ -1,0 +1,25 @@
+static int x509_crt_merge_flags_with_cb(
+           uint32_t *flags,
+           const mbedtls_x509_crt_verify_chain *ver_chain,
+           int (*f_vrfy)(void *, mbedtls_x509_crt *, int, uint32_t *),
+           void *p_vrfy )
+{
+    int ret;
+    unsigned i;
+    uint32_t cur_flags;
+    const mbedtls_x509_crt_verify_chain_item *cur;
+
+    for( i = ver_chain->len; i != 0; --i )
+    {
+        cur = &ver_chain->items[i-1];
+        cur_flags = cur->flags;
+
+        if( NULL != f_vrfy )
+            if( ( ret = f_vrfy( p_vrfy, cur->crt, (int) i-1, &cur_flags ) ) != 0 )
+                return( ret );
+
+        *flags |= cur_flags;
+    }
+
+    return( 0 );
+}

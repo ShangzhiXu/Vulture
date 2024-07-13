@@ -1,0 +1,82 @@
+void ADV7533_Configure(adv7533ConfigTypeDef * config)
+{
+  uint8_t tmp;
+  
+  /* Sequence from Section 3 - Quick Start Guide */
+  
+  /* ADV7533 Power Settings */
+  /* Power down */
+  tmp = HDMI_IO_Read(ADV7533_MAIN_I2C_ADDR, 0x41);
+  tmp &= ~0x40;
+  HDMI_IO_Write(ADV7533_MAIN_I2C_ADDR, 0x41, tmp);
+  /* HPD Override */
+  tmp = HDMI_IO_Read(ADV7533_MAIN_I2C_ADDR, 0xD6);
+  tmp |= 0x40;
+  HDMI_IO_Write(ADV7533_MAIN_I2C_ADDR, 0xD6, tmp);
+  /* Gate DSI LP Oscillator and DSI Bias Clock Powerdown */
+  tmp = HDMI_IO_Read(ADV7533_CEC_DSI_I2C_ADDR, 0x03);
+  tmp &= ~0x02;
+  HDMI_IO_Write(ADV7533_CEC_DSI_I2C_ADDR, 0x03, tmp);
+  
+  /* Fixed registers that must be set on power-up */
+  tmp = HDMI_IO_Read(ADV7533_MAIN_I2C_ADDR, 0x16);
+  tmp &= ~0x3E;
+  tmp |= 0x20; 
+  HDMI_IO_Write(ADV7533_MAIN_I2C_ADDR, 0x16, tmp);
+  HDMI_IO_Write(ADV7533_MAIN_I2C_ADDR, 0x9A, 0xE0);
+  tmp = HDMI_IO_Read(ADV7533_MAIN_I2C_ADDR, 0xBA);
+  tmp &= ~0xF8;
+  tmp |= 0x70; 
+  HDMI_IO_Write(ADV7533_MAIN_I2C_ADDR, 0xBA, tmp);
+  HDMI_IO_Write(ADV7533_MAIN_I2C_ADDR, 0xDE, 0x82);
+  
+  tmp = HDMI_IO_Read(ADV7533_MAIN_I2C_ADDR, 0xE4); 
+  tmp |= 0x40;
+  HDMI_IO_Write(ADV7533_MAIN_I2C_ADDR, 0xE4, tmp);
+  HDMI_IO_Write(ADV7533_MAIN_I2C_ADDR, 0xE5, 0x80);
+  
+  tmp = HDMI_IO_Read(ADV7533_CEC_DSI_I2C_ADDR, 0x15);
+  tmp &= ~0x30;
+  tmp |= 0x10; 
+  tmp = HDMI_IO_Read(ADV7533_CEC_DSI_I2C_ADDR, 0x17);
+  tmp &= ~0xF0;
+  tmp |= 0xD0; 
+  HDMI_IO_Write(ADV7533_CEC_DSI_I2C_ADDR, 0x17, tmp);
+  tmp = HDMI_IO_Read(ADV7533_CEC_DSI_I2C_ADDR, 0x24);
+  tmp &= ~0x10;
+  HDMI_IO_Write(ADV7533_CEC_DSI_I2C_ADDR, 0x24, tmp);
+  tmp = HDMI_IO_Read(ADV7533_CEC_DSI_I2C_ADDR, 0x57);
+  tmp |= 0x01;
+  tmp |= 0x10;
+  HDMI_IO_Write(ADV7533_CEC_DSI_I2C_ADDR, 0x57, tmp);
+  
+  /* Configure the number of DSI lanes */
+  HDMI_IO_Write(ADV7533_CEC_DSI_I2C_ADDR, 0x1C, (config->DSI_LANES << 4));
+  
+  /* Setup video output mode */
+  /* Select HDMI mode */
+  tmp = HDMI_IO_Read(ADV7533_MAIN_I2C_ADDR, 0xAF);
+  tmp |= 0x02;
+  HDMI_IO_Write(ADV7533_MAIN_I2C_ADDR, 0xAF, tmp); 
+  /* HDMI Output Enable */
+  tmp = HDMI_IO_Read(ADV7533_CEC_DSI_I2C_ADDR, 0x03);
+  tmp |= 0x80;
+  HDMI_IO_Write(ADV7533_CEC_DSI_I2C_ADDR, 0x03, tmp);
+
+  /* GC packet enable */
+  tmp = HDMI_IO_Read(ADV7533_MAIN_I2C_ADDR, 0x40);
+  tmp |= 0x80;
+  HDMI_IO_Write(ADV7533_MAIN_I2C_ADDR, 0x40, tmp);
+  /* Input color depth 24-bit per pixel */
+  tmp = HDMI_IO_Read(ADV7533_MAIN_I2C_ADDR, 0x4C);
+  tmp &= ~0x0F;
+  tmp |= 0x03;
+  HDMI_IO_Write(ADV7533_MAIN_I2C_ADDR, 0x4C, tmp);
+  /* Down dither output color depth */
+  HDMI_IO_Write(ADV7533_MAIN_I2C_ADDR, 0x49, 0xfc);
+  
+  /* Internal timing disabled */
+  tmp = HDMI_IO_Read(ADV7533_CEC_DSI_I2C_ADDR, 0x27);
+  tmp &= ~0x80;
+  HDMI_IO_Write(ADV7533_CEC_DSI_I2C_ADDR, 0x27, tmp);
+}

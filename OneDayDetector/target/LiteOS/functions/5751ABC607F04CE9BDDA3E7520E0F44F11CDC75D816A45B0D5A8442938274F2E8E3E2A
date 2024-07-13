@@ -1,0 +1,199 @@
+static HAL_StatusTypeDef PCD_EP_ISR_Handler(PCD_HandleTypeDef *hpcd)
+{
+  PCD_EPTypeDef *ep = NULL;
+  uint16_t count = 0;
+  uint8_t epindex = 0;
+  __IO uint16_t wIstr = 0;  
+  __IO uint16_t wEPVal = 0;
+  
+  /* stay in loop while pending interrupts */
+  while (((wIstr = hpcd->Instance->ISTR) & USB_ISTR_CTR) != 0)
+  {
+    /* extract highest priority endpoint number */
+    epindex = (uint8_t)(wIstr & USB_ISTR_EP_ID);
+    
+    if (epindex == 0)
+    {
+      /* Decode and service control endpoint interrupt */
+      
+      /* DIR bit = origin of the interrupt */   
+      if ((wIstr & USB_ISTR_DIR) == 0)
+      {
+        /* DIR = 0 */
+        
+        /* DIR = 0      => IN  int */
+        /* DIR = 0 implies that (EP_CTR_TX = 1) always  */
+        PCD_CLEAR_TX_EP_CTR(hpcd->Instance, PCD_ENDP0);
+        ep = &hpcd->IN_ep[0];
+        
+        ep->xfer_count = PCD_GET_EP_TX_CNT(hpcd->Instance, ep->num);
+        ep->xfer_buff += ep->xfer_count;
+ 
+        /* TX COMPLETE */
+        HAL_PCD_DataInStageCallback(hpcd, 0);
+        
+        
+        if((hpcd->USB_Address > 0)&& ( ep->xfer_len == 0))
+        {
+          hpcd->Instance->DADDR = (hpcd->USB_Address | USB_DADDR_EF);
+          hpcd->USB_Address = 0;
+        }
+        
+      }
+      else
+      {
+        /* DIR = 1 */
+        
+        /* DIR = 1 & CTR_RX       => SETUP or OUT int */
+        /* DIR = 1 & (CTR_TX | CTR_RX) => 2 int pending */
+        ep = &hpcd->OUT_ep[0];
+        wEPVal = PCD_GET_ENDPOINT(hpcd->Instance, PCD_ENDP0);
+        
+        if ((wEPVal & USB_EP_SETUP) != 0)
+        {
+          /* Get SETUP Packet*/
+          ep->xfer_count = PCD_GET_EP_RX_CNT(hpcd->Instance, ep->num);
+          USB_ReadPMA(hpcd->Instance, (uint8_t*)hpcd->Setup ,ep->pmaadress , ep->xfer_count);       
+          /* SETUP bit kept frozen while CTR_RX = 1*/ 
+          PCD_CLEAR_RX_EP_CTR(hpcd->Instance, PCD_ENDP0); 
+          
+          /* Process SETUP Packet*/
+          HAL_PCD_SetupStageCallback(hpcd);
+        }
+        
+        else if ((wEPVal & USB_EP_CTR_RX) != 0)
+        {
+          PCD_CLEAR_RX_EP_CTR(hpcd->Instance, PCD_ENDP0);
+          /* Get Control Data OUT Packet*/
+          ep->xfer_count = PCD_GET_EP_RX_CNT(hpcd->Instance, ep->num);
+          
+          if (ep->xfer_count != 0)
+          {
+            USB_ReadPMA(hpcd->Instance, ep->xfer_buff, ep->pmaadress, ep->xfer_count);
+            ep->xfer_buff+=ep->xfer_count;
+          }
+          
+          /* Process Control Data OUT Packet*/
+           HAL_PCD_DataOutStageCallback(hpcd, 0);
+          
+          PCD_SET_EP_RX_CNT(hpcd->Instance, PCD_ENDP0, ep->maxpacket);
+          PCD_SET_EP_RX_STATUS(hpcd->Instance, PCD_ENDP0, USB_EP_RX_VALID);
+        }
+      }
+    }
+    else
+    {
+      /* Decode and service non control endpoints interrupt  */
+	  
+      /* process related endpoint register */
+      wEPVal = PCD_GET_ENDPOINT(hpcd->Instance, epindex);
+      if ((wEPVal & USB_EP_CTR_RX) != 0)
+      {  
+        /* clear int flag */
+        PCD_CLEAR_RX_EP_CTR(hpcd->Instance, epindex);
+        ep = &hpcd->OUT_ep[epindex];
+        
+        /* OUT double Buffering*/
+        if (ep->doublebuffer == 0)
+        {
+          count = PCD_GET_EP_RX_CNT(hpcd->Instance, ep->num);
+          if (count != 0)
+          {
+            USB_ReadPMA(hpcd->Instance, ep->xfer_buff, ep->pmaadress, count);
+          }
+        }
+        else
+        {
+          if (PCD_GET_ENDPOINT(hpcd->Instance, ep->num) & USB_EP_DTOG_RX)
+          {
+            /*read from endpoint BUF0Addr buffer*/
+            count = PCD_GET_EP_DBUF0_CNT(hpcd->Instance, ep->num);
+            if (count != 0)
+            {
+              USB_ReadPMA(hpcd->Instance, ep->xfer_buff, ep->pmaaddr0, count);
+            }
+          }
+          else
+          {
+            /*read from endpoint BUF1Addr buffer*/
+            count = PCD_GET_EP_DBUF1_CNT(hpcd->Instance, ep->num);
+            if (count != 0)
+            {
+              USB_ReadPMA(hpcd->Instance, ep->xfer_buff, ep->pmaaddr1, count);
+            }
+          }
+          PCD_FreeUserBuffer(hpcd->Instance, ep->num, PCD_EP_DBUF_OUT);  
+        }
+        /*multi-packet on the NON control OUT endpoint*/
+        ep->xfer_count+=count;
+        ep->xfer_buff+=count;
+       
+        if ((ep->xfer_len == 0) || (count < ep->maxpacket))
+        {
+          /* RX COMPLETE */
+          HAL_PCD_DataOutStageCallback(hpcd, ep->num);
+        }
+        else
+        {
+          HAL_PCD_EP_Receive(hpcd, ep->num, ep->xfer_buff, ep->xfer_len);
+        }
+        
+      } /* if((wEPVal & EP_CTR_RX) */
+      
+      if ((wEPVal & USB_EP_CTR_TX) != 0)
+      {
+        ep = &hpcd->IN_ep[epindex];
+        
+        /* clear int flag */
+        PCD_CLEAR_TX_EP_CTR(hpcd->Instance, epindex);
+        
+        /* IN double Buffering*/
+        if (ep->doublebuffer == 0)
+        {
+          ep->xfer_count = PCD_GET_EP_TX_CNT(hpcd->Instance, ep->num);
+          if (ep->xfer_count != 0)
+          {
+            USB_WritePMA(hpcd->Instance, ep->xfer_buff, ep->pmaadress, ep->xfer_count);
+          }
+        }
+        else
+        {
+          if (PCD_GET_ENDPOINT(hpcd->Instance, ep->num) & USB_EP_DTOG_TX)
+          {
+            /*read from endpoint BUF0Addr buffer*/
+            ep->xfer_count = PCD_GET_EP_DBUF0_CNT(hpcd->Instance, ep->num);
+            if (ep->xfer_count != 0)
+            {
+              USB_WritePMA(hpcd->Instance, ep->xfer_buff, ep->pmaaddr0, ep->xfer_count);
+            }
+          }
+          else
+          {
+            /*read from endpoint BUF1Addr buffer*/
+            ep->xfer_count = PCD_GET_EP_DBUF1_CNT(hpcd->Instance, ep->num);
+            if (ep->xfer_count != 0)
+            {
+              USB_WritePMA(hpcd->Instance, ep->xfer_buff, ep->pmaaddr1, ep->xfer_count);
+            }
+          }
+          PCD_FreeUserBuffer(hpcd->Instance, ep->num, PCD_EP_DBUF_IN);  
+        }
+        /*multi-packet on the NON control IN endpoint*/
+        ep->xfer_count = PCD_GET_EP_TX_CNT(hpcd->Instance, ep->num);
+        ep->xfer_buff+=ep->xfer_count;
+       
+        /* Zero Length Packet? */
+        if (ep->xfer_len == 0)
+        {
+          /* TX COMPLETE */
+          HAL_PCD_DataInStageCallback(hpcd, ep->num);
+        }
+        else
+        {
+          HAL_PCD_EP_Transmit(hpcd, ep->num, ep->xfer_buff, ep->xfer_len);
+        }
+      } 
+    }
+  }
+  return HAL_OK;
+}

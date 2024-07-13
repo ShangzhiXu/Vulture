@@ -1,0 +1,42 @@
+HAL_StatusTypeDef HAL_I2S_DMAStop(I2S_HandleTypeDef *hi2s)
+{
+  HAL_StatusTypeDef errorcode = HAL_OK;
+  /* The Lock is not implemented on this API to allow the user application
+     to call the HAL SPI API under callbacks HAL_I2S_TxCpltCallback() or HAL_I2S_RxCpltCallback()
+     when calling HAL_DMA_Abort() API the DMA TX or RX Transfer complete interrupt is generated
+     and the correspond call back is executed HAL_I2S_TxCpltCallback() or HAL_I2S_RxCpltCallback()
+     */
+
+  /* Disable the I2S Tx/Rx DMA requests */
+  CLEAR_BIT(hi2s->Instance->CR2, SPI_CR2_TXDMAEN);
+  CLEAR_BIT(hi2s->Instance->CR2, SPI_CR2_RXDMAEN);
+
+  /* Abort the I2S DMA tx Stream/Channel */
+  if (hi2s->hdmatx != NULL)
+  {
+    /* Disable the I2S DMA tx Stream/Channel */
+    if (HAL_OK != HAL_DMA_Abort(hi2s->hdmatx))
+    {
+      SET_BIT(hi2s->ErrorCode, HAL_I2S_ERROR_DMA);
+      errorcode = HAL_ERROR;
+    }
+  }
+
+  /* Abort the I2S DMA rx Stream/Channel */
+  if (hi2s->hdmarx != NULL)
+  {
+    /* Disable the I2S DMA rx Stream/Channel */
+    if (HAL_OK != HAL_DMA_Abort(hi2s->hdmarx))
+    {
+      SET_BIT(hi2s->ErrorCode, HAL_I2S_ERROR_DMA);
+      errorcode = HAL_ERROR;
+    }
+  }
+
+  /* Disable I2S peripheral */
+  __HAL_I2S_DISABLE(hi2s);
+
+  hi2s->State = HAL_I2S_STATE_READY;
+
+  return errorcode;
+}

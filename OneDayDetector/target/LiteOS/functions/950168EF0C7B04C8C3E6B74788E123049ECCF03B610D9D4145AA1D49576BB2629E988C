@@ -1,0 +1,31 @@
+dhcp6_get_struct(struct netif *netif, const char *dbg_requester)
+{
+  struct dhcp6 *dhcp6 = netif_dhcp6_data(netif);
+  if (dhcp6 == NULL) {
+    LWIP_DEBUGF(DHCP6_DEBUG | LWIP_DBG_TRACE, ("%s: mallocing new DHCPv6 client\n", dbg_requester));
+    dhcp6 = (struct dhcp6 *)mem_malloc(sizeof(struct dhcp6));
+    if (dhcp6 == NULL) {
+      LWIP_DEBUGF(DHCP6_DEBUG | LWIP_DBG_TRACE, ("%s: could not allocate dhcp6\n", dbg_requester));
+      return NULL;
+    }
+
+    /* clear data structure, this implies DHCP6_STATE_OFF */
+    memset(dhcp6, 0, sizeof(struct dhcp6));
+    /* store this dhcp6 client in the netif */
+    netif_set_client_data(netif, LWIP_NETIF_CLIENT_DATA_INDEX_DHCP6, dhcp6);
+  } else {
+    /* already has DHCP6 client attached */
+    LWIP_DEBUGF(DHCP6_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("%s: using existing DHCPv6 client\n", dbg_requester));
+  }
+
+  if (!dhcp6->pcb_allocated) {
+    if (dhcp6_inc_pcb_refcount() != ERR_OK) { /* ensure DHCP6 PCB is allocated */
+      mem_free(dhcp6);
+      netif_set_client_data(netif, LWIP_NETIF_CLIENT_DATA_INDEX_DHCP6, NULL);
+      return NULL;
+    }
+    LWIP_DEBUGF(DHCP6_DEBUG | LWIP_DBG_TRACE, ("%s: allocated dhcp6", dbg_requester));
+    dhcp6->pcb_allocated = 1;
+  }
+  return dhcp6;
+}

@@ -1,0 +1,68 @@
+void _lv_txt_ap_proc(const char * txt, char * txt_out)
+{
+    uint32_t txt_length = 0;
+    uint32_t index_current, idx_next, idx_previous, i, j;
+    uint32_t * ch_enc;
+    char * txt_out_temp;
+
+    txt_length = _lv_txt_get_encoded_length(txt);
+
+    ch_enc = (uint32_t *)lv_mem_alloc(sizeof(uint32_t) * (txt_length + 1));
+
+    i = 0;
+    j = 0;
+    while(j < txt_length)
+        ch_enc[j++] = _lv_txt_encoded_next(txt, &i);
+
+    ch_enc[j] = 0;
+
+    i = 0;
+    idx_previous = LV_UNDEF_ARABIC_PERSIAN_CHARS;
+    while(i < txt_length) {
+        index_current = lv_ap_get_char_index(ch_enc[i]);
+        idx_next = lv_ap_get_char_index(ch_enc[i + 1]);
+
+        if(index_current == LV_UNDEF_ARABIC_PERSIAN_CHARS) {
+            i++;
+            idx_previous = LV_UNDEF_ARABIC_PERSIAN_CHARS;
+            continue;
+        }
+
+        uint8_t conjunction_to_previuse = (i == 0 ||
+                                           idx_previous == LV_UNDEF_ARABIC_PERSIAN_CHARS) ? 0 : ap_chars_map[idx_previous].ap_chars_conjunction.conj_to_next;
+        uint8_t conjunction_to_next = ((i == txt_length - 1) ||
+                                       idx_next == LV_UNDEF_ARABIC_PERSIAN_CHARS) ? 0 : ap_chars_map[idx_next].ap_chars_conjunction.conj_to_previous;
+
+        if(conjunction_to_previuse && conjunction_to_next)
+            ch_enc[i] = ap_chars_map[index_current].char_end_form + ap_chars_map[index_current].char_middle_form_offset;
+        else if(!conjunction_to_previuse && conjunction_to_next)
+            ch_enc[i] = ap_chars_map[index_current].char_end_form + ap_chars_map[index_current].char_begining_form_offset;
+        else if(conjunction_to_previuse && !conjunction_to_next)
+            ch_enc[i] = ap_chars_map[index_current].char_end_form;
+        else
+            ch_enc[i] = ap_chars_map[index_current].char_end_form + ap_chars_map[index_current].char_isolated_form_offset;
+        idx_previous = index_current;
+        i++;
+    }
+
+    txt_out_temp = txt_out;
+    i = 0;
+
+    while(i < txt_length) {
+        if((ch_enc[i]) <= 0x7F) {
+            *(txt_out_temp++) = ch_enc[i];
+        }
+        else if(ch_enc[i] <= 0x7FFF) {
+            *(txt_out_temp++) = 0xC0 | ((ch_enc[i] >> 6) & 0x3F);
+            *(txt_out_temp++) = 0x80 | (ch_enc[i] & 0x3F);
+        }
+        else {
+            *(txt_out_temp++) = 0xE0 | ((ch_enc[i] >> 12) & 0x3F);
+            *(txt_out_temp++) = 0x80 | ((ch_enc[i] >> 6) & 0x3F);
+            *(txt_out_temp++) = 0x80 | (ch_enc[i] & 0x3F);
+        }
+        i++;
+    }
+    *(txt_out_temp) = '\0';
+    lv_mem_free(ch_enc);
+}

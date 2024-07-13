@@ -1,0 +1,79 @@
+HAL_StatusTypeDef USB_HC_Init(USB_OTG_GlobalTypeDef *USBx,  
+                              uint8_t ch_num,
+                              uint8_t epnum,
+                              uint8_t dev_address,
+                              uint8_t speed,
+                              uint8_t ep_type,
+                              uint16_t mps)
+{
+  /* Clear old interrupt conditions for this host channel. */
+  USBx_HC(ch_num)->HCINT = 0xFFFFFFFF;
+  
+  /* Enable channel interrupts required for this transfer. */
+  switch (ep_type) 
+  {
+  case EP_TYPE_CTRL:
+  case EP_TYPE_BULK:
+    USBx_HC(ch_num)->HCINTMSK = USB_OTG_HCINTMSK_XFRCM  |\
+                                USB_OTG_HCINTMSK_STALLM |\
+                                USB_OTG_HCINTMSK_TXERRM |\
+                                USB_OTG_HCINTMSK_DTERRM |\
+                                USB_OTG_HCINTMSK_AHBERR |\
+                                USB_OTG_HCINTMSK_NAKM ;
+  
+    if (epnum & 0x80) 
+    {
+      USBx_HC(ch_num)->HCINTMSK |= USB_OTG_HCINTMSK_BBERRM;
+    }
+    break;
+  
+  case EP_TYPE_INTR:
+    USBx_HC(ch_num)->HCINTMSK = USB_OTG_HCINTMSK_XFRCM  |\
+                                USB_OTG_HCINTMSK_STALLM |\
+                                USB_OTG_HCINTMSK_TXERRM |\
+                                USB_OTG_HCINTMSK_DTERRM |\
+                                USB_OTG_HCINTMSK_NAKM   |\
+                                USB_OTG_HCINTMSK_AHBERR |\
+                                USB_OTG_HCINTMSK_FRMORM ;
+    
+    if (epnum & 0x80) 
+    {
+      USBx_HC(ch_num)->HCINTMSK |= USB_OTG_HCINTMSK_BBERRM;
+    }
+    
+    break;
+  
+  case EP_TYPE_ISOC:
+    USBx_HC(ch_num)->HCINTMSK = USB_OTG_HCINTMSK_XFRCM  |\
+                                USB_OTG_HCINTMSK_ACKM   |\
+                                USB_OTG_HCINTMSK_AHBERR |\
+                                USB_OTG_HCINTMSK_FRMORM ;
+    
+    if (epnum & 0x80) 
+    {
+      USBx_HC(ch_num)->HCINTMSK |= (USB_OTG_HCINTMSK_TXERRM | USB_OTG_HCINTMSK_BBERRM);
+    }
+    break;
+  }
+  
+  /* Enable the top level host channel interrupt. */
+  USBx_HOST->HAINTMSK |= (1 << ch_num);
+  
+  /* Make sure host channel interrupts are enabled. */
+  USBx->GINTMSK |= USB_OTG_GINTMSK_HCIM;
+  
+  /* Program the HCCHAR register */
+  USBx_HC(ch_num)->HCCHAR = (((dev_address << 22) & USB_OTG_HCCHAR_DAD)  |\
+                             (((epnum & 0x7F)<< 11) & USB_OTG_HCCHAR_EPNUM)|\
+                             ((((epnum & 0x80) == 0x80)<< 15) & USB_OTG_HCCHAR_EPDIR)|\
+                             (((speed == HPRT0_PRTSPD_LOW_SPEED)<< 17) & USB_OTG_HCCHAR_LSDEV)|\
+                             ((ep_type << 18) & USB_OTG_HCCHAR_EPTYP)|\
+                             (mps & USB_OTG_HCCHAR_MPSIZ));
+  
+  if (ep_type == EP_TYPE_INTR)
+  {
+    USBx_HC(ch_num)->HCCHAR |= USB_OTG_HCCHAR_ODDFRM ;
+  }
+  
+  return HAL_OK;
+}

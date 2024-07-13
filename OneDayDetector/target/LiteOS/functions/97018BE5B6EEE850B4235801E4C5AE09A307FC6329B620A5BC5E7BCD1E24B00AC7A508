@@ -1,0 +1,45 @@
+static err_t pppol2tp_send_stopccn(pppol2tp_pcb *l2tp, u16_t ns) {
+  struct pbuf *pb;
+  u8_t *p;
+  u16_t len;
+
+  /* calculate UDP packet length */
+  len = 12 +8 +8 +8;
+
+  /* allocate a buffer */
+  pb = pbuf_alloc(PBUF_TRANSPORT, len, PBUF_RAM);
+  if (pb == NULL) {
+    return ERR_MEM;
+  }
+  LWIP_ASSERT("pb->tot_len == pb->len", pb->tot_len == pb->len);
+
+  p = (u8_t*)pb->payload;
+  /* fill in pkt */
+  /* L2TP control header */
+  PUTSHORT(PPPOL2TP_HEADERFLAG_CONTROL_MANDATORY, p);
+  PUTSHORT(len, p); /* Length */
+  PUTSHORT(l2tp->source_tunnel_id, p); /* Tunnel Id */
+  PUTSHORT(0, p); /* Session Id */
+  PUTSHORT(ns, p); /* NS Sequence number - to peer */
+  PUTSHORT(l2tp->peer_ns, p); /* NR Sequence number - expected for peer */
+
+  /* AVP - Message type */
+  PUTSHORT(PPPOL2TP_AVPHEADERFLAG_MANDATORY + 8, p); /* Mandatory flag + len field */
+  PUTSHORT(0, p); /* Vendor ID */
+  PUTSHORT(PPPOL2TP_AVPTYPE_MESSAGE, p); /* Attribute type: Message Type */
+  PUTSHORT(PPPOL2TP_MESSAGETYPE_STOPCCN, p); /* Attribute value: Message type: StopCCN */
+
+  /* AVP - Assign tunnel ID */
+  PUTSHORT(PPPOL2TP_AVPHEADERFLAG_MANDATORY + 8, p); /* Mandatory flag + len field */
+  PUTSHORT(0, p); /* Vendor ID */
+  PUTSHORT(PPPOL2TP_AVPTYPE_TUNNELID, p); /* Attribute type: Tunnel ID */
+  PUTSHORT(l2tp->remote_tunnel_id, p); /* Attribute value: Tunnel ID */
+
+  /* AVP - Result code */
+  PUTSHORT(PPPOL2TP_AVPHEADERFLAG_MANDATORY + 8, p); /* Mandatory flag + len field */
+  PUTSHORT(0, p); /* Vendor ID */
+  PUTSHORT(PPPOL2TP_AVPTYPE_RESULTCODE, p); /* Attribute type: Result code */
+  PUTSHORT(PPPOL2TP_RESULTCODE, p); /* Attribute value: Result code */
+
+  return pppol2tp_udp_send(l2tp, pb);
+}

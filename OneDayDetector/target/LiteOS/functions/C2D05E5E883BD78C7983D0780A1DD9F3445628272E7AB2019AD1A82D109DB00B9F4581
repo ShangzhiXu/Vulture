@@ -1,0 +1,28 @@
+static void blowfish_enc( mbedtls_blowfish_context *ctx, uint32_t *xl, uint32_t *xr )
+{
+    uint32_t  Xl, Xr, temp;
+    short i;
+
+    Xl = *xl;
+    Xr = *xr;
+
+    for( i = 0; i < MBEDTLS_BLOWFISH_ROUNDS; ++i )
+    {
+        Xl = Xl ^ ctx->P[i];
+        Xr = F( ctx, Xl ) ^ Xr;
+
+        temp = Xl;
+        Xl = Xr;
+        Xr = temp;
+    }
+
+    temp = Xl;
+    Xl = Xr;
+    Xr = temp;
+
+    Xr = Xr ^ ctx->P[MBEDTLS_BLOWFISH_ROUNDS];
+    Xl = Xl ^ ctx->P[MBEDTLS_BLOWFISH_ROUNDS + 1];
+
+    *xl = Xl;
+    *xr = Xr;
+}

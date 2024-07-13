@@ -1,0 +1,23 @@
+int mbedtls_md_hmac_finish( mbedtls_md_context_t *ctx, unsigned char *output )
+{
+    int ret;
+    unsigned char tmp[MBEDTLS_MD_MAX_SIZE];
+    unsigned char *opad;
+
+    if( ctx == NULL || ctx->md_info == NULL || ctx->hmac_ctx == NULL )
+        return( MBEDTLS_ERR_MD_BAD_INPUT_DATA );
+
+    opad = (unsigned char *) ctx->hmac_ctx + ctx->md_info->block_size;
+
+    if( ( ret = ctx->md_info->finish_func( ctx->md_ctx, tmp ) ) != 0 )
+        return( ret );
+    if( ( ret = ctx->md_info->starts_func( ctx->md_ctx ) ) != 0 )
+        return( ret );
+    if( ( ret = ctx->md_info->update_func( ctx->md_ctx, opad,
+                                           ctx->md_info->block_size ) ) != 0 )
+        return( ret );
+    if( ( ret = ctx->md_info->update_func( ctx->md_ctx, tmp,
+                                           ctx->md_info->size ) ) != 0 )
+        return( ret );
+    return( ctx->md_info->finish_func( ctx->md_ctx, output ) );
+}

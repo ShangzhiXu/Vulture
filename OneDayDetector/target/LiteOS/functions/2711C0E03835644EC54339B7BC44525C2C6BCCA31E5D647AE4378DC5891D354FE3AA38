@@ -1,0 +1,54 @@
+ppp_pcb *pppol2tp_create(struct netif *pppif,
+       struct netif *netif, const ip_addr_t *ipaddr, u16_t port,
+       const u8_t *secret, u8_t secret_len,
+       ppp_link_status_cb_fn link_status_cb, void *ctx_cb) {
+  ppp_pcb *ppp;
+  pppol2tp_pcb *l2tp;
+  struct udp_pcb *udp;
+#if !PPPOL2TP_AUTH_SUPPORT
+  LWIP_UNUSED_ARG(secret);
+  LWIP_UNUSED_ARG(secret_len);
+#endif /* !PPPOL2TP_AUTH_SUPPORT */
+
+  if (ipaddr == NULL) {
+    goto ipaddr_check_failed;
+  }
+
+  l2tp = (pppol2tp_pcb *)LWIP_MEMPOOL_ALLOC(PPPOL2TP_PCB);
+  if (l2tp == NULL) {
+    goto memp_malloc_l2tp_failed;
+  }
+
+  udp = udp_new_ip_type(IP_GET_TYPE(ipaddr));
+  if (udp == NULL) {
+    goto udp_new_failed;
+  }
+  udp_recv(udp, pppol2tp_input, l2tp);
+
+  ppp = ppp_new(pppif, &pppol2tp_callbacks, l2tp, link_status_cb, ctx_cb);
+  if (ppp == NULL) {
+    goto ppp_new_failed;
+  }
+
+  memset(l2tp, 0, sizeof(pppol2tp_pcb));
+  l2tp->phase = PPPOL2TP_STATE_INITIAL;
+  l2tp->ppp = ppp;
+  l2tp->udp = udp;
+  l2tp->netif = netif;
+  ip_addr_copy(l2tp->remote_ip, *ipaddr);
+  l2tp->remote_port = port;
+#if PPPOL2TP_AUTH_SUPPORT
+  l2tp->secret = secret;
+  l2tp->secret_len = secret_len;
+#endif /* PPPOL2TP_AUTH_SUPPORT */
+
+  return ppp;
+
+ppp_new_failed:
+  udp_remove(udp);
+udp_new_failed:
+  LWIP_MEMPOOL_FREE(PPPOL2TP_PCB, l2tp);
+memp_malloc_l2tp_failed:
+ipaddr_check_failed:
+  return NULL;
+}

@@ -1,0 +1,32 @@
+httpc_free_state(httpc_state_t* req)
+{
+  struct altcp_pcb* tpcb;
+
+  if (req->request != NULL) {
+    pbuf_free(req->request);
+    req->request = NULL;
+  }
+  if (req->rx_hdrs != NULL) {
+    pbuf_free(req->rx_hdrs);
+    req->rx_hdrs = NULL;
+  }
+
+  tpcb = req->pcb;
+  mem_free(req);
+  req = NULL;
+
+  if (tpcb != NULL) {
+    err_t r;
+    altcp_arg(tpcb, NULL);
+    altcp_recv(tpcb, NULL);
+    altcp_err(tpcb, NULL);
+    altcp_poll(tpcb, NULL, 0);
+    altcp_sent(tpcb, NULL);
+    r = altcp_close(tpcb);
+    if (r != ERR_OK) {
+      altcp_abort(tpcb);
+      return ERR_ABRT;
+    }
+  }
+  return ERR_OK;
+}

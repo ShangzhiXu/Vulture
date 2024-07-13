@@ -1,0 +1,23 @@
+UINT32 OsHeapGetMaxFreeBlkSize(VOID *pool)
+{
+    UINT32 size = 0;
+    UINT32 temp;
+    struct LosHeapNode *node = NULL;
+    struct LosHeapManager *ramHeap = HEAP_CAST(struct LosHeapManager *, pool);
+
+    if (ramHeap == NULL) {
+        return LOS_NOK;
+    }
+
+    node = ramHeap->tail;
+    while (node != NULL) {
+        if (!(node->used)) {
+            temp = node->size;
+            if (temp > size) {
+                size = temp;
+            }
+        }
+        node = node->prev;
+    }
+    return size;
+}

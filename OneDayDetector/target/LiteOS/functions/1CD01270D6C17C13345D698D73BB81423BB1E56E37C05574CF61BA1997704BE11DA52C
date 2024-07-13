@@ -1,0 +1,11 @@
+VOID OsAtomicBitsetInit(struct AtomicBitset *set, UINT32 numBits)
+{
+    set->numBits = numBits;
+
+    (VOID)memset_s(set->words, NUMBITS_TO_NUMBYTES(numBits), 0, NUMBITS_TO_NUMBYTES(numBits));
+    /* mark all high bits so that OsAtomicBitsetFindClearAndSet() is simpler */
+    if (numBits & LOW_BITS_MASK) {
+        set->words[numBits / NUM_BITS_IN_ONE_BYTE] =
+            ((UINT32)((INT32) - 1LL)) << (numBits & LOW_BITS_MASK);
+    }
+}

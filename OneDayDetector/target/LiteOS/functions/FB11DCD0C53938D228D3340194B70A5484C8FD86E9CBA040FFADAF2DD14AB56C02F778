@@ -1,0 +1,66 @@
+HAL_StatusTypeDef HAL_FLASH_Program(uint32_t TypeProgram, uint32_t Address, uint64_t Data)
+{
+  HAL_StatusTypeDef status = HAL_ERROR;
+  uint32_t prog_bit = 0;
+  
+  /* Process Locked */
+  __HAL_LOCK(&pFlash);
+
+  /* Check the parameters */
+  assert_param(IS_FLASH_TYPEPROGRAM(TypeProgram));
+
+  /* Wait for last operation to be completed */
+  status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+  
+  if(status == HAL_OK)
+  {
+    pFlash.ErrorCode = HAL_FLASH_ERROR_NONE;
+
+    /* Deactivate the data cache if they are activated to avoid data misbehavior */
+    if(READ_BIT(FLASH->ACR, FLASH_ACR_DCEN) != RESET)
+    {
+      /* Disable data cache  */
+      __HAL_FLASH_DATA_CACHE_DISABLE();
+      pFlash.CacheToReactivate = FLASH_CACHE_DCACHE_ENABLED;
+    }
+    else
+    {
+      pFlash.CacheToReactivate = FLASH_CACHE_DISABLED;
+    }
+
+    if(TypeProgram == FLASH_TYPEPROGRAM_DOUBLEWORD)
+    {
+      /* Program double-word (64-bit) at a specified address */
+      FLASH_Program_DoubleWord(Address, Data);
+      prog_bit = FLASH_CR_PG;
+    }
+    else if((TypeProgram == FLASH_TYPEPROGRAM_FAST) || (TypeProgram == FLASH_TYPEPROGRAM_FAST_AND_LAST))
+    {
+      /* Fast program a 32 row double-word (64-bit) at a specified address */
+      FLASH_Program_Fast(Address, (uint32_t)Data);
+      
+      /* If it is the last row, the bit will be cleared at the end of the operation */
+      if(TypeProgram == FLASH_TYPEPROGRAM_FAST_AND_LAST)
+      {
+        prog_bit = FLASH_CR_FSTPG;
+      }
+    }
+
+    /* Wait for last operation to be completed */
+    status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+    
+    /* If the program operation is completed, disable the PG or FSTPG Bit */
+    if (prog_bit != 0)
+    {
+      CLEAR_BIT(FLASH->CR, prog_bit);
+    }
+
+    /* Flush the caches to be sure of the data consistency */
+    FLASH_FlushCaches();
+  }
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(&pFlash);
+
+  return status;  
+}

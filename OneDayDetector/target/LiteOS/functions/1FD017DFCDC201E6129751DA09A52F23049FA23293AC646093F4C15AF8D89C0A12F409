@@ -1,0 +1,23 @@
+HAL_StatusTypeDef USB_StopDevice(USB_OTG_GlobalTypeDef *USBx)
+{
+  uint32_t index = 0;
+  
+  /* Clear Pending interrupt */
+  for (index = 0; index < 15 ; index++)
+  {
+    USBx_INEP(index)->DIEPINT  = 0xFF;
+    USBx_OUTEP(index)->DOEPINT  = 0xFF;
+  }
+  USBx_DEVICE->DAINT = 0xFFFFFFFF;
+  
+  /* Clear interrupt masks */
+  USBx_DEVICE->DIEPMSK  = 0;
+  USBx_DEVICE->DOEPMSK  = 0;
+  USBx_DEVICE->DAINTMSK = 0;
+  
+  /* Flush the FIFO */
+  USB_FlushRxFifo(USBx);
+  USB_FlushTxFifo(USBx ,  0x10 );
+  
+  return HAL_OK;
+}

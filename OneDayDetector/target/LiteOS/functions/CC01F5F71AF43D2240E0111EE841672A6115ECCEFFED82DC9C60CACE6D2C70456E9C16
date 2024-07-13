@@ -1,0 +1,48 @@
+uint32_t LL_RCC_GetUSBClockFreq(uint32_t USBxSource)
+{
+  uint32_t usb_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_USB_CLKSOURCE(USBxSource));
+
+#if defined(RCC_DCKCFGR_CK48MSEL) || defined(RCC_DCKCFGR2_CK48MSEL)
+  /* USBCLK clock frequency */
+  switch (LL_RCC_GetUSBClockSource(USBxSource))
+  {
+#if defined(RCC_PLLI2SCFGR_PLLI2SQ) && !defined(RCC_DCKCFGR_PLLI2SDIVQ)
+    case LL_RCC_USB_CLKSOURCE_PLLI2S:       /* PLLI2S clock used as USB clock source */
+      if (LL_RCC_PLLI2S_IsReady())
+      {
+        usb_frequency = RCC_PLLI2S_GetFreqDomain_48M();
+      }
+      break;
+
+#endif /* RCC_PLLI2SCFGR_PLLI2SQ && !RCC_DCKCFGR_PLLI2SDIVQ */
+
+#if defined(RCC_PLLSAI_SUPPORT)
+    case LL_RCC_USB_CLKSOURCE_PLLSAI:       /* PLLSAI clock used as USB clock source */
+      if (LL_RCC_PLLSAI_IsReady())
+      {
+        usb_frequency = RCC_PLLSAI_GetFreqDomain_48M();
+      }
+      break;
+#endif /* RCC_PLLSAI_SUPPORT */
+
+    case LL_RCC_USB_CLKSOURCE_PLL:          /* PLL clock used as USB clock source */
+    default:
+      if (LL_RCC_PLL_IsReady())
+      {
+        usb_frequency = RCC_PLL_GetFreqDomain_48M();
+      }
+      break;
+  }
+#else
+  /* PLL clock used as USB clock source */
+  if (LL_RCC_PLL_IsReady())
+  {
+    usb_frequency = RCC_PLL_GetFreqDomain_48M();
+  }
+#endif /* RCC_DCKCFGR_CK48MSEL || RCC_DCKCFGR2_CK48MSEL */
+
+  return usb_frequency;
+}

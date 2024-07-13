@@ -1,0 +1,43 @@
+STATIC UINT32 OsMemInit(VOID *pool, UINT32 size)
+{
+    LosMemPoolInfo *poolInfo = (LosMemPoolInfo *)pool;
+    LosMemDynNode *newNode = NULL;
+    LosMemDynNode *endNode = NULL;
+    LOS_DL_LIST *listNodeHead = NULL;
+    UINT32 poolSize = OsLmsMemInit(pool, size);
+    if (poolSize == 0) {
+        poolSize = size;
+    }
+    poolInfo->pool = pool;
+    poolInfo->poolSize = poolSize;
+    OsDLnkInitMultiHead(OS_MEM_HEAD_ADDR(pool));
+    newNode = OS_MEM_FIRST_NODE(pool);
+    newNode->selfNode.sizeAndFlag = (poolSize - (UINT32)((UINTPTR)newNode - (UINTPTR)pool) - OS_MEM_NODE_HEAD_SIZE);
+    newNode->selfNode.preNode = (LosMemDynNode *)OS_MEM_END_NODE(pool, poolSize);
+    listNodeHead = OS_MEM_HEAD(pool, newNode->selfNode.sizeAndFlag);
+    if (listNodeHead == NULL) {
+        return LOS_NOK;
+    }
+
+    LOS_ListTailInsert(listNodeHead, &(newNode->selfNode.freeNodeInfo));
+    endNode = (LosMemDynNode *)OS_MEM_END_NODE(pool, poolSize);
+    (VOID)memset_s(endNode, sizeof(*endNode), 0, sizeof(*endNode));
+    endNode->selfNode.preNode = newNode;
+    endNode->selfNode.sizeAndFlag = OS_MEM_NODE_HEAD_SIZE;
+    OS_MEM_NODE_SET_USED_FLAG(endNode->selfNode.sizeAndFlag);
+    OsMemSetMagicNumAndTaskID(endNode);
+#ifdef LOSCFG_MEM_TASK_STAT
+    UINT32 statSize = sizeof(poolInfo->stat);
+    (VOID)memset_s(&poolInfo->stat, statSize, 0, statSize);
+    poolInfo->stat.memTotalUsed = sizeof(LosMemPoolInfo) + OS_MULTI_DLNK_HEAD_SIZE +
+                                  OS_MEM_NODE_GET_SIZE(endNode->selfNode.sizeAndFlag);
+    poolInfo->stat.memTotalPeak = poolInfo->stat.memTotalUsed;
+#endif
+
+#ifdef LOSCFG_MEM_HEAD_BACKUP
+    OsMemNodeSave(newNode);
+    OsMemNodeSave(endNode);
+#endif
+
+    return LOS_OK;
+}

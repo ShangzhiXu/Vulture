@@ -1,0 +1,121 @@
+HAL_StatusTypeDef HAL_HCD_HC_SubmitRequest(HCD_HandleTypeDef *hhcd,
+                                           uint8_t ch_num,
+                                           uint8_t direction,
+                                           uint8_t ep_type,
+                                           uint8_t token,
+                                           uint8_t *pbuff,
+                                           uint16_t length,
+                                           uint8_t do_ping)
+{
+  hhcd->hc[ch_num].ep_is_in = direction;
+  hhcd->hc[ch_num].ep_type  = ep_type;
+
+  if (token == 0U)
+  {
+    hhcd->hc[ch_num].data_pid = HC_PID_SETUP;
+    hhcd->hc[ch_num].do_ping = do_ping;
+  }
+  else
+  {
+    hhcd->hc[ch_num].data_pid = HC_PID_DATA1;
+  }
+
+  /* Manage Data Toggle */
+  switch (ep_type)
+  {
+    case EP_TYPE_CTRL:
+      if ((token == 1U) && (direction == 0U)) /*send data */
+      {
+        if (length == 0U)
+        {
+          /* For Status OUT stage, Length==0, Status Out PID = 1 */
+          hhcd->hc[ch_num].toggle_out = 1U;
+        }
+
+        /* Set the Data Toggle bit as per the Flag */
+        if (hhcd->hc[ch_num].toggle_out == 0U)
+        {
+          /* Put the PID 0 */
+          hhcd->hc[ch_num].data_pid = HC_PID_DATA0;
+        }
+        else
+        {
+          /* Put the PID 1 */
+          hhcd->hc[ch_num].data_pid = HC_PID_DATA1;
+        }
+      }
+      break;
+
+    case EP_TYPE_BULK:
+      if (direction == 0U)
+      {
+        /* Set the Data Toggle bit as per the Flag */
+        if (hhcd->hc[ch_num].toggle_out == 0U)
+        {
+          /* Put the PID 0 */
+          hhcd->hc[ch_num].data_pid = HC_PID_DATA0;
+        }
+        else
+        {
+          /* Put the PID 1 */
+          hhcd->hc[ch_num].data_pid = HC_PID_DATA1;
+        }
+      }
+      else
+      {
+        if (hhcd->hc[ch_num].toggle_in == 0U)
+        {
+          hhcd->hc[ch_num].data_pid = HC_PID_DATA0;
+        }
+        else
+        {
+          hhcd->hc[ch_num].data_pid = HC_PID_DATA1;
+        }
+      }
+
+      break;
+    case EP_TYPE_INTR:
+      if (direction == 0U)
+      {
+        /* Set the Data Toggle bit as per the Flag */
+        if (hhcd->hc[ch_num].toggle_out == 0U)
+        {
+          /* Put the PID 0 */
+          hhcd->hc[ch_num].data_pid = HC_PID_DATA0;
+        }
+        else
+        {
+          /* Put the PID 1 */
+          hhcd->hc[ch_num].data_pid = HC_PID_DATA1;
+        }
+      }
+      else
+      {
+        if (hhcd->hc[ch_num].toggle_in == 0U)
+        {
+          hhcd->hc[ch_num].data_pid = HC_PID_DATA0;
+        }
+        else
+        {
+          hhcd->hc[ch_num].data_pid = HC_PID_DATA1;
+        }
+      }
+      break;
+
+    case EP_TYPE_ISOC:
+      hhcd->hc[ch_num].data_pid = HC_PID_DATA0;
+      break;
+
+    default:
+      break;
+  }
+
+  hhcd->hc[ch_num].xfer_buff = pbuff;
+  hhcd->hc[ch_num].xfer_len  = length;
+  hhcd->hc[ch_num].urb_state = URB_IDLE;
+  hhcd->hc[ch_num].xfer_count = 0U;
+  hhcd->hc[ch_num].ch_num = ch_num;
+  hhcd->hc[ch_num].state = HC_IDLE;
+
+  return USB_HC_StartXfer(hhcd->Instance, &hhcd->hc[ch_num], (uint8_t)hhcd->Init.dma_enable);
+}

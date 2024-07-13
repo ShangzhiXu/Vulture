@@ -1,0 +1,42 @@
+HAL_StatusTypeDef HAL_SAI_DeInit(SAI_HandleTypeDef *hsai)
+{
+  /* Check the SAI handle allocation */
+  if(hsai == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  hsai->State = HAL_SAI_STATE_BUSY;
+
+  /* Disabled All interrupt and clear all the flag */
+  hsai->Instance->IMR = 0U;
+  hsai->Instance->CLRFR = 0xFFFFFFFFU;
+
+  /* Disable the SAI */
+  SAI_Disable(hsai);
+
+  /* Flush the fifo */
+  SET_BIT(hsai->Instance->CR2, SAI_xCR2_FFLUSH);
+
+  /* DeInit the low level hardware: GPIO, CLOCK, NVIC and DMA */
+#if (USE_HAL_SAI_REGISTER_CALLBACKS == 1)
+  if (hsai->MspDeInitCallback == NULL)
+  {
+    hsai->MspDeInitCallback = HAL_SAI_MspDeInit;
+  }
+  hsai->MspDeInitCallback(hsai);
+#else
+  HAL_SAI_MspDeInit(hsai);
+#endif /* USE_HAL_SAI_REGISTER_CALLBACKS */
+
+  /* Initialize the error code */
+  hsai->ErrorCode = HAL_SAI_ERROR_NONE;
+
+  /* Initialize the SAI state */
+  hsai->State = HAL_SAI_STATE_RESET;
+
+  /* Release Lock */
+  __HAL_UNLOCK(hsai);
+
+  return HAL_OK;
+}

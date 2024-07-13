@@ -1,0 +1,91 @@
+HAL_StatusTypeDef HAL_QSPI_AutoPolling(QSPI_HandleTypeDef *hqspi, QSPI_CommandTypeDef *cmd, QSPI_AutoPollingTypeDef *cfg, uint32_t Timeout)
+{
+  HAL_StatusTypeDef status;
+  uint32_t tickstart = HAL_GetTick();
+
+  /* Check the parameters */
+  assert_param(IS_QSPI_INSTRUCTION_MODE(cmd->InstructionMode));
+  if (cmd->InstructionMode != QSPI_INSTRUCTION_NONE)
+  {
+    assert_param(IS_QSPI_INSTRUCTION(cmd->Instruction));
+  }
+
+  assert_param(IS_QSPI_ADDRESS_MODE(cmd->AddressMode));
+  if (cmd->AddressMode != QSPI_ADDRESS_NONE)
+  {
+    assert_param(IS_QSPI_ADDRESS_SIZE(cmd->AddressSize));
+  }
+
+  assert_param(IS_QSPI_ALTERNATE_BYTES_MODE(cmd->AlternateByteMode));
+  if (cmd->AlternateByteMode != QSPI_ALTERNATE_BYTES_NONE)
+  {
+    assert_param(IS_QSPI_ALTERNATE_BYTES_SIZE(cmd->AlternateBytesSize));
+  }
+
+  assert_param(IS_QSPI_DUMMY_CYCLES(cmd->DummyCycles));
+  assert_param(IS_QSPI_DATA_MODE(cmd->DataMode));
+
+  assert_param(IS_QSPI_DDR_MODE(cmd->DdrMode));
+  assert_param(IS_QSPI_DDR_HHC(cmd->DdrHoldHalfCycle));
+  assert_param(IS_QSPI_SIOO_MODE(cmd->SIOOMode));
+
+  assert_param(IS_QSPI_INTERVAL(cfg->Interval));
+  assert_param(IS_QSPI_STATUS_BYTES_SIZE(cfg->StatusBytesSize));
+  assert_param(IS_QSPI_MATCH_MODE(cfg->MatchMode));
+
+  /* Process locked */
+  __HAL_LOCK(hqspi);
+
+  if(hqspi->State == HAL_QSPI_STATE_READY)
+  {
+    hqspi->ErrorCode = HAL_QSPI_ERROR_NONE;
+
+    /* Update state */
+    hqspi->State = HAL_QSPI_STATE_BUSY_AUTO_POLLING;
+
+    /* Wait till BUSY flag reset */
+    status = QSPI_WaitFlagStateUntilTimeout(hqspi, QSPI_FLAG_BUSY, RESET, tickstart, Timeout);
+
+    if (status == HAL_OK)
+    {
+      /* Configure QSPI: PSMAR register with the status match value */
+      WRITE_REG(hqspi->Instance->PSMAR, cfg->Match);
+
+      /* Configure QSPI: PSMKR register with the status mask value */
+      WRITE_REG(hqspi->Instance->PSMKR, cfg->Mask);
+
+      /* Configure QSPI: PIR register with the interval value */
+      WRITE_REG(hqspi->Instance->PIR, cfg->Interval);
+
+      /* Configure QSPI: CR register with Match mode and Automatic stop enabled
+      (otherwise there will be an infinite loop in blocking mode) */
+      MODIFY_REG(hqspi->Instance->CR, (QUADSPI_CR_PMM | QUADSPI_CR_APMS),
+               (cfg->MatchMode | QSPI_AUTOMATIC_STOP_ENABLE));
+
+      /* Call the configuration function */
+      cmd->NbData = cfg->StatusBytesSize;
+      QSPI_Config(hqspi, cmd, QSPI_FUNCTIONAL_MODE_AUTO_POLLING);
+
+      /* Wait until SM flag is set to go back in idle state */
+      status = QSPI_WaitFlagStateUntilTimeout(hqspi, QSPI_FLAG_SM, SET, tickstart, Timeout);
+
+      if (status == HAL_OK)
+      {
+        __HAL_QSPI_CLEAR_FLAG(hqspi, QSPI_FLAG_SM);
+
+        /* Update state */
+        hqspi->State = HAL_QSPI_STATE_READY;
+      }
+    }
+  }
+  else
+  {
+    status = HAL_BUSY;
+  }
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hqspi);
+
+  /* Return function status */
+  return status;
+}

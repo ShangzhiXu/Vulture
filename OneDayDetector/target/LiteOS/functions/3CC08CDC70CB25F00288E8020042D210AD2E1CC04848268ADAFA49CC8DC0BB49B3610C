@@ -1,0 +1,22 @@
+snmp_oid_to_ip_port(const u32_t *oid, u8_t oid_len, ip_addr_t *ip, u16_t *port)
+{
+  u8_t idx;
+
+  /* InetAddressType + InetAddress */
+  idx = snmp_oid_to_ip(&oid[0], oid_len, ip);
+  if (idx == 0) {
+    return 0;
+  }
+
+  /* InetPortNumber */
+  if (oid_len < (idx + 1)) {
+    return 0;
+  }
+  if (oid[idx] > 0xffff) {
+    return 0;
+  }
+  *port = (u16_t)oid[idx];
+  idx++;
+
+  return idx;
+}

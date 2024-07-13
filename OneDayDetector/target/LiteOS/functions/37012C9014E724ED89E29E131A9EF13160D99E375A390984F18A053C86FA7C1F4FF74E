@@ -1,0 +1,58 @@
+altcp_proxyconnect_lower_recv(void *arg, struct altcp_pcb *inner_conn, struct pbuf *p, err_t err)
+{
+  altcp_proxyconnect_state_t *state;
+  struct altcp_pcb *conn = (struct altcp_pcb *)arg;
+
+  LWIP_ASSERT("no err expected", err == ERR_OK);
+  LWIP_UNUSED_ARG(err);
+
+  if (!conn) {
+    /* no connection given as arg? should not happen, but prevent pbuf/conn leaks */
+    if (p != NULL) {
+      pbuf_free(p);
+    }
+    altcp_close(inner_conn);
+    return ERR_CLSD;
+  }
+  state = (altcp_proxyconnect_state_t *)conn->state;
+  LWIP_ASSERT("pcb mismatch", conn->inner_conn == inner_conn);
+  if (!state) {
+    /* already closed */
+    if (p != NULL) {
+      pbuf_free(p);
+    }
+    altcp_close(inner_conn);
+    return ERR_CLSD;
+  }
+  if (state->flags & ALTCP_PROXYCONNECT_FLAGS_HANDSHAKE_DONE) {
+    /* application phase, just pass this through */
+    if (conn->recv) {
+      return conn->recv(conn->arg, conn, p, err);
+    }
+    pbuf_free(p);
+    return ERR_OK;
+  } else {
+    /* setup phase */
+    /* handle NULL pbuf (inner connection closed) */
+    if (p == NULL) {
+      if (altcp_close(conn) != ERR_OK) {
+        altcp_abort(conn);
+        return ERR_ABRT;
+      }
+      return ERR_OK;
+    } else {
+      /* @todo: parse setup phase rx data
+         for now, we just wait for the end of the header... */
+      u16_t idx = pbuf_memfind(p, "\r\n\r\n", 4, 0);
+      altcp_recved(inner_conn, p->tot_len);
+      pbuf_free(p);
+      if (idx != 0xFFFF) {
+        state->flags |= ALTCP_PROXYCONNECT_FLAGS_HANDSHAKE_DONE;
+        if (conn->connected) {
+          return conn->connected(conn->arg, conn, ERR_OK);
+        }
+      }
+      return ERR_OK;
+    }
+  }
+}

@@ -1,0 +1,57 @@
+HAL_StatusTypeDef HAL_PCCARD_RegisterCallback (PCCARD_HandleTypeDef *hpccard, HAL_PCCARD_CallbackIDTypeDef CallbackId, pPCCARD_CallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if(pCallback == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Process locked */
+  __HAL_LOCK(hpccard);
+
+  if(hpccard->State == HAL_PCCARD_STATE_READY)
+  {
+    switch (CallbackId)
+    {
+    case HAL_PCCARD_MSP_INIT_CB_ID :
+      hpccard->MspInitCallback = pCallback;
+      break;
+    case HAL_PCCARD_MSP_DEINIT_CB_ID :
+      hpccard->MspDeInitCallback = pCallback;
+      break;
+    case HAL_PCCARD_IT_CB_ID :
+      hpccard->ItCallback = pCallback;
+      break;
+    default :
+      /* update return status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else if(hpccard->State == HAL_PCCARD_STATE_RESET)
+  {
+    switch (CallbackId)
+    {
+    case HAL_PCCARD_MSP_INIT_CB_ID :
+      hpccard->MspInitCallback = pCallback;
+      break;
+    case HAL_PCCARD_MSP_DEINIT_CB_ID :
+      hpccard->MspDeInitCallback = pCallback;
+      break;
+    default :
+      /* update return status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else
+  {
+    /* update return status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hpccard);
+  return status;
+}

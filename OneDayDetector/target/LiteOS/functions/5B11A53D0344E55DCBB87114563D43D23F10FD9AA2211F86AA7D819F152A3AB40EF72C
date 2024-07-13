@@ -1,0 +1,78 @@
+uint32_t HAL_RCCEx_CRSWaitSynchronization(uint32_t Timeout)
+{
+  uint32_t crsstatus = RCC_CRS_NONE;
+  uint32_t tickstart = 0U;
+  
+  /* Get timeout */
+  tickstart = HAL_GetTick();
+  
+  /* Wait for CRS flag or timeout detection */
+  do
+  {
+    if(Timeout != HAL_MAX_DELAY)
+    {
+      if((Timeout == 0U) || ((HAL_GetTick() - tickstart) > Timeout))
+      {
+        crsstatus = RCC_CRS_TIMEOUT;
+      }
+    }
+    /* Check CRS SYNCOK flag  */
+    if(__HAL_RCC_CRS_GET_FLAG(RCC_CRS_FLAG_SYNCOK))
+    {
+      /* CRS SYNC event OK */
+      crsstatus |= RCC_CRS_SYNCOK;
+    
+      /* Clear CRS SYNC event OK bit */
+      __HAL_RCC_CRS_CLEAR_FLAG(RCC_CRS_FLAG_SYNCOK);
+    }
+    
+    /* Check CRS SYNCWARN flag  */
+    if(__HAL_RCC_CRS_GET_FLAG(RCC_CRS_FLAG_SYNCWARN))
+    {
+      /* CRS SYNC warning */
+      crsstatus |= RCC_CRS_SYNCWARN;
+    
+      /* Clear CRS SYNCWARN bit */
+      __HAL_RCC_CRS_CLEAR_FLAG(RCC_CRS_FLAG_SYNCWARN);
+    }
+    
+    /* Check CRS TRIM overflow flag  */
+    if(__HAL_RCC_CRS_GET_FLAG(RCC_CRS_FLAG_TRIMOVF))
+    {
+      /* CRS SYNC Error */
+      crsstatus |= RCC_CRS_TRIMOVF;
+    
+      /* Clear CRS Error bit */
+      __HAL_RCC_CRS_CLEAR_FLAG(RCC_CRS_FLAG_TRIMOVF);
+    }
+    
+    /* Check CRS Error flag  */
+    if(__HAL_RCC_CRS_GET_FLAG(RCC_CRS_FLAG_SYNCERR))
+    {
+      /* CRS SYNC Error */
+      crsstatus |= RCC_CRS_SYNCERR;
+    
+      /* Clear CRS Error bit */
+      __HAL_RCC_CRS_CLEAR_FLAG(RCC_CRS_FLAG_SYNCERR);
+    }
+    
+    /* Check CRS SYNC Missed flag  */
+    if(__HAL_RCC_CRS_GET_FLAG(RCC_CRS_FLAG_SYNCMISS))
+    {
+      /* CRS SYNC Missed */
+      crsstatus |= RCC_CRS_SYNCMISS;
+    
+      /* Clear CRS SYNC Missed bit */
+      __HAL_RCC_CRS_CLEAR_FLAG(RCC_CRS_FLAG_SYNCMISS);
+    }
+    
+    /* Check CRS Expected SYNC flag  */
+    if(__HAL_RCC_CRS_GET_FLAG(RCC_CRS_FLAG_ESYNC))
+    {
+      /* frequency error counter reached a zero value */
+      __HAL_RCC_CRS_CLEAR_FLAG(RCC_CRS_FLAG_ESYNC);
+    }
+  } while(RCC_CRS_NONE == crsstatus);
+
+  return crsstatus;
+}

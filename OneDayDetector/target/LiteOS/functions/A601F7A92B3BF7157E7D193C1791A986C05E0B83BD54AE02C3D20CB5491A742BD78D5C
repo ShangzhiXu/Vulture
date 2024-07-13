@@ -1,0 +1,53 @@
+int mbedtls_camellia_crypt_cfb128( mbedtls_camellia_context *ctx,
+                       int mode,
+                       size_t length,
+                       size_t *iv_off,
+                       unsigned char iv[16],
+                       const unsigned char *input,
+                       unsigned char *output )
+{
+    int c;
+    size_t n;
+    CAMELLIA_VALIDATE_RET( ctx != NULL );
+    CAMELLIA_VALIDATE_RET( mode == MBEDTLS_CAMELLIA_ENCRYPT ||
+                           mode == MBEDTLS_CAMELLIA_DECRYPT );
+    CAMELLIA_VALIDATE_RET( iv     != NULL );
+    CAMELLIA_VALIDATE_RET( iv_off != NULL );
+    CAMELLIA_VALIDATE_RET( length == 0 || input  != NULL );
+    CAMELLIA_VALIDATE_RET( length == 0 || output != NULL );
+
+    n = *iv_off;
+    if( n >= 16 )
+        return( MBEDTLS_ERR_CAMELLIA_BAD_INPUT_DATA );
+
+    if( mode == MBEDTLS_CAMELLIA_DECRYPT )
+    {
+        while( length-- )
+        {
+            if( n == 0 )
+                mbedtls_camellia_crypt_ecb( ctx, MBEDTLS_CAMELLIA_ENCRYPT, iv, iv );
+
+            c = *input++;
+            *output++ = (unsigned char)( c ^ iv[n] );
+            iv[n] = (unsigned char) c;
+
+            n = ( n + 1 ) & 0x0F;
+        }
+    }
+    else
+    {
+        while( length-- )
+        {
+            if( n == 0 )
+                mbedtls_camellia_crypt_ecb( ctx, MBEDTLS_CAMELLIA_ENCRYPT, iv, iv );
+
+            iv[n] = *output++ = (unsigned char)( iv[n] ^ *input++ );
+
+            n = ( n + 1 ) & 0x0F;
+        }
+    }
+
+    *iv_off = n;
+
+    return( 0 );
+}

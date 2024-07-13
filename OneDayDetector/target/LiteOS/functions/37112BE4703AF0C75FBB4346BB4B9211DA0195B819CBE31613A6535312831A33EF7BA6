@@ -1,0 +1,59 @@
+void BSP_LCD_FillPolygon(pPoint Points, uint16_t PointCount)
+{
+  int16_t X = 0, Y = 0, X2 = 0, Y2 = 0, X_center = 0, Y_center = 0, X_first = 0, Y_first = 0, pixelX = 0, pixelY = 0, counter = 0;
+  uint16_t  IMAGE_LEFT = 0, IMAGE_RIGHT = 0, IMAGE_TOP = 0, IMAGE_BOTTOM = 0;
+
+  IMAGE_LEFT = IMAGE_RIGHT = Points->X;
+  IMAGE_TOP= IMAGE_BOTTOM = Points->Y;
+
+  for(counter = 1; counter < PointCount; counter++)
+  {
+    pixelX = POLY_X(counter);
+    if(pixelX < IMAGE_LEFT)
+    {
+      IMAGE_LEFT = pixelX;
+    }
+    if(pixelX > IMAGE_RIGHT)
+    {
+      IMAGE_RIGHT = pixelX;
+    }
+
+    pixelY = POLY_Y(counter);
+    if(pixelY < IMAGE_TOP)
+    {
+      IMAGE_TOP = pixelY;
+    }
+    if(pixelY > IMAGE_BOTTOM)
+    {
+      IMAGE_BOTTOM = pixelY;
+    }
+  }
+
+  if(PointCount < 2)
+  {
+    return;
+  }
+
+  X_center = (IMAGE_LEFT + IMAGE_RIGHT)/2;
+  Y_center = (IMAGE_BOTTOM + IMAGE_TOP)/2;
+
+  X_first = Points->X;
+  Y_first = Points->Y;
+
+  while(--PointCount)
+  {
+    X = Points->X;
+    Y = Points->Y;
+    Points++;
+    X2 = Points->X;
+    Y2 = Points->Y;
+
+    FillTriangle(X, X2, X_center, Y, Y2, Y_center);
+    FillTriangle(X, X_center, X2, Y, Y_center, Y2);
+    FillTriangle(X_center, X2, X, Y_center, Y2, Y);
+  }
+
+  FillTriangle(X_first, X2, X_center, Y_first, Y2, Y_center);
+  FillTriangle(X_first, X_center, X2, Y_first, Y_center, Y2);
+  FillTriangle(X_center, X2, X_first, Y_center, Y2, Y_first);
+}

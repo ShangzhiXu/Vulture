@@ -1,0 +1,26 @@
+coap_set_header_uri_query(void *packet, const char *query)
+{
+    int length = 0;
+    coap_packet_t *const coap_pkt = (coap_packet_t *) packet;
+
+    free_multi_option(coap_pkt->uri_query);
+    coap_pkt->uri_query = NULL;
+
+    if (query[0] == '?') ++query;
+
+    do
+    {
+        int i = 0;
+
+        while (query[i] != 0 && query[i] != '&') i++;
+        coap_add_multi_option(&(coap_pkt->uri_query), (uint8_t *)query, i, 0);
+
+        if (query[i] == '&') i++;
+        query += i;
+        length += i;
+    }
+    while (query[0] != 0);
+
+    SET_OPTION(coap_pkt, COAP_OPTION_URI_QUERY);
+    return length;
+}

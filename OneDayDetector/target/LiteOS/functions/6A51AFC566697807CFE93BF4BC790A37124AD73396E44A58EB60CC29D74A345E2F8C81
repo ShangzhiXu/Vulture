@@ -1,0 +1,114 @@
+static void update_cursor_position_on_click(lv_obj_t * ta, lv_signal_t sign, lv_indev_t * click_source)
+{
+
+    if(click_source == NULL) return;
+
+    lv_textarea_ext_t * ext = lv_obj_get_ext_attr(ta);
+    if(ext->cursor.click_pos == 0) return;
+    if(ext->cursor.hidden) return;
+
+    if(lv_indev_get_type(click_source) == LV_INDEV_TYPE_KEYPAD ||
+       lv_indev_get_type(click_source) == LV_INDEV_TYPE_ENCODER) {
+        return;
+    }
+
+    lv_area_t label_coords;
+    lv_obj_get_coords(ext->label, &label_coords);
+
+    lv_point_t point_act, vect_act;
+    lv_indev_get_point(click_source, &point_act);
+    lv_indev_get_vect(click_source, &vect_act);
+
+    if(point_act.x < 0 || point_act.y < 0) return; /*Ignore event from keypad*/
+    lv_point_t rel_pos;
+    rel_pos.x = point_act.x - label_coords.x1;
+    rel_pos.y = point_act.y - label_coords.y1;
+
+    lv_coord_t label_width = lv_obj_get_width(ext->label);
+
+    uint16_t char_id_at_click;
+
+#if LV_LABEL_TEXT_SEL
+    lv_label_ext_t * ext_label = lv_obj_get_ext_attr(ext->label);
+    bool click_outside_label;
+    /*Check if the click happened on the left side of the area outside the label*/
+    if(rel_pos.x < 0) {
+        char_id_at_click = 0;
+        click_outside_label       = true;
+    }
+    /*Check if the click happened on the right side of the area outside the label*/
+    else if(rel_pos.x >= label_width) {
+        char_id_at_click = LV_TEXTAREA_CURSOR_LAST;
+        click_outside_label       = true;
+    }
+    else {
+        char_id_at_click = lv_label_get_letter_on(ext->label, &rel_pos);
+        click_outside_label       = !lv_label_is_char_under_pos(ext->label, &rel_pos);
+    }
+
+    if(ext->text_sel_en) {
+        if(!ext->text_sel_in_prog && !click_outside_label && sign == LV_SIGNAL_PRESSED) {
+            /*Input device just went down. Store the selection start position*/
+            ext->sel_start    = char_id_at_click;
+            ext->sel_end      = LV_LABEL_TEXT_SEL_OFF;
+            ext->text_sel_in_prog = 1;
+            lv_obj_set_drag(lv_page_get_scrllable(ta), false);
+        }
+        else if(ext->text_sel_in_prog && sign == LV_SIGNAL_PRESSING) {
+            /*Input device may be moving. Store the end position */
+            ext->sel_end = char_id_at_click;
+        }
+        else if(ext->text_sel_in_prog && (sign == LV_SIGNAL_PRESS_LOST || sign == LV_SIGNAL_RELEASED)) {
+            /*Input device is released. Check if anything was selected.*/
+            lv_obj_set_drag(lv_page_get_scrllable(ta), true);
+        }
+    }
+
+    if(ext->text_sel_in_prog || sign == LV_SIGNAL_PRESSED) lv_textarea_set_cursor_pos(ta, char_id_at_click);
+
+    if(ext->text_sel_in_prog) {
+        /*If the selected area has changed then update the real values and*/
+
+        /*Invalidate the text area.*/
+        if(ext->sel_start > ext->sel_end) {
+            if(ext_label->sel_start != ext->sel_end || ext_label->sel_end != ext->sel_start) {
+                ext_label->sel_start = ext->sel_end;
+                ext_label->sel_end   = ext->sel_start;
+                lv_obj_invalidate(ta);
+            }
+        }
+        else if(ext->sel_start < ext->sel_end) {
+            if(ext_label->sel_start != ext->sel_start || ext_label->sel_end != ext->sel_end) {
+                ext_label->sel_start = ext->sel_start;
+                ext_label->sel_end   = ext->sel_end;
+                lv_obj_invalidate(ta);
+            }
+        }
+        else {
+            if(ext_label->sel_start != LV_DRAW_LABEL_NO_TXT_SEL || ext_label->sel_end != LV_DRAW_LABEL_NO_TXT_SEL) {
+                ext_label->sel_start = LV_DRAW_LABEL_NO_TXT_SEL;
+                ext_label->sel_end   = LV_DRAW_LABEL_NO_TXT_SEL;
+                lv_obj_invalidate(ta);
+            }
+        }
+        /*Finish selection if necessary */
+        if(sign == LV_SIGNAL_PRESS_LOST || sign == LV_SIGNAL_RELEASED) {
+            ext->text_sel_in_prog = 0;
+        }
+    }
+#else
+    /*Check if the click happened on the left side of the area outside the label*/
+    if(rel_pos.x < 0) {
+        char_id_at_click = 0;
+    }
+    /*Check if the click happened on the right side of the area outside the label*/
+    else if(rel_pos.x >= label_width) {
+        char_id_at_click = LV_TEXTAREA_CURSOR_LAST;
+    }
+    else {
+        char_id_at_click = lv_label_get_letter_on(ext->label, &rel_pos);
+    }
+
+    if(sign == LV_SIGNAL_PRESSED) lv_textarea_set_cursor_pos(ta, char_id_at_click);
+#endif
+}

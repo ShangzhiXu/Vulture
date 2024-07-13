@@ -1,0 +1,39 @@
+STATIC VOID OsMemNodeInfo(const LosMemDynNode *tmpNode,
+                          const LosMemDynNode *preNode)
+{
+    if (tmpNode == preNode) {
+        PRINTK("\n the broken node is the first node\n");
+#ifdef LOSCFG_SHELL_EXCINFO_DUMP
+        WriteExcInfoToBuf("\n the broken node is the first node\n");
+#endif
+    }
+    PRINTK("\n broken node head: %p  %p  %p  0x%x, pre node head: %p  %p  %p  0x%x\n",
+           tmpNode->selfNode.freeNodeInfo.pstPrev, tmpNode->selfNode.freeNodeInfo.pstNext,
+           tmpNode->selfNode.preNode, tmpNode->selfNode.sizeAndFlag,
+           preNode->selfNode.freeNodeInfo.pstPrev, preNode->selfNode.freeNodeInfo.pstNext,
+           preNode->selfNode.preNode, preNode->selfNode.sizeAndFlag);
+
+#ifdef LOSCFG_SHELL_EXCINFO_DUMP
+    WriteExcInfoToBuf("\n broken node head: %p  %p  %p  0x%x, pre node head: %p  %p  %p  0x%x\n",
+                      tmpNode->selfNode.freeNodeInfo.pstPrev, tmpNode->selfNode.freeNodeInfo.pstNext,
+                      tmpNode->selfNode.preNode, tmpNode->selfNode.sizeAndFlag,
+                      preNode->selfNode.freeNodeInfo.pstPrev, preNode->selfNode.freeNodeInfo.pstNext,
+                      preNode->selfNode.preNode, preNode->selfNode.sizeAndFlag);
+#endif
+#ifdef LOSCFG_MEM_LEAKCHECK
+    OsMemNodeBacktraceInfo(tmpNode, preNode);
+#endif
+
+    PRINTK("\n---------------------------------------------\n");
+    UINTPTR dumpEnd = (((UINTPTR)tmpNode + NODEDUMPSIZE) > (UINTPTR)tmpNode) ?
+                      ((UINTPTR)tmpNode + NODEDUMPSIZE) : (UINTPTR)(UINTPTR_MAX);
+    UINT32 dumpSize = (UINTPTR)dumpEnd - (UINTPTR)tmpNode;
+    PRINTK(" dump mem tmpNode:%p ~ %p\n", tmpNode, dumpEnd);
+    OsDumpMemByte(dumpSize, (UINTPTR)tmpNode);
+    PRINTK("\n---------------------------------------------\n");
+    if (preNode != tmpNode) {
+        PRINTK(" dump mem :%p ~ tmpNode:%p\n", ((UINTPTR)tmpNode - NODEDUMPSIZE), tmpNode);
+        OsDumpMemByte(NODEDUMPSIZE, ((UINTPTR)tmpNode - NODEDUMPSIZE));
+        PRINTK("\n---------------------------------------------\n");
+    }
+}

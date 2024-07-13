@@ -1,0 +1,26 @@
+mqtt_tcp_sent_cb(void *arg, struct altcp_pcb *tpcb, u16_t len)
+{
+  mqtt_client_t *client = (mqtt_client_t *)arg;
+
+  LWIP_UNUSED_ARG(tpcb);
+  LWIP_UNUSED_ARG(len);
+
+  if (client->conn_state == MQTT_CONNECTED) {
+    struct mqtt_request_t *r;
+
+    /* Reset keep-alive send timer and server watchdog */
+    client->cyclic_tick = 0;
+    client->server_watchdog = 0;
+    /* QoS 0 publish has no response from server, so call its callbacks here */
+    while ((r = mqtt_take_request(&client->pend_req_queue, 0)) != NULL) {
+      LWIP_DEBUGF(MQTT_DEBUG_TRACE, ("mqtt_tcp_sent_cb: Calling QoS 0 publish complete callback\n"));
+      if (r->cb != NULL) {
+        r->cb(r->arg, ERR_OK);
+      }
+      mqtt_delete_request(r);
+    }
+    /* Try send any remaining buffers from output queue */
+    mqtt_output_send(&client->output, client->conn);
+  }
+  return ERR_OK;
+}

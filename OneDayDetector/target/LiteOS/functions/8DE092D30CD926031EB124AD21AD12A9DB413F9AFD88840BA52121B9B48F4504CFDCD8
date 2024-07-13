@@ -1,0 +1,18 @@
+HAL_StatusTypeDef USB_DriveVbus (USB_OTG_GlobalTypeDef *USBx, uint8_t state)
+{
+  __IO uint32_t hprt0 = 0;
+  
+  hprt0 = USBx_HPRT0;
+  hprt0 &= ~(USB_OTG_HPRT_PENA    | USB_OTG_HPRT_PCDET |\
+          USB_OTG_HPRT_PENCHNG | USB_OTG_HPRT_POCCHNG );
+  
+  if (((hprt0 & USB_OTG_HPRT_PPWR) == 0 ) && (state == 1 ))
+  {
+    USBx_HPRT0 = (USB_OTG_HPRT_PPWR | hprt0);
+  }
+  if (((hprt0 & USB_OTG_HPRT_PPWR) == USB_OTG_HPRT_PPWR) && (state == 0 ))
+  {
+    USBx_HPRT0 = ((~USB_OTG_HPRT_PPWR) & hprt0);
+  }
+  return HAL_OK;
+}

@@ -1,0 +1,47 @@
+static int prv_countItems(uint8_t *buffer,
+                          size_t bufferLen)
+{
+    int count;
+    size_t index;
+    int in;
+
+    count = 0;
+    index = 0;
+    in = 0;
+
+    while (index < bufferLen)
+    {
+        if (in == 0)
+        {
+            if (buffer[index] != '{') return -1;
+            in = 1;
+            _GO_TO_NEXT_CHAR(index, buffer, bufferLen);
+        }
+        else
+        {
+            if (buffer[index] == '{') return -1;
+            if (buffer[index] == '}')
+            {
+                in = 0;
+                count++;
+                _GO_TO_NEXT_CHAR(index, buffer, bufferLen);
+                if (buffer[index] == ']')
+                {
+                    break;
+                }
+                if (buffer[index] != ',') return -1;
+                _GO_TO_NEXT_CHAR(index, buffer, bufferLen);
+            }
+            else
+            {
+                _GO_TO_NEXT_CHAR(index, buffer, bufferLen);
+            }
+        }
+    }
+    if (in == 1) return -1;
+
+    return count;
+
+error:
+    return -1;
+}

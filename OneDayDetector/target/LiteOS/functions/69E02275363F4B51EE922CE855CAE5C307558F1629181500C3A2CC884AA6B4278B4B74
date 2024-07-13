@@ -1,0 +1,39 @@
+int mbedtls_aes_crypt_ofb( mbedtls_aes_context *ctx,
+                           size_t length,
+                           size_t *iv_off,
+                           unsigned char iv[16],
+                           const unsigned char *input,
+                           unsigned char *output )
+{
+    int ret = 0;
+    size_t n;
+
+    AES_VALIDATE_RET( ctx != NULL );
+    AES_VALIDATE_RET( iv_off != NULL );
+    AES_VALIDATE_RET( iv != NULL );
+    AES_VALIDATE_RET( input != NULL );
+    AES_VALIDATE_RET( output != NULL );
+
+    n = *iv_off;
+
+    if( n > 15 )
+        return( MBEDTLS_ERR_AES_BAD_INPUT_DATA );
+
+    while( length-- )
+    {
+        if( n == 0 )
+        {
+            ret = mbedtls_aes_crypt_ecb( ctx, MBEDTLS_AES_ENCRYPT, iv, iv );
+            if( ret != 0 )
+                goto exit;
+        }
+        *output++ =  *input++ ^ iv[n];
+
+        n = ( n + 1 ) & 0x0F;
+    }
+
+    *iv_off = n;
+
+exit:
+    return( ret );
+}

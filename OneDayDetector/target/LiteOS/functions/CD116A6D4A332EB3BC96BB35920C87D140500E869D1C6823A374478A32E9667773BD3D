@@ -1,0 +1,76 @@
+HAL_StatusTypeDef HAL_RS485Ex_Init(UART_HandleTypeDef *huart, uint32_t Polarity, uint32_t AssertionTime,
+                                   uint32_t DeassertionTime)
+{
+  uint32_t temp;
+
+  /* Check the UART handle allocation */
+  if (huart == NULL)
+  {
+    return HAL_ERROR;
+  }
+  /* Check the Driver Enable UART instance */
+  assert_param(IS_UART_DRIVER_ENABLE_INSTANCE(huart->Instance));
+
+  /* Check the Driver Enable polarity */
+  assert_param(IS_UART_DE_POLARITY(Polarity));
+
+  /* Check the Driver Enable assertion time */
+  assert_param(IS_UART_ASSERTIONTIME(AssertionTime));
+
+  /* Check the Driver Enable deassertion time */
+  assert_param(IS_UART_DEASSERTIONTIME(DeassertionTime));
+
+  if (huart->gState == HAL_UART_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    huart->Lock = HAL_UNLOCKED;
+
+#if (USE_HAL_UART_REGISTER_CALLBACKS == 1)
+    UART_InitCallbacksToDefault(huart);
+
+    if (huart->MspInitCallback == NULL)
+    {
+      huart->MspInitCallback = HAL_UART_MspInit;
+    }
+
+    /* Init the low level hardware */
+    huart->MspInitCallback(huart);
+#else
+    /* Init the low level hardware : GPIO, CLOCK, CORTEX */
+    HAL_UART_MspInit(huart);
+#endif /* (USE_HAL_UART_REGISTER_CALLBACKS) */
+  }
+
+  huart->gState = HAL_UART_STATE_BUSY;
+
+  /* Disable the Peripheral */
+  __HAL_UART_DISABLE(huart);
+
+  /* Set the UART Communication parameters */
+  if (UART_SetConfig(huart) == HAL_ERROR)
+  {
+    return HAL_ERROR;
+  }
+
+  if (huart->AdvancedInit.AdvFeatureInit != UART_ADVFEATURE_NO_INIT)
+  {
+    UART_AdvFeatureConfig(huart);
+  }
+
+  /* Enable the Driver Enable mode by setting the DEM bit in the CR3 register */
+  SET_BIT(huart->Instance->CR3, USART_CR3_DEM);
+
+  /* Set the Driver Enable polarity */
+  MODIFY_REG(huart->Instance->CR3, USART_CR3_DEP, Polarity);
+
+  /* Set the Driver Enable assertion and deassertion times */
+  temp = (AssertionTime << UART_CR1_DEAT_ADDRESS_LSB_POS);
+  temp |= (DeassertionTime << UART_CR1_DEDT_ADDRESS_LSB_POS);
+  MODIFY_REG(huart->Instance->CR1, (USART_CR1_DEDT | USART_CR1_DEAT), temp);
+
+  /* Enable the Peripheral */
+  __HAL_UART_ENABLE(huart);
+
+  /* TEACK and/or REACK to check before moving huart->gState and huart->RxState to Ready */
+  return (UART_CheckIdleState(huart));
+}

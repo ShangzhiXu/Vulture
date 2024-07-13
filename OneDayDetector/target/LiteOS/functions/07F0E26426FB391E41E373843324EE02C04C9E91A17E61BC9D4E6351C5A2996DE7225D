@@ -1,0 +1,26 @@
+igmp_joingroup(const ip4_addr_t *ifaddr, const ip4_addr_t *groupaddr)
+{
+  err_t err = ERR_VAL; /* no matching interface */
+  struct netif *netif;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  /* make sure it is multicast address */
+  LWIP_ERROR("igmp_joingroup: attempt to join non-multicast address", ip4_addr_ismulticast(groupaddr), return ERR_VAL;);
+  LWIP_ERROR("igmp_joingroup: attempt to join allsystems address", (!ip4_addr_cmp(groupaddr, &allsystems)), return ERR_VAL;);
+
+  /* loop through netif's */
+  NETIF_FOREACH(netif) {
+    /* Should we join this interface ? */
+    if ((netif->flags & NETIF_FLAG_IGMP) && ((ip4_addr_isany(ifaddr) || ip4_addr_cmp(netif_ip4_addr(netif), ifaddr)))) {
+      err = igmp_joingroup_netif(netif, groupaddr);
+      if (err != ERR_OK) {
+        /* Return an error even if some network interfaces are joined */
+        /** @todo undo any other netif already joined */
+        return err;
+      }
+    }
+  }
+
+  return err;
+}

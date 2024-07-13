@@ -1,0 +1,30 @@
+HAL_StatusTypeDef HAL_DACEx_SetUserTrimming (DAC_HandleTypeDef* hdac, DAC_ChannelConfTypeDef* sConfig, uint32_t Channel, uint32_t NewTrimmingValue)
+{ 
+  HAL_StatusTypeDef status = HAL_OK;
+     
+  /* Check the parameters */
+  assert_param(IS_DAC_CHANNEL(Channel));
+  assert_param(IS_DAC_NEWTRIMMINGVALUE(NewTrimmingValue));
+  
+ /* Check the DAC handle allocation */
+  if(hdac == NULL)
+  {
+    status = HAL_ERROR;
+  }
+  else
+  {
+    /* Process locked */
+    __HAL_LOCK(hdac);
+    
+    /* Set new trimming */
+    MODIFY_REG(hdac->Instance->CCR, (DAC_CCR_OTRIM1<<Channel), (NewTrimmingValue<<Channel));
+    
+    /* Update trimming mode */
+    sConfig->DAC_UserTrimming = DAC_TRIMMING_USER;
+    sConfig->DAC_TrimmingValue = NewTrimmingValue;
+    
+    /* Process unlocked */
+    __HAL_UNLOCK(hdac);
+  }
+  return status;
+}

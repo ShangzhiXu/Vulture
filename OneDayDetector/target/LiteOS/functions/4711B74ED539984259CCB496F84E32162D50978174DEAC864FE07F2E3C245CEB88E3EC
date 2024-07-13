@@ -1,0 +1,73 @@
+HAL_StatusTypeDef HAL_ETH_GetReceivedFrame(ETH_HandleTypeDef *heth)
+{
+  uint32_t framelength = 0U;
+  
+  /* Process Locked */
+  __HAL_LOCK(heth);
+  
+  /* Check the ETH state to BUSY */
+  heth->State = HAL_ETH_STATE_BUSY;
+  
+  /* Check if segment is not owned by DMA */
+  /* (((heth->RxDesc->Status & ETH_DMARXDESC_OWN) == (uint32_t)RESET) && ((heth->RxDesc->Status & ETH_DMARXDESC_LS) != (uint32_t)RESET)) */
+  if(((heth->RxDesc->Status & ETH_DMARXDESC_OWN) == (uint32_t)RESET))
+  {
+    /* Check if last segment */
+    if(((heth->RxDesc->Status & ETH_DMARXDESC_LS) != (uint32_t)RESET)) 
+    {
+      /* increment segment count */
+      (heth->RxFrameInfos).SegCount++;
+      
+      /* Check if last segment is first segment: one segment contains the frame */
+      if ((heth->RxFrameInfos).SegCount == 1U)
+      {
+        (heth->RxFrameInfos).FSRxDesc =heth->RxDesc;
+      }
+      
+      heth->RxFrameInfos.LSRxDesc = heth->RxDesc;
+      
+      /* Get the Frame Length of the received packet: substruct 4 bytes of the CRC */
+      framelength = (((heth->RxDesc)->Status & ETH_DMARXDESC_FL) >> ETH_DMARXDESC_FRAMELENGTHSHIFT) - 4U;
+      heth->RxFrameInfos.length = framelength;
+      
+      /* Get the address of the buffer start address */
+      heth->RxFrameInfos.buffer = ((heth->RxFrameInfos).FSRxDesc)->Buffer1Addr;
+      /* point to next descriptor */
+      heth->RxDesc = (ETH_DMADescTypeDef*) ((heth->RxDesc)->Buffer2NextDescAddr);
+      
+      /* Set HAL State to Ready */
+      heth->State = HAL_ETH_STATE_READY;
+      
+      /* Process Unlocked */
+      __HAL_UNLOCK(heth);
+      
+      /* Return function status */
+      return HAL_OK;
+    }
+    /* Check if first segment */
+    else if((heth->RxDesc->Status & ETH_DMARXDESC_FS) != (uint32_t)RESET)
+    {
+      (heth->RxFrameInfos).FSRxDesc = heth->RxDesc;
+      (heth->RxFrameInfos).LSRxDesc = NULL;
+      (heth->RxFrameInfos).SegCount = 1U;
+      /* Point to next descriptor */
+      heth->RxDesc = (ETH_DMADescTypeDef*) (heth->RxDesc->Buffer2NextDescAddr);
+    }
+    /* Check if intermediate segment */ 
+    else
+    {
+      (heth->RxFrameInfos).SegCount++;
+      /* Point to next descriptor */
+      heth->RxDesc = (ETH_DMADescTypeDef*) (heth->RxDesc->Buffer2NextDescAddr);
+    } 
+  }
+  
+  /* Set ETH HAL State to Ready */
+  heth->State = HAL_ETH_STATE_READY;
+  
+  /* Process Unlocked */
+  __HAL_UNLOCK(heth);
+  
+  /* Return function status */
+  return HAL_ERROR;
+}

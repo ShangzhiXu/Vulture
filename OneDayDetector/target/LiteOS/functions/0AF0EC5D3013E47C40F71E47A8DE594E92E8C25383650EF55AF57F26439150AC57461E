@@ -1,0 +1,26 @@
+static err_t testif_init(struct netif *netif)
+{
+  netif->name[0] = 'f';
+  netif->name[1] = 'z';
+  netif->output = etharp_output;
+  netif->linkoutput = lwip_tx_func;
+  netif->mtu = 1500;
+  netif->hwaddr_len = 6;
+  netif->flags = NETIF_FLAG_BROADCAST | NETIF_FLAG_ETHARP | NETIF_FLAG_IGMP;
+
+  netif->hwaddr[0] = 0x00;
+  netif->hwaddr[1] = 0x23;
+  netif->hwaddr[2] = 0xC1;
+  netif->hwaddr[3] = 0xDE;
+  netif->hwaddr[4] = 0xD0;
+  netif->hwaddr[5] = 0x0D;
+
+#if LWIP_IPV6
+  netif->output_ip6 = ethip6_output;
+  netif->ip6_autoconfig_enabled = 1;
+  netif_create_ip6_linklocal_address(netif, 1);
+  netif->flags |= NETIF_FLAG_MLD6;
+#endif
+
+  return ERR_OK;
+}

@@ -1,0 +1,29 @@
+VOID OsBlockMapsSet(UINT64 flags, UINT64 start, UINT64 end)
+{
+    UINT64 startOffset;
+    BlockCB blockCB;
+    UINT32 intSave;
+
+    if ((start & ((1u << SHIFT_2M) - 1)) != 0) {
+        PRINT_ERR("%s, %d, the start of mapping addr is 0x%llx, should be aligned as 2M \n",
+                  __FUNCTION__, __LINE__, start);
+        return;
+    }
+
+    if (start >= end) {
+        PRINT_ERR("%s, %d, input parameters are error: start: 0x%llx, end: 0x%llx\n",
+                  __FUNCTION__, __LINE__, start, end);
+        return;
+    }
+
+    startOffset = start >> SHIFT_1G;
+    intSave = LOS_IntLock();
+    blockCB.tbl = PMD_ADDR0 + (startOffset * PAGE_SIZE);
+    blockCB.flags = flags;
+    blockCB.phys = start;
+    blockCB.start = start;
+    blockCB.end = end - 1;
+    blockCB.blockShift = SHIFT_2M;
+    CreatBlockMap(&blockCB);
+    LOS_IntRestore(intSave);
+}

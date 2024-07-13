@@ -1,0 +1,21 @@
+lwip_socket_unregister_membership(int s, const ip4_addr_t *if_addr, const ip4_addr_t *multi_addr)
+{
+  struct lwip_sock *sock = get_socket(s);
+  int i;
+
+  if (!sock) {
+    return;
+  }
+
+  for (i = 0; i < LWIP_SOCKET_MAX_MEMBERSHIPS; i++) {
+    if ((socket_ipv4_multicast_memberships[i].sock == sock) &&
+        ip4_addr_cmp(&socket_ipv4_multicast_memberships[i].if_addr, if_addr) &&
+        ip4_addr_cmp(&socket_ipv4_multicast_memberships[i].multi_addr, multi_addr)) {
+      socket_ipv4_multicast_memberships[i].sock = NULL;
+      ip4_addr_set_zero(&socket_ipv4_multicast_memberships[i].if_addr);
+      ip4_addr_set_zero(&socket_ipv4_multicast_memberships[i].multi_addr);
+      break;
+    }
+  }
+  done_socket(sock);
+}

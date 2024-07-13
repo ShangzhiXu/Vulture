@@ -1,0 +1,18 @@
+uint32_t SDMMC_CmdStopTransfer(SDMMC_TypeDef *SDMMCx)
+{
+  SDMMC_CmdInitTypeDef  sdmmc_cmdinit;
+  uint32_t errorstate = SDMMC_ERROR_NONE;
+  
+  /* Send CMD12 STOP_TRANSMISSION  */
+  sdmmc_cmdinit.Argument         = 0;
+  sdmmc_cmdinit.CmdIndex         = SDMMC_CMD_STOP_TRANSMISSION;
+  sdmmc_cmdinit.Response         = SDMMC_RESPONSE_SHORT;
+  sdmmc_cmdinit.WaitForInterrupt = SDMMC_WAIT_NO;
+  sdmmc_cmdinit.CPSM             = SDMMC_CPSM_ENABLE;
+  SDMMC_SendCommand(SDMMCx, &sdmmc_cmdinit);
+  
+  /* Check for error conditions */
+  errorstate = SDMMC_GetCmdResp1(SDMMCx, SDMMC_CMD_STOP_TRANSMISSION, 100000000/*SDMMC_CMDTIMEOUT*/);
+
+  return errorstate;
+}

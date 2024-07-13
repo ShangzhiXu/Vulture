@@ -1,0 +1,51 @@
+typedef struct {
+    /** First Unicode character for this range */
+    uint32_t range_start;
+
+    /** Number of Unicode characters related to this range.
+     * Last Unicode character = range_start + range_length - 1*/
+    uint16_t range_length;
+
+    /** First glyph ID (array index of `glyph_dsc`) for this range */
+    uint16_t glyph_id_start;
+
+    /*
+    According the specification there are 4 formats:
+        https://github.com/lvgl/lv_font_conv/blob/master/doc/font_spec.md
+
+    For simplicity introduce "relative code point":
+        rcp = codepoint - range_start
+
+    and a search function:
+        search a "value" in an "array" and returns the index of "value".
+
+    Format 0 tiny
+        unicode_list == NULL && glyph_id_ofs_list == NULL
+        glyph_id = glyph_id_start + rcp
+
+    Format 0 full
+        unicode_list == NULL && glyph_id_ofs_list != NULL
+        glyph_id = glyph_id_start + glyph_id_ofs_list[rcp]
+
+    Sparse tiny
+        unicode_list != NULL && glyph_id_ofs_list == NULL
+        glyph_id = glyph_id_start + search(unicode_list, rcp)
+
+    Sparse full
+        unicode_list != NULL && glyph_id_ofs_list != NULL
+        glyph_id = glyph_id_start + glyph_id_ofs_list[search(unicode_list, rcp)]
+    */
+
+    const uint16_t * unicode_list;
+
+    /** if(type == LV_FONT_FMT_TXT_CMAP_FORMAT0_...) it's `uint8_t *`
+     * if(type == LV_FONT_FMT_TXT_CMAP_SPARSE_...)  it's `uint16_t *`
+     */
+    const void * glyph_id_ofs_list;
+
+    /** Length of `unicode_list` and/or `glyph_id_ofs_list`*/
+    uint16_t list_length;
+
+    /** Type of this character map*/
+    lv_font_fmt_txt_cmap_type_t type;
+} lv_font_fmt_txt_cmap_t;

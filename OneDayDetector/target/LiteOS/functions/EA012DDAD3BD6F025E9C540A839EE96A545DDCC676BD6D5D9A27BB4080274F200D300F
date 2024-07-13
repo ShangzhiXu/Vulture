@@ -1,0 +1,52 @@
+static void JPEG_SetColorCMYK(JPEG_HandleTypeDef *hjpeg)
+{
+  uint32_t ySamplingH;
+  uint32_t ySamplingV;
+  uint32_t yblockNb;
+
+  /*Set Number of color components to 4*/
+  hjpeg->Instance->CONFR1 |= (JPEG_CONFR1_NF | JPEG_CONFR1_NS);
+
+  /* compute MCU block size and Y, Cb ,Cr sampling factors*/
+  if (hjpeg->Conf.ChromaSubsampling == JPEG_420_SUBSAMPLING)
+  {
+    ySamplingH  = JPEG_CONFR4_HSF_1;   /* Hs = 2*/
+    ySamplingV  = JPEG_CONFR4_VSF_1;   /* Vs = 2*/
+
+    yblockNb  = 0x30; /* 4 blocks of 8x8*/
+  }
+  else if (hjpeg->Conf.ChromaSubsampling == JPEG_422_SUBSAMPLING)
+  {
+    ySamplingH  = JPEG_CONFR4_HSF_1;   /* Hs = 2*/
+    ySamplingV  = JPEG_CONFR4_VSF_0;   /* Vs = 1*/
+
+    yblockNb  = 0x10; /* 2 blocks of 8x8*/
+  }
+  else /*JPEG_444_SUBSAMPLING and default*/
+  {
+    ySamplingH  = JPEG_CONFR4_HSF_0;   /* Hs = 1*/
+    ySamplingV  = JPEG_CONFR4_VSF_0;   /* Vs = 1*/
+
+    yblockNb  = 0; /* 1 block of 8x8*/
+  }
+
+  /*Reset CONFR4 register*/
+  hjpeg->Instance->CONFR4 =  0;
+  /*Set Horizental and Vertical  sampling factor , number of blocks , Quantization table and Huffman AC/DC tables for component 0*/
+  hjpeg->Instance->CONFR4 |= (ySamplingH | ySamplingV | (yblockNb & JPEG_CONFR4_NB));
+
+  /*Reset CONFR5 register*/
+  hjpeg->Instance->CONFR5 =  0;
+  /*Set Horizental and Vertical  sampling factor , number of blocks , Quantization table and Huffman AC/DC tables for component 1*/
+  hjpeg->Instance->CONFR5 |= (JPEG_CONFR5_HSF_0 | JPEG_CONFR5_VSF_0);
+
+  /*Reset CONFR6 register*/
+  hjpeg->Instance->CONFR6 =  0;
+  /*Set Horizental and Vertical  sampling factor , number of blocks , Quantization table and Huffman AC/DC tables for component 2*/
+  hjpeg->Instance->CONFR6 |= (JPEG_CONFR6_HSF_0 | JPEG_CONFR6_VSF_0);
+
+  /*Reset CONFR7 register*/
+  hjpeg->Instance->CONFR7 =  0;
+  /*Set Horizental and Vertical  sampling factor , number of blocks , Quantization table and Huffman AC/DC tables for component 3*/
+  hjpeg->Instance->CONFR7 |= (JPEG_CONFR7_HSF_0 | JPEG_CONFR7_VSF_0);
+}

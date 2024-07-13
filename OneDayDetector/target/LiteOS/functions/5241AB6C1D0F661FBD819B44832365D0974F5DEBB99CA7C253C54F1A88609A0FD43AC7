@@ -1,0 +1,87 @@
+int dtls_shakehand(mbedtls_ssl_context *ssl, const dtls_shakehand_info_s *info)
+{
+    int ret = MBEDTLS_ERR_NET_CONNECT_FAILED;
+    uint32_t change_value = 0;
+    mbedtls_net_context *server_fd = (mbedtls_net_context*)atiny_malloc(sizeof(mbedtls_net_context));
+    uint32_t max_value;
+#if defined(MBEDTLS_X509_CRT_PARSE_C)
+    unsigned int flags;
+#endif
+
+    MBEDTLS_LOG("connecting to server");
+
+    if (MBEDTLS_SSL_IS_CLIENT == info->client_or_server) {
+        mbedtls_net_connect(server_fd, info->u.c.host, info->u.c.port, info->udp_or_tcp);
+    } else {
+        server_fd = (mbedtls_net_context*)atiny_net_bind(NULL, info->u.s.local_port, MBEDTLS_NET_PROTO_UDP);
+    }
+
+    if (server_fd == NULL) {
+        MBEDTLS_LOG("connect failed! mode %d", info->client_or_server);
+        ret = MBEDTLS_ERR_NET_CONNECT_FAILED;
+        goto exit_fail;
+    }
+
+    mbedtls_ssl_set_bio(ssl, server_fd,
+                        mbedtls_net_send, mbedtls_net_recv, mbedtls_net_recv_timeout);
+
+    MBEDTLS_LOG("performing the SSL/TLS handshake");
+
+    max_value = (((MBEDTLS_SSL_IS_SERVER == info->client_or_server) || (info->udp_or_tcp == MBEDTLS_NET_PROTO_UDP)) ?
+                (dtls_gettime() + info->timeout) :  50);
+
+    do {
+        ret = mbedtls_ssl_handshake(ssl);
+        //MBEDTLS_LOG("mbedtls_ssl_handshake %d %d", change_value, max_value);
+        //LOS_TaskDelay(1);
+        if ((MBEDTLS_SSL_IS_CLIENT == info->client_or_server) && (info->udp_or_tcp == MBEDTLS_NET_PROTO_TCP)) {
+            change_value++;
+        } else {
+            change_value = dtls_gettime();
+        }
+
+        if (info->step_notify != NULL) {
+            info->step_notify(info->param);
+        }
+    }
+    while (((ret == MBEDTLS_ERR_SSL_WANT_READ) ||
+            (ret == MBEDTLS_ERR_SSL_WANT_WRITE) ||
+            ((ret == MBEDTLS_ERR_SSL_TIMEOUT) &&
+            (info->udp_or_tcp == MBEDTLS_NET_PROTO_TCP))) &&
+            (change_value < max_value));
+
+    if (info->finish_notify != NULL) {
+        info->finish_notify(info->param);
+    }
+
+    if (ret != 0) {
+        MBEDTLS_LOG("mbedtls_ssl_handshake failed: -0x%x", -ret);
+        goto exit_fail;
+    }
+
+#if defined(MBEDTLS_X509_CRT_PARSE_C)
+    if (info->psk_or_cert == VERIFY_WITH_CERT) {
+        if((flags = mbedtls_ssl_get_verify_result(ssl)) != 0) {
+            char vrfy_buf[512];
+            mbedtls_x509_crt_verify_info(vrfy_buf, sizeof(vrfy_buf), "  ! ", flags);
+            MBEDTLS_LOG("cert verify failed: %s", vrfy_buf);
+            goto exit_fail;
+        } else {
+            MBEDTLS_LOG("cert verify succeed");
+        }
+    }
+#endif
+
+    MBEDTLS_LOG("handshake succeed");
+
+    return 0;
+
+exit_fail:
+
+    if (server_fd != NULL) {
+        mbedtls_net_free(server_fd);
+        ssl->p_bio = NULL;
+    }
+
+    return ret;
+}

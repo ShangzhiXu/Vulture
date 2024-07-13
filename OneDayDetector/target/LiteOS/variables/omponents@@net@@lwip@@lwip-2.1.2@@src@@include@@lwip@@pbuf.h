@@ -1,0 +1,12 @@
+  pbuf_free_custom_fn custom_free_function;
+  u8_t flags;
+  u8_t if_idx;
+  u16_t len;
+  struct pbuf *next;
+  struct pbuf *next;
+  const void *payload;
+  void *payload;
+  struct pbuf pbuf;
+  LWIP_PBUF_REF_T ref;
+  u16_t tot_len;
+  u8_t type_internal;

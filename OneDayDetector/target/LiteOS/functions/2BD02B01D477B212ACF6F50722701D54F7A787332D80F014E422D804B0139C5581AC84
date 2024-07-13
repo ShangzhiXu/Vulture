@@ -1,0 +1,20 @@
+lwip_select_inc_sockets_used_set(int maxfdp, fd_set *fdset, fd_set *used_sockets)
+{
+  SYS_ARCH_DECL_PROTECT(lev);
+  if (fdset) {
+    int i;
+    for (i = LWIP_SOCKET_OFFSET; i < maxfdp; i++) {
+      /* if this FD is in the set, lock it (unless already done) */
+      if (FD_ISSET(i, fdset) && !FD_ISSET(i, used_sockets)) {
+        struct lwip_sock *sock;
+        SYS_ARCH_PROTECT(lev);
+        sock = tryget_socket_unconn_locked(i);
+        if (sock != NULL) {
+          /* leave the socket used until released by lwip_select_dec_sockets_used */
+          FD_SET(i, used_sockets);
+        }
+        SYS_ARCH_UNPROTECT(lev);
+      }
+    }
+  }
+}

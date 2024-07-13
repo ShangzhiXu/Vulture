@@ -1,0 +1,19 @@
+STATIC INT32 OsDecodeDataFSR(UINT32 regDFSR)
+{
+    INT32 ret = 0;
+    UINT32 bitWnR = GET_WNR(regDFSR); /* WnR bit[11] */
+    UINT32 bitsFS = GET_FS(regDFSR);  /* FS bits[4]+[3:0] */
+
+    if (bitWnR) {
+        PrintExcInfo("Abort caused by a write instruction. ");
+    } else {
+        PrintExcInfo("Abort caused by a read instruction. ");
+    }
+
+    if (bitsFS == 0x01) { /* 0b00001 */
+        PrintExcInfo("Alignment fault.\n");
+        return ret;
+    }
+    ret = OsDecodeFS(bitsFS);
+    return ret;
+}

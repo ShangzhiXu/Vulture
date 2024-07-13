@@ -1,0 +1,23 @@
+static void UART_DMAError(DMA_HandleTypeDef *hdma)
+{
+  UART_HandleTypeDef* huart = (UART_HandleTypeDef*)(hdma->Parent);
+  
+  /* Stop UART DMA Tx request if ongoing */
+  if (  (huart->gState == HAL_UART_STATE_BUSY_TX)
+      &&(HAL_IS_BIT_SET(huart->Instance->CR3, USART_CR3_DMAT)) )
+  {
+    huart->TxXferCount = 0U;
+    UART_EndTxTransfer(huart);
+  }
+  
+  /* Stop UART DMA Rx request if ongoing */
+  if (  (huart->RxState == HAL_UART_STATE_BUSY_RX)
+      &&(HAL_IS_BIT_SET(huart->Instance->CR3, USART_CR3_DMAR)) )
+  {
+    huart->RxXferCount = 0U;
+    UART_EndRxTransfer(huart);
+  }
+  
+  huart->ErrorCode |= HAL_UART_ERROR_DMA;
+  HAL_UART_ErrorCallback(huart);
+}

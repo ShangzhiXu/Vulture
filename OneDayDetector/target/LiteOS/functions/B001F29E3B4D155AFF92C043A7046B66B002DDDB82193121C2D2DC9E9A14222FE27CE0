@@ -1,0 +1,45 @@
+static int ecdh_calc_secret_internal( mbedtls_ecdh_context_mbed *ctx,
+                                      size_t *olen, unsigned char *buf,
+                                      size_t blen,
+                                      int (*f_rng)(void *,
+                                                   unsigned char *,
+                                                   size_t),
+                                      void *p_rng,
+                                      int restart_enabled )
+{
+    int ret;
+#if defined(MBEDTLS_ECP_RESTARTABLE)
+    mbedtls_ecp_restart_ctx *rs_ctx = NULL;
+#endif
+
+    if( ctx == NULL || ctx->grp.pbits == 0 )
+        return( MBEDTLS_ERR_ECP_BAD_INPUT_DATA );
+
+#if defined(MBEDTLS_ECP_RESTARTABLE)
+    if( restart_enabled )
+        rs_ctx = &ctx->rs;
+#else
+    (void) restart_enabled;
+#endif
+
+#if defined(MBEDTLS_ECP_RESTARTABLE)
+    if( ( ret = ecdh_compute_shared_restartable( &ctx->grp, &ctx->z, &ctx->Qp,
+                                                 &ctx->d, f_rng, p_rng,
+                                                 rs_ctx ) ) != 0 )
+    {
+        return( ret );
+    }
+#else
+    if( ( ret = mbedtls_ecdh_compute_shared( &ctx->grp, &ctx->z, &ctx->Qp,
+                                             &ctx->d, f_rng, p_rng ) ) != 0 )
+    {
+        return( ret );
+    }
+#endif /* MBEDTLS_ECP_RESTARTABLE */
+
+    if( mbedtls_mpi_size( &ctx->z ) > blen )
+        return( MBEDTLS_ERR_ECP_BAD_INPUT_DATA );
+
+    *olen = ctx->grp.pbits / 8 + ( ( ctx->grp.pbits % 8 ) != 0 );
+    return mbedtls_mpi_write_binary( &ctx->z, buf, *olen );
+}

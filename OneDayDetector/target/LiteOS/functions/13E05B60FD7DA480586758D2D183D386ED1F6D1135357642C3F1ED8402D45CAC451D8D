@@ -1,0 +1,26 @@
+int mbedtls_poly1305_finish( mbedtls_poly1305_context *ctx,
+                             unsigned char mac[16] )
+{
+    POLY1305_VALIDATE_RET( ctx != NULL );
+    POLY1305_VALIDATE_RET( mac != NULL );
+
+    /* Process any leftover data */
+    if( ctx->queue_len > 0U )
+    {
+        /* Add padding bit */
+        ctx->queue[ctx->queue_len] = 1U;
+        ctx->queue_len++;
+
+        /* Pad with zeroes */
+        memset( &ctx->queue[ctx->queue_len],
+                0,
+                POLY1305_BLOCK_SIZE_BYTES - ctx->queue_len );
+
+        poly1305_process( ctx, 1U,          /* Process 1 block */
+                          ctx->queue, 0U ); /* Already padded above */
+    }
+
+    poly1305_compute_mac( ctx, mac );
+
+    return( 0 );
+}

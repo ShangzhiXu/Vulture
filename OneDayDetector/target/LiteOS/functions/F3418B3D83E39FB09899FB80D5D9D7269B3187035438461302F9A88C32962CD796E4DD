@@ -1,0 +1,108 @@
+static snmp_err_t usmusertable_get_next_instance(const u32_t *column, struct snmp_obj_id *row_oid, struct snmp_node_instance *cell_instance)
+{
+  const char *engineid;
+  u8_t eid_len;
+
+  u32_t engineid_oid[SNMP_V3_MAX_ENGINE_ID_LENGTH];
+
+  u8_t name_len;
+  u8_t engineid_len;
+
+  u8_t name_start;
+  u8_t engineid_start = 1;
+  u8_t i;
+
+  struct snmp_next_oid_state state;
+
+  u32_t result_temp[LWIP_ARRAYSIZE(usmUserTable_oid_ranges)];
+
+  LWIP_UNUSED_ARG(column);
+
+  snmpv3_get_engine_id(&engineid, &eid_len);
+
+  /* If EngineID might be given */
+  if (row_oid->len > 0) {
+    engineid_len = (u8_t)row_oid->id[0];
+    engineid_start = 1;
+
+    if (engineid_len != eid_len) {
+      /* EngineID length does not match! */
+      return SNMP_ERR_NOSUCHINSTANCE;
+    }
+
+    if (engineid_len > row_oid->len) {
+      /* Verify partial EngineID */
+      snmp_engineid_to_oid(engineid, engineid_oid, row_oid->len - 1);
+      if (!snmp_oid_equal(&row_oid->id[engineid_start], row_oid->len - 1, engineid_oid, row_oid->len - 1)) {
+        return SNMP_ERR_NOSUCHINSTANCE;
+      }
+    } else {
+      /* Verify complete EngineID */
+      snmp_engineid_to_oid(engineid, engineid_oid, engineid_len);
+      if (!snmp_oid_equal(&row_oid->id[engineid_start], engineid_len, engineid_oid, engineid_len)) {
+        return SNMP_ERR_NOSUCHINSTANCE;
+      }
+    }
+
+    /* At this point, the given EngineID (partially) matches the local EngineID.*/
+
+    /* If name might also be given */
+    if (row_oid->len > engineid_start + engineid_len) {
+      name_len = (u8_t)row_oid->id[engineid_start + engineid_len];
+      name_start = engineid_start + engineid_len + 1;
+
+      if (name_len > SNMP_V3_MAX_USER_LENGTH) {
+        /* specified name is too long, max length is 32 according to mib file.*/
+        return SNMP_ERR_NOSUCHINSTANCE;
+      }
+
+      if (row_oid->len < engineid_len + name_len + 2) {
+        /* Partial name given according to oid.*/
+        u8_t tmplen = row_oid->len - engineid_len - 2;
+        if (!snmp_oid_in_range(&row_oid->id[name_start], tmplen, usmUserTable_oid_ranges, tmplen)) {
+          return SNMP_ERR_NOSUCHINSTANCE;
+        }
+      } else {
+        /* Full name given according to oid. Also test for too much data.*/
+        u8_t tmplen = row_oid->len - engineid_len - 2;
+        if (!snmp_oid_in_range(&row_oid->id[name_start], name_len, usmUserTable_oid_ranges, tmplen)) {
+          return SNMP_ERR_NOSUCHINSTANCE;
+        }
+      }
+
+      /* At this point the EngineID and (partial) UserName match the local EngineID and UserName.*/
+    }
+  }
+
+  /* init struct to search next oid */
+  snmp_next_oid_init(&state, row_oid->id, row_oid->len, result_temp, LWIP_ARRAYSIZE(usmUserTable_oid_ranges));
+
+  for (i = 0; i < snmpv3_get_amount_of_users(); i++) {
+    u32_t test_oid[LWIP_ARRAYSIZE(usmUserTable_oid_ranges)];
+
+    test_oid[0] = eid_len;
+    snmp_engineid_to_oid(engineid, &test_oid[1], eid_len);
+
+    snmpv3_get_username(username, i);
+
+    test_oid[1 + eid_len] = strlen(username);
+    snmp_name_to_oid(username, &test_oid[2 + eid_len], strlen(username));
+
+    /* check generated OID: is it a candidate for the next one? */
+    snmp_next_oid_check(&state, test_oid, (u8_t)(1 + eid_len + 1 + strlen(username)), LWIP_PTR_NUMERIC_CAST(void *, i));
+  }
+
+  /* did we find a next one? */
+  if (state.status == SNMP_NEXT_OID_STATUS_SUCCESS) {
+    snmp_oid_assign(row_oid, state.next_oid, state.next_oid_len);
+    /* store username for subsequent operations (get/test/set) */
+    memset(username, 0, sizeof(username));
+    snmpv3_get_username(username, LWIP_PTR_NUMERIC_CAST(u8_t, state.reference));
+    cell_instance->reference.ptr = username;
+    cell_instance->reference_len = strlen(username);
+    return SNMP_ERR_NOERROR;
+  }
+
+  /* not found */
+  return SNMP_ERR_NOSUCHINSTANCE;
+}

@@ -1,0 +1,224 @@
+lowpan6_input(struct pbuf *p, struct netif *netif)
+{
+  u8_t *puc, b;
+  s8_t i;
+  struct lowpan6_link_addr src, dest;
+  u16_t datagram_size = 0;
+  u16_t datagram_offset, datagram_tag;
+  struct lowpan6_reass_helper *lrh, *lrh_next, *lrh_prev = NULL;
+
+  if (p == NULL) {
+    return ERR_OK;
+  }
+
+  MIB2_STATS_NETIF_ADD(netif, ifinoctets, p->tot_len);
+
+  if (p->len != p->tot_len) {
+    /* for now, this needs a pbuf in one piece */
+    goto lowpan6_input_discard;
+  }
+
+  if (lowpan6_parse_iee802154_header(p, &src, &dest) != ERR_OK) {
+    goto lowpan6_input_discard;
+  }
+
+  /* Check dispatch. */
+  puc = (u8_t *)p->payload;
+
+  b = *puc;
+  if ((b & 0xf8) == 0xc0) {
+    /* FRAG1 dispatch. add this packet to reassembly list. */
+    datagram_size = ((u16_t)(puc[0] & 0x07) << 8) | (u16_t)puc[1];
+    datagram_tag = ((u16_t)puc[2] << 8) | (u16_t)puc[3];
+
+    /* check for duplicate */
+    lrh = lowpan6_data.reass_list;
+    while (lrh != NULL) {
+      uint8_t discard = 0;
+      lrh_next = lrh->next_packet;
+      if ((lrh->sender_addr.addr_len == src.addr_len) &&
+          (memcmp(lrh->sender_addr.addr, src.addr, src.addr_len) == 0)) {
+        /* address match with packet in reassembly. */
+        if ((datagram_tag == lrh->datagram_tag) && (datagram_size == lrh->datagram_size)) {
+          /* duplicate fragment. */
+          goto lowpan6_input_discard;
+        } else {
+          /* We are receiving the start of a new datagram. Discard old one (incomplete). */
+          discard = 1;
+        }
+      }
+      if (discard) {
+        dequeue_datagram(lrh, lrh_prev);
+        free_reass_datagram(lrh);
+      } else {
+        lrh_prev = lrh;
+      }
+      /* Check next datagram in queue. */
+      lrh = lrh_next;
+    }
+
+    pbuf_remove_header(p, 4); /* hide frag1 dispatch */
+
+    lrh = (struct lowpan6_reass_helper *) mem_malloc(sizeof(struct lowpan6_reass_helper));
+    if (lrh == NULL) {
+      goto lowpan6_input_discard;
+    }
+
+    lrh->sender_addr.addr_len = src.addr_len;
+    for (i = 0; i < src.addr_len; i++) {
+      lrh->sender_addr.addr[i] = src.addr[i];
+    }
+    lrh->datagram_size = datagram_size;
+    lrh->datagram_tag = datagram_tag;
+    lrh->frags = NULL;
+    if (*(u8_t *)p->payload == 0x41) {
+      /* This is a complete IPv6 packet, just skip dispatch byte. */
+      pbuf_remove_header(p, 1); /* hide dispatch byte. */
+      lrh->reass = p;
+    } else if ((*(u8_t *)p->payload & 0xe0 ) == 0x60) {
+      lrh->reass = lowpan6_decompress(p, datagram_size, LWIP_6LOWPAN_CONTEXTS(netif), &src, &dest);
+      if (lrh->reass == NULL) {
+        /* decompression failed */
+        mem_free(lrh);
+        goto lowpan6_input_discard;
+      }
+    }
+    /* TODO: handle the case where we already have FRAGN received */
+    lrh->next_packet = lowpan6_data.reass_list;
+    lrh->timer = 2;
+    lowpan6_data.reass_list = lrh;
+
+    return ERR_OK;
+  } else if ((b & 0xf8) == 0xe0) {
+    /* FRAGN dispatch, find packet being reassembled. */
+    datagram_size = ((u16_t)(puc[0] & 0x07) << 8) | (u16_t)puc[1];
+    datagram_tag = ((u16_t)puc[2] << 8) | (u16_t)puc[3];
+    datagram_offset = (u16_t)puc[4] << 3;
+    pbuf_remove_header(p, 4); /* hide frag1 dispatch but keep datagram offset for reassembly */
+
+    for (lrh = lowpan6_data.reass_list; lrh != NULL; lrh_prev = lrh, lrh = lrh->next_packet) {
+      if ((lrh->sender_addr.addr_len == src.addr_len) &&
+          (memcmp(lrh->sender_addr.addr, src.addr, src.addr_len) == 0) &&
+          (datagram_tag == lrh->datagram_tag) &&
+          (datagram_size == lrh->datagram_size)) {
+        break;
+      }
+    }
+    if (lrh == NULL) {
+      /* rogue fragment */
+      goto lowpan6_input_discard;
+    }
+    /* Insert new pbuf into list of fragments. Each fragment is a pbuf,
+       this only works for unchained pbufs. */
+    LWIP_ASSERT("p->next == NULL", p->next == NULL);
+    if (lrh->reass != NULL) {
+      /* FRAG1 already received, check this offset against first len */
+      if (datagram_offset < lrh->reass->len) {
+        /* fragment overlap, discard old fragments */
+        dequeue_datagram(lrh, lrh_prev);
+        free_reass_datagram(lrh);
+        goto lowpan6_input_discard;
+      }
+    }
+    if (lrh->frags == NULL) {
+      /* first FRAGN */
+      lrh->frags = p;
+    } else {
+      /* find the correct place to insert */
+      struct pbuf *q, *last;
+      u16_t new_frag_len = p->len - 1; /* p->len includes datagram_offset byte */
+      for (q = lrh->frags, last = NULL; q != NULL; last = q, q = q->next) {
+        u16_t q_datagram_offset = ((u8_t *)q->payload)[0] << 3;
+        u16_t q_frag_len = q->len - 1;
+        if (datagram_offset < q_datagram_offset) {
+          if (datagram_offset + new_frag_len > q_datagram_offset) {
+            /* overlap, discard old fragments */
+            dequeue_datagram(lrh, lrh_prev);
+            free_reass_datagram(lrh);
+            goto lowpan6_input_discard;
+          }
+          /* insert here */
+          break;
+        } else if (datagram_offset == q_datagram_offset) {
+          if (q_frag_len != new_frag_len) {
+            /* fragment mismatch, discard old fragments */
+            dequeue_datagram(lrh, lrh_prev);
+            free_reass_datagram(lrh);
+            goto lowpan6_input_discard;
+          }
+          /* duplicate, ignore */
+          pbuf_free(p);
+          return ERR_OK;
+        }
+      }
+      /* insert fragment */
+      if (last == NULL) {
+        lrh->frags = p;
+      } else {
+        last->next = p;
+        p->next = q;
+      }
+    }
+    /* check if all fragments were received */
+    if (lrh->reass) {
+      u16_t offset = lrh->reass->len;
+      struct pbuf *q;
+      for (q = lrh->frags; q != NULL; q = q->next) {
+        u16_t q_datagram_offset = ((u8_t *)q->payload)[0] << 3;
+        if (q_datagram_offset != offset) {
+          /* not complete, wait for more fragments */
+          return ERR_OK;
+        }
+        offset += q->len - 1;
+      }
+      if (offset == datagram_size) {
+        /* all fragments received, combine pbufs */
+        u16_t datagram_left = datagram_size - lrh->reass->len;
+        for (q = lrh->frags; q != NULL; q = q->next) {
+          /* hide datagram_offset byte now */
+          pbuf_remove_header(q, 1);
+          q->tot_len = datagram_left;
+          datagram_left -= q->len;
+        }
+        LWIP_ASSERT("datagram_left == 0", datagram_left == 0);
+        q = lrh->reass;
+        q->tot_len = datagram_size;
+        q->next = lrh->frags;
+        lrh->frags = NULL;
+        lrh->reass = NULL;
+        dequeue_datagram(lrh, lrh_prev);
+        mem_free(lrh);
+
+        /* @todo: distinguish unicast/multicast */
+        MIB2_STATS_NETIF_INC(netif, ifinucastpkts);
+        return ip6_input(q, netif);
+      }
+    }
+    /* pbuf enqueued, waiting for more fragments */
+    return ERR_OK;
+  } else {
+    if (b == 0x41) {
+      /* This is a complete IPv6 packet, just skip dispatch byte. */
+      pbuf_remove_header(p, 1); /* hide dispatch byte. */
+    } else if ((b & 0xe0 ) == 0x60) {
+      /* IPv6 headers are compressed using IPHC. */
+      p = lowpan6_decompress(p, datagram_size, LWIP_6LOWPAN_CONTEXTS(netif), &src, &dest);
+      if (p == NULL) {
+        MIB2_STATS_NETIF_INC(netif, ifindiscards);
+        return ERR_OK;
+      }
+    } else {
+      goto lowpan6_input_discard;
+    }
+
+    /* @todo: distinguish unicast/multicast */
+    MIB2_STATS_NETIF_INC(netif, ifinucastpkts);
+
+    return ip6_input(p, netif);
+  }
+lowpan6_input_discard:
+  MIB2_STATS_NETIF_INC(netif, ifindiscards);
+  pbuf_free(p);
+  /* always return ERR_OK here to prevent the caller freeing the pbuf */
+  return ERR_OK;
+}

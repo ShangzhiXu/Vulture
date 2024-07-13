@@ -1,0 +1,24 @@
+LITE_OS_SEC_TEXT_MINOR VOID OsSchedStatistics(LosTaskCB *runTask, LosTaskCB *newTask)
+{
+    UINT64 runtime;
+    UINT32 cpuId = ArchCurrCpuid();
+    UINT64 now = LOS_CurrNanosec();
+
+    SchedStat *schedRun = &runTask->schedStat;
+    SchedStat *schedNew = &newTask->schedStat;
+    SchedPercpu *cpuRun = &schedRun->schedPercpu[cpuId];
+    SchedPercpu *cpuNew = &schedNew->schedPercpu[cpuId];
+
+    /* calculate one chance of running time */
+    runtime = now - schedRun->startRuntime;
+
+    /* add running timer to running task statistics */
+    cpuRun->runtime += runtime;
+    schedRun->allRuntime += runtime;
+
+    /* add context switch counters and schedule start time */
+    cpuNew->contexSwitch++;
+    schedNew->allContextSwitch++;
+    schedNew->startRuntime = now;
+    OsSchedStatisticsPerCpu(runTask, newTask);
+}

@@ -1,0 +1,27 @@
+HAL_StatusTypeDef HAL_IRDA_DMAStop(IRDA_HandleTypeDef *hirda)
+{
+  /* The Lock is not implemented on this API to allow the user application
+     to call the HAL IRDA API under callbacks HAL_IRDA_TxCpltCallback() / HAL_IRDA_RxCpltCallback():
+     when calling HAL_DMA_Abort() API the DMA TX/RX Transfer complete interrupt is generated
+     and the correspond call back is executed HAL_IRDA_TxCpltCallback() / HAL_IRDA_RxCpltCallback()
+     */
+
+  /* Disable the IRDA Tx/Rx DMA requests */
+  CLEAR_BIT(hirda->Instance->CR3, USART_CR3_DMAT);
+  CLEAR_BIT(hirda->Instance->CR3, USART_CR3_DMAR);
+  
+  /* Abort the IRDA DMA tx channel */
+  if(hirda->hdmatx != NULL)
+  {
+    HAL_DMA_Abort(hirda->hdmatx);
+  }
+  /* Abort the IRDA DMA rx channel */
+  if(hirda->hdmarx != NULL)
+  {
+    HAL_DMA_Abort(hirda->hdmarx);
+  }
+  
+  hirda->State = HAL_IRDA_STATE_READY;
+
+  return HAL_OK;
+}

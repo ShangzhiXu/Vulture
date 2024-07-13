@@ -1,0 +1,64 @@
+STATIC UINT32 OsTaskCreateOnly(UINT32 *taskId, TSK_INIT_PARAM_S *initParam, VOID *topStack, BOOL useUsrStack)
+{
+    UINT32 intSave, errRet;
+    VOID *stackPtr = NULL;
+    LosTaskCB *taskCB = NULL;
+    VOID *pool = NULL;
+
+#ifdef LOSCFG_TASK_STATIC_ALLOCATION
+    if (useUsrStack) {
+        errRet = OsTaskCreateParamCheckStatic(taskId, initParam, topStack);
+    } else {
+#endif
+        errRet = OsTaskCreateParamCheck(taskId, initParam, &pool);
+#ifdef LOSCFG_TASK_STATIC_ALLOCATION
+    }
+#endif
+    if (errRet != LOS_OK) {
+        return errRet;
+    }
+
+    SCHEDULER_LOCK(intSave);
+    errRet = OsTaskGetFreeTaskCB(&taskCB);
+    if (errRet != LOS_OK) {
+        OS_GOTO_ERREND();
+    }
+    SCHEDULER_UNLOCK(intSave);
+
+    errRet = OsTaskSyncCreate(taskCB);
+    if (errRet != LOS_OK) {
+        goto LOS_ERREND_REWIND_TCB;
+    }
+
+    if (useUsrStack == FALSE) {
+        OsTaskStackAlloc(&topStack, initParam->uwStackSize, pool);
+        if (topStack == NULL) {
+            errRet = LOS_ERRNO_TSK_NO_MEMORY;
+            goto LOS_ERREND_REWIND_SYNC;
+        }
+    }
+    stackPtr = OsTaskStackInit(taskCB->taskId, initParam->uwStackSize, topStack);
+    OsTaskCBInit(taskCB, initParam, stackPtr, topStack, useUsrStack);
+
+    if (OsConsoleIDSetHook != NULL) {
+        OsConsoleIDSetHook(taskCB->taskId, OsCurrTaskGet()->taskId);
+    }
+
+#ifdef LOSCFG_KERNEL_CPUP
+    OsCpupCB *cpup = OsCpupCBGet(taskCB->taskId);
+    cpup->id = taskCB->taskId;
+    cpup->status = taskCB->taskStatus;
+#endif
+
+    *taskId = taskCB->taskId;
+    return LOS_OK;
+
+LOS_ERREND_REWIND_SYNC:
+    OsTaskSyncDestroy(taskCB);
+LOS_ERREND_REWIND_TCB:
+    SCHEDULER_LOCK(intSave);
+    LOS_ListAdd(&g_losFreeTask, &taskCB->pendList);
+LOS_ERREND:
+    SCHEDULER_UNLOCK(intSave);
+    return errRet;
+}

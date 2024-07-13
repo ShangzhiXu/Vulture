@@ -1,0 +1,21 @@
+static HAL_StatusTypeDef SMARTCARD_EndTransmit_IT(SMARTCARD_HandleTypeDef *hsc)
+{
+  /* Disable the SMARTCARD Transmit Complete Interrupt */
+  CLEAR_BIT(hsc->Instance->CR1, USART_CR1_TCIE);
+
+  /* Disable the SMARTCARD Error Interrupt: (Frame error, noise error, overrun error) */
+  CLEAR_BIT(hsc->Instance->CR3, USART_CR3_EIE);
+
+  /* Tx process is ended, restore hsc->gState to Ready */
+  hsc->gState = HAL_SMARTCARD_STATE_READY;
+
+#if (USE_HAL_SMARTCARD_REGISTER_CALLBACKS == 1)
+  /* Call registered Tx complete callback */
+  hsc->TxCpltCallback(hsc);
+#else
+  /* Call legacy weak Tx complete callback */
+  HAL_SMARTCARD_TxCpltCallback(hsc);
+#endif /* USE_HAL_SMARTCARD_REGISTER_CALLBACK */
+
+  return HAL_OK;
+}

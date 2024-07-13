@@ -1,0 +1,34 @@
+UINT32 OsSchedPickCpu(LosTaskCB* task)
+{
+    UINT32 cpuid, lastMask, cpuidMask, affinity;
+    UINT32 idleMask = OsMpIdleMask();
+
+    affinity  = (UINT32)(task->cpuAffiMask);
+    cpuid     = CTZ(affinity);
+    lastMask  = (task->lastCpu != -1) ?
+                CPUID_TO_AFFI_MASK(task->lastCpu) : 0;
+    cpuidMask = CPUID_TO_AFFI_MASK(cpuid);
+    /* 1 binded on one core, directly return */
+    if (!(affinity & ~cpuidMask)) {
+        return cpuid;
+    }
+    /* 2 there's idled core, choose from them */
+    if (idleMask) {
+        if (idleMask & lastMask) {
+            /* 2.1 last ever runned cpu is primary choice */
+            cpuid = task->lastCpu;
+        } else {
+            /* 2.2 never ever runned, choose first idled core,
+               To be supported: check if randomness is needed */
+            cpuid = CTZ(idleMask);
+        }
+    } else {
+        /* To be supported: */
+        /* there's no idled core, needs choose from affinitied core's loads */
+        cpuid = 0;
+    }
+
+    PRINT_TRACE("cpu(%u) pick cpu(%u) to run task:%s\n", ArchCurrCpuid(), cpuid, task->taskName);
+
+    return cpuid;
+}

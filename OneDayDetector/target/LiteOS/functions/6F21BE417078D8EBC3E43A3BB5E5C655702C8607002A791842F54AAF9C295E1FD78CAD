@@ -1,0 +1,73 @@
+int get_secret(ppp_pcb *pcb, const char *client, const char *server, char *secret, int *secret_len, int am_server) {
+  int len;
+  LWIP_UNUSED_ARG(server);
+  LWIP_UNUSED_ARG(am_server);
+
+  if (!client || !client[0] || !pcb->settings.user || !pcb->settings.passwd || strcmp(client, pcb->settings.user)) {
+    return 0;
+  }
+
+  len = (int)strlen(pcb->settings.passwd);
+  if (len > MAXSECRETLEN) {
+    ppp_error("Secret for %s on %s is too long", client, server);
+    len = MAXSECRETLEN;
+  }
+
+  MEMCPY(secret, pcb->settings.passwd, len);
+  *secret_len = len;
+  return 1;
+
+#if 0 /* UNUSED */
+    FILE *f;
+    int ret, len;
+    char *filename;
+    struct wordlist *addrs, *opts;
+    char secbuf[MAXWORDLEN];
+    struct wordlist *addrs;
+    addrs = NULL;
+
+    if (!am_server && ppp_settings.passwd[0] != 0) {
+	strlcpy(secbuf, ppp_settings.passwd, sizeof(secbuf));
+    } else if (!am_server && chap_passwd_hook) {
+	if ( (*chap_passwd_hook)(client, secbuf) < 0) {
+	    ppp_error("Unable to obtain CHAP password for %s on %s from plugin",
+		  client, server);
+	    return 0;
+	}
+    } else {
+	filename = _PATH_CHAPFILE;
+	addrs = NULL;
+	secbuf[0] = 0;
+
+	f = fopen(filename, "r");
+	if (f == NULL) {
+	    ppp_error("Can't open chap secret file %s: %m", filename);
+	    return 0;
+	}
+	check_access(f, filename);
+
+	ret = scan_authfile(f, client, server, secbuf, &addrs, &opts, filename, 0);
+	fclose(f);
+	if (ret < 0)
+	    return 0;
+
+	if (am_server)
+	    set_allowed_addrs(unit, addrs, opts);
+	else if (opts != 0)
+	    free_wordlist(opts);
+	if (addrs != 0)
+	    free_wordlist(addrs);
+    }
+
+    len = strlen(secbuf);
+    if (len > MAXSECRETLEN) {
+	ppp_error("Secret for %s on %s is too long", client, server);
+	len = MAXSECRETLEN;
+    }
+    MEMCPY(secret, secbuf, len);
+    BZERO(secbuf, sizeof(secbuf));
+    *secret_len = len;
+
+    return 1;
+#endif /* UNUSED */
+}

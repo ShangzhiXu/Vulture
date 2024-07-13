@@ -1,0 +1,79 @@
+static void SMBUS_ITErrorHandler(SMBUS_HandleTypeDef *hsmbus)
+{
+  uint32_t itflags   = READ_REG(hsmbus->Instance->ISR);
+  uint32_t itsources = READ_REG(hsmbus->Instance->CR1);
+
+  /* SMBUS Bus error interrupt occurred ------------------------------------*/
+  if (((itflags & SMBUS_FLAG_BERR) != RESET) && ((itsources & SMBUS_IT_ERRI) != RESET))
+  {
+    hsmbus->ErrorCode |= HAL_SMBUS_ERROR_BERR;
+
+    /* Clear BERR flag */
+    __HAL_SMBUS_CLEAR_FLAG(hsmbus, SMBUS_FLAG_BERR);
+  }
+
+  /* SMBUS Over-Run/Under-Run interrupt occurred ----------------------------------------*/
+  if (((itflags & SMBUS_FLAG_OVR) != RESET) && ((itsources & SMBUS_IT_ERRI) != RESET))
+  {
+    hsmbus->ErrorCode |= HAL_SMBUS_ERROR_OVR;
+
+    /* Clear OVR flag */
+    __HAL_SMBUS_CLEAR_FLAG(hsmbus, SMBUS_FLAG_OVR);
+  }
+
+  /* SMBUS Arbitration Loss error interrupt occurred ------------------------------------*/
+  if (((itflags & SMBUS_FLAG_ARLO) != RESET) && ((itsources & SMBUS_IT_ERRI) != RESET))
+  {
+    hsmbus->ErrorCode |= HAL_SMBUS_ERROR_ARLO;
+
+    /* Clear ARLO flag */
+    __HAL_SMBUS_CLEAR_FLAG(hsmbus, SMBUS_FLAG_ARLO);
+  }
+
+  /* SMBUS Timeout error interrupt occurred ---------------------------------------------*/
+  if (((itflags & SMBUS_FLAG_TIMEOUT) != RESET) && ((itsources & SMBUS_IT_ERRI) != RESET))
+  {
+    hsmbus->ErrorCode |= HAL_SMBUS_ERROR_BUSTIMEOUT;
+
+    /* Clear TIMEOUT flag */
+    __HAL_SMBUS_CLEAR_FLAG(hsmbus, SMBUS_FLAG_TIMEOUT);
+  }
+
+  /* SMBUS Alert error interrupt occurred -----------------------------------------------*/
+  if (((itflags & SMBUS_FLAG_ALERT) != RESET) && ((itsources & SMBUS_IT_ERRI) != RESET))
+  {
+    hsmbus->ErrorCode |= HAL_SMBUS_ERROR_ALERT;
+
+    /* Clear ALERT flag */
+    __HAL_SMBUS_CLEAR_FLAG(hsmbus, SMBUS_FLAG_ALERT);
+  }
+
+  /* SMBUS Packet Error Check error interrupt occurred ----------------------------------*/
+  if (((itflags & SMBUS_FLAG_PECERR) != RESET) && ((itsources & SMBUS_IT_ERRI) != RESET))
+  {
+    hsmbus->ErrorCode |= HAL_SMBUS_ERROR_PECERR;
+
+    /* Clear PEC error flag */
+    __HAL_SMBUS_CLEAR_FLAG(hsmbus, SMBUS_FLAG_PECERR);
+  }
+
+  /* Call the Error Callback in case of Error detected */
+  if ((hsmbus->ErrorCode != HAL_SMBUS_ERROR_NONE) && (hsmbus->ErrorCode != HAL_SMBUS_ERROR_ACKF))
+  {
+    /* Do not Reset the HAL state in case of ALERT error */
+    if ((hsmbus->ErrorCode & HAL_SMBUS_ERROR_ALERT) != HAL_SMBUS_ERROR_ALERT)
+    {
+      if (((hsmbus->State & HAL_SMBUS_STATE_SLAVE_BUSY_TX) == HAL_SMBUS_STATE_SLAVE_BUSY_TX)
+          || ((hsmbus->State & HAL_SMBUS_STATE_SLAVE_BUSY_RX) == HAL_SMBUS_STATE_SLAVE_BUSY_RX))
+      {
+        /* Reset only HAL_SMBUS_STATE_SLAVE_BUSY_XX */
+        /* keep HAL_SMBUS_STATE_LISTEN if set */
+        hsmbus->PreviousState = HAL_SMBUS_STATE_READY;
+        hsmbus->State = HAL_SMBUS_STATE_LISTEN;
+      }
+    }
+
+    /* Call the Error callback to inform upper layer */
+    HAL_SMBUS_ErrorCallback(hsmbus);
+  }
+}

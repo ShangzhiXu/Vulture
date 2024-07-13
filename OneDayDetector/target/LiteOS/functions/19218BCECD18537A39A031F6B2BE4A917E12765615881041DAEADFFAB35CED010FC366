@@ -1,0 +1,44 @@
+VOID OsMutexCheck(VOID)
+{
+    LosMuxCB muxNode = {0};
+    MuxDebugCB muxDebugNode = {0};
+    UINT32 index, intSave;
+    UINT32 count = 0;
+
+    /*
+     * This return value does not need to be judged immediately,
+     * and the following code logic has already distinguished the return value from null and non-empty,
+     * and there is no case of accessing the null pointer.
+     */
+    UINT32 *indexArray = (UINT32 *)LOS_MemAlloc((VOID *)OS_SYS_MEM_ADDR, LOSCFG_BASE_IPC_MUX_LIMIT * sizeof(UINT32));
+
+    for (index = 0; index < LOSCFG_BASE_IPC_MUX_LIMIT; index++) {
+        SCHEDULER_LOCK(intSave);
+        (VOID)memcpy_s(&muxNode, sizeof(LosMuxCB), GET_MUX(index), sizeof(LosMuxCB));
+        (VOID)memcpy_s(&muxDebugNode, sizeof(MuxDebugCB), &g_muxDebugArray[index], sizeof(MuxDebugCB));
+        SCHEDULER_UNLOCK(intSave);
+
+        if ((muxNode.muxStat != OS_MUX_USED) ||
+            ((muxNode.muxStat == OS_MUX_USED) && (muxDebugNode.creator == NULL))) {
+            continue;
+        } else if ((muxNode.muxStat == OS_MUX_USED) && (muxNode.owner == NULL)) {
+            PRINTK("Mutex ID <0x%x> may leak, Owner is null, TaskEntry of creator: %p,"
+                   "Latest operation time: 0x%llx\n",
+                   muxNode.muxId, muxDebugNode.creator, muxDebugNode.lastAccessTime);
+        } else {
+            if (indexArray != NULL) {
+                *(indexArray + count) = index;
+                count++;
+            } else {
+                PRINTK("Mutex ID <0x%x> may leak, TaskID of owner:0x%x, TaskEntry of owner: %p,"
+                       "TaskEntry of creator: %p,Latest operation time: 0x%llx\n",
+                       muxNode.muxId, muxNode.owner->taskId, muxNode.owner->taskEntry, muxDebugNode.creator,
+                       muxDebugNode.lastAccessTime);
+            }
+        }
+    }
+
+    if (indexArray != NULL) {
+        SortMuxIndexArray(indexArray, count);
+    }
+}

@@ -1,0 +1,22 @@
+__STATIC_INLINE void LL_ADC_SetAnalogWDMonitChannels(ADC_TypeDef *ADCx, uint32_t AWDy, uint32_t AWDChannelGroup)
+{
+  /* Set bits with content of parameter "AWDChannelGroup" with bits position  */
+  /* in register and register position depending on parameter "AWDy".         */
+  /* Parameters "AWDChannelGroup" and "AWDy" are used with masks because      */
+  /* containing other bits reserved for other purpose.                        */
+#if defined(CORE_CM0PLUS)
+  register uint32_t *preg = __ADC_PTR_REG_OFFSET(ADCx->CFGR, ((AWDy & ADC_AWD_CRX_REGOFFSET_MASK) >> ADC_AWD_CRX_REGOFFSET_POS)
+                                                             + ((AWDy & ADC_AWD_CR12_REGOFFSETGAP_MASK) * ADC_AWD_CR12_REGOFFSETGAP_VAL));
+  
+  MODIFY_REG(*preg,
+             (AWDy & ADC_AWD_CR_ALL_CHANNEL_MASK),
+             AWDChannelGroup & AWDy);
+#else
+  register uint32_t *preg = __ADC_PTR_REG_OFFSET(ADCx->CFGR, __ADC_MASK_SHIFT(AWDy, ADC_AWD_CRX_REGOFFSET_MASK)
+                                                             + ((AWDy & ADC_AWD_CR12_REGOFFSETGAP_MASK) * ADC_AWD_CR12_REGOFFSETGAP_VAL));
+  
+  MODIFY_REG(*preg,
+             (AWDy & ADC_AWD_CR_ALL_CHANNEL_MASK),
+             AWDChannelGroup & AWDy);
+#endif
+}

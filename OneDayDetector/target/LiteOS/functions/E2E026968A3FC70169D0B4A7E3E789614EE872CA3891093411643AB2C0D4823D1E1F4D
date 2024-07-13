@@ -1,0 +1,18 @@
+VOID OsPriQueueDequeue(LOS_DL_LIST *queueNode)
+{
+    LosTaskCB   *task = NULL;
+    LOS_DL_LIST *priQueues = NULL;
+    UINT32      *bitmap = NULL;
+    UINT32      cpuid;
+
+    task = LOS_DL_LIST_ENTRY(queueNode, LosTaskCB, pendList);
+
+    cpuid     = ArchCurrCpuid();
+    priQueues = &g_priqueue[cpuid].queues[0];
+    bitmap    = &g_priqueue[cpuid].bitmap;
+
+    LOS_ListDelete(queueNode);
+    if (LOS_ListEmpty(&priQueues[task->priority])) {
+        (*bitmap) &= ~(PRI0_BIT >> task->priority);
+    }
+}

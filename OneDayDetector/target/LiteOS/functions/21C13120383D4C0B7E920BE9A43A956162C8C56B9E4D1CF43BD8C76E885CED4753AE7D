@@ -1,0 +1,287 @@
+static void eap_response(ppp_pcb *pcb, u_char *inp, int id, int len) {
+	u_char typenum;
+	u_char vallen;
+	int secret_len;
+	char secret[MAXSECRETLEN];
+	char rhostname[MAXNAMELEN];
+	lwip_md5_context mdContext;
+	u_char hash[MD5_SIGNATURE_SIZE];
+#ifdef USE_SRP
+	struct t_server *ts;
+	struct t_num A;
+	SHA1_CTX ctxt;
+	u_char dig[SHA_DIGESTSIZE];
+#endif /* USE_SRP */
+
+	if (pcb->eap.es_server.ea_id != id) {
+		ppp_dbglog("EAP: discarding Response %d; expected ID %d", id,
+		    pcb->eap.es_server.ea_id);
+		return;
+	}
+
+	pcb->eap.es_server.ea_responses++;
+
+	if (len <= 0) {
+		ppp_error("EAP: empty Response message discarded");
+		return;
+	}
+
+	GETCHAR(typenum, inp);
+	len--;
+
+	switch (typenum) {
+	case EAPT_IDENTITY:
+		if (pcb->eap.es_server.ea_state != eapIdentify) {
+			ppp_dbglog("EAP discarding unwanted Identify \"%.q\"", len,
+			    inp);
+			break;
+		}
+		ppp_info("EAP: unauthenticated peer name \"%.*q\"", len, inp);
+		if (len > MAXNAMELEN) {
+		  len = MAXNAMELEN;
+		}
+		MEMCPY(pcb->eap.es_server.ea_peer, inp, len);
+		pcb->eap.es_server.ea_peer[len] = '\0';
+		pcb->eap.es_server.ea_peerlen = len;
+		eap_figure_next_state(pcb, 0);
+		break;
+
+	case EAPT_NOTIFICATION:
+		ppp_dbglog("EAP unexpected Notification; response discarded");
+		break;
+
+	case EAPT_NAK:
+		if (len < 1) {
+			ppp_info("EAP: Nak Response with no suggested protocol");
+			eap_figure_next_state(pcb, 1);
+			break;
+		}
+
+		GETCHAR(vallen, inp);
+		len--;
+
+		if (
+#if PPP_REMOTENAME
+		!pcb->explicit_remote &&
+#endif /* PPP_REMOTENAME */
+		pcb->eap.es_server.ea_state == eapIdentify){
+			/* Peer cannot Nak Identify Request */
+			eap_figure_next_state(pcb, 1);
+			break;
+		}
+
+		switch (vallen) {
+		case EAPT_SRP:
+			/* Run through SRP validator selection again. */
+			pcb->eap.es_server.ea_state = eapIdentify;
+			eap_figure_next_state(pcb, 0);
+			break;
+
+		case EAPT_MD5CHAP:
+			pcb->eap.es_server.ea_state = eapMD5Chall;
+			break;
+
+		default:
+			ppp_dbglog("EAP: peer requesting unknown Type %d", vallen);
+			switch (pcb->eap.es_server.ea_state) {
+			case eapSRP1:
+			case eapSRP2:
+			case eapSRP3:
+				pcb->eap.es_server.ea_state = eapMD5Chall;
+				break;
+			case eapMD5Chall:
+			case eapSRP4:
+				pcb->eap.es_server.ea_state = eapIdentify;
+				eap_figure_next_state(pcb, 0);
+				break;
+			default:
+				break;
+			}
+			break;
+		}
+		break;
+
+	case EAPT_MD5CHAP:
+		if (pcb->eap.es_server.ea_state != eapMD5Chall) {
+			ppp_error("EAP: unexpected MD5-Response");
+			eap_figure_next_state(pcb, 1);
+			break;
+		}
+		if (len < 1) {
+			ppp_error("EAP: received MD5-Response with no data");
+			eap_figure_next_state(pcb, 1);
+			break;
+		}
+		GETCHAR(vallen, inp);
+		len--;
+		if (vallen != 16 || vallen > len) {
+			ppp_error("EAP: MD5-Response with bad length %d", vallen);
+			eap_figure_next_state(pcb, 1);
+			break;
+		}
+
+		/* Not so likely to happen. */
+		if (vallen >= len + sizeof (rhostname)) {
+			ppp_dbglog("EAP: trimming really long peer name down");
+			MEMCPY(rhostname, inp + vallen, sizeof (rhostname) - 1);
+			rhostname[sizeof (rhostname) - 1] = '\0';
+		} else {
+			MEMCPY(rhostname, inp + vallen, len - vallen);
+			rhostname[len - vallen] = '\0';
+		}
+
+#if PPP_REMOTENAME
+		/* In case the remote doesn't give us his name. */
+		if (explicit_remote ||
+		    (remote_name[0] != '\0' && vallen == len))
+			strlcpy(rhostname, remote_name, sizeof (rhostname));
+#endif /* PPP_REMOTENAME */
+
+		/*
+		 * Get the secret for authenticating the specified
+		 * host.
+		 */
+		if (!get_secret(pcb, rhostname,
+		    pcb->eap.es_server.ea_name, secret, &secret_len, 1)) {
+			ppp_dbglog("EAP: no MD5 secret for auth of %q", rhostname);
+			eap_send_failure(pcb);
+			break;
+		}
+		lwip_md5_init(&mdContext);
+		lwip_md5_starts(&mdContext);
+		lwip_md5_update(&mdContext, &pcb->eap.es_server.ea_id, 1);
+		lwip_md5_update(&mdContext, (u_char *)secret, secret_len);
+		BZERO(secret, sizeof (secret));
+		lwip_md5_update(&mdContext, pcb->eap.es_challenge, pcb->eap.es_challen);
+		lwip_md5_finish(&mdContext, hash);
+		lwip_md5_free(&mdContext);
+		if (BCMP(hash, inp, MD5_SIGNATURE_SIZE) != 0) {
+			eap_send_failure(pcb);
+			break;
+		}
+		pcb->eap.es_server.ea_type = EAPT_MD5CHAP;
+		eap_send_success(pcb);
+		eap_figure_next_state(pcb, 0);
+		if (pcb->eap.es_rechallenge != 0)
+			TIMEOUT(eap_rechallenge, pcb, pcb->eap.es_rechallenge);
+		break;
+
+#ifdef USE_SRP
+	case EAPT_SRP:
+		if (len < 1) {
+			ppp_error("EAP: empty SRP Response");
+			eap_figure_next_state(pcb, 1);
+			break;
+		}
+		GETCHAR(typenum, inp);
+		len--;
+		switch (typenum) {
+		case EAPSRP_CKEY:
+			if (pcb->eap.es_server.ea_state != eapSRP1) {
+				ppp_error("EAP: unexpected SRP Subtype 1 Response");
+				eap_figure_next_state(pcb, 1);
+				break;
+			}
+			A.data = inp;
+			A.len = len;
+			ts = (struct t_server *)pcb->eap.es_server.ea_session;
+			assert(ts != NULL);
+			pcb->eap.es_server.ea_skey = t_servergetkey(ts, &A);
+			if (pcb->eap.es_server.ea_skey == NULL) {
+				/* Client's A value is bogus; terminate now */
+				ppp_error("EAP: bogus A value from client");
+				eap_send_failure(pcb);
+			} else {
+				eap_figure_next_state(pcb, 0);
+			}
+			break;
+
+		case EAPSRP_CVALIDATOR:
+			if (pcb->eap.es_server.ea_state != eapSRP2) {
+				ppp_error("EAP: unexpected SRP Subtype 2 Response");
+				eap_figure_next_state(pcb, 1);
+				break;
+			}
+			if (len < sizeof (u32_t) + SHA_DIGESTSIZE) {
+				ppp_error("EAP: M1 length %d < %d", len,
+				    sizeof (u32_t) + SHA_DIGESTSIZE);
+				eap_figure_next_state(pcb, 1);
+				break;
+			}
+			GETLONG(pcb->eap.es_server.ea_keyflags, inp);
+			ts = (struct t_server *)pcb->eap.es_server.ea_session;
+			assert(ts != NULL);
+			if (t_serververify(ts, inp)) {
+				ppp_info("EAP: unable to validate client identity");
+				eap_send_failure(pcb);
+				break;
+			}
+			eap_figure_next_state(pcb, 0);
+			break;
+
+		case EAPSRP_ACK:
+			if (pcb->eap.es_server.ea_state != eapSRP3) {
+				ppp_error("EAP: unexpected SRP Subtype 3 Response");
+				eap_send_failure(esp);
+				break;
+			}
+			pcb->eap.es_server.ea_type = EAPT_SRP;
+			eap_send_success(pcb, esp);
+			eap_figure_next_state(pcb, 0);
+			if (pcb->eap.es_rechallenge != 0)
+				TIMEOUT(eap_rechallenge, pcb,
+				    pcb->eap.es_rechallenge);
+			if (pcb->eap.es_lwrechallenge != 0)
+				TIMEOUT(srp_lwrechallenge, pcb,
+				    pcb->eap.es_lwrechallenge);
+			break;
+
+		case EAPSRP_LWRECHALLENGE:
+			if (pcb->eap.es_server.ea_state != eapSRP4) {
+				ppp_info("EAP: unexpected SRP Subtype 4 Response");
+				return;
+			}
+			if (len != SHA_DIGESTSIZE) {
+				ppp_error("EAP: bad Lightweight rechallenge "
+				    "response");
+				return;
+			}
+			SHA1Init(&ctxt);
+			vallen = id;
+			SHA1Update(&ctxt, &vallen, 1);
+			SHA1Update(&ctxt, pcb->eap.es_server.ea_skey,
+			    SESSION_KEY_LEN);
+			SHA1Update(&ctxt, pcb->eap.es_challenge, pcb->eap.es_challen);
+			SHA1Update(&ctxt, pcb->eap.es_server.ea_peer,
+			    pcb->eap.es_server.ea_peerlen);
+			SHA1Final(dig, &ctxt);
+			if (BCMP(dig, inp, SHA_DIGESTSIZE) != 0) {
+				ppp_error("EAP: failed Lightweight rechallenge");
+				eap_send_failure(pcb);
+				break;
+			}
+			pcb->eap.es_server.ea_state = eapOpen;
+			if (pcb->eap.es_lwrechallenge != 0)
+				TIMEOUT(srp_lwrechallenge, esp,
+				    pcb->eap.es_lwrechallenge);
+			break;
+		}
+		break;
+#endif /* USE_SRP */
+
+	default:
+		/* This can't happen. */
+		ppp_error("EAP: unknown Response type %d; ignored", typenum);
+		return;
+	}
+
+	if (pcb->settings.eap_timeout_time > 0) {
+		UNTIMEOUT(eap_server_timeout, pcb);
+	}
+
+	if (pcb->eap.es_server.ea_state != eapBadAuth &&
+	    pcb->eap.es_server.ea_state != eapOpen) {
+		pcb->eap.es_server.ea_id++;
+		eap_send_request(pcb);
+	}
+}

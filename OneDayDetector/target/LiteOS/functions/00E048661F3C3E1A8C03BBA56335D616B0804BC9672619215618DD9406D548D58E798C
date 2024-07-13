@@ -1,0 +1,26 @@
+HAL_StatusTypeDef HAL_DMA2D_BlendingStart_IT(DMA2D_HandleTypeDef *hdma2d, uint32_t SrcAddress1, uint32_t  SrcAddress2, uint32_t DstAddress, uint32_t Width,  uint32_t Height)
+{
+  /* Check the parameters */
+  assert_param(IS_DMA2D_LINE(Height));
+  assert_param(IS_DMA2D_PIXEL(Width));
+
+  /* Process locked */
+  __HAL_LOCK(hdma2d);
+
+  /* Change DMA2D peripheral state */
+  hdma2d->State = HAL_DMA2D_STATE_BUSY;
+
+  /* Configure DMA2D Stream source2 address */
+  WRITE_REG(hdma2d->Instance->BGMAR, SrcAddress2);
+
+  /* Configure the source, destination address and the data size */
+  DMA2D_SetConfig(hdma2d, SrcAddress1, DstAddress, Width, Height);
+
+  /* Enable the transfer complete, transfer error and configuration error interrupts */
+  __HAL_DMA2D_ENABLE_IT(hdma2d, DMA2D_IT_TC|DMA2D_IT_TE|DMA2D_IT_CE);
+
+  /* Enable the Peripheral */
+  __HAL_DMA2D_ENABLE(hdma2d);
+
+  return HAL_OK;
+}

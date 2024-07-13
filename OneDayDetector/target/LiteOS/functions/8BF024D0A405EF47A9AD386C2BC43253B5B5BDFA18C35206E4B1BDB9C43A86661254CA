@@ -1,0 +1,28 @@
+int32_t osSignalSet(osThreadId thread_id, int32_t signals)
+{
+    LosTaskCB *taskCB = (LosTaskCB *)thread_id;
+    UINT32 events = (UINT32)signals;
+    UINT32 intSave;
+    UINT32 ret;
+    EVENT_CB_S *eventCB = NULL;
+    UINT32 eventSave;
+
+    if ((taskCB == NULL) || (events & INVALID_EVENT_MASK)) {
+        return (int32_t)0x80000000;
+    }
+    if (OS_TASK_ID_CHECK_INVALID(taskCB->taskId) || (taskCB->taskStatus & OS_TASK_STATUS_UNUSED)) {
+        return (int32_t)0x80000000;
+    }
+
+    eventCB = &(taskCB->event);
+    intSave = LOS_IntLock();
+    eventSave = eventCB->uwEventID;
+    LOS_IntRestore(intSave);
+
+    ret = LOS_EventWrite(eventCB, events);
+    if (ret == LOS_OK) {
+        return (int32_t)eventSave;
+    } else {
+        return (int32_t)0x80000000;
+    }
+}

@@ -1,0 +1,28 @@
+VOID MpuSensorGetData(INT16 *data, INT32 dateType)
+{
+    UINT8 rData[DATA_MAX_LEN] = {0};
+    UINT8 i;
+    switch (dateType) {
+        case MPU6050_AACEL_DATA_TYPE: {
+            I2C1_ReadBuffer(MPU6050_ADDRESS, RA_ACCEL_XOUT_H_CMD, &rData[0], ACCEL_BUFF_LEN);
+            for (i = 0; i < DATA_SHIFT; i++) {
+                data[i] = (rData[i * 2] << 8) | rData[i * 2 + 1];
+            }
+            break;
+        }
+        case MPU6050_GYRO_DATA_TYPE: {
+            I2C1_ReadBuffer(MPU6050_ADDRESS, RA_GYRO_XOUT_H_CMD, &rData[0], GYRO_BUFF_LEN);
+            for (i = 0; i < DATA_SHIFT; i++) {
+                data[i] = (rData[i * 2] << 8) | rData[i * 2 + 1];
+            }
+            break;
+        }
+        case MPU6050_TEMP_DATA_TYPE: {
+            I2C1_ReadBuffer(MPU6050_ADDRESS, RA_TEMP_OUT_H_CMD, &rData[0], TEMP_BUFF_LEN);
+            *data = MPU_DATA_TO_TEMPERATURE((rData[0] << 8) | rData[1]);
+            break;
+        }
+        default:
+            break;
+    }
+}

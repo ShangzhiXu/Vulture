@@ -1,0 +1,60 @@
+HAL_StatusTypeDef HAL_CEC_DeInit(CEC_HandleTypeDef *hcec)
+{
+  /* Check the CEC handle allocation */
+  if (hcec == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_CEC_ALL_INSTANCE(hcec->Instance));
+
+  hcec->gState = HAL_CEC_STATE_BUSY;
+
+#if (USE_HAL_CEC_REGISTER_CALLBACKS == 1)
+  if (hcec->MspDeInitCallback == NULL)
+  {
+    hcec->MspDeInitCallback = HAL_CEC_MspDeInit; /* Legacy weak MspDeInit  */
+  }
+
+  /* DeInit the low level hardware */
+  hcec->MspDeInitCallback(hcec);
+
+#else
+  /* DeInit the low level hardware */
+  HAL_CEC_MspDeInit(hcec);
+#endif /* USE_HAL_CEC_REGISTER_CALLBACKS */
+
+  /* Disable the Peripheral */
+  __HAL_CEC_DISABLE(hcec);
+
+  /* Clear Flags */
+  __HAL_CEC_CLEAR_FLAG(hcec, CEC_FLAG_TXEND | CEC_FLAG_TXBR | CEC_FLAG_RXBR | CEC_FLAG_RXEND | CEC_ISR_ALL_ERROR);
+
+  /* Disable the following CEC Transmission/Reception interrupts as
+    * well as the following CEC Transmission/Reception Errors interrupts
+    * Rx Byte Received IT
+    * End of Reception IT
+    * Rx overrun
+    * Rx bit rising error
+    * Rx short bit period error
+    * Rx long bit period error
+    * Rx missing acknowledge
+    * Tx Byte Request IT
+    * End of Transmission IT
+    * Tx Missing Acknowledge IT
+    * Tx-Error IT
+    * Tx-Buffer Underrun IT
+    * Tx arbitration lost   */
+  __HAL_CEC_DISABLE_IT(hcec, CEC_IT_RXBR | CEC_IT_RXEND | CEC_IER_RX_ALL_ERR | CEC_IT_TXBR | CEC_IT_TXEND |
+                       CEC_IER_TX_ALL_ERR);
+
+  hcec->ErrorCode = HAL_CEC_ERROR_NONE;
+  hcec->gState = HAL_CEC_STATE_RESET;
+  hcec->RxState = HAL_CEC_STATE_RESET;
+
+  /* Process Unlock */
+  __HAL_UNLOCK(hcec);
+
+  return HAL_OK;
+}

@@ -1,0 +1,69 @@
+int test1(struct Options options)
+{
+    int subsqos = 2;
+    Network n;
+    MQTTClient c;
+    int rc = 0;
+    char *test_topic = "C client test1";
+    MQTTPacket_willOptions wopts;
+    unsigned char buf[100];
+    unsigned char readbuf[100];
+
+    printf("test1\n");
+    fprintf(xml, "<testcase classname=\"test1\" name=\"single threaded client using receive\"");
+    global_start_time = start_clock();
+    failures = 0;
+    MyLog(LOGA_INFO, "Starting test 1 - single threaded client using receive");
+
+    NetworkInit(&n);
+    NetworkConnect(&n, options.host, options.port);
+    MQTTClientInit(&c, &n, 1000, buf, 100, readbuf, 100);
+
+    MQTTPacket_connectData data = MQTTPacket_connectData_initializer;
+    data.willFlag = 1;
+    data.MQTTVersion = options.MQTTVersion;
+    data.clientID.cstring = "single-threaded-test";
+    data.username.cstring = "testuser";
+    data.password.cstring = "testpassword";
+
+    data.keepAliveInterval = 20;
+    data.cleansession = 1;
+
+    data.will.message.cstring = "will message";
+    data.will.qos = 1;
+    data.will.retained = 0;
+    data.will.topicName.cstring = "will topic";
+
+    MyLog(LOGA_DEBUG, "Connecting");
+    rc = MQTTConnect(&c, &data);
+    assert("Good rc from connect", rc == MQTT_SUCCESS, "rc was %d", rc);
+    if (rc != MQTT_SUCCESS)
+        goto exit;
+
+    rc = MQTTSubscribe(&c, test_topic, subsqos, messageArrived);
+    assert("Good rc from subscribe", rc == MQTT_SUCCESS, "rc was %d", rc);
+
+    test1_sendAndReceive(&c, 0, test_topic);
+    test1_sendAndReceive(&c, 1, test_topic);
+    test1_sendAndReceive(&c, 2, test_topic);
+
+    MyLog(LOGA_DEBUG, "Stopping\n");
+
+    rc = MQTTUnsubscribe(&c, test_topic);
+    assert("Unsubscribe successful", rc == MQTT_SUCCESS, "rc was %d", rc);
+    rc = MQTTDisconnect(&c);
+    assert("Disconnect successful", rc == MQTT_SUCCESS, "rc was %d", rc);
+
+    /* Just to make sure we can connect again */
+    NetworkConnect(&n, options.host, options.port);
+    rc = MQTTConnect(&c, &data);
+    assert("Connect successful",  rc == MQTT_SUCCESS, "rc was %d", rc);
+    rc = MQTTDisconnect(&c);
+    assert("Disconnect successful", rc == MQTT_SUCCESS, "rc was %d", rc);
+
+exit:
+    MyLog(LOGA_INFO, "TEST1: test %s. %d tests run, %d failures.",
+          (failures == 0) ? "passed" : "failed", tests, failures);
+    write_test_result();
+    return failures;
+}

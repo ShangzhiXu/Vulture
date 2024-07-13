@@ -1,0 +1,59 @@
+HAL_StatusTypeDef  HAL_JPEG_Decode_DMA(JPEG_HandleTypeDef *hjpeg, uint8_t *pDataIn, uint32_t InDataLength,
+                                       uint8_t *pDataOutMCU, uint32_t OutDataLength)
+{
+  /* Check the parameters */
+  assert_param((InDataLength >= 4UL));
+  assert_param((OutDataLength >= 4UL));
+
+  /* Check In/out buffer allocation and size */
+  if ((hjpeg == NULL) || (pDataIn == NULL) || (pDataOutMCU == NULL))
+  {
+    return HAL_ERROR;
+  }
+
+  /* Process Locked */
+  __HAL_LOCK(hjpeg);
+
+  if (hjpeg->State == HAL_JPEG_STATE_READY)
+  {
+    /*Change JPEG state*/
+    hjpeg->State = HAL_JPEG_STATE_BUSY_DECODING;
+
+    /*Set the Context to Decode with DMA*/
+    hjpeg->Context &= ~(JPEG_CONTEXT_OPERATION_MASK | JPEG_CONTEXT_METHOD_MASK);
+    hjpeg->Context |= (JPEG_CONTEXT_DECODE | JPEG_CONTEXT_DMA);
+
+    /*Store In/out buffers pointers and size*/
+    hjpeg->pJpegInBuffPtr = pDataIn;
+    hjpeg->pJpegOutBuffPtr = pDataOutMCU;
+    hjpeg->InDataLength = InDataLength;
+    hjpeg->OutDataLength = OutDataLength;
+
+    /*Reset In/out data counter */
+    hjpeg->JpegInCount = 0;
+    hjpeg->JpegOutCount = 0;
+
+    /*Init decoding process*/
+    JPEG_Init_Process(hjpeg);
+
+    /* JPEG decoding process using DMA */
+    if (JPEG_DMA_StartProcess(hjpeg) != HAL_OK)
+    {
+      /* Update State */
+      hjpeg->State = HAL_JPEG_STATE_ERROR;
+      /* Process Unlocked */
+      __HAL_UNLOCK(hjpeg);
+
+      return HAL_ERROR;
+    }
+  }
+  else
+  {
+    /* Process Unlocked */
+    __HAL_UNLOCK(hjpeg);
+
+    return HAL_BUSY;
+  }
+  /* Return function status */
+  return HAL_OK;
+}

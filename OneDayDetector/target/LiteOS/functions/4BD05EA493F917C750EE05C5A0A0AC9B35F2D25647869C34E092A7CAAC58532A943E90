@@ -1,0 +1,17 @@
+static void ccp_protrej(ppp_pcb *pcb) {
+    fsm *f = &pcb->ccp_fsm;
+#if MPPE_SUPPORT
+    ccp_options *go = &pcb->ccp_gotoptions;
+#endif /* MPPE_SUPPORT */
+
+    ccp_set(pcb, 0, 0, 0, 0);
+    fsm_lowerdown(f);
+
+#if MPPE_SUPPORT
+    if (go->mppe) {
+	ppp_error("MPPE required but peer negotiation failed");
+	lcp_close(pcb, "MPPE required but peer negotiation failed");
+    }
+#endif /* MPPE_SUPPORT */
+
+}

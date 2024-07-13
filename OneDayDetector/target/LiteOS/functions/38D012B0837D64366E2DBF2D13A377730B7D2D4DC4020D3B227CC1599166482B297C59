@@ -1,0 +1,29 @@
+HAL_StatusTypeDef HAL_TIM_OnePulse_Start_IT(TIM_HandleTypeDef *htim, uint32_t OutputChannel)
+{
+  /* Enable the Capture compare and the Input Capture channels 
+    (in the OPM Mode the two possible channels that can be used are TIM_CHANNEL_1 and TIM_CHANNEL_2)
+    if TIM_CHANNEL_1 is used as output, the TIM_CHANNEL_2 will be used as input and
+    if TIM_CHANNEL_1 is used as input, the TIM_CHANNEL_2 will be used as output 
+    in all combinations, the TIM_CHANNEL_1 and TIM_CHANNEL_2 should be enabled together 
+
+    No need to enable the counter, it's enabled automatically by hardware 
+    (the counter starts in response to a stimulus and generate a pulse */
+
+  /* Enable the TIM Capture/Compare 1 interrupt */
+  __HAL_TIM_ENABLE_IT(htim, TIM_IT_CC1);
+
+  /* Enable the TIM Capture/Compare 2 interrupt */
+  __HAL_TIM_ENABLE_IT(htim, TIM_IT_CC2);
+
+  TIM_CCxChannelCmd(htim->Instance, TIM_CHANNEL_1, TIM_CCx_ENABLE);
+  TIM_CCxChannelCmd(htim->Instance, TIM_CHANNEL_2, TIM_CCx_ENABLE);
+
+  if(IS_TIM_BREAK_INSTANCE(htim->Instance) != RESET)
+  {
+    /* Enable the main output */
+    __HAL_TIM_MOE_ENABLE(htim);
+  }
+
+  /* Return function status */
+  return HAL_OK;
+}

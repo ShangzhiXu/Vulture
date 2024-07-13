@@ -1,0 +1,51 @@
+HAL_StatusTypeDef HAL_QSPI_Abort_IT(QSPI_HandleTypeDef *hqspi)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  
+  /* Check if the state is in one of the busy states */
+  if ((hqspi->State & 0x2) != 0)
+  {
+    /* Process unlocked */
+    __HAL_UNLOCK(hqspi);
+    
+    /* Update QSPI state */
+    hqspi->State = HAL_QSPI_STATE_ABORT;   
+    
+    /* Disable all interrupts */
+    __HAL_QSPI_DISABLE_IT(hqspi, (QSPI_IT_TO | QSPI_IT_SM | QSPI_IT_FT | QSPI_IT_TC | QSPI_IT_TE));
+    
+    if ((hqspi->Instance->CR & QUADSPI_CR_DMAEN)!= RESET)
+    {
+      /* Disable the DMA transfer by clearing the DMAEN bit in the QSPI CR register */
+      CLEAR_BIT(hqspi->Instance->CR, QUADSPI_CR_DMAEN);
+      
+      /* Abort DMA channel */
+      hqspi->hdma->XferAbortCallback = QSPI_DMAAbortCplt;
+      if (HAL_DMA_Abort_IT(hqspi->hdma) != HAL_OK)
+      {
+        /* Change state of QSPI */
+        hqspi->State = HAL_QSPI_STATE_READY;
+        
+        /* Abort Complete callback */
+#if (USE_HAL_QSPI_REGISTER_CALLBACKS == 1)
+        hqspi->AbortCpltCallback(hqspi);
+#else
+        HAL_QSPI_AbortCpltCallback(hqspi);
+#endif
+      }
+    }
+    else
+    {
+      /* Clear interrupt */
+      __HAL_QSPI_CLEAR_FLAG(hqspi, QSPI_FLAG_TC);
+      
+      /* Enable the QSPI Transfer Complete Interrupt */
+      __HAL_QSPI_ENABLE_IT(hqspi, QSPI_IT_TC);
+      
+      /* Configure QSPI: CR register with Abort request */
+      SET_BIT(hqspi->Instance->CR, QUADSPI_CR_ABORT);
+    }
+  }
+
+  return status;
+}

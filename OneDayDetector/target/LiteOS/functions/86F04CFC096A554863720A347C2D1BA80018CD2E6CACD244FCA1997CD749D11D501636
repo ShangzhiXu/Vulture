@@ -1,0 +1,29 @@
+static VOID Example_MutexTask1(VOID)
+{
+    UINT32 ret;
+
+    printf("Task1 try to get mutex, wait 10 ticks.\n");
+    /* get mux */
+    ret = LOS_MuxPend(g_demoMux01, 10);
+    if (ret == LOS_OK) {
+        printf("Task1 get mutex g_demoMux01.\n");
+        /* release mux */
+        LOS_MuxPost(g_demoMux01);
+        return;
+    } else if (ret == LOS_ERRNO_MUX_TIMEOUT) {
+        printf("Task1 timeout and try to get mutex, wait forever.\n");
+        /* LOS_WAIT_FOREVER type get mux, LOS_MuxPend return until has been get mux */
+        ret = LOS_MuxPend(g_demoMux01, LOS_WAIT_FOREVER);
+        if (ret == LOS_OK) {
+            printf("Task1 wait forever, got mutex g_demoMux01 ok.\n");
+            /* release mux */
+            LOS_MuxPost(g_demoMux01);
+            ret = LOS_InspectStatusSetById(LOS_INSPECT_MUTEX, LOS_INSPECT_STU_SUCCESS);
+            if (LOS_OK != ret) {
+                printf("Set Inspect Status Err \n");
+            }
+            return;
+        }
+    }
+    return;
+}

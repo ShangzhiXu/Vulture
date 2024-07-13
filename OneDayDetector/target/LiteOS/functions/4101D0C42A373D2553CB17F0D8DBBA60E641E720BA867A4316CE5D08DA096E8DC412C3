@@ -1,0 +1,45 @@
+uint32_t adv7533_AudioInit(uint16_t DeviceAddr, uint16_t OutputDevice, uint8_t Volume,uint32_t AudioFreq)
+{
+  uint32_t val = 4096;
+  uint8_t  tmp = 0;
+
+  /* Audio data enable*/
+  tmp = HDMI_IO_Read(ADV7533_CEC_DSI_I2C_ADDR, 0x05);
+  tmp &= ~0x20;
+  HDMI_IO_Write(ADV7533_CEC_DSI_I2C_ADDR, 0x05, tmp);
+
+  /* HDMI statup */
+  tmp= (uint8_t)((val & 0xF0000)>>16);
+  HDMI_IO_Write(DeviceAddr, 0x01, tmp);
+
+  tmp= (uint8_t)((val & 0xFF00)>>8);
+  HDMI_IO_Write(DeviceAddr, 0x02, tmp);
+
+  tmp= (uint8_t)((val & 0xFF));
+  HDMI_IO_Write(DeviceAddr, 0x03, tmp);
+
+  /* Enable spdif */
+  tmp = HDMI_IO_Read(DeviceAddr, 0x0B);
+  tmp |= 0x80;
+  HDMI_IO_Write(DeviceAddr, 0x0B, tmp);
+
+  /* Enable I2S */
+  tmp = HDMI_IO_Read(DeviceAddr, 0x0C);
+  tmp |=0x04;
+  HDMI_IO_Write(DeviceAddr, 0x0C, tmp);
+
+  /* Set audio sampling frequency */
+  adv7533_SetFrequency(DeviceAddr, AudioFreq);
+
+  /* Select SPDIF is 0x10 , I2S=0x00  */
+  tmp = HDMI_IO_Read(ADV7533_MAIN_I2C_ADDR, 0x0A);
+  tmp &=~ 0x10;
+  HDMI_IO_Write(DeviceAddr, 0x0A, tmp);
+
+  /* Set v1P2 enable */
+  tmp = HDMI_IO_Read(DeviceAddr, 0xE4);
+  tmp |= 0x80;
+  HDMI_IO_Write(DeviceAddr, 0xE4, tmp);
+ 
+  return 0;
+}

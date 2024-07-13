@@ -1,0 +1,15 @@
+altcp_tcp_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
+{
+  struct altcp_pcb *conn = (struct altcp_pcb *)arg;
+  if (conn) {
+    ALTCP_TCP_ASSERT_CONN_PCB(conn, tpcb);
+    if (conn->recv) {
+      return conn->recv(conn->arg, conn, p, err);
+    }
+  }
+  if (p != NULL) {
+    /* prevent memory leaks */
+    pbuf_free(p);
+  }
+  return ERR_OK;
+}

@@ -1,0 +1,18 @@
+UINT32 OsMuxDlockCheckInit(VOID)
+{
+    UINT32 index;
+    UINT32 size = (LOSCFG_BASE_CORE_TSK_LIMIT + 1) * sizeof(MuxDLinkCB);
+
+    /* system resident memory, don't free */
+    g_muxDeadlockCBArray = (MuxDLinkCB *)LOS_MemAlloc(m_aucSysMem1, size);
+    if (g_muxDeadlockCBArray == NULL) {
+        PRINT_ERR("%s: malloc failed!\n", __FUNCTION__);
+        return LOS_NOK;
+    }
+
+    for (index = 0; index < LOSCFG_BASE_CORE_TSK_LIMIT + 1; index++) {
+        g_muxDeadlockCBArray[index].lastAccessTime = 0;
+        LOS_ListInit(&g_muxDeadlockCBArray[index].muxListHead);
+    }
+    return LOS_OK;
+}

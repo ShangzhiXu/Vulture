@@ -1,0 +1,16 @@
+lowpan6_tmr(void)
+{
+  struct lowpan6_reass_helper *lrh, *lrh_next, *lrh_prev = NULL;
+
+  lrh = lowpan6_data.reass_list;
+  while (lrh != NULL) {
+    lrh_next = lrh->next_packet;
+    if ((--lrh->timer) == 0) {
+      dequeue_datagram(lrh, lrh_prev);
+      free_reass_datagram(lrh);
+    } else {
+      lrh_prev = lrh;
+    }
+    lrh = lrh_next;
+  }
+}

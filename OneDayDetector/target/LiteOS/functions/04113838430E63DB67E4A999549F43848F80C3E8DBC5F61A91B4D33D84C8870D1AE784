@@ -1,0 +1,48 @@
+LITE_OS_SEC_TEXT_INIT VOID OsExcHandleEntry(UINT32 excType, UINT32 faultAddr, UINT32 pid,
+                                            const ExcContext *excBufAddr)
+{
+    ExcContext *BufAddr = NULL;
+    UINT16 tmpFlag = (excType >> MASK_16_BIT) & OS_NULL_SHORT; /* 2:in intrrupt,1:faul addr valid */
+    g_curNestCount++;
+    g_excInfo.nestCnt = (UINT16)g_curNestCount;
+    g_excInfo.type = excType & OS_NULL_SHORT;
+
+    if (tmpFlag & OS_EXC_FLAG_FAULTADDR_VALID) {
+        g_excInfo.faultAddr = faultAddr;
+    } else {
+        g_excInfo.faultAddr = OS_EXC_IMPRECISE_ACCESS_ADDR;
+    }
+
+    if (ArchCurrTaskGet() != NULL) {
+        if (tmpFlag & OS_EXC_FLAG_IN_HWI) {
+            g_excInfo.phase = OS_EXC_IN_HWI;
+            g_excInfo.intNumOrTaskId = pid;
+        } else {
+            g_excInfo.phase = OS_EXC_IN_TASK;
+            g_excInfo.intNumOrTaskId = ((LosTaskCB *)ArchCurrTaskGet())->taskId;
+            OsExcSysInfo();
+        }
+    } else {
+        g_excInfo.phase = OS_EXC_IN_INIT;
+        g_excInfo.intNumOrTaskId = OS_NULL_INT;
+    }
+
+    if (excType & OS_EXC_FLAG_NO_FLOAT) {
+        g_excInfo.context = (ExcContext *)((CHAR *)excBufAddr - LOS_OFF_SET_OF(ExcContext, R4));
+    } else {
+        g_excInfo.context = (ExcContext *)excBufAddr;
+    }
+
+    if (g_excInfo.phase == OS_EXC_IN_TASK) {
+        BufAddr =  (ExcContext *)(ArchGetPsp() - OFFSET_OF_PSP);
+    } else {
+        BufAddr = g_excInfo.context;
+    }
+
+    OsExcInfoDisplay((const ExcInfo *)&g_excInfo, BufAddr);
+    ArchBackTraceWithSp(BufAddr);
+#ifdef LOSCFG_KERNEL_TRACE
+    OsTraceRecordDump(FALSE);
+#endif
+    while (1) { }
+}

@@ -1,0 +1,136 @@
+static uint32_t JPEG_Process(JPEG_HandleTypeDef *hjpeg)
+{
+  uint32_t tmpContext;
+
+  /*End of header processing flag rised*/
+  if ((hjpeg->Context & JPEG_CONTEXT_OPERATION_MASK) == JPEG_CONTEXT_DECODE)
+  {
+    if (__HAL_JPEG_GET_FLAG(hjpeg, JPEG_FLAG_HPDF) != 0UL)
+    {
+      /*Call Header parsing complet callback */
+      (void) HAL_JPEG_GetInfo(hjpeg, &hjpeg->Conf);
+      /* Reset the ImageQuality */
+      hjpeg->Conf.ImageQuality = 0;
+      /* Note : the image quality is only available at the end of the decoding operation */
+      /* at the current stage the calculated image quality is not correct so reset it */
+
+      /*Call Info Ready callback */
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+      hjpeg->InfoReadyCallback(hjpeg, &hjpeg->Conf);
+#else
+      HAL_JPEG_InfoReadyCallback(hjpeg, &hjpeg->Conf);
+#endif /* USE_HAL_JPEG_REGISTER_CALLBACKS */
+
+      __HAL_JPEG_DISABLE_IT(hjpeg, JPEG_IT_HPD);
+
+      /* Clear header processing done flag */
+      __HAL_JPEG_CLEAR_FLAG(hjpeg, JPEG_FLAG_HPDF);
+    }
+  }
+
+  /*Input FIFO status handling*/
+  if ((hjpeg->Context &  JPEG_CONTEXT_PAUSE_INPUT) == 0UL)
+  {
+    if (__HAL_JPEG_GET_FLAG(hjpeg, JPEG_FLAG_IFTF) != 0UL)
+    {
+      /*Input FIFO threshold flag rised*/
+      /*JPEG_FIFO_TH_SIZE words can be written in */
+      JPEG_ReadInputData(hjpeg, JPEG_FIFO_TH_SIZE);
+    }
+    else if (__HAL_JPEG_GET_FLAG(hjpeg, JPEG_FLAG_IFNFF) != 0UL)
+    {
+      /*Input FIFO Not Full flag rised*/
+      /*32-bit value can be written in */
+      JPEG_ReadInputData(hjpeg, 1);
+    }
+    else
+    {
+      /* Nothing to do */
+    }
+  }
+
+
+  /*Output FIFO flag handling*/
+  if ((hjpeg->Context &  JPEG_CONTEXT_PAUSE_OUTPUT) == 0UL)
+  {
+    if (__HAL_JPEG_GET_FLAG(hjpeg, JPEG_FLAG_OFTF) != 0UL)
+    {
+      /*Output FIFO threshold flag rised*/
+      /*JPEG_FIFO_TH_SIZE words can be read out */
+      JPEG_StoreOutputData(hjpeg, JPEG_FIFO_TH_SIZE);
+    }
+    else if (__HAL_JPEG_GET_FLAG(hjpeg, JPEG_FLAG_OFNEF) != 0UL)
+    {
+      /*Output FIFO Not Empty flag rised*/
+      /*32-bit value can be read out */
+      JPEG_StoreOutputData(hjpeg, 1);
+    }
+    else
+    {
+      /* Nothing to do */
+    }
+  }
+
+  /*End of Conversion handling :i.e EOC flag is high and OFTF low and OFNEF low*/
+  if (__HAL_JPEG_GET_FLAG(hjpeg, JPEG_FLAG_EOCF | JPEG_FLAG_OFTF | JPEG_FLAG_OFNEF) == JPEG_FLAG_EOCF)
+  {
+    /*Stop Encoding/Decoding*/
+    hjpeg->Instance->CONFR0 &=  ~JPEG_CONFR0_START;
+
+    if ((hjpeg->Context & JPEG_CONTEXT_METHOD_MASK) == JPEG_CONTEXT_IT)
+    {
+      /* Disable All Interrupts */
+      __HAL_JPEG_DISABLE_IT(hjpeg, JPEG_INTERRUPT_MASK);
+    }
+
+    /* Clear all flags */
+    __HAL_JPEG_CLEAR_FLAG(hjpeg, JPEG_FLAG_ALL);
+
+    /*Call End of conversion callback */
+    if (hjpeg->JpegOutCount > 0UL)
+    {
+      /*Output Buffer is not empty, call DecodedDataReadyCallback*/
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+      hjpeg->DataReadyCallback(hjpeg, hjpeg->pJpegOutBuffPtr, hjpeg->JpegOutCount);
+#else
+      HAL_JPEG_DataReadyCallback(hjpeg, hjpeg->pJpegOutBuffPtr, hjpeg->JpegOutCount);
+#endif /* USE_HAL_JPEG_REGISTER_CALLBACKS */
+
+      hjpeg->JpegOutCount = 0;
+    }
+
+    /*Reset Context Operation*/
+    tmpContext = hjpeg->Context;
+    /*Clear all context fields execpt JPEG_CONTEXT_CONF_ENCODING and JPEG_CONTEXT_CUSTOM_TABLES*/
+    hjpeg->Context &= (JPEG_CONTEXT_CONF_ENCODING | JPEG_CONTEXT_CUSTOM_TABLES);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hjpeg);
+
+    /* Change the JPEG state */
+    hjpeg->State = HAL_JPEG_STATE_READY;
+
+    /*Call End of Encoding/Decoding callback */
+    if ((tmpContext & JPEG_CONTEXT_OPERATION_MASK) == JPEG_CONTEXT_DECODE)
+    {
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+      hjpeg->DecodeCpltCallback(hjpeg);
+#else
+      HAL_JPEG_DecodeCpltCallback(hjpeg);
+#endif /*USE_HAL_JPEG_REGISTER_CALLBACKS*/
+    }
+    else /* JPEG_CONTEXT_ENCODE */
+    {
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+      hjpeg->EncodeCpltCallback(hjpeg);
+#else
+      HAL_JPEG_EncodeCpltCallback(hjpeg);
+#endif
+    }
+
+    return JPEG_PROCESS_DONE;
+  }
+
+
+  return JPEG_PROCESS_ONGOING;
+}

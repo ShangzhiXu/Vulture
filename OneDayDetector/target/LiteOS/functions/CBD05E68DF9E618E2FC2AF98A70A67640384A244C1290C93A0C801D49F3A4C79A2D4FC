@@ -1,0 +1,33 @@
+HAL_StatusTypeDef HAL_CRYP_DeInit(CRYP_HandleTypeDef *hcryp)
+{
+  /* Check the CRYP handle allocation */
+  if(hcryp == NULL)
+  {
+    return HAL_ERROR;
+  }
+  
+  /* Change the CRYP state */
+  hcryp->State = HAL_CRYP_STATE_BUSY;
+  
+  /* Set the default CRYP phase */
+  hcryp->Phase = HAL_CRYP_PHASE_READY;
+  
+  /* Reset CrypInCount and CrypOutCount */
+  hcryp->CrypInCount = 0;
+  hcryp->CrypOutCount = 0;
+  
+  /* Disable the CRYP Peripheral Clock */
+  __HAL_CRYP_DISABLE(hcryp);
+  
+  /* DeInit the low level hardware: CLOCK, NVIC.*/
+  HAL_CRYP_MspDeInit(hcryp);
+  
+  /* Change the CRYP state */
+  hcryp->State = HAL_CRYP_STATE_RESET;
+  
+  /* Release Lock */
+  __HAL_UNLOCK(hcryp);
+  
+  /* Return function status */
+  return HAL_OK;
+}

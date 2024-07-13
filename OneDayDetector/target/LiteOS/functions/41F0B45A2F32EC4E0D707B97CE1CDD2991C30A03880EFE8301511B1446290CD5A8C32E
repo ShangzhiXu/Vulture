@@ -1,0 +1,37 @@
+void ADC_DMAConvCplt(DMA_HandleTypeDef *hdma)
+{
+  /* Retrieve ADC handle corresponding to current DMA handle */
+  ADC_HandleTypeDef* hadc = ( ADC_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+ 
+  /* Update state machine on conversion status if not in error state */
+  if (HAL_IS_BIT_CLR(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL | HAL_ADC_STATE_ERROR_DMA))
+  {
+    /* Update ADC state machine */
+    SET_BIT(hadc->State, HAL_ADC_STATE_REG_EOC);
+    
+    /* Determine whether any further conversion upcoming on group regular     */
+    /* by external trigger, continuous mode or scan sequence on going.        */
+    /* Note: On STM32F1 devices, in case of sequencer enabled                 */
+    /*       (several ranks selected), end of conversion flag is raised       */
+    /*       at the end of the sequence.                                      */
+    if(ADC_IS_SOFTWARE_START_REGULAR(hadc)        && 
+       (hadc->Init.ContinuousConvMode == DISABLE)   )
+    {
+      /* Set ADC state */
+      CLEAR_BIT(hadc->State, HAL_ADC_STATE_REG_BUSY);   
+      
+      if (HAL_IS_BIT_CLR(hadc->State, HAL_ADC_STATE_INJ_BUSY))
+      {
+        SET_BIT(hadc->State, HAL_ADC_STATE_READY);
+      }
+    }
+    
+    /* Conversion complete callback */
+    HAL_ADC_ConvCpltCallback(hadc); 
+  }
+  else
+  {
+    /* Call DMA error callback */
+    hadc->DMA_Handle->XferErrorCallback(hdma);
+  }
+}

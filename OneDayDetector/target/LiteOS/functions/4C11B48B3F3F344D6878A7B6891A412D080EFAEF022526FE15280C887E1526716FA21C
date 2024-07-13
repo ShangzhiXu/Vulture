@@ -1,0 +1,51 @@
+void HAL_DAC_IRQHandler(DAC_HandleTypeDef* hdac)
+{
+  if(__HAL_DAC_GET_IT_SOURCE(hdac, DAC_IT_DMAUDR1))
+  { 
+    /* Check underrun flag of DAC channel 1 */
+    if(__HAL_DAC_GET_FLAG(hdac, DAC_FLAG_DMAUDR1))
+    {
+      /* Change DAC state to error state */
+      hdac->State = HAL_DAC_STATE_ERROR;
+      
+      /* Set DAC error code to chanel1 DMA underrun error */
+      SET_BIT(hdac->ErrorCode, HAL_DAC_ERROR_DMAUNDERRUNCH1);
+      
+      /* Clear the underrun flag */
+      __HAL_DAC_CLEAR_FLAG(hdac,DAC_FLAG_DMAUDR1);
+      
+      /* Disable the selected DAC channel1 DMA request */
+      CLEAR_BIT(hdac->Instance->CR, DAC_CR_DMAEN1);
+      
+      /* Error callback */ 
+      HAL_DAC_DMAUnderrunCallbackCh1(hdac);
+    }
+  }
+#if defined (STM32L431xx) || defined (STM32L432xx) || defined (STM32L433xx) || defined (STM32L442xx) || defined (STM32L443xx) || \
+    defined (STM32L471xx) || defined (STM32L475xx) || defined (STM32L476xx) || defined (STM32L485xx) || defined (STM32L486xx) || defined (STM32L496xx) || defined (STM32L4A6xx) || \
+    defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined(STM32L4S9xx)
+  if(__HAL_DAC_GET_IT_SOURCE(hdac, DAC_IT_DMAUDR2))
+  {
+    /* Check underrun flag of DAC channel 1 */
+    if(__HAL_DAC_GET_FLAG(hdac, DAC_FLAG_DMAUDR2))
+    {
+      /* Change DAC state to error state */
+      hdac->State = HAL_DAC_STATE_ERROR;
+      
+      /* Set DAC error code to channel2 DMA underrun error */
+      SET_BIT(hdac->ErrorCode, HAL_DAC_ERROR_DMAUNDERRUNCH2);
+      
+      /* Clear the underrun flag */
+      __HAL_DAC_CLEAR_FLAG(hdac,DAC_FLAG_DMAUDR2);
+      
+      /* Disable the selected DAC channel1 DMA request */
+      CLEAR_BIT(hdac->Instance->CR, DAC_CR_DMAEN2);
+      
+      /* Error callback */ 
+      HAL_DACEx_DMAUnderrunCallbackCh2(hdac);
+    }
+  }
+#endif  /* STM32L431xx STM32L432xx STM32L433xx STM32L442xx STM32L443xx                         */
+        /* STM32L471xx STM32L475xx STM32L476xx STM32L485xx STM32L486xx STM32L496xx STM32L4A6xx */
+        /* STM32L4R5xx STM32L4R7xx STM32L4R9xx STM32L4S5xx STM32L4S7xx STM32L4S9xx             */
+}

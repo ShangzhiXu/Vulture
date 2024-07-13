@@ -1,0 +1,72 @@
+HAL_StatusTypeDef HAL_SD_GetCardCID(SD_HandleTypeDef *hsd, HAL_SD_CardCIDTypedef *pCID)
+{
+  uint32_t tmp = 0;
+  
+  /* Byte 0 */
+  tmp = (uint8_t)((hsd->CID[0] & 0xFF000000U) >> 24);
+  pCID->ManufacturerID = tmp;
+  
+  /* Byte 1 */
+  tmp = (uint8_t)((hsd->CID[0] & 0x00FF0000) >> 16);
+  pCID->OEM_AppliID = tmp << 8;
+  
+  /* Byte 2 */
+  tmp = (uint8_t)((hsd->CID[0] & 0x0000FF00) >> 8);
+  pCID->OEM_AppliID |= tmp;
+  
+  /* Byte 3 */
+  tmp = (uint8_t)(hsd->CID[0] & 0x000000FF);
+  pCID->ProdName1 = tmp << 24;
+  
+  /* Byte 4 */
+  tmp = (uint8_t)((hsd->CID[1] & 0xFF000000U) >> 24);
+  pCID->ProdName1 |= tmp << 16;
+  
+  /* Byte 5 */
+  tmp = (uint8_t)((hsd->CID[1] & 0x00FF0000) >> 16);
+  pCID->ProdName1 |= tmp << 8;
+  
+  /* Byte 6 */
+  tmp = (uint8_t)((hsd->CID[1] & 0x0000FF00) >> 8);
+  pCID->ProdName1 |= tmp;
+  
+  /* Byte 7 */
+  tmp = (uint8_t)(hsd->CID[1] & 0x000000FF);
+  pCID->ProdName2 = tmp;
+  
+  /* Byte 8 */
+  tmp = (uint8_t)((hsd->CID[2] & 0xFF000000U) >> 24);
+  pCID->ProdRev = tmp;
+  
+  /* Byte 9 */
+  tmp = (uint8_t)((hsd->CID[2] & 0x00FF0000) >> 16);
+  pCID->ProdSN = tmp << 24;
+  
+  /* Byte 10 */
+  tmp = (uint8_t)((hsd->CID[2] & 0x0000FF00) >> 8);
+  pCID->ProdSN |= tmp << 16;
+  
+  /* Byte 11 */
+  tmp = (uint8_t)(hsd->CID[2] & 0x000000FF);
+  pCID->ProdSN |= tmp << 8;
+  
+  /* Byte 12 */
+  tmp = (uint8_t)((hsd->CID[3] & 0xFF000000U) >> 24);
+  pCID->ProdSN |= tmp;
+  
+  /* Byte 13 */
+  tmp = (uint8_t)((hsd->CID[3] & 0x00FF0000) >> 16);
+  pCID->Reserved1   |= (tmp & 0xF0) >> 4;
+  pCID->ManufactDate = (tmp & 0x0F) << 8;
+  
+  /* Byte 14 */
+  tmp = (uint8_t)((hsd->CID[3] & 0x0000FF00) >> 8);
+  pCID->ManufactDate |= tmp;
+  
+  /* Byte 15 */
+  tmp = (uint8_t)(hsd->CID[3] & 0x000000FF);
+  pCID->CID_CRC   = (tmp & 0xFE) >> 1;
+  pCID->Reserved2 = 1;
+  
+  return HAL_OK;
+}

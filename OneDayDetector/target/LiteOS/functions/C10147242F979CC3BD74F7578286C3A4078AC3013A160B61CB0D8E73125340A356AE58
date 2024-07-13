@@ -1,0 +1,52 @@
+static void SPI_DMARxAbortCallback(DMA_HandleTypeDef *hdma)
+{
+  SPI_HandleTypeDef *hspi = (SPI_HandleTypeDef *)(((DMA_HandleTypeDef *)hdma)->Parent); /* Derogation MISRAC2012-Rule-11.5 */
+
+  /* Disable SPI Peripheral */
+  __HAL_SPI_DISABLE(hspi);
+
+  hspi->hdmarx->XferAbortCallback = NULL;
+
+  /* Disable Rx DMA Request */
+  CLEAR_BIT(hspi->Instance->CR2, SPI_CR2_RXDMAEN);
+
+  /* Check Busy flag */
+  if (SPI_EndRxTxTransaction(hspi, SPI_DEFAULT_TIMEOUT, HAL_GetTick()) != HAL_OK)
+  {
+    SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_ABORT);
+  }
+
+  /* Check if an Abort process is still ongoing */
+  if (hspi->hdmatx != NULL)
+  {
+    if (hspi->hdmatx->XferAbortCallback != NULL)
+    {
+      return;
+    }
+  }
+
+  /* No Abort process still ongoing : All DMA Stream/Channel are aborted, call user Abort Complete callback */
+  hspi->RxXferCount = 0U;
+  hspi->TxXferCount = 0U;
+
+  /* Check no error during Abort procedure */
+  if (hspi->ErrorCode != HAL_SPI_ERROR_ABORT)
+  {
+    /* Reset errorCode */
+    hspi->ErrorCode = HAL_SPI_ERROR_NONE;
+  }
+
+  /* Clear the Error flags in the SR register */
+  __HAL_SPI_CLEAR_OVRFLAG(hspi);
+  __HAL_SPI_CLEAR_FREFLAG(hspi);
+
+  /* Restore hspi->State to Ready */
+  hspi->State  = HAL_SPI_STATE_READY;
+
+  /* Call user Abort complete callback */
+#if (USE_HAL_SPI_REGISTER_CALLBACKS == 1U)
+  hspi->AbortCpltCallback(hspi);
+#else
+  HAL_SPI_AbortCpltCallback(hspi);
+#endif /* USE_HAL_SPI_REGISTER_CALLBACKS */
+}

@@ -1,0 +1,139 @@
+static void selectors_create(lv_obj_t * parent)
+{
+    lv_page_set_scrl_layout(parent, LV_LAYOUT_PRETTY_MID);
+
+    lv_disp_size_t disp_size = lv_disp_get_size_category(NULL);
+    lv_coord_t grid_h = lv_page_get_height_grid(parent, 1, 1);
+    lv_coord_t grid_w;
+    if(disp_size <= LV_DISP_SIZE_SMALL) grid_w = lv_page_get_width_grid(parent, 1, 1);
+    else grid_w = lv_page_get_width_grid(parent, 2, 1);
+
+    lv_obj_t * cal = lv_calendar_create(parent, NULL);
+    lv_obj_set_drag_parent(cal, true);
+    if(disp_size >= LV_DISP_SIZE_MEDIUM) {
+        lv_obj_set_size(cal, LV_MATH_MIN(grid_h, grid_w), LV_MATH_MIN(grid_h, grid_w));
+    } else {
+        lv_obj_set_size(cal, grid_w, grid_w);
+        if(disp_size <= LV_DISP_SIZE_SMALL) {
+            lv_obj_set_style_local_text_font(cal, LV_CALENDAR_PART_BG, LV_STATE_DEFAULT, lv_theme_get_font_small());
+        }
+    }
+
+    static lv_calendar_date_t hl[] = {
+            {.year = 2020, .month = 1, .day = 5},
+            {.year = 2020, .month = 1, .day = 9},
+    };
+
+
+    lv_obj_t * btn;
+    lv_obj_t * h = lv_cont_create(parent, NULL);
+    lv_obj_set_drag_parent(h, true);
+    if(disp_size <= LV_DISP_SIZE_SMALL) {
+        lv_cont_set_fit2(h, LV_FIT_NONE, LV_FIT_TIGHT);
+        lv_obj_set_width(h, lv_page_get_width_fit(parent));
+        lv_cont_set_layout(h, LV_LAYOUT_COLUMN_MID);
+    } else if(disp_size <= LV_DISP_SIZE_MEDIUM) {
+        lv_obj_set_size(h, lv_obj_get_width(cal), lv_obj_get_height(cal));
+        lv_cont_set_layout(h, LV_LAYOUT_PRETTY_TOP);
+    } else {
+        lv_obj_set_click(h, false);
+        lv_obj_set_style_local_bg_opa(h, LV_CONT_PART_MAIN, LV_STATE_DEFAULT, LV_OPA_TRANSP);
+        lv_obj_set_style_local_border_opa(h, LV_CONT_PART_MAIN, LV_STATE_DEFAULT, LV_OPA_TRANSP);
+        lv_obj_set_style_local_pad_left(h, LV_CONT_PART_MAIN, LV_STATE_DEFAULT, 0);
+        lv_obj_set_style_local_pad_right(h, LV_CONT_PART_MAIN, LV_STATE_DEFAULT, 0);
+        lv_obj_set_style_local_pad_top(h, LV_CONT_PART_MAIN, LV_STATE_DEFAULT, 0);
+        lv_obj_set_size(h, LV_MATH_MIN(grid_h, grid_w), LV_MATH_MIN(grid_h, grid_w));
+        lv_cont_set_layout(h, LV_LAYOUT_PRETTY_TOP);
+    }
+
+
+    lv_obj_t * roller = lv_roller_create(h, NULL);
+    lv_obj_add_style(roller, LV_CONT_PART_MAIN, &style_box);
+    lv_obj_set_style_local_value_str(roller, LV_CONT_PART_MAIN, LV_STATE_DEFAULT, "Roller");
+    lv_roller_set_auto_fit(roller, false);
+    lv_roller_set_align(roller, LV_LABEL_ALIGN_CENTER);
+    lv_roller_set_visible_row_count(roller, 4);
+    lv_obj_set_width(roller, lv_obj_get_width_grid(h, disp_size <= LV_DISP_SIZE_SMALL ? 1 : 2, 1));
+
+    lv_obj_t * dd = lv_dropdown_create(h, NULL);
+    lv_obj_add_style(dd, LV_CONT_PART_MAIN, &style_box);
+    lv_obj_set_style_local_value_str(dd, LV_CONT_PART_MAIN, LV_STATE_DEFAULT, "Dropdown");
+    lv_obj_set_width(dd, lv_obj_get_width_grid(h, disp_size <= LV_DISP_SIZE_SMALL ? 1 : 2, 1));
+    lv_dropdown_set_options(dd, "Alpha\nBravo\nCharlie\nDelta\nEcho\nFoxtrot\nGolf\nHotel\nIndia\nJuliette\nKilo\nLima\nMike\nNovember\n"
+            "Oscar\nPapa\nQuebec\nRomeo\nSierra\nTango\nUniform\nVictor\nWhiskey\nXray\nYankee\nZulu");
+
+    lv_obj_t * list = lv_list_create(parent, NULL);
+    lv_list_set_scroll_propagation(list, true);
+    lv_obj_set_size(list, grid_w, grid_h);
+
+    const char * txts[] = {LV_SYMBOL_SAVE, "Save", LV_SYMBOL_CUT, "Cut", LV_SYMBOL_COPY, "Copy",
+            LV_SYMBOL_OK, "This is a quite long text to scroll on the list", LV_SYMBOL_EDIT, "Edit", LV_SYMBOL_WIFI, "Wifi",
+            LV_SYMBOL_BLUETOOTH, "Bluetooth",  LV_SYMBOL_GPS, "GPS", LV_SYMBOL_USB, "USB",
+            LV_SYMBOL_SD_CARD, "SD card", LV_SYMBOL_CLOSE, "Close", NULL};
+
+    uint32_t i;
+    for(i = 0; txts[i] != NULL; i += 2) {
+        btn = lv_list_add_btn(list, txts[i], txts[i + 1]);
+        lv_btn_set_checkable(btn, true);
+
+        /*Make a button disabled*/
+        if(i == 4) {
+            lv_btn_set_state(btn, LV_BTN_STATE_DISABLED);
+        }
+    }
+
+    lv_calendar_set_highlighted_dates(cal, hl, 2);
+
+
+    static lv_style_t style_cell4;
+    lv_style_init(&style_cell4);
+    lv_style_set_bg_opa(&style_cell4, LV_STATE_DEFAULT, LV_OPA_50);
+    lv_style_set_bg_color(&style_cell4, LV_STATE_DEFAULT, LV_COLOR_GRAY);
+
+    lv_obj_t * page = lv_page_create(parent ,NULL);
+    lv_obj_set_size(page, grid_w, grid_h);
+    lv_coord_t table_w_max = lv_page_get_width_fit(page);
+    lv_page_set_scroll_propagation(page, true);
+
+    lv_obj_t * table1 = lv_table_create(page, NULL);
+    lv_obj_add_style(table1, LV_TABLE_PART_CELL4, &style_cell4);
+    /*Clean the background style of the table because it is placed on a page*/
+    lv_obj_clean_style_list(table1, LV_TABLE_PART_BG);
+    lv_obj_set_drag_parent(table1, true);
+    lv_obj_set_event_cb(table1, table_event_cb);
+    lv_table_set_col_cnt(table1, disp_size > LV_DISP_SIZE_SMALL ? 3 : 2);
+    if(disp_size > LV_DISP_SIZE_SMALL) {
+        lv_table_set_col_width(table1, 0, LV_MATH_MAX(30, 1 * table_w_max  / 5));
+        lv_table_set_col_width(table1, 1, LV_MATH_MAX(60, 2 * table_w_max / 5));
+        lv_table_set_col_width(table1, 2, LV_MATH_MAX(60, 2 * table_w_max / 5));
+    } else {
+        lv_table_set_col_width(table1, 0, LV_MATH_MAX(30, 1 * table_w_max  / 4 - 1));
+        lv_table_set_col_width(table1, 1, LV_MATH_MAX(60, 3 * table_w_max / 4 - 1));
+    }
+
+    lv_table_set_cell_value(table1, 0, 0, "#");
+    lv_table_set_cell_value(table1, 1, 0, "1");
+    lv_table_set_cell_value(table1, 2, 0, "2");
+    lv_table_set_cell_value(table1, 3, 0, "3");
+    lv_table_set_cell_value(table1, 4, 0, "4");
+    lv_table_set_cell_value(table1, 5, 0, "5");
+    lv_table_set_cell_value(table1, 6, 0, "6");
+
+    lv_table_set_cell_value(table1, 0, 1, "NAME");
+    lv_table_set_cell_value(table1, 1, 1, "Mark");
+    lv_table_set_cell_value(table1, 2, 1, "Jacob");
+    lv_table_set_cell_value(table1, 3, 1, "John");
+    lv_table_set_cell_value(table1, 4, 1, "Emily");
+    lv_table_set_cell_value(table1, 5, 1, "Ivan");
+    lv_table_set_cell_value(table1, 6, 1, "George");
+
+    if(disp_size > LV_DISP_SIZE_SMALL) {
+        lv_table_set_cell_value(table1, 0, 2, "CITY");
+        lv_table_set_cell_value(table1, 1, 2, "Moscow");
+        lv_table_set_cell_value(table1, 2, 2, "New York");
+        lv_table_set_cell_value(table1, 3, 2, "Oslo");
+        lv_table_set_cell_value(table1, 4, 2, "London");
+        lv_table_set_cell_value(table1, 5, 2, "Texas");
+        lv_table_set_cell_value(table1, 6, 2, "Athen");
+    }
+}

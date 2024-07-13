@@ -1,0 +1,41 @@
+static int pkcs12_pbe_derive_key_iv( mbedtls_asn1_buf *pbe_params, mbedtls_md_type_t md_type,
+                                     const unsigned char *pwd,  size_t pwdlen,
+                                     unsigned char *key, size_t keylen,
+                                     unsigned char *iv,  size_t ivlen )
+{
+    int ret, iterations = 0;
+    mbedtls_asn1_buf salt;
+    size_t i;
+    unsigned char unipwd[PKCS12_MAX_PWDLEN * 2 + 2];
+
+    if( pwdlen > PKCS12_MAX_PWDLEN )
+        return( MBEDTLS_ERR_PKCS12_BAD_INPUT_DATA );
+
+    memset( &salt, 0, sizeof(mbedtls_asn1_buf) );
+    memset( &unipwd, 0, sizeof(unipwd) );
+
+    if( ( ret = pkcs12_parse_pbe_params( pbe_params, &salt,
+                                         &iterations ) ) != 0 )
+        return( ret );
+
+    for( i = 0; i < pwdlen; i++ )
+        unipwd[i * 2 + 1] = pwd[i];
+
+    if( ( ret = mbedtls_pkcs12_derivation( key, keylen, unipwd, pwdlen * 2 + 2,
+                                   salt.p, salt.len, md_type,
+                                   MBEDTLS_PKCS12_DERIVE_KEY, iterations ) ) != 0 )
+    {
+        return( ret );
+    }
+
+    if( iv == NULL || ivlen == 0 )
+        return( 0 );
+
+    if( ( ret = mbedtls_pkcs12_derivation( iv, ivlen, unipwd, pwdlen * 2 + 2,
+                                   salt.p, salt.len, md_type,
+                                   MBEDTLS_PKCS12_DERIVE_IV, iterations ) ) != 0 )
+    {
+        return( ret );
+    }
+    return( 0 );
+}

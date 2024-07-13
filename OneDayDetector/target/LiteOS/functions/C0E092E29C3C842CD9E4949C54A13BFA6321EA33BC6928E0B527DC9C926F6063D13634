@@ -1,0 +1,22 @@
+mqtt_append_request(struct mqtt_request_t **tail, struct mqtt_request_t *r)
+{
+  struct mqtt_request_t *head = NULL;
+  s16_t time_before = 0;
+  struct mqtt_request_t *iter;
+
+  LWIP_ASSERT("mqtt_append_request: tail != NULL", tail != NULL);
+
+  /* Iterate trough queue to find head, and count total timeout time */
+  for (iter = *tail; iter != NULL; iter = iter->next) {
+    time_before += iter->timeout_diff;
+    head = iter;
+  }
+
+  LWIP_ASSERT("mqtt_append_request: time_before <= MQTT_REQ_TIMEOUT", time_before <= MQTT_REQ_TIMEOUT);
+  r->timeout_diff = MQTT_REQ_TIMEOUT - time_before;
+  if (head == NULL) {
+    *tail = r;
+  } else {
+    head->next = r;
+  }
+}

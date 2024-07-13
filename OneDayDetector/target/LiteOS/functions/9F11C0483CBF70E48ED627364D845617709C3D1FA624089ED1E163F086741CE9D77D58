@@ -1,0 +1,62 @@
+bridgeif_input(struct pbuf *p, struct netif *netif)
+{
+  u8_t rx_idx;
+  bridgeif_portmask_t dstports;
+  struct eth_addr *src, *dst;
+  bridgeif_private_t *br;
+  bridgeif_port_t *port;
+  if (p == NULL || netif == NULL) {
+    return ERR_VAL;
+  }
+  port = (bridgeif_port_t *)netif_get_client_data(netif, bridgeif_netif_client_id);
+  LWIP_ASSERT("port data not set", port != NULL);
+  if (port == NULL || port->bridge == NULL) {
+    return ERR_VAL;
+  }
+  br = (bridgeif_private_t *)port->bridge;
+  rx_idx = netif_get_index(netif);
+  /* store receive index in pbuf */
+  p->if_idx = rx_idx;
+
+  dst = (struct eth_addr *)p->payload;
+  src = (struct eth_addr *)(((u8_t *)p->payload) + sizeof(struct eth_addr));
+
+  if ((src->addr[0] & 1) == 0) {
+    /* update src for all non-group addresses */
+    bridgeif_fdb_update_src(br->fdbd, src, port->port_num);
+  }
+
+  if (dst->addr[0] & 1) {
+    /* group address -> flood + cpu? */
+    dstports = bridgeif_find_dst_ports(br, dst);
+    bridgeif_send_to_ports(br, p, dstports);
+    if (dstports & (1 << BRIDGEIF_MAX_PORTS)) {
+      /* we pass the reference to ->input or have to free it */
+      LWIP_DEBUGF(BRIDGEIF_FW_DEBUG, ("br -> input(%p)\n", (void *)p));
+      if (br->netif->input(p, br->netif) != ERR_OK) {
+        pbuf_free(p);
+      }
+    } else {
+      /* all references done */
+      pbuf_free(p);
+    }
+    /* always return ERR_OK here to prevent the caller freeing the pbuf */
+    return ERR_OK;
+  } else {
+    /* is this for one of the local ports? */
+    if (bridgeif_is_local_mac(br, dst)) {
+      /* yes, send to cpu port only */
+      LWIP_DEBUGF(BRIDGEIF_FW_DEBUG, ("br -> input(%p)\n", (void *)p));
+      return br->netif->input(p, br->netif);
+    }
+
+    /* get dst port */
+    dstports = bridgeif_find_dst_ports(br, dst);
+    bridgeif_send_to_ports(br, p, dstports);
+    /* no need to send to cpu, flooding is for external ports only */
+    /* by  this, we consumed the pbuf */
+    pbuf_free(p);
+    /* always return ERR_OK here to prevent the caller freeing the pbuf */
+    return ERR_OK;
+  }
+}

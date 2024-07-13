@@ -1,0 +1,27 @@
+s32_t SPIFFS_info(spiffs *fs, u32_t *total, u32_t *used)
+{
+    SPIFFS_API_DBG("%s\n", __func__);
+    s32_t res = SPIFFS_OK;
+    SPIFFS_API_CHECK_CFG(fs);
+    SPIFFS_API_CHECK_MOUNT(fs);
+    SPIFFS_LOCK(fs);
+
+    u32_t pages_per_block = SPIFFS_PAGES_PER_BLOCK(fs);
+    u32_t blocks = fs->block_count;
+    u32_t obj_lu_pages = SPIFFS_OBJ_LOOKUP_PAGES(fs);
+    u32_t data_page_size = SPIFFS_DATA_PAGE_SIZE(fs);
+    u32_t total_data_pages = (blocks - 2) * (pages_per_block - obj_lu_pages) + 1; // -2 for spare blocks, +1 for emergency page
+
+    if (total)
+    {
+        *total = total_data_pages * data_page_size;
+    }
+
+    if (used)
+    {
+        *used = fs->stats_p_allocated * data_page_size;
+    }
+
+    SPIFFS_UNLOCK(fs);
+    return res;
+}

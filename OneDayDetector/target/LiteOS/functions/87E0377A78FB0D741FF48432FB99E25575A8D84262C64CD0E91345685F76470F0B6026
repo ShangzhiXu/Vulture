@@ -1,0 +1,28 @@
+static int sockets_stresstest_rand_mode(int allow_wait, int allow_rx)
+{
+  u32_t random_value = LWIP_RAND();
+#if LWIP_SOCKET_SELECT
+  if (random_value & TEST_MODE_SELECT) {
+    return TEST_MODE_SELECT;
+  }
+#endif
+#if LWIP_SOCKET_POLL
+  if (random_value & TEST_MODE_POLL) {
+    return TEST_MODE_POLL;
+  }
+#endif
+  if (!allow_rx) {
+    return TEST_MODE_SLEEP;
+  }
+#if LWIP_SO_RCVTIMEO
+  if (random_value & TEST_MODE_RECVTIMEO) {
+    return TEST_MODE_RECVTIMEO;
+  }
+#endif
+  if (allow_wait) {
+    if (random_value & TEST_MODE_RECVTIMEO) {
+      return TEST_MODE_RECVTIMEO;
+    }
+  }
+  return TEST_MODE_NONBLOCKING;
+}

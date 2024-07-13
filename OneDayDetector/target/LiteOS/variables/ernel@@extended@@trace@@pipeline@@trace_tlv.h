@@ -1,0 +1,10 @@
+    UINT16 crc;
+    UINT8 elemOffset;
+    UINT8 elemSize;
+    UINT16 len;
+    UINT8 len;
+    UINT8 magicNum;
+    UINT8 msgType;
+    UINT8 tag;
+    UINT8 type;
+    UINT8 value[];

@@ -1,0 +1,89 @@
+HAL_StatusTypeDef HAL_DMA2D_ConfigLayer(DMA2D_HandleTypeDef *hdma2d, uint32_t LayerIdx)
+{   
+  DMA2D_LayerCfgTypeDef *LayerCfg = &hdma2d->LayerCfg[LayerIdx];
+  uint32_t tmp = 0;
+  
+  /* Check the parameters */
+  assert_param(IS_DMA2D_LAYER(LayerIdx));  
+  assert_param(IS_DMA2D_OFFSET(LayerCfg->InputOffset));  
+  if(hdma2d->Init.Mode != DMA2D_R2M)
+  {  
+    assert_param(IS_DMA2D_INPUT_COLOR_MODE(LayerCfg->InputColorMode));
+    if(hdma2d->Init.Mode != DMA2D_M2M)
+    {
+      assert_param(IS_DMA2D_ALPHA_MODE(LayerCfg->AlphaMode));
+    }
+  }
+  assert_param(IS_DMA2D_ALPHA_INVERTED(LayerCfg->AlphaInverted)); 
+  assert_param(IS_DMA2D_RB_SWAP(LayerCfg->RedBlueSwap));     
+  
+  /* Process locked */
+  __HAL_LOCK(hdma2d);
+  
+  /* Change DMA2D peripheral state */
+  hdma2d->State = HAL_DMA2D_STATE_BUSY;   
+  
+  /* Configure the background DMA2D layer */
+  if(LayerIdx == 0)
+  {
+    /* DMA2D BGPFCR register configuration -----------------------------------*/
+    /* Prepare the value to be written to the BGPFCCR register */
+    if ((LayerCfg->InputColorMode == DMA2D_INPUT_A4) || (LayerCfg->InputColorMode == DMA2D_INPUT_A8))
+    {
+      tmp = (LayerCfg->InputColorMode | (LayerCfg->AlphaMode << DMA2D_POSITION_BGPFCCR_AM) | (LayerCfg->InputAlpha & DMA2D_BGPFCCR_ALPHA));
+    }
+    else
+    {
+      tmp = (LayerCfg->InputColorMode | (LayerCfg->AlphaMode << DMA2D_POSITION_BGPFCCR_AM) | (LayerCfg->InputAlpha << DMA2D_POSITION_BGPFCCR_ALPHA));
+    }
+    
+    /* Write DMA2D BGPFCCR register */
+    MODIFY_REG(hdma2d->Instance->BGPFCCR, (DMA2D_BGPFCCR_CM | DMA2D_BGPFCCR_AM | DMA2D_BGPFCCR_ALPHA | DMA2D_BGPFCCR_AI | DMA2D_BGPFCCR_RBS), \
+              (tmp | (LayerCfg->AlphaInverted << DMA2D_POSITION_BGPFCCR_AI) |(LayerCfg->RedBlueSwap << DMA2D_POSITION_BGPFCCR_RBS)));
+
+              
+    /* DMA2D BGOR register configuration -------------------------------------*/  
+    WRITE_REG(hdma2d->Instance->BGOR, LayerCfg->InputOffset);
+    
+    /* DMA2D BGCOLR register configuration -------------------------------------*/ 
+    if ((LayerCfg->InputColorMode == DMA2D_INPUT_A4) || (LayerCfg->InputColorMode == DMA2D_INPUT_A8))
+    {    
+      WRITE_REG(hdma2d->Instance->BGCOLR, LayerCfg->InputAlpha & (DMA2D_BGCOLR_BLUE|DMA2D_BGCOLR_GREEN|DMA2D_BGCOLR_RED));
+    }    
+  }
+  /* Configure the foreground DMA2D layer */
+  else
+  {
+    /* DMA2D FGPFCR register configuration -----------------------------------*/   
+    /* Prepare the value to be written to the FGPFCCR register */     
+    if ((LayerCfg->InputColorMode == DMA2D_INPUT_A4) || (LayerCfg->InputColorMode == DMA2D_INPUT_A8))
+    {
+      tmp = (LayerCfg->InputColorMode | (LayerCfg->AlphaMode << DMA2D_POSITION_FGPFCCR_AM) | (LayerCfg->InputAlpha & DMA2D_FGPFCCR_ALPHA));
+    }
+    else
+    {
+      tmp = (LayerCfg->InputColorMode | (LayerCfg->AlphaMode << DMA2D_POSITION_FGPFCCR_AM) | (LayerCfg->InputAlpha << DMA2D_POSITION_FGPFCCR_ALPHA));
+    }
+    
+    /* Write DMA2D FGPFCCR register */
+    MODIFY_REG(hdma2d->Instance->FGPFCCR, (DMA2D_FGPFCCR_CM | DMA2D_FGPFCCR_AM | DMA2D_FGPFCCR_ALPHA | DMA2D_FGPFCCR_AI | DMA2D_FGPFCCR_RBS), \
+              (tmp | (LayerCfg->AlphaInverted << DMA2D_POSITION_FGPFCCR_AI) |(LayerCfg->RedBlueSwap << DMA2D_POSITION_FGPFCCR_RBS)));
+
+    
+    /* DMA2D FGOR register configuration -------------------------------------*/
+    WRITE_REG(hdma2d->Instance->FGOR, LayerCfg->InputOffset);      
+   
+    /* DMA2D FGCOLR register configuration -------------------------------------*/   
+    if ((LayerCfg->InputColorMode == DMA2D_INPUT_A4) || (LayerCfg->InputColorMode == DMA2D_INPUT_A8))
+    {
+      WRITE_REG(hdma2d->Instance->FGCOLR, LayerCfg->InputAlpha & (DMA2D_FGCOLR_BLUE|DMA2D_FGCOLR_GREEN|DMA2D_FGCOLR_RED));      
+    }   
+  }    
+  /* Initialize the DMA2D state*/
+  hdma2d->State = HAL_DMA2D_STATE_READY;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hdma2d);  
+  
+  return HAL_OK;
+}

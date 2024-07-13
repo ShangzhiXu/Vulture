@@ -1,0 +1,41 @@
+LITE_OS_SEC_TEXT_INIT VOID LOS_CpupReset(VOID)
+{
+    UINT32 cpupIndex;
+    UINT32  maxNum = g_cpupMaxNum;
+    UINT64 curCycle;
+    UINT16 loop;
+    UINT32 intSave;
+
+    if (g_cpup == NULL) {
+        return;
+    }
+
+    g_cpupInitFlg = 0;
+    intSave = LOS_IntLock();
+    (VOID)LOS_SwtmrStop(g_cpupSwtmrId);
+    curCycle = OsGetCpuCycle();
+
+    for (loop = 0; loop < (OS_CPUP_HISTORY_RECORD_NUM + 1); loop++) {
+        cpuHistoryTime[loop] = curCycle;
+    }
+
+    for (cpupIndex = 0; cpupIndex < maxNum; cpupIndex++) {
+        g_cpup[cpupIndex].startTime = curCycle;
+        g_cpup[cpupIndex].allTime = curCycle;
+        for (loop = 0; loop < (OS_CPUP_HISTORY_RECORD_NUM + 1); loop++) {
+            g_cpup[cpupIndex].historyTime[loop] = curCycle;
+        }
+    }
+
+#ifdef LOSCFG_CPUP_INCLUDE_IRQ
+    for (loop = 0; loop < LOSCFG_KERNEL_CORE_NUM; loop++) {
+        g_timeInIrqPerTskSwitch[loop] = 0;
+    }
+#endif
+
+    (VOID)LOS_SwtmrStart(g_cpupSwtmrId);
+    LOS_IntRestore(intSave);
+    g_cpupInitFlg = 1;
+
+    return;
+}

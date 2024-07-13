@@ -1,0 +1,23 @@
+LITE_OS_SEC_TEXT_INIT UINT32 OsSwtmrTaskCreate(VOID)
+{
+    UINT32 ret, swtmrTaskId;
+    TSK_INIT_PARAM_S swtmrTask;
+    UINT32 cpuid = ArchCurrCpuid();
+
+    (VOID)memset_s(&swtmrTask, sizeof(TSK_INIT_PARAM_S), 0, sizeof(TSK_INIT_PARAM_S));
+    swtmrTask.pfnTaskEntry = (TSK_ENTRY_FUNC)OsSwtmrTask;
+    swtmrTask.uwStackSize = LOSCFG_BASE_CORE_TSK_SWTMR_STACK_SIZE;
+    swtmrTask.pcName = "Swt_Task";
+    swtmrTask.usTaskPrio = 0;
+    swtmrTask.uwResved = LOS_TASK_STATUS_DETACHED;
+#ifdef LOSCFG_KERNEL_SMP
+    swtmrTask.usCpuAffiMask = CPUID_TO_AFFI_MASK(cpuid);
+#endif
+    ret = LOS_TaskCreate(&swtmrTaskId, &swtmrTask);
+    if (ret == LOS_OK) {
+        g_percpu[cpuid].swtmrTaskId = swtmrTaskId;
+        OS_TCB_FROM_TID(swtmrTaskId)->taskFlags |= OS_TASK_FLAG_SYSTEM;
+    }
+
+    return ret;
+}

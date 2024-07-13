@@ -1,0 +1,53 @@
+HAL_StatusTypeDef HAL_OSPI_HyperbusCmd(OSPI_HandleTypeDef *hospi, OSPI_HyperbusCmdTypeDef *cmd, uint32_t Timeout)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t tickstart = HAL_GetTick();
+
+  /* Check the parameters of the hyperbus command structure */
+  assert_param(IS_OSPI_ADDRESS_SPACE(cmd->AddressSpace));
+  assert_param(IS_OSPI_ADDRESS_SIZE (cmd->AddressSize));
+  assert_param(IS_OSPI_NUMBER_DATA  (cmd->NbData));
+  assert_param(IS_OSPI_DQS_MODE     (cmd->DQSMode));
+
+  /* Check the state of the driver */
+  if ((hospi->State == HAL_OSPI_STATE_READY) && (hospi->Init.MemoryType == HAL_OSPI_MEMTYPE_HYPERBUS))
+  {
+    /* Wait till busy flag is reset */
+    status = OSPI_WaitFlagStateUntilTimeout(hospi, HAL_OSPI_FLAG_BUSY, RESET, tickstart, Timeout);
+    
+    if (status == HAL_OK)
+    {
+      /* Re-initialize the value of the functional mode */
+      MODIFY_REG(hospi->Instance->CR, OCTOSPI_CR_FMODE, 0);
+
+      /* Configure the address space in the DCR1 register */
+      MODIFY_REG(hospi->Instance->DCR1, OCTOSPI_DCR1_MTYP_0, cmd->AddressSpace);
+      
+      /* Configure the CCR and WCCR registers with the address size and the following configuration :
+         - DQS signal enabled (used as RWDS)
+         - DTR mode enabled on address and data
+         - address and data on 8 lines */
+      WRITE_REG(hospi->Instance->CCR, (cmd->DQSMode | OCTOSPI_CCR_DDTR | OCTOSPI_CCR_DMODE_2 | 
+                                       cmd->AddressSize | OCTOSPI_CCR_ADDTR | OCTOSPI_CCR_ADMODE_2));
+      WRITE_REG(hospi->Instance->WCCR, (cmd->DQSMode | OCTOSPI_WCCR_DDTR | OCTOSPI_WCCR_DMODE_2 | 
+                                        cmd->AddressSize | OCTOSPI_WCCR_ADDTR | OCTOSPI_WCCR_ADMODE_2));
+
+      /* Configure the DLR register with the number of data */
+      WRITE_REG(hospi->Instance->DLR, (cmd->NbData - 1));
+
+      /* Configure the AR register with the address value */
+      WRITE_REG(hospi->Instance->AR, cmd->Address);
+    
+      /* Update the state */
+      hospi->State = HAL_OSPI_STATE_CMD_CFG;
+    }
+  }
+  else
+  {
+    status = HAL_ERROR;
+    hospi->ErrorCode = HAL_OSPI_ERROR_INVALID_SEQUENCE;
+  }
+  
+  /* Return function status */
+  return status;
+}

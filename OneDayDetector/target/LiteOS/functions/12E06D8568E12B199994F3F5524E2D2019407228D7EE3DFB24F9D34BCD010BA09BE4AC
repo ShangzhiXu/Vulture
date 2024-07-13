@@ -1,0 +1,24 @@
+void fsm_close(fsm *f, const char *reason) {
+    f->term_reason = reason;
+    f->term_reason_len = (reason == NULL? 0: (u8_t)LWIP_MIN(strlen(reason), 0xFF) );
+    switch( f->state ){
+    case PPP_FSM_STARTING:
+	f->state = PPP_FSM_INITIAL;
+	break;
+    case PPP_FSM_STOPPED:
+	f->state = PPP_FSM_CLOSED;
+	break;
+    case PPP_FSM_STOPPING:
+	f->state = PPP_FSM_CLOSING;
+	break;
+
+    case PPP_FSM_REQSENT:
+    case PPP_FSM_ACKRCVD:
+    case PPP_FSM_ACKSENT:
+    case PPP_FSM_OPENED:
+	terminate_layer(f, PPP_FSM_CLOSING);
+	break;
+    default:
+	break;
+    }
+}

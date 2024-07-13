@@ -1,0 +1,51 @@
+static int mqtt_get_connection_info(mqtt_client_s *handle, MQTTPacket_connectData *data)
+{
+    char *strs[5];
+    uint32_t tmp[array_size(strs)];
+    uint32_t str_num = 0;
+    char time[MQTT_TIME_BUF_LEN];
+    char *password;
+
+    if (mqtt_is_connectting_with_deviceid(handle)) {
+        if (handle->device_info.connection_type == MQTT_STATIC_CONNECT) {
+            strs[0] = handle->device_info.u.s_info.deviceid;
+            password = handle->device_info.password;
+        } else {
+            strs[0] = handle->dynamic_info.save_info.deviceid;
+            password = handle->dynamic_info.got_password;
+        }
+        str_num = 1;
+        ATINY_LOG(LOG_INFO, "try static connect");
+    } else {
+        strs[0] = handle->device_info.u.d_info.productid;
+        strs[1] = handle->device_info.u.d_info.nodeid;
+        str_num = 2;
+        password = handle->device_info.password;
+        ATINY_LOG(LOG_INFO, "try dynamic connect");
+    }
+
+    strs[str_num++] = (char *)mqtt_connection_type_to_str(
+            mqtt_is_connectting_with_deviceid(handle) ? MQTT_STATIC_CONNECT : MQTT_DYNAMIC_CONNECT);
+    strs[str_num++] = (char *)mqtt_sign_type_to_str(handle->device_info.sign_type);
+    if (mqtt_cmd_ioctl(MQTT_GET_TIME, time, sizeof(time)) != ATINY_OK) {
+        ATINY_LOG(LOG_FATAL, "mqtt_cmd_ioctl fail");
+        return ATINY_ERR;
+    }
+    time[sizeof(time) - 1] = '\0';
+    strs[str_num++] = time;
+
+    data->clientID.cstring = mqtt_add_strings((const char **)strs, tmp, str_num);
+    if (data->clientID.cstring == NULL) {
+        return ATINY_MALLOC_FAILED;
+    }
+
+    data->username.cstring = strs[0]; /* deviceid or pruoductid */
+    data->password.cstring = mqtt_get_send_password(password, time);
+    if (data->password.cstring == NULL) {
+        return ATINY_ERR;
+    }
+
+    ATINY_LOG(LOG_DEBUG, "send user %s client %s", data->username.cstring,
+              data->clientID.cstring);
+    return ATINY_OK;
+}

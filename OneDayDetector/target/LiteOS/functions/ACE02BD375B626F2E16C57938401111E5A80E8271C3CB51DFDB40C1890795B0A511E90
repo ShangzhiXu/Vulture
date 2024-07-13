@@ -1,0 +1,35 @@
+psk_entry *psk_parse( char *psk_string )
+{
+    psk_entry *cur = NULL, *new = NULL;
+    char *p = psk_string;
+    char *end = p;
+    char *key_hex;
+
+    while( *end != '\0' )
+        ++end;
+    *end = ',';
+
+    while( p <= end )
+    {
+        if( ( new = mbedtls_calloc( 1, sizeof( psk_entry ) ) ) == NULL )
+            goto error;
+
+        memset( new, 0, sizeof( psk_entry ) );
+
+        GET_ITEM( new->name );
+        GET_ITEM( key_hex );
+
+        if( unhexify( new->key, key_hex, &new->key_len ) != 0 )
+            goto error;
+
+        new->next = cur;
+        cur = new;
+    }
+
+    return( cur );
+
+error:
+    psk_free( new );
+    psk_free( cur );
+    return( 0 );
+}

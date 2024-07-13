@@ -1,0 +1,24 @@
+sockets_stresstest_wait_readable_nonblock(int s, int timeout_ms)
+{
+  int ret;
+  char buf;
+  u32_t wait_until = sys_now() + timeout_ms;
+
+  while(sys_now() < wait_until) {
+    /* peek for one byte */
+    ret = lwip_recv(s, &buf, 1, MSG_PEEK | MSG_DONTWAIT);
+
+    if (ret == 1) {
+      return TEST_SOCK_READABLE;
+    }
+    if (ret == -1) {
+      /* TODO: for this to work, 'errno' has to support multithreading... */
+      int err = errno;
+      if (err != EWOULDBLOCK) {
+        return TEST_SOCK_ERR;
+      }
+    }
+    /* TODO: sleep? */
+  }
+  return 0;
+}

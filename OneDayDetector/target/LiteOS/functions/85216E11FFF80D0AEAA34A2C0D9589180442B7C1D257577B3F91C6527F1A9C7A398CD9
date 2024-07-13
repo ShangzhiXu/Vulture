@@ -1,0 +1,60 @@
+static void draw_rect_grad(lv_obj_t * cpicker, const lv_area_t * mask)
+{
+    lv_draw_rect_dsc_t bg_dsc;
+    lv_draw_rect_dsc_init(&bg_dsc);
+    lv_obj_init_draw_rect_dsc(cpicker, LV_CPICKER_PART_MAIN, &bg_dsc);
+
+    lv_area_t grad_area;
+    lv_obj_get_coords(cpicker, &grad_area);
+
+    if(bg_dsc.radius) {
+        lv_coord_t h = lv_obj_get_height(cpicker);
+        lv_coord_t r = bg_dsc.radius;
+        if(r > h / 2) r = h / 2;
+        /*Make the gradient area smaller with a half circle on both ends*/
+        grad_area.x1 += r;
+        grad_area.x2 -= r;
+
+        /*Draw the left rounded end*/
+        lv_area_t rounded_edge_area;
+        lv_obj_get_coords(cpicker, &rounded_edge_area);
+        rounded_edge_area.x2 = rounded_edge_area.x1 + 2 * r;
+
+        bg_dsc.bg_color = angle_to_mode_color(cpicker, 0);
+
+        lv_draw_rect(&rounded_edge_area, mask, &bg_dsc);
+
+        /*Draw the right rounded end*/
+        lv_obj_get_coords(cpicker, &rounded_edge_area);
+        rounded_edge_area.x1 = rounded_edge_area.x2 - 2 * r;
+
+        bg_dsc.bg_color = angle_to_mode_color(cpicker, 359);
+
+        lv_draw_rect(&rounded_edge_area, mask, &bg_dsc);
+    }
+
+    lv_coord_t grad_w = lv_area_get_width(&grad_area);
+    uint16_t i_step = LV_MATH_MAX(LV_CPICKER_DEF_QF, 360 / grad_w);
+    bg_dsc.radius = 0;
+    bg_dsc.border_width = 0;
+    bg_dsc.shadow_width = 0;
+
+    uint16_t i;
+    for(i = 0; i < 360; i += i_step) {
+        bg_dsc.bg_color = angle_to_mode_color(cpicker, i);
+
+        /*the following attribute might need changing between index to add border, shadow, radius etc*/
+        lv_area_t rect_area;
+
+        /*scale angle (hue/sat/val) to linear coordinate*/
+        lv_coord_t xi = (i * grad_w) / 360;
+        lv_coord_t xi2 = ((i + i_step) * grad_w) / 360;
+
+        rect_area.x1 = LV_MATH_MIN(grad_area.x1 + xi, grad_area.x1 + grad_w - i_step);
+        rect_area.y1 = grad_area.y1;
+        rect_area.x2 = LV_MATH_MIN(grad_area.x1 + xi2, grad_area.x1 + grad_w - i_step);
+        rect_area.y2 = grad_area.y2;
+
+        lv_draw_rect(&rect_area, mask, &bg_dsc);
+    }
+}

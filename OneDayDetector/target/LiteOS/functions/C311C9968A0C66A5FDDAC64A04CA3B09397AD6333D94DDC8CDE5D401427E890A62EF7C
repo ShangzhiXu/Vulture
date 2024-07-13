@@ -1,0 +1,79 @@
+static int checkSsiByFilelist(const char* filename_listfile)
+{
+  FILE *f = fopen(filename_listfile, "r");
+  if (f != NULL) {
+    char *buf;
+    long rs;
+    size_t fsize, readcount;
+    size_t i, l, num_lines;
+    char **lines;
+    int state;
+
+    fseek(f, 0, SEEK_END);
+    rs = ftell(f);
+    if (rs < 0) {
+      printf("ftell failed with %d\n", errno);
+      fclose(f);
+      return 0;
+    }
+    fsize = (size_t)rs;
+    fseek(f, 0, SEEK_SET);
+    buf = (char*)malloc(fsize);
+    if (!buf) {
+      printf("failed to allocate ssi file buffer\n");
+      fclose(f);
+      return 0;
+    }
+    memset(buf, 0, fsize);
+    readcount = fread(buf, 1, fsize, f);
+    fclose(f);
+    if ((readcount > fsize) || !readcount) {
+      printf("failed to read data from ssi file\n");
+      free(buf);
+      return 0;
+    }
+
+    /* first pass: get the number of lines (and convert newlines to '0') */
+    num_lines = 1;
+    for (i = 0; i < readcount; i++) {
+      if (buf[i] == '\n') {
+        num_lines++;
+        buf[i] = 0;
+      } else if (buf[i] == '\r') {
+        buf[i] = 0;
+      }
+    }
+    /* allocate the line pointer array */
+    lines = (char**)malloc(sizeof(char*) * num_lines);
+    if (!lines) {
+      printf("failed to allocate ssi line buffer\n");
+      free(buf);
+      return 0;
+    }
+    memset(lines, 0, sizeof(char*) * num_lines);
+    l = 0;
+    state = 0;
+    for (i = 0; i < readcount; i++) {
+      if (state) {
+        /* waiting for null */
+        if (buf[i] == 0) {
+          state = 0;
+        }
+      } else {
+        /* waiting for beginning of new string */
+        if (buf[i] != 0) {
+          LWIP_ASSERT("lines array overflow", l < num_lines);
+          lines[l] = &buf[i];
+          state = 1;
+          l++;
+        }
+      }
+    }
+    LWIP_ASSERT("lines array overflow", l < num_lines);
+
+    ssi_file_buffer = buf;
+    ssi_file_lines = lines;
+    ssi_file_num_lines = l;
+  }
+  return 0;
+}

@@ -1,0 +1,16 @@
+STATIC INLINE INT32 ArchAtomicIncRet(Atomic *v)
+{
+    INT32 val;
+    UINT32 status;
+
+    do {
+        __asm__ __volatile__("ldrex   %0, [%3]\n"
+                             "add   %0, %0, #1\n"
+                             "strex   %1, %0, [%3]"
+                             : "=&r"(val), "=&r"(status), "+m"(*v)
+                             : "r"(v)
+                             : "cc");
+    } while (__builtin_expect(status != 0, 0));
+
+    return val;
+}

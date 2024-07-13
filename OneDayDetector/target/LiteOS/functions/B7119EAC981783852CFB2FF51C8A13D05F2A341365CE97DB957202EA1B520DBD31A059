@@ -1,0 +1,60 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 LOS_AllCpuUsage(UINT16 maxNum, CPUP_INFO_S *cpupInfo, UINT32 mode, UINT16 flag)
+{
+    UINT16 loop;
+    UINT16 pos;
+    UINT16 prePos;
+    UINT32 intSave;
+    UINT64 cpuCycleAll;
+    UINT64 cpuCycleCurTask;
+    UINT16 numTmpMax = maxNum;
+    UINT16 numTmpMin = 0;
+    UINT16 numMax = g_cpupTaskMaxNum;
+
+    if (g_cpupInitFlg == 0) {
+        return  LOS_ERRNO_CPUP_NO_INIT;
+    }
+
+    if (cpupInfo == NULL) {
+        return LOS_ERRNO_CPUP_TASK_PTR_NULL;
+    }
+
+    if (maxNum == 0) {
+        return  LOS_ERRNO_CPUP_MAXNUM_INVALID;
+    }
+
+#ifdef LOSCFG_CPUP_INCLUDE_IRQ
+    if (flag == 0) {
+        numTmpMax += g_cpupTaskMaxNum;
+        numTmpMin += g_cpupTaskMaxNum;
+        numMax = g_cpupMaxNum;
+    }
+#endif
+
+    if (numTmpMax > numMax) {
+        numTmpMax = numMax;
+    }
+
+    intSave = LOS_IntLock();
+    OsTaskCycleEnd();
+
+    OsCpupGetPos(mode, &pos, &prePos);
+    cpuCycleAll = cpuHistoryTime[pos] - cpuHistoryTime[prePos];
+
+    for (loop = numTmpMin; loop < numTmpMax; loop++) {
+        if ((g_cpup[loop].status & OS_TASK_STATUS_UNUSED) || (g_cpup[loop].status == 0)) {
+            continue;
+        }
+
+        cpuCycleCurTask = g_cpup[loop].historyTime[pos] - g_cpup[loop].historyTime[prePos];
+        cpupInfo[loop - numTmpMin].usStatus = g_cpup[loop].status;
+
+        if (cpuCycleAll) {
+            cpupInfo[loop - numTmpMin].uwUsage = (UINT32)((LOS_CPUP_PRECISION * cpuCycleCurTask) / cpuCycleAll);
+        }
+    }
+
+    OsTaskCycleStart();
+    LOS_IntRestore(intSave);
+
+    return LOS_OK;
+}

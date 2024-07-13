@@ -1,0 +1,46 @@
+int mbedtls_rsa_public( mbedtls_rsa_context *ctx,
+                const unsigned char *input,
+                unsigned char *output )
+{
+    int ret;
+    size_t olen;
+    mbedtls_mpi T;
+    RSA_VALIDATE_RET( ctx != NULL );
+    RSA_VALIDATE_RET( input != NULL );
+    RSA_VALIDATE_RET( output != NULL );
+
+    if( rsa_check_context( ctx, 0 /* public */, 0 /* no blinding */ ) )
+        return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+
+    mbedtls_mpi_init( &T );
+
+#if defined(MBEDTLS_THREADING_C)
+    if( ( ret = mbedtls_mutex_lock( &ctx->mutex ) ) != 0 )
+        return( ret );
+#endif
+
+    MBEDTLS_MPI_CHK( mbedtls_mpi_read_binary( &T, input, ctx->len ) );
+
+    if( mbedtls_mpi_cmp_mpi( &T, &ctx->N ) >= 0 )
+    {
+        ret = MBEDTLS_ERR_MPI_BAD_INPUT_DATA;
+        goto cleanup;
+    }
+
+    olen = ctx->len;
+    MBEDTLS_MPI_CHK( mbedtls_mpi_exp_mod( &T, &T, &ctx->E, &ctx->N, &ctx->RN ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary( &T, output, olen ) );
+
+cleanup:
+#if defined(MBEDTLS_THREADING_C)
+    if( mbedtls_mutex_unlock( &ctx->mutex ) != 0 )
+        return( MBEDTLS_ERR_THREADING_MUTEX_ERROR );
+#endif
+
+    mbedtls_mpi_free( &T );
+
+    if( ret != 0 )
+        return( MBEDTLS_ERR_RSA_PUBLIC_FAILED + ret );
+
+    return( 0 );
+}

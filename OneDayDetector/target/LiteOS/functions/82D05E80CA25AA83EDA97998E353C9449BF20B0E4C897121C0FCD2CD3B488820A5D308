@@ -1,0 +1,12 @@
+STATIC VOID GicrSetPmr(UINT32 irq, UINT8 priority)
+{
+    UINT32 cpu = ArchCurrCpuid();
+    UINT32 pos = irq >> 2; /* one irq have the 8-bit interrupt priority field */
+    UINT32 newPri = GIC_REG_32(GICR_IPRIORITYR0(cpu) + pos * 4);
+
+    /* Clear priority offset bits and set new priority */
+    newPri &= ~(GIC_PRIORITY_MASK << ((irq % 4) * GIC_PRIORITY_OFFSET));
+    newPri |= priority << ((irq % 4) * GIC_PRIORITY_OFFSET);
+
+    GIC_REG_32(GICR_IPRIORITYR0(cpu) + pos * 4) = newPri;
+}

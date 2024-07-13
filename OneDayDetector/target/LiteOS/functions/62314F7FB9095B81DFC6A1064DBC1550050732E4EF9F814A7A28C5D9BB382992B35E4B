@@ -1,0 +1,63 @@
+static lv_design_res_t lv_switch_design(lv_obj_t * sw, const lv_area_t * clip_area, lv_design_mode_t mode)
+{
+    /*Return false if the object is not covers the mask_p area*/
+    if(mode == LV_DESIGN_COVER_CHK) {
+        return LV_DESIGN_RES_NOT_COVER;
+    }
+    /*Draw the object*/
+    else if(mode == LV_DESIGN_DRAW_MAIN) {
+        lv_bidi_dir_t base_dir = lv_obj_get_base_dir(sw);
+
+        /*The ancestor design function will draw the background and the indicator.
+         * It also sets ext->bar.indic_area*/
+        ancestor_design(sw, clip_area, mode);
+
+        lv_switch_ext_t * ext = lv_obj_get_ext_attr(sw);
+
+        lv_coord_t objw = lv_obj_get_width(sw);
+        lv_coord_t objh = lv_obj_get_height(sw);
+        lv_coord_t knob_size = objh;
+        lv_area_t knob_area;
+
+        lv_style_int_t bg_left = lv_obj_get_style_pad_left(sw,   LV_SWITCH_PART_BG);
+        lv_style_int_t bg_right = lv_obj_get_style_pad_right(sw,  LV_SWITCH_PART_BG);
+
+        lv_coord_t max_indic_w = objw - bg_left - bg_right;
+        lv_coord_t act_indic_w = lv_area_get_width(&ext->bar.indic_area);
+        if(base_dir != LV_BIDI_DIR_RTL) {
+            knob_area.x1 = ext->bar.indic_area.x2 - ((act_indic_w * knob_size) / max_indic_w);
+            knob_area.x2 = knob_area.x1 + knob_size;
+        }
+        else {
+            knob_area.x2 = ext->bar.indic_area.x1 + ((act_indic_w * knob_size) / max_indic_w);
+            knob_area.x1 = knob_area.x2 - knob_size;
+        }
+
+        knob_area.y1 = sw->coords.y1;
+        knob_area.y2 = sw->coords.y2;
+
+        lv_style_int_t knob_left = lv_obj_get_style_pad_left(sw,   LV_SWITCH_PART_KNOB);
+        lv_style_int_t knob_right = lv_obj_get_style_pad_right(sw,  LV_SWITCH_PART_KNOB);
+        lv_style_int_t knob_top = lv_obj_get_style_pad_top(sw,    LV_SWITCH_PART_KNOB);
+        lv_style_int_t knob_bottom = lv_obj_get_style_pad_bottom(sw, LV_SWITCH_PART_KNOB);
+
+        /*Apply the paddings on the knob area*/
+        knob_area.x1 -= knob_left;
+        knob_area.x2 += knob_right;
+        knob_area.y1 -= knob_top;
+        knob_area.y2 += knob_bottom;
+
+        lv_draw_rect_dsc_t knob_rect_dsc;
+        lv_draw_rect_dsc_init(&knob_rect_dsc);
+        lv_obj_init_draw_rect_dsc(sw, LV_SWITCH_PART_KNOB, &knob_rect_dsc);
+
+        lv_draw_rect(&knob_area, clip_area, &knob_rect_dsc);
+
+    }
+    /*Post draw when the children are drawn*/
+    else if(mode == LV_DESIGN_DRAW_POST) {
+        return ancestor_design(sw, clip_area, mode);
+    }
+
+    return LV_DESIGN_RES_OK;
+}

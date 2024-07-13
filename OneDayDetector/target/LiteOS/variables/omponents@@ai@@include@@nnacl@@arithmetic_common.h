@@ -1,0 +1,15 @@
+  int activation_type_;
+  bool broadcasting_;
+  int in_elements_num0_;
+  int in_elements_num1_;
+  int in_shape0_[5];
+  int in_shape1_[5];
+  int in_strides0_[5];
+  int in_strides1_[5];
+  int multiples0_[5];
+  int multiples1_[5];
+  size_t ndim_;
+  OpParameter op_parameter_;
+  int out_elements_num_;
+  int out_shape_[5];
+  int out_strides_[5];

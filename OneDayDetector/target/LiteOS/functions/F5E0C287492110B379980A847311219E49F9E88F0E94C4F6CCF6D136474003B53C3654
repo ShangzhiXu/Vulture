@@ -1,0 +1,30 @@
+void HAL_COMP_IRQHandler(COMP_HandleTypeDef *hcomp)
+{
+  /* Get the EXTI line corresponding to the selected COMP instance */
+  uint32_t exti_line = COMP_GET_EXTI_LINE(hcomp->Instance);
+  
+  /* Check COMP EXTI flag */
+  if(LL_EXTI_IsActiveFlag_0_31(exti_line) != RESET)
+  {
+    /* Check whether comparator is in independent or window mode */
+    if(READ_BIT(COMP12_COMMON->CSR, COMP_CSR_WINMODE) != RESET)
+    {
+      /* Clear COMP EXTI line pending bit of the pair of comparators          */
+      /* in window mode.                                                      */
+      /* Note: Pair of comparators in window mode can both trig IRQ when      */
+      /*       input voltage is changing from "out of window" area            */
+      /*       (low or high ) to the other "out of window" area (high or low).*/
+      /*       Both flags must be cleared to call comparator trigger          */
+      /*       callback is called once.                                       */
+      LL_EXTI_ClearFlag_0_31((COMP_EXTI_LINE_COMP1 | COMP_EXTI_LINE_COMP2));
+    }
+    else
+    {
+      /* Clear COMP EXTI line pending bit */
+      LL_EXTI_ClearFlag_0_31(exti_line);
+    }
+    
+    /* COMP trigger user callback */
+    HAL_COMP_TriggerCallback(hcomp);
+  }
+}

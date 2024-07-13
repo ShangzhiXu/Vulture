@@ -1,0 +1,28 @@
+int pthread_setcanceltype(int type, int *oldType)
+{
+    _pthread_data *self = NULL;
+    int ret;
+
+    if ((type != PTHREAD_CANCEL_ASYNCHRONOUS) && (type != PTHREAD_CANCEL_DEFERRED)) {
+        return EINVAL;
+    }
+
+    ret = pthread_mutex_lock(&g_pthreadsDataMutex);
+    if (ret != ENOERR) {
+        return ret;
+    }
+
+    self = pthread_get_self_data();
+    if (oldType != NULL) {
+        *oldType = self->canceltype;
+    }
+
+    self->canceltype = (UINT8)type;
+
+    ret = pthread_mutex_unlock(&g_pthreadsDataMutex);
+    if (ret != ENOERR) {
+        return ret;
+    }
+
+    return ENOERR;
+}

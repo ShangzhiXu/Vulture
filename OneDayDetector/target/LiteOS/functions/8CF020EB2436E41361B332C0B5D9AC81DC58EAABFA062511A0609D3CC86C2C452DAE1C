@@ -1,0 +1,22 @@
+UINT32 creat_agenttiny_task(VOID)
+{
+    UINT32 ret = LOS_OK;
+    TSK_INIT_PARAM_S task_init_param;
+
+    memset(&task_init_param, 0, sizeof(TSK_INIT_PARAM_S));
+    task_init_param.usTaskPrio = USER_TASK_PRIORITY;
+    task_init_param.pcName = "agenttiny_task";
+    task_init_param.pfnTaskEntry = (TSK_ENTRY_FUNC)atiny_task_entry;
+
+#if defined(CONFIG_FEATURE_FOTA) || defined(LOSCFG_COMPONENTS_CONNECTIVITY_MQTT)
+    task_init_param.uwStackSize = 0x2000; /* fota use mbedtls bignum to verify signature consuming more stack */
+#else
+    task_init_param.uwStackSize = 0x1000;
+#endif
+
+    ret = LOS_TaskCreate(&g_atiny_tskHandle, &task_init_param);
+    if (ret != LOS_OK) {
+        return ret;
+    }
+    return ret;
+}

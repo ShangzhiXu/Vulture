@@ -1,0 +1,27 @@
+VOID OsDecTo64F(UINT32 num, CHAR *base64, INT32 base64Len)
+{
+    INT32 len = base64Len - 1;
+    UINT32 tempNum = num;
+    if (base64 == NULL) {
+        PRINT_ERR("%s:%d input null buf\n", __FUNCTION__, __LINE__);
+        return;
+    }
+
+    if (base64Len <= 0) {
+        PRINT_ERR("%s:%d input illegal Len\n", __FUNCTION__, __LINE__);
+        return;
+    }
+
+    while (num) {
+        if (len < 0) {
+            PRINT_ERR("Len[%d] is too short, input num: %u\n", base64Len, tempNum);
+            break;
+        }
+        base64[len--] = g_base64Array[num & BASE64_MARK];
+        num >>= LOGARITHM;
+    }
+    for (; len >= 0; len--) {
+        base64[len] = '0';
+    }
+    base64[base64Len] = '\0';
+}

@@ -1,0 +1,17 @@
+dhcp_set_ntp_servers(u8_t num, const ip4_addr_t *server)
+{
+  LWIP_DEBUGF(SNTP_DEBUG_TRACE, ("sntp: %s %u.%u.%u.%u as NTP server #%u via DHCP\n",
+                                 (sntp_set_servers_from_dhcp ? "Got" : "Rejected"),
+                                 ip4_addr1(server), ip4_addr2(server), ip4_addr3(server), ip4_addr4(server), num));
+  if (sntp_set_servers_from_dhcp && num) {
+    u8_t i;
+    for (i = 0; (i < num) && (i < SNTP_MAX_SERVERS); i++) {
+      ip_addr_t addr;
+      ip_addr_copy_from_ip4(addr, server[i]);
+      sntp_setserver(i, &addr);
+    }
+    for (i = num; i < SNTP_MAX_SERVERS; i++) {
+      sntp_setserver(i, NULL);
+    }
+  }
+}

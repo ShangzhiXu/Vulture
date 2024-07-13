@@ -1,0 +1,64 @@
+void dtls_ssl_destroy(mbedtls_ssl_context *ssl)
+{
+    mbedtls_ssl_config           *conf = NULL;
+    mbedtls_ctr_drbg_context     *ctr_drbg = NULL;
+    mbedtls_entropy_context      *entropy = NULL;
+    mbedtls_net_context          *server_fd = NULL;
+    mbedtls_timing_delay_context *timer = NULL;
+#if defined(MBEDTLS_X509_CRT_PARSE_C)
+    mbedtls_x509_crt             *cacert = NULL;
+#endif
+
+    if (ssl == NULL) {
+        return;
+    }
+
+    conf       = (mbedtls_ssl_config *)ssl->conf;
+    server_fd  = (mbedtls_net_context *)ssl->p_bio;
+    timer      = (mbedtls_timing_delay_context *)ssl->p_timer;
+#if defined(MBEDTLS_X509_CRT_PARSE_C)
+    cacert     = (mbedtls_x509_crt *)conf->ca_chain;
+#endif
+
+    if (conf != NULL) {
+        ctr_drbg = conf->p_rng;
+
+        if (ctr_drbg != NULL) {
+            entropy =  ctr_drbg->p_entropy;
+        }
+    }
+
+    if (server_fd != NULL) {
+        mbedtls_net_free(server_fd);
+    }
+
+    if (conf != NULL) {
+        mbedtls_ssl_config_free(conf);
+        mbedtls_free(conf);
+        ssl->conf = NULL; //  need by mbedtls_debug_print_msg(), see mbedtls_ssl_free(ssl)
+    }
+
+    if (ctr_drbg != NULL) {
+        mbedtls_ctr_drbg_free(ctr_drbg);
+        mbedtls_free(ctr_drbg);
+    }
+
+    if (entropy != NULL) {
+        mbedtls_entropy_free(entropy);
+        mbedtls_free(entropy);
+    }
+
+    if (timer != NULL) {
+        mbedtls_free(timer);
+    }
+
+#if defined(MBEDTLS_X509_CRT_PARSE_C)
+    if (cacert != NULL) {
+        mbedtls_x509_crt_free(cacert);
+        mbedtls_free(cacert);
+    }
+#endif
+
+    mbedtls_ssl_free(ssl);
+    mbedtls_free(ssl);
+}

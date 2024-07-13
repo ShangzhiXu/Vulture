@@ -1,0 +1,19 @@
+static void SPI_2linesRxISR_8BITCRC(struct __SPI_HandleTypeDef *hspi)
+{
+  /* Read 8bit CRC to flush Data Regsiter */
+  READ_REG(*(__IO uint8_t *)&hspi->Instance->DR);
+
+  hspi->CRCSize--;
+
+  /* Check end of the reception */
+  if (hspi->CRCSize == 0U)
+  {
+    /* Disable RXNE and ERR interrupt */
+    __HAL_SPI_DISABLE_IT(hspi, (SPI_IT_RXNE | SPI_IT_ERR));
+
+    if (hspi->TxXferCount == 0U)
+    {
+      SPI_CloseRxTx_ISR(hspi);
+    }
+  }
+}

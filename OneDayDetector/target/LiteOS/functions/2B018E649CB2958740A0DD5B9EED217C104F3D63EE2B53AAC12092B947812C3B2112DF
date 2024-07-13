@@ -1,0 +1,32 @@
+netconn_new_with_proto_and_callback(enum netconn_type t, u8_t proto, netconn_callback callback)
+{
+  struct netconn *conn;
+  API_MSG_VAR_DECLARE(msg);
+  API_MSG_VAR_ALLOC_RETURN_NULL(msg);
+
+  conn = netconn_alloc(t, callback);
+  if (conn != NULL) {
+    err_t err;
+
+    API_MSG_VAR_REF(msg).msg.n.proto = proto;
+    API_MSG_VAR_REF(msg).conn = conn;
+    err = netconn_apimsg(lwip_netconn_do_newconn, &API_MSG_VAR_REF(msg));
+    if (err != ERR_OK) {
+      LWIP_ASSERT("freeing conn without freeing pcb", conn->pcb.tcp == NULL);
+      LWIP_ASSERT("conn has no recvmbox", sys_mbox_valid(&conn->recvmbox));
+#if LWIP_TCP
+      LWIP_ASSERT("conn->acceptmbox shouldn't exist", !sys_mbox_valid(&conn->acceptmbox));
+#endif /* LWIP_TCP */
+#if !LWIP_NETCONN_SEM_PER_THREAD
+      LWIP_ASSERT("conn has no op_completed", sys_sem_valid(&conn->op_completed));
+      sys_sem_free(&conn->op_completed);
+#endif /* !LWIP_NETCONN_SEM_PER_THREAD */
+      sys_mbox_free(&conn->recvmbox);
+      memp_free(MEMP_NETCONN, conn);
+      API_MSG_VAR_FREE(msg);
+      return NULL;
+    }
+  }
+  API_MSG_VAR_FREE(msg);
+  return conn;
+}

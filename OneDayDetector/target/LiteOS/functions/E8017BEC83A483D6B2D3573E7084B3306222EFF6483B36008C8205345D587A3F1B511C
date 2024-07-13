@@ -1,0 +1,40 @@
+mdns_compress_domain(struct pbuf *pbuf, u16_t *offset, struct mdns_domain *domain)
+{
+  struct mdns_domain target;
+  u16_t target_end;
+  u8_t target_len;
+  u8_t writelen = 0;
+  u8_t *ptr;
+  if (pbuf == NULL) {
+    return domain->length;
+  }
+  target_end = mdns_readname(pbuf, *offset, &target);
+  if (target_end == MDNS_READNAME_ERROR) {
+    return domain->length;
+  }
+  target_len = (u8_t)(target_end - *offset);
+  ptr = domain->name;
+  while (writelen < domain->length) {
+    u8_t domainlen = (u8_t)(domain->length - writelen);
+    u8_t labellen;
+    if (domainlen <= target.length && domainlen > DOMAIN_JUMP_SIZE) {
+      /* Compare domains if target is long enough, and we have enough left of the domain */
+      u8_t targetpos = (u8_t)(target.length - domainlen);
+      if ((targetpos + DOMAIN_JUMP_SIZE) >= target_len) {
+        /* We are checking at or beyond a jump in the original, stop looking */
+        break;
+      }
+      if (target.length >= domainlen &&
+          memcmp(&domain->name[writelen], &target.name[targetpos], domainlen) == 0) {
+        *offset += targetpos;
+        return writelen;
+      }
+    }
+    /* Skip to next label in domain */
+    labellen = *ptr;
+    writelen += 1 + labellen;
+    ptr += 1 + labellen;
+  }
+  /* Nothing found */
+  return domain->length;
+}

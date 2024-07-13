@@ -1,0 +1,32 @@
+int pthread_setschedprio(pthread_t thread, int prio)
+{
+    _pthread_data *data = NULL;
+    int ret;
+
+    if ((prio < OS_TASK_PRIORITY_HIGHEST) || (prio > OS_TASK_PRIORITY_LOWEST)) {
+        return EINVAL;
+    }
+
+    ret = pthread_mutex_lock(&g_pthreadsDataMutex);
+    if (ret != ENOERR) {
+        return ret;
+    }
+
+    data = pthread_get_data(thread);
+    if (data == NULL) {
+        ret = pthread_mutex_unlock(&g_pthreadsDataMutex);
+        if (ret != ENOERR) {
+            return ret;
+        }
+        return ESRCH;
+    }
+
+    data->attr.schedparam.sched_priority = prio;
+
+    ret = pthread_mutex_unlock(&g_pthreadsDataMutex);
+    if (ret != ENOERR) {
+        return ret;
+    }
+
+    return (int)LOS_TaskPriSet((UINT32)thread, (UINT16)prio);
+}

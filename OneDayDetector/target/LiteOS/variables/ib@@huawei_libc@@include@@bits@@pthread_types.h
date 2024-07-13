@@ -1,0 +1,10 @@
+    cpu_set_t cpuset;
+    unsigned int detachstate;
+    unsigned int inheritsched;
+    struct sched_param schedparam;
+    unsigned int schedpolicy;
+    unsigned int scope;
+    void* stackaddr;
+    unsigned int stackaddr_set;
+    size_t stacksize;
+    unsigned int stacksize_set;

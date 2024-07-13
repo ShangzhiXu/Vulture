@@ -1,0 +1,32 @@
+static void SD_Read_IT(SD_HandleTypeDef *hsd)
+{
+  uint32_t count, data, dataremaining;
+  uint8_t* tmp;
+
+  tmp = hsd->pRxBuffPtr;
+  dataremaining = hsd->RxXferSize;
+
+  if (dataremaining > 0U)
+  {
+    /* Read data from SDIO Rx FIFO */
+    for(count = 0U; count < 8U; count++)
+    {
+      data = SDIO_ReadFIFO(hsd->Instance);
+      *tmp = (uint8_t)(data & 0xFFU);
+      tmp++;
+      dataremaining--;
+      *tmp = (uint8_t)((data >> 8U) & 0xFFU);
+      tmp++;
+      dataremaining--;
+      *tmp = (uint8_t)((data >> 16U) & 0xFFU);
+      tmp++;
+      dataremaining--;
+      *tmp = (uint8_t)((data >> 24U) & 0xFFU);
+      tmp++;
+      dataremaining--;
+    }
+
+    hsd->pRxBuffPtr = tmp;
+    hsd->RxXferSize = dataremaining;
+  }
+}

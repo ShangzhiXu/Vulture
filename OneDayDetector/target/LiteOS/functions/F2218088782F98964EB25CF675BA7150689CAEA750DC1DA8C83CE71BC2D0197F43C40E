@@ -1,0 +1,75 @@
+lowpan6_output(struct netif *netif, struct pbuf *q, const ip6_addr_t *ip6addr)
+{
+  err_t result;
+  const u8_t *hwaddr;
+  struct lowpan6_link_addr src, dest;
+#if LWIP_6LOWPAN_INFER_SHORT_ADDRESS
+  ip6_addr_t ip6_src;
+  struct ip6_hdr *ip6_hdr;
+#endif /* LWIP_6LOWPAN_INFER_SHORT_ADDRESS */
+
+#if LWIP_6LOWPAN_INFER_SHORT_ADDRESS
+  /* Check if we can compress source address (use aligned copy) */
+  ip6_hdr = (struct ip6_hdr *)q->payload;
+  ip6_addr_copy_from_packed(ip6_src, ip6_hdr->src);
+  ip6_addr_assign_zone(&ip6_src, IP6_UNICAST, netif);
+  if (lowpan6_get_address_mode(&ip6_src, &short_mac_addr) == 3) {
+    src.addr_len = 2;
+    src.addr[0] = short_mac_addr.addr[0];
+    src.addr[1] = short_mac_addr.addr[1];
+  } else
+#endif /* LWIP_6LOWPAN_INFER_SHORT_ADDRESS */
+  {
+    result = lowpan6_hwaddr_to_addr(netif, &src);
+    if (result != ERR_OK) {
+      MIB2_STATS_NETIF_INC(netif, ifoutdiscards);
+      return result;
+    }
+  }
+
+  /* multicast destination IP address? */
+  if (ip6_addr_ismulticast(ip6addr)) {
+    MIB2_STATS_NETIF_INC(netif, ifoutnucastpkts);
+    /* We need to send to the broadcast address.*/
+    return lowpan6_frag(netif, q, &src, &ieee_802154_broadcast);
+  }
+
+  /* We have a unicast destination IP address */
+  /* @todo anycast? */
+
+#if LWIP_6LOWPAN_INFER_SHORT_ADDRESS
+  if (src.addr_len == 2) {
+    /* If source address was compressable to short_mac_addr, and dest has same subnet and
+     * is also compressable to 2-bytes, assume we can infer dest as a short address too. */
+    dest.addr_len = 2;
+    dest.addr[0] = ((u8_t *)q->payload)[38];
+    dest.addr[1] = ((u8_t *)q->payload)[39];
+    if ((src.addr_len == 2) && (ip6_addr_netcmp_zoneless(&ip6_hdr->src, &ip6_hdr->dest)) &&
+        (lowpan6_get_address_mode(ip6addr, &dest) == 3)) {
+      MIB2_STATS_NETIF_INC(netif, ifoutucastpkts);
+      return lowpan6_frag(netif, q, &src, &dest);
+    }
+  }
+#endif /* LWIP_6LOWPAN_INFER_SHORT_ADDRESS */
+
+  /* Ask ND6 what to do with the packet. */
+  result = nd6_get_next_hop_addr_or_queue(netif, q, ip6addr, &hwaddr);
+  if (result != ERR_OK) {
+    MIB2_STATS_NETIF_INC(netif, ifoutdiscards);
+    return result;
+  }
+
+  /* If no hardware address is returned, nd6 has queued the packet for later. */
+  if (hwaddr == NULL) {
+    return ERR_OK;
+  }
+
+  /* Send out the packet using the returned hardware address. */
+  dest.addr_len = netif->hwaddr_len;
+  /* XXX: Inferring the length of the source address from the destination address
+   * is not correct for IEEE 802.15.4, but currently we don't get this information
+   * from the neighbor cache */
+  SMEMCPY(dest.addr, hwaddr, netif->hwaddr_len);
+  MIB2_STATS_NETIF_INC(netif, ifoutucastpkts);
+  return lowpan6_frag(netif, q, &src, &dest);
+}

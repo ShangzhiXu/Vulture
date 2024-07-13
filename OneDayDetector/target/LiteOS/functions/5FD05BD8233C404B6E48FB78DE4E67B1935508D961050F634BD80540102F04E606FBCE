@@ -1,0 +1,25 @@
+HAL_StatusTypeDef HAL_LPTIM_TimeOut_Stop(LPTIM_HandleTypeDef *hlptim)
+{
+  /* Check the parameters */
+  assert_param(IS_LPTIM_INSTANCE(hlptim->Instance));
+
+  /* Set the LPTIM state */
+  hlptim->State = HAL_LPTIM_STATE_BUSY;
+
+  /* Disable the Peripheral */
+  __HAL_LPTIM_DISABLE(hlptim);
+
+  if (HAL_LPTIM_GetState(hlptim) == HAL_LPTIM_STATE_TIMEOUT)
+  {
+    return HAL_TIMEOUT;
+  }
+
+  /* Reset TIMOUT bit to enable the timeout function */
+  hlptim->Instance->CFGR &= ~LPTIM_CFGR_TIMOUT;
+
+  /* Change the TIM state*/
+  hlptim->State = HAL_LPTIM_STATE_READY;
+
+  /* Return function status */
+  return HAL_OK;
+}

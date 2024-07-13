@@ -1,0 +1,34 @@
+int mbedtls_aes_crypt_cfb8( mbedtls_aes_context *ctx,
+                            int mode,
+                            size_t length,
+                            unsigned char iv[16],
+                            const unsigned char *input,
+                            unsigned char *output )
+{
+    unsigned char c;
+    unsigned char ov[17];
+
+    AES_VALIDATE_RET( ctx != NULL );
+    AES_VALIDATE_RET( mode == MBEDTLS_AES_ENCRYPT ||
+                      mode == MBEDTLS_AES_DECRYPT );
+    AES_VALIDATE_RET( iv != NULL );
+    AES_VALIDATE_RET( input != NULL );
+    AES_VALIDATE_RET( output != NULL );
+    while( length-- )
+    {
+        memcpy( ov, iv, 16 );
+        mbedtls_aes_crypt_ecb( ctx, MBEDTLS_AES_ENCRYPT, iv, iv );
+
+        if( mode == MBEDTLS_AES_DECRYPT )
+            ov[16] = *input;
+
+        c = *output++ = (unsigned char)( iv[0] ^ *input++ );
+
+        if( mode == MBEDTLS_AES_ENCRYPT )
+            ov[16] = c;
+
+        memcpy( iv, ov + 1, 16 );
+    }
+
+    return( 0 );
+}

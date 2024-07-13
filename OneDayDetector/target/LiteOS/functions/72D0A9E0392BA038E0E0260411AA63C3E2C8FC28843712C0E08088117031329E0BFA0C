@@ -1,0 +1,15 @@
+httpc_tcp_poll(void *arg, struct altcp_pcb *pcb)
+{
+  /* implement timeout */
+  httpc_state_t* req = (httpc_state_t*)arg;
+  LWIP_UNUSED_ARG(pcb);
+  if (req != NULL) {
+    if (req->timeout_ticks) {
+      req->timeout_ticks--;
+    }
+    if (!req->timeout_ticks) {
+      return httpc_close(req, HTTPC_RESULT_ERR_TIMEOUT, 0, ERR_OK);
+    }
+  }
+  return ERR_OK;
+}

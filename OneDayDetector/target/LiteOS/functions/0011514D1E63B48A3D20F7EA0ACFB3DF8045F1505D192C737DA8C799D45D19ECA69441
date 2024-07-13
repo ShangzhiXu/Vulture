@@ -1,0 +1,67 @@
+HAL_StatusTypeDef HAL_MMC_UnRegisterCallback(MMC_HandleTypeDef *hmmc, HAL_MMC_CallbackIDTypeDef CallbackId)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Process locked */
+  __HAL_LOCK(hmmc);
+  
+  if(hmmc->State == HAL_MMC_STATE_READY)
+  {
+    switch (CallbackId)
+    {
+    case HAL_MMC_TX_CPLT_CB_ID :
+      hmmc->TxCpltCallback = HAL_MMC_TxCpltCallback;
+      break;
+    case HAL_MMC_RX_CPLT_CB_ID :
+      hmmc->RxCpltCallback = HAL_MMC_RxCpltCallback;
+      break;
+    case HAL_MMC_ERROR_CB_ID :
+      hmmc->ErrorCallback = HAL_MMC_ErrorCallback;
+      break;
+    case HAL_MMC_ABORT_CB_ID :
+      hmmc->AbortCpltCallback = HAL_MMC_AbortCallback;
+      break;
+    case HAL_MMC_MSP_INIT_CB_ID :
+      hmmc->MspInitCallback = HAL_MMC_MspInit;
+      break;
+    case HAL_MMC_MSP_DEINIT_CB_ID :
+      hmmc->MspDeInitCallback = HAL_MMC_MspDeInit;
+      break;
+    default :
+      /* Update the error code */
+      hmmc->ErrorCode |= HAL_MMC_ERROR_INVALID_CALLBACK; 
+      /* update return status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else if (hmmc->State == HAL_MMC_STATE_RESET)
+  {
+    switch (CallbackId)
+    {
+    case HAL_MMC_MSP_INIT_CB_ID :
+      hmmc->MspInitCallback = HAL_MMC_MspInit;
+      break;
+    case HAL_MMC_MSP_DEINIT_CB_ID :
+      hmmc->MspDeInitCallback = HAL_MMC_MspDeInit;
+      break;
+    default :
+      /* Update the error code */
+      hmmc->ErrorCode |= HAL_MMC_ERROR_INVALID_CALLBACK; 
+      /* update return status */
+      status =  HAL_ERROR;
+      break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    hmmc->ErrorCode |= HAL_MMC_ERROR_INVALID_CALLBACK; 
+    /* update return status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hmmc);
+  return status;
+}

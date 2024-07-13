@@ -1,0 +1,30 @@
+SECUREC_INLINE void SecAssignNumber(const SecScanSpec *spec)
+{
+    void *argPtr = spec->argPtr;
+    if (spec->numberArgType != 0) {
+#if defined(SECUREC_VXWORKS_PLATFORM)
+#if defined(SECUREC_VXWORKS_PLATFORM_COMP)
+        *(SecInt64 UNALIGNED *)argPtr = (SecInt64)(spec->number64);
+#else
+        /* Take number64 as unsigned number unsigned to int clear Compile warning */
+        *(SecInt64 UNALIGNED *)argPtr = *(SecUnsignedInt64 *)(&(spec->number64));
+#endif
+#else
+        /* Take number64 as unsigned number */
+        *(SecInt64 UNALIGNED *)argPtr = (SecInt64)(spec->number64);
+#endif
+        return;
+    }
+    if (spec->numberWidth > SECUREC_NUM_WIDTH_INT) {
+        /* Take number as unsigned number */
+        *(long UNALIGNED *)argPtr = (long)(spec->number);
+    } else if (spec->numberWidth == SECUREC_NUM_WIDTH_INT) {
+        *(int UNALIGNED *)argPtr = (int)(spec->number);
+    } else if (spec->numberWidth == SECUREC_NUM_WIDTH_SHORT) {
+        /* Take number as unsigned number */
+        *(short UNALIGNED *)argPtr = (short)(spec->number);
+    } else {  /* < 0 for hh format modifier */
+        /* Take number as unsigned number */
+        *(char UNALIGNED *)argPtr = (char)(spec->number);
+    }
+}

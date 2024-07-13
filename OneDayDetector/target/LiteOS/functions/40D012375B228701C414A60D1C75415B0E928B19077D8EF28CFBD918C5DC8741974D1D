@@ -1,0 +1,16 @@
+STATIC VOID CheckAllCpuStatus(VOID)
+{
+    UINT32 currCpuid = ArchCurrCpuid();
+
+    LOS_SpinLock(&g_excSerializerSpin);
+    if (g_excCpuid == INVALID_CPUID) {
+        g_excCpuid = ArchCurrCpuid();
+    } else if (g_excCpuid != ArchCurrCpuid()) {
+        LOS_SpinUnlock(&g_excSerializerSpin);
+        while (1) {}
+    }
+    LOS_SpinUnlock(&g_excSerializerSpin);
+
+    WaitAllCpuStop(currCpuid);
+    CpuStatusOutput();
+}

@@ -1,0 +1,12 @@
+snmp_asn1_enc_u64t_cnt(u64_t value, u16_t *octets_needed)
+{
+  /* check if high u32 is 0 */
+  if ((value >> 32) == 0) {
+    /* only low u32 is important */
+    snmp_asn1_enc_u32t_cnt((u32_t)value, octets_needed);
+  } else {
+    /* low u32 does not matter for length determination */
+    snmp_asn1_enc_u32t_cnt((u32_t)(value >> 32), octets_needed);
+    *octets_needed = *octets_needed + 4; /* add the 4 bytes of low u32 */
+  }
+}

@@ -1,0 +1,35 @@
+STATIC VOID OsTaskHoldMutexList(MuxDLinkCB *muxDLCB)
+{
+    UINT32 index = 0;
+    MuxDLinkNode *muxDLNode = NULL;
+    CHAR *ownerName = NULL;
+    LosMuxCB *muxCB = NULL;
+    LOS_DL_LIST *list = NULL;
+    LOS_DL_LIST *listTmp = NULL;
+    UINT32 count, intSave;
+
+    SCHEDULER_LOCK(intSave);
+    if (LOS_ListEmpty(&muxDLCB->muxListHead) == TRUE) {
+        SCHEDULER_UNLOCK(intSave);
+        PRINTK("null\n");
+    } else {
+        LOS_DL_LIST_FOR_EACH(list, &muxDLCB->muxListHead) {
+            muxDLNode = LOS_DL_LIST_ENTRY(list, MuxDLinkNode, muxList);
+            muxCB = (LosMuxCB *)muxDLNode->muxCB;
+            count = muxCB->muxCount;
+            ownerName = muxCB->owner->taskName;
+            SCHEDULER_UNLOCK(intSave);
+            PRINTK("<Mutex%u info>\n", index);
+            PRINTK("Ptr handle:%p\n", muxCB);
+            PRINTK("Owner:%s\n", ownerName);
+            PRINTK("Count:%u\n", count);
+
+            listTmp = &muxCB->muxList;
+            OsMutexPendTaskList(listTmp);
+
+            index++;
+            SCHEDULER_LOCK(intSave);
+        }
+        SCHEDULER_UNLOCK(intSave);
+    }
+}

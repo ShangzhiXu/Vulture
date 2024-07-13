@@ -1,0 +1,43 @@
+int atiny_net_recv_timeout(void *ctx, unsigned char *buf, size_t len, uint32_t timeout)
+{
+    int ret = -1;
+#if defined(WITH_LINUX) || defined(LOSCFG_COMPONENTS_NET_LWIP)
+    struct timeval tv;
+    fd_set read_fds;
+#endif
+
+    int fd = ((atiny_net_context *)ctx)->fd;
+
+#if defined(WITH_LINUX) || defined(LOSCFG_COMPONENTS_NET_LWIP)
+    if (fd < 0) {
+        SOCKET_LOG("ilegal socket(%d)", fd);
+        return ATINY_NET_ERR;
+    }
+
+    FD_ZERO(&read_fds);
+    FD_SET(fd, &read_fds);
+
+    tv.tv_sec  = timeout / 1000;
+    tv.tv_usec = (timeout % 1000) * 1000;
+
+   ret = select(fd + 1, &read_fds, NULL, NULL, &tv);
+   if (ret == 0) {
+       // SOCKET_LOG("recv timeout");
+        return ATINY_NET_TIMEOUT;
+    }
+    if (ret < 0) {
+        SOCKET_LOG("select error ret=%d,err 0x%x", ret, errno);
+        return ATINY_NET_ERR;
+    }
+
+    ret = atiny_net_recv(ctx, buf, len);
+
+#elif defined(LOSCFG_COMPONNETS_NET_AT)
+    ret = at_api_recv_timeout(fd, buf, len, NULL,NULL,timeout);
+#elif defined(WITH_WIZNET)
+    ret = wiznet_recv_timeout(fd, buf, len, timeout);
+#else
+    (void)fd; /* clear unuse warning */
+#endif
+    return ret;
+}

@@ -1,0 +1,77 @@
+static HAL_StatusTypeDef CAN_Receive_IT(CAN_HandleTypeDef* hcan, uint8_t FIFONumber)
+{
+  /* Get the Id */
+  hcan->pRxMsg->IDE = (uint8_t)0x04 & hcan->Instance->sFIFOMailBox[FIFONumber].RIR;
+  if (hcan->pRxMsg->IDE == CAN_ID_STD)
+  {
+    hcan->pRxMsg->StdId = (uint32_t)0x000007FF & (hcan->Instance->sFIFOMailBox[FIFONumber].RIR >> 21);
+  }
+  else
+  {
+    hcan->pRxMsg->ExtId = (uint32_t)0x1FFFFFFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RIR >> 3);
+  }
+  
+  hcan->pRxMsg->RTR = (uint8_t)0x02 & hcan->Instance->sFIFOMailBox[FIFONumber].RIR;
+  /* Get the DLC */
+  hcan->pRxMsg->DLC = (uint8_t)0x0F & hcan->Instance->sFIFOMailBox[FIFONumber].RDTR;
+  /* Get the FMI */
+  hcan->pRxMsg->FMI = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDTR >> 8);
+  /* Get the data field */
+  hcan->pRxMsg->Data[0] = (uint8_t)0xFF & hcan->Instance->sFIFOMailBox[FIFONumber].RDLR;
+  hcan->pRxMsg->Data[1] = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDLR >> 8);
+  hcan->pRxMsg->Data[2] = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDLR >> 16);
+  hcan->pRxMsg->Data[3] = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDLR >> 24);
+  hcan->pRxMsg->Data[4] = (uint8_t)0xFF & hcan->Instance->sFIFOMailBox[FIFONumber].RDHR;
+  hcan->pRxMsg->Data[5] = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDHR >> 8);
+  hcan->pRxMsg->Data[6] = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDHR >> 16);
+  hcan->pRxMsg->Data[7] = (uint8_t)0xFF & (hcan->Instance->sFIFOMailBox[FIFONumber].RDHR >> 24);
+  /* Release the FIFO */
+  /* Release FIFO0 */
+  if (FIFONumber == CAN_FIFO0)
+  {
+    __HAL_CAN_FIFO_RELEASE(hcan, CAN_FIFO0);
+    
+    /* Disable FIFO 0 message pending Interrupt */
+    __HAL_CAN_DISABLE_IT(hcan, CAN_IT_FMP0);
+  }
+  /* Release FIFO1 */
+  else /* FIFONumber == CAN_FIFO1 */
+  {
+    __HAL_CAN_FIFO_RELEASE(hcan, CAN_FIFO1);
+    
+    /* Disable FIFO 1 message pending Interrupt */
+    __HAL_CAN_DISABLE_IT(hcan, CAN_IT_FMP1);
+  }
+  
+  if(hcan->State == HAL_CAN_STATE_BUSY_RX)
+  {
+    /* Disable interrupts: */
+    /*  - Disable Error warning Interrupt */
+    /*  - Disable Error passive Interrupt */
+    /*  - Disable Bus-off Interrupt */
+    /*  - Disable Last error code Interrupt */
+    /*  - Disable Error Interrupt */
+    __HAL_CAN_DISABLE_IT(hcan, CAN_IT_EWG |
+                               CAN_IT_EPV |
+                               CAN_IT_BOF |
+                               CAN_IT_LEC |
+                               CAN_IT_ERR  );
+  }
+  
+  if(hcan->State == HAL_CAN_STATE_BUSY_TX_RX) 
+  {
+    /* Disable CAN state */
+    hcan->State = HAL_CAN_STATE_BUSY_TX;
+  }
+  else
+  {
+    /* Change CAN state */
+    hcan->State = HAL_CAN_STATE_READY;
+  }
+
+  /* Receive complete callback */ 
+  HAL_CAN_RxCpltCallback(hcan);
+
+  /* Return function status */
+  return HAL_OK;
+}

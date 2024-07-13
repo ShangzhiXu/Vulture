@@ -1,0 +1,16 @@
+HAL_MMC_CardStateTypeDef HAL_MMC_GetCardState(MMC_HandleTypeDef *hmmc)
+{
+  HAL_MMC_CardStateTypeDef cardstate =  HAL_MMC_CARD_TRANSFER;
+  uint32_t errorstate = HAL_MMC_ERROR_NONE;
+  uint32_t resp1 = 0;
+  
+  errorstate = MMC_SendStatus(hmmc, &resp1);
+  if(errorstate != HAL_OK)
+  {
+    hmmc->ErrorCode |= errorstate;
+  }
+
+  cardstate = (HAL_MMC_CardStateTypeDef)((resp1 >> 9) & 0x0F);
+  
+  return cardstate;
+}

@@ -1,0 +1,47 @@
+void np_up(ppp_pcb *pcb, int proto) {
+#if PPP_IDLETIMELIMIT
+    int tlim;
+#endif /* PPP_IDLETIMELIMIT */
+    LWIP_UNUSED_ARG(proto);
+
+    if (pcb->num_np_up == 0) {
+	/*
+	 * At this point we consider that the link has come up successfully.
+	 */
+	new_phase(pcb, PPP_PHASE_RUNNING);
+
+#if PPP_IDLETIMELIMIT
+#if 0 /* UNUSED */
+	if (idle_time_hook != 0)
+	    tlim = (*idle_time_hook)(NULL);
+	else
+#endif /* UNUSED */
+	    tlim = pcb->settings.idle_time_limit;
+	if (tlim > 0)
+	    TIMEOUT(check_idle, (void*)pcb, tlim);
+#endif /* PPP_IDLETIMELIMIT */
+
+#if PPP_MAXCONNECT
+	/*
+	 * Set a timeout to close the connection once the maximum
+	 * connect time has expired.
+	 */
+	if (pcb->settings.maxconnect > 0)
+	    TIMEOUT(connect_time_expired, (void*)pcb, pcb->settings.maxconnect);
+#endif /* PPP_MAXCONNECT */
+
+#ifdef MAXOCTETS
+	if (maxoctets > 0)
+	    TIMEOUT(check_maxoctets, NULL, maxoctets_timeout);
+#endif
+
+#if 0 /* Unused */
+	/*
+	 * Detach now, if the updetach option was given.
+	 */
+	if (updetach && !nodetach)
+	    detach();
+#endif /* Unused */
+    }
+    ++pcb->num_np_up;
+}

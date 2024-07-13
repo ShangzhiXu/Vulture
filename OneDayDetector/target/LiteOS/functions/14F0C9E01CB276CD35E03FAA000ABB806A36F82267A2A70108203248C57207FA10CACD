@@ -1,0 +1,30 @@
+VOID OsMpFuncCall(UINT32 target, SMP_FUNC_CALL func, VOID *args)
+{
+    UINT32 index;
+    UINT32 intSave;
+
+    if (func == NULL) {
+        return;
+    }
+
+    if (!(target & OS_MP_CPU_ALL)) {
+        return;
+    }
+
+    for (index = 0; index < LOSCFG_KERNEL_CORE_NUM; index++) {
+        if (CPUID_TO_AFFI_MASK(index) & target) {
+            MpCallFunc *mpCallFunc = (MpCallFunc *)LOS_MemAlloc(m_aucSysMem0, sizeof(MpCallFunc));
+            if (mpCallFunc == NULL) {
+                PRINT_ERR("smp func call malloc failed\n");
+                return;
+            }
+            mpCallFunc->func = func;
+            mpCallFunc->args = args;
+
+            MP_CALL_LOCK(intSave);
+            LOS_ListAdd(&g_percpu[index].funcLink, &(mpCallFunc->node));
+            MP_CALL_UNLOCK(intSave);
+        }
+    }
+    HalIrqSendIpi(target, LOS_MP_IPI_FUNC_CALL);
+}

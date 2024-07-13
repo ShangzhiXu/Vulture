@@ -1,0 +1,23 @@
+LITE_OS_SEC_TEXT_MINOR INT32 LOS_CppSystemInit(UINTPTR initArrayStart, UINTPTR initArrayEnd, INT32 flag)
+{
+    UINTPTR fastEnd    = (UINTPTR)&__fast_end;
+    UINTPTR *start     = (UINTPTR *)initArrayStart;
+    InitFunc initFunc   = NULL;
+
+#ifdef LOSCFG_AARCH64
+    __register_frame(__EH_FRAME_BEGIN__);
+#endif
+
+    for (; start != (UINTPTR *)initArrayEnd; ++start) {
+        if ((flag == BEFORE_SCATTER) && ((UINTPTR)*start > fastEnd)) {
+            continue;
+        } else if ((flag == AFTER_SCATTER) && ((UINTPTR)*start <= fastEnd)) {
+            continue;
+        }
+
+        initFunc = (InitFunc)(*start);
+        initFunc();
+    }
+
+    return 0;
+}

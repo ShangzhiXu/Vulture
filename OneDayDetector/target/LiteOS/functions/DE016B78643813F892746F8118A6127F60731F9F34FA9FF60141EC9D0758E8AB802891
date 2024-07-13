@@ -1,0 +1,51 @@
+int los_rename(const char *old, const char *new)
+{
+    struct mount_point *mp_old;
+    struct mount_point *mp_new;
+    const char *path_in_mp_old = NULL;
+    const char *path_in_mp_new = NULL;
+    int ret = -1;
+
+    if ((old == NULL) || (new == NULL)) {
+        VFS_ERRNO_SET(EINVAL);
+        return ret;
+    }
+
+    LOS_MuxPend(fs_mutex, LOS_WAIT_FOREVER); /* prevent file open/unlink */
+
+    mp_old = los_mp_find(old, &path_in_mp_old);
+
+    if (path_in_mp_old == NULL) {
+        VFS_ERRNO_SET(EINVAL);
+        goto out;
+    }
+
+    if ((mp_old == NULL) || (*path_in_mp_old == '\0') || (mp_old->m_fs->fs_fops->unlink == NULL)) {
+        VFS_ERRNO_SET(EINVAL);
+        goto out;
+    }
+
+    mp_new = los_mp_find(new, &path_in_mp_new);
+
+    if ((mp_new == NULL) || (path_in_mp_new == NULL) || (*path_in_mp_new == '\0') ||
+        (mp_new->m_fs->fs_fops->unlink == NULL)) {
+        VFS_ERRNO_SET(EINVAL);
+        goto out;
+    }
+
+    if (mp_old != mp_new) {
+        VFS_ERRNO_SET(EXDEV);
+        goto out;
+    }
+
+    if (mp_old->m_fs->fs_fops->rename != NULL) {
+        ret = mp_old->m_fs->fs_fops->rename(mp_old, path_in_mp_old, path_in_mp_new);
+    } else {
+        VFS_ERRNO_SET(ENOTSUP);
+    }
+
+out:
+    LOS_MuxPost(fs_mutex);
+
+    return ret;
+}

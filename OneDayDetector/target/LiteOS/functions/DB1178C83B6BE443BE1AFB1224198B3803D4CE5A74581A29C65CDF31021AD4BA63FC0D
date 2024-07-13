@@ -1,0 +1,74 @@
+HAL_StatusTypeDef HAL_SPI_Transmit_DMA(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t Size)
+{
+  if(hspi->State == HAL_SPI_STATE_READY)
+  {
+    if((pData == NULL) || (Size == 0))
+    {
+      return  HAL_ERROR;
+    }
+
+    /* Check the parameters */
+    assert_param(IS_SPI_DIRECTION_2LINES_OR_1LINE(hspi->Init.Direction));
+
+    /* Process Locked */
+    __HAL_LOCK(hspi);
+
+    /* Configure communication */
+    hspi->State       = HAL_SPI_STATE_BUSY_TX;
+    hspi->ErrorCode   = HAL_SPI_ERROR_NONE;
+
+    hspi->pTxBuffPtr  = pData;
+    hspi->TxXferSize  = Size;
+    hspi->TxXferCount = Size;
+
+    /*Init field not used in handle to zero */
+    hspi->TxISR       = 0;
+    hspi->RxISR       = 0;
+    hspi->pRxBuffPtr  = NULL;
+    hspi->RxXferSize  = 0;
+    hspi->RxXferCount = 0;
+
+    /* Configure communication direction : 1Line */
+    if(hspi->Init.Direction == SPI_DIRECTION_1LINE)
+    {
+      SPI_1LINE_TX(hspi);
+    }
+
+    /* Reset CRC Calculation */
+    if(hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+    {
+      SPI_RESET_CRC(hspi);
+    }
+
+    /* Set the SPI TxDMA Half transfer complete callback */
+    hspi->hdmatx->XferHalfCpltCallback = SPI_DMAHalfTransmitCplt;
+
+    /* Set the SPI TxDMA transfer complete callback */
+    hspi->hdmatx->XferCpltCallback = SPI_DMATransmitCplt;
+
+    /* Set the DMA error callback */
+    hspi->hdmatx->XferErrorCallback = SPI_DMAError;
+
+    /* Enable the Tx DMA Channel */
+    HAL_DMA_Start_IT(hspi->hdmatx, (uint32_t)hspi->pTxBuffPtr, (uint32_t)&hspi->Instance->DR, hspi->TxXferCount);
+
+    /* Enable Tx DMA Request */
+    SET_BIT(hspi->Instance->CR2, SPI_CR2_TXDMAEN);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hspi);
+
+    /* Check if the SPI is already enabled */ 
+    if((hspi->Instance->CR1 &SPI_CR1_SPE) != SPI_CR1_SPE)
+    {
+      /* Enable SPI peripheral */
+      __HAL_SPI_ENABLE(hspi);
+    }
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

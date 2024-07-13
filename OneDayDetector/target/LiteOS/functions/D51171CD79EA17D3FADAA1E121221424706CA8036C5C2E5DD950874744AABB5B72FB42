@@ -1,0 +1,82 @@
+ldouble_t __floatscan(FILE *f, int prec, int pok)
+{
+	int sign = 1;
+	size_t i;
+	int bits;
+	int emin;
+	int c;
+
+	switch (prec) {
+	case 0:
+		bits = FLT_MANT_DIG;
+		emin = FLT_MIN_EXP-bits;
+		break;
+	case 1:
+		bits = DBL_MANT_DIG;
+		emin = DBL_MIN_EXP-bits;
+		break;
+	case 2:
+		bits = LDBL_MANT_DIG;
+		emin = LDBL_MIN_EXP-bits;
+		break;
+	default:
+		return 0;
+	}
+
+	while (isspace((c=shgetc(f))));
+
+	if (c=='+' || c=='-') {
+		sign -= 2*(c=='-');
+		c = shgetc(f);
+	}
+
+	for (i=0; i<8 && (c|32)=="infinity"[i]; i++)
+		if (i<7) c = shgetc(f);
+	if (i==3 || i==8 || (i>3 && pok)) {
+		if (i!=8) {
+			shunget(f);
+			if (pok) for (; i>3; i--) shunget(f);
+		}
+		return sign * INFINITY;
+	}
+	if (!i) for (i=0; i<3 && (c|32)=="nan"[i]; i++)
+		if (i<2) c = shgetc(f);
+	if (i==3) {
+		if (shgetc(f) != '(') {
+			shunget(f);
+			return NAN;
+		}
+		for (i=1; ; i++) {
+			c = shgetc(f);
+			if ((unsigned)(c-'0')<10U || (unsigned)(c-'A')<26U || (unsigned)(c-'a')<26U || c=='_')
+				continue;
+			if (c==')') return NAN;
+			shunget(f);
+			if (!pok) {
+				errno = EINVAL;
+				shlim(f, 0);
+				return 0;
+			}
+			while (i--) shunget(f);
+			return NAN;
+		}
+		return NAN;
+	}
+
+	if (i) {
+		shunget(f);
+		errno = EINVAL;
+		shlim(f, 0);
+		return 0;
+	}
+
+	if (c=='0') {
+		c = shgetc(f);
+		if ((c|32) == 'x')
+			return hexfloat(f, bits, emin, sign, pok);
+		shunget(f);
+		c = '0';
+	}
+
+	return decfloat(f, c, bits, emin, sign, pok);
+}

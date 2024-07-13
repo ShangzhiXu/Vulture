@@ -1,0 +1,24 @@
+SECUREC_INLINE void SecNumberSatisfyPrecision(SecFormatAttr *attr)
+{
+    int precision;
+    if (attr->precision < 0) {
+        precision = 1; /* Default precision 1 */
+    } else {
+#if defined(SECUREC_COMPATIBLE_WIN_FORMAT)
+        attr->flags &= ~SECUREC_FLAG_LEADZERO;
+#else
+        if ((attr->flags & SECUREC_FLAG_POINTER) == 0) {
+            attr->flags &= ~SECUREC_FLAG_LEADZERO;
+        }
+#endif
+        if (attr->precision > SECUREC_MAX_PRECISION) {
+            attr->precision = SECUREC_MAX_PRECISION;
+        }
+        precision = attr->precision;
+    }
+    while (attr->textLen < precision) {
+        --attr->text.str;
+        *(attr->text.str) = '0';
+        ++attr->textLen;
+    }
+}

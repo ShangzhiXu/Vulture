@@ -1,0 +1,84 @@
+int spiffs_mount (const char *path, u32_t phys_addr, u32_t phys_size,
+                  u32_t phys_erase_block, u32_t log_block_size,
+                  u32_t log_page_size,
+                  s32_t (*spi_rd)(struct spiffs_t *, u32_t, u32_t, u8_t *),
+                  s32_t (*spi_wr)(struct spiffs_t *, u32_t, u32_t, u8_t *),
+                  s32_t (*spi_er)(struct spiffs_t *, u32_t, u32_t))
+{
+    spiffs *fs;
+    spiffs_config c;
+    u8_t *wbuf;
+    u8_t *fds;
+    u8_t *cache;
+    int ret = -1;
+
+#define LOS_SPIFFS_FD_SIZE (sizeof(spiffs_fd) * 8)
+#define LOS_SPIFFS_CACHE_SIZE (((log_page_size + 32) * 4) + 40)
+
+    fs = (spiffs *)malloc(sizeof(spiffs));
+    wbuf = (u8_t *)malloc(log_page_size * 2);
+    fds = (u8_t *)malloc(LOS_SPIFFS_FD_SIZE);
+    cache = (u8_t *)malloc(LOS_SPIFFS_CACHE_SIZE);
+
+    if ((fs == NULL) || (wbuf == NULL) || (fds == NULL) || (cache == NULL)) {
+        PRINT_ERR("fail to malloc memory in SPIFFS, <malloc.c> is needed,"
+            "make sure it is added\n");
+        goto err_free;
+    }
+
+    memset(fs, 0, sizeof(spiffs));
+
+    c.hal_read_f = spi_rd;
+    c.hal_write_f = spi_wr;
+    c.hal_erase_f = spi_er;
+    c.log_block_size = log_block_size;
+    c.log_page_size = log_page_size;
+    c.phys_addr = phys_addr;
+    c.phys_erase_block = phys_erase_block;
+    c.phys_size = phys_size;
+    c.fh_ix_offset = TEST_SPIFFS_FILEHDL_OFFSET;
+
+    ret = SPIFFS_mount(fs, &c, wbuf, fds, LOS_SPIFFS_FD_SIZE, cache, LOS_SPIFFS_CACHE_SIZE, NULL);
+
+    if (ret == SPIFFS_ERR_NOT_A_FS) {
+        PRINT_INFO("formating fs...\n");
+        SPIFFS_format(fs);
+        ret = SPIFFS_mount(fs, &c, wbuf, fds, LOS_SPIFFS_FD_SIZE, cache, LOS_SPIFFS_CACHE_SIZE, NULL);
+    }
+
+    if (ret != SPIFFS_OK) {
+        PRINT_ERR("format fail!\n");
+        goto err_unmount;
+    }
+
+    ret = los_fs_mount("spiffs", path, fs);
+
+    if (ret == LOS_OK) {
+        fs_ptr = fs;
+        wbuf_ptr = wbuf;
+        fds_ptr = fds;
+        cache_ptr = cache;
+        PRINT_INFO("spiffs mount at %s done!\n", path);
+        return LOS_OK;
+    }
+
+    PRINT_ERR("failed to mount!\n");
+
+err_unmount:
+    SPIFFS_unmount(fs);
+err_free:
+    if (fs != NULL) {
+        free(fs);
+    }
+    if (wbuf != NULL) {
+        free(wbuf);
+    }
+    if (fds != NULL) {
+        free(fds);
+    }
+    if (cache != NULL) {
+        free(cache);
+    }
+
+    return ret;
+}

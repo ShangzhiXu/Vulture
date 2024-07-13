@@ -1,0 +1,30 @@
+HAL_StatusTypeDef HAL_JPEG_RegisterInfoReadyCallback(JPEG_HandleTypeDef *hjpeg,
+                                                     pJPEG_InfoReadyCallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    /* Update the error code */
+    hjpeg->ErrorCode |= HAL_JPEG_ERROR_INVALID_CALLBACK;
+    return HAL_ERROR;
+  }
+  /* Process locked */
+  __HAL_LOCK(hjpeg);
+
+  if (HAL_JPEG_STATE_READY == hjpeg->State)
+  {
+    hjpeg->InfoReadyCallback = pCallback;
+  }
+  else
+  {
+    /* Update the error code */
+    hjpeg->ErrorCode |= HAL_JPEG_ERROR_INVALID_CALLBACK;
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hjpeg);
+  return status;
+}

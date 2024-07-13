@@ -1,0 +1,27 @@
+static void I2Cx_Init(I2C_HandleTypeDef *i2c_handler)
+{
+  if(HAL_I2C_GetState(i2c_handler) == HAL_I2C_STATE_RESET)
+  {
+    if (i2c_handler == (I2C_HandleTypeDef*)(&hI2cAudioHandler))
+    {
+      /* Audio and LCD I2C configuration */
+      i2c_handler->Instance = DISCOVERY_AUDIO_I2Cx;
+    }
+    else
+    {
+      /* External, camera and Arduino connector  I2C configuration */
+      i2c_handler->Instance = DISCOVERY_EXT_I2Cx;
+    }
+    i2c_handler->Init.Timing           = DISCOVERY_I2Cx_TIMING;
+    i2c_handler->Init.OwnAddress1      = 0;
+    i2c_handler->Init.AddressingMode   = I2C_ADDRESSINGMODE_7BIT;
+    i2c_handler->Init.DualAddressMode  = I2C_DUALADDRESS_DISABLE;
+    i2c_handler->Init.OwnAddress2      = 0;
+    i2c_handler->Init.GeneralCallMode  = I2C_GENERALCALL_DISABLE;
+    i2c_handler->Init.NoStretchMode    = I2C_NOSTRETCH_DISABLE;
+
+    /* Init the I2C */
+    I2Cx_MspInit(i2c_handler);
+    HAL_I2C_Init(i2c_handler);
+  }
+}

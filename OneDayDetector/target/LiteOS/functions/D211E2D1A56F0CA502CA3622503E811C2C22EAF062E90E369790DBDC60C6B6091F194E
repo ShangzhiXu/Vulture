@@ -1,0 +1,63 @@
+static void I2C_Enable_IRQ(I2C_HandleTypeDef *hi2c, uint16_t InterruptRequest)
+{
+  uint32_t tmpisr = 0U;
+
+  if ((hi2c->XferISR == I2C_Master_ISR_DMA) || \
+      (hi2c->XferISR == I2C_Slave_ISR_DMA))
+  {
+    if ((InterruptRequest & I2C_XFER_LISTEN_IT) == I2C_XFER_LISTEN_IT)
+    {
+      /* Enable ERR, STOP, NACK and ADDR interrupts */
+      tmpisr |= I2C_IT_ADDRI | I2C_IT_STOPI | I2C_IT_NACKI | I2C_IT_ERRI;
+    }
+
+    if ((InterruptRequest & I2C_XFER_ERROR_IT) == I2C_XFER_ERROR_IT)
+    {
+      /* Enable ERR and NACK interrupts */
+      tmpisr |= I2C_IT_ERRI | I2C_IT_NACKI;
+    }
+
+    if ((InterruptRequest & I2C_XFER_CPLT_IT) == I2C_XFER_CPLT_IT)
+    {
+      /* Enable STOP interrupts */
+      tmpisr |= I2C_IT_STOPI;
+    }
+
+    if ((InterruptRequest & I2C_XFER_RELOAD_IT) == I2C_XFER_RELOAD_IT)
+    {
+      /* Enable TC interrupts */
+      tmpisr |= I2C_IT_TCI;
+    }
+  }
+  else
+  {
+    if ((InterruptRequest & I2C_XFER_LISTEN_IT) == I2C_XFER_LISTEN_IT)
+    {
+      /* Enable ERR, STOP, NACK, and ADDR interrupts */
+      tmpisr |= I2C_IT_ADDRI | I2C_IT_STOPI | I2C_IT_NACKI | I2C_IT_ERRI;
+    }
+
+    if ((InterruptRequest & I2C_XFER_TX_IT) == I2C_XFER_TX_IT)
+    {
+      /* Enable ERR, TC, STOP, NACK and RXI interrupts */
+      tmpisr |= I2C_IT_ERRI | I2C_IT_TCI | I2C_IT_STOPI | I2C_IT_NACKI | I2C_IT_TXI;
+    }
+
+    if ((InterruptRequest & I2C_XFER_RX_IT) == I2C_XFER_RX_IT)
+    {
+      /* Enable ERR, TC, STOP, NACK and TXI interrupts */
+      tmpisr |= I2C_IT_ERRI | I2C_IT_TCI | I2C_IT_STOPI | I2C_IT_NACKI | I2C_IT_RXI;
+    }
+
+    if ((InterruptRequest & I2C_XFER_CPLT_IT) == I2C_XFER_CPLT_IT)
+    {
+      /* Enable STOP interrupts */
+      tmpisr |= I2C_IT_STOPI;
+    }
+  }
+
+  /* Enable interrupts only at the end */
+  /* to avoid the risk of I2C interrupt handle execution before */
+  /* all interrupts requested done */
+  __HAL_I2C_ENABLE_IT(hi2c, tmpisr);
+}

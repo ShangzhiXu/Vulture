@@ -1,0 +1,25 @@
+static void test_file_stat_normal(void **state)
+{
+    int fd;
+    int ret;
+    size_t wrlen = sizeof(write_buf);
+
+    (void)los_unlink(file_name);
+
+    struct stat s;
+    ret = los_stat(file_rename, &s);
+    assert_true(ret < 0);
+
+    fd = los_open(file_name, O_CREAT | O_RDWR | O_TRUNC);
+    assert_in_range(fd, 0, LOS_MAX_FILES);
+
+    ret = los_write(fd, write_buf, wrlen);
+    assert_int_equal(ret, wrlen);
+
+    ret = los_close(fd);
+    assert_int_equal(ret, 0);
+
+    ret = los_stat(file_name, &s);
+    assert_int_equal(ret, 0);
+    assert_int_equal(s.st_size, wrlen);
+}

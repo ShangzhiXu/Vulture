@@ -1,0 +1,114 @@
+HAL_StatusTypeDef HAL_MMC_ReadBlocks_DMA(MMC_HandleTypeDef *hmmc, uint8_t *pData, uint32_t BlockAdd, uint32_t NumberOfBlocks)
+{
+  SDIO_DataInitTypeDef config;
+  uint32_t errorstate;
+  uint32_t add = BlockAdd;
+
+  if(NULL == pData)
+  {
+    hmmc->ErrorCode |= HAL_MMC_ERROR_PARAM;
+    return HAL_ERROR;
+  }
+
+  if(hmmc->State == HAL_MMC_STATE_READY)
+  {
+    hmmc->ErrorCode = HAL_DMA_ERROR_NONE;
+
+    if((BlockAdd + NumberOfBlocks) > (hmmc->MmcCard.LogBlockNbr))
+    {
+      hmmc->ErrorCode |= HAL_MMC_ERROR_ADDR_OUT_OF_RANGE;
+      return HAL_ERROR;
+    }
+
+    hmmc->State = HAL_MMC_STATE_BUSY;
+
+    /* Initialize data control register */
+    hmmc->Instance->DCTRL = 0U;
+
+#if defined(SDIO_STA_STBITERR)
+    __HAL_MMC_ENABLE_IT(hmmc, (SDIO_IT_DCRCFAIL | SDIO_IT_DTIMEOUT | SDIO_IT_RXOVERR | SDIO_IT_DATAEND | SDIO_IT_STBITERR));
+#else /* SDIO_STA_STBITERR not defined */
+    __HAL_MMC_ENABLE_IT(hmmc, (SDIO_IT_DCRCFAIL | SDIO_IT_DTIMEOUT | SDIO_IT_RXOVERR | SDIO_IT_DATAEND));
+#endif /* SDIO_STA_STBITERR */
+
+    /* Set the DMA transfer complete callback */
+    hmmc->hdmarx->XferCpltCallback = MMC_DMAReceiveCplt;
+
+    /* Set the DMA error callback */
+    hmmc->hdmarx->XferErrorCallback = MMC_DMAError;
+
+    /* Set the DMA Abort callback */
+    hmmc->hdmarx->XferAbortCallback = NULL;
+
+    if ((hmmc->MmcCard.CardType) != MMC_HIGH_CAPACITY_CARD)
+    {
+      add *= 512U;
+    }
+
+    /* Set Block Size for Card */ 
+    errorstate = SDMMC_CmdBlockLength(hmmc->Instance, MMC_BLOCKSIZE);
+    if(errorstate != HAL_MMC_ERROR_NONE)
+    {
+      /* Clear all the static flags */
+      __HAL_MMC_CLEAR_FLAG(hmmc, SDIO_STATIC_FLAGS); 
+      hmmc->ErrorCode = errorstate;
+      hmmc->State = HAL_MMC_STATE_READY;
+      return HAL_ERROR;
+    }
+
+    /* Enable the DMA Channel */
+    if(HAL_DMA_Start_IT(hmmc->hdmarx, (uint32_t)&hmmc->Instance->FIFO, (uint32_t)pData, (uint32_t)(MMC_BLOCKSIZE * NumberOfBlocks)/4) != HAL_OK)
+    {
+      __HAL_MMC_DISABLE_IT(hmmc, (SDIO_IT_DCRCFAIL | SDIO_IT_DTIMEOUT | SDIO_IT_RXOVERR | SDIO_IT_DATAEND));
+      __HAL_MMC_CLEAR_FLAG(hmmc, SDIO_STATIC_FLAGS);
+      hmmc->ErrorCode = HAL_MMC_ERROR_DMA;
+      hmmc->State = HAL_MMC_STATE_READY;
+      return HAL_ERROR;
+    }
+    else
+    {
+      /* Enable MMC DMA transfer */
+      __HAL_MMC_DMA_ENABLE(hmmc);
+
+      /* Configure the MMC DPSM (Data Path State Machine) */
+      config.DataTimeOut   = SDMMC_DATATIMEOUT;
+      config.DataLength    = MMC_BLOCKSIZE * NumberOfBlocks;
+      config.DataBlockSize = SDIO_DATABLOCK_SIZE_512B;
+      config.TransferDir   = SDIO_TRANSFER_DIR_TO_SDIO;
+      config.TransferMode  = SDIO_TRANSFER_MODE_BLOCK;
+      config.DPSM          = SDIO_DPSM_ENABLE;
+      (void)SDIO_ConfigData(hmmc->Instance, &config);
+
+      /* Read Blocks in DMA mode */
+      if(NumberOfBlocks > 1U)
+      {
+        hmmc->Context = (MMC_CONTEXT_READ_MULTIPLE_BLOCK | MMC_CONTEXT_DMA);
+
+        /* Read Multi Block command */
+        errorstate = SDMMC_CmdReadMultiBlock(hmmc->Instance, add);
+      }
+      else
+      {
+        hmmc->Context = (MMC_CONTEXT_READ_SINGLE_BLOCK | MMC_CONTEXT_DMA);
+
+        /* Read Single Block command */
+        errorstate = SDMMC_CmdReadSingleBlock(hmmc->Instance, add);
+      }
+      if(errorstate != HAL_MMC_ERROR_NONE)
+      {
+        /* Clear all the static flags */
+        __HAL_MMC_CLEAR_FLAG(hmmc, SDIO_STATIC_FLAGS); 
+        __HAL_MMC_DISABLE_IT(hmmc, (SDIO_IT_DCRCFAIL | SDIO_IT_DTIMEOUT | SDIO_IT_RXOVERR | SDIO_IT_DATAEND));
+        hmmc->ErrorCode = errorstate;
+        hmmc->State = HAL_MMC_STATE_READY;
+        return HAL_ERROR;
+      }
+
+      return HAL_OK;
+    }
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

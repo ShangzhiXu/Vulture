@@ -1,0 +1,174 @@
+smtp_process(void *arg, struct altcp_pcb *pcb, struct pbuf *p)
+{
+  struct smtp_session* s = (struct smtp_session*)arg;
+  u16_t response_code = 0;
+  u16_t tx_buf_len = 0;
+  enum smtp_session_state next_state;
+
+  if (arg == NULL) {
+    /* already closed SMTP connection */
+    if (p != NULL) {
+      LWIP_DEBUGF(SMTP_DEBUG_TRACE, ("Received %d bytes after closing: %s\n",
+        p->tot_len, smtp_pbuf_str(p)));
+      pbuf_free(p);
+    }
+    return;
+  }
+
+  next_state = s->state;
+
+  if (p != NULL) {
+    /* received data */
+    if (s->p == NULL) {
+      s->p = p;
+    } else {
+      pbuf_cat(s->p, p);
+    }
+  } else {
+    /* idle timer, close connection if timed out */
+    if (s->timer == 0) {
+      LWIP_DEBUGF(SMTP_DEBUG_WARN_STATE, ("smtp_process: connection timed out, closing\n"));
+      smtp_close(s, pcb, SMTP_RESULT_ERR_TIMEOUT, 0, ERR_TIMEOUT);
+      return;
+    }
+    if (s->state == SMTP_BODY) {
+      smtp_send_body(s, pcb);
+      return;
+    }
+  }
+  response_code = smtp_is_response(s);
+  if (response_code) {
+    LWIP_DEBUGF(SMTP_DEBUG_TRACE, ("smtp_process: received response code: %d\n", response_code));
+    if (smtp_is_response_finished(s) != ERR_OK) {
+      LWIP_DEBUGF(SMTP_DEBUG_TRACE, ("smtp_process: partly received response code: %d\n", response_code));
+      /* wait for next packet to complete the respone */
+      return;
+    }
+  } else {
+    if (s->p != NULL) {
+      LWIP_DEBUGF(SMTP_DEBUG_WARN, ("smtp_process: unknown data received (%s)\n",
+        smtp_pbuf_str(s->p)));
+      pbuf_free(s->p);
+      s->p = NULL;
+    }
+    return;
+  }
+
+  switch(s->state)
+  {
+  case(SMTP_NULL):
+    /* wait for 220 */
+    if (response_code == 220) {
+      /* then send EHLO */
+      next_state = smtp_prepare_helo(s, &tx_buf_len, pcb);
+    }
+    break;
+  case(SMTP_HELO):
+    /* wait for 250 */
+    if (response_code == 250) {
+#if SMTP_SUPPORT_AUTH_PLAIN || SMTP_SUPPORT_AUTH_LOGIN
+      /* then send AUTH or MAIL */
+      next_state = smtp_prepare_auth_or_mail(s, &tx_buf_len);
+    }
+    break;
+  case(SMTP_AUTH_LOGIN):
+  case(SMTP_AUTH_PLAIN):
+    /* wait for 235 */
+    if (response_code == 235) {
+#endif /* SMTP_SUPPORT_AUTH_PLAIN || SMTP_SUPPORT_AUTH_LOGIN */
+      /* send MAIL */
+      next_state = smtp_prepare_mail(s, &tx_buf_len);
+    }
+    break;
+#if SMTP_SUPPORT_AUTH_LOGIN
+  case(SMTP_AUTH_LOGIN_UNAME):
+    /* wait for 334 Username */
+    if (response_code == 334) {
+      if (pbuf_strstr(s->p, SMTP_RESP_LOGIN_UNAME) != 0xFFFF) {
+        /* send username */
+        next_state = smtp_prepare_auth_login_uname(s, &tx_buf_len);
+      }
+    }
+    break;
+  case(SMTP_AUTH_LOGIN_PASS):
+    /* wait for 334 Password */
+    if (response_code == 334) {
+      if (pbuf_strstr(s->p, SMTP_RESP_LOGIN_PASS) != 0xFFFF) {
+        /* send username */
+        next_state = smtp_prepare_auth_login_pass(s, &tx_buf_len);
+      }
+    }
+    break;
+#endif /* SMTP_SUPPORT_AUTH_LOGIN */
+  case(SMTP_MAIL):
+    /* wait for 250 */
+    if (response_code == 250) {
+      /* send RCPT */
+      next_state = smtp_prepare_rcpt(s, &tx_buf_len);
+    }
+    break;
+  case(SMTP_RCPT):
+    /* wait for 250 */
+    if (response_code == 250) {
+      /* send DATA */
+      SMEMCPY(s->tx_buf, SMTP_CMD_DATA, SMTP_CMD_DATA_LEN);
+      tx_buf_len = SMTP_CMD_DATA_LEN;
+      next_state = SMTP_DATA;
+    }
+    break;
+  case(SMTP_DATA):
+    /* wait for 354 */
+    if (response_code == 354) {
+      /* send email header */
+      next_state = smtp_prepare_header(s, &tx_buf_len);
+    }
+    break;
+  case(SMTP_BODY):
+    /* nothing to be done here, handled somewhere else */
+    break;
+  case(SMTP_QUIT):
+    /* wait for 250 */
+    if (response_code == 250) {
+      /* send QUIT */
+      next_state = smtp_prepare_quit(s, &tx_buf_len);
+    }
+    break;
+  case(SMTP_CLOSED):
+    /* nothing to do, wait for connection closed from server */
+    return;
+  default:
+    LWIP_DEBUGF(SMTP_DEBUG_SERIOUS, ("Invalid state: %d/%s\n", (int)s->state,
+      smtp_state_str[s->state]));
+    break;
+  }
+  if (s->state == next_state) {
+    LWIP_DEBUGF(SMTP_DEBUG_WARN_STATE, ("smtp_process[%s]: unexpected response_code, closing: %d (%s)\n",
+      smtp_state_str[s->state], response_code, smtp_pbuf_str(s->p)));
+    /* close connection */
+    smtp_close(s, pcb, SMTP_RESULT_ERR_SVR_RESP, response_code, ERR_OK);
+    return;
+  }
+  if (tx_buf_len > 0) {
+    SMTP_TX_BUF_MAX(tx_buf_len);
+    if (altcp_write(pcb, s->tx_buf, tx_buf_len, TCP_WRITE_FLAG_COPY) == ERR_OK) {
+      LWIP_DEBUGF(SMTP_DEBUG_TRACE, ("smtp_process[%s]: received command %d (%s)\n",
+        smtp_state_str[s->state], response_code, smtp_pbuf_str(s->p)));
+      LWIP_DEBUGF(SMTP_DEBUG_TRACE, ("smtp_process[%s]: sent %"U16_F" bytes: \"%s\"\n",
+        smtp_state_str[s->state], tx_buf_len, s->tx_buf));
+      s->timer = SMTP_TIMEOUT;
+      pbuf_free(s->p);
+      s->p = NULL;
+      LWIP_DEBUGF(SMTP_DEBUG_STATE, ("smtp_process: changing state from %s to %s\n",
+        smtp_state_str[s->state], smtp_state_str[next_state]));
+      s->state = next_state;
+      if (next_state == SMTP_BODY) {
+        /* try to stream-send body data right now */
+        smtp_send_body(s, pcb);
+      } else if (next_state == SMTP_CLOSED) {
+        /* sent out all data, delete structure */
+        altcp_arg(pcb, NULL);
+        smtp_free(s, SMTP_RESULT_OK, 0, ERR_OK);
+      }
+    }
+  }
+}

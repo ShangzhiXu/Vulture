@@ -1,0 +1,14 @@
+static int rsa_encrypt_wrap( void *ctx,
+                    const unsigned char *input, size_t ilen,
+                    unsigned char *output, size_t *olen, size_t osize,
+                    int (*f_rng)(void *, unsigned char *, size_t), void *p_rng )
+{
+    mbedtls_rsa_context * rsa = (mbedtls_rsa_context *) ctx;
+    *olen = mbedtls_rsa_get_len( rsa );
+
+    if( *olen > osize )
+        return( MBEDTLS_ERR_RSA_OUTPUT_TOO_LARGE );
+
+    return( mbedtls_rsa_pkcs1_encrypt( rsa, f_rng, p_rng, MBEDTLS_RSA_PUBLIC,
+                                       ilen, input, output ) );
+}

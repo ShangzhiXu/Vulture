@@ -1,0 +1,12 @@
+STATIC INLINE VOID ArchAtomic64Dec(Atomic64 *v)
+{
+    INT64 val;
+    UINT32 status;
+
+    do {
+        __asm__ __volatile__("ldxr   %0, %2\n"
+                             "sub   %0, %0, #1\n"
+                             "stxr   %w1, %0, %2"
+                             : "=&r"(val), "=&r"(status), "+Q"(*v));
+    } while (__builtin_expect(status != 0, 0));
+}

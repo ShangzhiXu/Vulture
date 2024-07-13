@@ -1,0 +1,22 @@
+STATIC VOID OsLowpowerLightSleep(UINT32 mode, UINT32 cpuid, UINT32 sleepTicks)
+{
+    if (g_pmRunOps.preConfig != NULL) {
+        sleepTicks = g_pmRunOps.getSleepTime();
+    }
+    if (sleepTicks > 1) {
+        g_pmMgr.sleepMode[cpuid] = (mode & 0x0FF);
+        g_pmMgr.sleepTime[cpuid] = (sleepTicks & 0x0FF);
+#ifdef LOSCFG_KERNEL_TICKLESS
+        OsTicklessOpen();
+#endif
+        if (mode == LOS_INTERMIT_LIGHT_SLEEP && g_pmRunOps.enterLightSleep != NULL) {
+            g_pmRunOps.enterLightSleep();
+        } else {
+            wfi();
+        }
+    } else {
+        g_pmMgr.sleepMode[cpuid] = LOS_INTERMIT_NONE;
+        g_pmMgr.sleepTime[cpuid] = 0;
+        wfi();
+    }
+}

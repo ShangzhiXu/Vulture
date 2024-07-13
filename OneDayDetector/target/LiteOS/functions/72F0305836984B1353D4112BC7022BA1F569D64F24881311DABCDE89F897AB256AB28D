@@ -1,0 +1,18 @@
+LITE_OS_SEC_TEXT VOID OsDeleteSortLink(const SortLinkAttribute *sortLinkHeader, SortLinkList *sortList)
+{
+    LOS_DL_LIST *listObject = NULL;
+    SortLinkList *nextSortList = NULL;
+    UINT32 sortIndex;
+
+    sortIndex = SORT_INDEX(sortList->idxRollNum);
+    listObject = sortLinkHeader->sortLink + sortIndex;
+
+    /* check if pstSortList node is on the right sortlink */
+    OsCheckSortLink(listObject, &sortList->sortLinkNode);
+
+    if (listObject != sortList->sortLinkNode.pstNext) {
+        nextSortList = LOS_DL_LIST_ENTRY(sortList->sortLinkNode.pstNext, SortLinkList, sortLinkNode);
+        ROLLNUM_ADD(nextSortList->idxRollNum, sortList->idxRollNum);
+    }
+    LOS_ListDelete(&sortList->sortLinkNode);
+}

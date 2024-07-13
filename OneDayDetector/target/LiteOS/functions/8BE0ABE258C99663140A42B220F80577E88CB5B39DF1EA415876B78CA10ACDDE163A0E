@@ -1,0 +1,30 @@
+void USB_ReadPMA(USB_TypeDef *USBx, uint8_t *pbUsrBuf, uint16_t wPMABufAddr, uint16_t wNBytes)
+{
+  uint32_t n = (uint32_t)wNBytes >> 1;
+  uint32_t BaseAddr = (uint32_t)USBx;
+  uint32_t i, temp;
+  __IO uint16_t *pdwVal;
+  uint8_t *pBuf = pbUsrBuf;
+
+  pdwVal = (__IO uint16_t *)(BaseAddr + 0x400U + ((uint32_t)wPMABufAddr * PMA_ACCESS));
+
+  for (i = n; i != 0U; i--)
+  {
+    temp = *(__IO uint16_t *)pdwVal;
+    pdwVal++;
+    *pBuf = (uint8_t)((temp >> 0) & 0xFFU);
+    pBuf++;
+    *pBuf = (uint8_t)((temp >> 8) & 0xFFU);
+    pBuf++;
+
+#if PMA_ACCESS > 1U
+    pdwVal++;
+#endif
+  }
+
+  if ((wNBytes % 2U) != 0U)
+  {
+    temp = *pdwVal;
+    *pBuf = (uint8_t)((temp >> 0) & 0xFFU);
+  }
+}

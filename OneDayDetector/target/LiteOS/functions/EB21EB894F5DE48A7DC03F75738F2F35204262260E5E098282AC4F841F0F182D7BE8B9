@@ -1,0 +1,97 @@
+HAL_StatusTypeDef HASH_Start_DMA(HASH_HandleTypeDef *hhash, uint8_t *pInBuffer, uint32_t Size, uint32_t Algorithm)
+{ 
+  uint32_t inputaddr;
+  uint32_t inputSize = 0x0;
+  
+  /* Make sure the input buffer size (in bytes) is a multiple of 4 when MDMAT bit is set 
+     (case of multi-buffer HASH processing) */
+  assert_param(IS_HASH_DMA_MULTIBUFFER_SIZE(Size));
+  
+  /* If State is ready or suspended, start or resume DMA-based HASH processing */
+  if ((hhash->State == HAL_HASH_STATE_READY) || (hhash->State == HAL_HASH_STATE_SUSPENDED))
+  {
+    /* Check input parameters */ 
+    if ( (pInBuffer == NULL ) || (Size == 0) ||
+    /* Check phase coherency. Phase must be 
+       either READY (fresh start)
+       or PROCESS (multi-buffer HASH management) */    
+       ((hhash->Phase != HAL_HASH_PHASE_READY) && (!(IS_HASH_PROCESSING(hhash)))))
+    {
+      hhash->State = HAL_HASH_STATE_READY;
+      return  HAL_ERROR;
+    }
+    
+    
+    /* Process Locked */
+    __HAL_LOCK(hhash);
+    
+    /* If not a resumption case */
+    if (hhash->State == HAL_HASH_STATE_READY)
+    {
+      /* Change the HASH state */
+      hhash->State = HAL_HASH_STATE_BUSY;      
+    
+      /* Check if initialization phase has already been performed. 
+         If Phase is already set to HAL_HASH_PHASE_PROCESS, this means the
+         API is processing a new input data message in case of multi-buffer HASH 
+         computation. */
+      if(hhash->Phase == HAL_HASH_PHASE_READY)
+      {
+        /* Select the HASH algorithm, clear HMAC mode and long key selection bit, reset the HASH processor core */
+        MODIFY_REG(HASH->CR, HASH_CR_LKEY|HASH_CR_ALGO|HASH_CR_MODE|HASH_CR_INIT, Algorithm | HASH_CR_INIT); 
+      
+        /* Set the phase */
+        hhash->Phase = HAL_HASH_PHASE_PROCESS;      
+      }
+      
+      /* Configure the Number of valid bits in last word of the message */
+      __HAL_HASH_SET_NBVALIDBITS(Size); 
+    
+      inputaddr = (uint32_t)pInBuffer;     /* DMA transfer start address   */    
+      inputSize = Size;                    /* DMA transfer size (in bytes) */  
+      
+      /* In case of suspension request, save the starting parameters */
+      hhash->pHashInBuffPtr =  pInBuffer;  /* DMA transfer start address   */
+      hhash->HashInCount = Size;           /* DMA transfer size (in bytes) */              
+      
+    }
+    /* If resumption case */
+    else
+    {
+      /* Change the HASH state */
+      hhash->State = HAL_HASH_STATE_BUSY; 
+                
+      /* Resumption case, inputaddr and inputSize are not set to the API input parameters 
+         but to those saved beforehand by HAL_HASH_DMAFeed_ProcessSuspend() when the 
+         processing was suspended */  
+      inputaddr = (uint32_t)hhash->pHashInBuffPtr;  /* DMA transfer start address   */  
+      inputSize = hhash->HashInCount;               /* DMA transfer size (in bytes) */
+      
+    }
+      
+    /* Set the HASH DMA transfert complete callback */
+    hhash->hdmain->XferCpltCallback = HASH_DMAXferCplt;
+    /* Set the DMA error callback */
+    hhash->hdmain->XferErrorCallback = HASH_DMAError;
+
+    /* Store number of words already pushed to manage proper DMA processing suspension */
+    hhash->NbWordsAlreadyPushed = HASH_NBW_PUSHED(); 
+    
+    /* Enable the DMA In DMA Stream */
+    HAL_DMA_Start_IT(hhash->hdmain, inputaddr, (uint32_t)&HASH->DIN, (inputSize%4 ? (inputSize+3)/4:inputSize/4));
+    
+    /* Enable DMA requests */
+    SET_BIT(HASH->CR, HASH_CR_DMAE);
+    
+    /* Process Unlock */
+    __HAL_UNLOCK(hhash);
+    
+    /* Return function status */
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+
+}

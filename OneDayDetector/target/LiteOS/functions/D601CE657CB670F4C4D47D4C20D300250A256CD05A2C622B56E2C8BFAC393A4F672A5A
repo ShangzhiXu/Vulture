@@ -1,0 +1,38 @@
+test_udp_create_test_packet(u16_t length, u16_t port, u32_t dst_addr)
+{
+  err_t err;
+  u8_t ret;
+  struct udp_hdr *uh;
+  struct ip_hdr *ih;
+  struct pbuf *p;
+  const u8_t test_data[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf};
+
+  p = pbuf_alloc(PBUF_TRANSPORT, length, PBUF_POOL);
+  fail_unless(p != NULL);
+  if (p == NULL) {
+    return NULL;
+  }
+  fail_unless(p->next == NULL);
+  err = pbuf_take(p, test_data, length);
+  fail_unless(err == ERR_OK);
+
+  /* add UDP header */
+  ret = pbuf_add_header(p, sizeof(struct udp_hdr));
+  fail_unless(!ret);
+  uh = (struct udp_hdr *)p->payload;
+  uh->chksum = 0;
+  uh->dest = uh->src = lwip_htons(port);
+  uh->len = lwip_htons(p->tot_len);
+  /* add IPv4 header */
+  ret = pbuf_add_header(p, sizeof(struct ip_hdr));
+  fail_unless(!ret);
+  ih = (struct ip_hdr *)p->payload;
+  memset(ih, 0, sizeof(*ih));
+  ih->dest.addr = dst_addr;
+  ih->_len = lwip_htons(p->tot_len);
+  ih->_ttl = 32;
+  ih->_proto = IP_PROTO_UDP;
+  IPH_VHL_SET(ih, 4, sizeof(struct ip_hdr) / 4);
+  IPH_CHKSUM_SET(ih, inet_chksum(ih, sizeof(struct ip_hdr)));
+  return p;
+}

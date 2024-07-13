@@ -1,0 +1,25 @@
+UINT32 LOS_RingbufRead(Ringbuf *ringbuf, CHAR *buf, UINT32 size)
+{
+    UINT32 cpSize;
+    UINT32 intSave;
+
+    if ((ringbuf == NULL) || (buf == NULL) || (size == 0) || (ringbuf->status != RBUF_INITED)) {
+        return 0;
+    }
+
+    LOS_SpinLockSave(&ringbuf->lock, &intSave);
+
+    if ((ringbuf->fifo == NULL) || (ringbuf->remain == ringbuf->size)) {
+        cpSize = 0;
+        goto EXIT;
+    }
+
+    if (ringbuf->startIdx >= ringbuf->endIdx) {
+        cpSize = OsRingbufReadLoop(ringbuf, buf, size);
+    } else {
+        cpSize = OsRingbufReadLinear(ringbuf, buf, size);
+    }
+EXIT:
+    LOS_SpinUnlockRestore(&ringbuf->lock, intSave);
+    return cpSize;
+}

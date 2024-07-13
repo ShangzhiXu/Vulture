@@ -1,0 +1,173 @@
+HAL_StatusTypeDef HAL_ADC_DeInit(ADC_HandleTypeDef* hadc)
+{
+  /* Check ADC handle */
+  if(hadc == NULL)
+  {
+    return HAL_ERROR;
+  }
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+  
+  /* Set ADC state */
+  SET_BIT(hadc->State, HAL_ADC_STATE_BUSY_INTERNAL);
+  
+  /* Stop potential conversion on going, on regular and injected groups */
+  /* Note: No check on ADC_ConversionStop() return status,              */
+  /*       if the conversion stop failed, it is up to                   */
+  /*       HAL_ADC_MspDeInit() to reset the ADC IP.                     */
+  ADC_ConversionStop(hadc, ADC_REGULAR_INJECTED_GROUP);
+  
+  /* Disable ADC peripheral if conversions are effectively stopped            */
+  /* Flush register JSQR: reset the queue sequencer when injected             */
+  /* queue sequencer is enabled and ADC disabled.                             */
+  /* The software and hardware triggers of the injected sequence are both     */
+  /* internally disabled just after the completion of the last valid          */
+  /* injected sequence.                                                       */
+  SET_BIT(hadc->Instance->CFGR, ADC_CFGR_JQM);
+  
+  /* Disable the ADC peripheral */
+  /* No check on ADC_Disable() return status, if the ADC disabling process
+    failed, it is up to HAL_ADC_MspDeInit() to reset the ADC IP */  
+  ADC_Disable(hadc);
+  
+  
+  /* ========== Reset ADC registers ========== */
+  /* Reset register IER */
+  __HAL_ADC_DISABLE_IT(hadc, (ADC_IT_AWD3  | ADC_IT_AWD2 | ADC_IT_AWD1 |
+                              ADC_IT_JQOVF | ADC_IT_OVR  |
+                              ADC_IT_JEOS  | ADC_IT_JEOC |
+                              ADC_IT_EOS   | ADC_IT_EOC  |
+                              ADC_IT_EOSMP | ADC_IT_RDY                 ) );
+      
+  /* Reset register ISR */
+  __HAL_ADC_CLEAR_FLAG(hadc, (ADC_FLAG_AWD3  | ADC_FLAG_AWD2 | ADC_FLAG_AWD1 |
+                              ADC_FLAG_JQOVF | ADC_FLAG_OVR  |
+                              ADC_FLAG_JEOS  | ADC_FLAG_JEOC |
+                              ADC_FLAG_EOS   | ADC_FLAG_EOC  |
+                              ADC_FLAG_EOSMP | ADC_FLAG_RDY                   ) );
+  
+  /* Reset register CR */
+ /* Bits ADC_CR_JADSTP, ADC_CR_ADSTP, ADC_CR_JADSTART, ADC_CR_ADSTART, 
+    ADC_CR_ADCAL, ADC_CR_ADDIS and ADC_CR_ADEN are in access mode "read-set": 
+    no direct reset applicable. 
+    Update CR register to reset value where doable by software */
+  CLEAR_BIT(hadc->Instance->CR, ADC_CR_ADVREGEN | ADC_CR_ADCALDIF);
+  SET_BIT(hadc->Instance->CR, ADC_CR_DEEPPWD);    
+      
+  /* Reset register CFGR */
+  CLEAR_BIT(hadc->Instance->CFGR, ADC_CFGR_FIELDS);
+  SET_BIT(hadc->Instance->CFGR, ADC_CFGR_JQDIS);  
+  
+  /* Reset register CFGR2 */
+  CLEAR_BIT(hadc->Instance->CFGR2, ADC_CFGR2_ROVSM  | ADC_CFGR2_TROVS   | ADC_CFGR2_OVSS |   
+                                  ADC_CFGR2_OVSR  | ADC_CFGR2_JOVSE | ADC_CFGR2_ROVSE    );                                 
+  
+  /* Reset register SMPR1 */
+  CLEAR_BIT(hadc->Instance->SMPR1, ADC_SMPR1_FIELDS);                                 
+  
+  /* Reset register SMPR2 */
+  CLEAR_BIT(hadc->Instance->SMPR2, ADC_SMPR2_SMP18 | ADC_SMPR2_SMP17 | ADC_SMPR2_SMP16 | 
+                             ADC_SMPR2_SMP15 | ADC_SMPR2_SMP14 | ADC_SMPR2_SMP13 | 
+                             ADC_SMPR2_SMP12 | ADC_SMPR2_SMP11 | ADC_SMPR2_SMP10    );                                 
+  
+  /* Reset register TR1 */
+  CLEAR_BIT(hadc->Instance->TR1, ADC_TR1_HT1 | ADC_TR1_LT1);
+  
+  /* Reset register TR2 */
+  CLEAR_BIT(hadc->Instance->TR2, ADC_TR2_HT2 | ADC_TR2_LT2);    
+  
+  /* Reset register TR3 */
+  CLEAR_BIT(hadc->Instance->TR3, ADC_TR3_HT3 | ADC_TR3_LT3);      
+  
+  /* Reset register SQR1 */
+  CLEAR_BIT(hadc->Instance->SQR1, ADC_SQR1_SQ4 | ADC_SQR1_SQ3 | ADC_SQR1_SQ2 | 
+                            ADC_SQR1_SQ1 | ADC_SQR1_L);                              
+  
+  /* Reset register SQR2 */
+  CLEAR_BIT(hadc->Instance->SQR2, ADC_SQR2_SQ9 | ADC_SQR2_SQ8 | ADC_SQR2_SQ7 | 
+                            ADC_SQR2_SQ6 | ADC_SQR2_SQ5);                                
+  
+  /* Reset register SQR3 */
+  CLEAR_BIT(hadc->Instance->SQR3, ADC_SQR3_SQ14 | ADC_SQR3_SQ13 | ADC_SQR3_SQ12 | 
+                            ADC_SQR3_SQ11 | ADC_SQR3_SQ10);                                 
+  
+  /* Reset register SQR4 */
+  CLEAR_BIT(hadc->Instance->SQR4, ADC_SQR4_SQ16 | ADC_SQR4_SQ15); 
+  
+  /* Register JSQR was reset when the ADC was disabled */
+  
+  /* Reset register DR */
+  /* bits in access mode read only, no direct reset applicable*/
+    
+  /* Reset register OFR1 */
+  CLEAR_BIT(hadc->Instance->OFR1, ADC_OFR1_OFFSET1_EN | ADC_OFR1_OFFSET1_CH | ADC_OFR1_OFFSET1); 
+  /* Reset register OFR2 */
+  CLEAR_BIT(hadc->Instance->OFR2, ADC_OFR2_OFFSET2_EN | ADC_OFR2_OFFSET2_CH | ADC_OFR2_OFFSET2); 
+  /* Reset register OFR3 */
+  CLEAR_BIT(hadc->Instance->OFR3, ADC_OFR3_OFFSET3_EN | ADC_OFR3_OFFSET3_CH | ADC_OFR3_OFFSET3); 
+  /* Reset register OFR4 */
+  CLEAR_BIT(hadc->Instance->OFR4, ADC_OFR4_OFFSET4_EN | ADC_OFR4_OFFSET4_CH | ADC_OFR4_OFFSET4);
+  
+  /* Reset registers JDR1, JDR2, JDR3, JDR4 */
+  /* bits in access mode read only, no direct reset applicable*/
+  
+  /* Reset register AWD2CR */
+  CLEAR_BIT(hadc->Instance->AWD2CR, ADC_AWD2CR_AWD2CH);
+  
+  /* Reset register AWD3CR */
+  CLEAR_BIT(hadc->Instance->AWD3CR, ADC_AWD3CR_AWD3CH);
+  
+  /* Reset register DIFSEL */
+  CLEAR_BIT(hadc->Instance->DIFSEL, ADC_DIFSEL_DIFSEL);
+  
+  /* Reset register CALFACT */
+  CLEAR_BIT(hadc->Instance->CALFACT, ADC_CALFACT_CALFACT_D | ADC_CALFACT_CALFACT_S);
+  
+  
+  /* ========== Reset common ADC registers ========== */
+        
+  /* Software is allowed to change common parameters only when all the other
+     ADCs are disabled.   */
+  if ((ADC_IS_ENABLE(hadc) == RESET)   &&
+       (ADC_ANY_OTHER_ENABLED(hadc) == RESET) )
+  {
+    /* Reset configuration of ADC common register CCR:
+      - clock mode: CKMODE, PRESCEN
+      - multimode related parameters (when this feature is available): MDMA, 
+        DMACFG, DELAY, DUAL (set by HAL_ADCEx_MultiModeConfigChannel() API)
+      - internal measurement paths: Vbat, temperature sensor, Vref (set into
+        HAL_ADC_ConfigChannel() or HAL_ADCEx_InjectedConfigChannel() )
+    */
+    ADC_CLEAR_COMMON_CONTROL_REGISTER(hadc);
+  }
+
+  /* DeInit the low level hardware. 
+  
+     For example:
+    __HAL_RCC_ADC_FORCE_RESET();
+    __HAL_RCC_ADC_RELEASE_RESET();
+    __HAL_RCC_ADC_CLK_DISABLE();
+    
+    Keep in mind that all ADCs use the same clock: disabling
+    the clock will reset all ADCs. 
+    
+  */
+  HAL_ADC_MspDeInit(hadc);
+    
+  /* Set ADC error code to none */
+  ADC_CLEAR_ERRORCODE(hadc);
+  
+  /* Reset injected channel configuration parameters */
+  hadc->InjectionConfig.ContextQueue = 0;
+  hadc->InjectionConfig.ChannelCount = 0; 
+    
+  /* Set ADC state */
+  hadc->State = HAL_ADC_STATE_RESET;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+  
+  /* Return function status */
+  return HAL_OK;
+}

@@ -1,0 +1,39 @@
+VOID *main_ppp(UINT32  args)
+{
+    /* Initilialize the LwIP stack without RTOS */
+    tcpip_init(NULL, NULL);
+
+    //here we make the modem to data mode
+    iodev_debugmode(2, 1);
+    extern int AtDial(char *devname, char *apn);
+    while(0 != AtDial("uart3", NULL))
+    {
+    }
+    ppp = pppos_create(&ppp_netif, (pppos_output_cb_fn)output_cb, status_cb, NULL);
+    if(NULL != ppp)
+    {
+        extern void *main_pppinput(unsigned int args);
+        task_create("main_pppinput", main_pppinput, 0x800, NULL, NULL, 0);
+
+        /* Set this interface as default route */
+        ppp_set_default(ppp);
+        /* Ask the peer for up to 2 DNS server addresses. */
+        ppp_set_usepeerdns(ppp, 1);
+
+        /* Auth configuration, this is pretty self-explanatory */
+        ppp_set_auth(ppp, PPPAUTHTYPE_ANY, "login", "password");
+        gPppRcvMode = 1;
+        u16_t holdoff = 0;
+        ppp_connect(ppp, holdoff);
+        while(gConnect == 0) //wait to do the connect
+        {
+            LOS_TaskDelay(10);
+        }
+        extern void agent_tiny_entry(void);
+        agent_tiny_entry();
+        ppp_free(ppp);
+    }
+
+
+    return NULL;
+}

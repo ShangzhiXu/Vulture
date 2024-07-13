@@ -1,0 +1,61 @@
+HAL_StatusTypeDef  FSMC_NORSRAM_Init(FSMC_NORSRAM_TypeDef *Device, FSMC_NORSRAM_InitTypeDef *Init)
+{
+  /* Check the parameters */
+  assert_param(IS_FSMC_NORSRAM_DEVICE(Device));
+  assert_param(IS_FSMC_NORSRAM_BANK(Init->NSBank));
+  assert_param(IS_FSMC_MUX(Init->DataAddressMux));
+  assert_param(IS_FSMC_MEMORY(Init->MemoryType));
+  assert_param(IS_FSMC_NORSRAM_MEMORY_WIDTH(Init->MemoryDataWidth));
+  assert_param(IS_FSMC_BURSTMODE(Init->BurstAccessMode));
+  assert_param(IS_FSMC_WAIT_POLARITY(Init->WaitSignalPolarity));
+  assert_param(IS_FSMC_WRAP_MODE(Init->WrapMode));
+  assert_param(IS_FSMC_WAIT_SIGNAL_ACTIVE(Init->WaitSignalActive));
+  assert_param(IS_FSMC_WRITE_OPERATION(Init->WriteOperation));
+  assert_param(IS_FSMC_WAITE_SIGNAL(Init->WaitSignal));
+  assert_param(IS_FSMC_EXTENDED_MODE(Init->ExtendedMode));
+  assert_param(IS_FSMC_ASYNWAIT(Init->AsynchronousWait));
+  assert_param(IS_FSMC_WRITE_BURST(Init->WriteBurst));
+
+  /* Disable NORSRAM Device */
+  __FSMC_NORSRAM_DISABLE(Device, Init->NSBank);
+
+  /* Set NORSRAM device control parameters */
+  if (Init->MemoryType == FSMC_MEMORY_TYPE_NOR)
+  {
+    MODIFY_REG(Device->BTCR[Init->NSBank], BCR_CLEAR_MASK, (uint32_t)(FSMC_NORSRAM_FLASH_ACCESS_ENABLE
+               | Init->DataAddressMux
+               | Init->MemoryType
+               | Init->MemoryDataWidth
+               | Init->BurstAccessMode
+               | Init->WaitSignalPolarity
+               | Init->WrapMode
+               | Init->WaitSignalActive
+               | Init->WriteOperation
+               | Init->WaitSignal
+               | Init->ExtendedMode
+               | Init->AsynchronousWait
+               | Init->WriteBurst
+                                                                     )
+              );
+  }
+  else
+  {
+    MODIFY_REG(Device->BTCR[Init->NSBank], BCR_CLEAR_MASK, (uint32_t)(FSMC_NORSRAM_FLASH_ACCESS_DISABLE
+               | Init->DataAddressMux
+               | Init->MemoryType
+               | Init->MemoryDataWidth
+               | Init->BurstAccessMode
+               | Init->WaitSignalPolarity
+               | Init->WrapMode
+               | Init->WaitSignalActive
+               | Init->WriteOperation
+               | Init->WaitSignal
+               | Init->ExtendedMode
+               | Init->AsynchronousWait
+               | Init->WriteBurst
+                                                                     )
+              );
+  }
+
+  return HAL_OK;
+}

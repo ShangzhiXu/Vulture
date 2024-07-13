@@ -1,0 +1,32 @@
+void lv_table_set_col_cnt(lv_obj_t * table, uint16_t col_cnt)
+{
+    LV_ASSERT_OBJ(table, LV_OBJX_NAME);
+
+    if(col_cnt >= LV_TABLE_COL_MAX) {
+        LV_LOG_WARN("lv_table_set_col_cnt: too many columns. Must be < LV_TABLE_COL_MAX.");
+        return;
+    }
+
+    lv_table_ext_t * ext = lv_obj_get_ext_attr(table);
+    uint16_t old_col_cnt = ext->col_cnt;
+    ext->col_cnt         = col_cnt;
+
+    if(ext->row_cnt > 0 && ext->col_cnt > 0) {
+        ext->cell_data = lv_mem_realloc(ext->cell_data, ext->row_cnt * ext->col_cnt * sizeof(char *));
+        LV_ASSERT_MEM(ext->cell_data);
+        if(ext->cell_data == NULL) return;
+
+        /*Initilize the new fields*/
+        if(old_col_cnt < col_cnt) {
+            uint16_t old_cell_cnt = old_col_cnt * ext->row_cnt;
+            uint32_t new_cell_cnt = ext->col_cnt * ext->row_cnt;
+            _lv_memset_00(&ext->cell_data[old_cell_cnt], (new_cell_cnt - old_cell_cnt) * sizeof(ext->cell_data[0]));
+        }
+
+    }
+    else {
+        lv_mem_free(ext->cell_data);
+        ext->cell_data = NULL;
+    }
+    refr_size(table);
+}

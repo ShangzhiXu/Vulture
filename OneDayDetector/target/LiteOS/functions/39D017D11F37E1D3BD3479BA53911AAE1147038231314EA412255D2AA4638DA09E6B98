@@ -1,0 +1,18 @@
+static void QSPI_DMAError(DMA_HandleTypeDef *hdma)   
+{
+  QSPI_HandleTypeDef* hqspi = ( QSPI_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+  
+  /* if DMA error is FIFO error ignore it */
+  if(HAL_DMA_GetError(hdma) != HAL_DMA_ERROR_FE)
+  {
+    hqspi->RxXferCount = 0;
+    hqspi->TxXferCount = 0;
+    hqspi->ErrorCode   |= HAL_QSPI_ERROR_DMA;
+    
+    /* Disable the DMA transfer by clearing the DMAEN bit in the QSPI CR register */
+    CLEAR_BIT(hqspi->Instance->CR, QUADSPI_CR_DMAEN);
+    
+    /* Abort the QSPI */
+    HAL_QSPI_Abort_IT(hqspi);
+  }
+}

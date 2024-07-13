@@ -1,0 +1,39 @@
+STATIC VOID OsLockDepDumpLock(const LosTaskCB *task, const SPIN_LOCK_S *lock,
+                              const VOID *requestAddr, enum LockDepErrType errType)
+{
+    INT32 i;
+    const LockDep *lockDep = &task->lockDep;
+    const LosTaskCB *temp = task;
+
+    PrintExcInfo("lockdep check failed\n");
+    PrintExcInfo("error type   : %s\n", OsLockDepErrorStringGet(errType));
+    PrintExcInfo("request addr : 0x%x\n", requestAddr);
+
+    while (1) {
+        PrintExcInfo("task name    : %s\n", temp->taskName);
+        PrintExcInfo("task id      : %u\n", temp->taskId);
+        PrintExcInfo("cpu num      : %u\n", temp->currCpu);
+        PrintExcInfo("start dumping lockdep information\n");
+        for (i = 0; i < lockDep->lockDepth; i++) {
+            if (lockDep->heldLocks[i].lockPtr == lock) {
+                PrintExcInfo("[%d] %s <-- addr:0x%x\n", i, LOCKDEP_GET_NAME(lockDep, i),
+                             LOCKDEP_GET_ADDR(lockDep, i));
+            } else {
+                PrintExcInfo("[%d] %s \n", i, LOCKDEP_GET_NAME(lockDep, i));
+            }
+        }
+        PrintExcInfo("[%d] %s <-- now\n", i, lock->name);
+
+        if (errType == LOCKDEP_ERR_DEAD_LOCK) {
+            temp = lock->owner;
+            lock = temp->lockDep.waitLock;
+            lockDep = &temp->lockDep;
+        }
+
+        if (temp == task) {
+            break;
+        }
+    }
+
+    OsLockDepPanic(errType);
+}

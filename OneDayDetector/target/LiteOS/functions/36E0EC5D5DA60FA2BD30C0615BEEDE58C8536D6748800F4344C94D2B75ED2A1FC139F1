@@ -1,0 +1,33 @@
+int mbedtls_rsa_deduce_crt( const mbedtls_mpi *P, const mbedtls_mpi *Q,
+                            const mbedtls_mpi *D, mbedtls_mpi *DP,
+                            mbedtls_mpi *DQ, mbedtls_mpi *QP )
+{
+    int ret = 0;
+    mbedtls_mpi K;
+    mbedtls_mpi_init( &K );
+
+    /* DP = D mod P-1 */
+    if( DP != NULL )
+    {
+        MBEDTLS_MPI_CHK( mbedtls_mpi_sub_int( &K, P, 1  ) );
+        MBEDTLS_MPI_CHK( mbedtls_mpi_mod_mpi( DP, D, &K ) );
+    }
+
+    /* DQ = D mod Q-1 */
+    if( DQ != NULL )
+    {
+        MBEDTLS_MPI_CHK( mbedtls_mpi_sub_int( &K, Q, 1  ) );
+        MBEDTLS_MPI_CHK( mbedtls_mpi_mod_mpi( DQ, D, &K ) );
+    }
+
+    /* QP = Q^{-1} mod P */
+    if( QP != NULL )
+    {
+        MBEDTLS_MPI_CHK( mbedtls_mpi_inv_mod( QP, Q, P ) );
+    }
+
+cleanup:
+    mbedtls_mpi_free( &K );
+
+    return( ret );
+}

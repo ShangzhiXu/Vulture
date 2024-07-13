@@ -1,0 +1,23 @@
+int16_t _lv_style_get_opa(const lv_style_t * style, lv_style_property_t prop, void * v_res)
+{
+    lv_opa_t * res = (lv_opa_t *)v_res;
+    LV_ASSERT_STYLE(style);
+
+    if(style == NULL) return -1;
+    if(style->map == NULL) return -1;
+
+    int32_t id = get_property_index(style, prop);
+    if(id < 0) {
+        return -1;
+    }
+    else {
+        _lv_memcpy_small(res, &style->map[id + sizeof(lv_style_property_t)], sizeof(lv_opa_t));
+        lv_style_attr_t attr_act;
+        attr_act.full = style->map[id + 1];
+
+        lv_style_attr_t attr_goal;
+        attr_goal.full = (prop >> 8) & 0xFF;
+
+        return attr_act.bits.state & attr_goal.bits.state;
+    }
+}

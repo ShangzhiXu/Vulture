@@ -1,0 +1,34 @@
+STATIC VOID OsMemIntegrityCheckError(const LosMemDynNode *tmpNode,
+                                     const LosMemDynNode *preNode)
+{
+    LosTaskCB *taskCB = NULL;
+    UINT32 taskId;
+
+    OsMemNodeInfo(tmpNode, preNode);
+
+    taskId = OS_MEM_TASKID_GET(preNode);
+    if (taskId >= g_taskMaxNum) {
+#ifdef LOSCFG_SHELL_EXCINFO_DUMP
+        WriteExcInfoToBuf("Task ID %u in pre node is invalid!\n", taskId);
+#endif
+        LOS_Panic("Task ID %u in pre node is invalid!\n", taskId);
+        return;
+    }
+
+    taskCB = OS_TCB_FROM_TID(taskId);
+    if ((taskCB->taskStatus & OS_TASK_STATUS_UNUSED) ||
+        (taskCB->taskEntry == NULL) || (taskCB->taskName == NULL)) {
+#ifdef LOSCFG_SHELL_EXCINFO_DUMP
+        WriteExcInfoToBuf("\r\nTask ID %u in pre node is not created or deleted!\n", taskId);
+#endif
+        LOS_Panic("\r\nTask ID %u in pre node is not created!\n", taskId);
+        return;
+    }
+#ifdef LOSCFG_SHELL_EXCINFO_DUMP
+    WriteExcInfoToBuf("cur node: %p\npre node: %p\npre node was allocated by task:%s\n",
+                      tmpNode, preNode, taskCB->taskName);
+#endif
+    LOS_Panic("cur node: %p\npre node: %p\npre node was allocated by task:%s\n",
+              tmpNode, preNode, taskCB->taskName);
+    return;
+}

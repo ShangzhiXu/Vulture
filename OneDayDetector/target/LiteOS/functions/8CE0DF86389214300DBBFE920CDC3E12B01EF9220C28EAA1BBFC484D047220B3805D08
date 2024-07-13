@@ -1,0 +1,35 @@
+static void prv_resultCallback(lwm2m_transaction_t *transacP,
+                               void *message)
+{
+    bs_data_t *dataP = (bs_data_t *)transacP->userData;
+    lwm2m_uri_t *uriP;
+
+    if (dataP->isUri == true)
+    {
+        uriP = &dataP->uri;
+    }
+    else
+    {
+        uriP = NULL;
+    }
+
+    if (message == NULL)
+    {
+        dataP->callback(transacP->peerH,
+                        COAP_503_SERVICE_UNAVAILABLE,
+                        uriP,
+                        NULL,
+                        dataP->userData);
+    }
+    else
+    {
+        coap_packet_t *packet = (coap_packet_t *)message;
+
+        dataP->callback(transacP->peerH,
+                        packet->code,
+                        uriP,
+                        NULL,
+                        dataP->userData);
+    }
+    lwm2m_free(dataP);
+}

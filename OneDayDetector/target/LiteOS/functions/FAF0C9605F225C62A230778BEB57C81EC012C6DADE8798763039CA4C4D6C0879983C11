@@ -1,0 +1,25 @@
+__STATIC_INLINE void LL_USART_ConfigSyncMode(USART_TypeDef *USARTx)
+{
+  /* In Synchronous mode, the following bits must be kept cleared:
+  - LINEN (if LIN feature is supported) bit in the USART_CR2 register,
+  - SCEN (if Smartcard feature is supported), IREN (if Irda feature is supported) and HDSEL bits in the USART_CR3 register.
+  */
+#if defined(USART_LIN_SUPPORT)
+  CLEAR_BIT(USARTx->CR2, (USART_CR2_LINEN));
+#endif /* USART_LIN_SUPPORT */
+#if defined(USART_SMARTCARD_SUPPORT)
+#if defined(USART_IRDA_SUPPORT)
+  CLEAR_BIT(USARTx->CR3, (USART_CR3_SCEN | USART_CR3_IREN | USART_CR3_HDSEL));
+#else
+  CLEAR_BIT(USARTx->CR3, (USART_CR3_SCEN | USART_CR3_HDSEL));
+#endif /* USART_IRDA_SUPPORT */
+#else
+#if defined(USART_IRDA_SUPPORT)
+  CLEAR_BIT(USARTx->CR3, (USART_CR3_IREN | USART_CR3_HDSEL));
+#else
+  CLEAR_BIT(USARTx->CR3, USART_CR3_HDSEL);
+#endif /* USART_IRDA_SUPPORT */
+#endif /* USART_SMARTCARD_SUPPORT */
+  /* set the UART/USART in Synchronous mode */
+  SET_BIT(USARTx->CR2, USART_CR2_CLKEN);
+}

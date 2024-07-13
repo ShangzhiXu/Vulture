@@ -1,0 +1,29 @@
+LITE_OS_SEC_TEXT_INIT UINT32 LOS_QueueCreateStatic(CHAR *queueName,
+                                                   UINT16 len,
+                                                   UINT32 *queueId,
+                                                   UINT32 flags,
+                                                   UINT16 maxMsgSize,
+                                                   VOID *queueMem,
+                                                   UINT16 memSize)
+{
+    UINT32 ret;
+    UINT16 msgSize;
+    (VOID)queueName;
+    (VOID)flags;
+
+    ret = OsQueueCreateParameterCheck(len, queueId, maxMsgSize);
+    if (ret != LOS_OK) {
+        return ret;
+    }
+
+    if (queueMem == NULL) {
+        return LOS_ERRNO_QUEUE_CREAT_PTR_NULL;
+    }
+
+    msgSize = maxMsgSize + sizeof(UINT32);
+    if (memSize < ((UINT32)msgSize * len)) {
+        return LOS_ERRNO_QUEUE_CREATE_NO_MEMORY;
+    }
+
+    return OsQueueCreateInternal(len, queueId, msgSize, queueMem, OS_QUEUE_ALLOC_STATIC);
+}

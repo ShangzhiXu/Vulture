@@ -1,0 +1,53 @@
+int MQTTConnectWithResults(MQTTClient* c, MQTTPacket_connectData* options, MQTTConnackData* data)
+{
+    Timer connect_timer;
+    int rc = FAILURE;
+    MQTTPacket_connectData default_options = MQTTPacket_connectData_initializer;
+    int len = 0;
+
+#if defined(MQTT_TASK)
+	  MutexLock(&c->mutex);
+#endif
+	  if (c->isconnected) /* don't send connect packet again if we are already connected */
+		  goto exit;
+
+    TimerInit(&connect_timer);
+    TimerCountdownMS(&connect_timer, c->command_timeout_ms);
+
+    if (options == 0)
+        options = &default_options; /* set default options if none were supplied */
+
+    c->keepAliveInterval = options->keepAliveInterval;
+    c->cleansession = options->cleansession;
+    TimerCountdown(&c->last_received, c->keepAliveInterval);
+    if ((len = MQTTSerialize_connect(c->buf, c->buf_size, options)) <= 0)
+        goto exit;
+    if ((rc = sendPacket(c, len, &connect_timer)) != MQTT_SUCCESS)  // send the connect packet
+        goto exit; // there was a problem
+
+    // this will be a blocking call, wait for the connack
+    if (waitfor(c, CONNACK, &connect_timer) == CONNACK)
+    {
+        data->rc = 0;
+        data->sessionPresent = 0;
+        if (MQTTDeserialize_connack(&data->sessionPresent, &data->rc, c->readbuf, c->readbuf_size) == 1)
+            rc = data->rc;
+        else
+            rc = FAILURE;
+    }
+    else
+        rc = FAILURE;
+
+exit:
+    if (rc == MQTT_SUCCESS)
+    {
+        c->isconnected = 1;
+        c->ping_outstanding = 0;
+    }
+
+#if defined(MQTT_TASK)
+	  MutexUnlock(&c->mutex);
+#endif
+
+    return rc;
+}

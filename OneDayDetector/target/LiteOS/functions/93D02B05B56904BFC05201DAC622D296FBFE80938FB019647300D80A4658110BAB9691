@@ -1,0 +1,14 @@
+static void eap_protrej(ppp_pcb *pcb) {
+
+	if (eap_client_active(pcb)) {
+		ppp_error("EAP authentication failed due to Protocol-Reject");
+		auth_withpeer_fail(pcb, PPP_EAP);
+	}
+#if PPP_SERVER
+	if (eap_server_active(pcb)) {
+		ppp_error("EAP authentication of peer failed on Protocol-Reject");
+		auth_peer_fail(pcb, PPP_EAP);
+	}
+#endif /* PPP_SERVER */
+	eap_lowerdown(pcb);
+}

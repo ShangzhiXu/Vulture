@@ -1,0 +1,23 @@
+LITE_OS_SEC_TEXT_INIT VOID OsStart(VOID)
+{
+    LosTaskCB *taskCB = NULL;
+    UINT32 cpuid = ArchCurrCpuid();
+
+    OsTickStart();
+
+    LOS_SpinLock(&g_taskSpin);
+    taskCB = OsGetTopTask();
+
+#ifdef LOSCFG_KERNEL_SMP
+    /*
+     * attention: current cpu needs to be set, in case first task deletion
+     * may fail because this flag mismatch with the real current cpu.
+     */
+    taskCB->currCpu = (UINT16)cpuid;
+#endif
+    OS_SCHEDULER_SET(cpuid);
+
+    PRINTK("cpu %u entering scheduler\n", cpuid);
+
+    OsStartToRun(taskCB);
+}

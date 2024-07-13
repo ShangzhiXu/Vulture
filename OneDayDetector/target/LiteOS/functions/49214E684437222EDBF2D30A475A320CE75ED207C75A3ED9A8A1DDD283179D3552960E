@@ -1,0 +1,59 @@
+lwip_socket(int domain, int type, int protocol)
+{
+  struct netconn *conn;
+  int i;
+
+  LWIP_UNUSED_ARG(domain); /* @todo: check this */
+
+  /* create a netconn */
+  switch (type) {
+    case SOCK_RAW:
+      conn = netconn_new_with_proto_and_callback(DOMAIN_TO_NETCONN_TYPE(domain, NETCONN_RAW),
+             (u8_t)protocol, DEFAULT_SOCKET_EVENTCB);
+      LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_socket(%s, SOCK_RAW, %d) = ",
+                                  domain == PF_INET ? "PF_INET" : "UNKNOWN", protocol));
+      break;
+    case SOCK_DGRAM:
+      conn = netconn_new_with_callback(DOMAIN_TO_NETCONN_TYPE(domain,
+                                       ((protocol == IPPROTO_UDPLITE) ? NETCONN_UDPLITE : NETCONN_UDP)),
+                                       DEFAULT_SOCKET_EVENTCB);
+      LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_socket(%s, SOCK_DGRAM, %d) = ",
+                                  domain == PF_INET ? "PF_INET" : "UNKNOWN", protocol));
+#if LWIP_NETBUF_RECVINFO
+      if (conn) {
+        /* netconn layer enables pktinfo by default, sockets default to off */
+        conn->flags &= ~NETCONN_FLAG_PKTINFO;
+      }
+#endif /* LWIP_NETBUF_RECVINFO */
+      break;
+    case SOCK_STREAM:
+      conn = netconn_new_with_callback(DOMAIN_TO_NETCONN_TYPE(domain, NETCONN_TCP), DEFAULT_SOCKET_EVENTCB);
+      LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_socket(%s, SOCK_STREAM, %d) = ",
+                                  domain == PF_INET ? "PF_INET" : "UNKNOWN", protocol));
+      break;
+    default:
+      LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_socket(%d, %d/UNKNOWN, %d) = -1\n",
+                                  domain, type, protocol));
+      set_errno(EINVAL);
+      return -1;
+  }
+
+  if (!conn) {
+    LWIP_DEBUGF(SOCKETS_DEBUG, ("-1 / ENOBUFS (could not create netconn)\n"));
+    set_errno(ENOBUFS);
+    return -1;
+  }
+
+  i = alloc_socket(conn, 0);
+
+  if (i == -1) {
+    netconn_delete(conn);
+    set_errno(ENFILE);
+    return -1;
+  }
+  conn->socket = i;
+  done_socket(&sockets[i - LWIP_SOCKET_OFFSET]);
+  LWIP_DEBUGF(SOCKETS_DEBUG, ("%d\n", i));
+  set_errno(0);
+  return i;
+}

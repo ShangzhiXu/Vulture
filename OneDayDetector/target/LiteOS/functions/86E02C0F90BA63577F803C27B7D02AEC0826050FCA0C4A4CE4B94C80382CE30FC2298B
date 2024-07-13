@@ -1,0 +1,20 @@
+int mbedtls_nv_seed_poll( void *data,
+                          unsigned char *output, size_t len, size_t *olen )
+{
+    unsigned char buf[MBEDTLS_ENTROPY_BLOCK_SIZE];
+    size_t use_len = MBEDTLS_ENTROPY_BLOCK_SIZE;
+    ((void) data);
+
+    memset( buf, 0, MBEDTLS_ENTROPY_BLOCK_SIZE );
+
+    if( mbedtls_nv_seed_read( buf, MBEDTLS_ENTROPY_BLOCK_SIZE ) < 0 )
+      return( MBEDTLS_ERR_ENTROPY_SOURCE_FAILED );
+
+    if( len < use_len )
+      use_len = len;
+
+    memcpy( output, buf, use_len );
+    *olen = use_len;
+
+    return( 0 );
+}

@@ -1,0 +1,50 @@
+SECUREC_INLINE void  SecDecodeScanQualifier(const SecUnsignedChar **format, SecScanSpec *spec, int *finishFlag)
+{
+    switch (**format) {
+        case SECUREC_CHAR('F'): /* fall-through */ /* FALLTHRU */
+        case SECUREC_CHAR('N'):
+            break;
+        case SECUREC_CHAR('h'):
+            --spec->numberWidth; /* The h for SHORT , hh for CHAR */
+            spec->isWCharOrLong = -1;
+            break;
+#ifdef SECUREC_COMPATIBLE_LINUX_FORMAT
+        case SECUREC_CHAR('j'):
+            spec->numberWidth = SECUREC_NUM_WIDTH_LONG_LONG;  /* For intmax_t or uintmax_t */
+            spec->numberArgType = 1;
+            break;
+        case SECUREC_CHAR('t'): /* fall-through */ /* FALLTHRU */
+#endif
+#if SECUREC_IN_KERNEL
+        case SECUREC_CHAR('Z'): /* fall-through */ /* FALLTHRU */
+#endif
+        case SECUREC_CHAR('z'):
+#ifdef SECUREC_ON_64BITS
+            spec->numberWidth = SECUREC_NUM_WIDTH_LONG_LONG;
+            spec->numberArgType = 1;
+#else
+            spec->numberWidth = SECUREC_NUM_WIDTH_LONG;
+#endif
+            break;
+        case SECUREC_CHAR('L'):    /* For long double */ /* fall-through */ /* FALLTHRU */
+        case SECUREC_CHAR('q'):
+            spec->numberWidth = SECUREC_NUM_WIDTH_LONG_LONG;
+            spec->numberArgType = 1;
+            break;
+        case SECUREC_CHAR('l'):
+            SecDecodeScanQualifierL(format, spec);
+            break;
+        case SECUREC_CHAR('w'):
+            spec->isWCharOrLong = 1;
+            break;
+        case SECUREC_CHAR('*'):
+            spec->suppress = 1;
+            break;
+        case SECUREC_CHAR('I'):
+            SecDecodeScanQualifierI(format, spec, finishFlag);
+            break;
+        default:
+            *finishFlag = 1;
+            break;
+    }
+}

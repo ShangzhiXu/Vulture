@@ -1,0 +1,31 @@
+HAL_StatusTypeDef HAL_COMP_Stop(COMP_HandleTypeDef *hcomp)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  
+  /* Check the COMP handle allocation and lock status */
+  if((hcomp == NULL) || (__HAL_COMP_IS_LOCKED(hcomp)))
+  {
+    status = HAL_ERROR;
+  }
+  else
+  {
+    /* Check the parameter */
+    assert_param(IS_COMP_ALL_INSTANCE(hcomp->Instance));
+    
+    if((hcomp->State == HAL_COMP_STATE_BUSY)  ||
+       (hcomp->State == HAL_COMP_STATE_READY)   )
+    {
+      /* Disable the selected comparator */
+      CLEAR_BIT(hcomp->Instance->CSR, COMP_CSR_EN);
+
+      /* Set HAL COMP handle state */
+      hcomp->State = HAL_COMP_STATE_READY;
+    }
+    else
+    {
+      status = HAL_ERROR;
+    }
+  }
+  
+  return status;
+}

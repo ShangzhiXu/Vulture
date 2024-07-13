@@ -1,0 +1,23 @@
+SECUREC_INLINE void SecFinishNumberNegativeOther(SecScanSpec *spec)
+{
+    if (SECUREC_CONVERT_IS_SIGNED(spec->oriConvChr)) {
+        if (spec->number > SECUREC_MIN_LONG_NEG_VALUE) {
+            spec->number = SECUREC_MIN_LONG_NEG_VALUE;
+        } else {
+            spec->number = (unsigned long)(0U - spec->number); /* Wrap with unsigned long numbers */
+        }
+        if (spec->beyondMax != 0) {
+            if (spec->numberWidth < SECUREC_NUM_WIDTH_INT) {
+                spec->number = 0;
+            }
+            if (spec->numberWidth == SECUREC_NUM_WIDTH_LONG) {
+                spec->number = SECUREC_MIN_LONG_NEG_VALUE;
+            }
+        }
+    } else { /* For o, u, x, X, p */
+        spec->number = (unsigned long)(0U - spec->number); /* Wrap with unsigned long numbers */
+        if (spec->beyondMax != 0) {
+            spec->number = (unsigned long)SECUREC_MAX_64BITS_VALUE;
+        }
+    }
+}

@@ -1,0 +1,63 @@
+HAL_StatusTypeDef HAL_UART_Receive(UART_HandleTypeDef *huart, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+{
+  uint16_t* tmp;
+  uint16_t uhMask;
+  uint32_t tickstart = 0;
+  
+  /* Check that a Rx process is not already ongoing */
+  if(huart->RxState == HAL_UART_STATE_READY)
+  {
+    if((pData == NULL ) || (Size == 0U))
+    {
+      return  HAL_ERROR;
+    }
+    
+    /* Process Locked */
+    __HAL_LOCK(huart);
+    
+    huart->ErrorCode = HAL_UART_ERROR_NONE;
+    huart->RxState = HAL_UART_STATE_BUSY_RX;
+    
+    /* Init tickstart for timeout managment*/
+    tickstart = HAL_GetTick();
+    
+    huart->RxXferSize  = Size;
+    huart->RxXferCount = Size;
+    
+    /* Computation of UART mask to apply to RDR register */
+    UART_MASK_COMPUTATION(huart);
+    uhMask = huart->Mask;
+    
+    /* as long as data have to be received */
+    while(huart->RxXferCount > 0U)
+    {
+      if(UART_WaitOnFlagUntilTimeout(huart, UART_FLAG_RXNE, RESET, tickstart, Timeout) != HAL_OK)
+      {
+        return HAL_TIMEOUT;
+      }
+      if ((huart->Init.WordLength == UART_WORDLENGTH_9B) && (huart->Init.Parity == UART_PARITY_NONE))
+      {
+        tmp = (uint16_t*) pData ;
+        *tmp = (uint16_t)(huart->Instance->RDR & uhMask);
+        pData +=2U;
+      }
+      else
+      {
+        *pData++ = (uint8_t)(huart->Instance->RDR & (uint8_t)uhMask);
+      }
+      huart->RxXferCount--;
+    }
+    
+    /* At end of Rx process, restore huart->RxState to Ready */
+    huart->RxState = HAL_UART_STATE_READY;
+    
+    /* Process Unlocked */
+    __HAL_UNLOCK(huart);
+    
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

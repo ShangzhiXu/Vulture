@@ -1,0 +1,24 @@
+static void indev_button_proc(lv_indev_t * i, lv_indev_data_t * data)
+{
+    /* Die gracefully if i->btn_points is NULL */
+    if(i->btn_points == NULL) {
+        LV_LOG_WARN("indev_button_proc: btn_points was  NULL");
+        return;
+    }
+
+    i->proc.types.pointer.act_point.x = i->btn_points[data->btn_id].x;
+    i->proc.types.pointer.act_point.y = i->btn_points[data->btn_id].y;
+
+    /*Still the same point is pressed*/
+    if(i->proc.types.pointer.last_point.x == i->proc.types.pointer.act_point.x &&
+       i->proc.types.pointer.last_point.y == i->proc.types.pointer.act_point.y && data->state == LV_INDEV_STATE_PR) {
+        indev_proc_press(&i->proc);
+    }
+    else {
+        /*If a new point comes always make a release*/
+        indev_proc_release(&i->proc);
+    }
+
+    i->proc.types.pointer.last_point.x = i->proc.types.pointer.act_point.x;
+    i->proc.types.pointer.last_point.y = i->proc.types.pointer.act_point.y;
+}

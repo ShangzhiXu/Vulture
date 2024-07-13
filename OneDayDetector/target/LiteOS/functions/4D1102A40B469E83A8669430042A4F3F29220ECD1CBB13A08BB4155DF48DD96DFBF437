@@ -1,0 +1,41 @@
+UINT32 LOS_InspectByID(enInspectId InspectId)
+{
+    UINT32 index;
+    UINT32 ret;
+    enInspectStu enCurStatus = LOS_INSPECT_STU_START;
+
+    if (InspectId >= LOS_INSPECT_BUFF) {
+        printf("\nInspectId = [%d] Err.\n", InspectId);
+        return LOS_NOK;
+    }
+
+    for (index = 0; index < LOS_INSPECT_BUFF; index++) {
+        if (InspectId == g_inspect[index].InspectId) {
+            if (g_inspect[index].Inspectfunc == NULL) {
+                printf("InspectId = [%d] Err, Inspectfunc is NULL.\n\n", InspectId);
+                return LOS_NOK;
+            }
+
+            ret = g_inspect[index].Inspectfunc();
+
+            do {
+                if ((g_inspect[index].Status == LOS_INSPECT_STU_SUCCESS) && (ret == LOS_OK)) {
+                    printf("Kernel %s demo ok.\n\n", g_inspect[index].name);
+                    enCurStatus = LOS_INSPECT_STU_SUCCESS;
+                } else if (g_inspect[index].Status == LOS_INSPECT_STU_ERROR) {
+                    enCurStatus = LOS_INSPECT_STU_ERROR;
+                    printf("Inspect %s error, g_demoInspectErrCnt = [%d]\n\n", g_inspect[index].name, g_demoInspectErrCnt);
+                }
+
+                (VOID)LOS_TaskDelay(1000);
+
+            } while ((g_inspect[index].Status == LOS_INSPECT_STU_START) || (enCurStatus != g_inspect[index].Status));
+            break;
+        }
+    }
+    if (index == LOS_INSPECT_BUFF) {
+        return LOS_NOK;
+    } else {
+        return enCurStatus ? LOS_NOK : LOS_OK;
+    }
+}

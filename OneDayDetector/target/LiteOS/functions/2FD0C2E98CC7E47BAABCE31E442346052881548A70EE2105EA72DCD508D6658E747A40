@@ -1,0 +1,16 @@
+static inline int a_cas(volatile int *p, int t, int s)
+{
+	for (;;) {
+		register int r0 __asm__("r0") = t;
+		register int r1 __asm__("r1") = s;
+		register volatile int *r2 __asm__("r2") = p;
+		register uintptr_t r3 __asm__("r3") = __a_cas_ptr;
+		int old;
+		__asm__ __volatile__ (
+			BLX " r3"
+			: "+r"(r0), "+r"(r3) : "r"(r1), "r"(r2)
+			: "memory", "lr", "ip", "cc" );
+		if (!r0) return t;
+		if ((old=*p)!=t) return old;
+	}
+}

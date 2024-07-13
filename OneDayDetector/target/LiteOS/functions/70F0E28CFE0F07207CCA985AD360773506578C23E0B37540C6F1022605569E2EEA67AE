@@ -1,0 +1,40 @@
+int mbedtls_arc4_self_test( int verbose )
+{
+    int i, ret = 0;
+    unsigned char ibuf[8];
+    unsigned char obuf[8];
+    mbedtls_arc4_context ctx;
+
+    mbedtls_arc4_init( &ctx );
+
+    for( i = 0; i < 3; i++ )
+    {
+        if( verbose != 0 )
+            mbedtls_printf( "  ARC4 test #%d: ", i + 1 );
+
+        memcpy( ibuf, arc4_test_pt[i], 8 );
+
+        mbedtls_arc4_setup( &ctx, arc4_test_key[i], 8 );
+        mbedtls_arc4_crypt( &ctx, 8, ibuf, obuf );
+
+        if( memcmp( obuf, arc4_test_ct[i], 8 ) != 0 )
+        {
+            if( verbose != 0 )
+                mbedtls_printf( "failed\n" );
+
+            ret = 1;
+            goto exit;
+        }
+
+        if( verbose != 0 )
+            mbedtls_printf( "passed\n" );
+    }
+
+    if( verbose != 0 )
+        mbedtls_printf( "\n" );
+
+exit:
+    mbedtls_arc4_free( &ctx );
+
+    return( ret );
+}

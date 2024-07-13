@@ -1,0 +1,37 @@
+SECUREC_INLINE void SecDecodeTypeC(SecFormatAttr *attr, unsigned int c)
+{
+    attr->textLen = 1; /* Only 1 wide character */
+
+#if (defined(SECUREC_COMPATIBLE_LINUX_FORMAT)) && !(defined(__hpux)) && !(defined(SECUREC_ON_SOLARIS))
+    attr->flags &= ~SECUREC_FLAG_LEADZERO;
+#endif
+
+#ifdef SECUREC_FOR_WCHAR
+    if ((attr->flags & SECUREC_FLAG_SHORT) != 0) {
+        /* Get  multibyte character from argument */
+        attr->buffer.str[0] = (char)c;
+        attr->text.str = attr->buffer.str;
+        attr->textIsWide = 0;
+    } else {
+        attr->buffer.wStr[0] = (wchar_t)c;
+        attr->text.wStr = attr->buffer.wStr;
+        attr->textIsWide = 1;
+    }
+#else /* Not SECUREC_FOR_WCHAR */
+    if ((attr->flags & (SECUREC_FLAG_LONG | SECUREC_FLAG_WIDECHAR)) != 0) {
+#if SECUREC_HAVE_WCHART
+        attr->buffer.wStr[0] = (wchar_t)c;
+        attr->text.wStr = attr->buffer.wStr;
+        attr->textIsWide = 1;
+#else
+        attr->textLen = 0; /* Ignore unsupported characters */
+        attr->fldWidth = 0; /* No paddings  */
+#endif
+    } else {
+        /* Get  multibyte character from argument */
+        attr->buffer.str[0] = (char)c;
+        attr->text.str = attr->buffer.str;
+        attr->textIsWide = 0;
+    }
+#endif
+}

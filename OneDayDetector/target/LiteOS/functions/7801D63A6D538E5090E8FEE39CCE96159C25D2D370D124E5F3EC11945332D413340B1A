@@ -1,0 +1,32 @@
+static void add_symbol_value(ListNode * const symbol_map_head,
+                             const char * const symbol_names[],
+                             const size_t number_of_symbol_names,
+                             const void* value, const int refcount) {
+    const char* symbol_name;
+    ListNode *target_node;
+    SymbolMapValue *target_map_value;
+    assert_true(symbol_map_head);
+    assert_true(symbol_names);
+    assert_true(number_of_symbol_names);
+    symbol_name = symbol_names[0];
+
+    if (!list_find(symbol_map_head, symbol_name, symbol_names_match,
+                   &target_node)) {
+        SymbolMapValue * const new_symbol_map_value =
+            malloc(sizeof(*new_symbol_map_value));
+        new_symbol_map_value->symbol_name = symbol_name;
+        list_initialize(&new_symbol_map_value->symbol_values_list_head);
+        target_node = list_add_value(symbol_map_head, new_symbol_map_value,
+                                          1);
+    }
+
+    target_map_value = (SymbolMapValue*)target_node->value;
+    if (number_of_symbol_names == 1) {
+            list_add_value(&target_map_value->symbol_values_list_head,
+                                value, refcount);
+    } else {
+        add_symbol_value(&target_map_value->symbol_values_list_head,
+                         &symbol_names[1], number_of_symbol_names - 1, value,
+                         refcount);
+    }
+}

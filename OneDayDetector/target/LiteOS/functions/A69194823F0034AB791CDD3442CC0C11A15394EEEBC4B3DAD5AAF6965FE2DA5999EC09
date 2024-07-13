@@ -1,0 +1,181 @@
+static void JPEG_Set_Huff_DHTMem(JPEG_HandleTypeDef *hjpeg)
+{
+  JPEG_ACHuffTableTypeDef *HuffTableAC0 = (JPEG_ACHuffTableTypeDef *)(uint32_t)&JPEG_ACLUM_HuffTable;
+  JPEG_ACHuffTableTypeDef *HuffTableAC1 = (JPEG_ACHuffTableTypeDef *)(uint32_t)&JPEG_ACCHROM_HuffTable;
+  JPEG_DCHuffTableTypeDef *HuffTableDC0 = (JPEG_DCHuffTableTypeDef *)(uint32_t)&JPEG_DCLUM_HuffTable;
+  JPEG_DCHuffTableTypeDef *HuffTableDC1 = (JPEG_DCHuffTableTypeDef *)(uint32_t)&JPEG_DCCHROM_HuffTable;
+  uint32_t value, index;
+  __IO uint32_t *address;
+
+  /* DC0 Huffman Table : BITS*/
+  /* DC0 BITS is a 16 Bytes table i.e 4x32bits words from DHTMEM base address to DHTMEM + 3*/
+  address = (hjpeg->Instance->DHTMEM + 3);
+  index = 16;
+  while (index > 3UL)
+  {
+
+    *address = (((uint32_t)HuffTableDC0->Bits[index - 1UL] & 0xFFUL) << 24) |
+               (((uint32_t)HuffTableDC0->Bits[index - 2UL] & 0xFFUL) << 16) |
+               (((uint32_t)HuffTableDC0->Bits[index - 3UL] & 0xFFUL) << 8) |
+               ((uint32_t)HuffTableDC0->Bits[index - 4UL] & 0xFFUL);
+    address--;
+    index -= 4UL;
+
+  }
+  /* DC0 Huffman Table : Val*/
+  /* DC0 VALS is a 12 Bytes table i.e 3x32bits words from DHTMEM base address +4 to DHTMEM + 6 */
+  address = (hjpeg->Instance->DHTMEM + 6);
+  index = 12;
+  while (index > 3UL)
+  {
+    *address = (((uint32_t)HuffTableDC0->HuffVal[index - 1UL] & 0xFFUL) << 24) |
+               (((uint32_t)HuffTableDC0->HuffVal[index - 2UL] & 0xFFUL) << 16) |
+               (((uint32_t)HuffTableDC0->HuffVal[index - 3UL] & 0xFFUL) << 8) |
+               ((uint32_t)HuffTableDC0->HuffVal[index - 4UL] & 0xFFUL);
+    address--;
+    index -= 4UL;
+  }
+
+  /* AC0 Huffman Table : BITS*/
+  /* AC0 BITS is a 16 Bytes table i.e 4x32bits words from DHTMEM base address + 7 to DHTMEM + 10*/
+  address = (hjpeg->Instance->DHTMEM + 10UL);
+  index = 16;
+  while (index > 3UL)
+  {
+
+    *address = (((uint32_t)HuffTableAC0->Bits[index - 1UL] & 0xFFUL) << 24) |
+               (((uint32_t)HuffTableAC0->Bits[index - 2UL] & 0xFFUL) << 16) |
+               (((uint32_t)HuffTableAC0->Bits[index - 3UL] & 0xFFUL) << 8) |
+               ((uint32_t)HuffTableAC0->Bits[index - 4UL] & 0xFFUL);
+    address--;
+    index -= 4UL;
+
+  }
+  /* AC0 Huffman Table : Val*/
+  /* AC0 VALS is a 162 Bytes table i.e 41x32bits words from DHTMEM base address + 11 to DHTMEM + 51 */
+  /* only Byte 0 and Byte 1 of the last word (@ DHTMEM + 51) belong to AC0 VALS table */
+  address = (hjpeg->Instance->DHTMEM + 51);
+  value = *address & 0xFFFF0000U;
+  value = value | (((uint32_t)HuffTableAC0->HuffVal[161] & 0xFFUL) << 8) | ((uint32_t)HuffTableAC0->HuffVal[160] & 0xFFUL);
+  *address = value;
+
+  /*continue setting 160 AC0 huffman values */
+  address--; /* address = hjpeg->Instance->DHTMEM + 50*/
+  index = 160;
+  while (index > 3UL)
+  {
+    *address = (((uint32_t)HuffTableAC0->HuffVal[index - 1UL] & 0xFFUL) << 24) |
+               (((uint32_t)HuffTableAC0->HuffVal[index - 2UL] & 0xFFUL) << 16) |
+               (((uint32_t)HuffTableAC0->HuffVal[index - 3UL] & 0xFFUL) << 8) |
+               ((uint32_t)HuffTableAC0->HuffVal[index - 4UL] & 0xFFUL);
+    address--;
+    index -= 4UL;
+  }
+
+  /* DC1 Huffman Table : BITS*/
+  /* DC1 BITS is a 16 Bytes table i.e 4x32bits words from DHTMEM + 51 base address to DHTMEM + 55*/
+  /* only Byte 2 and Byte 3 of the first word (@ DHTMEM + 51) belong to DC1 Bits table */
+  address = (hjpeg->Instance->DHTMEM + 51);
+  value = *address & 0x0000FFFFU;
+  value = value | (((uint32_t)HuffTableDC1->Bits[1] & 0xFFUL) << 24) | (((uint32_t)HuffTableDC1->Bits[0] & 0xFFUL) << 16);
+  *address = value;
+
+  /* only Byte 0 and Byte 1 of the last word (@ DHTMEM + 55) belong to DC1 Bits table */
+  address = (hjpeg->Instance->DHTMEM + 55);
+  value = *address & 0xFFFF0000U;
+  value = value | (((uint32_t)HuffTableDC1->Bits[15] & 0xFFUL) << 8) | ((uint32_t)HuffTableDC1->Bits[14] & 0xFFUL);
+  *address = value;
+
+  /*continue setting 12 DC1 huffman Bits from DHTMEM + 54 down to DHTMEM + 52*/
+  address--;
+  index = 12;
+  while (index > 3UL)
+  {
+
+    *address = (((uint32_t)HuffTableDC1->Bits[index + 1UL] & 0xFFUL) << 24) |
+               (((uint32_t)HuffTableDC1->Bits[index] & 0xFFUL) << 16) |
+               (((uint32_t)HuffTableDC1->Bits[index - 1UL] & 0xFFUL) << 8) |
+               ((uint32_t)HuffTableDC1->Bits[index - 2UL] & 0xFFUL);
+    address--;
+    index -= 4UL;
+
+  }
+  /* DC1 Huffman Table : Val*/
+  /* DC1 VALS is a 12 Bytes table i.e 3x32bits words from DHTMEM base address +55 to DHTMEM + 58 */
+  /* only Byte 2 and Byte 3 of the first word (@ DHTMEM + 55) belong to DC1 Val table */
+  address = (hjpeg->Instance->DHTMEM + 55);
+  value = *address & 0x0000FFFFUL;
+  value = value | (((uint32_t)HuffTableDC1->HuffVal[1] & 0xFFUL) << 24) | (((uint32_t)HuffTableDC1->HuffVal[0] & 0xFFUL) <<
+                                                                         16);
+  *address = value;
+
+  /* only Byte 0 and Byte 1 of the last word (@ DHTMEM + 58) belong to DC1 Val table */
+  address = (hjpeg->Instance->DHTMEM + 58);
+  value = *address & 0xFFFF0000UL;
+  value = value | (((uint32_t)HuffTableDC1->HuffVal[11] & 0xFFUL) << 8) | ((uint32_t)HuffTableDC1->HuffVal[10] & 0xFFUL);
+  *address = value;
+
+  /*continue setting 8 DC1 huffman val from DHTMEM + 57 down to DHTMEM + 56*/
+  address--;
+  index = 8;
+  while (index > 3UL)
+  {
+    *address = (((uint32_t)HuffTableDC1->HuffVal[index + 1UL] & 0xFFUL) << 24) |
+               (((uint32_t)HuffTableDC1->HuffVal[index] & 0xFFUL) << 16) |
+               (((uint32_t)HuffTableDC1->HuffVal[index - 1UL] & 0xFFUL) << 8) |
+               ((uint32_t)HuffTableDC1->HuffVal[index - 2UL] & 0xFFUL);
+    address--;
+    index -= 4UL;
+  }
+
+  /* AC1 Huffman Table : BITS*/
+  /* AC1 BITS is a 16 Bytes table i.e 4x32bits words from DHTMEM base address + 58 to DHTMEM + 62*/
+  /* only Byte 2 and Byte 3 of the first word (@ DHTMEM + 58) belong to AC1 Bits table */
+  address = (hjpeg->Instance->DHTMEM + 58);
+  value = *address & 0x0000FFFFU;
+  value = value | (((uint32_t)HuffTableAC1->Bits[1] & 0xFFUL) << 24) | (((uint32_t)HuffTableAC1->Bits[0] & 0xFFUL) << 16);
+  *address = value;
+
+  /* only Byte 0 and Byte 1 of the last word (@ DHTMEM + 62) belong to Bits Val table */
+  address = (hjpeg->Instance->DHTMEM + 62);
+  value = *address & 0xFFFF0000U;
+  value = value | (((uint32_t)HuffTableAC1->Bits[15] & 0xFFUL) << 8) | ((uint32_t)HuffTableAC1->Bits[14] & 0xFFUL);
+  *address = value;
+
+  /*continue setting 12 AC1 huffman Bits from DHTMEM + 61 down to DHTMEM + 59*/
+  address--;
+  index = 12;
+  while (index > 3UL)
+  {
+
+    *address = (((uint32_t)HuffTableAC1->Bits[index + 1UL] & 0xFFUL) << 24) |
+               (((uint32_t)HuffTableAC1->Bits[index] & 0xFFUL) << 16) |
+               (((uint32_t)HuffTableAC1->Bits[index - 1UL] & 0xFFUL) << 8) |
+               ((uint32_t)HuffTableAC1->Bits[index - 2UL] & 0xFFUL);
+    address--;
+    index -= 4UL;
+
+  }
+  /* AC1 Huffman Table : Val*/
+  /* AC1 VALS is a 162 Bytes table i.e 41x32bits words from DHTMEM base address + 62 to DHTMEM + 102 */
+  /* only Byte 2 and Byte 3 of the first word (@ DHTMEM + 62) belong to AC1 VALS table */
+  address = (hjpeg->Instance->DHTMEM + 62);
+  value = *address & 0x0000FFFFUL;
+  value = value | (((uint32_t)HuffTableAC1->HuffVal[1] & 0xFFUL) << 24) | (((uint32_t)HuffTableAC1->HuffVal[0] & 0xFFUL) <<
+                                                                         16);
+  *address = value;
+
+  /*continue setting 160 AC1 huffman values from DHTMEM + 63 to DHTMEM+102 */
+  address = (hjpeg->Instance->DHTMEM + 102);
+  index = 160;
+  while (index > 3UL)
+  {
+    *address = (((uint32_t)HuffTableAC1->HuffVal[index + 1UL] & 0xFFUL) << 24) |
+               (((uint32_t)HuffTableAC1->HuffVal[index] & 0xFFUL) << 16) |
+               (((uint32_t)HuffTableAC1->HuffVal[index - 1UL] & 0xFFUL) << 8) |
+               ((uint32_t)HuffTableAC1->HuffVal[index - 2UL] & 0xFFUL);
+    address--;
+    index -= 4UL;
+  }
+
+}

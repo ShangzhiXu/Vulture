@@ -1,0 +1,57 @@
+int los_fs_mount(const char *fsname, const char *path, void *data)
+{
+    struct file_system *fs;
+    struct mount_point *mp;
+    const char *tmp = NULL;
+
+    if ((fsname == NULL) || (path == NULL) || (path[0] != '/') || (path[0] == '\0')) {
+        return LOS_NOK;
+    }
+
+    LOS_MuxPend(fs_mutex, LOS_WAIT_FOREVER);
+
+    fs = los_fs_find(fsname);
+
+    if (fs == NULL) {
+        goto err_post_exit;
+    }
+
+    mp = los_mp_find(path, &tmp);
+
+    if ((mp != NULL) && (tmp != NULL) && (*tmp == '\0')) {
+        goto err_post_exit;
+    }
+
+    mp = malloc(sizeof(struct mount_point));
+    if (mp == NULL) {
+        PRINT_ERR("fail to malloc memory in VFS, <malloc.c> is needed,"
+            "make sure it is added\n");
+        goto err_post_exit;
+    }
+
+    memset(mp, 0, sizeof(struct mount_point));
+
+    mp->m_fs = fs;
+    mp->m_path = path;
+    mp->m_data = data;
+    mp->m_refs = 0;
+
+    if (LOS_OK != LOS_MuxCreate(&mp->m_mutex)) {
+        goto err_free_exit;
+    }
+
+    mp->m_next = mount_points;
+    mount_points = mp;
+
+    fs->fs_refs++;
+
+    LOS_MuxPost(fs_mutex);
+
+    return LOS_OK;
+
+err_free_exit:
+    free(mp);
+err_post_exit:
+    LOS_MuxPost(fs_mutex);
+    return LOS_NOK;
+}

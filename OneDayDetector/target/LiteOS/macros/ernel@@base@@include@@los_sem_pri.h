@@ -1,0 +1,6 @@
+#define GET_SEM(semId)                      (((LosSemCB *)g_allSem) + GET_SEM_INDEX(semId))
+#define GET_SEM_COUNT(semId)                ((semId) >> SEM_SPLIT_BIT)
+#define GET_SEM_INDEX(semId)                ((semId) & ((1U << SEM_SPLIT_BIT) - 1))
+#define GET_SEM_INDEX(semId)                (semId)
+#define GET_SEM_LIST(ptr)                   LOS_DL_LIST_ENTRY(ptr, LosSemCB, semList)
+#define SET_SEM_ID(count, semId)            (((count) << SEM_SPLIT_BIT) | (semId))

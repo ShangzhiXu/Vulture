@@ -1,0 +1,35 @@
+int mbedtls_gcm_setkey( mbedtls_gcm_context *ctx,
+                        mbedtls_cipher_id_t cipher,
+                        const unsigned char *key,
+                        unsigned int keybits )
+{
+    int ret;
+    const mbedtls_cipher_info_t *cipher_info;
+
+    GCM_VALIDATE_RET( ctx != NULL );
+    GCM_VALIDATE_RET( key != NULL );
+    GCM_VALIDATE_RET( keybits == 128 || keybits == 192 || keybits == 256 );
+
+    cipher_info = mbedtls_cipher_info_from_values( cipher, keybits, MBEDTLS_MODE_ECB );
+    if( cipher_info == NULL )
+        return( MBEDTLS_ERR_GCM_BAD_INPUT );
+
+    if( cipher_info->block_size != 16 )
+        return( MBEDTLS_ERR_GCM_BAD_INPUT );
+
+    mbedtls_cipher_free( &ctx->cipher_ctx );
+
+    if( ( ret = mbedtls_cipher_setup( &ctx->cipher_ctx, cipher_info ) ) != 0 )
+        return( ret );
+
+    if( ( ret = mbedtls_cipher_setkey( &ctx->cipher_ctx, key, keybits,
+                               MBEDTLS_ENCRYPT ) ) != 0 )
+    {
+        return( ret );
+    }
+
+    if( ( ret = gcm_gen_table( ctx ) ) != 0 )
+        return( ret );
+
+    return( 0 );
+}

@@ -1,0 +1,57 @@
+int mbedtls_hmac_drbg_self_test( int verbose )
+{
+    mbedtls_hmac_drbg_context ctx;
+    unsigned char buf[OUTPUT_LEN];
+    const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type( MBEDTLS_MD_SHA1 );
+
+    mbedtls_hmac_drbg_init( &ctx );
+
+    /*
+     * PR = True
+     */
+    if( verbose != 0 )
+        mbedtls_printf( "  HMAC_DRBG (PR = True) : " );
+
+    test_offset = 0;
+    CHK( mbedtls_hmac_drbg_seed( &ctx, md_info,
+                         hmac_drbg_self_test_entropy, (void *) entropy_pr,
+                         NULL, 0 ) );
+    mbedtls_hmac_drbg_set_prediction_resistance( &ctx, MBEDTLS_HMAC_DRBG_PR_ON );
+    CHK( mbedtls_hmac_drbg_random( &ctx, buf, OUTPUT_LEN ) );
+    CHK( mbedtls_hmac_drbg_random( &ctx, buf, OUTPUT_LEN ) );
+    CHK( memcmp( buf, result_pr, OUTPUT_LEN ) );
+    mbedtls_hmac_drbg_free( &ctx );
+
+    mbedtls_hmac_drbg_free( &ctx );
+
+    if( verbose != 0 )
+        mbedtls_printf( "passed\n" );
+
+    /*
+     * PR = False
+     */
+    if( verbose != 0 )
+        mbedtls_printf( "  HMAC_DRBG (PR = False) : " );
+
+    mbedtls_hmac_drbg_init( &ctx );
+
+    test_offset = 0;
+    CHK( mbedtls_hmac_drbg_seed( &ctx, md_info,
+                         hmac_drbg_self_test_entropy, (void *) entropy_nopr,
+                         NULL, 0 ) );
+    CHK( mbedtls_hmac_drbg_reseed( &ctx, NULL, 0 ) );
+    CHK( mbedtls_hmac_drbg_random( &ctx, buf, OUTPUT_LEN ) );
+    CHK( mbedtls_hmac_drbg_random( &ctx, buf, OUTPUT_LEN ) );
+    CHK( memcmp( buf, result_nopr, OUTPUT_LEN ) );
+    mbedtls_hmac_drbg_free( &ctx );
+
+    mbedtls_hmac_drbg_free( &ctx );
+
+    if( verbose != 0 )
+        mbedtls_printf( "passed\n" );
+
+    if( verbose != 0 )
+        mbedtls_printf( "\n" );
+
+    return( 0 );
+}

@@ -1,0 +1,46 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 LOS_MemNodeSizeCheck(VOID *pool, VOID *ptr, UINT32 *totalSize, UINT32 *availSize)
+{
+    const VOID *head = NULL;
+    LosMemPoolInfo *poolInfo = (LosMemPoolInfo *)pool;
+    UINT8 *endPool = NULL;
+
+    if (g_memCheckLevel == LOS_MEM_CHECK_LEVEL_DISABLE) {
+        return LOS_ERRNO_MEMCHECK_DISABLED;
+    }
+
+    if ((pool == NULL) || (ptr == NULL) || (totalSize == NULL) || (availSize == NULL)) {
+        return LOS_ERRNO_MEMCHECK_PARA_NULL;
+    }
+
+    endPool = (UINT8 *)pool + poolInfo->poolSize;
+    if (!(OS_MEM_MIDDLE_ADDR_OPEN_END(pool, ptr, endPool))) {
+        return LOS_ERRNO_MEMCHECK_OUTSIDE;
+    }
+
+    if (g_memCheckLevel == LOS_MEM_CHECK_LEVEL_HIGH) {
+        head = OsMemFindNodeCtrl(pool, ptr);
+        if ((head == NULL) ||
+            (OS_MEM_NODE_GET_SIZE(((LosMemDynNode *)head)->selfNode.sizeAndFlag) < ((UINTPTR)ptr - (UINTPTR)head))) {
+            return LOS_ERRNO_MEMCHECK_NO_HEAD;
+        }
+        *totalSize = OS_MEM_NODE_GET_SIZE(((LosMemDynNode *)head)->selfNode.sizeAndFlag - sizeof(LosMemDynNode));
+        *availSize = OS_MEM_NODE_GET_SIZE(((LosMemDynNode *)head)->selfNode.sizeAndFlag - ((UINTPTR)ptr -
+                                          (UINTPTR)head));
+        return LOS_OK;
+    }
+    if (g_memCheckLevel == LOS_MEM_CHECK_LEVEL_LOW) {
+        if (ptr != (VOID *)OS_MEM_ALIGN(ptr, OS_MEM_ALIGN_SIZE)) {
+            return LOS_ERRNO_MEMCHECK_NO_HEAD;
+        }
+        head = (const VOID *)((UINTPTR)ptr - sizeof(LosMemDynNode));
+        if (OS_MEM_MAGIC_VALID(((LosMemDynNode *)head)->selfNode.freeNodeInfo.pstPrev)) {
+            *totalSize = OS_MEM_NODE_GET_SIZE(((LosMemDynNode *)head)->selfNode.sizeAndFlag - sizeof(LosMemDynNode));
+            *availSize = OS_MEM_NODE_GET_SIZE(((LosMemDynNode *)head)->selfNode.sizeAndFlag - sizeof(LosMemDynNode));
+            return LOS_OK;
+        } else {
+            return LOS_ERRNO_MEMCHECK_NO_HEAD;
+        }
+    }
+
+    return LOS_ERRNO_MEMCHECK_WRONG_LEVEL;
+}

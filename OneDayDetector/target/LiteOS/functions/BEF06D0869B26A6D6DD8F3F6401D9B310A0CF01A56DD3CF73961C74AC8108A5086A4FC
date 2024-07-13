@@ -1,0 +1,36 @@
+void fsm_lowerdown(fsm *f) {
+    switch( f->state ){
+    case PPP_FSM_CLOSED:
+	f->state = PPP_FSM_INITIAL;
+	break;
+
+    case PPP_FSM_STOPPED:
+	f->state = PPP_FSM_STARTING;
+	if( f->callbacks->starting )
+	    (*f->callbacks->starting)(f);
+	break;
+
+    case PPP_FSM_CLOSING:
+	f->state = PPP_FSM_INITIAL;
+	UNTIMEOUT(fsm_timeout, f);	/* Cancel timeout */
+	break;
+
+    case PPP_FSM_STOPPING:
+    case PPP_FSM_REQSENT:
+    case PPP_FSM_ACKRCVD:
+    case PPP_FSM_ACKSENT:
+	f->state = PPP_FSM_STARTING;
+	UNTIMEOUT(fsm_timeout, f);	/* Cancel timeout */
+	break;
+
+    case PPP_FSM_OPENED:
+	if( f->callbacks->down )
+	    (*f->callbacks->down)(f);
+	f->state = PPP_FSM_STARTING;
+	break;
+
+    default:
+	FSMDEBUG(("%s: Down event in state %d!", PROTO_NAME(f), f->state));
+	/* no break */
+    }
+}

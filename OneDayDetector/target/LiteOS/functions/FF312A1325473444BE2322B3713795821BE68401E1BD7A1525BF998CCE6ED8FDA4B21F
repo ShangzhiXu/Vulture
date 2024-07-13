@@ -1,0 +1,43 @@
+LITE_OS_SEC_TEXT_MINOR VOID OsWriteWow2Flash(VOID)
+{
+    FlashWriteParam wowSection;
+    FlashWriteParam excHeapSection = {0};
+    FlashWriteParam heapMemSection;
+    size_t eraseAlignSize;
+    size_t writeAlignSize;
+    FLASH_WRITE_FUNC flashWriteFunc = g_runstopParam.pfFlashWriteFunc;
+
+    eraseAlignSize = g_runstopParam.uwFlashEraseAlignSize;
+    writeAlignSize = g_runstopParam.uwFlashWriteAlignSize;
+    writeAlignSize = (writeAlignSize >= eraseAlignSize) ? writeAlignSize : eraseAlignSize;
+    if (flashWriteFunc == NULL) {
+        PRINT_ERR("%s, %d\n", __FUNCTION__, __LINE__);
+        return;
+    }
+
+    wowSection.memStart = (UINTPTR)&__ram_vectors_vma;
+    wowSection.flashStart = g_flashImgAddr;
+    wowSection.memSize = ((UINTPTR)&__wow_end) - ((UINTPTR)&__ram_vectors_vma);
+    wowSection.memSize = (wowSection.memSize + writeAlignSize - 1) & ~(writeAlignSize - 1);
+
+#ifdef LOSCFG_EXC_INTERACTION
+    excHeapSection.memStart = (UINTPTR)m_aucSysMem0;
+    excHeapSection.flashStart = g_flashImgAddr + wowSection.memSize;
+    excHeapSection.memSize = LOS_MemLastUsedGet(m_aucSysMem0) - (UINTPTR)m_aucSysMem0;
+    excHeapSection.memSize = (excHeapSection.memSize + writeAlignSize - 1) & ~(writeAlignSize - 1);
+
+    g_excInteractionMemStart = (VOID *)(((UINTPTR)&__ram_vectors_vma) + wowSection.memSize);
+    g_excInteractionMemSize = excHeapSection.memSize;
+#endif
+
+    heapMemSection.memStart = (UINTPTR)m_aucSysMem1;
+    heapMemSection.flashStart = g_flashImgAddr + wowSection.memSize + excHeapSection.memSize;
+    heapMemSection.memSize = LOS_MemLastUsedGet(m_aucSysMem1) - (UINTPTR)m_aucSysMem1;
+    heapMemSection.memSize = (heapMemSection.memSize + writeAlignSize - 1) & ~(writeAlignSize - 1);
+
+    g_heapMemSize = heapMemSection.memSize;
+    g_heapMemStart = (VOID *)(((UINTPTR)&__ram_vectors_vma) + wowSection.memSize + excHeapSection.memSize);
+    g_wowImgSize = wowSection.memSize + heapMemSection.memSize + excHeapSection.memSize;
+
+    OsDoWriteWow2Flash(flashWriteFunc, &wowSection, &excHeapSection, &heapMemSection);
+}

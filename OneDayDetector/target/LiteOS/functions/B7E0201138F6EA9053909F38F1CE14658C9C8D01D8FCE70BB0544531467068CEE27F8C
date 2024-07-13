@@ -1,0 +1,21 @@
+tcpip_try_callback(tcpip_callback_fn function, void *ctx)
+{
+  struct tcpip_msg *msg;
+
+  LWIP_ASSERT("Invalid mbox", sys_mbox_valid_val(tcpip_mbox));
+
+  msg = (struct tcpip_msg *)memp_malloc(MEMP_TCPIP_MSG_API);
+  if (msg == NULL) {
+    return ERR_MEM;
+  }
+
+  msg->type = TCPIP_MSG_CALLBACK;
+  msg->msg.cb.function = function;
+  msg->msg.cb.ctx = ctx;
+
+  if (sys_mbox_trypost(&tcpip_mbox, msg) != ERR_OK) {
+    memp_free(MEMP_TCPIP_MSG_API, msg);
+    return ERR_MEM;
+  }
+  return ERR_OK;
+}

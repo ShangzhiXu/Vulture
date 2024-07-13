@@ -1,0 +1,169 @@
+static int lcp_ackci(fsm *f, u_char *p, int len) {
+    ppp_pcb *pcb = f->pcb;
+    lcp_options *go = &pcb->lcp_gotoptions;
+    u_char cilen, citype, cichar;
+    u_short cishort;
+    u32_t cilong;
+
+    /*
+     * CIs must be in exactly the same order that we sent.
+     * Check packet length and CI length at each step.
+     * If we find any deviations, then this packet is bad.
+     */
+#define ACKCIVOID(opt, neg) \
+    if (neg) { \
+	if ((len -= CILEN_VOID) < 0) \
+	    goto bad; \
+	GETCHAR(citype, p); \
+	GETCHAR(cilen, p); \
+	if (cilen != CILEN_VOID || \
+	    citype != opt) \
+	    goto bad; \
+    }
+#define ACKCISHORT(opt, neg, val) \
+    if (neg) { \
+	if ((len -= CILEN_SHORT) < 0) \
+	    goto bad; \
+	GETCHAR(citype, p); \
+	GETCHAR(cilen, p); \
+	if (cilen != CILEN_SHORT || \
+	    citype != opt) \
+	    goto bad; \
+	GETSHORT(cishort, p); \
+	if (cishort != val) \
+	    goto bad; \
+    }
+#define ACKCICHAR(opt, neg, val) \
+    if (neg) { \
+	if ((len -= CILEN_CHAR) < 0) \
+	    goto bad; \
+	GETCHAR(citype, p); \
+	GETCHAR(cilen, p); \
+	if (cilen != CILEN_CHAR || \
+	    citype != opt) \
+	    goto bad; \
+	GETCHAR(cichar, p); \
+	if (cichar != val) \
+	    goto bad; \
+    }
+#if CHAP_SUPPORT
+#define ACKCICHAP(opt, neg, val) \
+    if (neg) { \
+	if ((len -= CILEN_CHAP) < 0) \
+	    goto bad; \
+	GETCHAR(citype, p); \
+	GETCHAR(cilen, p); \
+	if (cilen != CILEN_CHAP || \
+	    citype != (opt)) \
+	    goto bad; \
+	GETSHORT(cishort, p); \
+	if (cishort != PPP_CHAP) \
+	    goto bad; \
+	GETCHAR(cichar, p); \
+	if (cichar != (CHAP_DIGEST(val))) \
+	  goto bad; \
+    }
+#endif /* CHAP_SUPPORT */
+#define ACKCILONG(opt, neg, val) \
+    if (neg) { \
+	if ((len -= CILEN_LONG) < 0) \
+	    goto bad; \
+	GETCHAR(citype, p); \
+	GETCHAR(cilen, p); \
+	if (cilen != CILEN_LONG || \
+	    citype != opt) \
+	    goto bad; \
+	GETLONG(cilong, p); \
+	if (cilong != val) \
+	    goto bad; \
+    }
+#if LQR_SUPPORT
+#define ACKCILQR(opt, neg, val) \
+    if (neg) { \
+	if ((len -= CILEN_LQR) < 0) \
+	    goto bad; \
+	GETCHAR(citype, p); \
+	GETCHAR(cilen, p); \
+	if (cilen != CILEN_LQR || \
+	    citype != opt) \
+	    goto bad; \
+	GETSHORT(cishort, p); \
+	if (cishort != PPP_LQR) \
+	    goto bad; \
+	GETLONG(cilong, p); \
+	if (cilong != val) \
+	  goto bad; \
+    }
+#endif /* LQR_SUPPORT */
+#define ACKCIENDP(opt, neg, class, val, vlen) \
+    if (neg) { \
+	int i; \
+	if ((len -= CILEN_CHAR + vlen) < 0) \
+	    goto bad; \
+	GETCHAR(citype, p); \
+	GETCHAR(cilen, p); \
+	if (cilen != CILEN_CHAR + vlen || \
+	    citype != opt) \
+	    goto bad; \
+	GETCHAR(cichar, p); \
+	if (cichar != class) \
+	    goto bad; \
+	for (i = 0; i < vlen; ++i) { \
+	    GETCHAR(cichar, p); \
+	    if (cichar != val[i]) \
+		goto bad; \
+	} \
+    }
+
+    ACKCISHORT(CI_MRU, go->neg_mru && go->mru != PPP_DEFMRU, go->mru);
+    ACKCILONG(CI_ASYNCMAP, go->neg_asyncmap && go->asyncmap != 0xFFFFFFFF,
+	      go->asyncmap);
+#if EAP_SUPPORT
+    ACKCISHORT(CI_AUTHTYPE, go->neg_eap, PPP_EAP);
+#endif /* EAP_SUPPORT */
+#if CHAP_SUPPORT /* cannot be improved, embedding a directive within macro arguments is not portable */
+#if EAP_SUPPORT
+    ACKCICHAP(CI_AUTHTYPE, !go->neg_eap && go->neg_chap, go->chap_mdtype);
+#endif /* EAP_SUPPORT */
+#if !EAP_SUPPORT
+    ACKCICHAP(CI_AUTHTYPE, go->neg_chap, go->chap_mdtype);
+#endif /* !EAP_SUPPORT */
+#endif /* CHAP_SUPPORT */
+#if PAP_SUPPORT /* cannot be improved, embedding a directive within macro arguments is not portable */
+#if EAP_SUPPORT && CHAP_SUPPORT
+    ACKCISHORT(CI_AUTHTYPE, !go->neg_eap && !go->neg_chap && go->neg_upap, PPP_PAP);
+#endif /* EAP_SUPPORT && CHAP_SUPPORT */
+#if EAP_SUPPORT && !CHAP_SUPPORT
+    ACKCISHORT(CI_AUTHTYPE, !go->neg_eap && go->neg_upap, PPP_PAP);
+#endif /* EAP_SUPPORT && !CHAP_SUPPORT */
+#if !EAP_SUPPORT && CHAP_SUPPORT
+    ACKCISHORT(CI_AUTHTYPE, !go->neg_chap && go->neg_upap, PPP_PAP);
+#endif /* !EAP_SUPPORT && CHAP_SUPPORT */
+#if !EAP_SUPPORT && !CHAP_SUPPORT
+    ACKCISHORT(CI_AUTHTYPE, go->neg_upap, PPP_PAP);
+#endif /* !EAP_SUPPORT && !CHAP_SUPPORT */
+#endif /* PAP_SUPPORT */
+#if LQR_SUPPORT
+    ACKCILQR(CI_QUALITY, go->neg_lqr, go->lqr_period);
+#endif /* LQR_SUPPORT */
+    ACKCICHAR(CI_CALLBACK, go->neg_cbcp, CBCP_OPT);
+    ACKCILONG(CI_MAGICNUMBER, go->neg_magicnumber, go->magicnumber);
+    ACKCIVOID(CI_PCOMPRESSION, go->neg_pcompression);
+    ACKCIVOID(CI_ACCOMPRESSION, go->neg_accompression);
+#ifdef HAVE_MULTILINK
+    ACKCISHORT(CI_MRRU, go->neg_mrru, go->mrru);
+#endif /* HAVE_MULTILINK */
+    ACKCIVOID(CI_SSNHF, go->neg_ssnhf);
+    ACKCIENDP(CI_EPDISC, go->neg_endpoint, go->endpoint.class_,
+	      go->endpoint.value, go->endpoint.length);
+
+    /*
+     * If there are any remaining CIs, then this packet is bad.
+     */
+    if (len != 0)
+	goto bad;
+    return (1);
+bad:
+    LCPDEBUG(("lcp_acki: received bad Ack!"));
+    return (0);
+}

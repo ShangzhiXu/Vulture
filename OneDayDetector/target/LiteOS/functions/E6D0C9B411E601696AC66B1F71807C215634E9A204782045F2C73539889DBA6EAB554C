@@ -1,0 +1,16 @@
+mdns_domain_add_label_pbuf(struct mdns_domain *domain, const struct pbuf *p, u16_t offset, u8_t len)
+{
+  err_t err = mdns_domain_add_label_base(domain, len);
+  if (err != ERR_OK) {
+    return err;
+  }
+  if (len) {
+    if (pbuf_copy_partial(p, &domain->name[domain->length], len, offset) != len) {
+      /* take back the ++ done before */
+      domain->length--;
+      return ERR_ARG;
+    }
+    domain->length += len;
+  }
+  return ERR_OK;
+}

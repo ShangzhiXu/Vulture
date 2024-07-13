@@ -1,0 +1,20 @@
+netifapi_netif_index_to_name(u8_t idx, char *name)
+{
+  err_t err;
+  NETIFAPI_VAR_DECLARE(msg);
+  NETIFAPI_VAR_ALLOC(msg);
+
+  NETIFAPI_VAR_REF(msg).msg.ifs.index = idx;
+#if !LWIP_MPU_COMPATIBLE
+  NETIFAPI_VAR_REF(msg).msg.ifs.name = name;
+#endif /* LWIP_MPU_COMPATIBLE */
+  err = tcpip_api_call(netifapi_do_index_to_name, &API_VAR_REF(msg).call);
+#if LWIP_MPU_COMPATIBLE
+  if (!err) {
+    strncpy(name, NETIFAPI_VAR_REF(msg).msg.ifs.name, NETIF_NAMESIZE - 1);
+    name[NETIF_NAMESIZE - 1] = '\0';
+  }
+#endif /* LWIP_MPU_COMPATIBLE */
+  NETIFAPI_VAR_FREE(msg);
+  return err;
+}

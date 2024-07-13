@@ -1,0 +1,19 @@
+igmp_remove_group(struct netif *netif, struct igmp_group *group)
+{
+  err_t err = ERR_OK;
+  struct igmp_group *tmp_group;
+
+  /* Skip the first group in the list, it is always the allsystems group added in igmp_start() */
+  for (tmp_group = netif_igmp_data(netif); tmp_group != NULL; tmp_group = tmp_group->next) {
+    if (tmp_group->next == group) {
+      tmp_group->next = group->next;
+      break;
+    }
+  }
+  /* Group not found in netif's igmp group list */
+  if (tmp_group == NULL) {
+    err = ERR_ARG;
+  }
+
+  return err;
+}

@@ -1,0 +1,94 @@
+static void upap_rauthreq(ppp_pcb *pcb, u_char *inp, int id, int len) {
+    u_char ruserlen, rpasswdlen;
+    char *ruser;
+    char *rpasswd;
+    char rhostname[256];
+    int retcode;
+    const char *msg;
+    int msglen;
+
+    if (pcb->upap.us_serverstate < UPAPSS_LISTEN)
+	return;
+
+    /*
+     * If we receive a duplicate authenticate-request, we are
+     * supposed to return the same status as for the first request.
+     */
+    if (pcb->upap.us_serverstate == UPAPSS_OPEN) {
+	upap_sresp(pcb, UPAP_AUTHACK, id, "", 0);	/* return auth-ack */
+	return;
+    }
+    if (pcb->upap.us_serverstate == UPAPSS_BADAUTH) {
+	upap_sresp(pcb, UPAP_AUTHNAK, id, "", 0);	/* return auth-nak */
+	return;
+    }
+
+    /*
+     * Parse user/passwd.
+     */
+    if (len < 1) {
+	UPAPDEBUG(("pap_rauth: rcvd short packet."));
+	return;
+    }
+    GETCHAR(ruserlen, inp);
+    len -= sizeof (u_char) + ruserlen + sizeof (u_char);
+    if (len < 0) {
+	UPAPDEBUG(("pap_rauth: rcvd short packet."));
+	return;
+    }
+    ruser = (char *) inp;
+    INCPTR(ruserlen, inp);
+    GETCHAR(rpasswdlen, inp);
+    if (len < rpasswdlen) {
+	UPAPDEBUG(("pap_rauth: rcvd short packet."));
+	return;
+    }
+
+    rpasswd = (char *) inp;
+
+    /*
+     * Check the username and password given.
+     */
+    retcode = UPAP_AUTHNAK;
+    if (auth_check_passwd(pcb, ruser, ruserlen, rpasswd, rpasswdlen, &msg, &msglen)) {
+      retcode = UPAP_AUTHACK;
+    }
+    BZERO(rpasswd, rpasswdlen);
+
+#if 0 /* UNUSED */
+    /*
+     * Check remote number authorization.  A plugin may have filled in
+     * the remote number or added an allowed number, and rather than
+     * return an authenticate failure, is leaving it for us to verify.
+     */
+    if (retcode == UPAP_AUTHACK) {
+	if (!auth_number()) {
+	    /* We do not want to leak info about the pap result. */
+	    retcode = UPAP_AUTHNAK; /* XXX exit value will be "wrong" */
+	    warn("calling number %q is not authorized", remote_number);
+	}
+    }
+
+    msglen = strlen(msg);
+    if (msglen > 255)
+	msglen = 255;
+#endif /* UNUSED */
+
+    upap_sresp(pcb, retcode, id, msg, msglen);
+
+    /* Null terminate and clean remote name. */
+    ppp_slprintf(rhostname, sizeof(rhostname), "%.*v", ruserlen, ruser);
+
+    if (retcode == UPAP_AUTHACK) {
+	pcb->upap.us_serverstate = UPAPSS_OPEN;
+	ppp_notice("PAP peer authentication succeeded for %q", rhostname);
+	auth_peer_success(pcb, PPP_PAP, 0, ruser, ruserlen);
+    } else {
+	pcb->upap.us_serverstate = UPAPSS_BADAUTH;
+	ppp_warn("PAP peer authentication failed for %q", rhostname);
+	auth_peer_fail(pcb, PPP_PAP);
+    }
+
+    if (pcb->settings.pap_req_timeout > 0)
+	UNTIMEOUT(upap_reqtimeout, pcb);
+}

@@ -1,0 +1,40 @@
+HAL_StatusTypeDef HAL_FMPI2C_Slave_Transmit_IT(FMPI2C_HandleTypeDef *hfmpi2c, uint8_t *pData, uint16_t Size)
+{
+  if (hfmpi2c->State == HAL_FMPI2C_STATE_READY)
+  {
+    /* Process Locked */
+    __HAL_LOCK(hfmpi2c);
+
+    hfmpi2c->State       = HAL_FMPI2C_STATE_BUSY_TX;
+    hfmpi2c->Mode        = HAL_FMPI2C_MODE_SLAVE;
+    hfmpi2c->ErrorCode   = HAL_FMPI2C_ERROR_NONE;
+
+    /* Enable Address Acknowledge */
+    hfmpi2c->Instance->CR2 &= ~FMPI2C_CR2_NACK;
+
+    /* Prepare transfer parameters */
+    hfmpi2c->pBuffPtr    = pData;
+    hfmpi2c->XferCount   = Size;
+    hfmpi2c->XferSize    = hfmpi2c->XferCount;
+    hfmpi2c->XferOptions = FMPI2C_NO_OPTION_FRAME;
+    hfmpi2c->XferISR     = FMPI2C_Slave_ISR_IT;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hfmpi2c);
+
+    /* Note : The FMPI2C interrupts must be enabled after unlocking current process
+              to avoid the risk of FMPI2C interrupt handle execution before current
+              process unlock */
+
+    /* Enable ERR, TC, STOP, NACK, TXI interrupt */
+    /* possible to enable all of these */
+    /* FMPI2C_IT_ERRI | FMPI2C_IT_TCI| FMPI2C_IT_STOPI| FMPI2C_IT_NACKI | FMPI2C_IT_ADDRI | FMPI2C_IT_RXI | FMPI2C_IT_TXI */
+    FMPI2C_Enable_IRQ(hfmpi2c, FMPI2C_XFER_TX_IT | FMPI2C_XFER_LISTEN_IT);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

@@ -1,0 +1,55 @@
+long double atanl(long double x)
+{
+	union ldshape u = {x};
+	long double w, s1, s2, z;
+	int id;
+	unsigned e = u.i.se & 0x7fff;
+	unsigned sign = u.i.se >> 15;
+	unsigned expman;
+
+	if (e >= 0x3fff + LDBL_MANT_DIG + 1) { /* if |x| is large, atan(x)~=pi/2 */
+		if (isnan(x))
+			return x;
+		return sign ? -atanhi[3] : atanhi[3];
+	}
+	/* Extract the exponent and the first few bits of the mantissa. */
+	expman = EXPMAN(u);
+	if (expman < ((0x3fff - 2) << 8) + 0xc0) {  /* |x| < 0.4375 */
+		if (e < 0x3fff - (LDBL_MANT_DIG+1)/2) {   /* if |x| is small, atanl(x)~=x */
+			/* raise underflow if subnormal */
+			if (e == 0)
+				FORCE_EVAL((float)x);
+			return x;
+		}
+		id = -1;
+	} else {
+		x = fabsl(x);
+		if (expman < (0x3fff << 8) + 0x30) {  /* |x| < 1.1875 */
+			if (expman < ((0x3fff - 1) << 8) + 0x60) { /*  7/16 <= |x| < 11/16 */
+				id = 0;
+				x = (2.0*x-1.0)/(2.0+x);
+			} else {                                 /* 11/16 <= |x| < 19/16 */
+				id = 1;
+				x = (x-1.0)/(x+1.0);
+			}
+		} else {
+			if (expman < ((0x3fff + 1) << 8) + 0x38) { /* |x| < 2.4375 */
+				id = 2;
+				x = (x-1.5)/(1.0+1.5*x);
+			} else {                                 /* 2.4375 <= |x| */
+				id = 3;
+				x = -1.0/x;
+			}
+		}
+	}
+	/* end of argument reduction */
+	z = x*x;
+	w = z*z;
+	/* break sum aT[i]z**(i+1) into odd and even poly */
+	s1 = z*T_even(w);
+	s2 = w*T_odd(w);
+	if (id < 0)
+		return x - x*(s1+s2);
+	z = atanhi[id] - ((x*(s1+s2) - atanlo[id]) - x);
+	return sign ? -z : z;
+}

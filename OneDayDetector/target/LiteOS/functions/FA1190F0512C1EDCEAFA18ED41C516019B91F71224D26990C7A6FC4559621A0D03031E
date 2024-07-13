@@ -1,0 +1,45 @@
+LITE_OS_SEC_TEXT_MINOR VOID OsShellHistoryShow(UINT32 value, ShellCB *shellCB)
+{
+    CmdKeyLink *cmd = NULL;
+    CmdKeyLink *cmdNode = shellCB->cmdHistoryKeyLink;
+    CmdKeyLink *cmdMask = shellCB->cmdMaskKeyLink;
+    errno_t ret;
+
+    (VOID)pthread_mutex_lock(&shellCB->historyMutex);
+    if (value == CMD_KEY_DOWN) {
+        if (cmdMask == cmdNode) {
+            goto END;
+        }
+
+        cmd = LOS_DL_LIST_ENTRY(cmdMask->list.pstNext, CmdKeyLink, list);
+        if (cmd != cmdNode) {
+            cmdMask = cmd;
+        } else {
+            goto END;
+        }
+    } else if (value == CMD_KEY_UP) {
+        cmd = LOS_DL_LIST_ENTRY(cmdMask->list.pstPrev, CmdKeyLink, list);
+        if (cmd != cmdNode) {
+            cmdMask = cmd;
+        } else {
+            goto END;
+        }
+    }
+
+    while (shellCB->shellBufOffset--) {
+        PRINTK("\b \b");
+    }
+    PRINTK("%s", cmdMask->cmdString);
+    shellCB->shellBufOffset = strlen(cmdMask->cmdString);
+    (VOID)memset_s(shellCB->shellBuf, SHOW_MAX_LEN, 0, SHOW_MAX_LEN);
+    ret = memcpy_s(shellCB->shellBuf, SHOW_MAX_LEN, cmdMask->cmdString, shellCB->shellBufOffset);
+    if (ret != EOK) {
+        PRINT_ERR("%s, %d memcpy failed!\n", __FUNCTION__, __LINE__);
+        goto END;
+    }
+    shellCB->cmdMaskKeyLink = (VOID *)cmdMask;
+
+END:
+    (VOID)pthread_mutex_unlock(&shellCB->historyMutex);
+    return;
+}

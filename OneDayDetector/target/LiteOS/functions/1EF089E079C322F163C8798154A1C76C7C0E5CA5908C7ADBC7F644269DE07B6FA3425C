@@ -1,0 +1,66 @@
+snmp_oid_to_ip(const u32_t *oid, u8_t oid_len, ip_addr_t *ip)
+{
+  /* InetAddressType */
+  if (oid_len < 1) {
+    return 0;
+  }
+
+  if (oid[0] == 0) { /* any */
+    /* 1x InetAddressType, 1x OID len */
+    if (oid_len < 2) {
+      return 0;
+    }
+    if (oid[1] != 0) {
+      return 0;
+    }
+
+    memset(ip, 0, sizeof(*ip));
+    IP_SET_TYPE(ip, IPADDR_TYPE_ANY);
+
+    return 2;
+  } else if (oid[0] == 1) { /* ipv4 */
+#if LWIP_IPV4
+    /* 1x InetAddressType, 1x OID len, 4x InetAddressIPv4 */
+    if (oid_len < 6) {
+      return 0;
+    }
+
+    /* 4x ipv4 OID */
+    if (oid[1] != 4) {
+      return 0;
+    }
+
+    IP_SET_TYPE(ip, IPADDR_TYPE_V4);
+    if (!snmp_oid_to_ip4(&oid[2], ip_2_ip4(ip))) {
+      return 0;
+    }
+
+    return 6;
+#else /* LWIP_IPV4 */
+    return 0;
+#endif /* LWIP_IPV4 */
+  } else if (oid[0] == 2) { /* ipv6 */
+#if LWIP_IPV6
+    /* 1x InetAddressType, 1x OID len, 16x InetAddressIPv6 */
+    if (oid_len < 18) {
+      return 0;
+    }
+
+    /* 16x ipv6 OID */
+    if (oid[1] != 16) {
+      return 0;
+    }
+
+    IP_SET_TYPE(ip, IPADDR_TYPE_V6);
+    if (!snmp_oid_to_ip6(&oid[2], ip_2_ip6(ip))) {
+      return 0;
+    }
+
+    return 18;
+#else /* LWIP_IPV6 */
+    return 0;
+#endif /* LWIP_IPV6 */
+  } else { /* unsupported InetAddressType */
+    return 0;
+  }
+}

@@ -1,0 +1,32 @@
+int mbedtls_mpi_safe_cond_swap( mbedtls_mpi *X, mbedtls_mpi *Y, unsigned char swap )
+{
+    int ret, s;
+    size_t i;
+    mbedtls_mpi_uint tmp;
+    MPI_VALIDATE_RET( X != NULL );
+    MPI_VALIDATE_RET( Y != NULL );
+
+    if( X == Y )
+        return( 0 );
+
+    /* make sure swap is 0 or 1 in a time-constant manner */
+    swap = (swap | (unsigned char)-swap) >> 7;
+
+    MBEDTLS_MPI_CHK( mbedtls_mpi_grow( X, Y->n ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_grow( Y, X->n ) );
+
+    s = X->s;
+    X->s = X->s * ( 1 - swap ) + Y->s * swap;
+    Y->s = Y->s * ( 1 - swap ) +    s * swap;
+
+
+    for( i = 0; i < X->n; i++ )
+    {
+        tmp = X->p[i];
+        X->p[i] = X->p[i] * ( 1 - swap ) + Y->p[i] * swap;
+        Y->p[i] = Y->p[i] * ( 1 - swap ) +     tmp * swap;
+    }
+
+cleanup:
+    return( ret );
+}

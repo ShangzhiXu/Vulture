@@ -1,0 +1,12 @@
+static void OSPI_DMAError(DMA_HandleTypeDef *hdma)   
+{
+  OSPI_HandleTypeDef* hospi = ( OSPI_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+  hospi->XferCount = 0;
+  hospi->ErrorCode = HAL_OSPI_ERROR_DMA;
+
+  /* Disable the DMA transfer on the OctoSPI side */
+  CLEAR_BIT(hospi->Instance->CR, OCTOSPI_CR_DMAEN);
+  
+  /* Abort the OctoSPI */
+  HAL_OSPI_Abort_IT(hospi);
+}

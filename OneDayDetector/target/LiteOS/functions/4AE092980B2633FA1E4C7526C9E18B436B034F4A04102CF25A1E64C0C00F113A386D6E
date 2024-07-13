@@ -1,0 +1,34 @@
+HAL_StatusTypeDef HAL_I2S_DMAStop(I2S_HandleTypeDef *hi2s)
+{
+  /* Process Locked */
+  __HAL_LOCK(hi2s);
+  
+  /* Disable the I2S Tx/Rx DMA requests */
+  CLEAR_BIT(hi2s->Instance->CR2, SPI_CR2_TXDMAEN);
+  CLEAR_BIT(hi2s->Instance->CR2, SPI_CR2_RXDMAEN);
+  
+  /* Abort the I2S DMA Channel tx */
+  if(hi2s->hdmatx != NULL)
+  {
+    /* Disable the I2S DMA channel */
+    __HAL_DMA_DISABLE(hi2s->hdmatx);
+    HAL_DMA_Abort(hi2s->hdmatx);
+  }
+  /* Abort the I2S DMA Channel rx */
+  if(hi2s->hdmarx != NULL)
+  {
+    /* Disable the I2S DMA channel */
+    __HAL_DMA_DISABLE(hi2s->hdmarx);
+    HAL_DMA_Abort(hi2s->hdmarx);
+  }
+
+  /* Disable I2S peripheral */
+  __HAL_I2S_DISABLE(hi2s);
+  
+  hi2s->State = HAL_I2S_STATE_READY;
+  
+  /* Process Unlocked */
+  __HAL_UNLOCK(hi2s);
+  
+  return HAL_OK;
+}

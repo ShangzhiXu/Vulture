@@ -1,0 +1,30 @@
+STATIC VOID *CreateAndInitMemBox(UINT32 blkNum, UINT32 blkSize)
+{
+    VOID *memBox = NULL;
+    UINT32 poolSize;
+    UINT32 ret;
+
+    if ((blkNum == 0) || (blkSize == 0)) {
+        return NULL;
+    }
+
+#ifdef LOSCFG_KERNEL_MEMBOX_STATIC
+    poolSize = LOS_MEMBOX_SIZE(blkSize, blkNum);
+    memBox = LOS_MemAlloc(m_aucSysMem0, poolSize);
+#else
+    blkSize = LOS_MEMBOX_ALLIGNED(blkSize);
+    poolSize = blkSize * blkNum;
+    memBox = LOS_MemAlloc(m_aucSysMem0, sizeof(LOS_MEMBOX_INFO));
+#endif
+    if (memBox == NULL) {
+        return NULL;
+    }
+
+    ret = LOS_MemboxInit(memBox, poolSize, blkSize);
+    if (ret != LOS_OK) {
+        LOS_MemFree(m_aucSysMem0, memBox);
+        return NULL;
+    }
+
+    return memBox;
+}

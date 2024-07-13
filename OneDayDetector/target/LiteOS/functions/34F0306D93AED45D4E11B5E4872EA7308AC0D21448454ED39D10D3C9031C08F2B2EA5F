@@ -1,0 +1,42 @@
+static HAL_StatusTypeDef CAN_Transmit_IT(CAN_HandleTypeDef* hcan)
+{
+  /* Disable Transmit mailbox empty Interrupt */
+  __HAL_CAN_DISABLE_IT(hcan, CAN_IT_TME);
+  
+  if(hcan->State == HAL_CAN_STATE_BUSY_TX)
+  {   
+    /* Disable interrupts: */
+    /*  - Disable Error warning Interrupt */
+    /*  - Disable Error passive Interrupt */
+    /*  - Disable Bus-off Interrupt */
+    /*  - Disable Last error code Interrupt */
+    /*  - Disable Error Interrupt */
+    __HAL_CAN_DISABLE_IT(hcan, CAN_IT_EWG |
+                               CAN_IT_EPV |
+                               CAN_IT_BOF |
+                               CAN_IT_LEC |
+                               CAN_IT_ERR );
+  }
+
+  /* Change CAN state */
+  switch(hcan->State)
+  {
+    case(HAL_CAN_STATE_BUSY_TX_RX0):
+      hcan->State = HAL_CAN_STATE_BUSY_RX0;
+      break;
+    case(HAL_CAN_STATE_BUSY_TX_RX1):
+      hcan->State = HAL_CAN_STATE_BUSY_RX1;
+      break;
+    case(HAL_CAN_STATE_BUSY_TX_RX0_RX1):
+      hcan->State = HAL_CAN_STATE_BUSY_RX0_RX1;
+      break;
+    default: /* HAL_CAN_STATE_BUSY_TX */
+      hcan->State = HAL_CAN_STATE_READY;
+      break;
+  }
+
+  /* Transmission complete callback */ 
+  HAL_CAN_TxCpltCallback(hcan);
+  
+  return HAL_OK;
+}

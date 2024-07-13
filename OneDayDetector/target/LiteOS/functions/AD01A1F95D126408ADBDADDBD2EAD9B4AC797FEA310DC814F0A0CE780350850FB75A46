@@ -1,0 +1,35 @@
+LITE_OS_SEC_TEXT UINT32 OsMuxPostOp(LosTaskCB *runTask, MuxBaseCB *muxPosted)
+{
+    LosTaskCB *resumedTask = NULL;
+
+    if (LOS_ListEmpty(&muxPosted->muxList)) {
+        muxPosted->owner = NULL;
+        OsMuxDlockNodeDeleteHook(runTask->taskId, muxPosted);
+        return MUX_NO_SCHEDULE;
+    }
+
+    resumedTask = OS_TCB_FROM_PENDLIST(LOS_DL_LIST_FIRST(&(muxPosted->muxList)));
+#ifdef LOSCFG_MUTEX_WAITMODE_PRIO
+    if (resumedTask->priority > runTask->priority) {
+        if (LOS_HighBitGet(runTask->priBitMap) != resumedTask->priority) {
+            LOS_BitmapClr(&runTask->priBitMap, resumedTask->priority);
+        }
+    } else if (runTask->priBitMap != 0) {
+        OsMuxPostOpSub(runTask, muxPosted);
+    }
+#else
+    if (runTask->priBitMap != 0) {
+        OsMuxPostOpSub(runTask, muxPosted);
+    }
+#endif
+
+    muxPosted->muxCount = 1;
+    muxPosted->owner = resumedTask;
+    resumedTask->taskMux = NULL;
+    OsMuxDlockNodeDeleteHook(runTask->taskId, muxPosted);
+    OsMuxDlockNodeInsertHook(resumedTask->taskId, muxPosted);
+
+    OsTaskWake(resumedTask, OS_TASK_STATUS_PEND);
+
+    return MUX_SCHEDULE;
+}

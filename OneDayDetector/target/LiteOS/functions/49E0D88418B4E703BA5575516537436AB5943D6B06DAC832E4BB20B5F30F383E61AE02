@@ -1,0 +1,22 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 LOS_MemInfoGet(VOID *pool, LOS_MEM_POOL_STATUS *poolStatus)
+{
+    LosMemPoolInfo *poolInfo = (LosMemPoolInfo *)pool;
+    UINT32 ret;
+    UINT32 intSave;
+
+    if (poolStatus == NULL) {
+        PRINT_ERR("can't use NULL addr to save info\n");
+        return LOS_NOK;
+    }
+
+    if ((poolInfo == NULL) || ((UINTPTR)pool != (UINTPTR)poolInfo->pool)) {
+        PRINT_ERR("wrong mem pool addr: %p, line:%d\n", poolInfo, __LINE__);
+        return LOS_NOK;
+    }
+
+    MEM_LOCK(intSave);
+    ret = OsMemInfoGet(poolInfo, poolStatus);
+    MEM_UNLOCK(intSave);
+
+    return ret;
+}

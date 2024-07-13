@@ -1,0 +1,24 @@
+VOID OsExcHook(UINT32 excType, ExcContext *excBufAddr)
+{
+    OsExcType(excType, excBufAddr);
+    OsExcSysInfo(excType, excBufAddr);
+    OsExcRegsInfo(excBufAddr);
+
+    BackTraceWithFp(excBufAddr->R11);
+#ifdef LOSCFG_SHELL
+    (VOID)OsShellCmdTskInfoGet(OS_ALL_TASK_MASK);
+    OsExcStackInfo();
+#endif
+    OsDumpContextMem(excBufAddr);
+#ifdef LOSCFG_KERNEL_MEM_BESTFIT
+    OsMemIntegrityMultiCheck();
+#endif
+
+#ifdef LOSCFG_KERNEL_TRACE
+    OsTraceRecordDump(FALSE);
+#endif
+
+#ifdef LOSCFG_COREDUMP
+    LOS_CoreDumpV2(excType, excBufAddr);
+#endif
+}

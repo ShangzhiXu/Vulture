@@ -1,0 +1,21 @@
+static void I2S_Receive_IT(I2S_HandleTypeDef *hi2s)
+{
+  /* Receive data */
+  (*hi2s->pRxBuffPtr) = (uint16_t)hi2s->Instance->DR;
+  hi2s->pRxBuffPtr++;
+  hi2s->RxXferCount--;
+
+  if (hi2s->RxXferCount == 0U)
+  {
+    /* Disable RXNE and ERR interrupt */
+    __HAL_I2S_DISABLE_IT(hi2s, (I2S_IT_RXNE | I2S_IT_ERR));
+
+    hi2s->State = HAL_I2S_STATE_READY;
+    /* Call user Rx complete callback */
+#if (USE_HAL_I2S_REGISTER_CALLBACKS == 1U)
+    hi2s->RxCpltCallback(hi2s);
+#else
+    HAL_I2S_RxCpltCallback(hi2s);
+#endif /* USE_HAL_I2S_REGISTER_CALLBACKS */
+  }
+}

@@ -1,0 +1,90 @@
+netconn_accept(struct netconn *conn, struct netconn **new_conn)
+{
+#if LWIP_TCP
+  err_t err;
+  void *accept_ptr;
+  struct netconn *newconn;
+#if TCP_LISTEN_BACKLOG
+  API_MSG_VAR_DECLARE(msg);
+#endif /* TCP_LISTEN_BACKLOG */
+
+  LWIP_ERROR("netconn_accept: invalid pointer",    (new_conn != NULL),                  return ERR_ARG;);
+  *new_conn = NULL;
+  LWIP_ERROR("netconn_accept: invalid conn",       (conn != NULL),                      return ERR_ARG;);
+
+  /* NOTE: Although the opengroup spec says a pending error shall be returned to
+           send/recv/getsockopt(SO_ERROR) only, we return it for listening
+           connections also, to handle embedded-system errors */
+  err = netconn_err(conn);
+  if (err != ERR_OK) {
+    /* return pending error */
+    return err;
+  }
+  if (!NETCONN_ACCEPTMBOX_WAITABLE(conn)) {
+    /* don't accept if closed: this might block the application task
+       waiting on acceptmbox forever! */
+    return ERR_CLSD;
+  }
+
+  API_MSG_VAR_ALLOC_ACCEPT(msg);
+
+  NETCONN_MBOX_WAITING_INC(conn);
+  if (netconn_is_nonblocking(conn)) {
+    if (sys_arch_mbox_tryfetch(&conn->acceptmbox, &accept_ptr) == SYS_ARCH_TIMEOUT) {
+      API_MSG_VAR_FREE_ACCEPT(msg);
+      NETCONN_MBOX_WAITING_DEC(conn);
+      return ERR_WOULDBLOCK;
+    }
+  } else {
+#if LWIP_SO_RCVTIMEO
+    if (sys_arch_mbox_fetch(&conn->acceptmbox, &accept_ptr, conn->recv_timeout) == SYS_ARCH_TIMEOUT) {
+      API_MSG_VAR_FREE_ACCEPT(msg);
+      NETCONN_MBOX_WAITING_DEC(conn);
+      return ERR_TIMEOUT;
+    }
+#else
+    sys_arch_mbox_fetch(&conn->acceptmbox, &accept_ptr, 0);
+#endif /* LWIP_SO_RCVTIMEO*/
+  }
+  NETCONN_MBOX_WAITING_DEC(conn);
+#if LWIP_NETCONN_FULLDUPLEX
+  if (conn->flags & NETCONN_FLAG_MBOXINVALID) {
+    if (lwip_netconn_is_deallocated_msg(accept_ptr)) {
+      /* the netconn has been closed from another thread */
+      API_MSG_VAR_FREE_ACCEPT(msg);
+      return ERR_CONN;
+    }
+  }
+#endif
+
+  /* Register event with callback */
+  API_EVENT(conn, NETCONN_EVT_RCVMINUS, 0);
+
+  if (lwip_netconn_is_err_msg(accept_ptr, &err)) {
+    /* a connection has been aborted: e.g. out of pcbs or out of netconns during accept */
+    API_MSG_VAR_FREE_ACCEPT(msg);
+    return err;
+  }
+  if (accept_ptr == NULL) {
+    /* connection has been aborted */
+    API_MSG_VAR_FREE_ACCEPT(msg);
+    return ERR_CLSD;
+  }
+  newconn = (struct netconn *)accept_ptr;
+#if TCP_LISTEN_BACKLOG
+  /* Let the stack know that we have accepted the connection. */
+  API_MSG_VAR_REF(msg).conn = newconn;
+  /* don't care for the return value of lwip_netconn_do_recv */
+  netconn_apimsg(lwip_netconn_do_accepted, &API_MSG_VAR_REF(msg));
+  API_MSG_VAR_FREE(msg);
+#endif /* TCP_LISTEN_BACKLOG */
+
+  *new_conn = newconn;
+  /* don't set conn->last_err: it's only ERR_OK, anyway */
+  return ERR_OK;
+#else /* LWIP_TCP */
+  LWIP_UNUSED_ARG(conn);
+  LWIP_UNUSED_ARG(new_conn);
+  return ERR_ARG;
+#endif /* LWIP_TCP */
+}

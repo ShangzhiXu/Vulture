@@ -1,0 +1,93 @@
+HAL_StatusTypeDef HAL_CAN_ConfigFilter(CAN_HandleTypeDef* hcan, CAN_FilterConfTypeDef* sFilterConfig)
+{
+  uint32_t filternbrbitpos = 0U;
+  
+  /* Check the parameters */
+  assert_param(IS_CAN_FILTER_NUMBER(sFilterConfig->FilterNumber));
+  assert_param(IS_CAN_FILTER_MODE(sFilterConfig->FilterMode));
+  assert_param(IS_CAN_FILTER_SCALE(sFilterConfig->FilterScale));
+  assert_param(IS_CAN_FILTER_FIFO(sFilterConfig->FilterFIFOAssignment));
+  assert_param(IS_FUNCTIONAL_STATE(sFilterConfig->FilterActivation));
+  assert_param(IS_CAN_BANKNUMBER(sFilterConfig->BankNumber));
+  
+  filternbrbitpos = (1U) << sFilterConfig->FilterNumber;
+
+  /* Initialisation mode for the filter */
+  /* Select the start slave bank */
+  MODIFY_REG(hcan->Instance->FMR                         ,
+             CAN_FMR_CAN2SB                              ,
+             CAN_FMR_FINIT                              |
+             (uint32_t)(sFilterConfig->BankNumber << 8U)   );  /* Filter Deactivation */
+  CLEAR_BIT(hcan->Instance->FA1R, filternbrbitpos);
+
+  /* Filter Scale */
+  if (sFilterConfig->FilterScale == CAN_FILTERSCALE_16BIT)
+  {
+    /* 16-bit scale for the filter */
+    CLEAR_BIT(hcan->Instance->FS1R, filternbrbitpos);
+
+    /* First 16-bit identifier and First 16-bit mask */
+    /* Or First 16-bit identifier and Second 16-bit identifier */
+    hcan->Instance->sFilterRegister[sFilterConfig->FilterNumber].FR1 = 
+       ((0x0000FFFFU & (uint32_t)sFilterConfig->FilterMaskIdLow) << 16U) |
+        (0x0000FFFFU & (uint32_t)sFilterConfig->FilterIdLow);
+
+    /* Second 16-bit identifier and Second 16-bit mask */
+    /* Or Third 16-bit identifier and Fourth 16-bit identifier */
+    hcan->Instance->sFilterRegister[sFilterConfig->FilterNumber].FR2 = 
+       ((0x0000FFFFU & (uint32_t)sFilterConfig->FilterMaskIdHigh) << 16U) |
+        (0x0000FFFFU & (uint32_t)sFilterConfig->FilterIdHigh);
+  }
+
+  if (sFilterConfig->FilterScale == CAN_FILTERSCALE_32BIT)
+  {
+    /* 32-bit scale for the filter */
+    SET_BIT(hcan->Instance->FS1R, filternbrbitpos);
+
+    /* 32-bit identifier or First 32-bit identifier */
+    hcan->Instance->sFilterRegister[sFilterConfig->FilterNumber].FR1 = 
+       ((0x0000FFFFU & (uint32_t)sFilterConfig->FilterIdHigh) << 16U) |
+        (0x0000FFFFU & (uint32_t)sFilterConfig->FilterIdLow);
+
+    /* 32-bit mask or Second 32-bit identifier */
+    hcan->Instance->sFilterRegister[sFilterConfig->FilterNumber].FR2 = 
+       ((0x0000FFFFU & (uint32_t)sFilterConfig->FilterMaskIdHigh) << 16U) |
+        (0x0000FFFFU & (uint32_t)sFilterConfig->FilterMaskIdLow);
+  }
+
+  /* Filter Mode */
+  if (sFilterConfig->FilterMode == CAN_FILTERMODE_IDMASK)
+  {
+    /*Id/Mask mode for the filter*/
+    CLEAR_BIT(hcan->Instance->FM1R, filternbrbitpos);
+  }
+  else /* CAN_FilterInitStruct->CAN_FilterMode == CAN_FilterMode_IdList */
+  {
+    /*Identifier list mode for the filter*/
+    SET_BIT(hcan->Instance->FM1R, filternbrbitpos);
+  }
+
+  /* Filter FIFO assignment */
+  if (sFilterConfig->FilterFIFOAssignment == CAN_FILTER_FIFO0)
+  {
+    /* FIFO 0 assignation for the filter */
+    CLEAR_BIT(hcan->Instance->FFA1R, filternbrbitpos);
+  }
+  else
+  {
+    /* FIFO 1 assignation for the filter */
+    SET_BIT(hcan->Instance->FFA1R, filternbrbitpos);
+  }
+  
+  /* Filter activation */
+  if (sFilterConfig->FilterActivation == ENABLE)
+  {
+    SET_BIT(hcan->Instance->FA1R, filternbrbitpos);
+  }
+
+  /* Leave the initialisation mode for the filter */
+  CLEAR_BIT(hcan->Instance->FMR, ((uint32_t)CAN_FMR_FINIT));
+  
+  /* Return function status */
+  return HAL_OK;
+}

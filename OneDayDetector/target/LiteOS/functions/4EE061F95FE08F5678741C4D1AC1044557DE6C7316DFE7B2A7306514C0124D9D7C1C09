@@ -1,0 +1,25 @@
+UINT64 HalClockGetCycles(VOID)
+{
+    UINT64 swTick;
+    UINT64 cycle;
+    UINT32 hwCycle;
+    UINT32 intSave;
+
+    intSave = LOS_IntLock();
+
+    swTick = LOS_TickCountGet();
+    hwCycle = SysTick->VAL;
+
+    /* tick has come, but may interrupt environment, not counting the Tick interrupt response */
+    if ((SCB->ICSR & TICK_INTR_CHECK) != 0) {
+        hwCycle = SysTick->VAL;
+        swTick++;
+    }
+
+    cycle = (swTick * g_cyclesPerTick) + (g_cyclesPerTick - hwCycle);
+    LOS_IntRestore(intSave);
+#if defined (LOSCFG_ARCH_ARM_CORTEX_M) && (LOSCFG_KERNEL_CPUP)
+    cycle = HalClockGetCpupCycles() * TIMER_CYCLE_SWITCH;
+#endif
+    return cycle;
+}

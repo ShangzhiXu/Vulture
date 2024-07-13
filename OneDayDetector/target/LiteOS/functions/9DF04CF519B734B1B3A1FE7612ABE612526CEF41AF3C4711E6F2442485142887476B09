@@ -1,0 +1,31 @@
+altcp_mbedtls_bio_send(void *ctx, const unsigned char *dataptr, size_t size)
+{
+  struct altcp_pcb *conn = (struct altcp_pcb *) ctx;
+  int written = 0;
+  size_t size_left = size;
+  u8_t apiflags = TCP_WRITE_FLAG_COPY;
+
+  LWIP_ASSERT("conn != NULL", conn != NULL);
+  if ((conn == NULL) || (conn->inner_conn == NULL)) {
+    return MBEDTLS_ERR_NET_INVALID_CONTEXT;
+  }
+
+  while (size_left) {
+    u16_t write_len = (u16_t)LWIP_MIN(size_left, 0xFFFF);
+    err_t err = altcp_write(conn->inner_conn, (const void *)dataptr, write_len, apiflags);
+    if (err == ERR_OK) {
+      written += write_len;
+      size_left -= write_len;
+    } else if (err == ERR_MEM) {
+      if (written) {
+        return written;
+      }
+      return 0; /* MBEDTLS_ERR_SSL_WANT_WRITE; */
+    } else {
+      LWIP_ASSERT("tls_write, tcp_write: err != ERR MEM", 0);
+      /* @todo: return MBEDTLS_ERR_NET_CONN_RESET or MBEDTLS_ERR_NET_SEND_FAILED */
+      return MBEDTLS_ERR_NET_SEND_FAILED;
+    }
+  }
+  return written;
+}

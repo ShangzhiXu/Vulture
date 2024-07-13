@@ -1,0 +1,28 @@
+static void trans_anim_start_cb(lv_anim_t * a)
+{
+    lv_style_trans_t * tr = a->var;
+
+    lv_style_property_t prop_tmp = tr->prop;
+
+    /*Start the animation from the current value*/
+    if((prop_tmp & 0xF) < LV_STYLE_ID_COLOR) { /*Int*/
+        tr->start_value._int = _lv_obj_get_style_int(tr->obj, tr->part, prop_tmp);
+    }
+    else if((prop_tmp & 0xF) < LV_STYLE_ID_OPA) { /*Color*/
+        tr->start_value._color = _lv_obj_get_style_color(tr->obj, tr->part, prop_tmp);
+    }
+    else if((prop_tmp & 0xF) < LV_STYLE_ID_PTR) { /*Opa*/
+        tr->start_value._opa = _lv_obj_get_style_opa(tr->obj, tr->part, prop_tmp);
+    }
+    else {      /*Ptr*/
+        tr->start_value._ptr = _lv_obj_get_style_ptr(tr->obj, tr->part, prop_tmp);
+    }
+
+    /*Init prop to an invalid values to be sure `trans_del` won't delete this added `tr`*/
+    tr->prop = 0;
+    /*Delete the relate transition if any*/
+    trans_del(tr->obj, tr->part, prop_tmp, tr);
+
+    tr->prop = prop_tmp;
+
+}

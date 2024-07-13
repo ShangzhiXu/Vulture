@@ -1,0 +1,38 @@
+HAL_StatusTypeDef HAL_QSPI_DeInit(QSPI_HandleTypeDef *hqspi)
+{
+  /* Check the QSPI handle allocation */
+  if(hqspi == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Process locked */
+  __HAL_LOCK(hqspi);
+
+  /* Disable the QSPI Peripheral Clock */
+  __HAL_QSPI_DISABLE(hqspi);
+
+#if (USE_HAL_QSPI_REGISTER_CALLBACKS == 1)
+  if(hqspi->MspDeInitCallback == NULL)
+  {
+    hqspi->MspDeInitCallback = HAL_QSPI_MspDeInit;
+  }
+
+  /* DeInit the low level hardware */
+  hqspi->MspDeInitCallback(hqspi);
+#else
+  /* DeInit the low level hardware: GPIO, CLOCK, NVIC... */
+  HAL_QSPI_MspDeInit(hqspi);
+#endif
+
+  /* Set QSPI error code to none */
+  hqspi->ErrorCode = HAL_QSPI_ERROR_NONE;
+
+  /* Initialize the QSPI state */
+  hqspi->State = HAL_QSPI_STATE_RESET;
+
+  /* Release Lock */
+  __HAL_UNLOCK(hqspi);
+
+  return HAL_OK;
+}

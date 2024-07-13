@@ -1,0 +1,94 @@
+lv_obj_t * lv_win_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+    LV_LOG_TRACE("window create started");
+
+    /*Create the ancestor object*/
+    lv_obj_t * new_win = lv_obj_create(par, copy);
+    LV_ASSERT_MEM(new_win);
+    if(new_win == NULL) return NULL;
+
+    if(ancestor_signal == NULL) ancestor_signal = lv_obj_get_signal_cb(new_win);
+
+    /*Allocate the object type specific extended data*/
+    lv_win_ext_t * ext = lv_obj_allocate_ext_attr(new_win, sizeof(lv_win_ext_t));
+    LV_ASSERT_MEM(ext);
+    if(ext == NULL) {
+        lv_obj_del(new_win);
+        return NULL;
+    }
+
+    ext->page          = NULL;
+    ext->header        = NULL;
+    ext->title_txt    = lv_mem_alloc(strlen(DEF_TITLE) + 1);
+    strcpy(ext->title_txt, DEF_TITLE);
+
+    /*Init the new window object*/
+    if(copy == NULL) {
+        /* Set a size which fits into the parent.
+         * Don't use `par` directly because if the window is created on a page it is moved to the
+         * scrollable so the parent has changed */
+        lv_coord_t w;
+        lv_coord_t h;
+        if(par) {
+            w = lv_obj_get_width_fit(lv_obj_get_parent(new_win));
+            h = lv_obj_get_height_fit(lv_obj_get_parent(new_win));
+        }
+        else {
+            w = lv_disp_get_hor_res(NULL);
+            h = lv_disp_get_ver_res(NULL);
+        }
+
+        lv_obj_set_size(new_win, w, h);
+
+        ext->btn_w = LV_DPX(65);
+
+        ext->page = lv_page_create(new_win, NULL);
+        lv_obj_add_protect(ext->page, LV_PROTECT_PARENT);
+        lv_page_set_scrollbar_mode(ext->page, LV_SCROLLBAR_MODE_AUTO);
+        lv_obj_clean_style_list(ext->page, LV_PAGE_PART_BG);
+
+        /*Create a holder for the header*/
+        ext->header = lv_obj_create(new_win, NULL);
+        /*Move back to window background because it's automatically moved to the content page*/
+        lv_obj_add_protect(ext->header, LV_PROTECT_PARENT);
+        lv_obj_set_parent(ext->header, new_win);
+        if(ancestor_header_design == NULL) ancestor_header_design = lv_obj_get_design_cb(ext->header);
+        lv_obj_set_height(ext->header, LV_DPX(65));
+
+        lv_obj_set_design_cb(ext->header, lv_win_header_design);
+        lv_obj_set_signal_cb(new_win, lv_win_signal);
+
+        lv_theme_apply(new_win, LV_THEME_WIN);
+    }
+    /*Copy an existing object*/
+    else {
+        lv_win_ext_t * copy_ext = lv_obj_get_ext_attr(copy);
+        /*Create the objects*/
+        ext->header   = lv_obj_create(new_win, copy_ext->header);
+        ext->title_txt    = lv_mem_alloc(strlen(copy_ext->title_txt) + 1);
+        strcpy(ext->title_txt, copy_ext->title_txt);
+        ext->page     = lv_page_create(new_win, copy_ext->page);
+        ext->btn_w     = copy_ext->btn_w;
+
+        /*Copy the buttons*/
+        lv_obj_t * child;
+        child = lv_obj_get_child_back(copy_ext->header, NULL);
+        child = lv_obj_get_child_back(copy_ext->header, child); /*Sip the title*/
+        while(child != NULL) {
+            lv_obj_t * btn = lv_btn_create(ext->header, child);
+            lv_img_create(btn, lv_obj_get_child(child, NULL));
+            child = lv_obj_get_child_back(copy_ext->header, child);
+        }
+
+        lv_obj_set_signal_cb(new_win, lv_win_signal);
+    }
+
+    /*Refresh the style with new signal function*/
+    lv_obj_refresh_style(new_win, LV_STYLE_PROP_ALL);
+
+    lv_win_realign(new_win);
+
+    LV_LOG_INFO("window created");
+
+    return new_win;
+}

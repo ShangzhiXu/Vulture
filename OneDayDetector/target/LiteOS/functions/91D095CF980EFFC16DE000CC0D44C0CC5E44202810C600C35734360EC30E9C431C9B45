@@ -1,0 +1,17 @@
+UINT32 OsShellCmdMuxCntGet(VOID)
+{
+    UINT32 loop;
+    UINT32 muxCnt = 0;
+    UINT32 intSave;
+    LosMuxCB *muxNode = NULL;
+
+    intSave = LOS_IntLock();
+    for (loop = 0; loop < LOSCFG_BASE_IPC_MUX_LIMIT; loop++) {
+        muxNode = GET_MUX(loop);
+        if (muxNode->muxStat == OS_MUX_USED) {
+            muxCnt++;
+        }
+    }
+    LOS_IntRestore(intSave);
+    return muxCnt;
+}

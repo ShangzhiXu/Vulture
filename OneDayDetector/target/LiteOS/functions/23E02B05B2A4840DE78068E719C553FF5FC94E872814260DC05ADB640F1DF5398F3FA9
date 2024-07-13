@@ -1,0 +1,23 @@
+int vfwscanf_s(FILE *stream, const wchar_t *format, va_list argList)
+{
+    int retVal; /* If initialization causes  e838 */
+    SecFileStream fStr;
+
+    if (stream == NULL || format == NULL) {
+        SECUREC_ERROR_INVALID_PARAMTER("vfwscanf_s");
+        return SECUREC_SCANF_EINVAL;
+    }
+    if (stream == SECUREC_STREAM_STDIN) {
+        return vwscanf_s(format, argList);
+    }
+
+    SECUREC_LOCK_FILE(stream);
+    SECUREC_FILE_STREAM_FROM_FILE(&fStr, stream);
+    retVal = SecInputSW(&fStr, format, argList);
+    SECUREC_UNLOCK_FILE(stream);
+    if (retVal < 0) {
+        SECUREC_ERROR_INVALID_PARAMTER("vfwscanf_s");
+        return SECUREC_SCANF_EINVAL;
+    }
+    return retVal;
+}

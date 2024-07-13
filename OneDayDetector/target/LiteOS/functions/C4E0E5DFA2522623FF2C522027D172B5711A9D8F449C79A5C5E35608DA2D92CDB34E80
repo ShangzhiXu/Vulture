@@ -1,0 +1,25 @@
+int mbedtls_x509write_csr_set_key_usage( mbedtls_x509write_csr *ctx, unsigned char key_usage )
+{
+    unsigned char buf[4];
+    unsigned char *c;
+    size_t unused_bits;
+    int ret;
+
+    c = buf + 4;
+
+    unused_bits = csr_get_unused_bits_for_named_bitstring( key_usage, 0 );
+    ret = mbedtls_asn1_write_bitstring( &c, buf, &key_usage, 8 - unused_bits );
+
+    if( ret < 0 )
+        return( ret );
+    else if( ret < 3 || ret > 4 )
+        return( MBEDTLS_ERR_X509_INVALID_FORMAT );
+
+    ret = mbedtls_x509write_csr_set_extension( ctx, MBEDTLS_OID_KEY_USAGE,
+                                       MBEDTLS_OID_SIZE( MBEDTLS_OID_KEY_USAGE ),
+                                       c, (size_t)ret );
+    if( ret != 0 )
+        return( ret );
+
+    return( 0 );
+}

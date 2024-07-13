@@ -1,0 +1,39 @@
+HAL_StatusTypeDef HAL_FMPI2C_DeInit(FMPI2C_HandleTypeDef *hfmpi2c)
+{
+  /* Check the FMPI2C handle allocation */
+  if (hfmpi2c == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_FMPI2C_ALL_INSTANCE(hfmpi2c->Instance));
+
+  hfmpi2c->State = HAL_FMPI2C_STATE_BUSY;
+
+  /* Disable the FMPI2C Peripheral Clock */
+  __HAL_FMPI2C_DISABLE(hfmpi2c);
+
+#if (USE_HAL_FMPI2C_REGISTER_CALLBACKS == 1)
+  if (hfmpi2c->MspDeInitCallback == NULL)
+  {
+    hfmpi2c->MspDeInitCallback = HAL_FMPI2C_MspDeInit; /* Legacy weak MspDeInit  */
+  }
+
+  /* DeInit the low level hardware: GPIO, CLOCK, NVIC */
+  hfmpi2c->MspDeInitCallback(hfmpi2c);
+#else
+  /* DeInit the low level hardware: GPIO, CLOCK, NVIC */
+  HAL_FMPI2C_MspDeInit(hfmpi2c);
+#endif /* USE_HAL_FMPI2C_REGISTER_CALLBACKS */
+
+  hfmpi2c->ErrorCode = HAL_FMPI2C_ERROR_NONE;
+  hfmpi2c->State = HAL_FMPI2C_STATE_RESET;
+  hfmpi2c->PreviousState = FMPI2C_STATE_NONE;
+  hfmpi2c->Mode = HAL_FMPI2C_MODE_NONE;
+
+  /* Release Lock */
+  __HAL_UNLOCK(hfmpi2c);
+
+  return HAL_OK;
+}

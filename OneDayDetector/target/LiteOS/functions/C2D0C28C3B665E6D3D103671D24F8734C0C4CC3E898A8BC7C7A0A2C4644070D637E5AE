@@ -1,0 +1,24 @@
+HAL_StatusTypeDef HAL_I2C_DisableListen_IT(I2C_HandleTypeDef *hi2c)
+{
+  /* Declaration of tmp to prevent undefined behavior of volatile usage */
+  uint32_t tmp;
+
+  /* Disable Address listen mode only if a transfer is not ongoing */
+  if (hi2c->State == HAL_I2C_STATE_LISTEN)
+  {
+    tmp = (uint32_t)(hi2c->State) & I2C_STATE_MSK;
+    hi2c->PreviousState = tmp | (uint32_t)(hi2c->Mode);
+    hi2c->State = HAL_I2C_STATE_READY;
+    hi2c->Mode = HAL_I2C_MODE_NONE;
+    hi2c->XferISR = NULL;
+
+    /* Disable the Address Match interrupt */
+    I2C_Disable_IRQ(hi2c, I2C_XFER_LISTEN_IT);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

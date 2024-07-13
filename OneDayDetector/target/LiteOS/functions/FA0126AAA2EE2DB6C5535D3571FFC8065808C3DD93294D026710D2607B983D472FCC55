@@ -1,0 +1,25 @@
+void lv_obj_init_draw_img_dsc(lv_obj_t * obj, uint8_t part, lv_draw_img_dsc_t * draw_dsc)
+{
+    draw_dsc->opa = lv_obj_get_style_image_opa(obj, part);
+    if(draw_dsc->opa <= LV_OPA_MIN)  return;
+
+#if LV_USE_OPA_SCALE
+    lv_opa_t opa_scale = lv_obj_get_style_opa_scale(obj, part);
+    if(opa_scale < LV_OPA_MAX) {
+        draw_dsc->opa = (uint16_t)((uint16_t)draw_dsc->opa * opa_scale) >> 8;
+    }
+    if(draw_dsc->opa <= LV_OPA_MIN)  return;
+#endif
+
+    draw_dsc->angle = 0;
+    draw_dsc->zoom = LV_IMG_ZOOM_NONE;
+    draw_dsc->pivot.x = lv_area_get_width(&obj->coords) / 2;
+    draw_dsc->pivot.y = lv_area_get_height(&obj->coords) / 2;
+
+    draw_dsc->recolor_opa = lv_obj_get_style_image_recolor_opa(obj, part);
+    draw_dsc->recolor = lv_obj_get_style_image_recolor(obj, part);
+
+#if LV_USE_BLEND_MODES
+    draw_dsc->blend_mode = lv_obj_get_style_image_blend_mode(obj, part);
+#endif
+}

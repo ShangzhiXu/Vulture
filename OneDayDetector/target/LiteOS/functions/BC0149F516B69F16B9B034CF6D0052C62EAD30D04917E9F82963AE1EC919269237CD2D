@@ -1,0 +1,41 @@
+LITE_OS_SEC_TEXT_MINOR VOID OsSystemSuspend(VOID)
+{
+    UINT32 cpuid;
+
+    (VOID)LOS_IntLock();
+    LOS_TaskLock();
+    cpuid = ArchCurrCpuid();
+
+    g_sysDoneFlag[cpuid] = OS_NO_STORE_SYSTEM;
+    g_saveTsk[cpuid] = OsCurrTaskGet();
+
+    OsSRSaveRegister();
+    /* If 1 core, only to save registers */
+    if (cpuid != 0) {
+        if (g_otherCoreResume != 0) {
+            HalIrqInitPercpu();
+            OsTickStart();
+            LOS_TaskUnlock();
+            (VOID)LOS_IntUnLock();
+            return;
+        }
+        g_sysDoneFlag[cpuid - 1] = OS_STORE_SYSTEM;
+        while (1) {}
+    }
+
+    if (g_resumeFromImg) {
+        OsWriteWow2Flash();
+        LOS_TaskUnlock();
+        (VOID)LOS_IntUnLock();
+        (VOID)LOS_EventWrite(&g_suspendResumeEvent, FLASH_IMG_SUCCESS);
+    } else {
+        OsTickStart();
+        LOS_TaskUnlock();
+        (VOID)LOS_IntUnLock();
+
+        if (g_runstopParam.pfIdleWakeupCallback != NULL) {
+            g_runstopParam.pfIdleWakeupCallback();
+        }
+        (VOID)LOS_EventWrite(&g_suspendResumeEvent, WAKEUP_FROM_SUSPEND);
+    }
+}

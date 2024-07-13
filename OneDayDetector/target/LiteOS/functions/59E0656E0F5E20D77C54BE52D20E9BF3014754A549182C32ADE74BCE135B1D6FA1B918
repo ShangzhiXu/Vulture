@@ -1,0 +1,42 @@
+HAL_StatusTypeDef HAL_MDIOS_DeInit(MDIOS_HandleTypeDef *hmdios)
+{
+  /* Check the MDIOS handle allocation */
+  if(hmdios == NULL)
+  {
+    return HAL_ERROR;
+  }
+  
+  /* Check the parameters */
+  assert_param(IS_MDIOS_ALL_INSTANCE(hmdios->Instance));
+  
+  /* Change the MDIOS state */
+  hmdios->State = HAL_MDIOS_STATE_BUSY;
+  
+  /* Disable the Peripheral */
+  __HAL_MDIOS_DISABLE(hmdios);
+  
+#if (USE_HAL_MDIOS_REGISTER_CALLBACKS == 1)
+
+  if(hmdios->MspDeInitCallback == NULL)
+  {
+    hmdios->MspDeInitCallback = HAL_MDIOS_MspDeInit;
+  }
+  /* DeInit the low level hardware */
+  hmdios->MspDeInitCallback(hmdios);
+
+#else
+
+  /* DeInit the low level hardware */
+  HAL_MDIOS_MspDeInit(hmdios);
+  
+#endif /* USE_HAL_MDIOS_REGISTER_CALLBACKS */
+
+  /* Change the MDIOS state */
+  hmdios->State = HAL_MDIOS_STATE_RESET;
+  
+  /* Release Lock */
+  __HAL_UNLOCK(hmdios);
+  
+  /* Return function status */
+  return HAL_OK;
+}

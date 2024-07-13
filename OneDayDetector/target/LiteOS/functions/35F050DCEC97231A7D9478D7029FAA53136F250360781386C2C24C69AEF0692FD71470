@@ -1,0 +1,35 @@
+int mbedtls_mpi_read_file( mbedtls_mpi *X, int radix, FILE *fin )
+{
+    mbedtls_mpi_uint d;
+    size_t slen;
+    char *p;
+    /*
+     * Buffer should have space for (short) label and decimal formatted MPI,
+     * newline characters and '\0'
+     */
+    char s[ MBEDTLS_MPI_RW_BUFFER_SIZE ];
+
+    MPI_VALIDATE_RET( X   != NULL );
+    MPI_VALIDATE_RET( fin != NULL );
+
+    if( radix < 2 || radix > 16 )
+        return( MBEDTLS_ERR_MPI_BAD_INPUT_DATA );
+
+    memset( s, 0, sizeof( s ) );
+    if( fgets( s, sizeof( s ) - 1, fin ) == NULL )
+        return( MBEDTLS_ERR_MPI_FILE_IO_ERROR );
+
+    slen = strlen( s );
+    if( slen == sizeof( s ) - 2 )
+        return( MBEDTLS_ERR_MPI_BUFFER_TOO_SMALL );
+
+    if( slen > 0 && s[slen - 1] == '\n' ) { slen--; s[slen] = '\0'; }
+    if( slen > 0 && s[slen - 1] == '\r' ) { slen--; s[slen] = '\0'; }
+
+    p = s + slen;
+    while( p-- > s )
+        if( mpi_get_digit( &d, radix, *p ) != 0 )
+            break;
+
+    return( mbedtls_mpi_read_string( X, radix, p + 1 ) );
+}

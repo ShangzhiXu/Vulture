@@ -1,0 +1,81 @@
+HAL_StatusTypeDef HAL_CRYPEx_AES_IT(CRYP_HandleTypeDef *hcryp,  uint8_t *pInputData, uint16_t Size, uint8_t *pOutputData)
+{
+  uint32_t inputaddr = 0;
+  
+  if(hcryp->State == HAL_CRYP_STATE_READY)
+  {
+    /* Check parameters setting */
+    if (hcryp->Init.OperatingMode == CRYP_ALGOMODE_KEYDERIVATION)
+    {
+      if (pOutputData == NULL) 
+      {
+        return  HAL_ERROR;
+      }
+    }
+    else
+    {
+      if ((pInputData == NULL) || (pOutputData == NULL) || (Size == 0))
+      {
+        return  HAL_ERROR;
+      }
+    }
+    /* Process Locked */
+    __HAL_LOCK(hcryp);
+    
+    /* If operating mode is not limited to key derivation only,
+       get the buffers addresses and sizes */
+    if (hcryp->Init.OperatingMode != CRYP_ALGOMODE_KEYDERIVATION)
+    {
+
+      hcryp->CrypInCount = Size;
+      hcryp->pCrypInBuffPtr = pInputData;
+      hcryp->pCrypOutBuffPtr = pOutputData;
+      hcryp->CrypOutCount = Size;
+    }
+    else
+    {
+      /* For key derivation, set output buffer only
+        (will point at derivated key) */
+      hcryp->pCrypOutBuffPtr = pOutputData;
+    }
+    
+    /* Change the CRYP state */
+    hcryp->State = HAL_CRYP_STATE_BUSY;
+  
+      /* Process Unlocked */
+    __HAL_UNLOCK(hcryp);
+    
+    /* Enable Computation Complete Flag and Error Interrupts */
+    __HAL_CRYP_ENABLE_IT(hcryp, CRYP_IT_CCFIE|CRYP_IT_ERRIE);
+    
+    
+    /* If operating mode is key derivation only, the input data have 
+       already been entered during the initialization process. For
+       the other operating modes, they are fed to the CRYP hardware 
+       block at this point. */
+    if (hcryp->Init.OperatingMode != CRYP_ALGOMODE_KEYDERIVATION)
+    {
+      /* Initiate the processing under interrupt in entering 
+         the first input data */
+      inputaddr = (uint32_t)hcryp->pCrypInBuffPtr;
+      /* Increment/decrement instance pointer/counter */
+      hcryp->pCrypInBuffPtr += 16;
+      hcryp->CrypInCount -= 16;
+      /* Write the first input block in the Data Input register */
+      hcryp->Instance->DINR = *(uint32_t*)(inputaddr);
+      inputaddr+=4;
+      hcryp->Instance->DINR = *(uint32_t*)(inputaddr);
+      inputaddr+=4;
+      hcryp->Instance->DINR  = *(uint32_t*)(inputaddr);
+      inputaddr+=4;
+      hcryp->Instance->DINR = *(uint32_t*)(inputaddr);
+    }
+    
+    /* Return function status */
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;   
+  }
+}

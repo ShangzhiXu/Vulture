@@ -1,0 +1,44 @@
+size_t utils_base64Encode(uint8_t *dataP,
+                          size_t dataLen,
+                          uint8_t *bufferP,
+                          size_t bufferLen)
+{
+    unsigned int data_index;
+    unsigned int result_index;
+    size_t result_len;
+
+    result_len = utils_base64GetSize(dataLen);
+
+    if (result_len > bufferLen) return 0;
+
+    data_index = 0;
+    result_index = 0;
+    while (data_index < dataLen)
+    {
+        switch (dataLen - data_index)
+        {
+        case 0:
+            // should never happen
+            break;
+        case 1:
+            bufferP[result_index] = b64Alphabet[dataP[data_index] >> 2];
+            bufferP[result_index + 1] = b64Alphabet[(dataP[data_index] & 0x03) << 4];
+            bufferP[result_index + 2] = PRV_B64_PADDING;
+            bufferP[result_index + 3] = PRV_B64_PADDING;
+            break;
+        case 2:
+            bufferP[result_index] = b64Alphabet[dataP[data_index] >> 2];
+            bufferP[result_index + 1] = b64Alphabet[(dataP[data_index] & 0x03) << 4 | (dataP[data_index + 1] >> 4)];
+            bufferP[result_index + 2] = b64Alphabet[(dataP[data_index + 1] & 0x0F) << 2];
+            bufferP[result_index + 3] = PRV_B64_PADDING;
+            break;
+        default:
+            prv_encodeBlock(dataP + data_index, bufferP + result_index);
+            break;
+        }
+        data_index += 3;
+        result_index += 4;
+    }
+
+    return result_len;
+}

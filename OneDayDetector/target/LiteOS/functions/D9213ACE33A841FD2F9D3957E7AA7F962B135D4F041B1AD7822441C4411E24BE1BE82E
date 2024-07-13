@@ -1,0 +1,89 @@
+HAL_StatusTypeDef HAL_I2S_Transmit(I2S_HandleTypeDef *hi2s, uint16_t *pData, uint16_t Size, uint32_t Timeout)
+{
+  if((pData == NULL ) || (Size == 0)) 
+  {
+    return  HAL_ERROR;                                    
+  }
+  
+  /* Process Locked */
+  __HAL_LOCK(hi2s);
+
+  if(hi2s->State == HAL_I2S_STATE_READY)
+  { 
+    if(((hi2s->Instance->I2SCFGR & (SPI_I2SCFGR_DATLEN | SPI_I2SCFGR_CHLEN)) == I2S_DATAFORMAT_24B)||\
+      ((hi2s->Instance->I2SCFGR & (SPI_I2SCFGR_DATLEN | SPI_I2SCFGR_CHLEN)) == I2S_DATAFORMAT_32B))
+    {
+      hi2s->TxXferSize = (Size << 1);
+      hi2s->TxXferCount = (Size << 1);
+    }
+    else
+    {
+      hi2s->TxXferSize = Size;
+      hi2s->TxXferCount = Size;
+    }
+     
+    /* Set state and reset error code */
+    hi2s->ErrorCode = HAL_I2S_ERROR_NONE;
+    hi2s->State = HAL_I2S_STATE_BUSY_TX;
+    hi2s->pTxBuffPtr = pData;
+      
+    /* Check if the I2S is already enabled */ 
+    if((hi2s->Instance->I2SCFGR & SPI_I2SCFGR_I2SE) != SPI_I2SCFGR_I2SE)
+    {
+      /* Enable I2S peripheral */
+      __HAL_I2S_ENABLE(hi2s);
+    }
+    
+    while(hi2s->TxXferCount > 0)
+    {
+      /* Wait until TXE flag is set */
+      if (I2S_WaitFlagStateUntilTimeout(hi2s, I2S_FLAG_TXE, RESET, Timeout) != HAL_OK)
+      {
+        return HAL_TIMEOUT;
+      }
+      hi2s->Instance->DR = (*hi2s->pTxBuffPtr++);
+      hi2s->TxXferCount--;   
+
+      /* Check if an underrun occurs */
+      if(__HAL_I2S_GET_FLAG(hi2s, I2S_FLAG_UDR) == SET) 
+      {
+        /* Set the I2S State ready */
+        hi2s->State = HAL_I2S_STATE_READY; 
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(hi2s);
+
+        /* Set the error code and execute error callback*/
+        hi2s->ErrorCode |= HAL_I2S_ERROR_UDR;
+        return HAL_ERROR;
+      }
+    } 
+
+    /* Wait until TXE flag is set, to confirm the end of the transcation */
+    if (I2S_WaitFlagStateUntilTimeout(hi2s, I2S_FLAG_TXE, RESET, Timeout) != HAL_OK)
+    {
+      return HAL_TIMEOUT;
+    } 
+    /* Check if Slave mode is selected */
+    if(((hi2s->Instance->I2SCFGR & SPI_I2SCFGR_I2SCFG) == I2S_MODE_SLAVE_TX) || ((hi2s->Instance->I2SCFGR & SPI_I2SCFGR_I2SCFG) == I2S_MODE_SLAVE_RX))
+    {
+      /* Wait until Busy flag is reset */
+      if (I2S_WaitFlagStateUntilTimeout(hi2s, I2S_FLAG_BSY, SET, Timeout) != HAL_OK)
+      {
+        return HAL_TIMEOUT;
+      }
+    }
+    hi2s->State = HAL_I2S_STATE_READY; 
+    
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2s);
+    
+    return HAL_OK;
+  }
+  else
+  {
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2s);
+    return HAL_BUSY;
+  }
+}

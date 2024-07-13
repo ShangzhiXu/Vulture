@@ -1,0 +1,18 @@
+tcp_setup(void)
+{
+  struct tcp_pcb dummy_pcb; /* we need this for tcp_next_iss() only */
+
+  old_netif_list = netif_list;
+  old_netif_default = netif_default;
+  netif_list = NULL;
+  netif_default = NULL;
+  /* reset iss to default (6510) */
+  tcp_ticks = 0;
+  tcp_ticks = 0 - (tcp_next_iss(&dummy_pcb) - 6510);
+  tcp_next_iss(&dummy_pcb);
+  tcp_ticks = 0;
+
+  test_tcp_timer = 0;
+  tcp_remove_all();
+  lwip_check_ensure_no_alloc(SKIP_POOL(MEMP_SYS_TIMEOUT));
+}

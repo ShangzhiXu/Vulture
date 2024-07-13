@@ -1,0 +1,23 @@
+static int x509_crt_check_ee_locally_trusted(
+                    mbedtls_x509_crt *crt,
+                    mbedtls_x509_crt *trust_ca )
+{
+    mbedtls_x509_crt *cur;
+
+    /* must be self-issued */
+    if( x509_name_cmp( &crt->issuer, &crt->subject ) != 0 )
+        return( -1 );
+
+    /* look for an exact match with trusted cert */
+    for( cur = trust_ca; cur != NULL; cur = cur->next )
+    {
+        if( crt->raw.len == cur->raw.len &&
+            memcmp( crt->raw.p, cur->raw.p, crt->raw.len ) == 0 )
+        {
+            return( 0 );
+        }
+    }
+
+    /* too bad */
+    return( -1 );
+}

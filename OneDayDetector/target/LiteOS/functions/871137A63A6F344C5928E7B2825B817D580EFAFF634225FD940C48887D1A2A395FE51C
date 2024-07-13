@@ -1,0 +1,61 @@
+HAL_StatusTypeDef HAL_DAC_Stop_DMA(DAC_HandleTypeDef* hdac, uint32_t Channel)
+{
+   HAL_StatusTypeDef status = HAL_OK;
+    
+  /* Check the parameters */
+  assert_param(IS_DAC_CHANNEL(Channel));
+  
+  /* Disable the selected DAC channel DMA request */
+    hdac->Instance->CR &= ~(DAC_CR_DMAEN1 << Channel);
+    
+  /* Disable the Peripheral */
+  __HAL_DAC_DISABLE(hdac, Channel);
+  
+  /* Disable the DMA channel */
+#if defined (STM32L431xx) || defined (STM32L432xx) || defined (STM32L433xx) || defined (STM32L442xx) || defined (STM32L443xx) || \
+    defined (STM32L471xx) || defined (STM32L475xx) || defined (STM32L476xx) || defined (STM32L485xx) || defined (STM32L486xx) || defined (STM32L496xx) || defined (STM32L4A6xx) || \
+    defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined(STM32L4S9xx)
+  /* Channel1 is used */
+  if (Channel == DAC_CHANNEL_1)
+  {
+    /* Disable the DMA channel */
+    status = HAL_DMA_Abort(hdac->DMA_Handle1);
+    
+    /* Disable the DAC DMA underrun interrupt */
+    __HAL_DAC_DISABLE_IT(hdac, DAC_IT_DMAUDR1);
+  }
+  else /* Channel2 is used for */
+  {
+    /* Disable the DMA channel */
+    status = HAL_DMA_Abort(hdac->DMA_Handle2);
+    
+    /* Disable the DAC DMA underrun interrupt */
+    __HAL_DAC_DISABLE_IT(hdac, DAC_IT_DMAUDR2);
+  }
+#endif  /* STM32L431xx STM32L432xx STM32L433xx STM32L442xx STM32L443xx                         */
+        /* STM32L471xx STM32L475xx STM32L476xx STM32L485xx STM32L486xx STM32L496xx STM32L4A6xx */
+        /* STM32L4R5xx STM32L4R7xx STM32L4R9xx STM32L4S5xx STM32L4S7xx STM32L4S9xx             */
+
+#if defined (STM32L451xx) || defined (STM32L452xx) || defined (STM32L462xx)
+  /* Disable the DMA channel */
+  status = HAL_DMA_Abort(hdac->DMA_Handle1);
+    
+  /* Disable the DAC DMA underrun interrupt */
+  __HAL_DAC_DISABLE_IT(hdac, DAC_IT_DMAUDR1);
+#endif /* STM32L451xx STM32L452xx STM32L462xx */  
+  
+  /* Check if DMA Channel effectively disabled */
+  if (status != HAL_OK)
+  {
+    /* Update DAC state machine to error */
+    hdac->State = HAL_DAC_STATE_ERROR;
+  }
+  else
+  {
+    /* Change DAC state */
+    hdac->State = HAL_DAC_STATE_READY;
+  }
+  
+  /* Return function status */
+  return status;
+}

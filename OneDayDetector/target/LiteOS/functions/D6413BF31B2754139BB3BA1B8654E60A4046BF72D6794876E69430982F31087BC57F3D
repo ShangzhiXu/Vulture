@@ -1,0 +1,153 @@
+void HAL_IRDA_IRQHandler(IRDA_HandleTypeDef *hirda)
+{
+  uint32_t isrflags   = READ_REG(hirda->Instance->ISR);
+  uint32_t cr1its     = READ_REG(hirda->Instance->CR1);
+  uint32_t cr3its;
+  uint32_t errorflags;
+  uint32_t errorcode;
+
+  /* If no error occurs */
+  errorflags = (isrflags & (uint32_t)(USART_ISR_PE | USART_ISR_FE | USART_ISR_ORE | USART_ISR_NE));
+  if (errorflags == 0U)
+  {
+    /* IRDA in mode Receiver ---------------------------------------------------*/
+    if (((isrflags & USART_ISR_RXNE) != 0U) && ((cr1its & USART_CR1_RXNEIE) != 0U))
+    {
+      IRDA_Receive_IT(hirda);
+      return;
+    }
+  }
+
+  /* If some errors occur */
+  cr3its = READ_REG(hirda->Instance->CR3);
+  if ((errorflags != 0U)
+      && (((cr3its & USART_CR3_EIE) != 0U)
+          || ((cr1its & (USART_CR1_RXNEIE | USART_CR1_PEIE)) != 0U)))
+  {
+    /* IRDA parity error interrupt occurred -------------------------------------*/
+    if (((isrflags & USART_ISR_PE) != 0U) && ((cr1its & USART_CR1_PEIE) != 0U))
+    {
+      __HAL_IRDA_CLEAR_IT(hirda, IRDA_CLEAR_PEF);
+
+      hirda->ErrorCode |= HAL_IRDA_ERROR_PE;
+    }
+
+    /* IRDA frame error interrupt occurred --------------------------------------*/
+    if (((isrflags & USART_ISR_FE) != 0U) && ((cr3its & USART_CR3_EIE) != 0U))
+    {
+      __HAL_IRDA_CLEAR_IT(hirda, IRDA_CLEAR_FEF);
+
+      hirda->ErrorCode |= HAL_IRDA_ERROR_FE;
+    }
+
+    /* IRDA noise error interrupt occurred --------------------------------------*/
+    if (((isrflags & USART_ISR_NE) != 0U) && ((cr3its & USART_CR3_EIE) != 0U))
+    {
+      __HAL_IRDA_CLEAR_IT(hirda, IRDA_CLEAR_NEF);
+
+      hirda->ErrorCode |= HAL_IRDA_ERROR_NE;
+    }
+
+    /* IRDA Over-Run interrupt occurred -----------------------------------------*/
+    if (((isrflags & USART_ISR_ORE) != 0U) &&
+        (((cr1its & USART_CR1_RXNEIE) != 0U) || ((cr3its & USART_CR3_EIE) != 0U)))
+    {
+      __HAL_IRDA_CLEAR_IT(hirda, IRDA_CLEAR_OREF);
+
+      hirda->ErrorCode |= HAL_IRDA_ERROR_ORE;
+    }
+
+    /* Call IRDA Error Call back function if need be --------------------------*/
+    if (hirda->ErrorCode != HAL_IRDA_ERROR_NONE)
+    {
+      /* IRDA in mode Receiver ---------------------------------------------------*/
+      if (((isrflags & USART_ISR_RXNE) != 0U) && ((cr1its & USART_CR1_RXNEIE) != 0U))
+      {
+        IRDA_Receive_IT(hirda);
+      }
+
+      /* If Overrun error occurs, or if any error occurs in DMA mode reception,
+         consider error as blocking */
+      errorcode = hirda->ErrorCode;
+      if ((HAL_IS_BIT_SET(hirda->Instance->CR3, USART_CR3_DMAR)) ||
+          ((errorcode & HAL_IRDA_ERROR_ORE) != 0U))
+      {
+        /* Blocking error : transfer is aborted
+           Set the IRDA state ready to be able to start again the process,
+           Disable Rx Interrupts, and disable Rx DMA request, if ongoing */
+        IRDA_EndRxTransfer(hirda);
+
+        /* Disable the IRDA DMA Rx request if enabled */
+        if (HAL_IS_BIT_SET(hirda->Instance->CR3, USART_CR3_DMAR))
+        {
+          CLEAR_BIT(hirda->Instance->CR3, USART_CR3_DMAR);
+
+          /* Abort the IRDA DMA Rx channel */
+          if (hirda->hdmarx != NULL)
+          {
+            /* Set the IRDA DMA Abort callback :
+               will lead to call HAL_IRDA_ErrorCallback() at end of DMA abort procedure */
+            hirda->hdmarx->XferAbortCallback = IRDA_DMAAbortOnError;
+
+            /* Abort DMA RX */
+            if (HAL_DMA_Abort_IT(hirda->hdmarx) != HAL_OK)
+            {
+              /* Call Directly hirda->hdmarx->XferAbortCallback function in case of error */
+              hirda->hdmarx->XferAbortCallback(hirda->hdmarx);
+            }
+          }
+          else
+          {
+#if (USE_HAL_IRDA_REGISTER_CALLBACKS == 1)
+            /* Call registered user error callback */
+            hirda->ErrorCallback(hirda);
+#else
+            /* Call legacy weak user error callback */
+            HAL_IRDA_ErrorCallback(hirda);
+#endif /* USE_HAL_IRDA_REGISTER_CALLBACK */
+          }
+        }
+        else
+        {
+#if (USE_HAL_IRDA_REGISTER_CALLBACKS == 1)
+          /* Call registered user error callback */
+          hirda->ErrorCallback(hirda);
+#else
+          /* Call legacy weak user error callback */
+          HAL_IRDA_ErrorCallback(hirda);
+#endif /* USE_HAL_IRDA_REGISTER_CALLBACK */
+        }
+      }
+      else
+      {
+        /* Non Blocking error : transfer could go on.
+           Error is notified to user through user error callback */
+#if (USE_HAL_IRDA_REGISTER_CALLBACKS == 1)
+        /* Call registered user error callback */
+        hirda->ErrorCallback(hirda);
+#else
+        /* Call legacy weak user error callback */
+        HAL_IRDA_ErrorCallback(hirda);
+#endif /* USE_HAL_IRDA_REGISTER_CALLBACK */
+        hirda->ErrorCode = HAL_IRDA_ERROR_NONE;
+      }
+    }
+    return;
+
+  } /* End if some error occurs */
+
+  /* IRDA in mode Transmitter ------------------------------------------------*/
+  if (((isrflags & USART_ISR_TXE) != 0U) && ((cr1its & USART_CR1_TXEIE) != 0U))
+  {
+    IRDA_Transmit_IT(hirda);
+    return;
+  }
+
+  /* IRDA in mode Transmitter (transmission end) -----------------------------*/
+  if (((isrflags & USART_ISR_TC) != 0U) && ((cr1its & USART_CR1_TCIE) != 0U))
+  {
+    IRDA_EndTransmit_IT(hirda);
+    return;
+  }
+
+}

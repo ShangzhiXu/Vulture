@@ -1,0 +1,22 @@
+mld6_stop(struct netif *netif)
+{
+  struct mld_group *group = netif_mld6_data(netif);
+
+  netif_set_client_data(netif, LWIP_NETIF_CLIENT_DATA_INDEX_MLD6, NULL);
+
+  while (group != NULL) {
+    struct mld_group *next = group->next; /* avoid use-after-free below */
+
+    /* disable the group at the MAC level */
+    if (netif->mld_mac_filter != NULL) {
+      netif->mld_mac_filter(netif, &(group->group_address), NETIF_DEL_MAC_FILTER);
+    }
+
+    /* free group */
+    memp_free(MEMP_MLD6_GROUP, group);
+
+    /* move to "next" */
+    group = next;
+  }
+  return ERR_OK;
+}

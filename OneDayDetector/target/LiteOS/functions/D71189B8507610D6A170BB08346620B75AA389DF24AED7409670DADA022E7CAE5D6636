@@ -1,0 +1,76 @@
+int los_open(const char *path, int flags)
+{
+    struct file *file = NULL;
+    int fd = -1;
+    const char *path_in_mp = NULL;
+    struct mount_point *mp;
+
+    if (path == NULL) {
+        VFS_ERRNO_SET(EINVAL);
+        return fd;
+    }
+
+    /* can not open dir */
+
+    if (path[strlen(path) - 1] == '/') {
+        VFS_ERRNO_SET(EINVAL);
+        return fd;
+    }
+
+    /* prevent fs/mp being removed while opening */
+
+    if (LOS_OK != LOS_MuxPend(fs_mutex, LOS_WAIT_FOREVER)) {
+        VFS_ERRNO_SET(EAGAIN);
+        return fd;
+    }
+
+    file = los_file_get();
+
+    if (file == NULL) {
+        VFS_ERRNO_SET(ENFILE);
+        goto err_post_exit;
+    }
+
+    mp = los_mp_find(path, &path_in_mp);
+
+    if ((mp == NULL) || (path_in_mp == NULL) || (*path_in_mp == '\0') || (mp->m_fs->fs_fops->open == NULL)) {
+        VFS_ERRNO_SET(ENOENT);
+        goto err_post_exit;
+    };
+
+    if (LOS_OK != LOS_MuxPend(mp->m_mutex, LOS_WAIT_FOREVER)) {
+        VFS_ERRNO_SET(EAGAIN);
+        goto err_post_exit;
+    }
+
+    LOS_MuxPost(fs_mutex);
+
+    file->f_flags = flags;
+    file->f_offset = 0;
+    file->f_data = NULL;
+    file->f_fops = mp->m_fs->fs_fops;
+    file->f_mp = mp;
+    file->f_owner = LOS_CurTaskIDGet();
+
+    if (file->f_fops->open(file, path_in_mp, flags) == 0) {
+        mp->m_refs++;
+        fd = _file_2_fd(file);
+        file->f_status = FILE_STATUS_READY; /* file now ready to use */
+    } else {
+        los_file_put(file);
+    }
+
+    LOS_MuxPost(mp->m_mutex);
+
+    return fd;
+
+err_post_exit:
+
+    LOS_MuxPost(fs_mutex);
+
+    if ((fd < 0) && (file != NULL)) {
+        los_file_put(file);
+    }
+
+    return fd;
+}

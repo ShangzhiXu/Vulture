@@ -1,0 +1,26 @@
+struct snmp_node_instance
+{
+  /** prefilled with the node, get_instance() is called on; may be changed by user to any value to pass an arbitrary node between calls to get_instance() and get_value/test_value/set_value */
+  const struct snmp_node* node;
+  /** prefilled with the instance id requested; for get_instance() this is the exact oid requested; for get_next_instance() this is the relative starting point, stack expects relative oid of next node here */
+  struct snmp_obj_id instance_oid;
+
+  /** ASN type for this object (see snmp_asn1.h for definitions) */
+  u8_t asn1_type;
+  /** one out of instance access types defined above (SNMP_NODE_INSTANCE_READ_ONLY,...) */
+  snmp_access_t access;
+
+  /** returns object value for the given object identifier. Return values <0 to indicate an error */
+  node_instance_get_value_method get_value;
+  /** tests length and/or range BEFORE setting */
+  node_instance_set_test_method set_test;
+  /** sets object value, only called when set_test() was successful */
+  node_instance_set_value_method set_value;
+  /** called in any case when the instance is not required anymore by stack (useful for freeing memory allocated in get_instance/get_next_instance methods) */
+  node_instance_release_method release_instance;
+
+  /** reference to pass arbitrary value between calls to get_instance() and get_value/test_value/set_value */
+  union snmp_variant_value reference;
+  /** see reference (if reference is a pointer, the length of underlying data may be stored here or anything else) */
+  u32_t reference_len;
+};

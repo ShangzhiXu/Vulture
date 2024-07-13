@@ -1,0 +1,23 @@
+HAL_StatusTypeDef HAL_SRAM_Read_DMA(SRAM_HandleTypeDef *hsram, uint32_t *pAddress, uint32_t *pDstBuffer, uint32_t BufferSize)
+{
+  /* Process Locked */
+  __HAL_LOCK(hsram);  
+  
+  /* Update the SRAM controller state */
+  hsram->State = HAL_SRAM_STATE_BUSY;   
+  
+  /* Configure DMA user callbacks */
+  hsram->hdma->XferCpltCallback  = HAL_SRAM_DMA_XferCpltCallback;
+  hsram->hdma->XferErrorCallback = HAL_SRAM_DMA_XferErrorCallback;
+
+  /* Enable the DMA Stream */
+  HAL_DMA_Start_IT(hsram->hdma, (uint32_t)pAddress, (uint32_t)pDstBuffer, (uint32_t)BufferSize);
+  
+  /* Update the SRAM controller state */
+  hsram->State = HAL_SRAM_STATE_READY; 
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hsram);  
+  
+  return HAL_OK; 
+}

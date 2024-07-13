@@ -1,0 +1,39 @@
+HAL_StatusTypeDef HAL_RNG_DeInit(RNG_HandleTypeDef *hrng)
+{
+  /* Check the RNG handle allocation */
+  if (hrng == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Disable the RNG Peripheral */
+  CLEAR_BIT(hrng->Instance->CR, RNG_CR_IE | RNG_CR_RNGEN);
+
+  /* Clear RNG interrupt status flags */
+  CLEAR_BIT(hrng->Instance->SR, RNG_SR_CEIS | RNG_SR_SEIS);
+
+#if (USE_HAL_RNG_REGISTER_CALLBACKS == 1)
+  if (hrng->MspDeInitCallback == NULL)
+  {
+    hrng->MspDeInitCallback = HAL_RNG_MspDeInit; /* Legacy weak MspDeInit  */
+  }
+
+  /* DeInit the low level hardware */
+  hrng->MspDeInitCallback(hrng);
+#else
+  /* DeInit the low level hardware */
+  HAL_RNG_MspDeInit(hrng);
+#endif /* USE_HAL_RNG_REGISTER_CALLBACKS */
+
+  /* Update the RNG state */
+  hrng->State = HAL_RNG_STATE_RESET;
+
+  /* Initialise the error code */
+  hrng->ErrorCode = HAL_RNG_ERROR_NONE;
+
+  /* Release Lock */
+  __HAL_UNLOCK(hrng);
+
+  /* Return the function status */
+  return HAL_OK;
+}

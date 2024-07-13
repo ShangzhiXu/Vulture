@@ -1,0 +1,24 @@
+static void CRYP_SetDMAConfig(CRYP_HandleTypeDef *hcryp, uint32_t inputaddr, uint16_t Size, uint32_t outputaddr)
+{
+  /* Set the CRYP DMA transfer complete callback */
+  hcryp->hdmain->XferCpltCallback = CRYP_DMAInCplt;
+  /* Set the DMA error callback */
+  hcryp->hdmain->XferErrorCallback = CRYP_DMAError;
+  
+  /* Set the CRYP DMA transfer complete callback */
+  hcryp->hdmaout->XferCpltCallback = CRYP_DMAOutCplt;
+  /* Set the DMA error callback */
+  hcryp->hdmaout->XferErrorCallback = CRYP_DMAError;
+
+  /* Enable the DMA input stream */
+  HAL_DMA_Start_IT(hcryp->hdmain, inputaddr, (uint32_t)&hcryp->Instance->DINR, Size/4);
+
+  /* Enable the DMA output stream */
+  HAL_DMA_Start_IT(hcryp->hdmaout, (uint32_t)&hcryp->Instance->DOUTR, outputaddr, Size/4);
+
+  /* Enable In and Out DMA requests */
+  SET_BIT(hcryp->Instance->CR, (AES_CR_DMAINEN | AES_CR_DMAOUTEN));
+  
+  /* Enable the CRYP peripheral */
+  __HAL_CRYP_ENABLE(hcryp);
+}

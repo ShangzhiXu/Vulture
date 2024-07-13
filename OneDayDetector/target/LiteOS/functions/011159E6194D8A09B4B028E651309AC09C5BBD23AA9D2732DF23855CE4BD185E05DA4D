@@ -1,0 +1,42 @@
+LITE_OS_SEC_TEXT_INIT UINT32 OsSwtmrInit(VOID)
+{
+    UINT32 size;
+    UINT16 index;
+    UINT32 ret;
+    LosSwtmrCB *swtmr = NULL;
+    UINT32 cpuid = ArchCurrCpuid();
+    if (cpuid == 0) {
+        size = sizeof(LosSwtmrCB) * LOSCFG_BASE_CORE_SWTMR_LIMIT;
+        swtmr = (LosSwtmrCB *)LOS_MemAlloc(m_aucSysMem0, size); /* system resident resource */
+        if (swtmr == NULL) {
+            return LOS_ERRNO_SWTMR_NO_MEMORY;
+        }
+
+        (VOID)memset_s(swtmr, size, 0, size);
+        g_swtmrCBArray = swtmr;
+        LOS_ListInit(&g_swtmrFreeList);
+        for (index = 0; index < LOSCFG_BASE_CORE_SWTMR_LIMIT; index++, swtmr++) {
+            swtmr->timerId = index;
+            LOS_ListTailInsert(&g_swtmrFreeList, &swtmr->sortList.sortLinkNode);
+        }
+    }
+
+#ifndef LOSCFG_BASE_CORE_SWTMR_IN_ISR
+    ret = LOS_QueueCreate(NULL, OS_SWTMR_HANDLE_QUEUE_SIZE, &g_percpu[cpuid].swtmrHandlerQueue, 0, sizeof(CHAR *));
+    if (ret != LOS_OK) {
+        return LOS_ERRNO_SWTMR_QUEUE_CREATE_FAILED;
+    }
+
+    ret = OsSwtmrTaskCreate();
+    if (ret != LOS_OK) {
+        return LOS_ERRNO_SWTMR_TASK_CREATE_FAILED;
+    }
+#endif
+
+    ret = OsSortLinkInit(&g_percpu[cpuid].swtmrSortLink);
+    if (ret != LOS_OK) {
+        return LOS_ERRNO_SWTMR_SORTLINK_CREATE_FAILED;
+    }
+
+    return LOS_OK;
+}

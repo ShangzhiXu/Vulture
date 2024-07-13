@@ -1,0 +1,161 @@
+HAL_StatusTypeDef HAL_CEC_Transmit(CEC_HandleTypeDef *hcec, uint8_t DestinationAddress, uint8_t *pData, uint32_t Size, uint32_t Timeout)
+{
+  uint8_t  temp = 0;
+  uint32_t tickstart = 0;
+
+  /* If the IP is ready */
+  if((hcec->State == HAL_CEC_STATE_READY) 
+     && (__HAL_CEC_GET_TRANSMISSION_START_FLAG(hcec) == RESET)) 
+  {
+    /* Basic check on pData pointer */
+    if(((pData == NULL) && (Size > 0)) || (! IS_CEC_MSGSIZE(Size))) 
+    {
+      return  HAL_ERROR;
+    }
+
+    assert_param(IS_CEC_ADDRESS(DestinationAddress));
+    
+    /* Process Locked */
+    __HAL_LOCK(hcec);
+    
+    /* Enter the transmit mode */
+    hcec->State = HAL_CEC_STATE_BUSY_TX;
+    hcec->ErrorCode = HAL_CEC_ERROR_NONE;
+
+    /* Initialize the number of bytes to send,
+     * 0 means only one header is sent (ping operation) */
+    hcec->TxXferCount = Size;
+
+    /* Send header block */
+    temp = (uint8_t)((uint32_t)(hcec->Init.InitiatorAddress) << CEC_INITIATOR_LSB_POS) | DestinationAddress;
+    hcec->Instance->TXD = temp;
+
+    /* In case no data to be sent, sender is only pinging the system */
+    if (Size != 0)
+    {    
+      /* Set TX Start of Message (TXSOM) bit */
+      hcec->Instance->CSR = CEC_FLAG_TSOM;
+    }
+    else
+    {
+      /* Send a ping command */
+      hcec->Instance->CSR = CEC_FLAG_TEOM|CEC_FLAG_TSOM;
+    }
+
+    /* Polling TBTRF bit with timeout handling*/
+    while (hcec->TxXferCount > 0)
+    {
+      /* Decreasing of the number of remaining data to receive */
+      hcec->TxXferCount--;
+      
+      /* Timeout handling */
+      tickstart = HAL_GetTick();
+      
+      /* Waiting for the next data transmission */
+      while(HAL_IS_BIT_CLR(hcec->Instance->CSR, CEC_FLAG_TBTRF))
+      {
+        /* Timeout handling */
+        if(Timeout != HAL_MAX_DELAY)
+        {
+          if((Timeout == 0) || ((HAL_GetTick()-tickstart) > Timeout))
+          {
+            hcec->State = HAL_CEC_STATE_READY; 
+            /* Process Unlocked */
+            __HAL_UNLOCK(hcec);  
+            return HAL_TIMEOUT;
+          }
+        }        
+
+        /* Check if an error occured */
+        if(HAL_IS_BIT_SET(hcec->Instance->CSR, CEC_FLAG_TERR) || HAL_IS_BIT_SET(hcec->Instance->CSR, CEC_FLAG_RERR))
+        {
+          /* Copy ESR for error handling purposes */
+          hcec->ErrorCode = READ_BIT(hcec->Instance->ESR, CEC_ESR_ALL_ERROR);
+          
+          /* Acknowledgement of the error */
+          __HAL_CEC_CLEAR_FLAG(hcec, CEC_FLAG_TERR);
+          __HAL_CEC_CLEAR_FLAG(hcec, CEC_FLAG_RERR);
+          
+          hcec->State = HAL_CEC_STATE_READY;
+          __HAL_UNLOCK(hcec);
+          return  HAL_ERROR;                                    
+        }
+      }
+      
+      /* Write the next data to TX buffer */
+      hcec->Instance->TXD = *pData++;
+      
+      /* If this is the last byte of the ongoing transmission */
+      if (hcec->TxXferCount == 0)
+      {
+        /* Acknowledge byte request and signal end of message */
+        MODIFY_REG(hcec->Instance->CSR, CEC_FLAG_TRANSMIT_MASK, CEC_FLAG_TEOM);
+      }
+      else
+      {
+        /* Acknowledge byte request by writing 0x00 */
+        MODIFY_REG(hcec->Instance->CSR, CEC_FLAG_TRANSMIT_MASK, 0x00);
+      }
+    }
+    
+    /* Timeout handling */
+    tickstart = HAL_GetTick();
+    
+    /* Wait for message transmission completion (TBTRF is set) */
+    while (HAL_IS_BIT_CLR(hcec->Instance->CSR, CEC_FLAG_TBTRF))
+    {
+      /* Timeout handling */
+      if(Timeout != HAL_MAX_DELAY)
+      {
+        if((Timeout == 0) || ((HAL_GetTick()-tickstart) > Timeout))
+        {
+          hcec->State = HAL_CEC_STATE_READY;
+          __HAL_UNLOCK(hcec);             
+          return HAL_TIMEOUT;
+        }
+      } 
+
+      /* Check of error during transmission of the last byte */
+      if(HAL_IS_BIT_SET(hcec->Instance->CSR, CEC_FLAG_TERR) || HAL_IS_BIT_SET(hcec->Instance->CSR, CEC_FLAG_RERR))
+      {
+        /* Copy ESR for error handling purposes */
+        hcec->ErrorCode = READ_BIT(hcec->Instance->ESR, CEC_ESR_ALL_ERROR);
+        
+        /* Acknowledgement of the error */
+        __HAL_CEC_CLEAR_FLAG(hcec, CEC_FLAG_TERR);
+        __HAL_CEC_CLEAR_FLAG(hcec, CEC_FLAG_RERR);
+        
+        hcec->State = HAL_CEC_STATE_READY;
+        __HAL_UNLOCK(hcec);
+        return  HAL_ERROR;                                    
+      }
+    }
+    
+    /* Check of error after the last byte transmission */
+    if(HAL_IS_BIT_SET(hcec->Instance->CSR, CEC_FLAG_TERR) || HAL_IS_BIT_SET(hcec->Instance->CSR, CEC_FLAG_RERR))
+    {
+      /* Copy ESR for error handling purposes */
+      hcec->ErrorCode = READ_BIT(hcec->Instance->ESR, CEC_ESR_ALL_ERROR);
+      
+      /* Acknowledgement of the error */
+      __HAL_CEC_CLEAR_FLAG(hcec, CEC_FLAG_TERR);
+      __HAL_CEC_CLEAR_FLAG(hcec, CEC_FLAG_RERR);
+      
+      hcec->State = HAL_CEC_STATE_READY;
+      __HAL_UNLOCK(hcec);
+      return  HAL_ERROR;
+    }
+    
+    /* Acknowledge successful completion by writing 0x00 */
+    MODIFY_REG(hcec->Instance->CSR, CEC_FLAG_TRANSMIT_MASK, 0x00);
+    
+    hcec->State = HAL_CEC_STATE_READY;
+    __HAL_UNLOCK(hcec);
+    
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;   
+  }
+}

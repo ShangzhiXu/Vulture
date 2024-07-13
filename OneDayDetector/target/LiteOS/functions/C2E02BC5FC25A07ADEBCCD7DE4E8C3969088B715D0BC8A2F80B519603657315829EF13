@@ -1,0 +1,20 @@
+unsigned long mbedtls_timing_get_timer( struct mbedtls_timing_hr_time *val, int reset )
+{
+    struct _hr_time *t = (struct _hr_time *) val;
+
+    if( reset )
+    {
+        QueryPerformanceCounter( &t->start );
+        return( 0 );
+    }
+    else
+    {
+        unsigned long delta;
+        LARGE_INTEGER now, hfreq;
+        QueryPerformanceCounter(  &now );
+        QueryPerformanceFrequency( &hfreq );
+        delta = (unsigned long)( ( now.QuadPart - t->start.QuadPart ) * 1000ul
+                                 / hfreq.QuadPart );
+        return( delta );
+    }
+}

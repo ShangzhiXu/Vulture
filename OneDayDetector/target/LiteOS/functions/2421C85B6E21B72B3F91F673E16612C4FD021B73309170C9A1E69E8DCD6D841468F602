@@ -1,0 +1,36 @@
+STATIC VOID OsSemSort(UINT32 *semIndexArray, UINT32 usedCount)
+{
+    UINT32 i, intSave;
+    LosSemCB *semCB = NULL;
+    LosSemCB semNode = {0};
+    SemDebugCB semDebug = {0};
+    SortParam semSortParam;
+    semSortParam.buf = (CHAR *)g_semDebugArray;
+    semSortParam.ctrlBlockSize = sizeof(SemDebugCB);
+    semSortParam.ctrlBlockCnt = LOSCFG_BASE_IPC_SEM_LIMIT;
+    semSortParam.sortElemOff = OFFSET_OF_FIELD(SemDebugCB, lastAccessTime);
+
+    /* It will Print out ALL the Used Semaphore List. */
+    PRINTK("Used Semaphore List: \n");
+    PRINTK("\r\n   SemID    Count    OriginalCount   Creater(TaskEntry)    LastAccessTime\n");
+    PRINTK("   ------   ------   -------------   ------------------    --------------   \n");
+
+    SCHEDULER_LOCK(intSave);
+    OsArraySort(semIndexArray, 0, usedCount - 1, &semSortParam, SemCompareValue);
+    SCHEDULER_UNLOCK(intSave);
+    for (i = 0; i < usedCount; i++) {
+        semCB = GET_SEM(semIndexArray[i]);
+        SCHEDULER_LOCK(intSave);
+        (VOID)memcpy_s(&semNode, sizeof(LosSemCB), semCB, sizeof(LosSemCB));
+        (VOID)memcpy_s(&semDebug, sizeof(SemDebugCB), &g_semDebugArray[semIndexArray[i]], sizeof(SemDebugCB));
+        SCHEDULER_UNLOCK(intSave);
+        if ((semNode.semStat != OS_SEM_USED) || (semDebug.creator == NULL)) {
+            continue;
+        }
+        PRINTK("   0x%-07x0x%-07u0x%-14u%-22p0x%llx\n", semNode.semId, semDebug.origSemCount,
+               semNode.semCount, semDebug.creator, semDebug.lastAccessTime);
+        if (!LOS_ListEmpty(&semNode.semList)) {
+            OsSemPendedTaskNamePrint(semCB);
+        }
+    }
+}

@@ -1,0 +1,30 @@
+static VOID Example_Ipc(VOID)
+{
+    UINT32 taskId;
+    TSK_INIT_PARAM_S taskInitParam;
+
+    LOS_TraceEventMaskSet(TRACE_EVENT_FLAG | TRACE_MUX_FLAG | TRACE_SEM_FLAG | TRACE_QUE_FLAG);
+
+    LOS_EventInit(&g_demoEvent);
+    LOS_SemCreate(0, &g_demoSem);
+    LOS_MuxCreate(&g_demoMux);
+    LOS_MuxPend(g_demoMux, LOS_WAIT_FOREVER);
+
+    LOS_QueueCreate("queue", 5, &g_demoQueue, 0, 24);
+
+    memset(&taskInitParam, 0, sizeof(TSK_INIT_PARAM_S));
+    taskInitParam.uwStackSize   = LOSCFG_BASE_CORE_TSK_DEFAULT_STACK_SIZE;
+    taskInitParam.usTaskPrio    = TRACE_DEMO_TASK_PRIO -1;
+    taskInitParam.pfnTaskEntry  = (TSK_ENTRY_FUNC)Pend_Entry;
+    taskInitParam.pcName        = "taskPendEntry";
+#ifdef LOSCFG_KERNEL_SMP
+    taskInitParam.usCpuAffiMask = CPUID_TO_AFFI_MASK(ArchCurrCpuid());
+#endif
+    LOS_TaskCreate(&taskId, &taskInitParam);
+
+    LOS_EventWrite(&g_demoEvent, TRACE_DEMO_EVENT_WAIT);
+    LOS_SemPost(g_demoSem);
+
+    LOS_QueueWrite(g_demoQueue, "buff", 8, 0);
+    LOS_MuxPost(g_demoMux);
+}

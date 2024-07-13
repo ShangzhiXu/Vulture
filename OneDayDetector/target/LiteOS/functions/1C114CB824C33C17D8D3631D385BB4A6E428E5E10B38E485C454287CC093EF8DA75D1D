@@ -1,0 +1,29 @@
+mdns_build_reverse_v4_domain(struct mdns_domain *domain, const ip4_addr_t *addr)
+{
+  int i;
+  err_t res;
+  const u8_t *ptr;
+
+  LWIP_UNUSED_ARG(res);
+  if (!domain || !addr) {
+    return ERR_ARG;
+  }
+  memset(domain, 0, sizeof(struct mdns_domain));
+  ptr = (const u8_t *) addr;
+  for (i = sizeof(ip4_addr_t) - 1; i >= 0; i--) {
+    char buf[4];
+    u8_t val = ptr[i];
+
+    lwip_itoa(buf, sizeof(buf), val);
+    res = mdns_domain_add_label(domain, buf, (u8_t)strlen(buf));
+    LWIP_ERROR("mdns_build_reverse_v4_domain: Failed to add label", (res == ERR_OK), return res);
+  }
+  res = mdns_domain_add_label(domain, REVERSE_PTR_V4_DOMAIN, (u8_t)(sizeof(REVERSE_PTR_V4_DOMAIN) - 1));
+  LWIP_ERROR("mdns_build_reverse_v4_domain: Failed to add label", (res == ERR_OK), return res);
+  res = mdns_domain_add_label(domain, REVERSE_PTR_TOPDOMAIN, (u8_t)(sizeof(REVERSE_PTR_TOPDOMAIN) - 1));
+  LWIP_ERROR("mdns_build_reverse_v4_domain: Failed to add label", (res == ERR_OK), return res);
+  res = mdns_domain_add_label(domain, NULL, 0);
+  LWIP_ERROR("mdns_build_reverse_v4_domain: Failed to add label", (res == ERR_OK), return res);
+
+  return ERR_OK;
+}

@@ -1,0 +1,62 @@
+tcp_abandon(struct tcp_pcb *pcb, int reset)
+{
+  u32_t seqno, ackno;
+#if LWIP_CALLBACK_API
+  tcp_err_fn errf;
+#endif /* LWIP_CALLBACK_API */
+  void *errf_arg;
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  LWIP_ERROR("tcp_abandon: invalid pcb", pcb != NULL, return);
+
+  /* pcb->state LISTEN not allowed here */
+  LWIP_ASSERT("don't call tcp_abort/tcp_abandon for listen-pcbs",
+              pcb->state != LISTEN);
+  /* Figure out on which TCP PCB list we are, and remove us. If we
+     are in an active state, call the receive function associated with
+     the PCB with a NULL argument, and send an RST to the remote end. */
+  if (pcb->state == TIME_WAIT) {
+    tcp_pcb_remove(&tcp_tw_pcbs, pcb);
+    tcp_free(pcb);
+  } else {
+    int send_rst = 0;
+    u16_t local_port = 0;
+    enum tcp_state last_state;
+    seqno = pcb->snd_nxt;
+    ackno = pcb->rcv_nxt;
+#if LWIP_CALLBACK_API
+    errf = pcb->errf;
+#endif /* LWIP_CALLBACK_API */
+    errf_arg = pcb->callback_arg;
+    if (pcb->state == CLOSED) {
+      if (pcb->local_port != 0) {
+        /* bound, not yet opened */
+        TCP_RMV(&tcp_bound_pcbs, pcb);
+      }
+    } else {
+      send_rst = reset;
+      local_port = pcb->local_port;
+      TCP_PCB_REMOVE_ACTIVE(pcb);
+    }
+    if (pcb->unacked != NULL) {
+      tcp_segs_free(pcb->unacked);
+    }
+    if (pcb->unsent != NULL) {
+      tcp_segs_free(pcb->unsent);
+    }
+#if TCP_QUEUE_OOSEQ
+    if (pcb->ooseq != NULL) {
+      tcp_segs_free(pcb->ooseq);
+    }
+#endif /* TCP_QUEUE_OOSEQ */
+    tcp_backlog_accepted(pcb);
+    if (send_rst) {
+      LWIP_DEBUGF(TCP_RST_DEBUG, ("tcp_abandon: sending RST\n"));
+      tcp_rst(pcb, seqno, ackno, &pcb->local_ip, &pcb->remote_ip, local_port, pcb->remote_port);
+    }
+    last_state = pcb->state;
+    tcp_free(pcb);
+    TCP_EVENT_ERR(last_state, errf, errf_arg, ERR_ABRT);
+  }
+}

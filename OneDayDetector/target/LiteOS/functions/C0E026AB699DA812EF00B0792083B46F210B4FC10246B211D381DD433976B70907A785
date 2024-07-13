@@ -1,0 +1,21 @@
+int mbedtls_dhm_read_params( mbedtls_dhm_context *ctx,
+                     unsigned char **p,
+                     const unsigned char *end )
+{
+    int ret;
+    DHM_VALIDATE_RET( ctx != NULL );
+    DHM_VALIDATE_RET( p != NULL && *p != NULL );
+    DHM_VALIDATE_RET( end != NULL );
+
+    if( ( ret = dhm_read_bignum( &ctx->P,  p, end ) ) != 0 ||
+        ( ret = dhm_read_bignum( &ctx->G,  p, end ) ) != 0 ||
+        ( ret = dhm_read_bignum( &ctx->GY, p, end ) ) != 0 )
+        return( ret );
+
+    if( ( ret = dhm_check_range( &ctx->GY, &ctx->P ) ) != 0 )
+        return( ret );
+
+    ctx->len = mbedtls_mpi_size( &ctx->P );
+
+    return( 0 );
+}

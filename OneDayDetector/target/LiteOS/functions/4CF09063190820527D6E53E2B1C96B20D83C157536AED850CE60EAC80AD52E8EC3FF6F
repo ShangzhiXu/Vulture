@@ -1,0 +1,28 @@
+__attribute__((always_inline)) inline VOID OsMemLinkRegisterRecord(LosMemDynNode *node)
+{
+    UINT32 count = 0;
+    UINT32 index = 0;
+    UINTPTR framePtr, tmpFramePtr, linkReg;
+
+    (VOID)memset_s(node->selfNode.linkReg, (LOS_RECORD_LR_CNT * sizeof(UINTPTR)), 0,
+        (LOS_RECORD_LR_CNT * sizeof(UINTPTR)));
+    framePtr = ArchGetFp();
+    while ((framePtr > OS_SYS_FUNC_ADDR_START) && (framePtr < OS_SYS_FUNC_ADDR_END)) {
+        tmpFramePtr = framePtr;
+#ifdef __LP64__
+        framePtr = *(UINTPTR *)framePtr;
+        linkReg = *(UINTPTR *)(tmpFramePtr + sizeof(UINTPTR));
+#else
+        linkReg = *(UINTPTR *)framePtr;
+        framePtr = *(UINTPTR *)(tmpFramePtr - sizeof(UINTPTR));
+#endif
+        if (index >= LOS_OMIT_LR_CNT) {
+            node->selfNode.linkReg[count++] = linkReg;
+            if (count == LOS_RECORD_LR_CNT) {
+                break;
+            }
+        }
+        index++;
+    }
+    return;
+}

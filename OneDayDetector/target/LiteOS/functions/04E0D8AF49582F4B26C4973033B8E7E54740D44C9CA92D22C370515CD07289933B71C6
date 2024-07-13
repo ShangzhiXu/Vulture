@@ -1,0 +1,23 @@
+VOID HrtimerClockInit(VOID)
+{
+    UINT32 temp;
+
+    /* enable timer here */
+    READ_UINT32(temp, SYS_CTRL_REG_BASE + REG_SC_CTRL);
+    temp |= HRTIMER_TIMER_ENABLE;
+    WRITE_UINT32(temp, SYS_CTRL_REG_BASE + REG_SC_CTRL);
+
+    /* disable timer */
+    WRITE_UINT32(0x0, HRTIMER_TIMER_REG_BASE + TIMER_CONTROL);
+
+    /*
+     * Timing mode:oneshot [bit 0 set as 1]
+     * timersize:32bits [bit 1 set as 1]
+     * ticking with 1/1 clock frequency [bit 3 set as 0, bit 2 set as 0]
+     * interrupt enabled [bit 5 set as 1]
+     * timer mode periodic[bit 6 set as 1]
+     */
+    temp = (1U << TIMER_COUNTING_MODE_BIT) | (1U << TIMER_INTERRUPT_ENABLE_BIT) |
+           (1U << TIMER_SIZE_SELECT_BIT) | (1U << TIMER_ONESHOT_BIT);
+    WRITE_UINT32(temp, HRTIMER_TIMER_REG_BASE + TIMER_CONTROL);
+}

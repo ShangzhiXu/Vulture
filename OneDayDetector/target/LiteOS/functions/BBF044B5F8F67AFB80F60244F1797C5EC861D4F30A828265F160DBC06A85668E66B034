@@ -1,0 +1,53 @@
+void start_networks(ppp_pcb *pcb) {
+#if CCP_SUPPORT || ECP_SUPPORT
+    int i;
+    const struct protent *protp;
+#endif /* CCP_SUPPORT || ECP_SUPPORT */
+
+    new_phase(pcb, PPP_PHASE_NETWORK);
+
+#ifdef HAVE_MULTILINK
+    if (multilink) {
+	if (mp_join_bundle()) {
+	    if (multilink_join_hook)
+		(*multilink_join_hook)();
+	    if (updetach && !nodetach)
+		detach();
+	    return;
+	}
+    }
+#endif /* HAVE_MULTILINK */
+
+#ifdef PPP_FILTER
+    if (!demand)
+	set_filters(&pass_filter, &active_filter);
+#endif
+#if CCP_SUPPORT || ECP_SUPPORT
+    /* Start CCP and ECP */
+    for (i = 0; (protp = protocols[i]) != NULL; ++i)
+	if (
+	    (0
+#if ECP_SUPPORT
+	    || protp->protocol == PPP_ECP
+#endif /* ECP_SUPPORT */
+#if CCP_SUPPORT
+	    || protp->protocol == PPP_CCP
+#endif /* CCP_SUPPORT */
+	    )
+	    && protp->open != NULL)
+	    (*protp->open)(pcb);
+#endif /* CCP_SUPPORT || ECP_SUPPORT */
+
+    /*
+     * Bring up other network protocols iff encryption is not required.
+     */
+    if (1
+#if ECP_SUPPORT
+        && !ecp_gotoptions[unit].required
+#endif /* ECP_SUPPORT */
+#if MPPE_SUPPORT
+        && !pcb->ccp_gotoptions.mppe
+#endif /* MPPE_SUPPORT */
+        )
+	continue_networks(pcb);
+}

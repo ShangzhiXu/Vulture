@@ -1,0 +1,42 @@
+LITE_OS_SEC_TEXT UINT32 LOS_MuxPost(UINT32 muxHandle)
+{
+    UINT32 ret;
+    LosTaskCB *runTask = NULL;
+    LosMuxCB *muxPosted = GET_MUX(muxHandle);
+    UINT32 intSave;
+
+    if (GET_MUX_INDEX(muxHandle) >= (UINT32)LOSCFG_BASE_IPC_MUX_LIMIT) {
+        OS_RETURN_ERROR(LOS_ERRNO_MUX_INVALID);
+    }
+
+    LOS_TRACE(MUX_POST, muxHandle, muxPosted->muxCount,
+        ((muxPosted->owner == NULL) ? 0xFFFFFFFF : muxPosted->owner->taskId));
+
+    SCHEDULER_LOCK(intSave);
+
+    ret = OsMuxParaCheck(muxPosted, muxHandle);
+    if (ret != LOS_OK) {
+        SCHEDULER_UNLOCK(intSave);
+        return ret;
+    }
+
+    runTask = OsCurrTaskGet();
+    if ((muxPosted->muxCount == 0) || (muxPosted->owner != runTask)) {
+        SCHEDULER_UNLOCK(intSave);
+        OS_RETURN_ERROR(LOS_ERRNO_MUX_INVALID);
+    }
+
+    if (--muxPosted->muxCount != 0) {
+        SCHEDULER_UNLOCK(intSave);
+        return LOS_OK;
+    }
+
+    ret = OsMuxPostOp(runTask, (MuxBaseCB *)muxPosted);
+    SCHEDULER_UNLOCK(intSave);
+    if (ret == MUX_SCHEDULE) {
+        LOS_MpSchedule(OS_MP_CPU_ALL);
+        LOS_Schedule();
+    }
+
+    return LOS_OK;
+}

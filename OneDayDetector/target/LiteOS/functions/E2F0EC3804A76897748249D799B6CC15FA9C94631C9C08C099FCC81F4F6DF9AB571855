@@ -1,0 +1,26 @@
+static void eap_send_success(ppp_pcb *pcb) {
+	struct pbuf *p;
+	u_char *outp;
+
+	p = pbuf_alloc(PBUF_RAW, (u16_t)(PPP_HDRLEN + EAP_HEADERLEN), PPP_CTRL_PBUF_TYPE);
+	if(NULL == p)
+		return;
+	if(p->tot_len != p->len) {
+		pbuf_free(p);
+		return;
+	}
+
+	outp = (u_char*)p->payload;
+    
+	MAKEHEADER(outp, PPP_EAP);
+
+	PUTCHAR(EAP_SUCCESS, outp);
+	pcb->eap.es_server.ea_id++;
+	PUTCHAR(pcb->eap.es_server.ea_id, outp);
+	PUTSHORT(EAP_HEADERLEN, outp);
+
+	ppp_write(pcb, p);
+
+	auth_peer_success(pcb, PPP_EAP, 0,
+	    pcb->eap.es_server.ea_peer, pcb->eap.es_server.ea_peerlen);
+}

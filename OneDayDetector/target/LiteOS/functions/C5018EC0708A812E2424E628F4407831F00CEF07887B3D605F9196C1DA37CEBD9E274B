@@ -1,0 +1,52 @@
+LITE_OS_SEC_TEXT_MINOR STATIC INT32 SensorMessageSwitchProcess(PktHeader *pkt, SensorItem *item, INT32 *keep)
+{
+    INT32 ret;
+    PktHeaderResp rpkt;
+
+    switch (pkt->cmd) {
+        case CMD_CMN_OPEN_REQ:
+            *keep = 1; // receive open req
+            rpkt.cmd = CMD_CMN_OPEN_RESP;
+            rpkt.errNo = EN_OK;
+            break;
+
+        case CMD_CMN_CLOSE_REQ:
+            *keep = 0; // receive close req
+            ret = SensorItemDisable(item, &((PktCmnCloseReq *)pkt)->clsParam, pkt->tranId, pkt->resp);
+            if (ret == LOS_OK) {
+                return ret;
+            }
+            rpkt.cmd = CMD_CMN_CLOSE_RESP;
+            rpkt.errNo = EN_FAIL;
+            break;
+
+        case CMD_CMN_INTERVAL_REQ:
+            if (*keep != 0) { // open req has received
+                ret = SensorItemEnable(item, &((PktCmnIntervalReq *)pkt)->para, pkt->tranId, pkt->resp);
+                if (ret == LOS_OK) {
+                    return ret;
+                }
+            }
+            rpkt.cmd = CMD_CMN_INTERVAL_RESP;
+            rpkt.errNo = EN_FAIL;
+            break;
+
+        default:
+            rpkt.cmd = CMD_ERR_RESP;
+            rpkt.errNo = EN_FAIL;
+            break;
+    }
+
+    if (pkt->resp == RESP) {
+        rpkt.tag = pkt->tag;
+        rpkt.resp = NO_RESP;
+        rpkt.tranId = pkt->tranId;
+        rpkt.length = CMN_RESP_LENGTH;
+        return SensorCommuSend((UINT8 *)&rpkt, sizeof(rpkt));
+    }
+
+    if (pkt->cmd == CMD_CMN_OPEN_REQ) {
+        return LOS_OK;
+    }
+    return LOS_NOK;
+}

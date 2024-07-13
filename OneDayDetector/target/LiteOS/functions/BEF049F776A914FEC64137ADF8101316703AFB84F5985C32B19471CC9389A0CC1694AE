@@ -1,0 +1,32 @@
+HAL_StatusTypeDef HAL_DMAEx_ConfigMuxRequestGenerator (DMA_HandleTypeDef *hdma, HAL_DMA_MuxRequestGeneratorConfigTypeDef *pRequestGeneratorConfig)
+{
+  /* Check the parameters */
+  assert_param(IS_DMA_ALL_INSTANCE(hdma->Instance));
+
+  assert_param(IS_DMAMUX_REQUEST_GEN_SIGNAL_ID(pRequestGeneratorConfig->SignalID));
+
+  assert_param(IS_DMAMUX_REQUEST_GEN_POLARITY(pRequestGeneratorConfig->Polarity));
+  assert_param(IS_DMAMUX_REQUEST_GEN_REQUEST_NUMBER(pRequestGeneratorConfig->RequestNumber));
+
+  /* check if the DMA state is ready
+     and DMA is using a DMAMUX request generator block
+  */
+  if((hdma->State == HAL_DMA_STATE_READY) && (hdma->DMAmuxRequestGen != 0U))
+  {
+    /* Process Locked */
+    __HAL_LOCK(hdma);
+
+    /* Set the request generator new parameters*/
+    hdma->DMAmuxRequestGen->RGCR = pRequestGeneratorConfig->SignalID | \
+                                  ((pRequestGeneratorConfig->RequestNumber - 1U) << POSITION_VAL(DMAMUX_RGxCR_GNBREQ))| \
+                                  pRequestGeneratorConfig->Polarity;
+   /* Process UnLocked */
+   __HAL_UNLOCK(hdma);
+
+   return HAL_OK;
+ }
+ else
+ {
+   return HAL_ERROR;
+ }
+}

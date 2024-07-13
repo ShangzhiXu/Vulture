@@ -1,0 +1,117 @@
+HAL_StatusTypeDef HAL_SMBUS_IsDeviceReady(SMBUS_HandleTypeDef *hsmbus, uint16_t DevAddress, uint32_t Trials, uint32_t Timeout)
+{
+  uint32_t tickstart = 0U, tmp1 = 0U, tmp2 = 0U, tmp3 = 0U, SMBUS_Trials = 1U;
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  if (hsmbus->State == HAL_SMBUS_STATE_READY)
+  {
+    /* Wait until BUSY flag is reset */
+    if (SMBUS_WaitOnFlagUntilTimeout(hsmbus, SMBUS_FLAG_BUSY, SET, SMBUS_TIMEOUT_BUSY_FLAG, tickstart) != HAL_OK)
+    {
+      return HAL_BUSY;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hsmbus);
+
+    /* Check if the SMBUS is already enabled */
+    if ((hsmbus->Instance->CR1 & I2C_CR1_PE) != I2C_CR1_PE)
+    {
+      /* Enable SMBUS peripheral */
+      __HAL_SMBUS_ENABLE(hsmbus);
+    }
+
+    /* Disable Pos */
+    CLEAR_BIT(hsmbus->Instance->CR1, I2C_CR1_POS);
+
+    hsmbus->State = HAL_SMBUS_STATE_BUSY;
+    hsmbus->ErrorCode = HAL_SMBUS_ERROR_NONE;
+    hsmbus->XferOptions = SMBUS_NO_OPTION_FRAME;
+
+    do
+    {
+      /* Generate Start */
+      SET_BIT(hsmbus->Instance->CR1, I2C_CR1_START);
+
+      /* Wait until SB flag is set */
+      if (SMBUS_WaitOnFlagUntilTimeout(hsmbus, SMBUS_FLAG_SB, RESET, Timeout, tickstart) != HAL_OK)
+      {
+        return HAL_TIMEOUT;
+      }
+
+      /* Send slave address */
+      hsmbus->Instance->DR = SMBUS_7BIT_ADD_WRITE(DevAddress);
+
+      /* Wait until ADDR or AF flag are set */
+      /* Get tick */
+      tickstart = HAL_GetTick();
+
+      tmp1 = __HAL_SMBUS_GET_FLAG(hsmbus, SMBUS_FLAG_ADDR);
+      tmp2 = __HAL_SMBUS_GET_FLAG(hsmbus, SMBUS_FLAG_AF);
+      tmp3 = hsmbus->State;
+      while ((tmp1 == RESET) && (tmp2 == RESET) && (tmp3 != HAL_SMBUS_STATE_TIMEOUT))
+      {
+        if ((Timeout == 0U) || ((HAL_GetTick() - tickstart) > Timeout))
+        {
+          hsmbus->State = HAL_SMBUS_STATE_TIMEOUT;
+        }
+        tmp1 = __HAL_SMBUS_GET_FLAG(hsmbus, SMBUS_FLAG_ADDR);
+        tmp2 = __HAL_SMBUS_GET_FLAG(hsmbus, SMBUS_FLAG_AF);
+        tmp3 = hsmbus->State;
+      }
+
+      hsmbus->State = HAL_SMBUS_STATE_READY;
+
+      /* Check if the ADDR flag has been set */
+      if (__HAL_SMBUS_GET_FLAG(hsmbus, SMBUS_FLAG_ADDR) == SET)
+      {
+        /* Generate Stop */
+        SET_BIT(hsmbus->Instance->CR1, I2C_CR1_STOP);
+
+        /* Clear ADDR Flag */
+        __HAL_SMBUS_CLEAR_ADDRFLAG(hsmbus);
+
+        /* Wait until BUSY flag is reset */
+        if (SMBUS_WaitOnFlagUntilTimeout(hsmbus, SMBUS_FLAG_BUSY, SET, SMBUS_TIMEOUT_BUSY_FLAG, tickstart) != HAL_OK)
+        {
+          return HAL_TIMEOUT;
+        }
+
+        hsmbus->State = HAL_SMBUS_STATE_READY;
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(hsmbus);
+
+        return HAL_OK;
+      }
+      else
+      {
+        /* Generate Stop */
+        SET_BIT(hsmbus->Instance->CR1, I2C_CR1_STOP);
+
+        /* Clear AF Flag */
+        __HAL_SMBUS_CLEAR_FLAG(hsmbus, SMBUS_FLAG_AF);
+
+        /* Wait until BUSY flag is reset */
+        if (SMBUS_WaitOnFlagUntilTimeout(hsmbus, SMBUS_FLAG_BUSY, SET, SMBUS_TIMEOUT_BUSY_FLAG, tickstart) != HAL_OK)
+        {
+          return HAL_TIMEOUT;
+        }
+      }
+    }
+    while (SMBUS_Trials++ < Trials);
+
+    hsmbus->State = HAL_SMBUS_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hsmbus);
+
+    return HAL_ERROR;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

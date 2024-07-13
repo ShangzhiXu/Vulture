@@ -1,0 +1,33 @@
+static void allocate_btn_areas_and_controls(const lv_obj_t * btnm, const char ** map)
+{
+    /*Count the buttons in the map*/
+    uint16_t btn_cnt = 0;
+    uint16_t i       = 0;
+    while(strlen(map[i]) != 0) {
+        if(strcmp(map[i], "\n") != 0) { /*Do not count line breaks*/
+            btn_cnt++;
+        }
+        i++;
+    }
+
+    lv_btnmatrix_ext_t * ext = lv_obj_get_ext_attr(btnm);
+
+    if(ext->button_areas != NULL) {
+        lv_mem_free(ext->button_areas);
+        ext->button_areas = NULL;
+    }
+    if(ext->ctrl_bits != NULL) {
+        lv_mem_free(ext->ctrl_bits);
+        ext->ctrl_bits = NULL;
+    }
+
+    ext->button_areas = lv_mem_alloc(sizeof(lv_area_t) * btn_cnt);
+    LV_ASSERT_MEM(ext->button_areas);
+    ext->ctrl_bits = lv_mem_alloc(sizeof(lv_btnmatrix_ctrl_t) * btn_cnt);
+    LV_ASSERT_MEM(ext->ctrl_bits);
+    if(ext->button_areas == NULL || ext->ctrl_bits == NULL) btn_cnt = 0;
+
+    _lv_memset_00(ext->ctrl_bits, sizeof(lv_btnmatrix_ctrl_t) * btn_cnt);
+
+    ext->btn_cnt = btn_cnt;
+}

@@ -1,0 +1,48 @@
+static char *create_json_data(cJSON *profile_data[], uint32_t num)
+{
+    cJSON *tmp = NULL;
+    char *ret = NULL;
+    cJSON *service_data = NULL;
+    cJSON *root = NULL;
+
+    service_data = create_service_data(profile_data, num);
+    if (service_data == NULL) {
+        goto EXIT;
+    }
+
+    root = cJSON_CreateObject();
+    if (root == NULL) {
+        ATINY_LOG(LOG_ERR, "cJSON_CreateObject null");
+        goto EXIT;
+    }
+
+    tmp = cJSON_CreateString(MQTT_DEVICE_REQ);
+    if (tmp == NULL) {
+        ATINY_LOG(LOG_ERR, "cJSON_CreateString MQTT_DEVICE_REQ null");
+        goto EXIT;
+    }
+    cJSON_AddItemToObject(root, MQTT_MSG_TYPE, tmp);
+
+    tmp = cJSON_CreateNumber(MQTT_NO_MORE_DATA);
+    if (tmp == NULL) {
+        ATINY_LOG(LOG_ERR, "cJSON_CreateNumber MQTT_NO_MORE_DATA null");
+        goto EXIT;
+    }
+    cJSON_AddItemToObject(root, MQTT_HAS_MORE, tmp);
+
+    cJSON_AddItemToObject(root, MQTT_DATA, service_data);
+    service_data = NULL;
+    ret = cJSON_Print(root);
+    if (ret == NULL) {
+        ATINY_LOG(LOG_ERR, "cJSON_Print fail");
+    }
+
+EXIT:
+    if (root != NULL) {
+        cJSON_Delete(root);
+    }
+    if (service_data != NULL) {
+        cJSON_Delete(service_data);
+    }
+    return ret;
+}

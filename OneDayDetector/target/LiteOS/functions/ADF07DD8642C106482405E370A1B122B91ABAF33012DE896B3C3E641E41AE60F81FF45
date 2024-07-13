@@ -1,0 +1,46 @@
+int pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)
+{
+    int ret;
+    int oldValue;
+
+    if ((cond == NULL) || (mutex == NULL)) {
+        return EINVAL;
+    }
+
+    if (CondInitCheck(cond)) {
+        ret = pthread_cond_init(cond, NULL);
+        if (ret != ENOERR) {
+            return ret;
+        }
+    }
+
+    oldValue = cond->value;
+
+    (VOID)pthread_mutex_lock(cond->mutex);
+    cond->count++;
+    (VOID)pthread_mutex_unlock(cond->mutex);
+
+    if (pthread_mutex_unlock(mutex) != ENOERR) {
+        PRINT_ERR("%s: %d failed\n", __FUNCTION__, __LINE__);
+    }
+
+    ret = PthreadCondWaitSub(cond, oldValue, LOS_WAIT_FOREVER);
+
+    if (pthread_mutex_lock(mutex) != ENOERR) {
+        PRINT_ERR("%s: %d failed\n", __FUNCTION__, __LINE__);
+    }
+
+    switch (ret) {
+        /* 0: event does not occur */
+        case 0:
+        case BROADCAST_EVENT:
+            ret = ENOERR;
+            break;
+        default:
+            PthreadCountSub(cond);
+            ret = EINVAL;
+            break;
+    }
+
+    return ret;
+}

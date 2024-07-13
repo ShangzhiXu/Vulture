@@ -1,0 +1,16 @@
+LITE_OS_SEC_TEXT_MINOR VOID STATIC SensorConfig(const MailConfig *config)
+{
+    SensorType *sensor = NULL;
+    INT32 result = LOS_NOK;
+
+    sensor = g_sensorScbTable[ScbTableIndex(config->tag)].sensorInterface;
+    if (sensor != NULL) {
+        if ((sensor->sensorOp != NULL) && (sensor->sensorOp->IoCtl != NULL)) {
+            result = sensor->sensorOp->IoCtl(sensor, config->cmd, (UINT8 *)g_configBuffer);
+        }
+    }
+
+    SensorConfigRespond(config->tag, config->cmd, config->id, config->resp, result);
+    PRINT_DEBUG("sensor_config_respond %d %d\n", config->cmd, result);
+    LOS_SemPost(g_sensorManagerSem);
+}

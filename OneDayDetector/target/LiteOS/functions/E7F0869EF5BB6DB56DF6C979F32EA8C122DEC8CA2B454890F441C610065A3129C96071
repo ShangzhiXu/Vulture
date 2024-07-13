@@ -1,0 +1,31 @@
+sockets_stresstest_wait_readable(int mode, int s, int timeout_ms)
+{
+  switch(mode)
+  {
+#if LWIP_SOCKET_SELECT
+  case TEST_MODE_SELECT:
+    return sockets_stresstest_wait_readable_select(s, timeout_ms);
+#endif
+#if LWIP_SOCKET_POLL
+  case TEST_MODE_POLL:
+    return sockets_stresstest_wait_readable_poll(s, timeout_ms);
+#endif
+#if LWIP_SO_RCVTIMEO
+  case TEST_MODE_RECVTIMEO:
+    return sockets_stresstest_wait_readable_recvtimeo(s, timeout_ms);
+#endif
+  case TEST_MODE_WAIT:
+    return sockets_stresstest_wait_readable_wait_peek(s, timeout_ms);
+  case TEST_MODE_NONBLOCKING:
+    return sockets_stresstest_wait_readable_nonblock(s, timeout_ms);
+  case TEST_MODE_SLEEP:
+    {
+      sys_msleep(timeout_ms);
+      return 1;
+    }
+  default:
+    LWIP_ASSERT("invalid mode", 0);
+    break;
+  }
+  return 0;
+}

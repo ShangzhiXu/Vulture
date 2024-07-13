@@ -1,0 +1,140 @@
+static int prv_convertRecord(lwm2m_uri_t *uriP,
+                             _record_t *recordArray,
+                             int count,
+                             lwm2m_data_t **dataP)
+{
+    int index;
+    int freeIndex;
+    lwm2m_data_t *rootP;
+    int size;
+    uri_depth_t rootLevel;
+
+    if (uriP == NULL)
+    {
+        size = count;
+        *dataP = lwm2m_data_new(count);
+        if (NULL == *dataP) return -1;
+        rootLevel = URI_DEPTH_OBJECT;
+        rootP = *dataP;
+    }
+    else
+    {
+        lwm2m_data_t *parentP;
+        size = 1;
+
+        *dataP = lwm2m_data_new(1);
+        if (NULL == *dataP) return -1;
+        (*dataP)->type = LWM2M_TYPE_OBJECT;
+        (*dataP)->id = uriP->objectId;
+        rootLevel = URI_DEPTH_OBJECT_INSTANCE;
+        parentP = *dataP;
+        if (LWM2M_URI_IS_SET_INSTANCE(uriP))
+        {
+            parentP->value.asChildren.count = 1;
+            parentP->value.asChildren.array = lwm2m_data_new(1);
+            if (NULL == parentP->value.asChildren.array) goto error;
+            parentP = parentP->value.asChildren.array;
+            parentP->type = LWM2M_TYPE_OBJECT_INSTANCE;
+            parentP->id = uriP->instanceId;
+            rootLevel = URI_DEPTH_RESOURCE;
+            if (LWM2M_URI_IS_SET_RESOURCE(uriP))
+            {
+                parentP->value.asChildren.count = 1;
+                parentP->value.asChildren.array = lwm2m_data_new(1);
+                if (NULL == parentP->value.asChildren.array) goto error;
+                parentP = parentP->value.asChildren.array;
+                parentP->type = LWM2M_TYPE_UNDEFINED;
+                parentP->id = uriP->resourceId;
+                rootLevel = URI_DEPTH_RESOURCE_INSTANCE;
+            }
+        }
+        parentP->value.asChildren.count = count;
+        parentP->value.asChildren.array = lwm2m_data_new(count);
+        if (NULL == parentP->value.asChildren.array) goto error;
+        rootP = parentP->value.asChildren.array;
+    }
+
+    freeIndex = 0;
+    for (index = 0 ; index < count ; index++)
+    {
+        lwm2m_data_t *targetP;
+        int resSegmentIndex;
+        int i;
+
+        // check URI depth
+        // resSegmentIndex is set to the resource segment position
+        switch(rootLevel)
+        {
+        case URI_DEPTH_OBJECT:
+            resSegmentIndex = 2;
+            break;
+        case URI_DEPTH_OBJECT_INSTANCE:
+            resSegmentIndex = 1;
+            break;
+        case URI_DEPTH_RESOURCE:
+            resSegmentIndex = 0;
+            break;
+        case URI_DEPTH_RESOURCE_INSTANCE:
+            resSegmentIndex = -1;
+            break;
+        default:
+            goto error;
+        }
+        for (i = 0 ; i <= resSegmentIndex ; i++)
+        {
+            if (recordArray[index].ids[i] == LWM2M_MAX_ID) goto error;
+        }
+        if (resSegmentIndex < 2)
+        {
+            if (recordArray[index].ids[resSegmentIndex + 2] != LWM2M_MAX_ID) goto error;
+        }
+
+        targetP = prv_findDataItem(rootP, count, recordArray[index].ids[0]);
+        if (targetP == NULL)
+        {
+            targetP = rootP + freeIndex;
+            freeIndex++;
+            targetP->id = recordArray[index].ids[0];
+            targetP->type = utils_depthToDatatype(rootLevel);
+        }
+        if (recordArray[index].ids[1] != LWM2M_MAX_ID)
+        {
+            lwm2m_data_t *parentP;
+            uri_depth_t level;
+
+            parentP = targetP;
+            level = prv_decreaseLevel(rootLevel);
+            for (i = 1 ; i <= resSegmentIndex ; i++)
+            {
+                targetP = prv_findDataItem(parentP->value.asChildren.array, parentP->value.asChildren.count, recordArray[index].ids[i]);
+                if (targetP == NULL)
+                {
+                    targetP = prv_extendData(parentP);
+                    if (targetP == NULL) goto error;
+                    targetP->id = recordArray[index].ids[i];
+                    targetP->type = utils_depthToDatatype(level);
+                }
+                level = prv_decreaseLevel(level);
+                parentP = targetP;
+            }
+            if (recordArray[index].ids[resSegmentIndex + 1] != LWM2M_MAX_ID)
+            {
+                targetP->type = LWM2M_TYPE_MULTIPLE_RESOURCE;
+                targetP = prv_extendData(targetP);
+                if (targetP == NULL) goto error;
+                targetP->id = recordArray[index].ids[resSegmentIndex + 1];
+                targetP->type = LWM2M_TYPE_UNDEFINED;
+            }
+        }
+
+        if (true != prv_convertValue(recordArray + index, targetP)) goto error;
+    }
+
+    return size;
+
+error:
+    lwm2m_data_free(size, *dataP);
+    *dataP = NULL;
+
+    return -1;
+}

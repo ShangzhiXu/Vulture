@@ -1,0 +1,20 @@
+altcp_mbedtls_lower_accept(void *arg, struct altcp_pcb *accepted_conn, err_t err)
+{
+  struct altcp_pcb *listen_conn = (struct altcp_pcb *)arg;
+  if (listen_conn && listen_conn->state && listen_conn->accept) {
+    err_t setup_err;
+    altcp_mbedtls_state_t *listen_state = (altcp_mbedtls_state_t *)listen_conn->state;
+    /* create a new altcp_conn to pass to the next 'accept' callback */
+    struct altcp_pcb *new_conn = altcp_alloc();
+    if (new_conn == NULL) {
+      return ERR_MEM;
+    }
+    setup_err = altcp_mbedtls_setup(listen_state->conf, new_conn, accepted_conn);
+    if (setup_err != ERR_OK) {
+      altcp_free(new_conn);
+      return setup_err;
+    }
+    return listen_conn->accept(listen_conn->arg, new_conn, err);
+  }
+  return ERR_ARG;
+}

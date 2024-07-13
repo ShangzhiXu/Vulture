@@ -1,0 +1,109 @@
+lwip_recvfrom_udp_raw(struct lwip_sock *sock, int flags, struct msghdr *msg, u16_t *datagram_len, int dbg_s)
+{
+  struct netbuf *buf;
+  u8_t apiflags;
+  err_t err;
+  u16_t buflen, copylen, copied;
+  int i;
+
+  LWIP_UNUSED_ARG(dbg_s);
+  LWIP_ERROR("lwip_recvfrom_udp_raw: invalid arguments", (msg->msg_iov != NULL) || (msg->msg_iovlen <= 0), return ERR_ARG;);
+
+  if (flags & MSG_DONTWAIT) {
+    apiflags = NETCONN_DONTBLOCK;
+  } else {
+    apiflags = 0;
+  }
+
+  LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_recvfrom_udp_raw[UDP/RAW]: top sock->lastdata=%p\n", (void *)sock->lastdata.netbuf));
+  /* Check if there is data left from the last recv operation. */
+  buf = sock->lastdata.netbuf;
+  if (buf == NULL) {
+    /* No data was left from the previous operation, so we try to get
+        some from the network. */
+    err = netconn_recv_udp_raw_netbuf_flags(sock->conn, &buf, apiflags);
+    LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_recvfrom_udp_raw[UDP/RAW]: netconn_recv err=%d, netbuf=%p\n",
+                                err, (void *)buf));
+
+    if (err != ERR_OK) {
+      return err;
+    }
+    LWIP_ASSERT("buf != NULL", buf != NULL);
+    sock->lastdata.netbuf = buf;
+  }
+  buflen = buf->p->tot_len;
+  LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_recvfrom_udp_raw: buflen=%"U16_F"\n", buflen));
+
+  copied = 0;
+  /* copy the pbuf payload into the iovs */
+  for (i = 0; (i < msg->msg_iovlen) && (copied < buflen); i++) {
+    u16_t len_left = (u16_t)(buflen - copied);
+    if (msg->msg_iov[i].iov_len > len_left) {
+      copylen = len_left;
+    } else {
+      copylen = (u16_t)msg->msg_iov[i].iov_len;
+    }
+
+    /* copy the contents of the received buffer into
+        the supplied memory buffer */
+    pbuf_copy_partial(buf->p, (u8_t *)msg->msg_iov[i].iov_base, copylen, copied);
+    copied = (u16_t)(copied + copylen);
+  }
+
+  /* Check to see from where the data was.*/
+#if !SOCKETS_DEBUG
+  if (msg->msg_name && msg->msg_namelen)
+#endif /* !SOCKETS_DEBUG */
+  {
+    LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_recvfrom_udp_raw(%d):  addr=", dbg_s));
+    ip_addr_debug_print_val(SOCKETS_DEBUG, *netbuf_fromaddr(buf));
+    LWIP_DEBUGF(SOCKETS_DEBUG, (" port=%"U16_F" len=%d\n", netbuf_fromport(buf), copied));
+    if (msg->msg_name && msg->msg_namelen) {
+      lwip_sock_make_addr(sock->conn, netbuf_fromaddr(buf), netbuf_fromport(buf),
+                          (struct sockaddr *)msg->msg_name, &msg->msg_namelen);
+    }
+  }
+
+  /* Initialize flag output */
+  msg->msg_flags = 0;
+
+  if (msg->msg_control) {
+    u8_t wrote_msg = 0;
+#if LWIP_NETBUF_RECVINFO
+    /* Check if packet info was recorded */
+    if (buf->flags & NETBUF_FLAG_DESTADDR) {
+      if (IP_IS_V4(&buf->toaddr)) {
+#if LWIP_IPV4
+        if (msg->msg_controllen >= CMSG_SPACE(sizeof(struct in_pktinfo))) {
+          struct cmsghdr *chdr = CMSG_FIRSTHDR(msg); /* This will always return a header!! */
+          struct in_pktinfo *pkti = (struct in_pktinfo *)CMSG_DATA(chdr);
+          chdr->cmsg_level = IPPROTO_IP;
+          chdr->cmsg_type = IP_PKTINFO;
+          chdr->cmsg_len = CMSG_LEN(sizeof(struct in_pktinfo));
+          pkti->ipi_ifindex = buf->p->if_idx;
+          inet_addr_from_ip4addr(&pkti->ipi_addr, ip_2_ip4(netbuf_destaddr(buf)));
+          msg->msg_controllen = CMSG_SPACE(sizeof(struct in_pktinfo));
+          wrote_msg = 1;
+        } else {
+          msg->msg_flags |= MSG_CTRUNC;
+        }
+#endif /* LWIP_IPV4 */
+      }
+    }
+#endif /* LWIP_NETBUF_RECVINFO */
+
+    if (!wrote_msg) {
+      msg->msg_controllen = 0;
+    }
+  }
+
+  /* If we don't peek the incoming message: zero lastdata pointer and free the netbuf */
+  if ((flags & MSG_PEEK) == 0) {
+    sock->lastdata.netbuf = NULL;
+    netbuf_delete(buf);
+  }
+  if (datagram_len) {
+    *datagram_len = buflen;
+  }
+  return ERR_OK;
+}

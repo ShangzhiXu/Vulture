@@ -1,0 +1,32 @@
+int main(int argc, char **argv)
+{
+    int rc = 0;
+    int (*tests[])() = {NULL, test1, test2, test3};
+    int i;
+
+    xml = fopen("TEST-test1.xml", "w");
+    fprintf(xml, "<testsuite name=\"test1\" tests=\"%d\">\n", (int)(ARRAY_SIZE(tests) - 1));
+
+    getopts(argc, argv);
+
+    for (i = 0; i < options.iterations; ++i)
+    {
+        if (options.test_no == 0)
+        {
+            /* run all the tests */
+            for (options.test_no = 1; options.test_no < ARRAY_SIZE(tests); ++options.test_no)
+                rc += tests[options.test_no](options); /* return number of failures.  0 = test succeeded */
+        }
+        else
+            rc = tests[options.test_no](options); /* run just the selected test */
+    }
+
+    if (rc == 0)
+        MyLog(LOGA_INFO, "verdict pass");
+    else
+        MyLog(LOGA_INFO, "verdict fail");
+
+    fprintf(xml, "</testsuite>\n");
+    fclose(xml);
+    return rc;
+}

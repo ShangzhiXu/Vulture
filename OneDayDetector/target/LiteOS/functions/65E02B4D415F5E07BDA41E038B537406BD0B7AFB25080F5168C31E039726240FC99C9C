@@ -1,0 +1,24 @@
+altcp_tls_create_config_client_common(const u8_t *ca, size_t ca_len, int is_2wayauth)
+{
+  int ret;
+  struct altcp_tls_config *conf = altcp_tls_create_config(0, is_2wayauth, is_2wayauth, ca != NULL);
+  if (conf == NULL) {
+    return NULL;
+  }
+
+  /* Initialize the CA certificate if provided
+   * CA certificate is optional (to save memory) but recommended for production environment
+   * Without CA certificate, connection will be prone to man-in-the-middle attacks */
+  if (ca) {
+    mbedtls_x509_crt_init(conf->ca);
+    ret = mbedtls_x509_crt_parse(conf->ca, ca, ca_len);
+    if (ret != 0) {
+      LWIP_DEBUGF(ALTCP_MBEDTLS_DEBUG, ("mbedtls_x509_crt_parse ca failed: %d 0x%x", ret, -1*ret));
+      altcp_mbedtls_free_config(conf);
+      return NULL;
+    }
+
+    mbedtls_ssl_conf_ca_chain(&conf->conf, conf->ca, NULL);
+  }
+  return conf;
+}

@@ -1,0 +1,35 @@
+static int mqtt_dup_device_info(mqtt_device_info_s *dest, const mqtt_device_info_s *src)
+{
+    memset(dest, 0, sizeof(*dest));
+    dest->connection_type = src->connection_type;
+    dest->sign_type = src->sign_type;
+    dest->codec_mode = src->codec_mode;
+    dest->password = atiny_strdup(src->password);
+    if (dest->password == NULL) {
+        ATINY_LOG(LOG_FATAL, "atiny_strdup fail");
+        return ATINY_MALLOC_FAILED;
+    }
+
+    if (MQTT_STATIC_CONNECT == src->connection_type) {
+        dest->u.s_info.deviceid = atiny_strdup(src->u.s_info.deviceid);
+        if (dest->u.s_info.deviceid == NULL) {
+            ATINY_LOG(LOG_FATAL, "atiny_strdup fail");
+            goto MALLOC_FAIL;
+        }
+    } else {
+        dest->u.d_info.productid = atiny_strdup(src->u.d_info.productid);
+        if (dest->u.d_info.productid == NULL) {
+            ATINY_LOG(LOG_FATAL, "atiny_strdup fail");
+            goto MALLOC_FAIL;
+        }
+        dest->u.d_info.nodeid = atiny_strdup(src->u.d_info.nodeid);
+        if (dest->u.d_info.nodeid == NULL) {
+            ATINY_LOG(LOG_FATAL, "atiny_strdup fail");
+            goto MALLOC_FAIL;
+        }
+    }
+    return ATINY_OK;
+MALLOC_FAIL:
+    mqtt_free_device_info(dest);
+    return ATINY_MALLOC_FAILED;
+}

@@ -1,0 +1,23 @@
+int sem_timedwait(sem_t *sem, const struct timespec *timeout)
+{
+    UINT32 ret;
+    UINT32 tickCnt;
+
+    if ((sem == NULL) || (sem->sem == NULL)) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if (!ValidTimespec(timeout)) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    tickCnt = OsTimespec2Tick(timeout);
+    ret = LOS_SemPend(sem->sem->semId, tickCnt);
+    if (map_errno(ret) == ENOERR) {
+        return 0;
+    } else {
+        return -1;
+    }
+}

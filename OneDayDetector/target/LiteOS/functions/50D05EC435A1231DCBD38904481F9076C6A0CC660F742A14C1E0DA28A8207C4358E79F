@@ -1,0 +1,15 @@
+http_state_alloc(void)
+{
+  struct http_state *ret = HTTP_ALLOC_HTTP_STATE();
+#if LWIP_HTTPD_KILL_OLD_ON_CONNECTIONS_EXCEEDED
+  if (ret == NULL) {
+    http_kill_oldest_connection(0);
+    ret = HTTP_ALLOC_HTTP_STATE();
+  }
+#endif /* LWIP_HTTPD_KILL_OLD_ON_CONNECTIONS_EXCEEDED */
+  if (ret != NULL) {
+    http_state_init(ret);
+    http_add_connection(ret);
+  }
+  return ret;
+}

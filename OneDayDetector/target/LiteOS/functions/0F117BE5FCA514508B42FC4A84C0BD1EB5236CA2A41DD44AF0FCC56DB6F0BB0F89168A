@@ -1,0 +1,58 @@
+int lwm2m_data_parse(lwm2m_uri_t *uriP,
+                     uint8_t *buffer,
+                     size_t bufferLen,
+                     lwm2m_media_type_t format,
+                     lwm2m_data_t **dataP)
+{
+    int res;
+
+    LOG_ARG("format: %s, bufferLen: %d", STR_MEDIA_TYPE(format), bufferLen);
+    LOG_URI(uriP);
+    switch (format)
+    {
+    case LWM2M_CONTENT_TEXT:
+        if (!LWM2M_URI_IS_SET_RESOURCE(uriP)) return 0;
+        *dataP = lwm2m_data_new(1);
+        if (*dataP == NULL) return 0;
+        (*dataP)->id = uriP->resourceId;
+        (*dataP)->type = LWM2M_TYPE_STRING;
+        res = prv_setBuffer(*dataP, buffer, bufferLen);
+        if (res == 0)
+        {
+            lwm2m_data_free(1, *dataP);
+            *dataP = NULL;
+        }
+        return res;
+
+    case LWM2M_CONTENT_OPAQUE:
+        if (!LWM2M_URI_IS_SET_RESOURCE(uriP)) return 0;
+        *dataP = lwm2m_data_new(1);
+        if (*dataP == NULL) return 0;
+        (*dataP)->id = uriP->resourceId;
+        (*dataP)->type = LWM2M_TYPE_OPAQUE;
+        res = prv_setBuffer(*dataP, buffer, bufferLen);
+        if (res == 0)
+        {
+            lwm2m_data_free(1, *dataP);
+            *dataP = NULL;
+        }
+        return res;
+
+#ifdef LWM2M_OLD_CONTENT_FORMAT_SUPPORT
+    case LWM2M_CONTENT_TLV_OLD:
+#endif
+    case LWM2M_CONTENT_TLV:
+        return tlv_parse(buffer, bufferLen, dataP);
+
+#ifdef LWM2M_SUPPORT_JSON
+#ifdef LWM2M_OLD_CONTENT_FORMAT_SUPPORT
+    case LWM2M_CONTENT_JSON_OLD:
+#endif
+    case LWM2M_CONTENT_JSON:
+        return json_parse(uriP, buffer, bufferLen, dataP);
+#endif
+
+    default:
+        return 0;
+    }
+}

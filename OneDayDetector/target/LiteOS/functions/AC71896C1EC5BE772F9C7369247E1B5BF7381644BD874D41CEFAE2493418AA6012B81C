@@ -1,0 +1,172 @@
+HAL_StatusTypeDef HAL_RTC_SetAlarm_IT(RTC_HandleTypeDef *hrtc, RTC_AlarmTypeDef *sAlarm, uint32_t Format)
+{
+  uint32_t tmpreg = 0U, subsecondtmpreg = 0U;
+  __IO uint32_t count = RTC_TIMEOUT_VALUE  * (SystemCoreClock / 32U / 1000U) ;
+
+  /* Check the parameters */
+  assert_param(IS_RTC_FORMAT(Format));
+  assert_param(IS_RTC_ALARM(sAlarm->Alarm));
+  assert_param(IS_RTC_ALARM_MASK(sAlarm->AlarmMask));
+  assert_param(IS_RTC_ALARM_DATE_WEEKDAY_SEL(sAlarm->AlarmDateWeekDaySel));
+  assert_param(IS_RTC_ALARM_SUB_SECOND_VALUE(sAlarm->AlarmTime.SubSeconds));
+  assert_param(IS_RTC_ALARM_SUB_SECOND_MASK(sAlarm->AlarmSubSecondMask));
+
+  /* Process Locked */
+  __HAL_LOCK(hrtc);
+
+  hrtc->State = HAL_RTC_STATE_BUSY;
+
+  if(Format == RTC_FORMAT_BIN)
+  {
+    if((hrtc->Instance->CR & RTC_CR_FMT) != (uint32_t)RESET)
+    {
+      assert_param(IS_RTC_HOUR12(sAlarm->AlarmTime.Hours));
+      assert_param(IS_RTC_HOURFORMAT12(sAlarm->AlarmTime.TimeFormat));
+    }
+    else
+    {
+      sAlarm->AlarmTime.TimeFormat = 0x00U;
+      assert_param(IS_RTC_HOUR24(sAlarm->AlarmTime.Hours));
+    }
+    assert_param(IS_RTC_MINUTES(sAlarm->AlarmTime.Minutes));
+    assert_param(IS_RTC_SECONDS(sAlarm->AlarmTime.Seconds));
+
+    if(sAlarm->AlarmDateWeekDaySel == RTC_ALARMDATEWEEKDAYSEL_DATE)
+    {
+      assert_param(IS_RTC_ALARM_DATE_WEEKDAY_DATE(sAlarm->AlarmDateWeekDay));
+    }
+    else
+    {
+      assert_param(IS_RTC_ALARM_DATE_WEEKDAY_WEEKDAY(sAlarm->AlarmDateWeekDay));
+    }
+    tmpreg = (((uint32_t)RTC_ByteToBcd2(sAlarm->AlarmTime.Hours) << 16U) | \
+              ((uint32_t)RTC_ByteToBcd2(sAlarm->AlarmTime.Minutes) << 8U) | \
+              ((uint32_t)RTC_ByteToBcd2(sAlarm->AlarmTime.Seconds)) | \
+              ((uint32_t)(sAlarm->AlarmTime.TimeFormat) << 16U) | \
+              ((uint32_t)RTC_ByteToBcd2(sAlarm->AlarmDateWeekDay) << 24U) | \
+              ((uint32_t)sAlarm->AlarmDateWeekDaySel) | \
+              ((uint32_t)sAlarm->AlarmMask));
+  }
+  else
+  {
+    if((hrtc->Instance->CR & RTC_CR_FMT) != (uint32_t)RESET)
+    {
+      assert_param(IS_RTC_HOUR12(RTC_Bcd2ToByte(sAlarm->AlarmTime.Hours)));
+      assert_param(IS_RTC_HOURFORMAT12(sAlarm->AlarmTime.TimeFormat));
+    }
+    else
+    {
+      sAlarm->AlarmTime.TimeFormat = 0x00U;
+      assert_param(IS_RTC_HOUR24(RTC_Bcd2ToByte(sAlarm->AlarmTime.Hours)));
+    }
+
+    assert_param(IS_RTC_MINUTES(RTC_Bcd2ToByte(sAlarm->AlarmTime.Minutes)));
+    assert_param(IS_RTC_SECONDS(RTC_Bcd2ToByte(sAlarm->AlarmTime.Seconds)));
+
+    if(sAlarm->AlarmDateWeekDaySel == RTC_ALARMDATEWEEKDAYSEL_DATE)
+    {
+      assert_param(IS_RTC_ALARM_DATE_WEEKDAY_DATE(RTC_Bcd2ToByte(sAlarm->AlarmDateWeekDay)));
+    }
+    else
+    {
+      assert_param(IS_RTC_ALARM_DATE_WEEKDAY_WEEKDAY(RTC_Bcd2ToByte(sAlarm->AlarmDateWeekDay)));
+    }
+    tmpreg = (((uint32_t)(sAlarm->AlarmTime.Hours) << 16U) | \
+              ((uint32_t)(sAlarm->AlarmTime.Minutes) << 8U) | \
+              ((uint32_t) sAlarm->AlarmTime.Seconds) | \
+              ((uint32_t)(sAlarm->AlarmTime.TimeFormat) << 16U) | \
+              ((uint32_t)(sAlarm->AlarmDateWeekDay) << 24U) | \
+              ((uint32_t)sAlarm->AlarmDateWeekDaySel) | \
+              ((uint32_t)sAlarm->AlarmMask));
+  }
+  /* Configure the Alarm A or Alarm B Sub Second registers */
+  subsecondtmpreg = (uint32_t)((uint32_t)(sAlarm->AlarmTime.SubSeconds) | (uint32_t)(sAlarm->AlarmSubSecondMask));
+
+  /* Disable the write protection for RTC registers */
+  __HAL_RTC_WRITEPROTECTION_DISABLE(hrtc);
+
+  /* Configure the Alarm register */
+  if(sAlarm->Alarm == RTC_ALARM_A)
+  {
+    /* Disable the Alarm A interrupt */
+    __HAL_RTC_ALARMA_DISABLE(hrtc);
+
+    /* Clear flag alarm A */
+    __HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRAF);
+
+    /* Wait till RTC ALRAWF flag is set and if Time out is reached exit */
+    do
+    {
+      if (count-- == 0U)
+      {
+        /* Enable the write protection for RTC registers */
+        __HAL_RTC_WRITEPROTECTION_ENABLE(hrtc);
+
+        hrtc->State = HAL_RTC_STATE_TIMEOUT;
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(hrtc);
+
+        return HAL_TIMEOUT;
+      }
+    }
+    while (__HAL_RTC_ALARM_GET_FLAG(hrtc, RTC_FLAG_ALRAWF) == RESET);
+
+    hrtc->Instance->ALRMAR = (uint32_t)tmpreg;
+    /* Configure the Alarm A Sub Second register */
+    hrtc->Instance->ALRMASSR = subsecondtmpreg;
+    /* Configure the Alarm state: Enable Alarm */
+    __HAL_RTC_ALARMA_ENABLE(hrtc);
+    /* Configure the Alarm interrupt */
+    __HAL_RTC_ALARM_ENABLE_IT(hrtc,RTC_IT_ALRA);
+  }
+  else
+  {
+    /* Disable the Alarm B interrupt */
+    __HAL_RTC_ALARMB_DISABLE(hrtc);
+
+    /* Clear flag alarm B */
+    __HAL_RTC_ALARM_CLEAR_FLAG(hrtc, RTC_FLAG_ALRBF);
+
+    /* Wait till RTC ALRBWF flag is set and if Time out is reached exit */
+    do
+    {
+      if (count-- == 0U)
+      {
+        /* Enable the write protection for RTC registers */
+        __HAL_RTC_WRITEPROTECTION_ENABLE(hrtc);
+
+        hrtc->State = HAL_RTC_STATE_TIMEOUT;
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(hrtc);
+
+        return HAL_TIMEOUT;
+      }
+    }
+    while (__HAL_RTC_ALARM_GET_FLAG(hrtc, RTC_FLAG_ALRBWF) == RESET);
+
+    hrtc->Instance->ALRMBR = (uint32_t)tmpreg;
+    /* Configure the Alarm B Sub Second register */
+    hrtc->Instance->ALRMBSSR = subsecondtmpreg;
+    /* Configure the Alarm state: Enable Alarm */
+    __HAL_RTC_ALARMB_ENABLE(hrtc);
+    /* Configure the Alarm interrupt */
+    __HAL_RTC_ALARM_ENABLE_IT(hrtc, RTC_IT_ALRB);
+  }
+
+  /* RTC Alarm Interrupt Configuration: EXTI configuration */
+  __HAL_RTC_ALARM_EXTI_ENABLE_IT();
+
+  EXTI->RTSR |= RTC_EXTI_LINE_ALARM_EVENT;
+
+  /* Enable the write protection for RTC registers */
+  __HAL_RTC_WRITEPROTECTION_ENABLE(hrtc);
+
+  hrtc->State = HAL_RTC_STATE_READY;
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(hrtc);
+
+  return HAL_OK;
+}

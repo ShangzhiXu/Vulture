@@ -1,0 +1,16 @@
+send_ack(u16_t blknum)
+{
+  struct pbuf *p;
+  u16_t *payload;
+
+  p = pbuf_alloc(PBUF_TRANSPORT, TFTP_HEADER_LENGTH, PBUF_RAM);
+  if (p == NULL) {
+    return;
+  }
+  payload = (u16_t *) p->payload;
+
+  payload[0] = PP_HTONS(TFTP_ACK);
+  payload[1] = lwip_htons(blknum);
+  udp_sendto(tftp_state.upcb, p, &tftp_state.addr, tftp_state.port);
+  pbuf_free(p);
+}

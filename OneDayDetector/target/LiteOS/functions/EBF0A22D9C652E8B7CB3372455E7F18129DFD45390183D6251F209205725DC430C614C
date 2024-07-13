@@ -1,0 +1,33 @@
+tcp_rexmit_fast(struct tcp_pcb *pcb)
+{
+  LWIP_ASSERT("tcp_rexmit_fast: invalid pcb", pcb != NULL);
+
+  if (pcb->unacked != NULL && !(pcb->flags & TF_INFR)) {
+    /* This is fast retransmit. Retransmit the first unacked segment. */
+    LWIP_DEBUGF(TCP_FR_DEBUG,
+                ("tcp_receive: dupacks %"U16_F" (%"U32_F
+                 "), fast retransmit %"U32_F"\n",
+                 (u16_t)pcb->dupacks, pcb->lastack,
+                 lwip_ntohl(pcb->unacked->tcphdr->seqno)));
+    if (tcp_rexmit(pcb) == ERR_OK) {
+      /* Set ssthresh to half of the minimum of the current
+       * cwnd and the advertised window */
+      pcb->ssthresh = LWIP_MIN(pcb->cwnd, pcb->snd_wnd) / 2;
+
+      /* The minimum value for ssthresh should be 2 MSS */
+      if (pcb->ssthresh < (2U * pcb->mss)) {
+        LWIP_DEBUGF(TCP_FR_DEBUG,
+                    ("tcp_receive: The minimum value for ssthresh %"TCPWNDSIZE_F
+                     " should be min 2 mss %"U16_F"...\n",
+                     pcb->ssthresh, (u16_t)(2 * pcb->mss)));
+        pcb->ssthresh = 2 * pcb->mss;
+      }
+
+      pcb->cwnd = pcb->ssthresh + 3 * pcb->mss;
+      tcp_set_flags(pcb, TF_INFR);
+
+      /* Reset the retransmission timer to prevent immediate rto retransmissions */
+      pcb->rtime = 0;
+    }
+  }
+}

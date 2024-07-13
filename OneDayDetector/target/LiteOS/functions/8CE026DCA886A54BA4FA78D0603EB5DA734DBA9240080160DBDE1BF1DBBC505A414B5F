@@ -1,0 +1,19 @@
+osTimerId osTimerCreate(const osTimerDef_t *timer_def, os_timer_type type, void *argument)
+{
+    UINT32 ret;
+    UINT16 swtmrId;
+
+    if ((timer_def == NULL) || (timer_def->ptimer == NULL) || OS_INT_ACTIVE) {
+        return NULL;
+    }
+    if ((type != osTimerOnce) && (type != osTimerPeriodic) && (type != osTimerDelay)) {
+        return NULL;
+    }
+
+    ret = LOS_SwtmrCreate(1, type, (SWTMR_PROC_FUNC)(timer_def->ptimer), &swtmrId, (UINT32)(UINTPTR)argument);
+    if (ret == LOS_OK) {
+        return (osTimerId)OS_SWT_FROM_SID(swtmrId);
+    } else {
+        return NULL;
+    }
+}

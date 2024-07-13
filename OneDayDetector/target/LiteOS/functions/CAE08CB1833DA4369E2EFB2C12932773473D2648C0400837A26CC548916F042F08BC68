@@ -1,0 +1,28 @@
+HAL_StatusTypeDef HAL_TIM_OnePulse_Stop_IT(TIM_HandleTypeDef *htim, uint32_t OutputChannel)
+{
+  /* Disable the TIM Capture/Compare 1 interrupt */
+  __HAL_TIM_DISABLE_IT(htim, TIM_IT_CC1);
+
+  /* Disable the TIM Capture/Compare 2 interrupt */
+  __HAL_TIM_DISABLE_IT(htim, TIM_IT_CC2);
+
+  /* Disable the Capture compare and the Input Capture channels 
+  (in the OPM Mode the two possible channels that can be used are TIM_CHANNEL_1 and TIM_CHANNEL_2)
+  if TIM_CHANNEL_1 is used as output, the TIM_CHANNEL_2 will be used as input and
+  if TIM_CHANNEL_1 is used as input, the TIM_CHANNEL_2 will be used as output 
+  in all combinations, the TIM_CHANNEL_1 and TIM_CHANNEL_2 should be disabled together */
+  TIM_CCxChannelCmd(htim->Instance, TIM_CHANNEL_1, TIM_CCx_DISABLE);
+  TIM_CCxChannelCmd(htim->Instance, TIM_CHANNEL_2, TIM_CCx_DISABLE);
+
+  if(IS_TIM_BREAK_INSTANCE(htim->Instance) != RESET)
+  {
+    /* Disable the Main Ouput */
+    __HAL_TIM_MOE_DISABLE(htim);
+  }
+
+  /* Disable the Peripheral */
+   __HAL_TIM_DISABLE(htim);
+
+  /* Return function status */
+  return HAL_OK;
+}

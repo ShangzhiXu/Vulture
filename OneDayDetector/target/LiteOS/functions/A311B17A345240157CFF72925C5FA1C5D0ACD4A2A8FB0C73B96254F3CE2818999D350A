@@ -1,0 +1,40 @@
+STATIC INLINE LosMemDynNode *OsMemFindSuitableFreeBlock(VOID *pool, UINT32 allocSize)
+{
+    LOS_DL_LIST *listNodeHead = NULL;
+    LosMemDynNode *tmpNode = NULL;
+
+#ifdef LOSCFG_MEM_HEAD_BACKUP
+    UINT32 ret = LOS_OK;
+#endif
+    for (listNodeHead = OS_MEM_HEAD(pool, allocSize); listNodeHead != NULL;
+         listNodeHead = OsDLnkNextMultiHead(OS_MEM_HEAD_ADDR(pool), listNodeHead)) {
+        LOS_DL_LIST_FOR_EACH_ENTRY(tmpNode, listNodeHead, LosMemDynNode, selfNode.freeNodeInfo) {
+#ifdef LOSCFG_MEM_HEAD_BACKUP
+            if (!OsMemChecksumVerify(&tmpNode->selfNode)) {
+                PRINT_ERR("[%s]: the node information of current node is bad !!\n", __FUNCTION__);
+                OsMemDispCtlNode(&tmpNode->selfNode);
+                ret = OsMemBackupRestore(pool, tmpNode);
+            }
+            if (ret != LOS_OK) {
+                break;
+            }
+#endif
+
+#ifdef LOSCFG_MEM_DEBUG
+            if (((UINTPTR)tmpNode < (UINTPTR)pool) ||
+                ((UINTPTR)tmpNode > ((UINTPTR)pool + ((LosMemPoolInfo *)pool)->poolSize)) ||
+                (((UINTPTR)tmpNode & (OS_MEM_ALIGN_SIZE - 1)) != 0)) {
+                LOS_Panic("[%s:%d]Mem node data error:OS_MEM_HEAD_ADDR(pool)=%p, listNodeHead:%p,"
+                          "allocSize=%u, tmpNode=%p\n",
+                          __FUNCTION__, __LINE__, OS_MEM_HEAD_ADDR(pool), listNodeHead, allocSize, tmpNode);
+                break;
+            }
+#endif
+            if (tmpNode->selfNode.sizeAndFlag >= allocSize) {
+                return tmpNode;
+            }
+        }
+    }
+
+    return NULL;
+}

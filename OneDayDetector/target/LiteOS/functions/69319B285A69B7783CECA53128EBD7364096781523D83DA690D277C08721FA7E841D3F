@@ -1,0 +1,56 @@
+VOID ArchMMUParamSet(MMU_PARAM *para)
+{
+    UINT64 pmdStart, pmdEnd, pmdTmp;
+    UINT32 intSave;
+
+    if ((para == NULL) || (OsMMUFlagCheck(para->uwFlag) == LOS_NOK)) {
+        PRINT_ERR("para is invalid\n");
+        return;
+    }
+
+    if (para->startAddr >= para->endAddr) {
+        PRINT_ERR("wrong addr input para->startAddr[0x%llx] para->endAddr[0x%llx]\n", para->startAddr, para->endAddr);
+        return;
+    }
+
+    if (para->uwArea == PMD_AREA) {
+        pmdStart = PMD_ADDR_GET(para->startAddr);
+        pmdEnd = PMD_ADDR_GET(para->endAddr);
+        for (pmdTmp = pmdStart; pmdTmp < pmdEnd; pmdTmp += BYTES_PER_ITEM) {
+            if (((*(UINTPTR *)pmdTmp) & ITEM_TYPE_MASK) != MMU_PTE_L012_DESCRIPTOR_BLOCK) {
+                PRINT_ERR("not all mem belongs to pmd section(2M every item), descriptor types:0x%llx\n",
+                          ((*(UINTPTR *)pmdTmp) & ITEM_TYPE_MASK));
+                return;
+            } else {
+                PRINT_DEBUG("pmdTmp = 0x%llx : 0x%llx\n", pmdTmp, *(UINTPTR *)pmdTmp);
+            }
+        }
+        OsBlockMapsSet(para->uwFlag | MMU_PTE_L012_DESCRIPTOR_BLOCK, para->startAddr, para->endAddr);
+        PRINT_DEBUG("pmdStart = 0x%llx : 0x%llx\n", pmdStart, *(UINTPTR *)pmdStart);
+        v8_dma_clean_range(pmdStart, pmdEnd);
+        __asm__ __volatile__("tlbi    vmalle1");
+        return;
+    }
+
+    if ((para->startAddr & (MMU_4K - 1)) != 0) {
+        PRINT_ERR("para->startAddr[0x%llx] not aligned as 4K\n", para->startAddr);
+        return;
+    }
+
+    if ((para->endAddr & (MMU_4K - 1)) != 0) {
+        para->endAddr = ALIGN(para->endAddr, MMU_4K);
+    }
+
+    if ((para->startAddr < para->stPage->page_addr) ||
+        (para->endAddr > (para->stPage->page_length + para->stPage->page_addr))) {
+        PRINT_ERR("addr input not belongs to this second page \n"
+                  "para->startAddr:0x%llx, para->stPage->page_addr:0x%llx\n",
+                  para->startAddr, para->stPage->page_addr);
+        PRINT_ERR("para->endAddr:0x%llx, (para->stPage->page_length + para->stPage->page_addr):0x%llx\n",
+                  para->endAddr, para->stPage->page_length + para->stPage->page_addr);
+        return;
+    }
+    intSave = LOS_IntLock();
+    CreatPteTable(para);
+    LOS_IntRestore(intSave);
+}

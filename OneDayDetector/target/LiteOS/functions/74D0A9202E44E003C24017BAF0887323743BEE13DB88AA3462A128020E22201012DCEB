@@ -1,0 +1,15 @@
+static void chapms2_make_response(ppp_pcb *pcb, unsigned char *response, int id, const char *our_name,
+		      const unsigned char *challenge, const char *secret, int secret_len,
+		      unsigned char *private_) {
+	LWIP_UNUSED_ARG(id);
+	challenge++;	/* skip length, should be 16 */
+	*response++ = MS_CHAP2_RESPONSE_LEN;
+	ChapMS2(pcb, challenge,
+#ifdef DEBUGMPPEKEY
+		mschap2_peer_challenge,
+#else
+		NULL,
+#endif
+		our_name, secret, secret_len, response, private_,
+		MS_CHAP2_AUTHENTICATEE);
+}

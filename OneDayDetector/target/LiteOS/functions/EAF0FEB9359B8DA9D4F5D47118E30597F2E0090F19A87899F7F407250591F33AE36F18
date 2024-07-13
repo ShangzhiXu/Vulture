@@ -1,0 +1,50 @@
+int connection_parse_host_ip(char *uri, char **parsed_host, char **parsed_port)
+{
+    char *host;
+    char *port;
+    char *defaultport;
+    if (uri == NULL) {
+        ATINY_LOG(LOG_INFO, "uri is NULL!!!");
+        return COAP_500_INTERNAL_SERVER_ERROR;
+    }
+
+    //ATINY_LOG(LOG_INFO, "uri is %s\n", uri);
+    // parse uri in the form "coaps://[host]:[port]"
+
+    if (strncmp(uri, "coaps://", strlen("coaps://")) == 0) {
+        host = uri + strlen("coaps://");
+        defaultport = COAPS_PORT;
+    } else if (strncmp(uri, "coap://", strlen("coap://")) == 0) {
+        host = uri + strlen("coap://");
+        defaultport = COAP_PORT;
+    } else {
+        ATINY_LOG(LOG_INFO, "come here1!!!");
+        return COAP_500_INTERNAL_SERVER_ERROR;
+    }
+
+    port = strrchr(host, ':');
+    if (port == NULL) {
+        port = defaultport;
+    } else {
+        // remove brackets
+        if (host[0] == '[') {
+            host++;
+
+            if (*(port - 1) == ']') {
+                *(port - 1) = 0;
+            } else {
+                ATINY_LOG(LOG_INFO, "come here2!!!");
+                return COAP_500_INTERNAL_SERVER_ERROR;
+            }
+        }
+
+        // split strings
+        *port = 0;
+        port++;
+    }
+
+    *parsed_host = host;
+    *parsed_port = port;
+
+    return COAP_NO_ERROR;
+}

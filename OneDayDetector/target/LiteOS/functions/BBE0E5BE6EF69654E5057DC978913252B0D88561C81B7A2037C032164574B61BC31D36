@@ -1,0 +1,24 @@
+UINT32 OsTraceDataEncode(UINT8 type, const TlvTable *table, UINT8 *src, UINT8 *dest, INT32 destLen)
+{
+    UINT16 crc;
+    INT32 len;
+    INT32 tlvBufLen;
+    UINT8 *tlvBuf = NULL;
+
+    TraceMsgTlvHead *head = (TraceMsgTlvHead *)dest;
+    tlvBufLen = destLen - sizeof(TraceMsgTlvHead);
+
+    if ((tlvBufLen <= 0) || (table == NULL)) {
+        return 0;
+    }
+
+    tlvBuf = dest + sizeof(TraceMsgTlvHead);
+    len = OsTlvEncode(table, src, tlvBuf, tlvBufLen);
+    crc = CalcCrc16(tlvBuf, len);
+
+    head->magicNum = TRACE_TLV_MSG_HEAD;
+    head->msgType  = type;
+    head->len      = len;
+    head->crc      = crc;
+    return len + sizeof(TraceMsgTlvHead);
+}

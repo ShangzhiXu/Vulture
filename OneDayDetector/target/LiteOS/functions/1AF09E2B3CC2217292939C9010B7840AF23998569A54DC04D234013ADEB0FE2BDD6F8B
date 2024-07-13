@@ -1,0 +1,34 @@
+uint8_t lwm2m_buffer_send(void *sessionH,
+                          uint8_t *buffer,
+                          size_t length,
+                          void *userdata)
+{
+    connection_t *connP = (connection_t *) sessionH;
+    int ret;
+    /* should check the valid of the connection,because coap tranctions does not update the session */
+    if ((connP == NULL) || (!connection_is_valid(userdata, sessionH))) {
+        ATINY_LOG(LOG_INFO, "#> failed sending %lu bytes, missing connection\r\n", (unsigned long)length);
+        return COAP_500_INTERNAL_SERVER_ERROR ;
+    }
+
+    ATINY_LOG(LOG_INFO, "call connection_send in lwm2m_buffer_send, length is %d\n", length);
+
+#ifdef LOSCFG_COMPONENTS_SECURITY_MBEDTLS
+
+    if (connP->dtls_flag == true) {
+        // security
+        ret = dtls_write(connP->net_context, buffer, length);
+    } else
+#endif
+    {
+        ret = atiny_net_send(connP->net_context, buffer, length);
+    }
+
+    if (ret >= 0) {
+        connP->errs[CONNECTION_SEND_ERR] = 0;
+        return COAP_NO_ERROR;
+    } else {
+        inc_connection_stat(connP, CONNECTION_SEND_ERR);
+        return COAP_500_INTERNAL_SERVER_ERROR;
+    }
+}

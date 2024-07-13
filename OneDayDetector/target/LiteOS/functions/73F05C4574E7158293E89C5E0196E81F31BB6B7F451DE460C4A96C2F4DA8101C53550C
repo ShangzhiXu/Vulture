@@ -1,0 +1,25 @@
+pbuf_get_contiguous(const struct pbuf *p, void *buffer, size_t bufsize, u16_t len, u16_t offset)
+{
+  const struct pbuf *q;
+  u16_t out_offset;
+
+  LWIP_ERROR("pbuf_get_contiguous: invalid buf", (p != NULL), return NULL;);
+  LWIP_ERROR("pbuf_get_contiguous: invalid dataptr", (buffer != NULL), return NULL;);
+  LWIP_ERROR("pbuf_get_contiguous: invalid dataptr", (bufsize >= len), return NULL;);
+
+  q = pbuf_skip_const(p, offset, &out_offset);
+  if (q != NULL) {
+    if (q->len >= (out_offset + len)) {
+      /* all data in this pbuf, return zero-copy */
+      return (u8_t *)q->payload + out_offset;
+    }
+    /* need to copy */
+    if (pbuf_copy_partial(q, buffer, len, out_offset) != len) {
+      /* copying failed: pbuf is too short */
+      return NULL;
+    }
+    return buffer;
+  }
+  /* pbuf is too short (offset does not fit in) */
+  return NULL;
+}

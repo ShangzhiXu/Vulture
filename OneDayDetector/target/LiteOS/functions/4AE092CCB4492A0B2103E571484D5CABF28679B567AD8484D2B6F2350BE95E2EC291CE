@@ -1,0 +1,33 @@
+uint32_t HAL_NAND_Read_Status(NAND_HandleTypeDef *hnand)
+{
+  uint32_t data = 0;
+  uint32_t deviceaddress = 0;
+  
+  /* Identify the device address */
+  if(hnand->Init.NandBank == FSMC_NAND_BANK2)
+  {
+    deviceaddress = NAND_DEVICE1;
+  }
+  else
+  {
+    deviceaddress = NAND_DEVICE2;
+  } 
+
+  /* Send Read status operation command */
+  *(__IO uint8_t *)((uint32_t)(deviceaddress | CMD_AREA)) = NAND_CMD_STATUS;
+  
+  /* Read status register data */
+  data = *(__IO uint8_t *)deviceaddress;
+
+  /* Return the status */
+  if((data & NAND_ERROR) == NAND_ERROR)
+  {
+    return NAND_ERROR;
+  } 
+  else if((data & NAND_READY) == NAND_READY)
+  {
+    return NAND_READY;
+  }
+
+  return NAND_BUSY; 
+}

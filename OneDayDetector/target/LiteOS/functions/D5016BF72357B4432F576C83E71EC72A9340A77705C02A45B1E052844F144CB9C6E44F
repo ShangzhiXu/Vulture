@@ -1,0 +1,65 @@
+HAL_StatusTypeDef HAL_IRDA_Receive(IRDA_HandleTypeDef *hirda, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+{
+  uint16_t* tmp;
+  uint16_t uhMask;
+  uint32_t tickstart = 0;
+
+  /* Check that a Rx process is not already ongoing */
+  if(hirda->RxState == HAL_IRDA_STATE_READY)
+  {
+    if((pData == NULL) || (Size == 0))
+    {
+      return  HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hirda);
+
+    hirda->ErrorCode = HAL_IRDA_ERROR_NONE;
+    hirda->RxState = HAL_IRDA_STATE_BUSY_RX;
+
+    /* Init tickstart for timeout managment*/
+    tickstart = HAL_GetTick();
+
+    hirda->RxXferSize = Size;
+    hirda->RxXferCount = Size;
+
+    /* Computation of the mask to apply to RDR register
+       of the UART associated to the IRDA */
+    IRDA_MASK_COMPUTATION(hirda);
+    uhMask = hirda->Mask;
+
+    /* Check data remaining to be received */
+    while(hirda->RxXferCount > 0)
+    {
+      hirda->RxXferCount--;
+
+      if(IRDA_WaitOnFlagUntilTimeout(hirda, IRDA_FLAG_RXNE, RESET, tickstart, Timeout) != HAL_OK)
+      {
+        return HAL_TIMEOUT;
+      }
+      if ((hirda->Init.WordLength == IRDA_WORDLENGTH_9B) && (hirda->Init.Parity == IRDA_PARITY_NONE))
+      {
+        tmp = (uint16_t*) pData ;
+        *tmp = (uint16_t)(hirda->Instance->RDR & uhMask);
+        pData +=2;
+      }
+      else
+      {
+        *pData++ = (uint8_t)(hirda->Instance->RDR & (uint8_t)uhMask);
+      }
+    }
+
+    /* At end of Rx process, restore hirda->RxState to Ready */
+    hirda->RxState = HAL_IRDA_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hirda);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

@@ -1,0 +1,40 @@
+HAL_StatusTypeDef HAL_I2C_Master_Abort_IT(I2C_HandleTypeDef *hi2c, uint16_t DevAddress)
+{
+  /* Prevent unused argument(s) compilation warning */
+  UNUSED(DevAddress);
+
+  /* Abort Master transfer during Receive or Transmit process    */
+  if (hi2c->Mode == HAL_I2C_MODE_MASTER)
+  {
+    /* Process Locked */
+    __HAL_LOCK(hi2c);
+
+    hi2c->PreviousState = I2C_STATE_NONE;
+    hi2c->State = HAL_I2C_STATE_ABORT;
+
+    /* Disable Acknowledge */
+    CLEAR_BIT(hi2c->Instance->CR1, I2C_CR1_ACK);
+
+    /* Generate Stop */
+    SET_BIT(hi2c->Instance->CR1, I2C_CR1_STOP);
+
+    hi2c->XferCount = 0U;
+
+    /* Disable EVT, BUF and ERR interrupt */
+    __HAL_I2C_DISABLE_IT(hi2c, I2C_IT_EVT | I2C_IT_BUF | I2C_IT_ERR);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2c);
+
+    /* Call the corresponding callback to inform upper layer of End of Transfer */
+    I2C_ITError(hi2c);
+
+    return HAL_OK;
+  }
+  else
+  {
+    /* Wrong usage of abort function */
+    /* This function should be used only in case of abort monitored by master device */
+    return HAL_ERROR;
+  }
+}

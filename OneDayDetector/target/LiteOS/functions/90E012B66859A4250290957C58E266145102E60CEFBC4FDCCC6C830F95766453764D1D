@@ -1,0 +1,26 @@
+uint32_t RCC_PLLSAI_GetFreqDomain_48M(void)
+{
+  uint32_t pllinputfreq = 0U, pllsource = 0U;
+
+  /* PLLSAI_VCO = (HSE_VALUE or HSI_VALUE / PLLM) * PLLSAIN
+     48M Domain clock  = PLLSAI_VCO / PLLSAIP
+  */
+  pllsource = LL_RCC_PLL_GetMainSource();
+
+  switch (pllsource)
+  {
+    case LL_RCC_PLLSOURCE_HSI:  /* HSI used as PLLSAI clock source */
+      pllinputfreq = HSI_VALUE;
+      break;
+
+    case LL_RCC_PLLSOURCE_HSE:  /* HSE used as PLLSAI clock source */
+      pllinputfreq = HSE_VALUE;
+      break;
+
+    default:
+      pllinputfreq = HSI_VALUE;
+      break;
+  }
+  return __LL_RCC_CALC_PLLSAI_48M_FREQ(pllinputfreq, LL_RCC_PLL_GetDivider(),
+                                        LL_RCC_PLLSAI_GetN(), LL_RCC_PLLSAI_GetP());
+}

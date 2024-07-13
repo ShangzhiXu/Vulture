@@ -1,0 +1,28 @@
+ip_AddrTable_get_next_cell_instance_and_value(const u32_t *column, struct snmp_obj_id *row_oid, union snmp_variant_value *value, u32_t *value_len)
+{
+  struct netif *netif;
+  struct snmp_next_oid_state state;
+  u32_t result_temp[LWIP_ARRAYSIZE(ip_AddrTable_oid_ranges)];
+
+  /* init struct to search next oid */
+  snmp_next_oid_init(&state, row_oid->id, row_oid->len, result_temp, LWIP_ARRAYSIZE(ip_AddrTable_oid_ranges));
+
+  /* iterate over all possible OIDs to find the next one */
+  NETIF_FOREACH(netif) {
+    u32_t test_oid[LWIP_ARRAYSIZE(ip_AddrTable_oid_ranges)];
+    snmp_ip4_to_oid(netif_ip4_addr(netif), &test_oid[0]);
+
+    /* check generated OID: is it a candidate for the next one? */
+    snmp_next_oid_check(&state, test_oid, LWIP_ARRAYSIZE(ip_AddrTable_oid_ranges), netif);
+  }
+
+  /* did we find a next one? */
+  if (state.status == SNMP_NEXT_OID_STATUS_SUCCESS) {
+    snmp_oid_assign(row_oid, state.next_oid, state.next_oid_len);
+    /* fill in object properties */
+    return ip_AddrTable_get_cell_value_core((struct netif *)state.reference, column, value, value_len);
+  }
+
+  /* not found */
+  return SNMP_ERR_NOSUCHINSTANCE;
+}

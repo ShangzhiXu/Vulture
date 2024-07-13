@@ -1,0 +1,47 @@
+static HAL_StatusTypeDef I2SEx_FullDuplexWaitFlagStateUntilTimeout(I2S_HandleTypeDef *hi2s, uint32_t Flag,
+                                                                   uint32_t State, uint32_t Timeout, I2S_UseTypeDef i2sUsed)
+{
+  uint32_t tickstart = HAL_GetTick();
+
+  if (i2sUsed == I2S_USE_I2S)
+  {
+    /* Wait until flag is reset */
+    while (((__HAL_I2S_GET_FLAG(hi2s, Flag)) ? SET : RESET) != State)
+    {
+      if (Timeout != HAL_MAX_DELAY)
+      {
+        if ((Timeout == 0U) || ((HAL_GetTick() - tickstart) > Timeout))
+        {
+          /* Set the I2S State ready */
+          hi2s->State = HAL_I2S_STATE_READY;
+
+          /* Process Unlocked */
+          __HAL_UNLOCK(hi2s);
+
+          return HAL_TIMEOUT;
+        }
+      }
+    }
+  }
+  else /* i2sUsed == I2S_USE_I2SEXT */
+  {
+    /* Wait until flag is reset */
+    while (((__HAL_I2SEXT_GET_FLAG(hi2s, Flag)) ? SET : RESET) != State)
+    {
+      if (Timeout != HAL_MAX_DELAY)
+      {
+        if ((Timeout == 0U) || ((HAL_GetTick() - tickstart) > Timeout))
+        {
+          /* Set the I2S State ready */
+          hi2s->State = HAL_I2S_STATE_READY;
+
+          /* Process Unlocked */
+          __HAL_UNLOCK(hi2s);
+
+          return HAL_TIMEOUT;
+        }
+      }
+    }
+  }
+  return HAL_OK;
+}

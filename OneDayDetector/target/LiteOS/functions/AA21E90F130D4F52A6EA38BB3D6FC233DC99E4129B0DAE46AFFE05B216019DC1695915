@@ -1,0 +1,38 @@
+void lv_style_list_copy(lv_style_list_t * list_dest, const lv_style_list_t * list_src)
+{
+    LV_ASSERT_STYLE_LIST(list_dest);
+    LV_ASSERT_STYLE_LIST(list_src);
+
+    _lv_style_list_reset(list_dest);
+
+    if(list_src->style_list == NULL) return;
+
+    /*Copy the styles but skip the transitions*/
+    if(list_src->has_local == 0) {
+        if(list_src->has_trans) {
+            list_dest->style_list = lv_mem_alloc((list_src->style_cnt - 1) * sizeof(lv_style_t *));
+            _lv_memcpy(list_dest->style_list, list_src->style_list + 1, (list_src->style_cnt - 1) * sizeof(lv_style_t *));
+            list_dest->style_cnt = list_src->style_cnt - 1;
+        }
+        else {
+            list_dest->style_list = lv_mem_alloc(list_src->style_cnt * sizeof(lv_style_t *));
+            _lv_memcpy(list_dest->style_list, list_src->style_list, list_src->style_cnt * sizeof(lv_style_t *));
+            list_dest->style_cnt = list_src->style_cnt;
+        }
+    }
+    else {
+        if(list_src->has_trans) {
+            list_dest->style_list = lv_mem_alloc((list_src->style_cnt - 2) * sizeof(lv_style_t *));
+            _lv_memcpy(list_dest->style_list, list_src->style_list + 2, (list_src->style_cnt - 2) * sizeof(lv_style_t *));
+            list_dest->style_cnt = list_src->style_cnt - 2;
+        }
+        else {
+            list_dest->style_list = lv_mem_alloc((list_src->style_cnt - 1) * sizeof(lv_style_t *));
+            _lv_memcpy(list_dest->style_list, list_src->style_list + 1, (list_src->style_cnt - 1) * sizeof(lv_style_t *));
+            list_dest->style_cnt = list_src->style_cnt - 1;
+        }
+
+        lv_style_t * local_style = get_alloc_local_style(list_dest);
+        lv_style_copy(local_style, get_alloc_local_style((lv_style_list_t *)list_src));
+    }
+}

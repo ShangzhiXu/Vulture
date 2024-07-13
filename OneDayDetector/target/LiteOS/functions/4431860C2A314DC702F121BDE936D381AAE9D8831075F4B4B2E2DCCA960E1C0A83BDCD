@@ -1,0 +1,80 @@
+ppp_pcb *ppp_new(struct netif *pppif, const struct link_callbacks *callbacks, void *link_ctx_cb, ppp_link_status_cb_fn link_status_cb, void *ctx_cb) {
+  ppp_pcb *pcb;
+  const struct protent *protp;
+  int i;
+
+  /* PPP is single-threaded: without a callback,
+   * there is no way to know when the link is up. */
+  if (link_status_cb == NULL) {
+    return NULL;
+  }
+
+  pcb = (ppp_pcb*)LWIP_MEMPOOL_ALLOC(PPP_PCB);
+  if (pcb == NULL) {
+    return NULL;
+  }
+
+  memset(pcb, 0, sizeof(ppp_pcb));
+
+  /* default configuration */
+#if PAP_SUPPORT
+  pcb->settings.pap_timeout_time = UPAP_DEFTIMEOUT;
+  pcb->settings.pap_max_transmits = UPAP_DEFTRANSMITS;
+#if PPP_SERVER
+  pcb->settings.pap_req_timeout = UPAP_DEFREQTIME;
+#endif /* PPP_SERVER */
+#endif /* PAP_SUPPORT */
+
+#if CHAP_SUPPORT
+  pcb->settings.chap_timeout_time = CHAP_DEFTIMEOUT;
+  pcb->settings.chap_max_transmits = CHAP_DEFTRANSMITS;
+#if PPP_SERVER
+  pcb->settings.chap_rechallenge_time = CHAP_DEFRECHALLENGETIME;
+#endif /* PPP_SERVER */
+#endif /* CHAP_SUPPPORT */
+
+#if EAP_SUPPORT
+  pcb->settings.eap_req_time = EAP_DEFREQTIME;
+  pcb->settings.eap_allow_req = EAP_DEFALLOWREQ;
+#if PPP_SERVER
+  pcb->settings.eap_timeout_time = EAP_DEFTIMEOUT;
+  pcb->settings.eap_max_transmits = EAP_DEFTRANSMITS;
+#endif /* PPP_SERVER */
+#endif /* EAP_SUPPORT */
+
+  pcb->settings.lcp_loopbackfail = LCP_DEFLOOPBACKFAIL;
+  pcb->settings.lcp_echo_interval = LCP_ECHOINTERVAL;
+  pcb->settings.lcp_echo_fails = LCP_MAXECHOFAILS;
+
+  pcb->settings.fsm_timeout_time = FSM_DEFTIMEOUT;
+  pcb->settings.fsm_max_conf_req_transmits = FSM_DEFMAXCONFREQS;
+  pcb->settings.fsm_max_term_transmits = FSM_DEFMAXTERMREQS;
+  pcb->settings.fsm_max_nak_loops = FSM_DEFMAXNAKLOOPS;
+
+  pcb->netif = pppif;
+  MIB2_INIT_NETIF(pppif, snmp_ifType_ppp, 0);
+  if (!netif_add(pcb->netif,
+#if LWIP_IPV4
+                 IP4_ADDR_ANY4, IP4_ADDR_BROADCAST, IP4_ADDR_ANY4,
+#endif /* LWIP_IPV4 */
+                 (void *)pcb, ppp_netif_init_cb, NULL)) {
+    LWIP_MEMPOOL_FREE(PPP_PCB, pcb);
+    PPPDEBUG(LOG_ERR, ("ppp_new: netif_add failed\n"));
+    return NULL;
+  }
+
+  pcb->link_cb = callbacks;
+  pcb->link_ctx_cb = link_ctx_cb;
+  pcb->link_status_cb = link_status_cb;
+  pcb->ctx_cb = ctx_cb;
+
+  /*
+   * Initialize each protocol.
+   */
+  for (i = 0; (protp = protocols[i]) != NULL; ++i) {
+      (*protp->init)(pcb);
+  }
+
+  new_phase(pcb, PPP_PHASE_DEAD);
+  return pcb;
+}

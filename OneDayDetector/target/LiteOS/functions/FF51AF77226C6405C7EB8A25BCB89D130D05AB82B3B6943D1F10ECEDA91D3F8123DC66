@@ -1,0 +1,91 @@
+void lv_page_focus(lv_obj_t * page, const lv_obj_t * obj, lv_anim_enable_t anim_en)
+{
+    lv_page_ext_t * ext = lv_obj_get_ext_attr(page);
+
+#if LV_USE_ANIMATION
+    /* Be sure there is no position changing animation in progress
+     * because it can overide the current changes*/
+    lv_anim_del(page, (lv_anim_exec_xcb_t)lv_obj_set_x);
+    lv_anim_del(page, (lv_anim_exec_xcb_t)lv_obj_set_y);
+    lv_anim_del(ext->scrl, (lv_anim_exec_xcb_t)lv_obj_set_x);
+    lv_anim_del(ext->scrl, (lv_anim_exec_xcb_t)lv_obj_set_y);
+#endif
+
+
+    /*If obj is higher then the page focus where the "error" is smaller*/
+    lv_coord_t obj_y      = obj->coords.y1 - ext->scrl->coords.y1;
+    lv_coord_t obj_h      = lv_obj_get_height(obj);
+    lv_coord_t scrlable_y = lv_obj_get_y(ext->scrl);
+    lv_coord_t page_h     = lv_obj_get_height(page);
+
+    lv_coord_t top_err = -(scrlable_y + obj_y);
+    lv_coord_t bot_err = scrlable_y + obj_y + obj_h - page_h;
+
+    lv_style_int_t bg_top = lv_obj_get_style_pad_top(page, LV_PAGE_PART_BG);
+    lv_style_int_t bg_bottom = lv_obj_get_style_pad_bottom(page, LV_PAGE_PART_BG);
+    lv_style_int_t scrl_top = lv_obj_get_style_pad_top(ext->scrl, LV_CONT_PART_MAIN);
+    lv_style_int_t scrl_bottom = lv_obj_get_style_pad_bottom(ext->scrl, LV_CONT_PART_MAIN);
+
+    /*Out of the page on the top*/
+    if((obj_h <= page_h && top_err > 0) || (obj_h > page_h && top_err < bot_err)) {
+        /*Calculate a new position and let some space above*/
+        scrlable_y = -(obj_y - scrl_top - bg_top);
+        scrlable_y += scrl_top;
+    }
+    /*Out of the page on the bottom*/
+    else if((obj_h <= page_h && bot_err > 0) || (obj_h > page_h && top_err >= bot_err)) {
+        /*Calculate a new position and let some space below*/
+        scrlable_y = -(obj_y + scrl_bottom + bg_bottom);
+        scrlable_y -= scrl_bottom;
+        scrlable_y += page_h - obj_h;
+    }
+
+
+    /*If obj is wider then the page focus where the "error" is smaller*/
+    lv_coord_t obj_x      = obj->coords.x1 - ext->scrl->coords.x1;
+    lv_coord_t obj_w      = lv_obj_get_width(obj);
+    lv_coord_t scrlable_x = lv_obj_get_x(ext->scrl);
+    lv_coord_t page_w     = lv_obj_get_width(page);
+
+    lv_coord_t left_err  = -(scrlable_x + obj_x);
+    lv_coord_t right_err = scrlable_x + obj_x + obj_w - page_w;
+
+    lv_style_int_t bg_left = lv_obj_get_style_pad_left(page, LV_PAGE_PART_BG);
+    lv_style_int_t bg_right = lv_obj_get_style_pad_right(page, LV_PAGE_PART_BG);
+    lv_style_int_t scrl_left = lv_obj_get_style_pad_top(ext->scrl, LV_CONT_PART_MAIN);
+    lv_style_int_t scrl_right = lv_obj_get_style_pad_bottom(ext->scrl, LV_CONT_PART_MAIN);
+
+    /*Out of the page on the left*/
+    if((obj_w <= page_w && left_err > 0) || (obj_w > page_w && left_err < right_err)) {
+        /*Calculate a new position and let some space on the side*/
+        scrlable_x = -(obj_x - scrl_left - bg_left);
+        scrlable_x += scrl_left;
+    }
+    /*Out of the page on the rigth*/
+    else if((obj_w <= page_w && right_err > 0) || (obj_w > page_w && left_err >= right_err)) {
+        /*Calculate a new position and let some space on teh side*/
+        scrlable_x = -(obj_x + scrl_right + bg_right);
+        scrlable_x -= scrl_right;
+        scrlable_x += page_w - obj_w;
+    }
+
+    if(anim_en == LV_ANIM_OFF || lv_page_get_anim_time(page) == 0) {
+        lv_obj_set_y(ext->scrl, scrlable_y);
+        lv_obj_set_x(ext->scrl, scrlable_x);
+    }
+    else {
+#if LV_USE_ANIMATION
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, ext->scrl);
+        lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_y);
+        lv_anim_set_values(&a, lv_obj_get_y(ext->scrl), scrlable_y);
+        lv_anim_set_time(&a, lv_page_get_anim_time(page));
+        lv_anim_start(&a);
+
+        lv_anim_set_values(&a, lv_obj_get_x(ext->scrl), scrlable_x);
+        lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_x);
+        lv_anim_start(&a);
+#endif
+    }
+}

@@ -1,0 +1,46 @@
+LITE_OS_SEC_TEXT_MINOR STATIC UINT32 OsShellCmdFreeInfo(INT32 argc, const CHAR *argv[])
+{
+#ifdef LOSCFG_EXC_INTERACTION
+    UINT32 memUsed0 = LOS_MemTotalUsedGet(m_aucSysMem0);
+    UINT32 totalMem0 = LOS_MemPoolSizeGet(m_aucSysMem0);
+    UINT32 freeMem0 = totalMem0 - memUsed0;
+#endif
+
+    UINT32 memUsed = LOS_MemTotalUsedGet(m_aucSysMem1);
+    UINT32 totalMem = LOS_MemPoolSizeGet(m_aucSysMem1);
+    UINT32 freeMem = totalMem - memUsed;
+
+    if ((argc == 0) ||
+        ((argc == 1) && (strcmp(argv[0], "-k") == 0)) ||
+        ((argc == 1) && (strcmp(argv[0], "-m") == 0))) {
+#ifdef LOSCFG_EXC_INTERACTION
+        PRINTK("\r\n***** Mem:system mem      Mem1:exception interaction mem *****\n");
+#endif
+        PRINTK("\r\n        total        used          free\n");
+    }
+
+    if ((argc == 1) && (strcmp(argv[0], "-k") == 0)) {
+        PRINTK("Mem:    %-9u    %-10u    %-10u\n", totalMem / MEM_SIZE_1K, memUsed / MEM_SIZE_1K,
+               freeMem / MEM_SIZE_1K);
+#ifdef LOSCFG_EXC_INTERACTION
+        PRINTK("Mem1:   %-9u    %-10u    %-10u\n", totalMem0 / MEM_SIZE_1K, memUsed0 / MEM_SIZE_1K,
+               freeMem0 / MEM_SIZE_1K);
+#endif
+    } else if ((argc == 1) && (strcmp(argv[0], "-m") == 0)) {
+        PRINTK("Mem:    %-9u    %-10u    %-10u\n", totalMem / MEM_SIZE_1M, memUsed / MEM_SIZE_1M,
+               freeMem / MEM_SIZE_1M);
+#ifdef LOSCFG_EXC_INTERACTION
+        PRINTK("Mem1:   %-9u    %-10u    %-10u\n", totalMem0 / MEM_SIZE_1M, memUsed0 / MEM_SIZE_1M,
+               freeMem0 / MEM_SIZE_1M);
+#endif
+    } else if (argc == 0) {
+        PRINTK("Mem:    %-9u    %-10u    %-10u\n", totalMem, memUsed, freeMem);
+#ifdef LOSCFG_EXC_INTERACTION
+        PRINTK("Mem1:   %-9u    %-10u    %-10u\n", totalMem0, memUsed0, freeMem0);
+#endif
+    } else {
+        PRINTK("\nUsage: free or free [-k/-m]\n");
+        return OS_ERROR;
+    }
+    return 0;
+}

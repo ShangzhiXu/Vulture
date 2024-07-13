@@ -1,0 +1,16 @@
+int __pthread_key_delete(pthread_key_t k)
+{
+	_pthread_data *self = __pthread_self(), *td=self;
+
+	(void)pthread_mutex_lock(&key_lock);
+
+	__tl_lock();
+	td->tsd[k] = 0;
+	__tl_unlock();
+
+	keys[k] = 0;
+
+	(void)pthread_mutex_unlock(&key_lock);
+
+	return 0;
+}

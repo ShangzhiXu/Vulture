@@ -1,0 +1,36 @@
+VOID HalClockDelayUs(UINT32 usecs)
+{
+    UINT32 tmo = 0;
+    UINT32 tmp;
+    UINT32 intSave = LOS_IntLock();
+
+    /* part of usecs >= 1ms */
+    if (usecs >= US_PER_MS) {
+        tmo = usecs / US_PER_MS; /* start to normalize for usec to cycles per sec */
+        if ((g_sysClock != 0) && ((tmo / MS_PER_S) > (UINT32_MAX / g_sysClock))) {
+            PRINT_ERR("%s, delay us too large, usecs:0x%x\n", __FUNCTION__, usecs);
+            LOS_IntRestore(intSave);
+            return;
+        }
+        tmo *= (GET_SYS_CLOCK() / MS_PER_S); /* largest msecond 1374389 */
+        usecs -= (usecs / US_PER_MS * US_PER_MS); /* get value of usecs < 1ms */
+    }
+
+    /* part of usecs < 1ms */
+    if (usecs) {
+        /* translate us to sys_Clock, prevent u32 overflow */
+        tmo += (usecs * (GET_SYS_CLOCK() / MS_PER_S)) / US_PER_MS;
+    }
+
+    /* reset "advancing" timestamp to 0, set lastdec value */
+    ResetTimerMasked();
+
+    tmp = GetTimer(0); /* get current timestamp */
+
+    /* set advancing stamp wake up time */
+    tmo += tmp;
+
+    while (GetTimerMasked() < tmo) {
+    }
+    LOS_IntRestore(intSave);
+}

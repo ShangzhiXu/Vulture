@@ -1,0 +1,40 @@
+HAL_StatusTypeDef HAL_TIM_OnePulse_Init(TIM_HandleTypeDef *htim, uint32_t OnePulseMode)
+{
+  /* Check the TIM handle allocation */
+  if(htim == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_TIM_INSTANCE(htim->Instance));
+  assert_param(IS_TIM_COUNTER_MODE(htim->Init.CounterMode));
+  assert_param(IS_TIM_CLOCKDIVISION_DIV(htim->Init.ClockDivision));
+  assert_param(IS_TIM_OPM_MODE(OnePulseMode));
+
+  if(htim->State == HAL_TIM_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    htim->Lock = HAL_UNLOCKED;
+    
+    /* Init the low level hardware : GPIO, CLOCK, NVIC and DMA */
+    HAL_TIM_OnePulse_MspInit(htim);
+  }
+
+  /* Set the TIM state */
+  htim->State= HAL_TIM_STATE_BUSY;
+
+  /* Configure the Time base in the One Pulse Mode */
+  TIM_Base_SetConfig(htim->Instance, &htim->Init);
+
+  /* Reset the OPM Bit */
+  htim->Instance->CR1 &= ~TIM_CR1_OPM;
+
+  /* Configure the OPM Mode */
+  htim->Instance->CR1 |= OnePulseMode;
+
+  /* Initialize the TIM state*/
+  htim->State= HAL_TIM_STATE_READY;
+
+  return HAL_OK;
+}

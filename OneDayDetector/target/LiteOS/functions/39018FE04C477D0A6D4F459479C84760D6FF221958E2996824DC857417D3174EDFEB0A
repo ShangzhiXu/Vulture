@@ -1,0 +1,27 @@
+VOID OsCallStackInfo(VOID)
+{
+    UINT32 count = 0;
+    LosTaskCB *runTask = OsCurrTaskGet();
+    UINTPTR stackBottom = runTask->topOfStack + runTask->stackSize;
+    UINT32 *stackPointer = (UINT32 *)stackBottom;
+
+    PrintExcInfo("runTask->stackPointer = 0x%x\n"
+                 "runTask->topOfStack = 0x%x\n"
+                 "text_start:0x%x,text_end:0x%x\n",
+                 stackPointer, runTask->topOfStack, &__text_start, &__text_end);
+
+    while ((stackPointer > (UINT32 *)runTask->topOfStack) && (count < OS_MAX_BACKTRACE)) {
+        if ((*stackPointer > (UINTPTR)(&__text_start)) &&
+            (*stackPointer < (UINTPTR)(&__text_end)) &&
+            IS_ALIGNED((*stackPointer), POINTER_SIZE)) {
+            if ((*(stackPointer - 1) > (UINT32)runTask->topOfStack) &&
+                (*(stackPointer - 1) < stackBottom) &&
+                IS_ALIGNED((*(stackPointer - 1)), POINTER_SIZE)) {
+                count++;
+                PrintExcInfo("traceback %u -- lr = 0x%x\n", count, *stackPointer);
+            }
+        }
+        stackPointer--;
+    }
+    PRINTK("\n");
+}

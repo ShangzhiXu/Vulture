@@ -1,0 +1,38 @@
+uint32_t LL_RCC_GetOCTOSPIClockFreq(uint32_t OCTOSPIxSource)
+{
+  uint32_t octospi_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_OCTOSPI_CLKSOURCE(OCTOSPIxSource));
+
+  /* OCTOSPI clock frequency */
+  switch (LL_RCC_GetOCTOSPIClockSource(OCTOSPIxSource))
+  {
+    case LL_RCC_OCTOSPI_CLKSOURCE_SYSCLK:   /* OCTOSPI clock is SYSCLK */
+      octospi_frequency = RCC_GetSystemClockFreq();
+      break;
+
+    case LL_RCC_OCTOSPI_CLKSOURCE_MSI:      /* MSI clock used as OCTOSPI clock */
+      if (LL_RCC_MSI_IsReady())
+      {
+        octospi_frequency = __LL_RCC_CALC_MSI_FREQ(LL_RCC_MSI_IsEnabledRangeSelect(),
+                                     (LL_RCC_MSI_IsEnabledRangeSelect() ?
+                                      LL_RCC_MSI_GetRange() :
+                                      LL_RCC_MSI_GetRangeAfterStandby()));
+      }
+      break;
+
+    case LL_RCC_OCTOSPI_CLKSOURCE_PLL:      /* PLL clock used as OCTOSPI source */
+      if (LL_RCC_PLL_IsReady())
+      {
+        octospi_frequency = RCC_PLL_GetFreqDomain_48M();
+      }
+      break;
+
+    default:
+      octospi_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+      break;
+  }
+
+  return octospi_frequency;
+}

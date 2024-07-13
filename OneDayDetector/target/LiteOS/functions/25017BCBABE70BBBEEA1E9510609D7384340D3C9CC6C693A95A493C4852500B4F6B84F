@@ -1,0 +1,50 @@
+HAL_StatusTypeDef HAL_USART_Transmit_DMA(USART_HandleTypeDef *husart, uint8_t *pTxData, uint16_t Size)
+{
+  uint32_t *tmp;
+
+  if(husart->State == HAL_USART_STATE_READY)
+  {
+    if((pTxData == NULL ) || (Size == 0))
+    {
+      return HAL_ERROR;
+    }
+    /* Process Locked */
+    __HAL_LOCK(husart);
+
+    husart->pTxBuffPtr = pTxData;
+    husart->TxXferSize = Size;
+    husart->TxXferCount = Size;
+
+    husart->ErrorCode = HAL_USART_ERROR_NONE;
+    husart->State = HAL_USART_STATE_BUSY_TX;
+
+    /* Set the USART DMA transfer complete callback */
+    husart->hdmatx->XferCpltCallback = USART_DMATransmitCplt;
+
+    /* Set the USART DMA Half transfer complete callback */
+    husart->hdmatx->XferHalfCpltCallback = USART_DMATxHalfCplt;
+
+    /* Set the DMA error callback */
+    husart->hdmatx->XferErrorCallback = USART_DMAError;
+
+    /* Enable the USART transmit DMA channel */
+    tmp = (uint32_t*)&pTxData;
+    HAL_DMA_Start_IT(husart->hdmatx, *(uint32_t*)tmp, (uint32_t)&husart->Instance->TDR, Size);
+
+    /* Clear the TC flag in the ICR register */
+    __HAL_USART_CLEAR_FLAG(husart, USART_CLEAR_TCF);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(husart);
+
+    /* Enable the DMA transfer for transmit request by setting the DMAT bit
+       in the USART CR3 register */
+    SET_BIT(husart->Instance->CR3, USART_CR3_DMAT);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

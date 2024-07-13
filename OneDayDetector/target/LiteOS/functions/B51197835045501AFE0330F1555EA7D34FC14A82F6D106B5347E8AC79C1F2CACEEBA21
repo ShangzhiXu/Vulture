@@ -1,0 +1,35 @@
+LITE_OS_SEC_TEXT_MINOR VOID OsCarryLeftScatter(VOID)
+{
+    size_t size;
+    UINTPTR memAddr;
+    size_t wowSize;
+    size_t readAlignSize;
+    size_t eraseAlignSize;
+    size_t writeAlignSize;
+    UINTPTR imageFlashAddr;
+    FLASH_READ_FUNC flashReadFunc = g_runstopParam.pfFlashReadFunc;
+
+    imageFlashAddr = g_runstopParam.uwImageFlashAddr;
+    readAlignSize = g_runstopParam.uwFlashReadAlignSize;
+    eraseAlignSize = g_runstopParam.uwFlashEraseAlignSize;
+    writeAlignSize = g_runstopParam.uwFlashWriteAlignSize;
+    writeAlignSize = (writeAlignSize >= eraseAlignSize) ? writeAlignSize : eraseAlignSize;
+
+    wowSize = ((UINTPTR)&__wow_end) - ((UINTPTR)&__ram_vectors_vma);
+    wowSize = (wowSize + writeAlignSize - 1) & ~(writeAlignSize - 1);
+    imageFlashAddr += wowSize;
+
+    memAddr = ((UINTPTR)&__ram_vectors_vma) + wowSize;
+    if (memAddr >= ((UINTPTR)&__bss_start)) {
+        return;
+    }
+    size = ((UINTPTR)&__int_stack_start) - memAddr;
+    size = (size + readAlignSize - 1) & ~(readAlignSize - 1);
+
+    if ((flashReadFunc != NULL) && (flashReadFunc((VOID *)memAddr, imageFlashAddr, size) != 0)) {
+        PRINT_ERR("%s, %d\n", __FUNCTION__, __LINE__);
+    }
+    dsb();
+    flush_icache();
+    flush_dcache(memAddr, memAddr + size);
+}

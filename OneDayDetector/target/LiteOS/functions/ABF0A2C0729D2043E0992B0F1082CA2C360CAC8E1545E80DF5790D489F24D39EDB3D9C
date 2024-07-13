@@ -1,0 +1,55 @@
+void SecClearDestBufW(const wchar_t *buffer, const wchar_t *format, va_list argList)
+#else
+/*
+ *  Clean up the first %s %c buffer to zero for char version
+ */
+void SecClearDestBuf(const char *buffer, const char *format, va_list argList)
+#endif
+{
+    SecScanSpec spec;
+    int convChr = 0;
+    const SecUnsignedChar *fmt = (const SecUnsignedChar *)format;
+    if (fmt == NULL) {
+        return;
+    }
+
+    /* Find first % */
+    while (*fmt != SECUREC_CHAR('\0') && *fmt != SECUREC_CHAR('%')) {
+        ++fmt;
+    }
+    if (*fmt == SECUREC_CHAR('\0')) {
+        return;
+    }
+
+    SecSetDefaultScanSpec(&spec);
+    if (SecDecodeScanFlag(&fmt, &spec) != 0) {
+        return;
+    }
+
+    /* Update wchar flag for %S %C */
+    SecUpdateWcharFlagByType(*fmt, &spec);
+    if (spec.suppress != 0) {
+        return;
+    }
+
+    if (SecDecodeClearFormat(fmt, &convChr) != 0) {
+        return;
+    }
+
+    if (buffer != NULL && *buffer != SECUREC_CHAR('\0') && convChr != 's') {
+        /*
+         * When buffer not empty just clear %s.
+         * Example call sscanf by  argment of (" \n", "%s", s, sizeof(s))
+         */
+        return;
+    }
+
+    SecDecodeClearArg(&spec, argList);
+    /* There is no need to judge the upper limit */
+    if (spec.arrayWidth == 0 || spec.argPtr == NULL) {
+        return;
+    }
+    /* Clear one char */
+    SecAddEndingZero(spec.argPtr, &spec);
+    return;
+}

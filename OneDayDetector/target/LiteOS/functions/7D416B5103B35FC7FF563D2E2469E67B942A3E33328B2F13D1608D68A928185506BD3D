@@ -1,0 +1,91 @@
+HAL_StatusTypeDef HAL_OSPI_Init (OSPI_HandleTypeDef *hospi)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t tickstart = HAL_GetTick();
+
+  /* Check the OSPI handle allocation */
+  if (hospi == NULL)
+  {
+    status = HAL_ERROR;
+    /* No error code can be set set as the handler is null */
+  }
+  else
+  {
+    /* Check the parameters of the initialization structure */
+    assert_param(IS_OSPI_FIFO_THRESHOLD (hospi->Init.FifoThreshold));
+    assert_param(IS_OSPI_DUALQUAD_MODE  (hospi->Init.DualQuad));
+    assert_param(IS_OSPI_MEMORY_TYPE    (hospi->Init.MemoryType));
+    assert_param(IS_OSPI_DEVICE_SIZE    (hospi->Init.DeviceSize));
+    assert_param(IS_OSPI_CS_HIGH_TIME   (hospi->Init.ChipSelectHighTime));
+    assert_param(IS_OSPI_FREE_RUN_CLK   (hospi->Init.FreeRunningClock));
+    assert_param(IS_OSPI_CLOCK_MODE     (hospi->Init.ClockMode));
+    assert_param(IS_OSPI_WRAP_SIZE      (hospi->Init.WrapSize));
+    assert_param(IS_OSPI_CLK_PRESCALER  (hospi->Init.ClockPrescaler));
+    assert_param(IS_OSPI_SAMPLE_SHIFTING(hospi->Init.SampleShifting));
+    assert_param(IS_OSPI_DHQC           (hospi->Init.DelayHoldQuarterCycle));
+    assert_param(IS_OSPI_CS_BOUNDARY    (hospi->Init.ChipSelectBoundary));
+    
+    /* Initialize error code */
+    hospi->ErrorCode = HAL_OSPI_ERROR_NONE;
+    
+    /* Check if the state is the reset state */
+    if (hospi->State == HAL_OSPI_STATE_RESET)
+    {
+      /* Initialization of the low level hardware */
+      HAL_OSPI_MspInit(hospi);
+      
+      /* Configure the default timeout for the OSPI memory access */
+      status = HAL_OSPI_SetTimeout(hospi, HAL_OSPI_TIMEOUT_DEFAULT_VALUE);
+    }
+    
+    if (status == HAL_OK)
+    {
+     /* Configure memory type, device size, chip select high time, free running clock, clock mode */
+      MODIFY_REG(hospi->Instance->DCR1, (OCTOSPI_DCR1_MTYP | OCTOSPI_DCR1_DEVSIZE | OCTOSPI_DCR1_CSHT | OCTOSPI_DCR1_FRCK | OCTOSPI_DCR1_CKMODE),
+                 (hospi->Init.MemoryType | ((hospi->Init.DeviceSize - 1) << OCTOSPI_DCR1_DEVSIZE_Pos) |
+                  ((hospi->Init.ChipSelectHighTime - 1) << OCTOSPI_DCR1_CSHT_Pos) | hospi->Init.FreeRunningClock |
+                  hospi->Init.ClockMode));
+                  
+      /* Configure wrap size */
+      MODIFY_REG(hospi->Instance->DCR2, OCTOSPI_DCR2_WRAPSIZE, hospi->Init.WrapSize);
+      
+      /* Configure chip select boundary */
+      hospi->Instance->DCR3 = (hospi->Init.ChipSelectBoundary << OCTOSPI_DCR3_CSBOUND_Pos);
+
+
+      /* Configure FIFO threshold */
+      MODIFY_REG(hospi->Instance->CR, OCTOSPI_CR_FTHRES, ((hospi->Init.FifoThreshold - 1) << OCTOSPI_CR_FTHRES_Pos));
+      
+      /* Wait till busy flag is reset */
+      status = OSPI_WaitFlagStateUntilTimeout(hospi, HAL_OSPI_FLAG_BUSY, RESET, tickstart, hospi->Timeout);
+      
+      if (status == HAL_OK)
+      {
+         /* Configure clock prescaler */
+         MODIFY_REG(hospi->Instance->DCR2, OCTOSPI_DCR2_PRESCALER, ((hospi->Init.ClockPrescaler - 1) << OCTOSPI_DCR2_PRESCALER_Pos));
+        
+         /* Configure Dual Quad mode */
+         MODIFY_REG(hospi->Instance->CR, OCTOSPI_CR_DQM, hospi->Init.DualQuad);
+        
+         /* Configure sample shifting and delay hold quarter cycle */
+         MODIFY_REG(hospi->Instance->TCR, (OCTOSPI_TCR_SSHIFT | OCTOSPI_TCR_DHQC), (hospi->Init.SampleShifting | hospi->Init.DelayHoldQuarterCycle));
+        
+         /* Enable OctoSPI */
+         __HAL_OSPI_ENABLE(hospi);
+      
+         /* Initialize the OSPI state */
+         if (hospi->Init.MemoryType == HAL_OSPI_MEMTYPE_HYPERBUS)
+         {
+            hospi->State = HAL_OSPI_STATE_HYPERBUS_INIT;
+         }
+         else
+         {
+            hospi->State = HAL_OSPI_STATE_READY;
+         }
+      }
+    }
+  }
+  
+  /* Return function status */
+  return status;
+}

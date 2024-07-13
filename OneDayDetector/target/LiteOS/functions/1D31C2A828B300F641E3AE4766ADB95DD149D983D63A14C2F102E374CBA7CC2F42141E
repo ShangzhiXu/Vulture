@@ -1,0 +1,95 @@
+netconn_recv_data(struct netconn *conn, void **new_buf, u8_t apiflags)
+{
+  void *buf = NULL;
+  u16_t len;
+
+  LWIP_ERROR("netconn_recv: invalid pointer", (new_buf != NULL), return ERR_ARG;);
+  *new_buf = NULL;
+  LWIP_ERROR("netconn_recv: invalid conn",    (conn != NULL),    return ERR_ARG;);
+
+  if (!NETCONN_RECVMBOX_WAITABLE(conn)) {
+    err_t err = netconn_err(conn);
+    if (err != ERR_OK) {
+      /* return pending error */
+      return err;
+    }
+    return ERR_CONN;
+  }
+
+  NETCONN_MBOX_WAITING_INC(conn);
+  if (netconn_is_nonblocking(conn) || (apiflags & NETCONN_DONTBLOCK) ||
+      (conn->flags & NETCONN_FLAG_MBOXCLOSED) || (conn->pending_err != ERR_OK)) {
+    if (sys_arch_mbox_tryfetch(&conn->recvmbox, &buf) == SYS_ARCH_TIMEOUT) {
+      err_t err;
+      NETCONN_MBOX_WAITING_DEC(conn);
+      err = netconn_err(conn);
+      if (err != ERR_OK) {
+        /* return pending error */
+        return err;
+      }
+      if (conn->flags & NETCONN_FLAG_MBOXCLOSED) {
+        return ERR_CONN;
+      }
+      return ERR_WOULDBLOCK;
+    }
+  } else {
+#if LWIP_SO_RCVTIMEO
+    if (sys_arch_mbox_fetch(&conn->recvmbox, &buf, conn->recv_timeout) == SYS_ARCH_TIMEOUT) {
+      NETCONN_MBOX_WAITING_DEC(conn);
+      return ERR_TIMEOUT;
+    }
+#else
+    sys_arch_mbox_fetch(&conn->recvmbox, &buf, 0);
+#endif /* LWIP_SO_RCVTIMEO*/
+  }
+  NETCONN_MBOX_WAITING_DEC(conn);
+#if LWIP_NETCONN_FULLDUPLEX
+  if (conn->flags & NETCONN_FLAG_MBOXINVALID) {
+    if (lwip_netconn_is_deallocated_msg(buf)) {
+      /* the netconn has been closed from another thread */
+      API_MSG_VAR_FREE_ACCEPT(msg);
+      return ERR_CONN;
+    }
+  }
+#endif
+
+#if LWIP_TCP
+#if (LWIP_UDP || LWIP_RAW)
+  if (NETCONNTYPE_GROUP(conn->type) == NETCONN_TCP)
+#endif /* (LWIP_UDP || LWIP_RAW) */
+  {
+    err_t err;
+    /* Check if this is an error message or a pbuf */
+    if (lwip_netconn_is_err_msg(buf, &err)) {
+      /* new_buf has been zeroed above already */
+      if (err == ERR_CLSD) {
+        /* connection closed translates to ERR_OK with *new_buf == NULL */
+        return ERR_OK;
+      }
+      return err;
+    }
+    len = ((struct pbuf *)buf)->tot_len;
+  }
+#endif /* LWIP_TCP */
+#if LWIP_TCP && (LWIP_UDP || LWIP_RAW)
+  else
+#endif /* LWIP_TCP && (LWIP_UDP || LWIP_RAW) */
+#if (LWIP_UDP || LWIP_RAW)
+  {
+    LWIP_ASSERT("buf != NULL", buf != NULL);
+    len = netbuf_len((struct netbuf *)buf);
+  }
+#endif /* (LWIP_UDP || LWIP_RAW) */
+
+#if LWIP_SO_RCVBUF
+  SYS_ARCH_DEC(conn->recv_avail, len);
+#endif /* LWIP_SO_RCVBUF */
+  /* Register event with callback */
+  API_EVENT(conn, NETCONN_EVT_RCVMINUS, len);
+
+  LWIP_DEBUGF(API_LIB_DEBUG, ("netconn_recv_data: received %p, len=%"U16_F"\n", buf, len));
+
+  *new_buf = buf;
+  /* don't set conn->last_err: it's only ERR_OK, anyway */
+  return ERR_OK;
+}

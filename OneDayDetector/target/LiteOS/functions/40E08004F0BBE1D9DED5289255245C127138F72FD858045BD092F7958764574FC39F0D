@@ -1,0 +1,20 @@
+bridgeif_is_local_mac(bridgeif_private_t *br, struct eth_addr *addr)
+{
+  int i;
+  BRIDGEIF_DECL_PROTECT(lev);
+  if (!memcmp(br->netif->hwaddr, addr, sizeof(struct eth_addr))) {
+    return 1;
+  }
+  BRIDGEIF_READ_PROTECT(lev);
+  for (i = 0; i < br->num_ports; i++) {
+    struct netif *portif = br->ports[i].port_netif;
+    if (portif != NULL) {
+      if (!memcmp(portif->hwaddr, addr, sizeof(struct eth_addr))) {
+        BRIDGEIF_READ_UNPROTECT(lev);
+        return 1;
+      }
+    }
+  }
+  BRIDGEIF_READ_UNPROTECT(lev);
+  return 0;
+}

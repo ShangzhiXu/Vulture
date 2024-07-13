@@ -1,0 +1,17 @@
+VOID HalIrqHandler(VOID)
+{
+    UINT32 iar = GiccGetIar();
+    UINT32 vector = iar & 0x3FFU;
+
+    /*
+     * invalid irq number, mainly the spurious interrupts 0x3ff,
+     * valid irq ranges from 0~1019, we use OS_HWI_MAX_NUM to do
+     * the checking.
+     */
+    if (vector >= OS_HWI_MAX_NUM) {
+        return;
+    }
+    g_curIrqNum = vector;
+    OsIntHandle(vector, &g_hwiForm[vector]);
+    GiccSetEoir(vector);
+}

@@ -1,0 +1,22 @@
+SECUREC_INLINE void SecNumber32ToString(SecUnsignedInt32 number, SecFormatAttr *attr)
+{
+    switch (attr->radix) {
+        case SECUREC_RADIX_HEX:
+            SecNumber32ToHexString(number, attr);
+            break;
+        case SECUREC_RADIX_OCTAL:
+            SecNumber32ToOctalString(number, attr);
+            break;
+        case SECUREC_RADIX_DECIMAL:
+#ifdef _AIX
+            /* The compiler will optimize div 10 */
+            SecNumber32ToDecString(number, attr);
+#else
+            SecNumber32ToDecStringFast(number, attr);
+#endif
+            break;
+        default:
+            /* Do nothing */
+            break;
+    }
+}

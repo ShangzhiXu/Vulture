@@ -1,0 +1,46 @@
+lwip_netconn_do_write(void *m)
+{
+  struct api_msg *msg = (struct api_msg *)m;
+
+  err_t err = netconn_err(msg->conn);
+  if (err == ERR_OK) {
+    if (NETCONNTYPE_GROUP(msg->conn->type) == NETCONN_TCP) {
+#if LWIP_TCP
+      if (msg->conn->state != NETCONN_NONE) {
+        /* netconn is connecting, closing or in blocking write */
+        err = ERR_INPROGRESS;
+      } else if (msg->conn->pcb.tcp != NULL) {
+        msg->conn->state = NETCONN_WRITE;
+        /* set all the variables used by lwip_netconn_do_writemore */
+        LWIP_ASSERT("already writing or closing", msg->conn->current_msg == NULL);
+        LWIP_ASSERT("msg->msg.w.len != 0", msg->msg.w.len != 0);
+        msg->conn->current_msg = msg;
+#if LWIP_TCPIP_CORE_LOCKING
+        if (lwip_netconn_do_writemore(msg->conn, 0) != ERR_OK) {
+          LWIP_ASSERT("state!", msg->conn->state == NETCONN_WRITE);
+          UNLOCK_TCPIP_CORE();
+          sys_arch_sem_wait(LWIP_API_MSG_SEM(msg), 0);
+          LOCK_TCPIP_CORE();
+          LWIP_ASSERT("state!", msg->conn->state != NETCONN_WRITE);
+        }
+#else /* LWIP_TCPIP_CORE_LOCKING */
+        lwip_netconn_do_writemore(msg->conn);
+#endif /* LWIP_TCPIP_CORE_LOCKING */
+        /* for both cases: if lwip_netconn_do_writemore was called, don't ACK the APIMSG
+           since lwip_netconn_do_writemore ACKs it! */
+        return;
+      } else {
+        err = ERR_CONN;
+      }
+#else /* LWIP_TCP */
+      err = ERR_VAL;
+#endif /* LWIP_TCP */
+#if (LWIP_UDP || LWIP_RAW)
+    } else {
+      err = ERR_VAL;
+#endif /* (LWIP_UDP || LWIP_RAW) */
+    }
+  }
+  msg->err = err;
+  TCPIP_APIMSG_ACK(msg);
+}

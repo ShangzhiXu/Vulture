@@ -1,0 +1,48 @@
+SECUREC_INLINE void SecSeekStream(SecFileStream *stream)
+{
+    if (stream->count == 0) {
+        if (feof(stream->pf) != 0) {
+            /* File pointer at the end of file, don't need to seek back */
+            stream->base[0] = '\0';
+            return;
+        }
+    }
+    /* Seek to original position, for file read, but nothing to input */
+    if (fseek(stream->pf, stream->oriFilePos, SEEK_SET) != 0) {
+        /* Seek failed, ignore it */
+        stream->oriFilePos = 0;
+        return;
+    }
+
+    if (stream->fileRealRead > 0) { /* Do not seek without input data */
+#if defined(SECUREC_COMPATIBLE_WIN_FORMAT)
+        size_t residue = stream->fileRealRead % SECUREC_BUFFERED_BLOK_SIZE;
+        size_t loops;
+        for (loops = 0; loops < (stream->fileRealRead / SECUREC_BUFFERED_BLOK_SIZE); ++loops) {
+            if (fread(stream->base, (size_t)SECUREC_BUFFERED_BLOK_SIZE, (size_t)1, stream->pf) != (size_t)1) {
+                break;
+            }
+        }
+        if (residue != 0) {
+            long curFilePos;
+            if (fread(stream->base, residue, (size_t)1, stream->pf) != (size_t)1) {
+                return;
+            }
+            curFilePos = ftell(stream->pf);
+            if (curFilePos < stream->oriFilePos ||
+                (size_t)(unsigned long)(curFilePos - stream->oriFilePos) < stream->fileRealRead) {
+                /* Try to remedy the problem */
+                (void)fseek(stream->pf, (long)stream->fileRealRead, SEEK_CUR);
+            }
+        }
+#else
+        /* Seek from oriFilePos. Regardless of the integer sign problem, call scanf will not read very large data */
+        if (fseek(stream->pf, (long)stream->fileRealRead, SEEK_CUR) != 0) {
+            /* Seek failed, ignore it */
+            stream->oriFilePos = 0;
+            return;
+        }
+#endif
+    }
+    return;
+}

@@ -1,0 +1,11 @@
+STATIC VOID GicdSetPmr(UINT32 irq, UINT8 priority)
+{
+    UINT32 pos = irq >> 2; /* one irq have the 8-bit interrupt priority field */
+    UINT32 newPri = GIC_REG_32(GICD_IPRIORITYR(pos));
+
+    /* Shift and mask the correct bits for the priority */
+    newPri &= ~(GIC_PRIORITY_MASK << ((irq % 4) * GIC_PRIORITY_OFFSET));
+    newPri |= priority << ((irq % 4) * GIC_PRIORITY_OFFSET);
+
+    GIC_REG_32(GICD_IPRIORITYR(pos)) = newPri;
+}

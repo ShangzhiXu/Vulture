@@ -1,0 +1,72 @@
+uint32_t HAL_RCCEx_GetPeriphCLKFreq(uint32_t PeriphClk)
+{
+  /* This variable used to store the I2S clock frequency (value in Hz) */
+  uint32_t frequency = 0U;
+  /* This variable used to store the VCO Input (value in Hz) */
+  uint32_t vcoinput = 0U;
+  uint32_t srcclk = 0U;
+  /* This variable used to store the VCO Output (value in Hz) */
+  uint32_t vcooutput = 0U;
+  switch (PeriphClk)
+  {
+  case RCC_PERIPHCLK_I2S:
+    {
+      /* Get the current I2S source */
+      srcclk = __HAL_RCC_GET_I2S_SOURCE();
+      switch (srcclk)
+      {
+      /* Check if I2S clock selection is External clock mapped on the I2S_CKIN pin used as I2S clock */
+      case RCC_I2SCLKSOURCE_EXT:
+        {
+          /* Set the I2S clock to the external clock  value */
+          frequency = EXTERNAL_CLOCK_VALUE;
+          break;
+        }
+      /* Check if I2S clock selection is PLLI2S VCO output clock divided by PLLI2SR used as I2S clock */
+      case RCC_I2SCLKSOURCE_PLLI2S:
+        {
+#if defined(STM32F411xE)
+          /* Configure the PLLI2S division factor */
+          /* PLLI2S_VCO Input  = PLL_SOURCE/PLLI2SM */
+          if((RCC->PLLCFGR & RCC_PLLCFGR_PLLSRC) == RCC_PLLSOURCE_HSE)
+          {
+            /* Get the I2S source clock value */
+            vcoinput = (uint32_t)(HSE_VALUE / (uint32_t)(RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SM));
+          }
+          else
+          {
+            /* Get the I2S source clock value */
+            vcoinput = (uint32_t)(HSI_VALUE / (uint32_t)(RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SM));
+          }
+#else
+          /* Configure the PLLI2S division factor */
+          /* PLLI2S_VCO Input  = PLL_SOURCE/PLLM */
+          if((RCC->PLLCFGR & RCC_PLLCFGR_PLLSRC) == RCC_PLLSOURCE_HSE)
+          {
+            /* Get the I2S source clock value */
+            vcoinput = (uint32_t)(HSE_VALUE / (uint32_t)(RCC->PLLCFGR & RCC_PLLCFGR_PLLM));
+          }
+          else
+          {
+            /* Get the I2S source clock value */
+            vcoinput = (uint32_t)(HSI_VALUE / (uint32_t)(RCC->PLLCFGR & RCC_PLLCFGR_PLLM));
+          }
+#endif /* STM32F411xE */
+          /* PLLI2S_VCO Output = PLLI2S_VCO Input * PLLI2SN */
+          vcooutput = (uint32_t)(vcoinput * (((RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SN) >> 6U) & (RCC_PLLI2SCFGR_PLLI2SN >> 6U)));
+          /* I2S_CLK = PLLI2S_VCO Output/PLLI2SR */
+          frequency = (uint32_t)(vcooutput /(((RCC->PLLI2SCFGR & RCC_PLLI2SCFGR_PLLI2SR) >> 28U) & (RCC_PLLI2SCFGR_PLLI2SR >> 28U)));
+          break;
+        }
+        /* Clock not enabled for I2S*/
+      default:
+        {
+          frequency = 0U;
+          break;
+        }
+      }
+      break;
+    }
+  }
+  return frequency;
+}

@@ -1,0 +1,43 @@
+int los_fs_unregister(struct file_system *fs)
+{
+    struct file_system *prev;
+    int ret = LOS_OK;
+
+    if (fs == NULL) {
+        return LOS_NOK;
+    }
+
+    if (LOS_MuxPend(fs_mutex, LOS_WAIT_FOREVER) != LOS_OK) {
+        return LOS_NOK;
+    }
+
+    if (fs->fs_refs > 0) {
+        goto out;
+    }
+
+    if (file_systems == fs) {
+        file_systems = fs->fs_next;
+        goto out;
+    }
+
+    prev = file_systems;
+
+    while (prev != NULL) {
+        if (prev->fs_next == fs) {
+            break;
+        }
+
+        prev = prev->fs_next;
+    }
+
+    if (prev == NULL) {
+        ret = LOS_NOK;
+    } else {
+        prev->fs_next = fs->fs_next;
+    }
+
+out:
+    LOS_MuxPost(fs_mutex);
+
+    return ret;
+}

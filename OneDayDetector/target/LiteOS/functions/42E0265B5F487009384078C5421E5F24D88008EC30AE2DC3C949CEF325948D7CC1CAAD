@@ -1,0 +1,32 @@
+HAL_StatusTypeDef HAL_SRAM_Write_16b(SRAM_HandleTypeDef *hsram, uint32_t *pAddress, uint16_t *pSrcBuffer, uint32_t BufferSize)
+{
+  __IO uint16_t * pSramAddress = (uint16_t *)pAddress; 
+  
+  /* Check the SRAM controller state */
+  if(hsram->State == HAL_SRAM_STATE_PROTECTED)
+  {
+    return  HAL_ERROR; 
+  }
+  
+  /* Process Locked */
+  __HAL_LOCK(hsram);
+  
+  /* Update the SRAM controller state */
+  hsram->State = HAL_SRAM_STATE_BUSY; 
+
+  /* Write data to memory */
+  for(; BufferSize != 0U; BufferSize--)
+  {
+    *(__IO uint16_t *)pSramAddress = *pSrcBuffer; 
+    pSrcBuffer++;
+    pSramAddress++;    
+  }    
+
+  /* Update the SRAM controller state */
+  hsram->State = HAL_SRAM_STATE_READY; 
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hsram);
+    
+  return HAL_OK;  
+}

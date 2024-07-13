@@ -1,0 +1,81 @@
+HAL_StatusTypeDef HAL_I2C_Mem_Read_IT(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint16_t MemAddress, uint16_t MemAddSize, uint8_t *pData, uint16_t Size)
+{
+  __IO uint32_t count = 0U;
+
+  /* Check the parameters */
+  assert_param(IS_I2C_MEMADD_SIZE(MemAddSize));
+
+  if (hi2c->State == HAL_I2C_STATE_READY)
+  {
+    /* Wait until BUSY flag is reset */
+    count = I2C_TIMEOUT_BUSY_FLAG * (SystemCoreClock / 25U / 1000U);
+    do
+    {
+      count--;
+      if (count == 0U)
+      {
+        hi2c->PreviousState       = I2C_STATE_NONE;
+        hi2c->State               = HAL_I2C_STATE_READY;
+        hi2c->Mode                = HAL_I2C_MODE_NONE;
+        hi2c->ErrorCode           |= HAL_I2C_ERROR_TIMEOUT;
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(hi2c);
+
+        return HAL_ERROR;
+      }
+    }
+    while (__HAL_I2C_GET_FLAG(hi2c, I2C_FLAG_BUSY) != RESET);
+
+    /* Process Locked */
+    __HAL_LOCK(hi2c);
+
+    /* Check if the I2C is already enabled */
+    if ((hi2c->Instance->CR1 & I2C_CR1_PE) != I2C_CR1_PE)
+    {
+      /* Enable I2C peripheral */
+      __HAL_I2C_ENABLE(hi2c);
+    }
+
+    /* Disable Pos */
+    CLEAR_BIT(hi2c->Instance->CR1, I2C_CR1_POS);
+
+    hi2c->State     = HAL_I2C_STATE_BUSY_RX;
+    hi2c->Mode      = HAL_I2C_MODE_MEM;
+    hi2c->ErrorCode = HAL_I2C_ERROR_NONE;
+
+    /* Prepare transfer parameters */
+    hi2c->pBuffPtr    = pData;
+    hi2c->XferCount   = Size;
+    hi2c->XferSize    = hi2c->XferCount;
+    hi2c->XferOptions = I2C_NO_OPTION_FRAME;
+    hi2c->Devaddress  = DevAddress;
+    hi2c->Memaddress  = MemAddress;
+    hi2c->MemaddSize  = MemAddSize;
+    hi2c->EventCount  = 0U;
+
+    /* Enable Acknowledge */
+    SET_BIT(hi2c->Instance->CR1, I2C_CR1_ACK);
+
+    /* Generate Start */
+    SET_BIT(hi2c->Instance->CR1, I2C_CR1_START);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2c);
+
+    if (hi2c->XferSize > 0U)
+    {
+      /* Note : The I2C interrupts must be enabled after unlocking current process
+      to avoid the risk of I2C interrupt handle execution before current
+      process unlock */
+
+      /* Enable EVT, BUF and ERR interrupt */
+      __HAL_I2C_ENABLE_IT(hi2c, I2C_IT_EVT | I2C_IT_BUF | I2C_IT_ERR);
+    }
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

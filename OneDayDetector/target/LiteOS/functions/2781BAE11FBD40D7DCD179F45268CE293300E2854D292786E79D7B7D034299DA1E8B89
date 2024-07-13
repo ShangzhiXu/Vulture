@@ -1,0 +1,204 @@
+HAL_SD_ErrorTypedef HAL_SD_WriteBlocks(SD_HandleTypeDef *hsd, uint32_t *pWriteBuffer, uint64_t WriteAddr, uint32_t BlockSize, uint32_t NumberOfBlocks)
+{
+  SDIO_CmdInitTypeDef sdio_cmdinitstructure = {0};
+  SDIO_DataInitTypeDef sdio_datainitstructure = {0};
+  HAL_SD_ErrorTypedef errorstate = SD_OK;
+  uint32_t totalnumberofbytes = 0, bytestransferred = 0, count = 0, restwords = 0;
+  uint32_t *tempbuff = (uint32_t *)pWriteBuffer;
+  uint8_t cardstate  = 0;
+  
+  /* Initialize data control register */
+  hsd->Instance->DCTRL = 0;
+  
+  if (hsd->CardType == HIGH_CAPACITY_SD_CARD)
+  {
+    BlockSize = 512;
+    WriteAddr /= 512;
+  }
+  
+  /* Set Block Size for Card */ 
+  sdio_cmdinitstructure.Argument         = (uint32_t)BlockSize;
+  sdio_cmdinitstructure.CmdIndex         = SD_CMD_SET_BLOCKLEN;
+  sdio_cmdinitstructure.Response         = SDIO_RESPONSE_SHORT;
+  sdio_cmdinitstructure.WaitForInterrupt = SDIO_WAIT_NO;
+  sdio_cmdinitstructure.CPSM             = SDIO_CPSM_ENABLE;
+  SDIO_SendCommand(hsd->Instance, &sdio_cmdinitstructure);
+  
+  /* Check for error conditions */
+  errorstate = SD_CmdResp1Error(hsd, SD_CMD_SET_BLOCKLEN);
+  
+  if (errorstate != SD_OK)
+  {
+    return errorstate;
+  }
+  
+  if(NumberOfBlocks > 1)
+  {
+    /* Send CMD25 WRITE_MULT_BLOCK with argument data address */
+    sdio_cmdinitstructure.CmdIndex = SD_CMD_WRITE_MULT_BLOCK;
+  }
+  else
+  {
+    /* Send CMD24 WRITE_SINGLE_BLOCK */
+    sdio_cmdinitstructure.CmdIndex = SD_CMD_WRITE_SINGLE_BLOCK;
+  }
+  
+  sdio_cmdinitstructure.Argument         = (uint32_t)WriteAddr;
+  SDIO_SendCommand(hsd->Instance, &sdio_cmdinitstructure);
+  
+  /* Check for error conditions */
+  if(NumberOfBlocks > 1)
+  {
+    errorstate = SD_CmdResp1Error(hsd, SD_CMD_WRITE_MULT_BLOCK);
+  }
+  else
+  {
+    errorstate = SD_CmdResp1Error(hsd, SD_CMD_WRITE_SINGLE_BLOCK);
+  }  
+  
+  if (errorstate != SD_OK)
+  {
+    return errorstate;
+  }
+  
+  /* Set total number of bytes to write */
+  totalnumberofbytes = NumberOfBlocks * BlockSize;
+  
+  /* Configure the SD DPSM (Data Path State Machine) */ 
+  sdio_datainitstructure.DataTimeOut   = SD_DATATIMEOUT;
+  sdio_datainitstructure.DataLength    = NumberOfBlocks * BlockSize;
+  sdio_datainitstructure.DataBlockSize = SDIO_DATABLOCK_SIZE_512B;
+  sdio_datainitstructure.TransferDir   = SDIO_TRANSFER_DIR_TO_CARD;
+  sdio_datainitstructure.TransferMode  = SDIO_TRANSFER_MODE_BLOCK;
+  sdio_datainitstructure.DPSM          = SDIO_DPSM_ENABLE;
+  SDIO_DataConfig(hsd->Instance, &sdio_datainitstructure);
+  
+  /* Write block(s) in polling mode */
+  if(NumberOfBlocks > 1)
+  {
+    while(!__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_FLAG_TXUNDERR | SDIO_FLAG_DCRCFAIL | SDIO_FLAG_DTIMEOUT | SDIO_FLAG_DATAEND | SDIO_FLAG_STBITERR))
+    {
+      if (__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_FLAG_TXFIFOHE))
+      {
+        if ((totalnumberofbytes - bytestransferred) < 32)
+        {
+          restwords = ((totalnumberofbytes - bytestransferred) % 4 == 0) ? ((totalnumberofbytes - bytestransferred) / 4) : (( totalnumberofbytes -  bytestransferred) / 4 + 1);
+          
+          /* Write data to SDIO Tx FIFO */
+          for (count = 0; count < restwords; count++)
+          {
+            SDIO_WriteFIFO(hsd->Instance, tempbuff);
+            tempbuff++;
+            bytestransferred += 4;
+          }
+        }
+        else
+        {
+          /* Write data to SDIO Tx FIFO */
+          for (count = 0; count < 8; count++)
+          {
+            SDIO_WriteFIFO(hsd->Instance, (tempbuff + count));
+          }
+          
+          tempbuff += 8;
+          bytestransferred += 32;
+        }
+      }
+    }   
+  }
+  else
+  {
+    /* In case of single data block transfer no need of stop command at all */ 
+    while(!__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_FLAG_TXUNDERR | SDIO_FLAG_DCRCFAIL | SDIO_FLAG_DTIMEOUT | SDIO_FLAG_DBCKEND | SDIO_FLAG_STBITERR))
+    {
+      if (__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_FLAG_TXFIFOHE))
+      {
+        if ((totalnumberofbytes - bytestransferred) < 32)
+        {
+          restwords = ((totalnumberofbytes - bytestransferred) % 4 == 0) ? ((totalnumberofbytes - bytestransferred) / 4) : (( totalnumberofbytes -  bytestransferred) / 4 + 1);
+          
+          /* Write data to SDIO Tx FIFO */
+          for (count = 0; count < restwords; count++)
+          {
+            SDIO_WriteFIFO(hsd->Instance, tempbuff);
+            tempbuff++; 
+            bytestransferred += 4;
+          }
+        }
+        else
+        {
+          /* Write data to SDIO Tx FIFO */
+          for (count = 0; count < 8; count++)
+          {
+            SDIO_WriteFIFO(hsd->Instance, (tempbuff + count));
+          }
+          
+          tempbuff += 8;
+          bytestransferred += 32;
+        }
+      }
+    }  
+  }
+  
+  /* Send stop transmission command in case of multiblock write */
+  if (__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_FLAG_DATAEND) && (NumberOfBlocks > 1))
+  {    
+    if ((hsd->CardType == STD_CAPACITY_SD_CARD_V1_1) || (hsd->CardType == STD_CAPACITY_SD_CARD_V2_0) ||\
+      (hsd->CardType == HIGH_CAPACITY_SD_CARD))
+    {
+      /* Send stop transmission command */
+      errorstate = HAL_SD_StopTransfer(hsd);
+    }
+  }
+  
+  /* Get error state */
+  if (__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_FLAG_DTIMEOUT))
+  {
+    __HAL_SD_SDIO_CLEAR_FLAG(hsd, SDIO_FLAG_DTIMEOUT);
+    
+    errorstate = SD_DATA_TIMEOUT;
+    
+    return errorstate;
+  }
+  else if (__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_FLAG_DCRCFAIL))
+  {
+    __HAL_SD_SDIO_CLEAR_FLAG(hsd, SDIO_FLAG_DCRCFAIL);
+    
+    errorstate = SD_DATA_CRC_FAIL;
+    
+    return errorstate;
+  }
+  else if (__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_FLAG_TXUNDERR))
+  {
+    __HAL_SD_SDIO_CLEAR_FLAG(hsd, SDIO_FLAG_TXUNDERR);
+    
+    errorstate = SD_TX_UNDERRUN;
+    
+    return errorstate;
+  }
+  else if (__HAL_SD_SDIO_GET_FLAG(hsd, SDIO_FLAG_STBITERR))
+  {
+    __HAL_SD_SDIO_CLEAR_FLAG(hsd, SDIO_FLAG_STBITERR);
+    
+    errorstate = SD_START_BIT_ERR;
+    
+    return errorstate;
+  }
+  else
+  {
+    /* No error flag set */
+  }
+  
+  /* Clear all the static flags */
+  __HAL_SD_SDIO_CLEAR_FLAG(hsd, SDIO_STATIC_FLAGS);
+  
+  /* Wait till the card is in programming state */
+  errorstate = SD_IsCardProgramming(hsd, &cardstate);
+  
+  while ((errorstate == SD_OK) && ((cardstate == SD_CARD_PROGRAMMING) || (cardstate == SD_CARD_RECEIVING)))
+  {
+    errorstate = SD_IsCardProgramming(hsd, &cardstate);
+  }
+  
+  return errorstate;
+}

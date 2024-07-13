@@ -1,0 +1,59 @@
+static void HCD_Port_IRQHandler (HCD_HandleTypeDef *hhcd)
+{
+  USB_OTG_GlobalTypeDef *USBx = hhcd->Instance;  
+  __IO uint32_t hprt0 = 0, hprt0_dup = 0;
+  
+  /* Handle Host Port Interrupts */
+  hprt0 = USBx_HPRT0;
+  hprt0_dup = USBx_HPRT0;
+  
+  hprt0_dup &= ~(USB_OTG_HPRT_PENA | USB_OTG_HPRT_PCDET |\
+                 USB_OTG_HPRT_PENCHNG | USB_OTG_HPRT_POCCHNG );
+  
+  /* Check whether Port Connect Detected */
+  if((hprt0 & USB_OTG_HPRT_PCDET) == USB_OTG_HPRT_PCDET)
+  {
+    if((hprt0 & USB_OTG_HPRT_PCSTS) == USB_OTG_HPRT_PCSTS)
+    {
+      USB_MASK_INTERRUPT(hhcd->Instance, USB_OTG_GINTSTS_DISCINT);
+      HAL_HCD_Connect_Callback(hhcd);
+    }
+    hprt0_dup  |= USB_OTG_HPRT_PCDET;
+  }
+  
+  /* Check whether Port Enable Changed */
+  if((hprt0 & USB_OTG_HPRT_PENCHNG) == USB_OTG_HPRT_PENCHNG)
+  {
+    hprt0_dup |= USB_OTG_HPRT_PENCHNG;
+    
+    if((hprt0 & USB_OTG_HPRT_PENA) == USB_OTG_HPRT_PENA)
+    {
+      if ((hprt0 & USB_OTG_HPRT_PSPD) == (HPRT0_PRTSPD_LOW_SPEED << 17))
+      {
+        USB_InitFSLSPClkSel(hhcd->Instance ,HCFG_6_MHZ );
+      }
+      else
+      {
+        USB_InitFSLSPClkSel(hhcd->Instance ,HCFG_48_MHZ );
+      }
+      HAL_HCD_Connect_Callback(hhcd);
+    }
+    else
+    {
+      /* Cleanup HPRT */
+      USBx_HPRT0 &= ~(USB_OTG_HPRT_PENA | USB_OTG_HPRT_PCDET |\
+        USB_OTG_HPRT_PENCHNG | USB_OTG_HPRT_POCCHNG );
+      
+      USB_UNMASK_INTERRUPT(hhcd->Instance, USB_OTG_GINTSTS_DISCINT); 
+    }
+  }
+  
+  /* Check For an over current */
+  if((hprt0 & USB_OTG_HPRT_POCCHNG) == USB_OTG_HPRT_POCCHNG)
+  {
+    hprt0_dup |= USB_OTG_HPRT_POCCHNG;
+  }
+  
+  /* Clear Port Interrupts */
+  USBx_HPRT0 = hprt0_dup;
+}

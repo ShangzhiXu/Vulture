@@ -1,0 +1,85 @@
+HAL_StatusTypeDef  HAL_JPEG_Resume(JPEG_HandleTypeDef *hjpeg, uint32_t XferSelection)
+{
+  uint32_t mask = 0;
+
+  assert_param(IS_JPEG_PAUSE_RESUME_STATE(XferSelection));
+
+  if ((hjpeg->Context & (JPEG_CONTEXT_PAUSE_INPUT | JPEG_CONTEXT_PAUSE_OUTPUT)) == 0UL)
+  {
+    /* if nothing paused to resume return error*/
+    return HAL_ERROR;
+  }
+
+  if ((hjpeg->Context & JPEG_CONTEXT_METHOD_MASK) == JPEG_CONTEXT_DMA)
+  {
+
+    if ((XferSelection & JPEG_PAUSE_RESUME_INPUT) == JPEG_PAUSE_RESUME_INPUT)
+    {
+      hjpeg->Context &= (~JPEG_CONTEXT_PAUSE_INPUT);
+      mask |= JPEG_DMA_IDMA;
+
+      /*JPEG Input DMA transfer data number must be multiple of DMA buffer size
+        as the destination is a 32 bits register */
+      hjpeg->InDataLength = hjpeg->InDataLength - (hjpeg->InDataLength % 4UL);
+
+      if (hjpeg->InDataLength > 0UL)
+      {
+        /* Start DMA FIFO In transfer */
+        if (HAL_DMA_Start_IT(hjpeg->hdmain, (uint32_t)hjpeg->pJpegInBuffPtr, (uint32_t)&hjpeg->Instance->DIR,
+                             hjpeg->InDataLength >> 2) != HAL_OK)
+        {
+          hjpeg->ErrorCode |= HAL_JPEG_ERROR_DMA;
+          hjpeg->State = HAL_JPEG_STATE_ERROR;
+          return HAL_ERROR;
+        }
+      }
+    }
+    if ((XferSelection & JPEG_PAUSE_RESUME_OUTPUT) == JPEG_PAUSE_RESUME_OUTPUT)
+    {
+      hjpeg->Context &= (~JPEG_CONTEXT_PAUSE_OUTPUT);
+
+      if ((hjpeg->Context & JPEG_CONTEXT_ENDING_DMA) != 0UL)
+      {
+        JPEG_DMA_PollResidualData(hjpeg);
+      }
+      else
+      {
+        mask |= JPEG_DMA_ODMA;
+
+        /* Start DMA FIFO Out transfer */
+        if (HAL_DMA_Start_IT(hjpeg->hdmaout, (uint32_t)&hjpeg->Instance->DOR, (uint32_t)hjpeg->pJpegOutBuffPtr,
+                             hjpeg->OutDataLength >> 2) != HAL_OK)
+        {
+          hjpeg->ErrorCode |= HAL_JPEG_ERROR_DMA;
+          hjpeg->State = HAL_JPEG_STATE_ERROR;
+          return HAL_ERROR;
+        }
+      }
+
+    }
+    JPEG_ENABLE_DMA(hjpeg, mask);
+
+  }
+  else if ((hjpeg->Context & JPEG_CONTEXT_METHOD_MASK) == JPEG_CONTEXT_IT)
+  {
+    if ((XferSelection & JPEG_PAUSE_RESUME_INPUT) == JPEG_PAUSE_RESUME_INPUT)
+    {
+      hjpeg->Context &= (~JPEG_CONTEXT_PAUSE_INPUT);
+      mask |= (JPEG_IT_IFT | JPEG_IT_IFNF);
+    }
+    if ((XferSelection & JPEG_PAUSE_RESUME_OUTPUT) == JPEG_PAUSE_RESUME_OUTPUT)
+    {
+      hjpeg->Context &= (~JPEG_CONTEXT_PAUSE_OUTPUT);
+      mask |= (JPEG_IT_OFT | JPEG_IT_OFNE | JPEG_IT_EOC);
+    }
+    __HAL_JPEG_ENABLE_IT(hjpeg, mask);
+
+  }
+  else
+  {
+    /* Nothing to do */
+  }
+
+  /* Return function status */
+  return HAL_OK;
+}

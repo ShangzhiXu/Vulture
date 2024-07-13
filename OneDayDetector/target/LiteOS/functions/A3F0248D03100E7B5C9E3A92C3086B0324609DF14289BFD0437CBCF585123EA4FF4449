@@ -1,0 +1,56 @@
+static void I2C_MemoryTransmit_TXE_BTF(I2C_HandleTypeDef *hi2c)
+{
+  if (hi2c->EventCount == 0U)
+  {
+    /* If Memory address size is 8Bit */
+    if (hi2c->MemaddSize == I2C_MEMADD_SIZE_8BIT)
+    {
+      /* Send Memory Address */
+      hi2c->Instance->DR = I2C_MEM_ADD_LSB(hi2c->Memaddress);
+
+      hi2c->EventCount += 2U;
+    }
+    /* If Memory address size is 16Bit */
+    else
+    {
+      /* Send MSB of Memory Address */
+      hi2c->Instance->DR = I2C_MEM_ADD_MSB(hi2c->Memaddress);
+
+      hi2c->EventCount++;
+    }
+  }
+  else if (hi2c->EventCount == 1U)
+  {
+    /* Send LSB of Memory Address */
+    hi2c->Instance->DR = I2C_MEM_ADD_LSB(hi2c->Memaddress);
+
+    hi2c->EventCount++;
+  }
+  else if (hi2c->EventCount == 2U)
+  {
+    if (hi2c->State == HAL_I2C_STATE_BUSY_RX)
+    {
+      /* Generate Restart */
+      hi2c->Instance->CR1 |= I2C_CR1_START;
+    }
+    else if (hi2c->State == HAL_I2C_STATE_BUSY_TX)
+    {
+      /* Write data to DR */
+      hi2c->Instance->DR = *hi2c->pBuffPtr;
+
+      /* Increment Buffer pointer */
+      hi2c->pBuffPtr++;
+
+      /* Update counter */
+      hi2c->XferCount--;
+    }
+    else
+    {
+      /* Do nothing */
+    }
+  }
+  else
+  {
+    /* Do nothing */
+  }
+}

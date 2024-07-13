@@ -1,0 +1,29 @@
+LITE_OS_SEC_TEXT_INIT UINT32 LOS_MemInit(VOID *pool, UINT32 size)
+{
+    UINT32 ret = LOS_NOK;
+    UINT32 intSave;
+
+    if ((pool == NULL) || (size <= sizeof(struct LosHeapManager))) {
+        return ret;
+    }
+
+    MEM_LOCK(intSave);
+
+    if (OsMemMulPoolInit(pool, size) != LOS_OK) {
+        goto OUT;
+    }
+
+    if (OsHeapInit(pool, size) == FALSE) {
+        (VOID)OsMemMulPoolDeinit(pool);
+        goto OUT;
+    }
+
+    OsSlabMemInit(pool, size);
+
+    ret = LOS_OK;
+OUT:
+    MEM_UNLOCK(intSave);
+
+    LOS_TRACE(MEM_INFO_REQ, pool);
+    return ret;
+}

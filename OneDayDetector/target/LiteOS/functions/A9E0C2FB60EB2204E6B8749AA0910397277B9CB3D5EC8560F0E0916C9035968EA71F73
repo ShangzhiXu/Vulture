@@ -1,0 +1,37 @@
+LITE_OS_SEC_TEXT_INIT STATIC BOOL OsTaskDeleteCheckOnRun(LosTaskCB *taskCB, UINT32 *ret)
+{
+    /* init default out return value */
+    *ret = LOS_OK;
+
+#ifdef LOSCFG_KERNEL_SMP
+    /* ASYNCHRONIZED. No need to do task lock checking */
+    if (taskCB->currCpu != ArchCurrCpuid()) {
+        /*
+         * the task is running on another cpu.
+         * mask the target task with "kill" signal, and trigger mp schedule
+         * which might not be essential but the deletion could more in time.
+         */
+        taskCB->signal = SIGNAL_KILL;
+        LOS_MpSchedule(taskCB->currCpu);
+        *ret = OsTaskSyncWait(taskCB);
+        return FALSE;
+    }
+#endif
+
+    if (!OsPreemptableInSched()) {
+        /* If the task is running and scheduler is locked then you can not delete it */
+        *ret = LOS_ERRNO_TSK_DELETE_LOCKED;
+        return FALSE;
+    }
+
+    if (OS_INT_ACTIVE) {
+        /*
+         * delete running task in interrupt.
+         * mask "kill" signal and later deletion will be handled.
+         */
+        taskCB->signal = SIGNAL_KILL;
+        return FALSE;
+    }
+
+    return TRUE;
+}

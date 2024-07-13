@@ -1,0 +1,85 @@
+event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
+{
+  int s, check_waiters;
+  struct lwip_sock *sock;
+  SYS_ARCH_DECL_PROTECT(lev);
+
+  LWIP_UNUSED_ARG(len);
+
+  /* Get socket */
+  if (conn) {
+    s = conn->socket;
+    if (s < 0) {
+      /* Data comes in right away after an accept, even though
+       * the server task might not have created a new socket yet.
+       * Just count down (or up) if that's the case and we
+       * will use the data later. Note that only receive events
+       * can happen before the new socket is set up. */
+      SYS_ARCH_PROTECT(lev);
+      if (conn->socket < 0) {
+        if (evt == NETCONN_EVT_RCVPLUS) {
+          /* conn->socket is -1 on initialization
+             lwip_accept adjusts sock->recvevent if conn->socket < -1 */
+          conn->socket--;
+        }
+        SYS_ARCH_UNPROTECT(lev);
+        return;
+      }
+      s = conn->socket;
+      SYS_ARCH_UNPROTECT(lev);
+    }
+
+    sock = get_socket(s);
+    if (!sock) {
+      return;
+    }
+  } else {
+    return;
+  }
+
+  check_waiters = 1;
+  SYS_ARCH_PROTECT(lev);
+  /* Set event as required */
+  switch (evt) {
+    case NETCONN_EVT_RCVPLUS:
+      sock->rcvevent++;
+      if (sock->rcvevent > 1) {
+        check_waiters = 0;
+      }
+      break;
+    case NETCONN_EVT_RCVMINUS:
+      sock->rcvevent--;
+      check_waiters = 0;
+      break;
+    case NETCONN_EVT_SENDPLUS:
+      if (sock->sendevent) {
+        check_waiters = 0;
+      }
+      sock->sendevent = 1;
+      break;
+    case NETCONN_EVT_SENDMINUS:
+      sock->sendevent = 0;
+      check_waiters = 0;
+      break;
+    case NETCONN_EVT_ERROR:
+      sock->errevent = 1;
+      break;
+    default:
+      LWIP_ASSERT("unknown event", 0);
+      break;
+  }
+
+  if (sock->select_waiting && check_waiters) {
+    /* Save which events are active */
+    int has_recvevent, has_sendevent, has_errevent;
+    has_recvevent = sock->rcvevent > 0;
+    has_sendevent = sock->sendevent != 0;
+    has_errevent = sock->errevent != 0;
+    SYS_ARCH_UNPROTECT(lev);
+    /* Check any select calls waiting on this socket */
+    select_check_waiters(s, has_recvevent, has_sendevent, has_errevent);
+  } else {
+    SYS_ARCH_UNPROTECT(lev);
+  }
+  done_socket(sock);
+}

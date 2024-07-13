@@ -1,0 +1,41 @@
+HAL_StatusTypeDef HAL_COMP_Start(COMP_HandleTypeDef *hcomp)
+{
+  __IO uint32_t wait_loop_index = 0U;
+  HAL_StatusTypeDef status = HAL_OK;
+  
+  /* Check the COMP handle allocation and lock status */
+  if((hcomp == NULL) || (__HAL_COMP_IS_LOCKED(hcomp)))
+  {
+    status = HAL_ERROR;
+  }
+  else
+  {
+    /* Check the parameter */
+    assert_param(IS_COMP_ALL_INSTANCE(hcomp->Instance));
+
+    if(hcomp->State == HAL_COMP_STATE_READY)
+    {
+      /* Enable the selected comparator */
+      SET_BIT(hcomp->Instance->CSR, COMP_CSR_EN);
+      
+      /* Set HAL COMP handle state */
+      hcomp->State = HAL_COMP_STATE_BUSY;
+      
+      /* Delay for COMP startup time */
+      /* Wait loop initialization and execution */
+      /* Note: Variable divided by 2 to compensate partially                  */
+      /*       CPU processing cycles.                                         */
+      wait_loop_index = (COMP_DELAY_STARTUP_US * (SystemCoreClock / (1000000U * 2U)));
+      while(wait_loop_index != 0U)
+      {
+        wait_loop_index--;
+      }
+    }
+    else
+    {
+      status = HAL_ERROR;
+    }
+  }
+
+  return status;
+}

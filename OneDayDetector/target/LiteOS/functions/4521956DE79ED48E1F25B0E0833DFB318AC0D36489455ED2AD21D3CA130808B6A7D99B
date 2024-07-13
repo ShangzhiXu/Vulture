@@ -1,0 +1,97 @@
+HAL_StatusTypeDef HAL_CAN_Receive_IT(CAN_HandleTypeDef* hcan, uint8_t FIFONumber)
+{
+  /* Check the parameters */
+  assert_param(IS_CAN_FIFO(FIFONumber));
+  
+  /* Check if CAN state is not busy for RX FIFO0 */
+  if((FIFONumber == CAN_FIFO0) && ((hcan->State == HAL_CAN_STATE_BUSY_RX0) ||         \
+                                   (hcan->State == HAL_CAN_STATE_BUSY_TX_RX0) ||      \
+                                   (hcan->State == HAL_CAN_STATE_BUSY_RX0_RX1) ||     \
+                                   (hcan->State == HAL_CAN_STATE_BUSY_TX_RX0_RX1)))
+  {
+    return HAL_BUSY;
+  }
+
+  /* Check if CAN state is not busy for RX FIFO1 */
+  if((FIFONumber == CAN_FIFO1) && ((hcan->State == HAL_CAN_STATE_BUSY_RX1) ||         \
+                                   (hcan->State == HAL_CAN_STATE_BUSY_TX_RX1) ||      \
+                                   (hcan->State == HAL_CAN_STATE_BUSY_RX0_RX1) ||     \
+                                   (hcan->State == HAL_CAN_STATE_BUSY_TX_RX0_RX1)))
+  {
+    return HAL_BUSY;
+  }
+
+  /* Process locked */
+  __HAL_LOCK(hcan);
+
+  /* Change CAN state */
+  if(FIFONumber == CAN_FIFO0)
+  {
+    switch(hcan->State)
+    {
+      case(HAL_CAN_STATE_BUSY_TX):
+        hcan->State = HAL_CAN_STATE_BUSY_TX_RX0;
+        break;
+      case(HAL_CAN_STATE_BUSY_RX1):
+        hcan->State = HAL_CAN_STATE_BUSY_RX0_RX1;
+        break;
+      case(HAL_CAN_STATE_BUSY_TX_RX1):
+        hcan->State = HAL_CAN_STATE_BUSY_TX_RX0_RX1;
+        break;
+      default: /* HAL_CAN_STATE_READY */
+        hcan->State = HAL_CAN_STATE_BUSY_RX0;
+        break;
+    }
+  }
+  else /* FIFONumber == CAN_FIFO1 */
+  {
+    switch(hcan->State)
+    {
+      case(HAL_CAN_STATE_BUSY_TX):
+        hcan->State = HAL_CAN_STATE_BUSY_TX_RX1;
+        break;
+      case(HAL_CAN_STATE_BUSY_RX0):
+        hcan->State = HAL_CAN_STATE_BUSY_RX0_RX1;
+        break;
+      case(HAL_CAN_STATE_BUSY_TX_RX0):
+        hcan->State = HAL_CAN_STATE_BUSY_TX_RX0_RX1;
+        break;
+      default: /* HAL_CAN_STATE_READY */
+        hcan->State = HAL_CAN_STATE_BUSY_RX1;
+        break;
+    }
+  }
+  /* Set CAN error code to none */
+  hcan->ErrorCode = HAL_CAN_ERROR_NONE;
+
+  /* Enable interrupts: */
+  /*  - Enable Error warning Interrupt */
+  /*  - Enable Error passive Interrupt */
+  /*  - Enable Bus-off Interrupt */
+  /*  - Enable Last error code Interrupt */
+  /*  - Enable Error Interrupt */
+  /*  - Enable Transmit mailbox empty Interrupt */
+  __HAL_CAN_ENABLE_IT(hcan, CAN_IT_EWG |
+                            CAN_IT_EPV |
+                            CAN_IT_BOF |
+                            CAN_IT_LEC |
+                            CAN_IT_ERR |
+                            CAN_IT_TME);
+
+  /* Process unlocked */
+   __HAL_UNLOCK(hcan);
+
+  if(FIFONumber == CAN_FIFO0)
+  {
+    /* Enable FIFO 0 overrun and message pending Interrupt */
+    __HAL_CAN_ENABLE_IT(hcan, CAN_IT_FOV0 | CAN_IT_FMP0);
+  }
+  else
+  {
+    /* Enable FIFO 1 overrun and message pending Interrupt */
+    __HAL_CAN_ENABLE_IT(hcan, CAN_IT_FOV1 | CAN_IT_FMP1);
+  }
+
+  /* Return function status */
+  return HAL_OK;
+}

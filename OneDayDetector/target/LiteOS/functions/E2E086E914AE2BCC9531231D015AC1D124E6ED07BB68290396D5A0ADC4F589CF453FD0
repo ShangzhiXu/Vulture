@@ -1,0 +1,22 @@
+STATIC INT32 DoMqueueDelete(struct mqarray *mqueueCB)
+{
+    UINT32 ret;
+
+    mqueueCB->mq_name[0] = '\0';
+    mqueueCB->mqcb = NULL;
+
+    ret = LOS_QueueDelete(mqueueCB->mq_id);
+    switch (ret) {
+        case LOS_OK:
+            return 0;
+        case LOS_ERRNO_QUEUE_NOT_FOUND:
+        case LOS_ERRNO_QUEUE_NOT_CREATE:
+        case LOS_ERRNO_QUEUE_IN_TSKUSE:
+        case LOS_ERRNO_QUEUE_IN_TSKWRITE:
+            errno = EAGAIN;
+            return -1;
+        default:
+            errno = EINVAL;
+            return -1;
+    }
+}

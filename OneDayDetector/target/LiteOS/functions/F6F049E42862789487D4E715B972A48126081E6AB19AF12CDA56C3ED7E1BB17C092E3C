@@ -1,0 +1,38 @@
+sockets_stresstest_wait_readable_recvtimeo(int s, int timeout_ms)
+{
+  int ret;
+  char buf;
+#if LWIP_SO_SNDRCVTIMEO_NONSTANDARD
+  int opt_on = timeout_ms;
+  int opt_off = 0;
+#else
+  struct timeval opt_on, opt_off;
+  opt_on.tv_sec = timeout_ms / 1000;
+  opt_on.tv_usec = (timeout_ms - (opt_on.tv_sec * 1000)) * 1000;
+  opt_off.tv_sec = 0;
+  opt_off.tv_usec = 0;
+#endif
+
+  /* enable receive timeout */
+  ret = lwip_setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &opt_on, sizeof(opt_on));
+  LWIP_ASSERT("setsockopt error", ret == 0);
+
+  /* peek for one byte with timeout */
+  ret = lwip_recv(s, &buf, 1, MSG_PEEK);
+
+  /* disable receive timeout */
+  ret = lwip_setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &opt_off, sizeof(opt_off));
+  LWIP_ASSERT("setsockopt error", ret == 0);
+
+  if (ret == 1) {
+    return TEST_SOCK_READABLE;
+  }
+  if (ret == 0) {
+    return 0;
+  }
+  if (ret == -1) {
+    return TEST_SOCK_ERR;
+  }
+  LWIP_ASSERT("invalid return value", 0);
+  return TEST_SOCK_ERR;
+}

@@ -1,0 +1,27 @@
+void _lv_ll_move_before(lv_ll_t * ll_p, void * n_act, void * n_after)
+{
+    if(n_act == n_after) return; /*Can't move before itself*/
+
+    void * n_before;
+    if(n_after != NULL)
+        n_before = _lv_ll_get_prev(ll_p, n_after);
+    else
+        n_before = _lv_ll_get_tail(ll_p); /*if `n_after` is NULL `n_act` should be the new tail*/
+
+    if(n_act == n_before) return; /*Already before `n_after`*/
+
+    /*It's much easier to remove from the list and add again*/
+    _lv_ll_remove(ll_p, n_act);
+
+    /*Add again by setting the prev. and next nodes*/
+    node_set_next(ll_p, n_before, n_act);
+    node_set_prev(ll_p, n_act, n_before);
+    node_set_prev(ll_p, n_after, n_act);
+    node_set_next(ll_p, n_act, n_after);
+
+    /*If `n_act` was moved before NULL then it become the new tail*/
+    if(n_after == NULL) ll_p->tail = n_act;
+
+    /*If `n_act` was moved before `NULL` then it's the new head*/
+    if(n_before == NULL) ll_p->head = n_act;
+}

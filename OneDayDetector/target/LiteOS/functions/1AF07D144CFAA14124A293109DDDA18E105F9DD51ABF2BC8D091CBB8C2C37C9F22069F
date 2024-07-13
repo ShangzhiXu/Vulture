@@ -1,0 +1,25 @@
+netconn_getaddr(struct netconn *conn, ip_addr_t *addr, u16_t *port, u8_t local)
+{
+  API_MSG_VAR_DECLARE(msg);
+  err_t err;
+
+  LWIP_ERROR("netconn_getaddr: invalid conn", (conn != NULL), return ERR_ARG;);
+  LWIP_ERROR("netconn_getaddr: invalid addr", (addr != NULL), return ERR_ARG;);
+  LWIP_ERROR("netconn_getaddr: invalid port", (port != NULL), return ERR_ARG;);
+
+  API_MSG_VAR_ALLOC(msg);
+  API_MSG_VAR_REF(msg).conn = conn;
+  API_MSG_VAR_REF(msg).msg.ad.local = local;
+#if LWIP_MPU_COMPATIBLE
+  err = netconn_apimsg(lwip_netconn_do_getaddr, &API_MSG_VAR_REF(msg));
+  *addr = msg->msg.ad.ipaddr;
+  *port = msg->msg.ad.port;
+#else /* LWIP_MPU_COMPATIBLE */
+  msg.msg.ad.ipaddr = addr;
+  msg.msg.ad.port = port;
+  err = netconn_apimsg(lwip_netconn_do_getaddr, &msg);
+#endif /* LWIP_MPU_COMPATIBLE */
+  API_MSG_VAR_FREE(msg);
+
+  return err;
+}

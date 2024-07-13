@@ -1,0 +1,59 @@
+int mq_close(mqd_t personal)
+{
+    INT32 ret = -1;
+    struct mqarray *mqueueCB = NULL;
+    struct mqpersonal *privateMqPersonal = NULL;
+    struct mqpersonal *tmp = NULL;
+
+    if ((personal == (mqd_t)NULL) || (personal == (mqd_t)-1)) {
+        errno = EBADF;
+        return -1;
+    }
+
+    (VOID)pthread_mutex_lock(&g_mqueueMutex);
+    privateMqPersonal = (struct mqpersonal *)personal;
+    if (privateMqPersonal->mq_status != MQ_USE_MAGIC) {
+        errno = EBADF;
+        goto OUT_UNLOCK;
+    }
+
+    mqueueCB = privateMqPersonal->mq_posixdes;
+    if (mqueueCB->mq_personal == NULL) {
+        errno = EBADF;
+        goto OUT_UNLOCK;
+    }
+
+    /* find the personal and remove */
+    if (mqueueCB->mq_personal == privateMqPersonal) {
+        mqueueCB->mq_personal = privateMqPersonal->mq_next;
+    } else {
+        for (tmp = mqueueCB->mq_personal; tmp->mq_next != NULL; tmp = tmp->mq_next) {
+            if (tmp->mq_next == privateMqPersonal) {
+                break;
+            }
+        }
+        if (tmp->mq_next == NULL) {
+            errno = EBADF;
+            goto OUT_UNLOCK;
+        }
+        tmp->mq_next = privateMqPersonal->mq_next;
+    }
+    /* flag no use */
+    privateMqPersonal->mq_status = 0;
+
+    /* free the personal */
+    ret = LOS_MemFree(OS_SYS_MEM_ADDR, privateMqPersonal);
+    if (ret != LOS_OK) {
+        errno = EFAULT;
+        ret = -1;
+        goto OUT_UNLOCK;
+    }
+
+    if ((mqueueCB->unlinkflag == TRUE) && (mqueueCB->mq_personal == NULL)) {
+        ret = DoMqueueDelete(mqueueCB);
+    }
+
+OUT_UNLOCK:
+    (VOID)pthread_mutex_unlock(&g_mqueueMutex);
+    return ret;
+}

@@ -1,0 +1,19 @@
+SECUREC_INLINE void SecNumberToString(SecUnsignedInt64 number, SecFormatAttr *attr)
+{
+#ifdef SECUREC_ON_64BITS
+    SecNumber64ToString(number, attr);
+#else /* For 32 bits system */
+    if (number <= 0xffffffffUL) { /* Use 0xffffffffUL to check if the value is in the 32-bit range */
+        /* In most case, the value to be converted is small value */
+        SecUnsignedInt32 n32Tmp = (SecUnsignedInt32)number;
+        SecNumber32ToString(n32Tmp, attr);
+    } else {
+        /* The value to be converted is greater than 4G */
+#if defined(SECUREC_VXWORKS_VERSION_5_4)
+        SecNumber64ToStringSpecial(number, attr);
+#else
+        SecNumber64ToString(number, attr);
+#endif
+    }
+#endif
+}

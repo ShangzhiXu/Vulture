@@ -1,0 +1,14 @@
+sockets_stresstest_start_clients(const struct sockaddr_storage *remote_addr)
+{
+  /* limit the number of connections */
+  const int max_connections = LWIP_MIN(TEST_MAX_CONNECTIONS, MEMP_NUM_TCP_PCB/3);
+  int i;
+
+  for (i = 0; i < max_connections; i++) {
+    sys_thread_t t;
+    SYS_ARCH_INC(sockets_stresstest_numthreads, 1);
+    t = sys_thread_new("sockets_stresstest_conn_client", sockets_stresstest_conn_client, (void*)remote_addr, 0, 0);
+    LWIP_ASSERT("thread != NULL", t != 0);
+  }
+  return max_connections;
+}

@@ -1,0 +1,48 @@
+void lv_obj_set_size(lv_obj_t * obj, lv_coord_t w, lv_coord_t h)
+{
+    LV_ASSERT_OBJ(obj, LV_OBJX_NAME);
+
+    /* Do nothing if the size is not changed */
+    /* It is very important else recursive resizing can
+     * occur without size change*/
+    if(lv_obj_get_width(obj) == w && lv_obj_get_height(obj) == h) {
+        return;
+    }
+
+    /*Invalidate the original area*/
+    lv_obj_invalidate(obj);
+
+    /*Save the original coordinates*/
+    lv_area_t ori;
+    lv_obj_get_coords(obj, &ori);
+
+    /*Set the length and height*/
+    obj->coords.y2 = obj->coords.y1 + h - 1;
+    if(lv_obj_get_base_dir(obj) == LV_BIDI_DIR_RTL) {
+        obj->coords.x1 = obj->coords.x2 - w + 1;
+    }
+    else {
+        obj->coords.x2 = obj->coords.x1 + w - 1;
+    }
+
+    /*Send a signal to the object with its new coordinates*/
+    obj->signal_cb(obj, LV_SIGNAL_COORD_CHG, &ori);
+
+    /*Send a signal to the parent too*/
+    lv_obj_t * par = lv_obj_get_parent(obj);
+    if(par != NULL) par->signal_cb(par, LV_SIGNAL_CHILD_CHG, obj);
+
+    /*Tell the children the parent's size has changed*/
+    lv_obj_t * i;
+    _LV_LL_READ(obj->child_ll, i) {
+        i->signal_cb(i, LV_SIGNAL_PARENT_SIZE_CHG,  &ori);
+    }
+
+    /*Invalidate the new area*/
+    lv_obj_invalidate(obj);
+
+    /*Automatically realign the object if required*/
+#if LV_USE_OBJ_REALIGN
+    if(obj->realign.auto_realign) lv_obj_realign(obj);
+#endif
+}

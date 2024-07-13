@@ -1,0 +1,37 @@
+HAL_StatusTypeDef HAL_CEC_DeInit(CEC_HandleTypeDef *hcec)
+{
+  /* Check the CEC handle allocation */
+  if(hcec == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_CEC_ALL_INSTANCE(hcec->Instance));
+
+  hcec->State = HAL_CEC_STATE_BUSY;
+  
+  /* Set peripheral to reset state */
+  hcec->Instance->CFGR = 0x0;
+  hcec->Instance->OAR = 0x0;
+  hcec->Instance->PRES = 0x0;
+  hcec->Instance->CFGR = 0x0;
+  hcec->Instance->ESR = 0x0;
+  hcec->Instance->CSR = 0x0;
+  hcec->Instance->TXD = 0x0;
+  hcec->Instance->RXD = 0x0;
+  
+  /* Disable the Peripheral */
+  __HAL_CEC_DISABLE(hcec);
+  
+  /* DeInit the low level hardware */
+  HAL_CEC_MspDeInit(hcec);
+  
+  hcec->ErrorCode = HAL_CEC_ERROR_NONE;
+  hcec->State = HAL_CEC_STATE_RESET;
+  
+  /* Process Unlock */
+  __HAL_UNLOCK(hcec);
+  
+  return HAL_OK;
+}

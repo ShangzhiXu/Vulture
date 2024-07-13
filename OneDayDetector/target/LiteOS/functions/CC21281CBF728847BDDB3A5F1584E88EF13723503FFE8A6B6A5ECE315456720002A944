@@ -1,0 +1,47 @@
+void LL_DMA2D_ConfigOutputColor(DMA2D_TypeDef *DMA2Dx, LL_DMA2D_ColorTypeDef *DMA2D_ColorStruct)
+{
+  uint32_t outgreen;
+  uint32_t outred;
+  uint32_t outalpha;
+
+  /* Check the parameters */
+  assert_param(IS_DMA2D_ALL_INSTANCE(DMA2Dx));
+  assert_param(IS_LL_DMA2D_OCMODE(DMA2D_ColorStruct->ColorMode));
+  assert_param(IS_LL_DMA2D_GREEN(DMA2D_ColorStruct->OutputGreen));
+  assert_param(IS_LL_DMA2D_RED(DMA2D_ColorStruct->OutputRed));
+  assert_param(IS_LL_DMA2D_BLUE(DMA2D_ColorStruct->OutputBlue));
+  assert_param(IS_LL_DMA2D_ALPHA(DMA2D_ColorStruct->OutputAlpha));
+
+  /* DMA2D OCOLR register configuration ------------------------------------------*/
+  if (DMA2D_ColorStruct->ColorMode == LL_DMA2D_OUTPUT_MODE_ARGB8888)
+  {
+    outgreen = DMA2D_ColorStruct->OutputGreen << 8U;
+    outred = DMA2D_ColorStruct->OutputRed << 16U;
+    outalpha = DMA2D_ColorStruct->OutputAlpha << 24U;
+  }
+  else if (DMA2D_ColorStruct->ColorMode == LL_DMA2D_OUTPUT_MODE_RGB888)
+  {
+    outgreen = DMA2D_ColorStruct->OutputGreen << 8U;
+    outred = DMA2D_ColorStruct->OutputRed << 16U;
+    outalpha = 0x00000000U;
+  }
+  else if (DMA2D_ColorStruct->ColorMode == LL_DMA2D_OUTPUT_MODE_RGB565)
+  {
+    outgreen = DMA2D_ColorStruct->OutputGreen << 5U;
+    outred = DMA2D_ColorStruct->OutputRed << 11U;
+    outalpha = 0x00000000U;
+  }
+  else if (DMA2D_ColorStruct->ColorMode == LL_DMA2D_OUTPUT_MODE_ARGB1555)
+  {
+    outgreen = DMA2D_ColorStruct->OutputGreen << 5U;
+    outred = DMA2D_ColorStruct->OutputRed << 10U;
+    outalpha = DMA2D_ColorStruct->OutputAlpha << 15U;
+  }
+  else /* ColorMode = LL_DMA2D_OUTPUT_MODE_ARGB4444 */
+  {
+    outgreen = DMA2D_ColorStruct->OutputGreen << 4U;
+    outred = DMA2D_ColorStruct->OutputRed << 8U;
+    outalpha = DMA2D_ColorStruct->OutputAlpha << 12U;
+  }
+  LL_DMA2D_SetOutputColor(DMA2Dx, (outgreen | outred | DMA2D_ColorStruct->OutputBlue | outalpha));
+}

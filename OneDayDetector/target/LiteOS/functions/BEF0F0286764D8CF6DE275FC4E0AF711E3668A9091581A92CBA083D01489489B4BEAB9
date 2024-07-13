@@ -1,0 +1,43 @@
+HAL_StatusTypeDef HAL_LCD_Write(LCD_HandleTypeDef *hlcd, uint32_t RAMRegisterIndex, uint32_t RAMRegisterMask, uint32_t Data)
+{
+  uint32_t tickstart = 0x00;
+
+  if((hlcd->State == HAL_LCD_STATE_READY) || (hlcd->State == HAL_LCD_STATE_BUSY))
+  {
+    /* Check the parameters */
+    assert_param(IS_LCD_RAM_REGISTER(RAMRegisterIndex));
+
+    if(hlcd->State == HAL_LCD_STATE_READY)
+    {
+      /* Process Locked */
+      __HAL_LOCK(hlcd);
+      hlcd->State = HAL_LCD_STATE_BUSY;
+
+      /* Get timeout */
+      tickstart = HAL_GetTick();
+
+      /*!< Wait Until the LCD is ready */
+      while(__HAL_LCD_GET_FLAG(hlcd, LCD_FLAG_UDR) != RESET)
+      {
+        if((HAL_GetTick() - tickstart ) > LCD_TIMEOUT_VALUE)
+        {
+          hlcd->ErrorCode = HAL_LCD_ERROR_UDR;
+
+          /* Process Unlocked */
+          __HAL_UNLOCK(hlcd);
+
+          return HAL_TIMEOUT;
+        }
+      }
+    }
+
+    /* Copy the new Data bytes to LCD RAM register */
+    MODIFY_REG(hlcd->Instance->RAM[RAMRegisterIndex], ~(RAMRegisterMask), Data);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_ERROR;
+  }
+}

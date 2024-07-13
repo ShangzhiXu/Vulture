@@ -1,0 +1,15 @@
+  struct eth_addr addr;
+  struct bridgeif_private_s *bridge;
+  bridgeif_portmask_t dst_ports;
+  struct eth_addr   ethaddr;
+  void             *fdbd;
+  bridgeif_fdb_static_entry_t *fdbs;
+  u16_t             max_fdbd_entries;
+  u16_t             max_fdbs_entries;
+  u8_t              max_ports;
+  struct netif     *netif;
+  u8_t              num_ports;
+  struct netif *port_netif;
+  u8_t port_num;
+  bridgeif_port_t  *ports;
+  u8_t used;

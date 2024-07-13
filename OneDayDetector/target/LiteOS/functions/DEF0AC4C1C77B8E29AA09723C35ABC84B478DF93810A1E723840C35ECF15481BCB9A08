@@ -1,0 +1,48 @@
+static void eap_input(ppp_pcb *pcb, u_char *inp, int inlen) {
+	u_char code, id;
+	int len;
+
+	/*
+	 * Parse header (code, id and length).  If packet too short,
+	 * drop it.
+	 */
+	if (inlen < EAP_HEADERLEN) {
+		ppp_error("EAP: packet too short: %d < %d", inlen, EAP_HEADERLEN);
+		return;
+	}
+	GETCHAR(code, inp);
+	GETCHAR(id, inp);
+	GETSHORT(len, inp);
+	if (len < EAP_HEADERLEN || len > inlen) {
+		ppp_error("EAP: packet has illegal length field %d (%d..%d)", len,
+		    EAP_HEADERLEN, inlen);
+		return;
+	}
+	len -= EAP_HEADERLEN;
+
+	/* Dispatch based on message code */
+	switch (code) {
+	case EAP_REQUEST:
+		eap_request(pcb, inp, id, len);
+		break;
+
+#if PPP_SERVER
+	case EAP_RESPONSE:
+		eap_response(pcb, inp, id, len);
+		break;
+#endif /* PPP_SERVER */
+
+	case EAP_SUCCESS:
+		eap_success(pcb, inp, id, len);
+		break;
+
+	case EAP_FAILURE:
+		eap_failure(pcb, inp, id, len);
+		break;
+
+	default:				/* XXX Need code reject */
+		/* Note: it's not legal to send EAP Nak here. */
+		ppp_warn("EAP: unknown code %d received", code);
+		break;
+	}
+}

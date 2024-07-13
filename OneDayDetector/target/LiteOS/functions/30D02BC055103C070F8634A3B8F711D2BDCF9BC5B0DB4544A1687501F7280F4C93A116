@@ -1,0 +1,19 @@
+static HAL_StatusTypeDef FLASH_OB_BootConfig(uint8_t BootConfig)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Check the parameters */
+  assert_param(IS_OB_BOOT(BootConfig));
+
+  /* Wait for last operation to be completed */  
+  status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE);
+
+  if(status == HAL_OK)
+  { 
+    /* Set Dual Bank Boot */
+    *(__IO uint8_t *)OPTCR_BYTE0_ADDRESS &= (~FLASH_OPTCR_BFB2);
+    *(__IO uint8_t *)OPTCR_BYTE0_ADDRESS |= BootConfig;
+  }
+  
+  return status;
+}

@@ -1,0 +1,28 @@
+static bool_t checkcgreg(char *devname, int times)
+{
+    bool_t result = false;
+    char *argv[6];
+    int argc;
+    int i = 0;
+    char atrcvbuf[CN_AT_LEN];
+    // first we should check if the sim card inserted:at+cpin?
+    printf("checkcreg:");
+    for (i = 0; i < times; i++) {
+        printf("%d->", i);
+        memset(argv, 0, sizeof(argv));
+        memset(atrcvbuf, 0, sizeof(atrcvbuf));
+        argc = AtCmd(devname, "AT+CGREG?", atrcvbuf, CN_AT_LEN, 6, argv);
+        if (argc > 0) {
+            if ((strinargs(argc, argv, ",1") != -1) || (strinargs(argc, argv, ",5") != -1)) {
+                result = true;
+                break;
+            }
+        }
+    }
+    if (result) {
+        printf(".:OK\n\r");
+    } else {
+        printf(".timeout!\n\r");
+    }
+    return result;
+}

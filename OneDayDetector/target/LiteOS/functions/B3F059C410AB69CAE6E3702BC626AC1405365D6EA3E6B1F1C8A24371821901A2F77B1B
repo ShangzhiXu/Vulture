@@ -1,0 +1,24 @@
+static int jump(uint32_t oldbin_size)
+{
+    int ret;
+
+    printf("info: begin to jump to application\n");
+    ret = board_jump2app();
+    if (ret != 0) {
+        printf("warning: jump to app failed, try to roll back now\n");
+        (void)recover_set_update_fail();
+        ret = board_rollback_copy(oldbin_size);
+        if (ret != 0) {
+            printf("fatal: roll back failed, system start up failed\n");
+            _Error_Handler(__FILE__, __LINE__);
+        }
+    }
+    printf("info: begin to try to jump to application again\n");
+    ret = board_jump2app();
+    if (ret != 0) {
+        printf("fatal: roll back succeed, system start up failed\n");
+        _Error_Handler(__FILE__, __LINE__);
+    }
+
+    return ret;
+}

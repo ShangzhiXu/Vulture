@@ -1,0 +1,98 @@
+static uint32_t SD_SendSDStatus(SD_HandleTypeDef *hsd, uint32_t *pSDstatus)
+{
+  SDIO_DataInitTypeDef config;
+  uint32_t errorstate;
+  uint32_t tickstart = HAL_GetTick();
+  uint32_t count;
+  uint32_t *pData = pSDstatus;
+
+  /* Check SD response */
+  if((SDIO_GetResponse(hsd->Instance, SDIO_RESP1) & SDMMC_CARD_LOCKED) == SDMMC_CARD_LOCKED)
+  {
+    return HAL_SD_ERROR_LOCK_UNLOCK_FAILED;
+  }
+
+  /* Set block size for card if it is not equal to current block size for card */
+  errorstate = SDMMC_CmdBlockLength(hsd->Instance, 64U);
+  if(errorstate != HAL_SD_ERROR_NONE)
+  {
+    hsd->ErrorCode |= HAL_SD_ERROR_NONE;
+    return errorstate;
+  }
+
+  /* Send CMD55 */
+  errorstate = SDMMC_CmdAppCommand(hsd->Instance, (uint32_t)(hsd->SdCard.RelCardAdd << 16U));
+  if(errorstate != HAL_SD_ERROR_NONE)
+  {
+    hsd->ErrorCode |= HAL_SD_ERROR_NONE;
+    return errorstate;
+  }
+
+  /* Configure the SD DPSM (Data Path State Machine) */
+  config.DataTimeOut   = SDMMC_DATATIMEOUT;
+  config.DataLength    = 64U;
+  config.DataBlockSize = SDIO_DATABLOCK_SIZE_64B;
+  config.TransferDir   = SDIO_TRANSFER_DIR_TO_SDIO;
+  config.TransferMode  = SDIO_TRANSFER_MODE_BLOCK;
+  config.DPSM          = SDIO_DPSM_ENABLE;
+  (void)SDIO_ConfigData(hsd->Instance, &config);
+
+  /* Send ACMD13 (SD_APP_STAUS)  with argument as card's RCA */
+  errorstate = SDMMC_CmdStatusRegister(hsd->Instance);
+  if(errorstate != HAL_SD_ERROR_NONE)
+  {
+    hsd->ErrorCode |= HAL_SD_ERROR_NONE;
+    return errorstate;
+  }
+
+  /* Get status data */
+  while(!__HAL_SD_GET_FLAG(hsd, SDIO_FLAG_RXOVERR | SDIO_FLAG_DCRCFAIL | SDIO_FLAG_DTIMEOUT | SDIO_FLAG_DBCKEND))
+  {
+    if(__HAL_SD_GET_FLAG(hsd, SDIO_FLAG_RXFIFOHF))
+    {
+      for(count = 0U; count < 8U; count++)
+      {
+        *pData = SDIO_ReadFIFO(hsd->Instance);
+        pData++;
+      }
+    }
+
+    if((HAL_GetTick() - tickstart) >=  SDMMC_DATATIMEOUT)
+    {
+      return HAL_SD_ERROR_TIMEOUT;
+    }
+  }
+
+  if(__HAL_SD_GET_FLAG(hsd, SDIO_FLAG_DTIMEOUT))
+  {
+    return HAL_SD_ERROR_DATA_TIMEOUT;
+  }
+  else if(__HAL_SD_GET_FLAG(hsd, SDIO_FLAG_DCRCFAIL))
+  {
+    return HAL_SD_ERROR_DATA_CRC_FAIL;
+  }
+  else if(__HAL_SD_GET_FLAG(hsd, SDIO_FLAG_RXOVERR))
+  {
+    return HAL_SD_ERROR_RX_OVERRUN;
+  }
+  else
+  {
+    /* Nothing to do */
+  }
+
+  while ((__HAL_SD_GET_FLAG(hsd, SDIO_FLAG_RXDAVL)))
+  {
+    *pData = SDIO_ReadFIFO(hsd->Instance);
+    pData++;
+
+    if((HAL_GetTick() - tickstart) >=  SDMMC_DATATIMEOUT)
+    {
+      return HAL_SD_ERROR_TIMEOUT;
+    }
+  }
+
+  /* Clear all the static status flags*/
+  __HAL_SD_CLEAR_FLAG(hsd, SDIO_STATIC_DATA_FLAGS);
+
+  return HAL_SD_ERROR_NONE;
+}

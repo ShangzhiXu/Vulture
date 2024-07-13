@@ -1,0 +1,66 @@
+void auth_peer_success(ppp_pcb *pcb, int protocol, int prot_flavor, const char *name, int namelen) {
+    int bit;
+#ifndef HAVE_MULTILINK
+    LWIP_UNUSED_ARG(name);
+    LWIP_UNUSED_ARG(namelen);
+#endif /* HAVE_MULTILINK */
+
+    switch (protocol) {
+#if CHAP_SUPPORT
+    case PPP_CHAP:
+	bit = CHAP_PEER;
+	switch (prot_flavor) {
+	case CHAP_MD5:
+	    bit |= CHAP_MD5_PEER;
+	    break;
+#if MSCHAP_SUPPORT
+	case CHAP_MICROSOFT:
+	    bit |= CHAP_MS_PEER;
+	    break;
+	case CHAP_MICROSOFT_V2:
+	    bit |= CHAP_MS2_PEER;
+	    break;
+#endif /* MSCHAP_SUPPORT */
+	default:
+	    break;
+	}
+	break;
+#endif /* CHAP_SUPPORT */
+#if PAP_SUPPORT
+    case PPP_PAP:
+	bit = PAP_PEER;
+	break;
+#endif /* PAP_SUPPORT */
+#if EAP_SUPPORT
+    case PPP_EAP:
+	bit = EAP_PEER;
+	break;
+#endif /* EAP_SUPPORT */
+    default:
+	ppp_warn("auth_peer_success: unknown protocol %x", protocol);
+	return;
+    }
+
+#ifdef HAVE_MULTILINK
+    /*
+     * Save the authenticated name of the peer for later.
+     */
+    if (namelen > (int)sizeof(pcb->peer_authname) - 1)
+	namelen = (int)sizeof(pcb->peer_authname) - 1;
+    MEMCPY(pcb->peer_authname, name, namelen);
+    pcb->peer_authname[namelen] = 0;
+#endif /* HAVE_MULTILINK */
+#if 0 /* UNUSED */
+    script_setenv("PEERNAME", , 0);
+#endif /* UNUSED */
+
+    /* Save the authentication method for later. */
+    pcb->auth_done |= bit;
+
+    /*
+     * If there is no more authentication still to be done,
+     * proceed to the network (or callback) phase.
+     */
+    if ((pcb->auth_pending &= ~bit) == 0)
+        network_phase(pcb);
+}

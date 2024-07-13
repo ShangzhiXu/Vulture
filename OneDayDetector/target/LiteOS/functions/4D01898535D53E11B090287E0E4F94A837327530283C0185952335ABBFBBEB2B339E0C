@@ -1,0 +1,38 @@
+STATIC INT32 OsStrSeparateTabStrGet(CHAR **tabStr, CmdParsed *parsed, UINT32 tabStrLen)
+{
+    CHAR *shiftStr = NULL;
+    CHAR *tempStr = (CHAR *)LOS_MemAlloc(m_aucSysMem0, SHOW_MAX_LEN << 1);
+    if (tempStr == NULL) {
+        return (INT32)OS_ERROR;
+    }
+
+    (VOID)memset_s(tempStr, SHOW_MAX_LEN << 1, 0, SHOW_MAX_LEN << 1);
+    shiftStr = tempStr + SHOW_MAX_LEN;
+
+    if (strncpy_s(tempStr, SHOW_MAX_LEN, *tabStr, tabStrLen) != EOK) {
+        (VOID)LOS_MemFree(m_aucSysMem0, tempStr);
+        return (INT32)OS_ERROR;
+    }
+
+    parsed->cmdType = CMD_TYPE_STD;
+
+    /* cut useless or repeat space */
+    if (OsCmdKeyShift(tempStr, shiftStr, SHOW_MAX_LEN)) {
+        (VOID)LOS_MemFree(m_aucSysMem0, tempStr);
+        return (INT32)OS_ERROR;
+    }
+
+    /* get exact position of string to complete situation different if end space lost or still exist */
+    if ((strlen(shiftStr) == 0) || (tempStr[strlen(tempStr) - 1] != shiftStr[strlen(shiftStr) - 1])) {
+        *tabStr = "";
+    } else {
+        if (OsCmdTokenSplit(shiftStr, ' ', parsed)) {
+            (VOID)LOS_MemFree(m_aucSysMem0, tempStr);
+            return (INT32)OS_ERROR;
+        }
+        *tabStr = parsed->paramArray[parsed->paramCnt - 1];
+    }
+
+    (VOID)LOS_MemFree(m_aucSysMem0, tempStr);
+    return LOS_OK;
+}

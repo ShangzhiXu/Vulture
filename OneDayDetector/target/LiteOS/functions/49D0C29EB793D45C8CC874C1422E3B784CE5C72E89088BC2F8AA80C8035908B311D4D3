@@ -1,0 +1,24 @@
+HAL_CAN_StateTypeDef HAL_CAN_GetState(CAN_HandleTypeDef *hcan)
+{
+  HAL_CAN_StateTypeDef state = hcan->State;
+
+  if ((hcan->State == HAL_CAN_STATE_READY) ||
+      (hcan->State == HAL_CAN_STATE_LISTENING))
+  {
+    /* Check sleep mode acknowledge flag */
+    if ((hcan->Instance->MSR & CAN_MSR_SLAK) != RESET)
+    {
+      /* Sleep mode is active */
+      state = HAL_CAN_STATE_SLEEP_ACTIVE;
+    }
+    /* Check sleep mode request flag */
+    else if ((hcan->Instance->MCR & CAN_MCR_SLEEP) != RESET)
+    {
+      /* Sleep mode request is pending */
+      state = HAL_CAN_STATE_SLEEP_PENDING;
+    }
+  }
+
+  /* Return CAN state */
+  return state;
+}

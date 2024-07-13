@@ -1,0 +1,31 @@
+int mbedtls_cipher_cmac( const mbedtls_cipher_info_t *cipher_info,
+                         const unsigned char *key, size_t keylen,
+                         const unsigned char *input, size_t ilen,
+                         unsigned char *output )
+{
+    mbedtls_cipher_context_t ctx;
+    int ret;
+
+    if( cipher_info == NULL || key == NULL || input == NULL || output == NULL )
+        return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+
+    mbedtls_cipher_init( &ctx );
+
+    if( ( ret = mbedtls_cipher_setup( &ctx, cipher_info ) ) != 0 )
+        goto exit;
+
+    ret = mbedtls_cipher_cmac_starts( &ctx, key, keylen );
+    if( ret != 0 )
+        goto exit;
+
+    ret = mbedtls_cipher_cmac_update( &ctx, input, ilen );
+    if( ret != 0 )
+        goto exit;
+
+    ret = mbedtls_cipher_cmac_finish( &ctx, output );
+
+exit:
+    mbedtls_cipher_free( &ctx );
+
+    return( ret );
+}

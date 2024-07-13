@@ -1,0 +1,23 @@
+LITE_OS_SEC_TEXT STATIC UINT32 OsEventPoll(UINT32 *eventId, UINT32 eventMask, UINT32 mode)
+{
+    UINT32 ret = 0;
+
+    LOS_ASSERT(ArchIntLocked());
+    LOS_ASSERT(LOS_SpinHeld(&g_taskSpin));
+
+    if (mode & LOS_WAITMODE_OR) {
+        if ((*eventId & eventMask) != 0) {
+            ret = *eventId & eventMask;
+        }
+    } else {
+        if ((eventMask != 0) && (eventMask == (*eventId & eventMask))) {
+            ret = *eventId & eventMask;
+        }
+    }
+
+    if (ret && (mode & LOS_WAITMODE_CLR)) {
+        *eventId = *eventId & ~ret;
+    }
+
+    return ret;
+}

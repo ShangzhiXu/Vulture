@@ -1,0 +1,17 @@
+lwip_netconn_do_recv(void *m)
+{
+  struct api_msg *msg = (struct api_msg *)m;
+
+  msg->err = ERR_OK;
+  if (msg->conn->pcb.tcp != NULL) {
+    if (NETCONNTYPE_GROUP(msg->conn->type) == NETCONN_TCP) {
+      size_t remaining = msg->msg.r.len;
+      do {
+        u16_t recved = (u16_t)((remaining > 0xffff) ? 0xffff : remaining);
+        tcp_recved(msg->conn->pcb.tcp, recved);
+        remaining -= recved;
+      } while (remaining != 0);
+    }
+  }
+  TCPIP_APIMSG_ACK(msg);
+}

@@ -1,0 +1,24 @@
+STATIC VOID OsTaskResume(const UINT32 *taskId)
+{
+    UINT32 intSave;
+    LosTaskCB *taskCB = NULL;
+
+    taskCB = OS_TCB_FROM_TID(*taskId);
+
+    SCHEDULER_LOCK(intSave);
+
+    taskCB->taskStatus &= ~OS_TASK_STATUS_SUSPEND;
+    taskCB->taskStatus |= OS_TASK_STATUS_READY;
+    OsPriQueueEnqueue(&taskCB->pendList, taskCB->priority);
+
+    SCHEDULER_UNLOCK(intSave);
+
+    LOS_TRACE(TASK_CREATE, taskCB->taskId, taskCB->taskStatus, taskCB->priority);
+
+    /* in case created task not running on this core,
+       schedule or not depends on other schedulers status. */
+    LOS_MpSchedule(OS_MP_CPU_ALL);
+    if (OS_SCHEDULER_ACTIVE) {
+        LOS_Schedule();
+    }
+}

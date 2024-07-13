@@ -1,0 +1,44 @@
+VOID *LOS_MemMrealloc(VOID *pool, VOID *ptr, UINT32 size, UINT32 moduleId)
+{
+    VOID *newPtr = NULL;
+    UINT32 oldNodeSize;
+    UINT32 intSave;
+    LosMemDynNode *node = NULL;
+    UINT32 oldModuleId = moduleId;
+
+    if ((OsMemModCheck(moduleId) == LOS_NOK) || (pool == NULL)) {
+        return NULL;
+    }
+
+    if (ptr == NULL) {
+        return LOS_MemMalloc(pool, size, moduleId);
+    }
+
+    node = (LosMemDynNode *)OsMemPtrToNode(ptr);
+    if (node == NULL) {
+        return NULL;
+    }
+
+    if (moduleId != OS_MEM_MODID_GET(node)) {
+        PRINT_ERR("a node[%p] alloced in module %lu, but realloc in module %u\n node's taskId: %lu\n",
+                  ptr, OS_MEM_MODID_GET(node), moduleId, OS_MEM_TASKID_GET(node));
+        oldModuleId = OS_MEM_MODID_GET(node);
+    }
+
+    if (size == 0) {
+        (VOID)LOS_MemMfree(pool, ptr, oldModuleId);
+        return NULL;
+    }
+
+    oldNodeSize = OsMemNodeSizeGet(ptr);
+    newPtr = LOS_MemRealloc(pool, ptr, size);
+    if (newPtr != NULL) {
+        MEM_LOCK(intSave);
+        g_moduleMemUsedSize[moduleId] += OsMemNodeSizeGet(newPtr);
+        g_moduleMemUsedSize[oldModuleId] -= oldNodeSize;
+        node = (LosMemDynNode *)OsMemPtrToNode(newPtr);
+        OS_MEM_MODID_SET(node, moduleId);
+        MEM_UNLOCK(intSave);
+    }
+    return newPtr;
+}

@@ -1,0 +1,85 @@
+static HAL_SD_ErrorTypedef SD_Initialize_Cards(SD_HandleTypeDef *hsd)
+{
+  SDIO_CmdInitTypeDef sdio_cmdinitstructure = {0}; 
+  HAL_SD_ErrorTypedef errorstate = SD_OK;
+  uint16_t sd_rca = 1;
+  
+  if(SDIO_GetPowerState(hsd->Instance) == 0) /* Power off */
+  {
+    errorstate = SD_REQUEST_NOT_APPLICABLE;
+    
+    return errorstate;
+  }
+  
+  if(hsd->CardType != SECURE_DIGITAL_IO_CARD)
+  {
+    /* Send CMD2 ALL_SEND_CID */
+    sdio_cmdinitstructure.Argument         = 0;
+    sdio_cmdinitstructure.CmdIndex         = SD_CMD_ALL_SEND_CID;
+    sdio_cmdinitstructure.Response         = SDIO_RESPONSE_LONG;
+    sdio_cmdinitstructure.WaitForInterrupt = SDIO_WAIT_NO;
+    sdio_cmdinitstructure.CPSM             = SDIO_CPSM_ENABLE;
+    SDIO_SendCommand(hsd->Instance, &sdio_cmdinitstructure);
+    
+    /* Check for error conditions */
+    errorstate = SD_CmdResp2Error(hsd);
+    
+    if(errorstate != SD_OK)
+    {
+      return errorstate;
+    }
+    
+    /* Get Card identification number data */
+    hsd->CID[0] = SDIO_GetResponse(hsd->Instance, SDIO_RESP1);
+    hsd->CID[1] = SDIO_GetResponse(hsd->Instance, SDIO_RESP2);
+    hsd->CID[2] = SDIO_GetResponse(hsd->Instance, SDIO_RESP3);
+    hsd->CID[3] = SDIO_GetResponse(hsd->Instance, SDIO_RESP4);
+  }
+  
+  if((hsd->CardType == STD_CAPACITY_SD_CARD_V1_1)    || (hsd->CardType == STD_CAPACITY_SD_CARD_V2_0) ||\
+     (hsd->CardType == SECURE_DIGITAL_IO_COMBO_CARD) || (hsd->CardType == HIGH_CAPACITY_SD_CARD))
+  {
+    /* Send CMD3 SET_REL_ADDR with argument 0 */
+    /* SD Card publishes its RCA. */
+    sdio_cmdinitstructure.CmdIndex         = SD_CMD_SET_REL_ADDR;
+    sdio_cmdinitstructure.Response         = SDIO_RESPONSE_SHORT;
+    SDIO_SendCommand(hsd->Instance, &sdio_cmdinitstructure);
+    
+    /* Check for error conditions */
+    errorstate = SD_CmdResp6Error(hsd, SD_CMD_SET_REL_ADDR, &sd_rca);
+    
+    if(errorstate != SD_OK)
+    {
+      return errorstate;
+    }
+  }
+  
+  if (hsd->CardType != SECURE_DIGITAL_IO_CARD)
+  {
+    /* Get the SD card RCA */
+    hsd->RCA = sd_rca;
+    
+    /* Send CMD9 SEND_CSD with argument as card's RCA */
+    sdio_cmdinitstructure.Argument         = (uint32_t)(hsd->RCA << 16);
+    sdio_cmdinitstructure.CmdIndex         = SD_CMD_SEND_CSD;
+    sdio_cmdinitstructure.Response         = SDIO_RESPONSE_LONG;
+    SDIO_SendCommand(hsd->Instance, &sdio_cmdinitstructure);
+    
+    /* Check for error conditions */
+    errorstate = SD_CmdResp2Error(hsd);
+    
+    if(errorstate != SD_OK)
+    {
+      return errorstate;
+    }
+    
+    /* Get Card Specific Data */
+    hsd->CSD[0] = SDIO_GetResponse(hsd->Instance, SDIO_RESP1);
+    hsd->CSD[1] = SDIO_GetResponse(hsd->Instance, SDIO_RESP2);
+    hsd->CSD[2] = SDIO_GetResponse(hsd->Instance, SDIO_RESP3);
+    hsd->CSD[3] = SDIO_GetResponse(hsd->Instance, SDIO_RESP4);
+  }
+  
+  /* All cards are initialized */
+  return errorstate;
+}

@@ -1,0 +1,17 @@
+httpc_create_request_string(const httpc_connection_t *settings, const char* server_name, int server_port, const char* uri,
+                            int use_host, char *buffer, size_t buffer_size)
+{
+  if (settings->use_proxy) {
+    LWIP_ASSERT("server_name != NULL", server_name != NULL);
+    if (server_port != HTTP_DEFAULT_PORT) {
+      return snprintf(buffer, buffer_size, HTTPC_REQ_11_PROXY_PORT_FORMAT(server_name, server_port, uri, server_name));
+    } else {
+      return snprintf(buffer, buffer_size, HTTPC_REQ_11_PROXY_FORMAT(server_name, uri, server_name));
+    }
+  } else if (use_host) {
+    LWIP_ASSERT("server_name != NULL", server_name != NULL);
+    return snprintf(buffer, buffer_size, HTTPC_REQ_11_HOST_FORMAT(uri, server_name));
+  } else {
+    return snprintf(buffer, buffer_size, HTTPC_REQ_11_FORMAT(uri));
+  }
+}

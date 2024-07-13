@@ -1,0 +1,25 @@
+int flash_manager_write(const flash_info_s *flash_info)
+{
+    uint32_t len;
+    int ret;
+    uint8_t *buf;
+
+    ret = flash_manager_get_need_len(flash_info, &len);
+    if (ret != ATINY_OK) {
+        return ret;
+    }
+
+    buf = atiny_malloc(MAX_FLASH_INFO);
+    if (buf == NULL) {
+        ATINY_LOG(LOG_ERR, "atiny_malloc fail len %d", len);
+        return ATINY_MALLOC_FAILED;
+    }
+
+    flash_manager_write_buffer(flash_info, (char *)buf, len);
+    ret = g_cmd_ioctl(MQTT_SAVE_SECRET_INFO, buf, MAX_FLASH_INFO);
+    atiny_free(buf);
+    if (ret != ATINY_OK) {
+        ATINY_LOG(LOG_FATAL, "g_cmd_ioctl MQTT_SAVE_SECRET_INFO fail ret %d, len ld", ret, len);
+    }
+    return ret;
+}

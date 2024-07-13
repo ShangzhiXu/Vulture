@@ -1,0 +1,58 @@
+void lwm2m_setBsCtrlStat(lwm2m_context_t *contextP, lwm2m_client_state_t state)
+{
+    lwm2m_client_state_t oldState = contextP->bsCtrl.state;
+    uint32_t oldCnt = contextP->bsCtrl.cnt;
+
+    lwm2m_setBsCtrlStatWithoutCheck(contextP, state);
+
+    if (STATE_REGISTER_REQUIRED == contextP->bsCtrl.state)
+    {
+        if (contextP->serverList == NULL)
+        {
+            contextP->bsCtrl.state = STATE_BOOTSTRAP_REQUIRED;
+            contextP->bsCtrl.cnt = 0;
+        }
+    }
+
+    if (STATE_BOOTSTRAP_REQUIRED == contextP->bsCtrl.state)
+    {
+        if ((!prv_isBoostrpEnable(contextP))
+            || (contextP->bootstrapServerList == NULL))
+        {
+            contextP->bsCtrl.state = STATE_REGISTER_REQUIRED;
+            contextP->bsCtrl.cnt = 0;
+            goto END;
+        }
+
+        // bootstrapServerList not empty, int CIBS but bs ip not valid.
+        if((!lwm2m_isBsCtrlInServerInitiatedBs(contextP))
+            #if defined(LWM2M_BOOTSTRAP)
+               && (!bootstrap_isBsServerIpValid(contextP))
+            #endif
+            )
+        {
+            //FBS
+            if (contextP->serverList)
+            {
+                contextP->bsCtrl.state = STATE_REGISTER_REQUIRED;
+                contextP->bsCtrl.cnt = 0;
+            }
+            // only in SIBS
+            else if ((contextP->serverList == NULL) && (contextP->bsCtrl.bsType == BOOTSTRAP_SEQUENCE))
+            {
+                contextP->bsCtrl.cnt = 0;
+            }
+            else
+            {
+            }
+        }
+    }
+END:
+    if ((oldState != contextP->bsCtrl.state)
+        || (oldCnt != contextP->bsCtrl.cnt))
+    {
+        LOG_ARG("bsctrlstat (%d,%d) to (%d,%d)", oldState, oldCnt,
+                    contextP->bsCtrl.state, contextP->bsCtrl.cnt);
+    }
+
+}

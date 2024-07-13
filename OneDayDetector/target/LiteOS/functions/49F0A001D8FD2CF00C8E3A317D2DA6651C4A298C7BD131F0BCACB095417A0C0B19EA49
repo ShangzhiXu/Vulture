@@ -1,0 +1,40 @@
+HAL_StatusTypeDef HAL_HCD_HC_Init(HCD_HandleTypeDef *hhcd,
+                                  uint8_t ch_num,
+                                  uint8_t epnum,
+                                  uint8_t dev_address,
+                                  uint8_t speed,
+                                  uint8_t ep_type,
+                                  uint16_t mps)
+{
+  HAL_StatusTypeDef status;
+
+  __HAL_LOCK(hhcd);
+  hhcd->hc[ch_num].do_ping = 0U;
+  hhcd->hc[ch_num].dev_addr = dev_address;
+  hhcd->hc[ch_num].max_packet = mps;
+  hhcd->hc[ch_num].ch_num = ch_num;
+  hhcd->hc[ch_num].ep_type = ep_type;
+  hhcd->hc[ch_num].ep_num = epnum & 0x7FU;
+
+  if ((epnum & 0x80U) == 0x80U)
+  {
+    hhcd->hc[ch_num].ep_is_in = 1U;
+  }
+  else
+  {
+    hhcd->hc[ch_num].ep_is_in = 0U;
+  }
+
+  hhcd->hc[ch_num].speed = speed;
+
+  status =  USB_HC_Init(hhcd->Instance,
+                        ch_num,
+                        epnum,
+                        dev_address,
+                        speed,
+                        ep_type,
+                        mps);
+  __HAL_UNLOCK(hhcd);
+
+  return status;
+}

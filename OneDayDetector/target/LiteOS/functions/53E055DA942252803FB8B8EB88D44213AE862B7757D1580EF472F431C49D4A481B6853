@@ -1,0 +1,28 @@
+LITE_OS_SEC_TEXT_MINOR UINT16 LOS_TaskCpuAffiGet(UINT32 taskId)
+{
+#ifdef LOSCFG_KERNEL_SMP
+#define INVALID_CPU_AFFI_MASK   0
+    LosTaskCB *taskCB = NULL;
+    UINT16 cpuAffiMask;
+    UINT32 intSave;
+
+    if (OS_TASK_ID_CHECK_INVALID(taskId)) {
+        return INVALID_CPU_AFFI_MASK;
+    }
+
+    taskCB = OS_TCB_FROM_TID(taskId);
+    SCHEDULER_LOCK(intSave);
+    if (taskCB->taskStatus & OS_TASK_STATUS_UNUSED) {
+        SCHEDULER_UNLOCK(intSave);
+        return INVALID_CPU_AFFI_MASK;
+    }
+
+    cpuAffiMask = taskCB->cpuAffiMask;
+    SCHEDULER_UNLOCK(intSave);
+
+    return cpuAffiMask;
+#else
+    (VOID)taskId;
+    return 1; /* 1: mask of current cpu */
+#endif
+}

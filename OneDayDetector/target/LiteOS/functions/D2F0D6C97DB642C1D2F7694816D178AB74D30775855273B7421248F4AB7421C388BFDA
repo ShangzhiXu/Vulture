@@ -1,0 +1,28 @@
+static void test_sockets_msgapi_udp_send_recv_loop(int s, struct msghdr *smsg, struct msghdr *rmsg)
+{
+  int i, ret;
+
+  /* send/receive our datagram of IO vectors 10 times */
+  for (i = 0; i < 10; i++) {
+    ret = lwip_sendmsg(s, smsg, 0);
+    fail_unless(ret == 4);
+
+    while (tcpip_thread_poll_one());
+
+    /* receive the datagram split across 4 buffers */
+    ret = lwip_recvmsg(s, rmsg, 0);
+    fail_unless(ret == 4);
+
+    /* verify data */
+    fail_unless(*((u8_t*)rmsg->msg_iov[0].iov_base) == 0xDE);
+    fail_unless(*((u8_t*)rmsg->msg_iov[1].iov_base) == 0xAD);
+    fail_unless(*((u8_t*)rmsg->msg_iov[2].iov_base) == 0xBE);
+    fail_unless(*((u8_t*)rmsg->msg_iov[3].iov_base) == 0xEF);
+
+    /* clear rcv_buf to ensure no data is being skipped */
+    *((u8_t*)rmsg->msg_iov[0].iov_base) = 0x00;
+    *((u8_t*)rmsg->msg_iov[1].iov_base) = 0x00;
+    *((u8_t*)rmsg->msg_iov[2].iov_base) = 0x00;
+    *((u8_t*)rmsg->msg_iov[3].iov_base) = 0x00;
+  }
+}

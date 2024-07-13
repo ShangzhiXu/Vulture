@@ -1,0 +1,109 @@
+static int prv_serializeValue(lwm2m_data_t *tlvP,
+                              uint8_t *buffer,
+                              size_t bufferLen)
+{
+    int res;
+    int head;
+
+    switch (tlvP->type)
+    {
+    case LWM2M_TYPE_STRING:
+        if (bufferLen < JSON_ITEM_STRING_BEGIN_SIZE) return -1;
+        memcpy(buffer, JSON_ITEM_STRING_BEGIN, JSON_ITEM_STRING_BEGIN_SIZE);
+        head = JSON_ITEM_STRING_BEGIN_SIZE;
+
+        if (bufferLen - head < tlvP->value.asBuffer.length) return -1;
+        memcpy(buffer + head, tlvP->value.asBuffer.buffer, tlvP->value.asBuffer.length);
+        head += tlvP->value.asBuffer.length;
+
+        if (bufferLen - head < JSON_ITEM_STRING_END_SIZE) return -1;
+        memcpy(buffer + head, JSON_ITEM_STRING_END, JSON_ITEM_STRING_END_SIZE);
+        head += JSON_ITEM_STRING_END_SIZE;
+
+        break;
+
+    case LWM2M_TYPE_INTEGER:
+    {
+        int64_t value;
+
+        if (0 == lwm2m_data_decode_int(tlvP, &value)) return -1;
+
+        if (bufferLen < JSON_ITEM_NUM_SIZE) return -1;
+        memcpy(buffer, JSON_ITEM_NUM, JSON_ITEM_NUM_SIZE);
+        head = JSON_ITEM_NUM_SIZE;
+
+        res = utils_intToText(value, buffer + head, bufferLen - head);
+        if (res <= 0) return -1;
+        head += res;
+
+        if (bufferLen - head < JSON_ITEM_NUM_END_SIZE) return -1;
+        memcpy(buffer + head, JSON_ITEM_NUM_END, JSON_ITEM_NUM_END_SIZE);
+        head += JSON_ITEM_NUM_END_SIZE;
+    }
+    break;
+
+    case LWM2M_TYPE_FLOAT:
+    {
+        double value;
+
+        if (0 == lwm2m_data_decode_float(tlvP, &value)) return -1;
+
+        if (bufferLen < JSON_ITEM_NUM_SIZE) return -1;
+        memcpy(buffer, JSON_ITEM_NUM, JSON_ITEM_NUM_SIZE);
+        head = JSON_ITEM_NUM_SIZE;
+
+        res = utils_floatToText(value, buffer + head, bufferLen - head);
+        if (res <= 0) return -1;
+        head += res;
+
+        if (bufferLen - head < JSON_ITEM_NUM_END_SIZE) return -1;
+        memcpy(buffer + head, JSON_ITEM_NUM_END, JSON_ITEM_NUM_END_SIZE);
+        head += JSON_ITEM_NUM_END_SIZE;
+    }
+    break;
+
+    case LWM2M_TYPE_BOOLEAN:
+    {
+        bool value;
+
+        if (0 == lwm2m_data_decode_bool(tlvP, &value)) return -1;
+
+        if (value == true)
+        {
+            if (bufferLen < JSON_ITEM_BOOL_TRUE_SIZE) return -1;
+            memcpy(buffer, JSON_ITEM_BOOL_TRUE, JSON_ITEM_BOOL_TRUE_SIZE);
+            head = JSON_ITEM_BOOL_TRUE_SIZE;
+        }
+        else
+        {
+            if (bufferLen < JSON_ITEM_BOOL_FALSE_SIZE) return -1;
+            memcpy(buffer, JSON_ITEM_BOOL_FALSE, JSON_ITEM_BOOL_FALSE_SIZE);
+            head = JSON_ITEM_BOOL_FALSE_SIZE;
+        }
+    }
+    break;
+
+    case LWM2M_TYPE_OPAQUE:
+        if (bufferLen < JSON_ITEM_STRING_BEGIN_SIZE) return -1;
+        memcpy(buffer, JSON_ITEM_STRING_BEGIN, JSON_ITEM_STRING_BEGIN_SIZE);
+        head = JSON_ITEM_STRING_BEGIN_SIZE;
+
+        res = utils_base64Encode(tlvP->value.asBuffer.buffer, tlvP->value.asBuffer.length, buffer + head, bufferLen - head);
+        if (res == 0) return -1;
+        head += res;
+
+        if (bufferLen - head < JSON_ITEM_STRING_END_SIZE) return -1;
+        memcpy(buffer + head, JSON_ITEM_STRING_END, JSON_ITEM_STRING_END_SIZE);
+        head += JSON_ITEM_STRING_END_SIZE;
+        break;
+
+    case LWM2M_TYPE_OBJECT_LINK:
+        // TODO: implement
+        return -1;
+
+    default:
+        return -1;
+    }
+
+    return head;
+}

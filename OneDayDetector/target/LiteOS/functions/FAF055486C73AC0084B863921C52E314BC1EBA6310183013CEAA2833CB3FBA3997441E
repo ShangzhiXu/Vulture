@@ -1,0 +1,30 @@
+ppp_pcb *pppoe_create(struct netif *pppif,
+       struct netif *ethif,
+       const char *service_name, const char *concentrator_name,
+       ppp_link_status_cb_fn link_status_cb, void *ctx_cb)
+{
+  ppp_pcb *ppp;
+  struct pppoe_softc *sc;
+  LWIP_UNUSED_ARG(service_name);
+  LWIP_UNUSED_ARG(concentrator_name);
+  LWIP_ASSERT_CORE_LOCKED();
+
+  sc = (struct pppoe_softc *)LWIP_MEMPOOL_ALLOC(PPPOE_IF);
+  if (sc == NULL) {
+    return NULL;
+  }
+
+  ppp = ppp_new(pppif, &pppoe_callbacks, sc, link_status_cb, ctx_cb);
+  if (ppp == NULL) {
+    LWIP_MEMPOOL_FREE(PPPOE_IF, sc);
+    return NULL;
+  }
+
+  memset(sc, 0, sizeof(struct pppoe_softc));
+  sc->pcb = ppp;
+  sc->sc_ethif = ethif;
+  /* put the new interface at the head of the list */
+  sc->next = pppoe_softc_list;
+  pppoe_softc_list = sc;
+  return ppp;
+}

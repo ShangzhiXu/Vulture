@@ -1,0 +1,43 @@
+snmp_get_mib_from_oid(const u32_t *oid, u8_t oid_len)
+{
+  const u32_t *list_oid;
+  const u32_t *searched_oid;
+  u8_t i, l;
+
+  u8_t max_match_len = 0;
+  const struct snmp_mib *matched_mib = NULL;
+
+  LWIP_ASSERT("'oid' param must not be NULL!", (oid != NULL));
+
+  if (oid_len == 0) {
+    return NULL;
+  }
+
+  for (i = 0; i < snmp_num_mibs; i++) {
+    LWIP_ASSERT("MIB array not initialized correctly", (snmp_mibs[i] != NULL));
+    LWIP_ASSERT("MIB array not initialized correctly - base OID is NULL", (snmp_mibs[i]->base_oid != NULL));
+
+    if (oid_len >= snmp_mibs[i]->base_oid_len) {
+      l            = snmp_mibs[i]->base_oid_len;
+      list_oid     = snmp_mibs[i]->base_oid;
+      searched_oid = oid;
+
+      while (l > 0) {
+        if (*list_oid != *searched_oid) {
+          break;
+        }
+
+        l--;
+        list_oid++;
+        searched_oid++;
+      }
+
+      if ((l == 0) && (snmp_mibs[i]->base_oid_len > max_match_len)) {
+        max_match_len = snmp_mibs[i]->base_oid_len;
+        matched_mib = snmp_mibs[i];
+      }
+    }
+  }
+
+  return matched_mib;
+}

@@ -1,0 +1,37 @@
+static int32_t bg36_init(void)
+{
+    int rbuflen = 64;
+    char inbuf[64] = {0};
+    char tmpbuf[64] = {0};
+    int creg = 0;
+    int i = 0;
+    int ret;
+
+    at.init(&at_user_conf);
+    memset(sockinfo, 0, sizeof(emtc_socket_info) * MAX_BG36_SOCK_NUM);
+
+    (void)at.oob_register(AT_DATAF_PREFIX, strlen(AT_DATAF_PREFIX), bg36_data_handler, bg36_cmd_match);
+    (void)bg36_cmd(ATI, strlen(ATI), "OK", NULL, NULL);
+    (void)bg36_cmd(ATE0, strlen(ATE0), "OK", NULL, NULL);
+    (void)bg36_cmd(CPIN, strlen(CPIN), "+CPIN: READY", NULL, NULL);
+    while (1) {
+        (void)bg36_cmd(QUERYCFATT, strlen(QUERYCFATT), "+CGATT", inbuf, &rbuflen);
+        if (strlen(inbuf) != 0) {
+            ret = sscanf(inbuf, "\r\n+CGATT: %d\r\n%s", &creg, tmpbuf);
+            if (ret == -1) {
+                continue;
+            }
+            if (creg == 1) {
+                break;
+            }
+        }
+        (void)LOS_TaskDelay(100);
+        memset(inbuf, 0, sizeof(inbuf));
+    }
+
+    for (i = 0; i < MAX_BG36_SOCK_NUM; i++) {
+        (void)bg36_close((int32_t)i);
+    }
+
+    return bg36_cmd(QIACTQUERY, strlen(QIACTQUERY), "OK", NULL, NULL);
+}

@@ -1,0 +1,21 @@
+static void FMPI2C_DMASlaveReceiveCplt(DMA_HandleTypeDef *hdma)
+{
+  FMPI2C_HandleTypeDef *hfmpi2c = (FMPI2C_HandleTypeDef *)(((DMA_HandleTypeDef *)hdma)->Parent); /* Derogation MISRAC2012-Rule-11.5 */
+  uint32_t tmpoptions = hfmpi2c->XferOptions;
+
+  if ((__HAL_DMA_GET_COUNTER(hfmpi2c->hdmarx) == 0U) && \
+      (tmpoptions != FMPI2C_NO_OPTION_FRAME))
+  {
+    /* Disable DMA Request */
+    hfmpi2c->Instance->CR1 &= ~FMPI2C_CR1_RXDMAEN;
+
+    /* Call FMPI2C Slave Sequential complete process */
+    FMPI2C_ITSlaveSeqCplt(hfmpi2c);
+  }
+  else
+  {
+    /* No specific action, Master fully manage the generation of STOP condition */
+    /* Mean that this generation can arrive at any time, at the end or during DMA process */
+    /* So STOP condition should be manage through Interrupt treatment */
+  }
+}

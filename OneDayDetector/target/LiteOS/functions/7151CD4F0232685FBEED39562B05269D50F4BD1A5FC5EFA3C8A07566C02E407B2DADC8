@@ -1,0 +1,173 @@
+HAL_StatusTypeDef HAL_COMP_Init(COMP_HandleTypeDef *hcomp)
+{
+  uint32_t tmp_csr = 0U;
+  uint32_t exti_line = 0U;
+  uint32_t comp_voltage_scaler_not_initialized = 0U;
+  __IO uint32_t wait_loop_index = 0U;
+  HAL_StatusTypeDef status = HAL_OK;
+  
+  /* Check the COMP handle allocation and lock status */
+  if((hcomp == NULL) || (__HAL_COMP_IS_LOCKED(hcomp)))
+  {
+    status = HAL_ERROR;
+  }
+  else
+  {
+    /* Check the parameters */
+    assert_param(IS_COMP_ALL_INSTANCE(hcomp->Instance));
+    assert_param(IS_COMP_INPUT_PLUS(hcomp->Instance, hcomp->Init.NonInvertingInput));
+    assert_param(IS_COMP_INPUT_MINUS(hcomp->Instance, hcomp->Init.InvertingInput));
+    assert_param(IS_COMP_OUTPUTPOL(hcomp->Init.OutputPol));
+    assert_param(IS_COMP_POWERMODE(hcomp->Init.Mode));
+    assert_param(IS_COMP_HYSTERESIS(hcomp->Init.Hysteresis));
+    assert_param(IS_COMP_BLANKINGSRC_INSTANCE(hcomp->Instance, hcomp->Init.BlankingSrce)); 
+    assert_param(IS_COMP_TRIGGERMODE(hcomp->Init.TriggerMode));
+    assert_param(IS_COMP_WINDOWMODE(hcomp->Init.WindowMode));
+    
+    if(hcomp->State == HAL_COMP_STATE_RESET)
+    {
+      /* Allocate lock resource and initialize it */
+      hcomp->Lock = HAL_UNLOCKED;
+      
+      /* Init SYSCFG and the low level hardware to access comparators */
+      /* Note: HAL_COMP_Init() calls __HAL_RCC_SYSCFG_CLK_ENABLE()            */
+      /*       to enable internal control clock of the comparators.           */
+      /*       However, this is a legacy strategy. In future STM32 families,  */
+      /*       COMP clock enable must be implemented by user                  */
+      /*       in "HAL_COMP_MspInit()".                                       */
+      /*       Therefore, for compatibility anticipation, it is recommended   */
+      /*       to implement __HAL_RCC_SYSCFG_CLK_ENABLE()                     */
+      /*       in "HAL_COMP_MspInit()".                                       */
+      __HAL_RCC_SYSCFG_CLK_ENABLE();
+      
+      /* Init the low level hardware */
+      HAL_COMP_MspInit(hcomp);
+    }
+    
+    /* Memorize voltage scaler state before initialization */
+    comp_voltage_scaler_not_initialized = (READ_BIT(hcomp->Instance->CSR, COMP_CSR_SCALEN) == 0);
+    
+    /* Set COMP parameters */
+    tmp_csr = (  hcomp->Init.NonInvertingInput
+               | hcomp->Init.InvertingInput
+               | hcomp->Init.BlankingSrce
+               | hcomp->Init.Hysteresis
+               | hcomp->Init.OutputPol
+               | hcomp->Init.Mode
+              );
+    
+    /* Set parameters in COMP register */
+    /* Note: Update all bits except read-only, lock and enable bits */
+#if defined (COMP_CSR_INMESEL)
+    MODIFY_REG(hcomp->Instance->CSR,
+               COMP_CSR_PWRMODE  | COMP_CSR_INMSEL   | COMP_CSR_INPSEL  |
+               COMP_CSR_WINMODE  | COMP_CSR_POLARITY | COMP_CSR_HYST    |
+               COMP_CSR_BLANKING | COMP_CSR_BRGEN    | COMP_CSR_SCALEN  | COMP_CSR_INMESEL,
+               tmp_csr
+              );
+#else
+    MODIFY_REG(hcomp->Instance->CSR,
+               COMP_CSR_PWRMODE  | COMP_CSR_INMSEL   | COMP_CSR_INPSEL  |
+               COMP_CSR_WINMODE  | COMP_CSR_POLARITY | COMP_CSR_HYST    |
+               COMP_CSR_BLANKING | COMP_CSR_BRGEN    | COMP_CSR_SCALEN,
+               tmp_csr
+              );
+#endif
+    
+    /* Set window mode */
+    /* Note: Window mode bit is located into 1 out of the 2 pairs of COMP     */
+    /*       instances. Therefore, this function can update another COMP      */
+    /*       instance that the one currently selected.                        */
+    if(hcomp->Init.WindowMode == COMP_WINDOWMODE_COMP1_INPUT_PLUS_COMMON)
+    {
+      SET_BIT(COMP12_COMMON->CSR, COMP_CSR_WINMODE);
+    }
+    else
+    {
+      CLEAR_BIT(COMP12_COMMON->CSR, COMP_CSR_WINMODE);
+    }
+    
+    /* Delay for COMP scaler bridge voltage stabilization */
+    /* Apply the delay if voltage scaler bridge is enabled for the first time */
+    if ((READ_BIT(hcomp->Instance->CSR, COMP_CSR_SCALEN) != 0U) &&
+        (comp_voltage_scaler_not_initialized != 0U)               )
+    {
+      /* Wait loop initialization and execution */
+      /* Note: Variable divided by 2 to compensate partially                  */
+      /*       CPU processing cycles.                                         */
+      wait_loop_index = (COMP_DELAY_VOLTAGE_SCALER_STAB_US * (SystemCoreClock / (1000000 * 2U)));
+      while(wait_loop_index != 0U)
+      {
+        wait_loop_index--;
+      }
+    }
+    
+    /* Get the EXTI line corresponding to the selected COMP instance */
+    exti_line = COMP_GET_EXTI_LINE(hcomp->Instance);
+    
+    /* Manage EXTI settings */
+    if((hcomp->Init.TriggerMode & (COMP_EXTI_IT | COMP_EXTI_EVENT)) != RESET)
+    {
+      /* Configure EXTI rising edge */
+      if((hcomp->Init.TriggerMode & COMP_EXTI_RISING) != RESET)
+      {
+        LL_EXTI_EnableRisingTrig_0_31(exti_line);
+      }
+      else
+      {
+        LL_EXTI_DisableRisingTrig_0_31(exti_line);
+      }
+      
+      /* Configure EXTI falling edge */
+      if((hcomp->Init.TriggerMode & COMP_EXTI_FALLING) != RESET)
+      {
+        LL_EXTI_EnableFallingTrig_0_31(exti_line);
+      }
+      else
+      {
+        LL_EXTI_DisableFallingTrig_0_31(exti_line);
+      }
+      
+      /* Clear COMP EXTI pending bit (if any) */
+      LL_EXTI_ClearFlag_0_31(exti_line);
+      
+      /* Configure EXTI event mode */
+      if((hcomp->Init.TriggerMode & COMP_EXTI_EVENT) != RESET)
+      {
+        LL_EXTI_EnableEvent_0_31(exti_line);
+      }
+      else
+      {
+        LL_EXTI_DisableEvent_0_31(exti_line);
+      }
+      
+      /* Configure EXTI interrupt mode */
+      if((hcomp->Init.TriggerMode & COMP_EXTI_IT) != RESET)
+      {
+        LL_EXTI_EnableIT_0_31(exti_line);
+      }
+      else
+      {
+        LL_EXTI_DisableIT_0_31(exti_line);
+      }
+    }
+    else
+    {
+      /* Disable EXTI event mode */
+      LL_EXTI_DisableEvent_0_31(exti_line);
+      
+      /* Disable EXTI interrupt mode */
+      LL_EXTI_DisableIT_0_31(exti_line);
+    }
+    
+    /* Set HAL COMP handle state */
+    /* Note: Transition from state reset to state ready,                      */
+    /*       otherwise (coming from state ready or busy) no state update.     */
+    if (hcomp->State == HAL_COMP_STATE_RESET)
+    {
+      hcomp->State = HAL_COMP_STATE_READY;
+    }
+  }
+  
+  return status;
+}

@@ -1,0 +1,48 @@
+HAL_StatusTypeDef HAL_ADCEx_MultiModeConfigChannel(ADC_HandleTypeDef* hadc, ADC_MultiModeTypeDef* multimode)
+{
+  HAL_StatusTypeDef tmp_hal_status = HAL_OK;
+  ADC_HandleTypeDef tmphadcSlave;
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_MULTIMODE_MASTER_INSTANCE(hadc->Instance));
+  assert_param(IS_ADC_MODE(multimode->Mode));
+  
+  /* Process locked */
+  __HAL_LOCK(hadc);
+  
+  /* Set a temporary handle of the ADC slave associated to the ADC master     */
+  ADC_MULTI_SLAVE(hadc, &tmphadcSlave);
+  
+  /* Parameters update conditioned to ADC state:                              */
+  /* Parameters that can be updated when ADC is disabled or enabled without   */
+  /* conversion on going on regular group:                                    */
+  /*  - ADC master and ADC slave DMA configuration                            */
+  /* Parameters that can be updated only when ADC is disabled:                */
+  /*  - Multimode mode selection                                              */
+  /* To optimize code, all multimode settings can be set when both ADCs of    */
+  /* the common group are in state: disabled.                                 */
+  if ((ADC_IS_ENABLE(hadc) == RESET)                     &&
+      (ADC_IS_ENABLE(&tmphadcSlave) == RESET)            &&
+      (IS_ADC_MULTIMODE_MASTER_INSTANCE(hadc->Instance))   )
+  {
+    MODIFY_REG(hadc->Instance->CR1,
+               ADC_CR1_DUALMOD    ,
+               multimode->Mode     );
+  }
+  /* If one of the ADC sharing the same common group is enabled, no update    */
+  /* could be done on neither of the multimode structure parameters.          */
+  else
+  {
+    /* Update ADC state machine to error */
+    SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_CONFIG);
+    
+    tmp_hal_status = HAL_ERROR;
+  }
+    
+    
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+  
+  /* Return function status */
+  return tmp_hal_status;
+} 

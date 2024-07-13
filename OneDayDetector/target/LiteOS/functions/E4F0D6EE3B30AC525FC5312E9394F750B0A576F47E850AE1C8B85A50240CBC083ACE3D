@@ -1,0 +1,24 @@
+static uint32_t UTILS_GetPLLOutputFrequency(uint32_t PLL_InputFrequency, LL_UTILS_PLLInitTypeDef *UTILS_PLLInitStruct)
+{
+  uint32_t pllfreq = 0U;
+
+  /* Check the parameters */
+  assert_param(IS_LL_UTILS_PLLM_VALUE(UTILS_PLLInitStruct->PLLM));
+  assert_param(IS_LL_UTILS_PLLN_VALUE(UTILS_PLLInitStruct->PLLN));
+  assert_param(IS_LL_UTILS_PLLR_VALUE(UTILS_PLLInitStruct->PLLR));
+
+  /* Check different PLL parameters according to RM                          */
+  /*  - PLLM: ensure that the VCO input frequency ranges from 4 to 16 MHz.   */
+  pllfreq = PLL_InputFrequency / (((UTILS_PLLInitStruct->PLLM >> RCC_PLLCFGR_PLLM_Pos) + 1));
+  assert_param(IS_LL_UTILS_PLLVCO_INPUT(pllfreq));
+
+  /*  - PLLN: ensure that the VCO output frequency is between 64 and 344 MHz.*/
+  pllfreq = pllfreq * (UTILS_PLLInitStruct->PLLN & (RCC_PLLCFGR_PLLN >> RCC_PLLCFGR_PLLN_Pos));
+  assert_param(IS_LL_UTILS_PLLVCO_OUTPUT(pllfreq));
+
+  /*  - PLLR: ensure that max frequency at 120000000 Hz is reached                   */
+  pllfreq = pllfreq / (((UTILS_PLLInitStruct->PLLR >> RCC_PLLCFGR_PLLR_Pos) + 1) * 2);
+  assert_param(IS_LL_UTILS_PLL_FREQUENCY(pllfreq));
+
+  return pllfreq;
+}

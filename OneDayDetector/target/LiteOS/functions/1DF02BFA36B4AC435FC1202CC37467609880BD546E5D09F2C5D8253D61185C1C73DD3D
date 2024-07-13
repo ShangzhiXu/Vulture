@@ -1,0 +1,39 @@
+ErrorStatus LL_PLL_ConfigSystemClock_HSI48(LL_UTILS_PLLInitTypeDef *UTILS_PLLInitStruct,
+                                         LL_UTILS_ClkInitTypeDef *UTILS_ClkInitStruct)
+{
+  ErrorStatus status = SUCCESS;
+  uint32_t pllfreq = 0U;
+
+  /* Check if one of the PLL is enabled */
+  if (UTILS_PLL_IsBusy() == SUCCESS)
+  {
+    /* Check PREDIV value */
+    assert_param(IS_LL_UTILS_PREDIV_VALUE(UTILS_PLLInitStruct->PLLDiv));
+
+    /* Calculate the new PLL output frequency */
+    pllfreq = UTILS_GetPLLOutputFrequency(HSI48_VALUE, UTILS_PLLInitStruct);
+
+    /* Enable HSI48 if not enabled */
+    if (LL_RCC_HSI48_IsReady() != 1U)
+    {
+      LL_RCC_HSI48_Enable();
+      while (LL_RCC_HSI48_IsReady() != 1U)
+      {
+        /* Wait for HSI48 ready */
+      }
+    }
+
+    /* Configure PLL */
+    LL_RCC_PLL_ConfigDomain_SYS(LL_RCC_PLLSOURCE_HSI48, UTILS_PLLInitStruct->PLLMul, UTILS_PLLInitStruct->PLLDiv);
+
+    /* Enable PLL and switch system clock to PLL */
+    status = UTILS_EnablePLLAndSwitchSystem(pllfreq, UTILS_ClkInitStruct);
+  }
+  else
+  {
+    /* Current PLL configuration cannot be modified */
+    status = ERROR;
+  }
+
+  return status;
+}

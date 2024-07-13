@@ -1,0 +1,43 @@
+mld6_joingroup_netif(struct netif *netif, const ip6_addr_t *groupaddr)
+{
+  struct mld_group *group;
+#if LWIP_IPV6_SCOPES
+  ip6_addr_t ip6addr;
+
+  /* If the address has a particular scope but no zone set, use the netif to
+   * set one now. Within the mld6 module, all addresses are properly zoned. */
+  if (ip6_addr_lacks_zone(groupaddr, IP6_MULTICAST)) {
+    ip6_addr_set(&ip6addr, groupaddr);
+    ip6_addr_assign_zone(&ip6addr, IP6_MULTICAST, netif);
+    groupaddr = &ip6addr;
+  }
+  IP6_ADDR_ZONECHECK_NETIF(groupaddr, netif);
+#endif /* LWIP_IPV6_SCOPES */
+
+  LWIP_ASSERT_CORE_LOCKED();
+
+  /* find group or create a new one if not found */
+  group = mld6_lookfor_group(netif, groupaddr);
+
+  if (group == NULL) {
+    /* Joining a new group. Create a new group entry. */
+    group = mld6_new_group(netif, groupaddr);
+    if (group == NULL) {
+      return ERR_MEM;
+    }
+
+    /* Activate this address on the MAC layer. */
+    if (netif->mld_mac_filter != NULL) {
+      netif->mld_mac_filter(netif, groupaddr, NETIF_ADD_MAC_FILTER);
+    }
+
+    /* Report our membership. */
+    MLD6_STATS_INC(mld6.tx_report);
+    mld6_send(netif, group, ICMP6_TYPE_MLR);
+    mld6_delayed_report(group, MLD6_JOIN_DELAYING_MEMBER_TMR_MS);
+  }
+
+  /* Increment group use */
+  group->use++;
+  return ERR_OK;
+}

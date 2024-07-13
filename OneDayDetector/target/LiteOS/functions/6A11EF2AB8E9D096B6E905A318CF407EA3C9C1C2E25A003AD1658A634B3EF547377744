@@ -1,0 +1,48 @@
+mem_malloc(mem_size_t size)
+{
+  void *ret;
+  struct memp_malloc_helper *element = NULL;
+  memp_t poolnr;
+  mem_size_t required_size = size + LWIP_MEM_ALIGN_SIZE(sizeof(struct memp_malloc_helper));
+
+  for (poolnr = MEMP_POOL_FIRST; poolnr <= MEMP_POOL_LAST; poolnr = (memp_t)(poolnr + 1)) {
+    /* is this pool big enough to hold an element of the required size
+       plus a struct memp_malloc_helper that saves the pool this element came from? */
+    if (required_size <= memp_pools[poolnr]->size) {
+      element = (struct memp_malloc_helper *)memp_malloc(poolnr);
+      if (element == NULL) {
+        /* No need to DEBUGF or ASSERT: This error is already taken care of in memp.c */
+#if MEM_USE_POOLS_TRY_BIGGER_POOL
+        /** Try a bigger pool if this one is empty! */
+        if (poolnr < MEMP_POOL_LAST) {
+          continue;
+        }
+#endif /* MEM_USE_POOLS_TRY_BIGGER_POOL */
+        MEM_STATS_INC_LOCKED(err);
+        return NULL;
+      }
+      break;
+    }
+  }
+  if (poolnr > MEMP_POOL_LAST) {
+    LWIP_ASSERT("mem_malloc(): no pool is that big!", 0);
+    MEM_STATS_INC_LOCKED(err);
+    return NULL;
+  }
+
+  /* save the pool number this element came from */
+  element->poolnr = poolnr;
+  /* and return a pointer to the memory directly after the struct memp_malloc_helper */
+  ret = (u8_t *)element + LWIP_MEM_ALIGN_SIZE(sizeof(struct memp_malloc_helper));
+
+#if MEMP_OVERFLOW_CHECK || (LWIP_STATS && MEM_STATS)
+  /* truncating to u16_t is safe because struct memp_desc::size is u16_t */
+  element->size = (u16_t)size;
+  MEM_STATS_INC_USED_LOCKED(used, element->size);
+#endif /* MEMP_OVERFLOW_CHECK || (LWIP_STATS && MEM_STATS) */
+#if MEMP_OVERFLOW_CHECK
+  /* initialize unused memory (diff between requested size and selected pool's size) */
+  memset((u8_t *)ret + size, 0xcd, memp_pools[poolnr]->size - size);
+#endif /* MEMP_OVERFLOW_CHECK */
+  return ret;
+}

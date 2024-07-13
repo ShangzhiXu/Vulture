@@ -1,0 +1,32 @@
+SECUREC_INLINE void SecUtilMemmove(void *dst, const void *src, size_t count)
+{
+    unsigned char *pDest = (unsigned char *)dst;
+    const unsigned char *pSrc = (const unsigned char *)src;
+    size_t maxCount = count;
+
+    if (dst <= src || pDest >= (pSrc + maxCount)) {
+        /*
+         * Non-Overlapping Buffers
+         * Copy from lower addresses to higher addresses
+         */
+        while (maxCount > 0) {
+            --maxCount;
+            *pDest = *pSrc;
+            ++pDest;
+            ++pSrc;
+        }
+    } else {
+        /*
+         * Overlapping Buffers
+         * Copy from higher addresses to lower addresses
+         */
+        pDest = pDest + maxCount - 1;
+        pSrc = pSrc + maxCount - 1;
+        while (maxCount > 0) {
+            --maxCount;
+            *pDest = *pSrc;
+            --pDest;
+            --pSrc;
+        }
+    }
+}

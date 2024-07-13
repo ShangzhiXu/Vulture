@@ -1,0 +1,51 @@
+sockets_stresstest_conn_server(void *arg)
+{
+  int s, ret;
+  char txbuf[TEST_TXRX_BUFSIZE];
+  char rxbuf[TEST_TXRX_BUFSIZE];
+  size_t rxoff = 0;
+
+  s = (int)arg;
+
+  while (1) {
+    int closed;
+    int mode = sockets_stresstest_rand_mode(1, 1);
+    int timeout_ms = LWIP_RAND() % TEST_MAX_RXWAIT_MS;
+    ret = sockets_stresstest_wait_readable(mode, s, timeout_ms);
+    if (ret) {
+      if (ret & TEST_SOCK_ERR) {
+        /* closed? */
+        break;
+      }
+      /* read some */
+      LWIP_ASSERT("readable", ret == TEST_SOCK_READABLE);
+      rxoff = recv_and_check_data_return_offset(s, rxbuf, sizeof(rxbuf), rxoff, &closed, "srv");
+      if (closed) {
+        break;
+      }
+    } else {
+      /* timeout, send some */
+      size_t send_len = (LWIP_RAND() % (sizeof(txbuf) - 4)) + 4;
+      fill_test_data(txbuf, send_len);
+      LWIP_DEBUGF(TEST_SOCKETS_STRESS | LWIP_DBG_TRACE, ("srv %d tx %d\n", s, (int)send_len));
+      ret = lwip_write(s, txbuf, send_len);
+      if (ret == -1) {
+        /* TODO: for this to work, 'errno' has to support multithreading... */
+        int err = errno;
+        if (err == ECONNRESET) {
+          break;
+        }
+        if (err == ENOTCONN) {
+          break;
+        }
+        LWIP_ASSERT("unknown error", 0);
+      }
+      LWIP_ASSERT("ret == send_len", ret == (int)send_len);
+    }
+  }
+  ret = lwip_close(s);
+  LWIP_ASSERT("ret == 0", ret == 0);
+
+  SYS_ARCH_DEC(sockets_stresstest_numthreads, 1);
+  LWIP_ASSERT("", sockets_stresstest_numthreads >= 0);
+}

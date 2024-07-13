@@ -1,0 +1,48 @@
+altcp_mbedtls_bio_recv(void *ctx, unsigned char *buf, size_t len)
+{
+  struct altcp_pcb *conn = (struct altcp_pcb *)ctx;
+  altcp_mbedtls_state_t *state;
+  struct pbuf *p;
+  u16_t ret;
+  u16_t copy_len;
+  err_t err;
+
+  LWIP_UNUSED_ARG(err); /* for LWIP_NOASSERT */
+  if ((conn == NULL) || (conn->state == NULL)) {
+    return MBEDTLS_ERR_NET_INVALID_CONTEXT;
+  }
+  state = (altcp_mbedtls_state_t *)conn->state;
+  p = state->rx;
+
+  /* @todo: return MBEDTLS_ERR_NET_CONN_RESET/MBEDTLS_ERR_NET_RECV_FAILED? */
+
+  if ((p == NULL) || ((p->len == 0) && (p->next == NULL))) {
+    if (p) {
+      pbuf_free(p);
+    }
+    state->rx = NULL;
+    if ((state->flags & (ALTCP_MBEDTLS_FLAGS_RX_CLOSE_QUEUED | ALTCP_MBEDTLS_FLAGS_RX_CLOSED)) ==
+        ALTCP_MBEDTLS_FLAGS_RX_CLOSE_QUEUED) {
+      /* close queued but not passed up yet */
+      return 0;
+    }
+    return MBEDTLS_ERR_SSL_WANT_READ;
+  }
+  /* limit number of bytes again to copy from first pbuf in a chain only */
+  copy_len = (u16_t)LWIP_MIN(len, p->len);
+  /* copy the data */
+  ret = pbuf_copy_partial(p, buf, copy_len, 0);
+  LWIP_ASSERT("ret == copy_len", ret == copy_len);
+  /* hide the copied bytes from the pbuf */
+  err = pbuf_remove_header(p, ret);
+  LWIP_ASSERT("error", err == ERR_OK);
+  if (p->len == 0) {
+    /* the first pbuf has been fully read, free it */
+    state->rx = p->next;
+    p->next = NULL;
+    pbuf_free(p);
+  }
+
+  state->bio_bytes_read += (int)ret;
+  return ret;
+}

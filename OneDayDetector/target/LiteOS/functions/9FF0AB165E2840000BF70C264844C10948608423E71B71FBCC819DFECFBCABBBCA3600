@@ -1,0 +1,19 @@
+VOID OsMuxDlockNodeInsert(UINT32 taskId, VOID *muxCB)
+{
+    MuxDLinkNode *muxDLNode = NULL;
+
+    if ((taskId > LOSCFG_BASE_CORE_TSK_LIMIT) || (muxCB == NULL)) {
+        PRINT_ERR("%s: Argument is invalid!\n", __FUNCTION__);
+        return;
+    }
+
+    muxDLNode = (MuxDLinkNode *)LOS_MemAlloc(m_aucSysMem1, sizeof(MuxDLinkNode));
+    if (muxDLNode == NULL) {
+        PRINT_ERR("%s: malloc failed!\n", __FUNCTION__);
+        return;
+    }
+    (VOID)memset_s(muxDLNode, sizeof(MuxDLinkNode), 0, sizeof(MuxDLinkNode));
+    muxDLNode->muxCB = muxCB;
+
+    LOS_ListTailInsert(&g_muxDeadlockCBArray[taskId].muxListHead, &muxDLNode->muxList);
+}

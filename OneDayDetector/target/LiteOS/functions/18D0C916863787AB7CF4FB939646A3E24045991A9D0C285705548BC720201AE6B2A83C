@@ -1,0 +1,19 @@
+static void UART_EndTransmit_IT(UART_HandleTypeDef *huart)
+{
+  /* Disable the UART Transmit Complete Interrupt */
+  CLEAR_BIT(huart->Instance->CR1, USART_CR1_TCIE);
+
+  /* Tx process is ended, restore huart->gState to Ready */
+  huart->gState = HAL_UART_STATE_READY;
+
+  /* Cleat TxISR function pointer */
+  huart->TxISR = NULL;
+
+#if (USE_HAL_UART_REGISTER_CALLBACKS == 1)
+  /*Call registered Tx complete callback*/
+  huart->TxCpltCallback(huart);
+#else
+  /*Call legacy weak Tx complete callback*/
+  HAL_UART_TxCpltCallback(huart);
+#endif /* USE_HAL_UART_REGISTER_CALLBACKS */
+}

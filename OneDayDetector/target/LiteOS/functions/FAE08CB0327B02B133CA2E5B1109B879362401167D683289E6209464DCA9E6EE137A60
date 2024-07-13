@@ -1,0 +1,40 @@
+snmp_encode_bits(u8_t *buf, u32_t buf_len, u32_t bit_value, u8_t bit_count)
+{
+  u8_t len = 0;
+  u8_t min_bytes = (bit_count + 7) >> 3; /* >>3 -> / 8 */
+
+  while ((buf_len > 0) && (bit_value != 0x00)) {
+    s8_t i = 7;
+    *buf = 0x00;
+    while (i >= 0) {
+      if (bit_value & 0x01) {
+        *buf |= 0x01;
+      }
+
+      if (i > 0) {
+        *buf <<= 1;
+      }
+
+      bit_value >>= 1;
+      i--;
+    }
+
+    buf++;
+    buf_len--;
+    len++;
+  }
+
+  if (len < min_bytes) {
+    buf     += len;
+    buf_len -= len;
+
+    while ((len < min_bytes) && (buf_len > 0)) {
+      *buf = 0x00;
+      buf++;
+      buf_len--;
+      len++;
+    }
+  }
+
+  return len;
+}

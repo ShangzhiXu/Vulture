@@ -1,0 +1,20 @@
+static uint32_t at_get_queue_wait_time(void)
+{
+    uint32_t ret;
+
+    if (at.step_callback == NULL) {
+        return LOS_WAIT_FOREVER;
+    }
+
+    LOS_MuxPend(at.cmd_mux, LOS_WAIT_FOREVER);
+    if ((at.head == NULL) || (at.head->handle_data == NULL)) {
+        ret = LOS_WAIT_FOREVER;
+    } else {
+        const uint32_t min_wait_time = 100;
+        uint32_t  current = at_get_time();
+        ret = ((current >= at.head->expire_time) ? min_wait_time : ((at.head->expire_time - current) * 1000));
+    }
+
+    LOS_MuxPost(at.cmd_mux);
+    return ret;
+}

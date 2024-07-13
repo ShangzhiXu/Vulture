@@ -1,0 +1,40 @@
+LITE_OS_SEC_TEXT_INIT STATIC UINT32 OsTaskCreateParamCheck(const UINT32 *taskId,
+    TSK_INIT_PARAM_S *initParam, VOID **pool)
+{
+    UINT32 ret;
+    UINT32 poolSize = OS_SYS_MEM_SIZE;
+    *pool = (VOID *)m_aucSysMem1;
+
+    if (taskId == NULL) {
+        return LOS_ERRNO_TSK_ID_INVALID;
+    }
+
+    ret = OsTaskInitParamCheck(initParam);
+    if (ret != LOS_OK) {
+        return ret;
+    }
+
+#ifdef LOSCFG_EXC_INTERACTION
+    if (!OsCheckExcInteractionTask(initParam)) {
+        *pool = m_aucSysMem0;
+        poolSize = g_excInteractMemSize;
+    }
+#endif
+#ifdef LOSCFG_TASK_STACK_PROTECT
+    poolSize = (poolSize > (MMU_4K << 1)) ? (poolSize - (MMU_4K << 1)) : 0;
+#endif
+    if (initParam->uwStackSize > poolSize) {
+        return LOS_ERRNO_TSK_STKSZ_TOO_LARGE;
+    }
+
+    if (initParam->uwStackSize == 0) {
+        initParam->uwStackSize = LOSCFG_BASE_CORE_TSK_DEFAULT_STACK_SIZE;
+    }
+    initParam->uwStackSize = (UINT32)ALIGN(initParam->uwStackSize, LOSCFG_STACK_POINT_ALIGN_SIZE);
+
+    if (initParam->uwStackSize < LOS_TASK_MIN_STACK_SIZE) {
+        return LOS_ERRNO_TSK_STKSZ_TOO_SMALL;
+    }
+
+    return LOS_OK;
+}

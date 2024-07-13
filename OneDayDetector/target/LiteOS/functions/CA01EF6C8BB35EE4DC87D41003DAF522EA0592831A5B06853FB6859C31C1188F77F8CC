@@ -1,0 +1,36 @@
+ip_NetToMediaTable_get_next_cell_instance_and_value(const u32_t *column, struct snmp_obj_id *row_oid, union snmp_variant_value *value, u32_t *value_len)
+{
+  size_t i;
+  struct snmp_next_oid_state state;
+  u32_t result_temp[LWIP_ARRAYSIZE(ip_NetToMediaTable_oid_ranges)];
+
+  /* init struct to search next oid */
+  snmp_next_oid_init(&state, row_oid->id, row_oid->len, result_temp, LWIP_ARRAYSIZE(ip_NetToMediaTable_oid_ranges));
+
+  /* iterate over all possible OIDs to find the next one */
+  for (i = 0; i < ARP_TABLE_SIZE; i++) {
+    ip4_addr_t *ip;
+    struct netif *netif;
+    struct eth_addr *ethaddr;
+
+    if (etharp_get_entry(i, &ip, &netif, &ethaddr)) {
+      u32_t test_oid[LWIP_ARRAYSIZE(ip_NetToMediaTable_oid_ranges)];
+
+      test_oid[0] = netif_to_num(netif);
+      snmp_ip4_to_oid(ip, &test_oid[1]);
+
+      /* check generated OID: is it a candidate for the next one? */
+      snmp_next_oid_check(&state, test_oid, LWIP_ARRAYSIZE(ip_NetToMediaTable_oid_ranges), LWIP_PTR_NUMERIC_CAST(void *, i));
+    }
+  }
+
+  /* did we find a next one? */
+  if (state.status == SNMP_NEXT_OID_STATUS_SUCCESS) {
+    snmp_oid_assign(row_oid, state.next_oid, state.next_oid_len);
+    /* fill in object properties */
+    return ip_NetToMediaTable_get_cell_value_core(LWIP_PTR_NUMERIC_CAST(size_t, state.reference), column, value, value_len);
+  }
+
+  /* not found */
+  return SNMP_ERR_NOSUCHINSTANCE;
+}

@@ -1,0 +1,14 @@
+static void upap_lowerdown(ppp_pcb *pcb) {
+
+    if (pcb->upap.us_clientstate == UPAPCS_AUTHREQ)	/* Timeout pending? */
+	UNTIMEOUT(upap_timeout, pcb);		/* Cancel timeout */
+#if PPP_SERVER
+    if (pcb->upap.us_serverstate == UPAPSS_LISTEN && pcb->settings.pap_req_timeout > 0)
+	UNTIMEOUT(upap_reqtimeout, pcb);
+#endif /* PPP_SERVER */
+
+    pcb->upap.us_clientstate = UPAPCS_INITIAL;
+#if PPP_SERVER
+    pcb->upap.us_serverstate = UPAPSS_INITIAL;
+#endif /* PPP_SERVER */
+}

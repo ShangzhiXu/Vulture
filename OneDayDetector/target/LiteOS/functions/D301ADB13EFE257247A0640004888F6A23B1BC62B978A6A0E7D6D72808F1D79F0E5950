@@ -1,0 +1,51 @@
+snmp_asn1_dec_tlv(struct snmp_pbuf_stream *pbuf_stream, struct snmp_asn1_tlv *tlv)
+{
+  u8_t data;
+
+  /* decode type first */
+  PBUF_OP_EXEC(snmp_pbuf_stream_read(pbuf_stream, &data));
+  tlv->type = data;
+
+  if ((tlv->type & SNMP_ASN1_DATATYPE_MASK) == SNMP_ASN1_DATATYPE_EXTENDED) {
+    /* extended format is not used by SNMP so we do not accept those values */
+    return ERR_VAL;
+  }
+  tlv->type_len = 1;
+
+  /* now, decode length */
+  PBUF_OP_EXEC(snmp_pbuf_stream_read(pbuf_stream, &data));
+
+  if (data < 0x80) { /* short form */
+    tlv->length_len = 1;
+    tlv->value_len  = data;
+  } else if (data > 0x80) { /* long form */
+    u8_t length_bytes = data - 0x80;
+    if (length_bytes > pbuf_stream->length) {
+      return ERR_VAL;
+    }
+    tlv->length_len = length_bytes + 1; /* this byte + defined number of length bytes following */
+    tlv->value_len = 0;
+
+    while (length_bytes > 0) {
+      /* we only support up to u16.maxvalue-1 (2 bytes) but have to accept leading zero bytes */
+      if (tlv->value_len > 0xFF) {
+        return ERR_VAL;
+      }
+      PBUF_OP_EXEC(snmp_pbuf_stream_read(pbuf_stream, &data));
+      tlv->value_len <<= 8;
+      tlv->value_len |= data;
+
+      /* take care for special value used for indefinite length */
+      if (tlv->value_len == 0xFFFF) {
+        return ERR_VAL;
+      }
+
+      length_bytes--;
+    }
+  } else { /* data == 0x80 indefinite length form */
+    /* (not allowed for SNMP; RFC 1157, 3.2.2) */
+    return ERR_VAL;
+  }
+
+  return ERR_OK;
+}

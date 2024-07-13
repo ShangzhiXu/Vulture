@@ -1,0 +1,50 @@
+static void DCMI_DMAXferCplt(DMA_HandleTypeDef *hdma)
+{
+  uint32_t tmp = 0;
+
+  DCMI_HandleTypeDef* hdcmi = ( DCMI_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+
+  if(hdcmi->XferCount != 0)
+  {
+    /* Update memory 0 address location */
+    tmp = ((hdcmi->DMA_Handle->Instance->CR) & DMA_SxCR_CT);
+    if(((hdcmi->XferCount % 2) == 0) && (tmp != 0))
+    {
+      tmp = hdcmi->DMA_Handle->Instance->M0AR;
+      HAL_DMAEx_ChangeMemory(hdcmi->DMA_Handle, (tmp + (8*hdcmi->XferSize)), MEMORY0);
+      hdcmi->XferCount--;
+    }
+    /* Update memory 1 address location */
+    else if((hdcmi->DMA_Handle->Instance->CR & DMA_SxCR_CT) == 0)
+    {
+      tmp = hdcmi->DMA_Handle->Instance->M1AR;
+      HAL_DMAEx_ChangeMemory(hdcmi->DMA_Handle, (tmp + (8*hdcmi->XferSize)), MEMORY1);
+      hdcmi->XferCount--;
+    }
+  }
+  /* Update memory 0 address location */
+  else if((hdcmi->DMA_Handle->Instance->CR & DMA_SxCR_CT) != 0)
+  {
+    hdcmi->DMA_Handle->Instance->M0AR = hdcmi->pBuffPtr;
+  }
+  /* Update memory 1 address location */
+  else if((hdcmi->DMA_Handle->Instance->CR & DMA_SxCR_CT) == 0)
+  {
+    tmp = hdcmi->pBuffPtr;
+    hdcmi->DMA_Handle->Instance->M1AR = (tmp + (4*hdcmi->XferSize));
+    hdcmi->XferCount = hdcmi->XferTransferNumber;
+  }
+
+  /* Check if the frame is transferred */
+  if(hdcmi->XferCount == hdcmi->XferTransferNumber)
+  {
+    /* Enable the Frame interrupt */
+    __HAL_DCMI_ENABLE_IT(hdcmi, DCMI_IT_FRAME);
+    
+    /* When snapshot mode, set dcmi state to ready */
+    if((hdcmi->Instance->CR & DCMI_CR_CM) == DCMI_MODE_SNAPSHOT)
+    {  
+      hdcmi->State= HAL_DCMI_STATE_READY;
+    }
+  }  
+}

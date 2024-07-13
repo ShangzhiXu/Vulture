@@ -1,0 +1,174 @@
+HAL_StatusTypeDef HAL_CAN_Init(CAN_HandleTypeDef* hcan)
+{
+  uint32_t status = CAN_INITSTATUS_FAILED;  /* Default init status */
+  uint32_t tickstart = 0U;
+  
+  /* Check CAN handle */
+  if(hcan == NULL)
+  {
+     return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_CAN_ALL_INSTANCE(hcan->Instance));
+  assert_param(IS_FUNCTIONAL_STATE(hcan->Init.TTCM));
+  assert_param(IS_FUNCTIONAL_STATE(hcan->Init.ABOM));
+  assert_param(IS_FUNCTIONAL_STATE(hcan->Init.AWUM));
+  assert_param(IS_FUNCTIONAL_STATE(hcan->Init.NART));
+  assert_param(IS_FUNCTIONAL_STATE(hcan->Init.RFLM));
+  assert_param(IS_FUNCTIONAL_STATE(hcan->Init.TXFP));
+  assert_param(IS_CAN_MODE(hcan->Init.Mode));
+  assert_param(IS_CAN_SJW(hcan->Init.SJW));
+  assert_param(IS_CAN_BS1(hcan->Init.BS1));
+  assert_param(IS_CAN_BS2(hcan->Init.BS2));
+  assert_param(IS_CAN_PRESCALER(hcan->Init.Prescaler));
+  
+  if(hcan->State == HAL_CAN_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hcan->Lock = HAL_UNLOCKED;
+    /* Init the low level hardware */
+    HAL_CAN_MspInit(hcan);
+  }
+  
+  /* Initialize the CAN state*/
+  hcan->State = HAL_CAN_STATE_BUSY;
+  
+  /* Exit from sleep mode */
+  CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_SLEEP);
+
+  /* Request initialisation */
+  SET_BIT(hcan->Instance->MCR, CAN_MCR_INRQ);
+
+  /* Get tick */
+  tickstart = HAL_GetTick();   
+  
+  /* Wait the acknowledge */
+  while(HAL_IS_BIT_CLR(hcan->Instance->MSR, CAN_MSR_INAK))
+  {
+    if((HAL_GetTick()-tickstart) > CAN_TIMEOUT_VALUE)
+    {
+      hcan->State= HAL_CAN_STATE_TIMEOUT;
+      /* Process unlocked */
+      __HAL_UNLOCK(hcan);
+      return HAL_TIMEOUT;
+    }
+  }
+
+  /* Check acknowledge */
+  if (HAL_IS_BIT_SET(hcan->Instance->MSR, CAN_MSR_INAK))
+  {
+    /* Set the time triggered communication mode */
+    if (hcan->Init.TTCM == ENABLE)
+    {
+      SET_BIT(hcan->Instance->MCR, CAN_MCR_TTCM);
+    }
+    else
+    {
+      CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_TTCM);
+    }
+
+    /* Set the automatic bus-off management */
+    if (hcan->Init.ABOM == ENABLE)
+    {
+      SET_BIT(hcan->Instance->MCR, CAN_MCR_ABOM);
+    }
+    else
+    {
+      CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_ABOM);
+    }
+
+    /* Set the automatic wake-up mode */
+    if (hcan->Init.AWUM == ENABLE)
+    {
+      SET_BIT(hcan->Instance->MCR, CAN_MCR_AWUM);
+    }
+    else
+    {
+      CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_AWUM);
+    }
+
+    /* Set the no automatic retransmission */
+    if (hcan->Init.NART == ENABLE)
+    {
+      SET_BIT(hcan->Instance->MCR, CAN_MCR_NART);
+    }
+    else
+    {
+      CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_NART);
+    }
+
+    /* Set the receive FIFO locked mode */
+    if (hcan->Init.RFLM == ENABLE)
+    {
+      SET_BIT(hcan->Instance->MCR, CAN_MCR_RFLM);
+    }
+    else
+    {
+      CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_RFLM);
+    }
+
+    /* Set the transmit FIFO priority */
+    if (hcan->Init.TXFP == ENABLE)
+    {
+      SET_BIT(hcan->Instance->MCR, CAN_MCR_TXFP);
+    }
+    else
+    {
+      CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_TXFP);
+    }
+
+    /* Set the bit timing register */
+    WRITE_REG(hcan->Instance->BTR, (uint32_t)(hcan->Init.Mode           |
+                                              hcan->Init.SJW            |
+                                              hcan->Init.BS1            |
+                                              hcan->Init.BS2            |
+                                              (hcan->Init.Prescaler - 1U) ));
+
+    /* Request leave initialisation */
+    CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_INRQ);
+
+    /* Get tick */
+    tickstart = HAL_GetTick();   
+   
+    /* Wait the acknowledge */
+    while(HAL_IS_BIT_SET(hcan->Instance->MSR, CAN_MSR_INAK))
+    {
+      if((HAL_GetTick()-tickstart) > CAN_TIMEOUT_VALUE)
+      {
+         hcan->State= HAL_CAN_STATE_TIMEOUT;
+
+       /* Process unlocked */
+       __HAL_UNLOCK(hcan);
+
+       return HAL_TIMEOUT;
+      }
+    }
+
+    /* Check acknowledged */
+    if(HAL_IS_BIT_CLR(hcan->Instance->MSR, CAN_MSR_INAK))
+    {
+      status = CAN_INITSTATUS_SUCCESS;
+    }
+  }
+ 
+  if(status == CAN_INITSTATUS_SUCCESS)
+  {
+    /* Set CAN error code to none */
+    hcan->ErrorCode = HAL_CAN_ERROR_NONE;
+    
+    /* Initialize the CAN state */
+    hcan->State = HAL_CAN_STATE_READY;
+  
+    /* Return function status */
+    return HAL_OK;
+  }
+  else
+  {
+    /* Initialize the CAN state */
+    hcan->State = HAL_CAN_STATE_ERROR;
+
+    /* Return function status */
+    return HAL_ERROR;
+  }
+}

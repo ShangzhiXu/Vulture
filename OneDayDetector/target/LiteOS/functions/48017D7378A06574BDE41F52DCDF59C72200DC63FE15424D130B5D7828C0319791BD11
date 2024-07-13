@@ -1,0 +1,61 @@
+void * lv_mem_alloc(size_t size)
+{
+    if(size == 0) {
+        return &zero_mem;
+    }
+
+#ifdef LV_ARCH_64
+    /*Round the size up to 8*/
+    if(size & 0x7) {
+        size = size & (~0x7);
+        size += 8;
+    }
+#else
+    /*Round the size up to 4*/
+    if(size & 0x3) {
+        size = size & (~0x3);
+        size += 4;
+    }
+#endif
+    void * alloc = NULL;
+
+#if LV_MEM_CUSTOM == 0
+    /*Use the built-in allocators*/
+    lv_mem_ent_t * e = NULL;
+
+    /* Search for a appropriate entry*/
+    do {
+        /* Get the next entry*/
+        e = ent_get_next(e);
+
+        /*If there is next entry then try to allocate there*/
+        if(e != NULL) {
+            alloc = ent_alloc(e, size);
+        }
+        /* End if there is not next entry OR the alloc. is successful*/
+    } while(e != NULL && alloc == NULL);
+
+#else
+    /*Use custom, user defined malloc function*/
+#if LV_ENABLE_GC == 1 /*gc must not include header*/
+    alloc = LV_MEM_CUSTOM_ALLOC(size);
+#else                 /* LV_ENABLE_GC */
+    /*Allocate a header too to store the size*/
+    alloc = LV_MEM_CUSTOM_ALLOC(size + sizeof(lv_mem_header_t));
+    if(alloc != NULL) {
+        ((lv_mem_ent_t *)alloc)->header.s.d_size = size;
+        ((lv_mem_ent_t *)alloc)->header.s.used   = 1;
+
+        alloc = &((lv_mem_ent_t *)alloc)->first_data;
+    }
+#endif                /* LV_ENABLE_GC */
+#endif                /* LV_MEM_CUSTOM */
+
+#if LV_MEM_ADD_JUNK
+    if(alloc != NULL) _lv_memset(alloc, 0xaa, size);
+#endif
+
+    if(alloc == NULL) LV_LOG_WARN("Couldn't allocate memory");
+
+    return alloc;
+}

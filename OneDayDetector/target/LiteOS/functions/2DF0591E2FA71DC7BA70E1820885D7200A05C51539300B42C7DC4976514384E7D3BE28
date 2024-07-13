@@ -1,0 +1,35 @@
+static void SPI_CloseRx_ISR(SPI_HandleTypeDef *hspi)
+{
+  /* Disable RXNE and ERR interrupt */
+  __HAL_SPI_DISABLE_IT(hspi, (SPI_IT_RXNE | SPI_IT_ERR));
+
+  /* Check the end of the transaction */
+  if (SPI_EndRxTransaction(hspi, SPI_DEFAULT_TIMEOUT, HAL_GetTick()) != HAL_OK)
+  {
+    SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_FLAG);
+  }
+  hspi->State = HAL_SPI_STATE_READY;
+
+#if (USE_SPI_CRC != 0U)
+  /* Check if CRC error occurred */
+  if (__HAL_SPI_GET_FLAG(hspi, SPI_FLAG_CRCERR) != RESET)
+  {
+    SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_CRC);
+    __HAL_SPI_CLEAR_CRCERRFLAG(hspi);
+    HAL_SPI_ErrorCallback(hspi);
+  }
+  else
+  {
+#endif /* USE_SPI_CRC */
+    if (hspi->ErrorCode == HAL_SPI_ERROR_NONE)
+    {
+      HAL_SPI_RxCpltCallback(hspi);
+    }
+    else
+    {
+      HAL_SPI_ErrorCallback(hspi);
+    }
+#if (USE_SPI_CRC != 0U)
+  }
+#endif /* USE_SPI_CRC */
+}

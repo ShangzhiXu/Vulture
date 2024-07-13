@@ -1,0 +1,30 @@
+static void terminate_layer(fsm *f, int nextstate) {
+    ppp_pcb *pcb = f->pcb;
+
+    if( f->state != PPP_FSM_OPENED )
+	UNTIMEOUT(fsm_timeout, f);	/* Cancel timeout */
+    else if( f->callbacks->down )
+	(*f->callbacks->down)(f);	/* Inform upper layers we're down */
+
+    /* Init restart counter and send Terminate-Request */
+    f->retransmits = pcb->settings.fsm_max_term_transmits;
+    fsm_sdata(f, TERMREQ, f->reqid = ++f->id,
+	      (const u_char *) f->term_reason, f->term_reason_len);
+
+    if (f->retransmits == 0) {
+	/*
+	 * User asked for no terminate requests at all; just close it.
+	 * We've already fired off one Terminate-Request just to be nice
+	 * to the peer, but we're not going to wait for a reply.
+	 */
+	f->state = nextstate == PPP_FSM_CLOSING ? PPP_FSM_CLOSED : PPP_FSM_STOPPED;
+	if( f->callbacks->finished )
+	    (*f->callbacks->finished)(f);
+	return;
+    }
+
+    TIMEOUT(fsm_timeout, f, pcb->settings.fsm_timeout_time);
+    --f->retransmits;
+
+    f->state = nextstate;
+}

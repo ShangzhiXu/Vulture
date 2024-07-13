@@ -1,0 +1,48 @@
+int mbedtls_pk_load_file( const char *path, unsigned char **buf, size_t *n )
+{
+    FILE *f;
+    long size;
+
+    PK_VALIDATE_RET( path != NULL );
+    PK_VALIDATE_RET( buf != NULL );
+    PK_VALIDATE_RET( n != NULL );
+
+    if( ( f = fopen( path, "rb" ) ) == NULL )
+        return( MBEDTLS_ERR_PK_FILE_IO_ERROR );
+
+    fseek( f, 0, SEEK_END );
+    if( ( size = ftell( f ) ) == -1 )
+    {
+        fclose( f );
+        return( MBEDTLS_ERR_PK_FILE_IO_ERROR );
+    }
+    fseek( f, 0, SEEK_SET );
+
+    *n = (size_t) size;
+
+    if( *n + 1 == 0 ||
+        ( *buf = mbedtls_calloc( 1, *n + 1 ) ) == NULL )
+    {
+        fclose( f );
+        return( MBEDTLS_ERR_PK_ALLOC_FAILED );
+    }
+
+    if( fread( *buf, 1, *n, f ) != *n )
+    {
+        fclose( f );
+
+        mbedtls_platform_zeroize( *buf, *n );
+        mbedtls_free( *buf );
+
+        return( MBEDTLS_ERR_PK_FILE_IO_ERROR );
+    }
+
+    fclose( f );
+
+    (*buf)[*n] = '\0';
+
+    if( strstr( (const char *) *buf, "-----BEGIN " ) != NULL )
+        ++*n;
+
+    return( 0 );
+}

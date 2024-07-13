@@ -1,0 +1,18 @@
+mld6_new_group(struct netif *ifp, const ip6_addr_t *addr)
+{
+  struct mld_group *group;
+
+  group = (struct mld_group *)memp_malloc(MEMP_MLD6_GROUP);
+  if (group != NULL) {
+    ip6_addr_set(&(group->group_address), addr);
+    group->timer              = 0; /* Not running */
+    group->group_state        = MLD6_GROUP_IDLE_MEMBER;
+    group->last_reporter_flag = 0;
+    group->use                = 0;
+    group->next               = netif_mld6_data(ifp);
+
+    netif_set_client_data(ifp, LWIP_NETIF_CLIENT_DATA_INDEX_MLD6, group);
+  }
+
+  return group;
+}

@@ -1,0 +1,17 @@
+static int dbc_1st (BYTE c)
+{
+#if FF_CODE_PAGE == 0		/* Variable code page */
+	if (DbcTbl && c >= DbcTbl[0]) {
+		if (c <= DbcTbl[1]) return 1;					/* 1st byte range 1 */
+		if (c >= DbcTbl[2] && c <= DbcTbl[3]) return 1;	/* 1st byte range 2 */
+	}
+#elif FF_CODE_PAGE >= 900	/* DBCS fixed code page */
+	if (c >= DbcTbl[0]) {
+		if (c <= DbcTbl[1]) return 1;
+		if (c >= DbcTbl[2] && c <= DbcTbl[3]) return 1;
+	}
+#else						/* SBCS fixed code page */
+	if (c != 0) return 0;	/* Always false */
+#endif
+	return 0;
+}

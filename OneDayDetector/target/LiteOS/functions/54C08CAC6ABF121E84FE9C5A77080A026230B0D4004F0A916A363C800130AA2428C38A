@@ -1,0 +1,16 @@
+STATIC INT32 PthreadCondWaitSub(pthread_cond_t *cond, INT32 value, UINT32 ticks)
+{
+    EventCond eventCond = { &cond->value, value, ~0x01U };
+    /*
+     * When the scheduling lock is held:
+     * (1) value is not equal to cond->value, clear the event message and
+     * do not block the current thread, because other threads is calling pthread_cond_broadcast or
+     * pthread_cond_signal to modify cond->value and wake up the current thread,
+     * and others threads will block on the scheduling lock until the current thread releases
+     * the scheduling lock.
+     * (2) value is equal to cond->value, block the current thread
+     * and wait to be awakened by other threads.
+     */
+    return (int)OsEventReadWithCond(&eventCond, &(cond->event), 0x0fU,
+                                    LOS_WAITMODE_OR | LOS_WAITMODE_CLR, ticks);
+}

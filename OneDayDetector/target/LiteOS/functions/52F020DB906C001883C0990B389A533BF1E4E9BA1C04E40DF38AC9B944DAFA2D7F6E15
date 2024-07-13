@@ -1,0 +1,28 @@
+int atiny_rm_rpt_uri(const lwm2m_uri_t *uri)
+{
+
+    int ret = ATINY_ARG_INVALID;
+    if (uri == NULL) {
+        ATINY_LOG(LOG_ERR, "null point");
+        return ATINY_ARG_INVALID;
+    }
+
+    atiny_mutex_lock(g_mutex);
+    do {
+        atiny_rpt_list_t *rpt_list  = NULL;
+        rpt_list = atiny_find_rpt_list(uri);
+
+        if (rpt_list == NULL) {
+            ATINY_LOG(LOG_ERR, "uri not exit," URI_FORMAT, URI_LOG_PARAM(uri));
+            break;
+        }
+
+        atiny_list_delete(&rpt_list->node);
+        atiny_free_list(&rpt_list->rpt_list, atiny_clear_rpt_list_node_data,  (void *)NOT_SENT);
+        lwm2m_free(rpt_list);
+        ret = ATINY_OK;
+    } while (0);
+
+    atiny_mutex_unlock(g_mutex);
+    return ret;
+}

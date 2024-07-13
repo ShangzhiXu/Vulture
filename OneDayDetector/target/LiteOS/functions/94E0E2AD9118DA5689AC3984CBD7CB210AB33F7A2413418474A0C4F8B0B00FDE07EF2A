@@ -1,0 +1,14 @@
+LITE_OS_SEC_TEXT_MINOR VOID OsTaskPriModify(LosTaskCB *taskCB, UINT16 priority)
+{
+    LOS_ASSERT(LOS_SpinHeld(&g_taskSpin));
+
+    LOS_TRACE(TASK_PRIOSET, taskCB->taskId, taskCB->taskStatus, taskCB->priority, priority);
+
+    if (taskCB->taskStatus & OS_TASK_STATUS_READY) {
+        OsPriQueueDequeue(&taskCB->pendList);
+        taskCB->priority = priority;
+        OsPriQueueEnqueue(&taskCB->pendList, taskCB->priority);
+    } else {
+        taskCB->priority = priority;
+    }
+}

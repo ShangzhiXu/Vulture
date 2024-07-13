@@ -1,0 +1,24 @@
+int pthread_mutex_trylock(pthread_mutex_t *mutex)
+{
+    MuxBaseCB *muxPended = NULL;
+    LosTaskCB *runTask = NULL;
+    UINT32 ret;
+
+    runTask = (LosTaskCB*)OsCurrTaskGet();
+    ret = OsMuxPreCheck(mutex, runTask);
+    if (ret != ENOERR) {
+        return (INT32)ret;
+    }
+
+    muxPended = &mutex->stLock;
+
+    if ((mutex->stLock.owner != NULL) && (mutex->stLock.owner != runTask)) {
+        return EBUSY;
+    }
+    if ((mutex->stAttr.type != PTHREAD_MUTEX_RECURSIVE) && (muxPended->muxCount != 0)) {
+        return EBUSY;
+    }
+
+    ret = OsMuxPendForPosix(mutex, 0);
+    return map_errno(ret);
+}

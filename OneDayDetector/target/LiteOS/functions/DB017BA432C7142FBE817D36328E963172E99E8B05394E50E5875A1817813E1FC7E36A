@@ -1,0 +1,51 @@
+altcp_mbedtls_write(struct altcp_pcb *conn, const void *dataptr, u16_t len, u8_t apiflags)
+{
+  int ret;
+  altcp_mbedtls_state_t *state;
+
+  LWIP_UNUSED_ARG(apiflags);
+
+  if (conn == NULL) {
+    return ERR_VAL;
+  }
+
+  state = (altcp_mbedtls_state_t *)conn->state;
+  if (state == NULL) {
+    /* @todo: which error? */
+    return ERR_CLSD;
+  }
+  if (!(state->flags & ALTCP_MBEDTLS_FLAGS_HANDSHAKE_DONE)) {
+    /* @todo: which error? */
+    return ERR_VAL;
+  }
+
+  /* HACK: if thre is something left to send, try to flush it and only
+     allow sending more if this succeeded (this is a hack because neither
+     returning 0 nor MBEDTLS_ERR_SSL_WANT_WRITE worked for me) */
+  if (state->ssl_context.out_left) {
+    mbedtls_ssl_flush_output(&state->ssl_context);
+    if (state->ssl_context.out_left) {
+      return ERR_MEM;
+    }
+  }
+  ret = mbedtls_ssl_write(&state->ssl_context, (const unsigned char *)dataptr, len);
+  /* try to send data... */
+  altcp_output(conn->inner_conn);
+  if (ret >= 0) {
+    if (ret == len) {
+      state->flags |= ALTCP_MBEDTLS_FLAGS_APPLDATA_SENT;
+      return ERR_OK;
+    } else {
+      /* @todo/@fixme: assumption: either everything sent or error */
+      LWIP_ASSERT("ret <= 0", 0);
+      return ERR_MEM;
+    }
+  } else {
+    if (ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
+      /* @todo: convert error to err_t */
+      return ERR_MEM;
+    }
+    LWIP_ASSERT("unhandled error", 0);
+    return ERR_VAL;
+  }
+}

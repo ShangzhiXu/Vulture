@@ -1,0 +1,18 @@
+static void FLASH_Program_DoubleWord(uint32_t Address, uint64_t Data)
+{
+  /* Check the parameters */
+  assert_param(IS_FLASH_ADDRESS(Address));
+  
+  /* If the previous operation is completed, proceed to program the new data */
+  FLASH->CR &= CR_PSIZE_MASK;
+  FLASH->CR |= FLASH_PSIZE_DOUBLE_WORD;
+  FLASH->CR |= FLASH_CR_PG;
+
+  /* Program the double-word */
+  *(__IO uint32_t*)Address = (uint32_t)Data;
+  *(__IO uint32_t*)(Address+4) = (uint32_t)(Data >> 32);
+
+  /* Data synchronous Barrier (DSB) Just after the write operation
+     This will force the CPU to respect the sequence of instruction (no optimization).*/
+  __DSB();
+}

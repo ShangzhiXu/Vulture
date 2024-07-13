@@ -1,0 +1,104 @@
+static HAL_StatusTypeDef CRYP_AES_IT(CRYP_HandleTypeDef *hcryp)
+{
+  uint32_t inputaddr = 0;
+  uint32_t outputaddr = (uint32_t)hcryp->pCrypOutBuffPtr; 
+
+  if(hcryp->State == HAL_CRYP_STATE_BUSY)
+  {
+    if (hcryp->Init.OperatingMode != CRYP_ALGOMODE_KEYDERIVATION)
+    {      
+      /* Read the last available output block from the Data Output Register */
+      *(uint32_t*)(outputaddr) = hcryp->Instance->DOUTR;
+      outputaddr+=4;
+      *(uint32_t*)(outputaddr) = hcryp->Instance->DOUTR;
+      outputaddr+=4;
+      *(uint32_t*)(outputaddr) = hcryp->Instance->DOUTR;
+      outputaddr+=4;
+      *(uint32_t*)(outputaddr) = hcryp->Instance->DOUTR;
+      hcryp->pCrypOutBuffPtr += 16;
+      hcryp->CrypOutCount -= 16;
+    
+    }
+    else
+    {
+      /* Read the derived key from the Key registers */
+      if (hcryp->Init.KeySize == CRYP_KEYSIZE_256B)
+      {   
+        *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->KEYR7);
+        outputaddr+=4;
+        *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->KEYR6);
+        outputaddr+=4;
+        *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->KEYR5);
+        outputaddr+=4;
+        *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->KEYR4);
+        outputaddr+=4;
+      }
+      
+        *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->KEYR3);
+        outputaddr+=4;
+        *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->KEYR2);
+        outputaddr+=4;
+        *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->KEYR1);
+        outputaddr+=4;
+        *(uint32_t*)(outputaddr) = __REV(hcryp->Instance->KEYR0);
+    }
+    
+    /* In case of ciphering or deciphering, check if all output text has been retrieved;
+       In case of key derivation, stop right there */
+    if ((hcryp->CrypOutCount == 0) || (hcryp->Init.OperatingMode == CRYP_ALGOMODE_KEYDERIVATION))
+    {
+      /* Disable Computation Complete Flag and Errors Interrupts */
+      __HAL_CRYP_DISABLE_IT(hcryp, CRYP_IT_CCFIE|CRYP_IT_ERRIE);
+      /* Change the CRYP state */
+      hcryp->State = HAL_CRYP_STATE_READY;
+      
+     /* Process Unlocked */
+      __HAL_UNLOCK(hcryp);
+      
+      /* Call computation complete callback */
+      HAL_CRYPEx_ComputationCpltCallback(hcryp);
+      
+      return HAL_OK;
+    }
+    /* If suspension flag has been raised, suspend processing */
+    else if (hcryp->SuspendRequest == HAL_CRYP_SUSPEND)
+    {
+      /* reset ModeSuspend */
+      hcryp->SuspendRequest = HAL_CRYP_SUSPEND_NONE;
+      
+      /* Disable Computation Complete Flag and Errors Interrupts */
+      __HAL_CRYP_DISABLE_IT(hcryp, CRYP_IT_CCFIE|CRYP_IT_ERRIE);
+      /* Change the CRYP state */
+      hcryp->State = HAL_CRYP_STATE_SUSPENDED;
+      
+     /* Process Unlocked */
+      __HAL_UNLOCK(hcryp);
+      
+      return HAL_OK;
+    }
+    else /* Process the rest of input data */
+    {
+      /* Get the Intput data address */
+      inputaddr = (uint32_t)hcryp->pCrypInBuffPtr;
+      
+      /* Increment/decrement instance pointer/counter */
+      hcryp->pCrypInBuffPtr += 16;
+      hcryp->CrypInCount -= 16;
+      
+      /* Write the next input block in the Data Input register */
+      hcryp->Instance->DINR = *(uint32_t*)(inputaddr);
+      inputaddr+=4;
+      hcryp->Instance->DINR = *(uint32_t*)(inputaddr);
+      inputaddr+=4;
+      hcryp->Instance->DINR  = *(uint32_t*)(inputaddr);
+      inputaddr+=4;
+      hcryp->Instance->DINR = *(uint32_t*)(inputaddr);
+      
+      return HAL_OK;      
+    }
+  }
+  else
+  {
+    return HAL_BUSY; 
+  }
+}

@@ -1,0 +1,36 @@
+tcp_ConnTable_get_cell_value_core(struct tcp_pcb *pcb, const u32_t *column, union snmp_variant_value *value, u32_t *value_len)
+{
+  LWIP_UNUSED_ARG(value_len);
+
+  /* value */
+  switch (*column) {
+    case 1: /* tcpConnState */
+      value->u32 = pcb->state + 1;
+      break;
+    case 2: /* tcpConnLocalAddress */
+      value->u32 = ip_2_ip4(&pcb->local_ip)->addr;
+      break;
+    case 3: /* tcpConnLocalPort */
+      value->u32 = pcb->local_port;
+      break;
+    case 4: /* tcpConnRemAddress */
+      if (pcb->state == LISTEN) {
+        value->u32 = IP4_ADDR_ANY4->addr;
+      } else {
+        value->u32 = ip_2_ip4(&pcb->remote_ip)->addr;
+      }
+      break;
+    case 5: /* tcpConnRemPort */
+      if (pcb->state == LISTEN) {
+        value->u32 = 0;
+      } else {
+        value->u32 = pcb->remote_port;
+      }
+      break;
+    default:
+      LWIP_ASSERT("invalid id", 0);
+      return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  return SNMP_ERR_NOERROR;
+}

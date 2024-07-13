@@ -1,0 +1,32 @@
+HAL_StatusTypeDef HAL_RTCEx_SetCalibrationOutPut(RTC_HandleTypeDef *hrtc, uint32_t CalibOutput)
+{
+  /* Check the parameters */
+  assert_param(IS_RTC_CALIB_OUTPUT(CalibOutput));
+
+  /* Process Locked */
+  __HAL_LOCK(hrtc);
+
+  hrtc->State = HAL_RTC_STATE_BUSY;
+
+  /* Disable the write protection for RTC registers */
+  __HAL_RTC_WRITEPROTECTION_DISABLE(hrtc);
+
+  /* Clear flags before config */
+  hrtc->Instance->CR &= (uint32_t)~RTC_CR_COSEL;
+
+  /* Configure the RTC_CR register */
+  hrtc->Instance->CR |= (uint32_t)CalibOutput;
+
+  __HAL_RTC_CALIBRATION_OUTPUT_ENABLE(hrtc);
+
+  /* Enable the write protection for RTC registers */
+  __HAL_RTC_WRITEPROTECTION_ENABLE(hrtc);
+
+  /* Change RTC state */
+  hrtc->State = HAL_RTC_STATE_READY;
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(hrtc);
+
+  return HAL_OK;
+}

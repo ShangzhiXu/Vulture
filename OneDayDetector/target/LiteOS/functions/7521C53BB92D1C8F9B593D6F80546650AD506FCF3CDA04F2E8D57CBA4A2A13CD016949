@@ -1,0 +1,88 @@
+HAL_StatusTypeDef HAL_EXTI_SetConfigLine(EXTI_HandleTypeDef *hexti, EXTI_ConfigTypeDef *pExtiConfig)
+{
+  uint32_t regval;
+  uint32_t linepos;
+  uint32_t maskline;
+
+  /* Check null pointer */
+  if ((hexti == NULL) || (pExtiConfig == NULL))
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check parameters */
+  assert_param(IS_EXTI_LINE(pExtiConfig->Line));
+  assert_param(IS_EXTI_MODE(pExtiConfig->Mode));
+
+  /* Assign line number to handle */
+  hexti->Line = pExtiConfig->Line;
+
+  /* Compute line mask */
+  linepos = (pExtiConfig->Line & EXTI_PIN_MASK);
+  maskline = (1uL << linepos);
+
+  /* Configure triggers for configurable lines */
+  if ((pExtiConfig->Line & EXTI_CONFIG) != 0x00u)
+  {
+    assert_param(IS_EXTI_TRIGGER(pExtiConfig->Trigger));
+
+    /* Configure rising trigger */
+    /* Mask or set line */
+    if ((pExtiConfig->Trigger & EXTI_TRIGGER_RISING) != 0x00u)
+    {
+      EXTI->RTSR |= maskline;
+    }
+    else
+    {
+      EXTI->RTSR &= ~maskline;
+    }
+
+    /* Configure falling trigger */
+    /* Mask or set line */
+    if ((pExtiConfig->Trigger & EXTI_TRIGGER_FALLING) != 0x00u)
+    {
+      EXTI->FTSR |= maskline;
+    }
+    else
+    {
+      EXTI->FTSR &= ~maskline;
+    }
+
+
+    /* Configure gpio port selection in case of gpio exti line */
+    if ((pExtiConfig->Line & EXTI_GPIO) == EXTI_GPIO)
+    {
+      assert_param(IS_EXTI_GPIO_PORT(pExtiConfig->GPIOSel));
+      assert_param(IS_EXTI_GPIO_PIN(linepos));
+
+      regval = SYSCFG->EXTICR[linepos >> 2u];
+      regval &= ~(SYSCFG_EXTICR1_EXTI0 << (SYSCFG_EXTICR1_EXTI1_Pos * (linepos & 0x03u)));
+      regval |= (pExtiConfig->GPIOSel << (SYSCFG_EXTICR1_EXTI1_Pos * (linepos & 0x03u)));
+      SYSCFG->EXTICR[linepos >> 2u] = regval;
+    }
+  }
+
+  /* Configure interrupt mode : read current mode */
+  /* Mask or set line */
+  if ((pExtiConfig->Mode & EXTI_MODE_INTERRUPT) != 0x00u)
+  {
+    EXTI->IMR |= maskline;
+  }
+  else
+  {
+    EXTI->IMR &= ~maskline;
+  }
+
+  /* Configure event mode : read current mode */
+  /* Mask or set line */
+  if ((pExtiConfig->Mode & EXTI_MODE_EVENT) != 0x00u)
+  {
+    EXTI->EMR |= maskline;
+  }
+  else
+  {
+    EXTI->EMR &= ~maskline;
+  }
+
+  return HAL_OK;
+}

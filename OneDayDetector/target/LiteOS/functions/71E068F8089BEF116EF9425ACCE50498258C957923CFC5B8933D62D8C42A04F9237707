@@ -1,0 +1,22 @@
+UINT32 Example_Interrupt(VOID)
+{
+    UINTPTR intSave;
+    intSave = LOS_IntLock();
+
+    printf("Kernel interrupt demo begin.\n");
+    /* software interrupt test */
+    LOS_HwiCreate(SOFT_IRQ_NUM, 0, 0, User_IRQHandler, 0);
+    LOS_HwiEnable(SOFT_IRQ_NUM);
+    LOS_IntRestore(intSave);
+    LOS_HwiTrigger(SOFT_IRQ_NUM);
+
+    /* hardware interrupt test */
+#ifdef LOSCFG_PLATFORM_STM32F429IGTX
+    Example_Exti0_Init();
+    LOS_HwiCreate(EXTI0_IRQn + 16, 0, 0, Button_IRQHandler, 0); // 16: cortex-m irq shift
+    LOS_HwiEnable(EXTI0_IRQn + 16);
+    LOS_IntRestore(intSave);
+#endif
+
+    return LOS_OK;
+}

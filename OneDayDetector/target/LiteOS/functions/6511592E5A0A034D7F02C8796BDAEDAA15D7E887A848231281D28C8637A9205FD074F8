@@ -1,0 +1,51 @@
+int mbedtls_ecjpake_derive_secret( mbedtls_ecjpake_context *ctx,
+                            unsigned char *buf, size_t len, size_t *olen,
+                            int (*f_rng)(void *, unsigned char *, size_t),
+                            void *p_rng )
+{
+    int ret;
+    mbedtls_ecp_point K;
+    mbedtls_mpi m_xm2_s, one;
+    unsigned char kx[MBEDTLS_ECP_MAX_BYTES];
+    size_t x_bytes;
+
+    ECJPAKE_VALIDATE_RET( ctx   != NULL );
+    ECJPAKE_VALIDATE_RET( buf   != NULL );
+    ECJPAKE_VALIDATE_RET( olen  != NULL );
+    ECJPAKE_VALIDATE_RET( f_rng != NULL );
+
+    *olen = mbedtls_md_get_size( ctx->md_info );
+    if( len < *olen )
+        return( MBEDTLS_ERR_ECP_BUFFER_TOO_SMALL );
+
+    mbedtls_ecp_point_init( &K );
+    mbedtls_mpi_init( &m_xm2_s );
+    mbedtls_mpi_init( &one );
+
+    MBEDTLS_MPI_CHK( mbedtls_mpi_lset( &one, 1 ) );
+
+    /*
+     * Client:  K = ( Xs - X4  * x2  * s ) * x2
+     * Server:  K = ( Xc - X2  * x4  * s ) * x4
+     * Unified: K = ( Xp - Xp2 * xm2 * s ) * xm2
+     */
+    MBEDTLS_MPI_CHK( ecjpake_mul_secret( &m_xm2_s, -1, &ctx->xm2, &ctx->s,
+                                         &ctx->grp.N, f_rng, p_rng ) );
+    MBEDTLS_MPI_CHK( mbedtls_ecp_muladd( &ctx->grp, &K,
+                                         &one, &ctx->Xp,
+                                         &m_xm2_s, &ctx->Xp2 ) );
+    MBEDTLS_MPI_CHK( mbedtls_ecp_mul( &ctx->grp, &K, &ctx->xm2, &K,
+                                      f_rng, p_rng ) );
+
+    /* PMS = SHA-256( K.X ) */
+    x_bytes = ( ctx->grp.pbits + 7 ) / 8;
+    MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary( &K.X, kx, x_bytes ) );
+    MBEDTLS_MPI_CHK( mbedtls_md( ctx->md_info, kx, x_bytes, buf ) );
+
+cleanup:
+    mbedtls_ecp_point_free( &K );
+    mbedtls_mpi_free( &m_xm2_s );
+    mbedtls_mpi_free( &one );
+
+    return( ret );
+}

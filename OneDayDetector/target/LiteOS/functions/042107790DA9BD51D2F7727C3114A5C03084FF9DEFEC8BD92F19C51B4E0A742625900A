@@ -1,0 +1,87 @@
+ErrorStatus LL_RCC_DeInit(void)
+{
+  uint32_t vl_mask = 0U;
+
+  /* Set MSION bit */
+  LL_RCC_MSI_Enable();
+
+  /* Insure MSIRDY bit is set before writing default MSIRANGE value */
+  while (LL_RCC_MSI_IsReady() == 0U)
+  {
+  }
+
+  /* Set MSIRANGE default value */
+  LL_RCC_MSI_SetRange(LL_RCC_MSIRANGE_6);
+
+  /* Set MSITRIM bits to the reset value*/
+  LL_RCC_MSI_SetCalibTrimming(0);
+
+  /* Set HSITRIM bits to the reset value*/
+  LL_RCC_HSI_SetCalibTrimming(0x10U);
+
+  /* Reset CFGR register */
+  LL_RCC_WriteReg(CFGR, 0x00000000U);
+
+  vl_mask = 0xFFFFFFFFU;
+
+  /* Reset HSION, HSIKERON, HSIASFS, HSEON, PLLON bits */
+  CLEAR_BIT(vl_mask, (RCC_CR_HSION | RCC_CR_HSIASFS | RCC_CR_HSIKERON  | RCC_CR_HSEON |
+  RCC_CR_PLLON));
+
+  /* Reset PLLSAI1ON bit */
+  CLEAR_BIT(vl_mask, RCC_CR_PLLSAI1ON);
+
+#if defined(RCC_PLLSAI2_SUPPORT)
+  /* Reset PLLSAI2ON bit */
+  CLEAR_BIT(vl_mask, RCC_CR_PLLSAI2ON);
+#endif /*RCC_PLLSAI2_SUPPORT*/
+
+  /* Write new mask in CR register */
+  LL_RCC_WriteReg(CR, vl_mask);
+
+#if defined(RCC_PLLSAI2_SUPPORT)
+  /* Wait for PLLRDY, PLLSAI1RDY and PLLSAI2RDY bits to be reset */
+  while(READ_BIT(RCC->CR, RCC_CR_PLLRDY | RCC_CR_PLLSAI1RDY | RCC_CR_PLLSAI2RDY) != 0U)
+  {
+  }
+#else
+  /* Wait for PLLRDY, PLLSAI1RDY bits to be reset */
+  while(READ_BIT(RCC->CR, RCC_CR_PLLRDY | RCC_CR_PLLSAI1RDY) != 0U)
+  {
+  }
+#endif
+
+  /* Reset PLLCFGR register */
+  LL_RCC_WriteReg(PLLCFGR, 16U << RCC_PLLCFGR_PLLN_Pos);
+
+  /* Reset PLLSAI1CFGR register */
+  LL_RCC_WriteReg(PLLSAI1CFGR, 16U << RCC_PLLSAI1CFGR_PLLSAI1N_Pos);
+
+#if defined(RCC_PLLSAI2_SUPPORT)
+  /* Reset PLLSAI2CFGR register */
+  LL_RCC_WriteReg(PLLSAI2CFGR, 16U << RCC_PLLSAI2CFGR_PLLSAI2N_Pos);
+#endif /*RCC_PLLSAI2_SUPPORT*/
+
+  /* Reset HSEBYP bit */
+  LL_RCC_HSE_DisableBypass();
+
+  /* Disable all interrupts */
+  LL_RCC_WriteReg(CIER, 0x00000000U);
+
+  /* Clear all interrupt flags */
+  vl_mask = RCC_CICR_LSIRDYC | RCC_CICR_LSERDYC | RCC_CICR_MSIRDYC | RCC_CICR_HSIRDYC | RCC_CICR_HSERDYC | RCC_CICR_PLLRDYC | \
+            RCC_CICR_PLLSAI1RDYC | RCC_CICR_CSSC | RCC_CICR_LSECSSC;
+#if defined(RCC_HSI48_SUPPORT)
+  vl_mask |= RCC_CICR_HSI48RDYC;
+#endif
+#if defined(RCC_PLLSAI2_SUPPORT)
+  vl_mask |= RCC_CICR_PLLSAI2RDYC;
+#endif
+
+  LL_RCC_WriteReg(CICR, vl_mask);
+
+  /* Clear reset flags */
+  LL_RCC_ClearResetFlags();
+
+  return SUCCESS;
+}

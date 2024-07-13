@@ -1,0 +1,29 @@
+LITE_OS_SEC_TEXT_MINOR VOID OsTaskCycleEnd(VOID)
+{
+    UINT32 taskId;
+    UINT64 cpuCycle;
+    LosTaskCB *runTask = NULL;
+
+    if (g_cpupInitFlg == 0) {
+        return;
+    }
+
+    runTask = OsCurrTaskGet();
+    taskId = runTask->taskId;
+
+    if (g_cpup[taskId].startTime == 0) {
+        return;
+    }
+
+    cpuCycle = OsGetCpuCycle();
+    g_cpup[taskId].allTime += cpuCycle - g_cpup[taskId].startTime;
+
+#ifdef LOSCFG_CPUP_INCLUDE_IRQ
+    UINT32 cpuId = ArchCurrCpuid();
+    g_cpup[taskId].allTime -= g_timeInIrqPerTskSwitch[cpuId];
+    g_timeInIrqPerTskSwitch[cpuId] = 0;
+#endif
+    g_cpup[taskId].startTime = 0;
+
+    return;
+}

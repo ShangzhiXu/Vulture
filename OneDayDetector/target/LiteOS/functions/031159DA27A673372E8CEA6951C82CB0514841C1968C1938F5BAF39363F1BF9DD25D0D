@@ -1,0 +1,65 @@
+static HAL_StatusTypeDef JPEG_Set_HuffAC_Mem(JPEG_HandleTypeDef *hjpeg, JPEG_ACHuffTableTypeDef *HuffTableAC,
+                                             const __IO uint32_t *ACTableAddress)
+{
+  HAL_StatusTypeDef error;
+  JPEG_AC_HuffCodeTableTypeDef acSizeCodesTable;
+  uint32_t i, lsb, msb;
+  __IO uint32_t *address, *addressDef;
+
+  if (ACTableAddress == (hjpeg->Instance->HUFFENC_AC0))
+  {
+    address = (hjpeg->Instance->HUFFENC_AC0 + (JPEG_AC_HUFF_TABLE_SIZE / 2UL));
+  }
+  else if (ACTableAddress == (hjpeg->Instance->HUFFENC_AC1))
+  {
+    address = (hjpeg->Instance->HUFFENC_AC1 + (JPEG_AC_HUFF_TABLE_SIZE / 2UL));
+  }
+  else
+  {
+    return HAL_ERROR;
+  }
+
+  if (HuffTableAC != NULL)
+  {
+    error = JPEG_ACHuff_BitsVals_To_SizeCodes(HuffTableAC, &acSizeCodesTable);
+    if (error != HAL_OK)
+    {
+      return  error;
+    }
+    /* Default values settings: 162:167 FFFh , 168:175 FD0h_FD7h */
+    /* Locations 162:175 of each AC table contain information used internally by the core */
+
+    addressDef = address;
+    for (i = 0; i < 3UL; i++)
+    {
+      *addressDef = 0x0FFF0FFF;
+      addressDef++;
+    }
+    *addressDef = 0x0FD10FD0;
+    addressDef++;
+    *addressDef = 0x0FD30FD2;
+    addressDef++;
+    *addressDef = 0x0FD50FD4;
+    addressDef++;
+    *addressDef = 0x0FD70FD6;
+    /* end of Locations 162:175  */
+
+
+    i = JPEG_AC_HUFF_TABLE_SIZE;
+    while (i > 1UL)
+    {
+      i--;
+      address--;
+      msb = ((uint32_t)(((uint32_t)acSizeCodesTable.CodeLength[i] & 0xFU) << 8)) | ((uint32_t)acSizeCodesTable.HuffmanCode[i] &
+                                                                                   0xFFUL);
+      i--;
+      lsb = ((uint32_t)(((uint32_t)acSizeCodesTable.CodeLength[i] & 0xFU) << 8)) | ((uint32_t)acSizeCodesTable.HuffmanCode[i] &
+                                                                                   0xFFUL);
+
+      *address = lsb | (msb << 16);
+    }
+  }
+
+  /* Return function status */
+  return HAL_OK;
+}

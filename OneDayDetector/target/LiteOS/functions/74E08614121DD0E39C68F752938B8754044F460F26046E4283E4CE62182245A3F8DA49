@@ -1,0 +1,15 @@
+static void SPDIFRX_DMACxCplt(DMA_HandleTypeDef *hdma)
+{
+  SPDIFRX_HandleTypeDef* hspdif = ( SPDIFRX_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+
+  /* Disable Cb DMA Request */
+  hspdif->Instance->CR &= (uint16_t)(~SPDIFRX_CR_CBDMAEN);
+  hspdif->CsXferCount = 0;
+
+  hspdif->State = HAL_SPDIFRX_STATE_READY;
+#if (USE_HAL_SPDIFRX_REGISTER_CALLBACKS == 1)
+  hspdif->CxCpltCallback(hspdif);
+#else
+  HAL_SPDIFRX_CxCpltCallback(hspdif);
+#endif /* USE_HAL_SPDIFRX_REGISTER_CALLBACKS */
+}

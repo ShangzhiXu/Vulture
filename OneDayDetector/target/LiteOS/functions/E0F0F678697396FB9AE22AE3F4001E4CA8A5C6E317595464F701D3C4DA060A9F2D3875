@@ -1,0 +1,56 @@
+static void network_phase(ppp_pcb *pcb) {
+#if CBCP_SUPPORT
+    ppp_pcb *pcb = &ppp_pcb_list[unit];
+#endif
+#if 0 /* UNUSED */
+    lcp_options *go = &lcp_gotoptions[unit];
+#endif /* UNUSED */
+
+#if 0 /* UNUSED */
+    /* Log calling number. */
+    if (*remote_number)
+	ppp_notice("peer from calling number %q authorized", remote_number);
+#endif /* UNUSED */
+
+#if PPP_NOTIFY
+    /*
+     * If the peer had to authenticate, notify it now.
+     */
+    if (0
+#if CHAP_SUPPORT
+	|| go->neg_chap
+#endif /* CHAP_SUPPORT */
+#if PAP_SUPPORT
+	|| go->neg_upap
+#endif /* PAP_SUPPORT */
+#if EAP_SUPPORT
+	|| go->neg_eap
+#endif /* EAP_SUPPORT */
+	) {
+	notify(auth_up_notifier, 0);
+    }
+#endif /* PPP_NOTIFY */
+
+#if CBCP_SUPPORT
+    /*
+     * If we negotiated callback, do it now.
+     */
+    if (go->neg_cbcp) {
+	new_phase(pcb, PPP_PHASE_CALLBACK);
+	(*cbcp_protent.open)(pcb);
+	return;
+    }
+#endif
+
+#if PPP_OPTIONS
+    /*
+     * Process extra options from the secrets file
+     */
+    if (extra_options) {
+	options_from_list(extra_options, 1);
+	free_wordlist(extra_options);
+	extra_options = 0;
+    }
+#endif /* PPP_OPTIONS */
+    start_networks(pcb);
+}

@@ -1,0 +1,46 @@
+lv_fs_res_t lv_fs_open(lv_fs_file_t * file_p, const char * path, lv_fs_mode_t mode)
+{
+    file_p->drv    = NULL;
+    file_p->file_d = NULL;
+
+    if(path == NULL) return LV_FS_RES_INV_PARAM;
+
+    char letter = path[0];
+
+    file_p->drv = lv_fs_get_drv(letter);
+
+    if(file_p->drv == NULL) {
+        file_p->file_d = NULL;
+        return LV_FS_RES_NOT_EX;
+    }
+
+    if(file_p->drv->ready_cb != NULL) {
+        if(file_p->drv->ready_cb(file_p->drv) == false) {
+            file_p->drv    = NULL;
+            file_p->file_d = NULL;
+            return LV_FS_RES_HW_ERR;
+        }
+    }
+
+    file_p->file_d = lv_mem_alloc(file_p->drv->file_size);
+    LV_ASSERT_MEM(file_p->file_d);
+    if(file_p->file_d == NULL) {
+        file_p->drv = NULL;
+        return LV_FS_RES_OUT_OF_MEM; /* Out of memory */
+    }
+
+    if(file_p->drv->open_cb == NULL) {
+        return LV_FS_RES_NOT_IMP;
+    }
+
+    const char * real_path = lv_fs_get_real_path(path);
+    lv_fs_res_t res        = file_p->drv->open_cb(file_p->drv, file_p->file_d, real_path, mode);
+
+    if(res != LV_FS_RES_OK) {
+        lv_mem_free(file_p->file_d);
+        file_p->file_d = NULL;
+        file_p->drv    = NULL;
+    }
+
+    return res;
+}

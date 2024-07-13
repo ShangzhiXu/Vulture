@@ -1,0 +1,56 @@
+HAL_StatusTypeDef HAL_LTDC_SetPitch_NoReload(LTDC_HandleTypeDef *hltdc, uint32_t LinePitchInPixels, uint32_t LayerIdx)
+{
+  uint32_t tmp = 0;
+  uint32_t pitchUpdate = 0;
+  uint32_t pixelFormat = 0;
+  
+  /* Check the parameters */
+  assert_param(IS_LTDC_LAYER(LayerIdx));
+  
+  /* Process locked */
+  __HAL_LOCK(hltdc);
+  
+  /* Change LTDC peripheral state */
+  hltdc->State = HAL_LTDC_STATE_BUSY;
+  
+  /* get LayerIdx used pixel format */
+  pixelFormat = hltdc->LayerCfg[LayerIdx].PixelFormat;
+  
+  if(pixelFormat == LTDC_PIXEL_FORMAT_ARGB8888)
+  {
+    tmp = 4;
+  }
+  else if (pixelFormat == LTDC_PIXEL_FORMAT_RGB888)
+  {
+    tmp = 3;
+  }
+  else if((pixelFormat == LTDC_PIXEL_FORMAT_ARGB4444) || \
+          (pixelFormat == LTDC_PIXEL_FORMAT_RGB565)   || \
+          (pixelFormat == LTDC_PIXEL_FORMAT_ARGB1555) || \
+         (pixelFormat == LTDC_PIXEL_FORMAT_AL88))
+  {
+    tmp = 2;
+  }
+  else
+  {
+    tmp = 1;
+  }
+  
+  pitchUpdate = ((LinePitchInPixels * tmp) << 16);
+  
+  /* Clear previously set standard pitch */
+  LTDC_LAYER(hltdc, LayerIdx)->CFBLR &= ~LTDC_LxCFBLR_CFBP;
+  
+  /* Set new line pitch value */
+  LTDC_LAYER(hltdc, LayerIdx)->CFBLR |= pitchUpdate;
+  
+  /* Do not set the Immediate Reload  */
+  
+  /* Change the LTDC state*/
+  hltdc->State = HAL_LTDC_STATE_READY;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hltdc);
+  
+  return HAL_OK;  
+}

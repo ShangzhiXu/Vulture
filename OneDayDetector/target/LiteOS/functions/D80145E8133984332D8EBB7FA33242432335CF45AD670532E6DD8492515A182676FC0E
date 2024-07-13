@@ -1,0 +1,40 @@
+HAL_StatusTypeDef HAL_TIMEx_ConfigCommutEvent_DMA(TIM_HandleTypeDef *htim, uint32_t  InputTrigger,
+                                                  uint32_t  CommutationSource)
+{
+  /* Check the parameters */
+  assert_param(IS_TIM_COMMUTATION_EVENT_INSTANCE(htim->Instance));
+  assert_param(IS_TIM_INTERNAL_TRIGGEREVENT_SELECTION(InputTrigger));
+
+  __HAL_LOCK(htim);
+
+  if ((InputTrigger == TIM_TS_ITR0) || (InputTrigger == TIM_TS_ITR1) ||
+      (InputTrigger == TIM_TS_ITR2) || (InputTrigger == TIM_TS_ITR3))
+  {
+    /* Select the Input trigger */
+    htim->Instance->SMCR &= ~TIM_SMCR_TS;
+    htim->Instance->SMCR |= InputTrigger;
+  }
+
+  /* Select the Capture Compare preload feature */
+  htim->Instance->CR2 |= TIM_CR2_CCPC;
+  /* Select the Commutation event source */
+  htim->Instance->CR2 &= ~TIM_CR2_CCUS;
+  htim->Instance->CR2 |= CommutationSource;
+
+  /* Enable the Commutation DMA Request */
+  /* Set the DMA Commutation Callback */
+  htim->hdma[TIM_DMA_ID_COMMUTATION]->XferCpltCallback = TIMEx_DMACommutationCplt;
+  htim->hdma[TIM_DMA_ID_COMMUTATION]->XferHalfCpltCallback = TIMEx_DMACommutationHalfCplt;
+  /* Set the DMA error callback */
+  htim->hdma[TIM_DMA_ID_COMMUTATION]->XferErrorCallback = TIM_DMAError;
+
+  /* Disable Commutation Interrupt */
+  __HAL_TIM_DISABLE_IT(htim, TIM_IT_COM);
+
+  /* Enable the Commutation DMA Request */
+  __HAL_TIM_ENABLE_DMA(htim, TIM_DMA_COM);
+
+  __HAL_UNLOCK(htim);
+
+  return HAL_OK;
+}

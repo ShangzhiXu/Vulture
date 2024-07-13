@@ -1,0 +1,27 @@
+UINT32 LOS_MemboxInit(VOID *pool, UINT32 poolSize, UINT32 blkSize)
+{
+    LOS_MEMBOX_INFO *boxInfo = (LOS_MEMBOX_INFO *)pool;
+    UINT32 intSave;
+
+    if (pool == NULL) {
+        return LOS_NOK;
+    }
+
+    /* Initialize memory block system, returns 0 if OK, 1 if fails. */
+    if (blkSize == 0) {
+        return LOS_NOK;
+    }
+
+    /* Create a Memory structure. */
+    MEMBOX_LOCK(intSave);
+    boxInfo->uwBlkSize = blkSize;
+    boxInfo->uwBlkNum = poolSize / blkSize;
+    boxInfo->uwBlkCnt = 0;
+    if (boxInfo->uwBlkNum == 0) {
+        MEMBOX_UNLOCK(intSave);
+        return LOS_NOK;
+    }
+    MEMBOX_UNLOCK(intSave);
+
+    return LOS_OK;
+}

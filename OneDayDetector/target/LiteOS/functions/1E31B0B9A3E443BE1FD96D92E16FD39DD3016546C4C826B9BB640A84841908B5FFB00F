@@ -1,0 +1,104 @@
+HAL_StatusTypeDef HAL_USART_TransmitReceive(USART_HandleTypeDef *husart, uint8_t *pTxData, uint8_t *pRxData, uint16_t Size, uint32_t Timeout)
+{
+  uint16_t *tmp;
+  uint32_t tickstart = 0U;
+
+  if (husart->State == HAL_USART_STATE_READY)
+  {
+    if ((pTxData == NULL) || (pRxData == NULL) || (Size == 0))
+    {
+      return  HAL_ERROR;
+    }
+    /* Process Locked */
+    __HAL_LOCK(husart);
+
+    husart->ErrorCode = HAL_USART_ERROR_NONE;
+    husart->State = HAL_USART_STATE_BUSY_RX;
+
+    /* Init tickstart for timeout management */
+    tickstart = HAL_GetTick();
+
+    husart->RxXferSize = Size;
+    husart->TxXferSize = Size;
+    husart->TxXferCount = Size;
+    husart->RxXferCount = Size;
+
+    /* Check the remain data to be received */
+    while (husart->TxXferCount > 0U)
+    {
+      husart->TxXferCount--;
+      husart->RxXferCount--;
+      if (husart->Init.WordLength == USART_WORDLENGTH_9B)
+      {
+        /* Wait for TC flag in order to write data in DR */
+        if (USART_WaitOnFlagUntilTimeout(husart, USART_FLAG_TXE, RESET, tickstart, Timeout) != HAL_OK)
+        {
+          return HAL_TIMEOUT;
+        }
+        tmp = (uint16_t *) pTxData;
+        husart->Instance->DR = (*tmp & (uint16_t)0x01FF);
+        if (husart->Init.Parity == USART_PARITY_NONE)
+        {
+          pTxData += 2U;
+        }
+        else
+        {
+          pTxData += 1U;
+        }
+
+        /* Wait for RXNE Flag */
+        if (USART_WaitOnFlagUntilTimeout(husart, USART_FLAG_RXNE, RESET, tickstart, Timeout) != HAL_OK)
+        {
+          return HAL_TIMEOUT;
+        }
+        tmp = (uint16_t *) pRxData ;
+        if (husart->Init.Parity == USART_PARITY_NONE)
+        {
+          *tmp = (uint16_t)(husart->Instance->DR & (uint16_t)0x01FF);
+          pRxData += 2U;
+        }
+        else
+        {
+          *tmp = (uint16_t)(husart->Instance->DR & (uint16_t)0x00FF);
+          pRxData += 1U;
+        }
+      }
+      else
+      {
+        /* Wait for TC flag in order to write data in DR */
+        if (USART_WaitOnFlagUntilTimeout(husart, USART_FLAG_TXE, RESET, tickstart, Timeout) != HAL_OK)
+        {
+          return HAL_TIMEOUT;
+        }
+        husart->Instance->DR = (*pTxData++ & (uint8_t)0x00FF);
+
+        /* Wait for RXNE Flag */
+        if (USART_WaitOnFlagUntilTimeout(husart, USART_FLAG_RXNE, RESET, tickstart, Timeout) != HAL_OK)
+        {
+          return HAL_TIMEOUT;
+        }
+        if (husart->Init.Parity == USART_PARITY_NONE)
+        {
+          /* Receive data */
+          *pRxData++ = (uint8_t)(husart->Instance->DR & (uint8_t)0x00FF);
+        }
+        else
+        {
+          /* Receive data */
+          *pRxData++ = (uint8_t)(husart->Instance->DR & (uint8_t)0x007F);
+        }
+      }
+    }
+
+    husart->State = HAL_USART_STATE_READY;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(husart);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

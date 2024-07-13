@@ -1,0 +1,23 @@
+dhcp6_nd6_ra_trigger(struct netif *netif, u8_t managed_addr_config, u8_t other_config)
+{
+  struct dhcp6 *dhcp6;
+
+  LWIP_ASSERT("netif != NULL", netif != NULL);
+  dhcp6 = netif_dhcp6_data(netif);
+
+  LWIP_UNUSED_ARG(managed_addr_config);
+  LWIP_UNUSED_ARG(other_config);
+  LWIP_UNUSED_ARG(dhcp6);
+
+#if LWIP_IPV6_DHCP6_STATELESS
+  if (dhcp6 != NULL) {
+    if (dhcp6_stateless_enabled(dhcp6)) {
+      if (other_config) {
+        dhcp6_request_config(netif, dhcp6);
+      } else {
+        dhcp6_abort_config_request(dhcp6);
+      }
+    }
+  }
+#endif /* LWIP_IPV6_DHCP6_STATELESS */
+}

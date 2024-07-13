@@ -1,0 +1,52 @@
+static HAL_StatusTypeDef PCD_WriteEmptyTxFifo(PCD_HandleTypeDef *hpcd, uint32_t epnum)
+{
+  USB_OTG_GlobalTypeDef *USBx = hpcd->Instance;
+  uint32_t USBx_BASE = (uint32_t)USBx;
+  USB_OTG_EPTypeDef *ep;
+  uint32_t len;
+  uint32_t len32b;
+  uint32_t fifoemptymsk;
+
+  ep = &hpcd->IN_ep[epnum];
+
+  if (ep->xfer_count > ep->xfer_len)
+  {
+    return HAL_ERROR;
+  }
+
+  len = ep->xfer_len - ep->xfer_count;
+
+  if (len > ep->maxpacket)
+  {
+    len = ep->maxpacket;
+  }
+
+  len32b = (len + 3U) / 4U;
+
+  while (((USBx_INEP(epnum)->DTXFSTS & USB_OTG_DTXFSTS_INEPTFSAV) >= len32b) &&
+         (ep->xfer_count < ep->xfer_len) && (ep->xfer_len != 0U))
+  {
+    /* Write the FIFO */
+    len = ep->xfer_len - ep->xfer_count;
+
+    if (len > ep->maxpacket)
+    {
+      len = ep->maxpacket;
+    }
+    len32b = (len + 3U) / 4U;
+
+    (void)USB_WritePacket(USBx, ep->xfer_buff, (uint8_t)epnum, (uint16_t)len,
+                          (uint8_t)hpcd->Init.dma_enable);
+
+    ep->xfer_buff  += len;
+    ep->xfer_count += len;
+  }
+
+  if (ep->xfer_len <= ep->xfer_count)
+  {
+    fifoemptymsk = (uint32_t)(0x1UL << (epnum & EP_ADDR_MSK));
+    USBx_DEVICE->DIEPEMPMSK &= ~fifoemptymsk;
+  }
+
+  return HAL_OK;
+}

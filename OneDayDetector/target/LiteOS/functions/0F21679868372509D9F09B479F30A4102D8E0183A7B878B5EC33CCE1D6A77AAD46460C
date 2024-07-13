@@ -1,0 +1,52 @@
+lwip_bind(int s, const struct sockaddr *name, socklen_t namelen)
+{
+  struct lwip_sock *sock;
+  ip_addr_t local_addr;
+  u16_t local_port;
+  err_t err;
+
+  sock = get_socket(s);
+  if (!sock) {
+    return -1;
+  }
+
+  if (!SOCK_ADDR_TYPE_MATCH(name, sock)) {
+    /* sockaddr does not match socket type (IPv4/IPv6) */
+    sock_set_errno(sock, err_to_errno(ERR_VAL));
+    done_socket(sock);
+    return -1;
+  }
+
+  /* check size, family and alignment of 'name' */
+  LWIP_ERROR("lwip_bind: invalid address", (IS_SOCK_ADDR_LEN_VALID(namelen) &&
+             IS_SOCK_ADDR_TYPE_VALID(name) && IS_SOCK_ADDR_ALIGNED(name)),
+             sock_set_errno(sock, err_to_errno(ERR_ARG)); done_socket(sock); return -1;);
+  LWIP_UNUSED_ARG(namelen);
+
+  SOCKADDR_TO_IPADDR_PORT(name, &local_addr, local_port);
+  LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_bind(%d, addr=", s));
+  ip_addr_debug_print_val(SOCKETS_DEBUG, local_addr);
+  LWIP_DEBUGF(SOCKETS_DEBUG, (" port=%"U16_F")\n", local_port));
+
+#if LWIP_IPV4 && LWIP_IPV6
+  /* Dual-stack: Unmap IPv4 mapped IPv6 addresses */
+  if (IP_IS_V6_VAL(local_addr) && ip6_addr_isipv4mappedipv6(ip_2_ip6(&local_addr))) {
+    unmap_ipv4_mapped_ipv6(ip_2_ip4(&local_addr), ip_2_ip6(&local_addr));
+    IP_SET_TYPE_VAL(local_addr, IPADDR_TYPE_V4);
+  }
+#endif /* LWIP_IPV4 && LWIP_IPV6 */
+
+  err = netconn_bind(sock->conn, &local_addr, local_port);
+
+  if (err != ERR_OK) {
+    LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_bind(%d) failed, err=%d\n", s, err));
+    sock_set_errno(sock, err_to_errno(err));
+    done_socket(sock);
+    return -1;
+  }
+
+  LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_bind(%d) succeeded\n", s));
+  sock_set_errno(sock, 0);
+  done_socket(sock);
+  return 0;
+}

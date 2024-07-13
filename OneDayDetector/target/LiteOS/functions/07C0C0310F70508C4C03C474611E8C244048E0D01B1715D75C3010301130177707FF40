@@ -1,0 +1,19 @@
+dns_create_txid(void)
+{
+  u16_t txid;
+  u8_t i;
+
+again:
+  txid = (u16_t)DNS_RAND_TXID();
+
+  /* check whether the ID is unique */
+  for (i = 0; i < DNS_TABLE_SIZE; i++) {
+    if ((dns_table[i].state == DNS_STATE_ASKING) &&
+        (dns_table[i].txid == txid)) {
+      /* ID already used by another pending query */
+      goto again;
+    }
+  }
+
+  return txid;
+}

@@ -1,0 +1,96 @@
+void HAL_DSI_IRQHandler(DSI_HandleTypeDef *hdsi)
+{
+  uint32_t ErrorStatus0, ErrorStatus1;
+
+  /* Tearing Effect Interrupt management ***************************************/
+  if(__HAL_DSI_GET_FLAG(hdsi, DSI_FLAG_TE) != RESET)
+  {
+    if(__HAL_DSI_GET_IT_SOURCE(hdsi, DSI_IT_TE) != RESET)
+    {
+      /* Clear the Tearing Effect Interrupt Flag */
+      __HAL_DSI_CLEAR_FLAG(hdsi, DSI_FLAG_TE);
+
+      /* Tearing Effect Callback */
+      HAL_DSI_TearingEffectCallback(hdsi);
+    }
+  }
+
+  /* End of Refresh Interrupt management ***************************************/
+  if(__HAL_DSI_GET_FLAG(hdsi, DSI_FLAG_ER) != RESET)
+  {
+    if(__HAL_DSI_GET_IT_SOURCE(hdsi, DSI_IT_ER) != RESET)
+    {
+      /* Clear the End of Refresh Interrupt Flag */
+      __HAL_DSI_CLEAR_FLAG(hdsi, DSI_FLAG_ER);
+
+      /* End of Refresh Callback */
+      HAL_DSI_EndOfRefreshCallback(hdsi);
+    }
+  }
+
+  /* Error Interrupts management ***********************************************/
+  if(hdsi->ErrorMsk != 0U)
+  {
+    ErrorStatus0 = hdsi->Instance->ISR[0U];
+    ErrorStatus0 &= hdsi->Instance->IER[0U];
+    ErrorStatus1 = hdsi->Instance->ISR[1U];
+    ErrorStatus1 &= hdsi->Instance->IER[1U];
+
+    if((ErrorStatus0 & DSI_ERROR_ACK_MASK) != RESET)
+    {
+      hdsi->ErrorCode |= HAL_DSI_ERROR_ACK;
+    }
+
+    if((ErrorStatus0 & DSI_ERROR_PHY_MASK) != RESET)
+    {
+      hdsi->ErrorCode |= HAL_DSI_ERROR_PHY;
+    }
+
+    if((ErrorStatus1 & DSI_ERROR_TX_MASK) != RESET)
+    {
+      hdsi->ErrorCode |= HAL_DSI_ERROR_TX;
+    }
+
+    if((ErrorStatus1 & DSI_ERROR_RX_MASK) != RESET)
+    {
+      hdsi->ErrorCode |= HAL_DSI_ERROR_RX;
+    }
+
+    if((ErrorStatus1 & DSI_ERROR_ECC_MASK) != RESET)
+    {
+      hdsi->ErrorCode |= HAL_DSI_ERROR_ECC;
+    }
+
+    if((ErrorStatus1 & DSI_ERROR_CRC_MASK) != RESET)
+    {
+      hdsi->ErrorCode |= HAL_DSI_ERROR_CRC;
+    }
+
+    if((ErrorStatus1 & DSI_ERROR_PSE_MASK) != RESET)
+    {
+      hdsi->ErrorCode |= HAL_DSI_ERROR_PSE;
+    }
+
+    if((ErrorStatus1 & DSI_ERROR_EOT_MASK) != RESET)
+    {
+      hdsi->ErrorCode |= HAL_DSI_ERROR_EOT;
+    }
+
+    if((ErrorStatus1 & DSI_ERROR_OVF_MASK) != RESET)
+    {
+      hdsi->ErrorCode |= HAL_DSI_ERROR_OVF;
+    }
+
+    if((ErrorStatus1 & DSI_ERROR_GEN_MASK) != RESET)
+    {
+      hdsi->ErrorCode |= HAL_DSI_ERROR_GEN;
+    }
+
+    /* Check only selected errors */
+    if(hdsi->ErrorCode != HAL_DSI_ERROR_NONE)
+    {
+      /* DSI error interrupt user callback */
+      HAL_DSI_ErrorCallback(hdsi);
+    }
+  }
+}

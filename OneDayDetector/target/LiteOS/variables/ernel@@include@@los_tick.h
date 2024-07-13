@@ -1,0 +1,7 @@
+    UINT8 ucDay;     /**< day, the value range is 1 - 31 */
+    UINT8 ucHour;    /**< hour, the value range is 0 - 23 */
+    UINT8 ucMinute;  /**< minute, the value range is 0 - 59 */
+    UINT8 ucMonth;   /**< month, the value range is 1 - 12 */
+    UINT8 ucSecond;  /**< second, the value range is 0 - 59 */
+    UINT8 ucWeek;    /**< week, the value range is 0 - 6 */
+    UINT16 uwYear;   /**< year, the value range is 1970 ~ 2038 or 1970 ~ 2100 */

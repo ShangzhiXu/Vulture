@@ -1,0 +1,65 @@
+LITE_OS_SEC_TEXT VOID OsTaskScan(VOID)
+{
+    SortLinkList *sortList = NULL;
+    LosTaskCB *taskCB = NULL;
+    BOOL needSchedule = FALSE;
+    UINT16 tempStatus;
+    LOS_DL_LIST *listObject = NULL;
+    SortLinkAttribute *taskSortLink = NULL;
+
+    taskSortLink = &OsPercpuGet()->taskSortLink;
+    SORTLINK_CURSOR_UPDATE(taskSortLink->cursor);
+    SORTLINK_LISTOBJ_GET(listObject, taskSortLink);
+
+    /*
+     * When task is pended with timeout, the task block is on the timeout sortlink
+     * (per cpu) and ipc(mutex,sem and etc.)'s block at the same time, it can be waken
+     * up by either timeout or corresponding ipc it's waiting.
+     *
+     * Now synchronize sortlink procedure is used, therefore the whole task scan needs
+     * to be protected, preventing another core from doing sortlink deletion at same time.
+     */
+    LOS_SpinLock(&g_taskSpin);
+
+    if (LOS_ListEmpty(listObject)) {
+        LOS_SpinUnlock(&g_taskSpin);
+        return;
+    }
+    sortList = LOS_DL_LIST_ENTRY(listObject->pstNext, SortLinkList, sortLinkNode);
+    ROLLNUM_DEC(sortList->idxRollNum);
+
+    while (ROLLNUM(sortList->idxRollNum) == 0) {
+        LOS_ListDelete(&sortList->sortLinkNode);
+        taskCB = LOS_DL_LIST_ENTRY(sortList, LosTaskCB, sortList);
+        taskCB->taskStatus &= ~OS_TASK_STATUS_PEND_TIME;
+        tempStatus = taskCB->taskStatus;
+        if (tempStatus & OS_TASK_STATUS_PEND) {
+            taskCB->taskStatus &= ~OS_TASK_STATUS_PEND;
+            taskCB->taskStatus |= OS_TASK_STATUS_TIMEOUT;
+            LOS_ListDelete(&taskCB->pendList);
+            taskCB->taskSem = NULL;
+            taskCB->taskMux = NULL;
+        } else {
+            taskCB->taskStatus &= ~OS_TASK_STATUS_DELAY;
+        }
+
+        if (!(tempStatus & OS_TASK_STATUS_SUSPEND)) {
+            taskCB->taskStatus |= OS_TASK_STATUS_READY;
+            OsPriQueueEnqueue(&taskCB->pendList, taskCB->priority);
+            needSchedule = TRUE;
+        }
+
+        if (LOS_ListEmpty(listObject)) {
+            break;
+        }
+
+        sortList = LOS_DL_LIST_ENTRY(listObject->pstNext, SortLinkList, sortLinkNode);
+    }
+
+    LOS_SpinUnlock(&g_taskSpin);
+
+    if (needSchedule != FALSE) {
+        LOS_MpSchedule(OS_MP_CPU_ALL);
+        LOS_Schedule();
+    }
+}

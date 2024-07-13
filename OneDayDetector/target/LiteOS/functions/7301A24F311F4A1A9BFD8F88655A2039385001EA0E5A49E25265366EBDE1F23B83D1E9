@@ -1,0 +1,88 @@
+static void RTC_DateUpdate(RTC_HandleTypeDef* hrtc, uint32_t DayElapsed)
+{
+  uint32_t year = 0, month = 0, day = 0;
+  uint32_t loop = 0;
+
+  /* Get the current year*/
+  year = hrtc->DateToUpdate.Year;
+
+  /* Get the current month and day */
+  month = hrtc->DateToUpdate.Month;
+  day = hrtc->DateToUpdate.Date;
+
+  for (loop = 0; loop < DayElapsed; loop++)
+  {
+    if((month == 1) || (month == 3) || (month == 5) || (month == 7) || \
+       (month == 8) || (month == 10) || (month == 12))
+    {
+      if(day < 31)
+      {
+        day++;
+      }
+      /* Date structure member: day = 31 */
+      else
+      {
+        if(month != 12)
+        {
+          month++;
+          day = 1;
+        }
+        /* Date structure member: day = 31 & month =12 */
+        else
+        {
+          month = 1;
+          day = 1;
+          year++;
+        }
+      }
+    }
+    else if((month == 4) || (month == 6) || (month == 9) || (month == 11))
+    {
+      if(day < 30)
+      {
+        day++;
+      }
+      /* Date structure member: day = 30 */
+      else
+      {
+        month++;
+        day = 1;
+      }
+    }
+    else if(month == 2)
+    {
+      if(day < 28)
+      {
+        day++;
+      }
+      else if(day == 28)
+      {
+        /* Leap year */
+        if(RTC_IsLeapYear(year))
+        {
+          day++;
+        }
+        else
+        {
+          month++;
+          day = 1;
+        }
+      }
+      else if(day == 29)
+      {
+        month++;
+        day = 1;
+      }
+    }
+  }
+
+  /* Update year */
+  hrtc->DateToUpdate.Year = year;
+
+  /* Update day and month */
+  hrtc->DateToUpdate.Month = month;
+  hrtc->DateToUpdate.Date = day;
+
+  /* Update day of the week */
+  hrtc->DateToUpdate.WeekDay = RTC_WeekDayNum(year, month, day);
+}

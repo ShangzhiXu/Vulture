@@ -1,0 +1,41 @@
+STATIC INLINE VOID OsMemDispMoreDetails(const LosMemDynNode *node)
+{
+    UINT32 taskId;
+    LosTaskCB *taskCB = NULL;
+
+    PRINT_ERR("************************************************\n");
+    OsMemDispCtlNode(&node->selfNode);
+    PRINT_ERR("the address of node :%p\n", node);
+
+    if (!OS_MEM_NODE_GET_USED_FLAG(node->selfNode.sizeAndFlag)) {
+        PRINT_ERR("this is a FREE node\n");
+        PRINT_ERR("************************************************\n\n");
+        return;
+    }
+
+    taskId = OS_MEM_TASKID_GET(node);
+    if (taskId >= g_taskMaxNum) {
+        PRINT_ERR("The task [ID: 0x%x] is ILLEGAL\n", taskId);
+        if (taskId == g_taskMaxNum) {
+            PRINT_ERR("PROBABLY alloc by SYSTEM INIT, NOT IN ANY TASK\n");
+        }
+        PRINT_ERR("************************************************\n\n");
+        return;
+    }
+
+    taskCB = OS_TCB_FROM_TID(taskId);
+    if ((taskCB->taskStatus & OS_TASK_STATUS_UNUSED) ||
+        (taskCB->taskEntry == NULL) ||
+        (taskCB->taskName == NULL)) {
+        PRINT_ERR("The task [ID: 0x%x] is NOT CREATED(ILLEGAL)\n", taskId);
+        PRINT_ERR("************************************************\n\n");
+        return;
+    }
+
+    PRINT_ERR("allocated by task: %s [ID = 0x%x]\n", taskCB->taskName, taskId);
+#ifdef LOSCFG_MEM_MUL_MODULE
+    PRINT_ERR("allocated by moduleId: %lu\n", OS_MEM_MODID_GET(node));
+#endif
+
+    PRINT_ERR("************************************************\n\n");
+}

@@ -1,0 +1,99 @@
+tcp_enqueue_flags(struct tcp_pcb *pcb, u8_t flags)
+{
+  struct pbuf *p;
+  struct tcp_seg *seg;
+  u8_t optflags = 0;
+  u8_t optlen = 0;
+
+  LWIP_DEBUGF(TCP_QLEN_DEBUG, ("tcp_enqueue_flags: queuelen: %"U16_F"\n", (u16_t)pcb->snd_queuelen));
+
+  LWIP_ASSERT("tcp_enqueue_flags: need either TCP_SYN or TCP_FIN in flags (programmer violates API)",
+              (flags & (TCP_SYN | TCP_FIN)) != 0);
+  LWIP_ASSERT("tcp_enqueue_flags: invalid pcb", pcb != NULL);
+
+  /* No need to check pcb->snd_queuelen if only SYN or FIN are allowed! */
+
+  /* Get options for this segment. This is a special case since this is the
+     only place where a SYN can be sent. */
+  if (flags & TCP_SYN) {
+    optflags = TF_SEG_OPTS_MSS;
+#if LWIP_WND_SCALE
+    if ((pcb->state != SYN_RCVD) || (pcb->flags & TF_WND_SCALE)) {
+      /* In a <SYN,ACK> (sent in state SYN_RCVD), the window scale option may only
+         be sent if we received a window scale option from the remote host. */
+      optflags |= TF_SEG_OPTS_WND_SCALE;
+    }
+#endif /* LWIP_WND_SCALE */
+#if LWIP_TCP_SACK_OUT
+    if ((pcb->state != SYN_RCVD) || (pcb->flags & TF_SACK)) {
+      /* In a <SYN,ACK> (sent in state SYN_RCVD), the SACK_PERM option may only
+         be sent if we received a SACK_PERM option from the remote host. */
+      optflags |= TF_SEG_OPTS_SACK_PERM;
+    }
+#endif /* LWIP_TCP_SACK_OUT */
+  }
+#if LWIP_TCP_TIMESTAMPS
+  if ((pcb->flags & TF_TIMESTAMP) || ((flags & TCP_SYN) && (pcb->state != SYN_RCVD))) {
+    /* Make sure the timestamp option is only included in data segments if we
+       agreed about it with the remote host (and in active open SYN segments). */
+    optflags |= TF_SEG_OPTS_TS;
+  }
+#endif /* LWIP_TCP_TIMESTAMPS */
+  optlen = LWIP_TCP_OPT_LENGTH_SEGMENT(optflags, pcb);
+
+  /* Allocate pbuf with room for TCP header + options */
+  if ((p = pbuf_alloc(PBUF_TRANSPORT, optlen, PBUF_RAM)) == NULL) {
+    tcp_set_flags(pcb, TF_NAGLEMEMERR);
+    TCP_STATS_INC(tcp.memerr);
+    return ERR_MEM;
+  }
+  LWIP_ASSERT("tcp_enqueue_flags: check that first pbuf can hold optlen",
+              (p->len >= optlen));
+
+  /* Allocate memory for tcp_seg, and fill in fields. */
+  if ((seg = tcp_create_segment(pcb, p, flags, pcb->snd_lbb, optflags)) == NULL) {
+    tcp_set_flags(pcb, TF_NAGLEMEMERR);
+    TCP_STATS_INC(tcp.memerr);
+    return ERR_MEM;
+  }
+  LWIP_ASSERT("seg->tcphdr not aligned", ((mem_ptr_t)seg->tcphdr % LWIP_MIN(MEM_ALIGNMENT, 4)) == 0);
+  LWIP_ASSERT("tcp_enqueue_flags: invalid segment length", seg->len == 0);
+
+  LWIP_DEBUGF(TCP_OUTPUT_DEBUG | LWIP_DBG_TRACE,
+              ("tcp_enqueue_flags: queueing %"U32_F":%"U32_F" (0x%"X16_F")\n",
+               lwip_ntohl(seg->tcphdr->seqno),
+               lwip_ntohl(seg->tcphdr->seqno) + TCP_TCPLEN(seg),
+               (u16_t)flags));
+
+  /* Now append seg to pcb->unsent queue */
+  if (pcb->unsent == NULL) {
+    pcb->unsent = seg;
+  } else {
+    struct tcp_seg *useg;
+    for (useg = pcb->unsent; useg->next != NULL; useg = useg->next);
+    useg->next = seg;
+  }
+#if TCP_OVERSIZE
+  /* The new unsent tail has no space */
+  pcb->unsent_oversize = 0;
+#endif /* TCP_OVERSIZE */
+
+  /* SYN and FIN bump the sequence number */
+  if ((flags & TCP_SYN) || (flags & TCP_FIN)) {
+    pcb->snd_lbb++;
+    /* optlen does not influence snd_buf */
+  }
+  if (flags & TCP_FIN) {
+    tcp_set_flags(pcb, TF_FIN);
+  }
+
+  /* update number of segments on the queues */
+  pcb->snd_queuelen += pbuf_clen(seg->p);
+  LWIP_DEBUGF(TCP_QLEN_DEBUG, ("tcp_enqueue_flags: %"S16_F" (after enqueued)\n", pcb->snd_queuelen));
+  if (pcb->snd_queuelen != 0) {
+    LWIP_ASSERT("tcp_enqueue_flags: invalid queue length",
+                pcb->unacked != NULL || pcb->unsent != NULL);
+  }
+
+  return ERR_OK;
+}

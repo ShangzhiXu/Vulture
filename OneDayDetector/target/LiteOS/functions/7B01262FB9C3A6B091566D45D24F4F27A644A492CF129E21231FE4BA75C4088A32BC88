@@ -1,0 +1,50 @@
+void lv_mem_free(const void * data)
+{
+    if(data == &zero_mem) return;
+    if(data == NULL) return;
+
+#if LV_MEM_ADD_JUNK
+    _lv_memset((void *)data, 0xbb, _lv_mem_get_size(data));
+#endif
+
+#if LV_ENABLE_GC == 0
+    /*e points to the header*/
+    lv_mem_ent_t * e = (lv_mem_ent_t *)((uint8_t *)data - sizeof(lv_mem_header_t));
+    e->header.s.used = 0;
+#endif
+
+#if LV_MEM_CUSTOM == 0
+#if LV_MEM_AUTO_DEFRAG
+    static uint16_t full_defrag_cnt = 0;
+    full_defrag_cnt++;
+    if(full_defrag_cnt < LV_MEM_FULL_DEFRAG_CNT) {
+        /* Make a simple defrag.
+         * Join the following free entries after this*/
+        lv_mem_ent_t * e_next;
+        e_next = ent_get_next(e);
+        while(e_next != NULL) {
+            if(e_next->header.s.used == 0) {
+                e->header.s.d_size += e_next->header.s.d_size + sizeof(e->header);
+            }
+            else {
+                break;
+            }
+            e_next = ent_get_next(e_next);
+        }
+    }
+    else {
+        full_defrag_cnt = 0;
+        lv_mem_defrag();
+
+    }
+
+
+#endif /*LV_MEM_AUTO_DEFRAG*/
+#else /*Use custom, user defined free function*/
+#if LV_ENABLE_GC == 0
+    LV_MEM_CUSTOM_FREE(e);
+#else
+    LV_MEM_CUSTOM_FREE((void *)data);
+#endif /*LV_ENABLE_GC*/
+#endif
+}

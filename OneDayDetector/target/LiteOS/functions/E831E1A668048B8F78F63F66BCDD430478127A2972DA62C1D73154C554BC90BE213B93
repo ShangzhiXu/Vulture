@@ -1,0 +1,61 @@
+LITE_OS_SEC_TEXT_MINOR UINT32 OsShellCmdHwi(INT32 argc, const CHAR **argv)
+{
+    UINT32 i;
+    UINT32 intSave;
+    UINT64 cycles = 0;
+    size_t size = sizeof(CPUP_INFO_S) * OS_HWI_MAX_NUM;
+    HwiHandleInfo *hwiForm = NULL;
+
+    (VOID)argv;
+    if (argc > 0) {
+        PRINTK("\nUsage: hwi\n");
+        return OS_ERROR;
+    }
+
+    (VOID)memset_s(g_hwiCpupAll, size, 0, size);
+    (VOID)memset_s(g_hwiCpup10s, size, 0, size);
+    (VOID)memset_s(g_hwiCpup1s, size, 0, size);
+
+    intSave = LOS_IntLock();
+    (VOID)LOS_AllCpuUsage(OS_HWI_MAX_NUM, g_hwiCpupAll, CPUP_ALL_TIME, 0);
+    (VOID)LOS_AllCpuUsage(OS_HWI_MAX_NUM, g_hwiCpup10s, CPUP_LAST_TEN_SECONDS, 0);
+    (VOID)LOS_AllCpuUsage(OS_HWI_MAX_NUM, g_hwiCpup1s, CPUP_LAST_ONE_SECONDS, 0);
+    LOS_IntRestore(intSave);
+
+    PRINTK(" InterruptNo     share      Count    CYCLECOST    CPUUSE   CPUUSE10s   CPUUSE1s     Name         DevId\n");
+    for (i = 0; i < OS_HWI_MAX_NUM; i++) {
+        if (!HWI_IS_REGISTED(i)) {
+            continue;
+        }
+
+        if (OsGetHwiFormCnt(i)) {
+            cycles = (OsCpupCBGet(g_taskMaxNum + i))->allTime / OsGetHwiFormCnt(i);
+        }
+
+        /* Different cores has different hwi form implementation */
+        hwiForm = OsGetHwiForm(i);
+        PRINTK(" %8u:\t   %-s\t      %-10u%-10llu %2u.%-7u %2u.%-7u %2u.%-6u",
+               i, GetHwiShare(hwiForm) ? "Y" : "N", OsGetHwiFormCnt(i), cycles,
+               g_hwiCpupAll[i].uwUsage / LOS_CPUP_PRECISION_MULT, g_hwiCpupAll[i].uwUsage % LOS_CPUP_PRECISION_MULT,
+               g_hwiCpup10s[i].uwUsage / LOS_CPUP_PRECISION_MULT, g_hwiCpup10s[i].uwUsage % LOS_CPUP_PRECISION_MULT,
+               g_hwiCpup1s[i].uwUsage / LOS_CPUP_PRECISION_MULT, g_hwiCpup1s[i].uwUsage % LOS_CPUP_PRECISION_MULT);
+#ifndef LOSCFG_NO_SHARED_IRQ
+        hwiForm = hwiForm->next;
+#endif
+        if ((hwiForm->registerInfo != 0) && ((HWI_IRQ_PARAM_S *)hwiForm->registerInfo)->pName != NULL) {
+            PRINTK(" %-16s %-32u\n",
+                   ((HWI_IRQ_PARAM_S *)hwiForm->registerInfo)->pName,
+                   ((HWI_IRQ_PARAM_S *)hwiForm->registerInfo)->pDevId);
+        } else {
+            PRINTK("\n");
+        }
+#ifndef LOSCFG_NO_SHARED_IRQ
+        while ((hwiForm = hwiForm->next) != NULL) {
+            PRINTK("\t\t\t\t\t\t\t\t\t\t   %-16s %-32u\n",
+                   ((HWI_IRQ_PARAM_S *)hwiForm->registerInfo)->pName,
+                   ((HWI_IRQ_PARAM_S *)hwiForm->registerInfo)->pDevId);
+        }
+#endif
+    }
+    return 0;
+}

@@ -1,0 +1,92 @@
+http_post_request(struct pbuf *inp, struct http_state *hs,
+                  char *data, u16_t data_len, char *uri, char *uri_end)
+{
+  err_t err;
+  /* search for end-of-header (first double-CRLF) */
+  char *crlfcrlf = lwip_strnstr(uri_end + 1, CRLF CRLF, data_len - (uri_end + 1 - data));
+
+  if (crlfcrlf != NULL) {
+    /* search for "Content-Length: " */
+#define HTTP_HDR_CONTENT_LEN                "Content-Length: "
+#define HTTP_HDR_CONTENT_LEN_LEN            16
+#define HTTP_HDR_CONTENT_LEN_DIGIT_MAX_LEN  10
+    char *scontent_len = lwip_strnstr(uri_end + 1, HTTP_HDR_CONTENT_LEN, crlfcrlf - (uri_end + 1));
+    if (scontent_len != NULL) {
+      char *scontent_len_end = lwip_strnstr(scontent_len + HTTP_HDR_CONTENT_LEN_LEN, CRLF, HTTP_HDR_CONTENT_LEN_DIGIT_MAX_LEN);
+      if (scontent_len_end != NULL) {
+        int content_len;
+        char *content_len_num = scontent_len + HTTP_HDR_CONTENT_LEN_LEN;
+        content_len = atoi(content_len_num);
+        if (content_len == 0) {
+          /* if atoi returns 0 on error, fix this */
+          if ((content_len_num[0] != '0') || (content_len_num[1] != '\r')) {
+            content_len = -1;
+          }
+        }
+        if (content_len >= 0) {
+          /* adjust length of HTTP header passed to application */
+          const char *hdr_start_after_uri = uri_end + 1;
+          u16_t hdr_len = (u16_t)LWIP_MIN(data_len, crlfcrlf + 4 - data);
+          u16_t hdr_data_len = (u16_t)LWIP_MIN(data_len, crlfcrlf + 4 - hdr_start_after_uri);
+          u8_t post_auto_wnd = 1;
+          http_uri_buf[0] = 0;
+          /* trim http header */
+          *crlfcrlf = 0;
+          err = httpd_post_begin(hs, uri, hdr_start_after_uri, hdr_data_len, content_len,
+                                 http_uri_buf, LWIP_HTTPD_URI_BUF_LEN, &post_auto_wnd);
+          if (err == ERR_OK) {
+            /* try to pass in data of the first pbuf(s) */
+            struct pbuf *q = inp;
+            u16_t start_offset = hdr_len;
+#if LWIP_HTTPD_POST_MANUAL_WND
+            hs->no_auto_wnd = !post_auto_wnd;
+#endif /* LWIP_HTTPD_POST_MANUAL_WND */
+            /* set the Content-Length to be received for this POST */
+            hs->post_content_len_left = (u32_t)content_len;
+
+            /* get to the pbuf where the body starts */
+            while ((q != NULL) && (q->len <= start_offset)) {
+              start_offset -= q->len;
+              q = q->next;
+            }
+            if (q != NULL) {
+              /* hide the remaining HTTP header */
+              pbuf_remove_header(q, start_offset);
+#if LWIP_HTTPD_POST_MANUAL_WND
+              if (!post_auto_wnd) {
+                /* already tcp_recved() this data... */
+                hs->unrecved_bytes = q->tot_len;
+              }
+#endif /* LWIP_HTTPD_POST_MANUAL_WND */
+              pbuf_ref(q);
+              return http_post_rxpbuf(hs, q);
+            } else if (hs->post_content_len_left == 0) {
+              q = pbuf_alloc(PBUF_RAW, 0, PBUF_REF);
+              return http_post_rxpbuf(hs, q);
+            } else {
+              return ERR_OK;
+            }
+          } else {
+            /* return file passed from application */
+            return http_find_file(hs, http_uri_buf, 0);
+          }
+        } else {
+          LWIP_DEBUGF(HTTPD_DEBUG, ("POST received invalid Content-Length: %s\n",
+                                    content_len_num));
+          return ERR_ARG;
+        }
+      }
+    }
+    /* If we come here, headers are fully received (double-crlf), but Content-Length
+       was not included. Since this is currently the only supported method, we have
+       to fail in this case! */
+    LWIP_DEBUGF(HTTPD_DEBUG, ("Error when parsing Content-Length\n"));
+    return ERR_ARG;
+  }
+  /* if we come here, the POST is incomplete */
+#if LWIP_HTTPD_SUPPORT_REQUESTLIST
+  return ERR_INPROGRESS;
+#else /* LWIP_HTTPD_SUPPORT_REQUESTLIST */
+  return ERR_ARG;
+#endif /* LWIP_HTTPD_SUPPORT_REQUESTLIST */
+}

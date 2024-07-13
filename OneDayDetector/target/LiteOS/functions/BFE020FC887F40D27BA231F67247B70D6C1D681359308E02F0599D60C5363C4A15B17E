@@ -1,0 +1,24 @@
+dhcp_inc_pcb_refcount(void)
+{
+  if (dhcp_pcb_refcount == 0) {
+    LWIP_ASSERT("dhcp_inc_pcb_refcount(): memory leak", dhcp_pcb == NULL);
+
+    /* allocate UDP PCB */
+    dhcp_pcb = udp_new();
+
+    if (dhcp_pcb == NULL) {
+      return ERR_MEM;
+    }
+
+    ip_set_option(dhcp_pcb, SOF_BROADCAST);
+
+    /* set up local and remote port for the pcb -> listen on all interfaces on all src/dest IPs */
+    udp_bind(dhcp_pcb, IP4_ADDR_ANY, LWIP_IANA_PORT_DHCP_CLIENT);
+    udp_connect(dhcp_pcb, IP4_ADDR_ANY, LWIP_IANA_PORT_DHCP_SERVER);
+    udp_recv(dhcp_pcb, dhcp_recv, NULL);
+  }
+
+  dhcp_pcb_refcount++;
+
+  return ERR_OK;
+}

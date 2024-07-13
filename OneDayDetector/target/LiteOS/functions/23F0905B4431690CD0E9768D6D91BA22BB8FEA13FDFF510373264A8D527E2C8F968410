@@ -1,0 +1,28 @@
+static void lv_refr_vdb_flush(void)
+{
+    lv_disp_buf_t * vdb = lv_disp_get_buf(disp_refr);
+
+    /*In double buffered mode wait until the other buffer is flushed before flushing the current
+     * one*/
+    if(lv_disp_is_double_buf(disp_refr)) {
+        while(vdb->flushing) {
+            if(disp_refr->driver.wait_cb) disp_refr->driver.wait_cb(&disp_refr->driver);
+        }
+    }
+
+    vdb->flushing = 1;
+
+    if(disp_refr->driver.buffer->last_area && disp_refr->driver.buffer->last_part) vdb->flushing_last = 1;
+    else vdb->flushing_last = 0;
+
+    /*Flush the rendered content to the display*/
+    lv_disp_t * disp = _lv_refr_get_disp_refreshing();
+    if(disp->driver.flush_cb) disp->driver.flush_cb(&disp->driver, &vdb->area, vdb->buf_act);
+
+    if(vdb->buf1 && vdb->buf2) {
+        if(vdb->buf_act == vdb->buf1)
+            vdb->buf_act = vdb->buf2;
+        else
+            vdb->buf_act = vdb->buf1;
+    }
+}

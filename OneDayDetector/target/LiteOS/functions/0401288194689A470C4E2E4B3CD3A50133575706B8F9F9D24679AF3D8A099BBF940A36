@@ -1,0 +1,24 @@
+static void mqtt_recv_secret_topic(MessageData *md)
+{
+    mqtt_client_s *handle = &g_mqtt_client;
+
+    if ((md == NULL) || (md->message == NULL)
+        || (md->message->payload == NULL)
+        || (md->message->payloadlen == 0)
+        || (mqtt_modify_payload(md) != ATINY_OK)) {
+        ATINY_LOG(LOG_FATAL, "null point or msg err, len %ld", md->message->payloadlen);
+        return;
+    }
+
+    if (mqtt_parse_secret_topic(handle, md->message->payload, md->message->payloadlen) == ATINY_OK) {
+        flash_info_s flash_info;
+        flash_info.items[PRODUCT_IDX] = handle->device_info.u.d_info.productid;
+        flash_info.items[NODEID_IDX] = handle->device_info.u.d_info.nodeid;
+        flash_info.items[DEVICEID_IDX] = handle->dynamic_info.save_info.deviceid;
+        flash_info.items[PASSWORD_IDX] = handle->dynamic_info.got_password;
+        if (flash_manager_write(&flash_info) != ATINY_OK) {
+            return;
+        }
+        mqtt_send_secret_ack(handle);
+    }
+}

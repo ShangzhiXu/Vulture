@@ -1,0 +1,50 @@
+LITE_OS_SEC_TEXT_INIT UINT32 OsTaskInit(VOID)
+{
+    UINT32 index;
+    UINT32 ret;
+    UINT32 size;
+
+    g_taskMaxNum = LOSCFG_BASE_CORE_TSK_LIMIT;
+    size = (g_taskMaxNum + 1) * sizeof(LosTaskCB);
+    /*
+     * This memory is resident memory and is used to save the system resources
+     * of task control block and will not be freed.
+     */
+    g_taskCBArray = (LosTaskCB *)LOS_MemAlloc(m_aucSysMem0, size);
+    if (g_taskCBArray == NULL) {
+        return LOS_ERRNO_TSK_NO_MEMORY;
+    }
+    (VOID)memset_s(g_taskCBArray, size, 0, size);
+
+    LOS_ListInit(&g_losFreeTask);
+    LOS_ListInit(&g_taskRecycleList);
+    for (index = 0; index < g_taskMaxNum; index++) {
+        g_taskCBArray[index].taskStatus = OS_TASK_STATUS_UNUSED;
+        g_taskCBArray[index].taskId = index;
+        LOS_ListTailInsert(&g_losFreeTask, &g_taskCBArray[index].pendList);
+    }
+
+    ret = OsPriQueueInit();
+    if (ret != LOS_OK) {
+        return LOS_ERRNO_TSK_NO_MEMORY;
+    }
+
+    ret = OsMuxDlockCheckInitHook();
+    if (ret != LOS_OK) {
+        return LOS_ERRNO_TSK_NO_MEMORY;
+    }
+
+    /* init sortlink for each core */
+    for (index = 0; index < LOSCFG_KERNEL_CORE_NUM; index++) {
+        ret = OsSortLinkInit(&g_percpu[index].taskSortLink);
+        if (ret != LOS_OK) {
+            return LOS_ERRNO_TSK_NO_MEMORY;
+        }
+    }
+
+#ifdef LOSCFG_LAZY_STACK
+    g_stackFrameOffLenInTcb = (UINT16)LOS_OFF_SET_OF(LosTaskCB, stackFrame);
+#endif
+
+    return LOS_OK;
+}

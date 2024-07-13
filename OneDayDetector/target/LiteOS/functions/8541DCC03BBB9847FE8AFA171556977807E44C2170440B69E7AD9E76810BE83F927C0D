@@ -1,0 +1,173 @@
+HAL_StatusTypeDef HAL_SPI_Receive(SPI_HandleTypeDef *hspi, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+{
+  __IO uint16_t tmpreg = 0;
+
+  if(hspi->State == HAL_SPI_STATE_READY)
+  {
+    if((pData == NULL ) || (Size == 0)) 
+    {
+      return  HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hspi);
+
+    /* Configure communication */
+    hspi->State       = HAL_SPI_STATE_BUSY_RX;
+    hspi->ErrorCode   = HAL_SPI_ERROR_NONE;
+
+    hspi->pRxBuffPtr  = pData;
+    hspi->RxXferSize  = Size;
+    hspi->RxXferCount = Size;
+
+    /*Init field not used in handle to zero */
+    hspi->RxISR = 0;
+    hspi->TxISR = 0;
+    hspi->pTxBuffPtr  = NULL;
+    hspi->TxXferSize  = 0;
+    hspi->TxXferCount = 0;
+
+    /* Configure communication direction : 1Line */
+    if(hspi->Init.Direction == SPI_DIRECTION_1LINE)
+    {
+      SPI_1LINE_RX(hspi);
+    }
+
+    /* Reset CRC Calculation */
+    if(hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+    {
+      SPI_RESET_CRC(hspi);
+    }
+    
+    if((hspi->Init.Mode == SPI_MODE_MASTER) && (hspi->Init.Direction == SPI_DIRECTION_2LINES))
+    {
+      /* Process Unlocked */
+      __HAL_UNLOCK(hspi);
+
+      /* Call transmit-receive function to send Dummy data on Tx line and generate clock on CLK line */
+      return HAL_SPI_TransmitReceive(hspi, pData, pData, Size, Timeout);
+    }
+
+    /* Check if the SPI is already enabled */ 
+    if((hspi->Instance->CR1 &SPI_CR1_SPE) != SPI_CR1_SPE)
+    {
+      /* Enable SPI peripheral */
+      __HAL_SPI_ENABLE(hspi);
+    }
+
+    /* Receive data in 8 Bit mode */
+    if(hspi->Init.DataSize == SPI_DATASIZE_8BIT)
+    {
+      while(hspi->RxXferCount > 1)
+      {
+        /* Wait until RXNE flag is set */
+        if(SPI_WaitOnFlagUntilTimeout(hspi, SPI_FLAG_RXNE, RESET, Timeout) != HAL_OK)
+        { 
+          return HAL_TIMEOUT;
+        }
+
+        (*hspi->pRxBuffPtr++) = hspi->Instance->DR;
+        hspi->RxXferCount--;
+      }
+      /* Enable CRC Reception */
+      if(hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE) 
+      {
+        SET_BIT(hspi->Instance->CR1, SPI_CR1_CRCNEXT);
+      }
+    }
+    /* Receive data in 16 Bit mode */
+    else
+    {
+      while(hspi->RxXferCount > 1)
+      {
+        /* Wait until RXNE flag is set to read data */
+        if(SPI_WaitOnFlagUntilTimeout(hspi, SPI_FLAG_RXNE, RESET, Timeout) != HAL_OK)
+        { 
+          return HAL_TIMEOUT;
+        }
+
+        *((uint16_t*)hspi->pRxBuffPtr) = hspi->Instance->DR;
+        hspi->pRxBuffPtr+=2;
+        hspi->RxXferCount--;
+      }
+      /* Enable CRC Reception */
+      if(hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE) 
+      {
+        SET_BIT(hspi->Instance->CR1, SPI_CR1_CRCNEXT);
+      }
+    }
+
+    /* Wait until RXNE flag is set */
+    if(SPI_WaitOnFlagUntilTimeout(hspi, SPI_FLAG_RXNE, RESET, Timeout) != HAL_OK)
+    { 
+      return HAL_TIMEOUT;
+    }
+
+    /* Receive last data in 8 Bit mode */
+    if(hspi->Init.DataSize == SPI_DATASIZE_8BIT)
+    {
+      (*hspi->pRxBuffPtr++) = hspi->Instance->DR;
+    }
+    /* Receive last data in 16 Bit mode */
+    else
+    {
+      *((uint16_t*)hspi->pRxBuffPtr) = hspi->Instance->DR;
+      hspi->pRxBuffPtr+=2;
+    }
+    hspi->RxXferCount--;
+
+    /* If CRC computation is enabled */
+    if(hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+    {
+      /* Wait until RXNE flag is set: CRC Received */
+      if(SPI_WaitOnFlagUntilTimeout(hspi, SPI_FLAG_RXNE, RESET, Timeout) != HAL_OK)
+      {
+        SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_CRC);
+        return HAL_TIMEOUT;
+      }
+
+      /* Read CRC to clear RXNE flag */
+      tmpreg = hspi->Instance->DR;
+      UNUSED(tmpreg);
+    }
+    
+    if((hspi->Init.Mode == SPI_MODE_MASTER)&&((hspi->Init.Direction == SPI_DIRECTION_1LINE)||(hspi->Init.Direction == SPI_DIRECTION_2LINES_RXONLY)))
+    {
+      /* Disable SPI peripheral */
+      __HAL_SPI_DISABLE(hspi);
+    }
+
+    hspi->State = HAL_SPI_STATE_READY;
+
+    /* Check if CRC error occurred */
+    if((hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE) && (__HAL_SPI_GET_FLAG(hspi, SPI_FLAG_CRCERR) != RESET))
+    {  
+      /* Check if CRC error is valid or not (workaround to be applied or not) */
+      if (SPI_ISCRCErrorValid(hspi) == SPI_VALID_CRC_ERROR)
+      {
+        SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_CRC);
+
+        /* Reset CRC Calculation */
+        SPI_RESET_CRC(hspi);
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(hspi);
+
+        return HAL_ERROR; 
+      }
+      else
+      {
+        __HAL_SPI_CLEAR_CRCERRFLAG(hspi);
+      }
+    }
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hspi);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

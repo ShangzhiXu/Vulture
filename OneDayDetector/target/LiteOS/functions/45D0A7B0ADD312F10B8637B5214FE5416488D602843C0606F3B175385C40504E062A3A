@@ -1,0 +1,16 @@
+smtp_send_bodyh_data(struct altcp_pcb *pcb, const char **from, u16_t *howmany)
+{
+  err_t err;
+  u16_t len = *howmany;
+
+  len = (u16_t)LWIP_MIN(len, altcp_sndbuf(pcb));
+  err = altcp_write(pcb, *from, len, TCP_WRITE_FLAG_COPY);
+  if (err == ERR_OK) {
+    *from += len;
+    if ((*howmany -= len) > 0) {
+      return BDHSOMEDATASENT;
+    }
+    return BDHALLDATASENT;
+  }
+  return 0;
+}

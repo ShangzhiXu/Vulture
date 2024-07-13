@@ -1,0 +1,22 @@
+raw_new(u8_t proto)
+{
+  struct raw_pcb *pcb;
+
+  LWIP_DEBUGF(RAW_DEBUG | LWIP_DBG_TRACE, ("raw_new\n"));
+  LWIP_ASSERT_CORE_LOCKED();
+
+  pcb = (struct raw_pcb *)memp_malloc(MEMP_RAW_PCB);
+  /* could allocate RAW PCB? */
+  if (pcb != NULL) {
+    /* initialize PCB to all zeroes */
+    memset(pcb, 0, sizeof(struct raw_pcb));
+    pcb->protocol = proto;
+    pcb->ttl = RAW_TTL;
+#if LWIP_MULTICAST_TX_OPTIONS
+    raw_set_multicast_ttl(pcb, RAW_TTL);
+#endif /* LWIP_MULTICAST_TX_OPTIONS */
+    pcb->next = raw_pcbs;
+    raw_pcbs = pcb;
+  }
+  return pcb;
+}

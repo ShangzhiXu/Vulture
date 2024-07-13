@@ -1,0 +1,31 @@
+STATIC UINT32 OsTaskCreateParamCheckStatic(const UINT32 *taskId,
+    const TSK_INIT_PARAM_S *initParam, const VOID *topStack)
+{
+    UINT32 ret;
+
+    if (taskId == NULL) {
+        return LOS_ERRNO_TSK_ID_INVALID;
+    }
+
+    if (topStack == NULL) {
+        return LOS_ERRNO_TSK_PTR_NULL;
+    }
+
+    ret = OsTaskInitParamCheck(initParam);
+    if (ret != LOS_OK) {
+        return ret;
+    }
+
+    if ((UINTPTR)topStack & (OS_TASK_STACK_ADDR_ALIGN - 1)) {
+        return LOS_ERRNO_TSK_STKSZ_NOT_ALIGN;
+    }
+
+    if (initParam->uwStackSize & (OS_TASK_STACK_ADDR_ALIGN - 1)) {
+        return LOS_ERRNO_TSK_STKSZ_NOT_ALIGN;
+    }
+
+    if (initParam->uwStackSize < LOS_TASK_MIN_STACK_SIZE) {
+        return LOS_ERRNO_TSK_STKSZ_TOO_SMALL;
+    }
+    return LOS_OK;
+}

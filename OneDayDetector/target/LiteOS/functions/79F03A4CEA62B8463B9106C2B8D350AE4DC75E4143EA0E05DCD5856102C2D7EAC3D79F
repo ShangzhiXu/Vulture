@@ -1,0 +1,21 @@
+static void indev_pointer_proc(lv_indev_t * i, lv_indev_data_t * data)
+{
+    /*Move the cursor if set and moved*/
+    if(i->cursor != NULL &&
+       (i->proc.types.pointer.last_point.x != data->point.x || i->proc.types.pointer.last_point.y != data->point.y)) {
+        lv_obj_set_pos(i->cursor, data->point.x, data->point.y);
+    }
+
+    i->proc.types.pointer.act_point.x = data->point.x;
+    i->proc.types.pointer.act_point.y = data->point.y;
+
+    if(i->proc.state == LV_INDEV_STATE_PR) {
+        indev_proc_press(&i->proc);
+    }
+    else {
+        indev_proc_release(&i->proc);
+    }
+
+    i->proc.types.pointer.last_point.x = i->proc.types.pointer.act_point.x;
+    i->proc.types.pointer.last_point.y = i->proc.types.pointer.act_point.y;
+}

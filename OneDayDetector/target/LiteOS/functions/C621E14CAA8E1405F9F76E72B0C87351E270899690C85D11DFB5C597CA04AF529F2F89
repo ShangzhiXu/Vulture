@@ -1,0 +1,56 @@
+static uint32_t get_glyph_dsc_id(const lv_font_t * font, uint32_t letter)
+{
+    if(letter == '\0') return 0;
+
+    lv_font_fmt_txt_dsc_t * fdsc = (lv_font_fmt_txt_dsc_t *) font->dsc;
+
+    /*Check the cache first*/
+    if(letter == fdsc->last_letter) return fdsc->last_glyph_id;
+
+    uint16_t i;
+    for(i = 0; i < fdsc->cmap_num; i++) {
+
+        /*Relative code point*/
+        uint32_t rcp = letter - fdsc->cmaps[i].range_start;
+        if(rcp > fdsc->cmaps[i].range_length) continue;
+        uint32_t glyph_id = 0;
+        if(fdsc->cmaps[i].type == LV_FONT_FMT_TXT_CMAP_FORMAT0_TINY) {
+            glyph_id = fdsc->cmaps[i].glyph_id_start + rcp;
+        }
+        else if(fdsc->cmaps[i].type == LV_FONT_FMT_TXT_CMAP_FORMAT0_FULL) {
+            const uint8_t * gid_ofs_8 = fdsc->cmaps[i].glyph_id_ofs_list;
+            glyph_id = fdsc->cmaps[i].glyph_id_start + gid_ofs_8[rcp];
+        }
+        else if(fdsc->cmaps[i].type == LV_FONT_FMT_TXT_CMAP_SPARSE_TINY) {
+            uint8_t * p = _lv_utils_bsearch(&rcp, fdsc->cmaps[i].unicode_list, fdsc->cmaps[i].list_length,
+                                            sizeof(fdsc->cmaps[i].unicode_list[0]), unicode_list_compare);
+
+            if(p) {
+                lv_uintptr_t ofs = (lv_uintptr_t)(p - (uint8_t *) fdsc->cmaps[i].unicode_list);
+                ofs = ofs >> 1;     /*The list stores `uint16_t` so the get the index divide by 2*/
+                glyph_id = fdsc->cmaps[i].glyph_id_start + ofs;
+            }
+        }
+        else if(fdsc->cmaps[i].type == LV_FONT_FMT_TXT_CMAP_SPARSE_FULL) {
+            uint8_t * p = _lv_utils_bsearch(&rcp, fdsc->cmaps[i].unicode_list, fdsc->cmaps[i].list_length,
+                                            sizeof(fdsc->cmaps[i].unicode_list[0]), unicode_list_compare);
+
+            if(p) {
+                lv_uintptr_t ofs = (lv_uintptr_t)(p - (uint8_t *) fdsc->cmaps[i].unicode_list);
+                ofs = ofs >> 1;     /*The list stores `uint16_t` so the get the index divide by 2*/
+                const uint8_t * gid_ofs_16 = fdsc->cmaps[i].glyph_id_ofs_list;
+                glyph_id = fdsc->cmaps[i].glyph_id_start + gid_ofs_16[ofs];
+            }
+        }
+
+        /*Update the cache*/
+        fdsc->last_letter = letter;
+        fdsc->last_glyph_id = glyph_id;
+        return glyph_id;
+    }
+
+    fdsc->last_letter = letter;
+    fdsc->last_glyph_id = 0;
+    return 0;
+
+}

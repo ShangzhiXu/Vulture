@@ -1,0 +1,19 @@
+bridgeif_fdb_get_dst_ports(void *fdb_ptr, struct eth_addr *dst_addr)
+{
+  int i;
+  bridgeif_dfdb_t *fdb = (bridgeif_dfdb_t *)fdb_ptr;
+  BRIDGEIF_DECL_PROTECT(lev);
+  BRIDGEIF_READ_PROTECT(lev);
+  for (i = 0; i < fdb->max_fdb_entries; i++) {
+    bridgeif_dfdb_entry_t *e = &fdb->fdb[i];
+    if (e->used && e->ts) {
+      if (!memcmp(&e->addr, dst_addr, sizeof(struct eth_addr))) {
+        bridgeif_portmask_t ret = (bridgeif_portmask_t)(1 << e->port);
+        BRIDGEIF_READ_UNPROTECT(lev);
+        return ret;
+      }
+    }
+  }
+  BRIDGEIF_READ_UNPROTECT(lev);
+  return BR_FLOOD;
+}

@@ -1,0 +1,42 @@
+HAL_StatusTypeDef HAL_FLASH_Program_IT(uint32_t TypeProgram, uint32_t Address, uint64_t Data)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  
+  /* Process Locked */
+  __HAL_LOCK(&pFlash);
+
+  /* Check the parameters */
+  assert_param(IS_FLASH_TYPEPROGRAM(TypeProgram));
+
+  /* Enable End of FLASH Operation interrupt */
+  __HAL_FLASH_ENABLE_IT(FLASH_IT_EOP);
+  
+  /* Enable Error source interrupt */
+  __HAL_FLASH_ENABLE_IT(FLASH_IT_ERR);
+
+  pFlash.ProcedureOnGoing = FLASH_PROC_PROGRAM;
+  pFlash.Address = Address;
+
+  if(TypeProgram == FLASH_TYPEPROGRAM_BYTE)
+  {
+    /*Program byte (8-bit) at a specified address.*/
+      FLASH_Program_Byte(Address, (uint8_t) Data);
+  }
+  else if(TypeProgram == FLASH_TYPEPROGRAM_HALFWORD)
+  {
+    /*Program halfword (16-bit) at a specified address.*/
+    FLASH_Program_HalfWord(Address, (uint16_t) Data);
+  }
+  else if(TypeProgram == FLASH_TYPEPROGRAM_WORD)
+  {
+    /*Program word (32-bit) at a specified address.*/
+    FLASH_Program_Word(Address, (uint32_t) Data);
+  }
+  else
+  {
+    /*Program double word (64-bit) at a specified address.*/
+    FLASH_Program_DoubleWord(Address, Data);
+  }
+
+  return status;
+}

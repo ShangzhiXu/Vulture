@@ -1,0 +1,27 @@
+uint32_t HAL_NAND_Address_Inc(NAND_HandleTypeDef *hnand, NAND_AddressTypeDef *pAddress)
+{
+  uint32_t status = NAND_VALID_ADDRESS;
+ 
+  /* Increment page address */
+  pAddress->Page++;
+
+  /* Check NAND address is valid */
+  if(pAddress->Page == hnand->Config.BlockSize)
+  {
+    pAddress->Page = 0;
+    pAddress->Block++;
+    
+    if(pAddress->Block == hnand->Config.PlaneSize)
+    {
+      pAddress->Block = 0;
+      pAddress->Plane++;
+
+      if(pAddress->Plane == (hnand->Config.PlaneNbr))
+      {
+        status = NAND_INVALID_ADDRESS;
+      }
+    }
+  } 
+  
+  return (status);
+}

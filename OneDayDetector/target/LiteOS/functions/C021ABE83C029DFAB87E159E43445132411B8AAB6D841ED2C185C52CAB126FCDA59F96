@@ -1,0 +1,93 @@
+static int ssl_parse_encrypted_pms( mbedtls_ssl_context *ssl,
+                                    const unsigned char *p,
+                                    const unsigned char *end,
+                                    size_t pms_offset )
+{
+    int ret;
+    unsigned char *pms = ssl->handshake->premaster + pms_offset;
+    unsigned char ver[2];
+    unsigned char fake_pms[48], peer_pms[48];
+    unsigned char mask;
+    size_t i, peer_pmslen;
+    unsigned int diff;
+
+    /* In case of a failure in decryption, the decryption may write less than
+     * 2 bytes of output, but we always read the first two bytes. It doesn't
+     * matter in the end because diff will be nonzero in that case due to
+     * peer_pmslen being less than 48, and we only care whether diff is 0.
+     * But do initialize peer_pms for robustness anyway. This also makes
+     * memory analyzers happy (don't access uninitialized memory, even
+     * if it's an unsigned char). */
+    peer_pms[0] = peer_pms[1] = ~0;
+
+    ret = ssl_decrypt_encrypted_pms( ssl, p, end,
+                                     peer_pms,
+                                     &peer_pmslen,
+                                     sizeof( peer_pms ) );
+
+#if defined(MBEDTLS_SSL_ASYNC_PRIVATE)
+    if ( ret == MBEDTLS_ERR_SSL_ASYNC_IN_PROGRESS )
+        return( ret );
+#endif /* MBEDTLS_SSL_ASYNC_PRIVATE */
+
+    mbedtls_ssl_write_version( ssl->handshake->max_major_ver,
+                               ssl->handshake->max_minor_ver,
+                               ssl->conf->transport, ver );
+
+    /* Avoid data-dependent branches while checking for invalid
+     * padding, to protect against timing-based Bleichenbacher-type
+     * attacks. */
+    diff  = (unsigned int) ret;
+    diff |= peer_pmslen ^ 48;
+    diff |= peer_pms[0] ^ ver[0];
+    diff |= peer_pms[1] ^ ver[1];
+
+    /* mask = diff ? 0xff : 0x00 using bit operations to avoid branches */
+    /* MSVC has a warning about unary minus on unsigned, but this is
+     * well-defined and precisely what we want to do here */
+#if defined(_MSC_VER)
+#pragma warning( push )
+#pragma warning( disable : 4146 )
+#endif
+    mask = - ( ( diff | - diff ) >> ( sizeof( unsigned int ) * 8 - 1 ) );
+#if defined(_MSC_VER)
+#pragma warning( pop )
+#endif
+
+    /*
+     * Protection against Bleichenbacher's attack: invalid PKCS#1 v1.5 padding
+     * must not cause the connection to end immediately; instead, send a
+     * bad_record_mac later in the handshake.
+     * To protect against timing-based variants of the attack, we must
+     * not have any branch that depends on whether the decryption was
+     * successful. In particular, always generate the fake premaster secret,
+     * regardless of whether it will ultimately influence the output or not.
+     */
+    ret = ssl->conf->f_rng( ssl->conf->p_rng, fake_pms, sizeof( fake_pms ) );
+    if( ret != 0 )
+    {
+        /* It's ok to abort on an RNG failure, since this does not reveal
+         * anything about the RSA decryption. */
+        return( ret );
+    }
+
+#if defined(MBEDTLS_SSL_DEBUG_ALL)
+    if( diff != 0 )
+        MBEDTLS_SSL_DEBUG_MSG( 1, ( "bad client key exchange message" ) );
+#endif
+
+    if( sizeof( ssl->handshake->premaster ) < pms_offset ||
+        sizeof( ssl->handshake->premaster ) - pms_offset < 48 )
+    {
+        MBEDTLS_SSL_DEBUG_MSG( 1, ( "should never happen" ) );
+        return( MBEDTLS_ERR_SSL_INTERNAL_ERROR );
+    }
+    ssl->handshake->pmslen = 48;
+
+    /* Set pms to either the true or the fake PMS, without
+     * data-dependent branches. */
+    for( i = 0; i < ssl->handshake->pmslen; i++ )
+        pms[i] = ( mask & fake_pms[i] ) | ( (~mask) & peer_pms[i] );
+
+    return( 0 );
+}

@@ -1,0 +1,23 @@
+mld6_tmr(void)
+{
+  struct netif *netif;
+
+  NETIF_FOREACH(netif) {
+    struct mld_group *group = netif_mld6_data(netif);
+
+    while (group != NULL) {
+      if (group->timer > 0) {
+        group->timer--;
+        if (group->timer == 0) {
+          /* If the state is MLD6_GROUP_DELAYING_MEMBER then we send a report for this group */
+          if (group->group_state == MLD6_GROUP_DELAYING_MEMBER) {
+            MLD6_STATS_INC(mld6.tx_report);
+            mld6_send(netif, group, ICMP6_TYPE_MLR);
+            group->group_state = MLD6_GROUP_IDLE_MEMBER;
+          }
+        }
+      }
+      group = group->next;
+    }
+  }
+}

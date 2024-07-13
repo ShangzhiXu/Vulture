@@ -1,0 +1,22 @@
+httpc_dns_found(const char* hostname, const ip_addr_t *ipaddr, void *arg)
+{
+  httpc_state_t* req = (httpc_state_t*)arg;
+  err_t err;
+  httpc_result_t result;
+
+  LWIP_UNUSED_ARG(hostname);
+
+  if (ipaddr != NULL) {
+    err = httpc_get_internal_addr(req, ipaddr);
+    if (err == ERR_OK) {
+      return;
+    }
+    result = HTTPC_RESULT_ERR_CONNECT;
+  } else {
+    LWIP_DEBUGF(HTTPC_DEBUG_WARN_STATE, ("httpc_dns_found: failed to resolve hostname: %s\n",
+      hostname));
+    result = HTTPC_RESULT_ERR_HOSTNAME;
+    err = ERR_ARG;
+  }
+  httpc_close(req, result, 0, err);
+}

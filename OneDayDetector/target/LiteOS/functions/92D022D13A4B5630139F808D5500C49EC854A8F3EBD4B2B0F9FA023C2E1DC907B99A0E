@@ -1,0 +1,18 @@
+static uint32_t lv_txt_utf8_conv_wc(uint32_t c)
+{
+    /*Swap the bytes (UTF-8 is big endian, but the MCUs are little endian)*/
+    if((c & 0x80) != 0) {
+        uint32_t swapped;
+        uint8_t c8[4];
+        _lv_memcpy_small(c8, &c, 4);
+        swapped = (c8[0] << 24) + (c8[1] << 16) + (c8[2] << 8) + (c8[3]);
+        uint8_t i;
+        for(i = 0; i < 4; i++) {
+            if((swapped & 0xFF) == 0)
+                swapped = (swapped >> 8); /*Ignore leading zeros (they were in the end originally)*/
+        }
+        c = swapped;
+    }
+
+    return c;
+}

@@ -1,0 +1,35 @@
+START_TEST(compress_full_match_jump)
+{
+  static const u8_t data[] = {
+    /* 0x00 */ 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+               0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+    /* 0x10 */ 0x04, 'l', 'w', 'i', 'p', 0x05, 'l', 'o', 'c', 'a', 'l', 0x00, 0xc0, 0x00, 0x02, 0x00,
+    /* 0x20 */ 0x06, 'f', 'o', 'o', 'b', 'a', 'r', 0xc0, 0x15
+  };
+  struct pbuf *p;
+  struct mdns_domain domain;
+  u16_t offset;
+  u16_t length;
+  err_t res;
+  LWIP_UNUSED_ARG(_i);
+
+  p = pbuf_alloc(PBUF_RAW, sizeof(data), PBUF_ROM);
+  fail_if(p == NULL);
+  p->payload = (void *)(size_t)data;
+
+  memset(&domain, 0, sizeof(domain));
+  res = mdns_domain_add_label(&domain, "foobar", 6);
+  fail_unless(res == ERR_OK);
+  res = mdns_domain_add_label(&domain, "local", 5);
+  fail_unless(res == ERR_OK);
+  res = mdns_domain_add_label(&domain, NULL, 0);
+  fail_unless(res == ERR_OK);
+
+  offset = 0x20;
+  length = mdns_compress_domain(p, &offset, &domain);
+  /* Write 0 bytes, then a jump to addr 0x20 */
+  fail_unless(length == 0);
+  fail_unless(offset == 0x20);
+
+  pbuf_free(p);
+}

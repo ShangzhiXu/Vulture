@@ -1,0 +1,34 @@
+static int is_ssi_file(const char *filename)
+{
+  if (supportSsi) {
+    if (ssi_file_buffer) {
+      /* compare by list */
+      size_t i;
+      int ret = 0;
+      /* build up the relative path to this file */
+      size_t sublen = strlen(curSubdir);
+      size_t freelen = sizeof(curSubdir) - sublen - 1;
+      strncat(curSubdir, "/", freelen);
+      strncat(curSubdir, filename, freelen - 1);
+      curSubdir[sizeof(curSubdir) - 1] = 0;
+      for (i = 0; i < ssi_file_num_lines; i++) {
+        const char *listed_file = ssi_file_lines[i];
+        /* compare without the leading '/' */
+        if (!strcmp(&curSubdir[1], listed_file)) {
+          ret = 1;
+        }
+      }
+      curSubdir[sublen] = 0;
+      return ret;
+    } else {
+      /* check file extension */
+      size_t loop;
+      for (loop = 0; loop < NUM_SHTML_EXTENSIONS; loop++) {
+        if (strstr(filename, g_pcSSIExtensions[loop])) {
+          return 1;
+        }
+      }
+    }
+  }
+  return 0;
+}

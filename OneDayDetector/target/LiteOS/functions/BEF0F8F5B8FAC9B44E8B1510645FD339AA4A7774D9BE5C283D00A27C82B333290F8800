@@ -1,0 +1,33 @@
+static void FMPSMBUS_Enable_IRQ(struct __FMPSMBUS_HandleTypeDef *hfmpsmbus, uint32_t InterruptRequest)
+{
+  uint32_t tmpisr = 0UL;
+
+  if ((InterruptRequest & FMPSMBUS_IT_ALERT) == FMPSMBUS_IT_ALERT)
+  {
+    /* Enable ERR interrupt */
+    tmpisr |= FMPSMBUS_IT_ERRI;
+  }
+
+  if ((InterruptRequest & FMPSMBUS_IT_ADDR) == FMPSMBUS_IT_ADDR)
+  {
+    /* Enable ADDR, STOP interrupt */
+    tmpisr |= FMPSMBUS_IT_ADDRI | FMPSMBUS_IT_STOPI | FMPSMBUS_IT_NACKI | FMPSMBUS_IT_ERRI;
+  }
+
+  if ((InterruptRequest & FMPSMBUS_IT_TX) == FMPSMBUS_IT_TX)
+  {
+    /* Enable ERR, TC, STOP, NACK, RXI interrupt */
+    tmpisr |= FMPSMBUS_IT_ERRI | FMPSMBUS_IT_TCI | FMPSMBUS_IT_STOPI | FMPSMBUS_IT_NACKI | FMPSMBUS_IT_TXI;
+  }
+
+  if ((InterruptRequest & FMPSMBUS_IT_RX) == FMPSMBUS_IT_RX)
+  {
+    /* Enable ERR, TC, STOP, NACK, TXI interrupt */
+    tmpisr |= FMPSMBUS_IT_ERRI | FMPSMBUS_IT_TCI | FMPSMBUS_IT_STOPI | FMPSMBUS_IT_NACKI | FMPSMBUS_IT_RXI;
+  }
+
+  /* Enable interrupts only at the end */
+  /* to avoid the risk of FMPSMBUS interrupt handle execution before */
+  /* all interrupts requested done */
+  __HAL_FMPSMBUS_ENABLE_IT(hfmpsmbus, tmpisr);
+}

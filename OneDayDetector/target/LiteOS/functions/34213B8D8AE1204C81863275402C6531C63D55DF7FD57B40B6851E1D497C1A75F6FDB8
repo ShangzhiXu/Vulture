@@ -1,0 +1,78 @@
+void lv_draw_mask_line_points_init(lv_draw_mask_line_param_t * param, lv_coord_t p1x, lv_coord_t p1y, lv_coord_t p2x,
+                                   lv_coord_t p2y, lv_draw_mask_line_side_t side)
+{
+    _lv_memset_00(param, sizeof(lv_draw_mask_line_param_t));
+
+    if(p1y > p2y) {
+        lv_coord_t t;
+        t = p2x;
+        p2x = p1x;
+        p1x = t;
+
+        t = p2y;
+        p2y = p1y;
+        p1y = t;
+    }
+
+    param->cfg.p1.x = p1x;
+    param->cfg.p1.y = p1y;
+    param->cfg.p2.x = p2x;
+    param->cfg.p2.y = p2y;
+    param->cfg.side = side;
+
+    param->origo.x = p1x;
+    param->origo.y = p1y;
+    param->flat = (LV_MATH_ABS(p2x - p1x) > LV_MATH_ABS(p2y - p1y)) ? 1 : 0;
+    param->yx_steep = 0;
+    param->xy_steep = 0;
+    param->dsc.cb = (lv_draw_mask_xcb_t)lv_draw_mask_line;
+    param->dsc.type = LV_DRAW_MASK_TYPE_LINE;
+
+    int32_t dx = p2x - p1x;
+    int32_t dy = p2y - p1y;
+
+    if(param->flat) {
+        /*Normalize the steep. Delta x should be relative to delta x = 1024*/
+        int32_t m;
+
+        if(dx) {
+            m = (1 << 20) / dx;  /*m is multiplier to normalize y (upscaled by 1024)*/
+            param->yx_steep = (m * dy) >> 10;
+        }
+
+        if(dy) {
+            m = (1 << 20) / dy;  /*m is multiplier to normalize x (upscaled by 1024)*/
+            param->xy_steep = (m * dx) >> 10;
+        }
+        param->steep = param->yx_steep;
+    }
+    else {
+        /*Normalize the steep. Delta y should be relative to delta x = 1024*/
+        int32_t m;
+
+        if(dy) {
+            m = (1 << 20) / dy;  /*m is multiplier to normalize x (upscaled by 1024)*/
+            param->xy_steep = (m * dx) >> 10;
+        }
+
+        if(dx) {
+            m = (1 << 20) / dx;  /*m is multiplier to normalize x (upscaled by 1024)*/
+            param->yx_steep = (m * dy) >> 10;
+        }
+        param->steep = param->xy_steep;
+    }
+
+    if(param->cfg.side == LV_DRAW_MASK_LINE_SIDE_LEFT) param->inv = 0;
+    else if(param->cfg.side == LV_DRAW_MASK_LINE_SIDE_RIGHT) param->inv = 1;
+    else if(param->cfg.side == LV_DRAW_MASK_LINE_SIDE_TOP) {
+        if(param->steep > 0) param->inv = 1;
+        else param->inv = 0;
+    }
+    else if(param->cfg.side == LV_DRAW_MASK_LINE_SIDE_BOTTOM) {
+        if(param->steep > 0) param->inv = 0;
+        else param->inv = 1;
+    }
+
+    param->spx = param->steep >> 2;
+    if(param->steep < 0) param->spx = -param->spx;
+}

@@ -1,0 +1,78 @@
+static int ccp_rejci(fsm *f, u_char *p, int len) {
+    ppp_pcb *pcb = f->pcb;
+    ccp_options *go = &pcb->ccp_gotoptions;
+    ccp_options try_;		/* options to request next time */
+
+    try_ = *go;
+
+    /*
+     * Cope with empty configure-rejects by ceasing to send
+     * configure-requests.
+     */
+    if (len == 0 && pcb->ccp_all_rejected)
+	return -1;
+
+#if MPPE_SUPPORT
+    if (go->mppe && len >= CILEN_MPPE
+	&& p[0] == CI_MPPE && p[1] == CILEN_MPPE) {
+	ppp_error("MPPE required but peer refused");
+	lcp_close(pcb, "MPPE required but peer refused");
+	p += CILEN_MPPE;
+	len -= CILEN_MPPE;
+    }
+#endif /* MPPE_SUPPORT */
+#if DEFLATE_SUPPORT
+    if (go->deflate_correct && len >= CILEN_DEFLATE
+	&& p[0] == CI_DEFLATE && p[1] == CILEN_DEFLATE) {
+	if (p[2] != DEFLATE_MAKE_OPT(go->deflate_size)
+	    || p[3] != DEFLATE_CHK_SEQUENCE)
+	    return 0;		/* Rej is bad */
+	try_.deflate_correct = 0;
+	p += CILEN_DEFLATE;
+	len -= CILEN_DEFLATE;
+    }
+    if (go->deflate_draft && len >= CILEN_DEFLATE
+	&& p[0] == CI_DEFLATE_DRAFT && p[1] == CILEN_DEFLATE) {
+	if (p[2] != DEFLATE_MAKE_OPT(go->deflate_size)
+	    || p[3] != DEFLATE_CHK_SEQUENCE)
+	    return 0;		/* Rej is bad */
+	try_.deflate_draft = 0;
+	p += CILEN_DEFLATE;
+	len -= CILEN_DEFLATE;
+    }
+    if (!try_.deflate_correct && !try_.deflate_draft)
+	try_.deflate = 0;
+#endif /* DEFLATE_SUPPORT */
+#if BSDCOMPRESS_SUPPORT
+    if (go->bsd_compress && len >= CILEN_BSD_COMPRESS
+	&& p[0] == CI_BSD_COMPRESS && p[1] == CILEN_BSD_COMPRESS) {
+	if (p[2] != BSD_MAKE_OPT(BSD_CURRENT_VERSION, go->bsd_bits))
+	    return 0;
+	try_.bsd_compress = 0;
+	p += CILEN_BSD_COMPRESS;
+	len -= CILEN_BSD_COMPRESS;
+    }
+#endif /* BSDCOMPRESS_SUPPORT */
+#if PREDICTOR_SUPPORT
+    if (go->predictor_1 && len >= CILEN_PREDICTOR_1
+	&& p[0] == CI_PREDICTOR_1 && p[1] == CILEN_PREDICTOR_1) {
+	try_.predictor_1 = 0;
+	p += CILEN_PREDICTOR_1;
+	len -= CILEN_PREDICTOR_1;
+    }
+    if (go->predictor_2 && len >= CILEN_PREDICTOR_2
+	&& p[0] == CI_PREDICTOR_2 && p[1] == CILEN_PREDICTOR_2) {
+	try_.predictor_2 = 0;
+	p += CILEN_PREDICTOR_2;
+	len -= CILEN_PREDICTOR_2;
+    }
+#endif /* PREDICTOR_SUPPORT */
+
+    if (len != 0)
+	return 0;
+
+    if (f->state != PPP_FSM_OPENED)
+	*go = try_;
+
+    return 1;
+}

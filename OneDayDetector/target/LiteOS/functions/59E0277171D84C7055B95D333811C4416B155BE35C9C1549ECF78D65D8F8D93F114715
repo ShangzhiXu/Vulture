@@ -1,0 +1,17 @@
+INT32 SensorSample(SensorType *sensor)
+{
+    SmMail smMail;
+    UINT32 ret;
+
+    if ((sensor == NULL) || (sensor->tag >= TAG_END) || (sensor->tag < TAG_BEGIN)) {
+        return LOS_NOK;
+    }
+
+    smMail.event = SM_EVENT_SENSOR_SAMPLE;
+    smMail.sample.tag = sensor->tag;
+    ret = LOS_QueueWriteCopy(g_sensorManagerQueue, (VOID *)&smMail, SM_MAILS_TYPE_SIZE, 0);
+    if (ret != LOS_OK) {
+        return LOS_NOK;
+    }
+    return LOS_OK;
+}

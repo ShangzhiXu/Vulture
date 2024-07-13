@@ -1,0 +1,23 @@
+tcp_get_num_sacks(const struct tcp_pcb *pcb, u8_t optlen)
+{
+  u8_t num_sacks = 0;
+
+  LWIP_ASSERT("tcp_get_num_sacks: invalid pcb", pcb != NULL);
+
+  if (pcb->flags & TF_SACK) {
+    u8_t i;
+
+    /* The first SACK takes up 12 bytes (it includes SACK header and two NOP options),
+       each additional one - 8 bytes. */
+    optlen += 12;
+
+    /* Max options size = 40, number of SACK array entries = LWIP_TCP_MAX_SACK_NUM */
+    for (i = 0; (i < LWIP_TCP_MAX_SACK_NUM) && (optlen <= TCP_MAX_OPTION_BYTES) &&
+         LWIP_TCP_SACK_VALID(pcb, i); ++i) {
+      ++num_sacks;
+      optlen += 8;
+    }
+  }
+
+  return num_sacks;
+}

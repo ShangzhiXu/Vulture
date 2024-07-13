@@ -1,0 +1,27 @@
+int hal_flash_write(const void *buf, int32_t len, uint32_t *location)
+{
+    int i;
+    uint8_t *pbuf;
+    uint32_t location_cur;
+
+    if ((buf == NULL) || (location == NULL) || (len < 0) || (len >= ADDR_FLASH_SECTOR_END - ADDR_FLASH_SECTOR_0)) {
+        return -1;
+    }
+
+    location_cur = *location;
+    pbuf = (uint8_t *)buf;
+
+    if ((prv_flash_get_sector(location_cur) == FLASH_SECTOR_ILEGAL) ||
+        (prv_flash_get_sector(location_cur + len) == FLASH_SECTOR_ILEGAL)) {
+        return -1;
+    }
+
+    for (i = 0; i < len; ++i) {
+        if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_BYTE, location_cur + i, pbuf[i]) != HAL_OK) {
+            return -1;
+        }
+    }
+    *location += len;
+
+    return 0;
+}

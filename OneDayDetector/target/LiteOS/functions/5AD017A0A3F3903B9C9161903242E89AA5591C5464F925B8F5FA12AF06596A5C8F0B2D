@@ -1,0 +1,28 @@
+osStatus_t osDelayUntil(uint64_t ticks)
+{
+    UINT32 ret;
+    UINT64 ticksGap;
+    UINT64 tickCount;
+
+    if (OS_INT_ACTIVE) {
+        return osErrorISR;
+    }
+
+    tickCount = LOS_TickCountGet();
+    if ((ticks < tickCount)) {
+        return osError;
+    }
+
+    ticksGap = ticks - tickCount;
+    /* get the high 32 bits */
+    if ((ticksGap >> 32) > 0) {
+        return osError;
+    }
+
+    ret = LOS_TaskDelay((UINT32)ticksGap);
+    if (ret == LOS_OK) {
+        return osOK;
+    } else {
+        return osError;
+    }
+}

@@ -1,0 +1,18 @@
+lv_fs_res_t lv_fs_write(lv_fs_file_t * file_p, const void * buf, uint32_t btw, uint32_t * bw)
+{
+    if(bw != NULL) *bw = 0;
+
+    if(file_p->drv == NULL) {
+        return LV_FS_RES_INV_PARAM;
+    }
+
+    if(file_p->drv->write_cb == NULL) {
+        return LV_FS_RES_NOT_IMP;
+    }
+
+    uint32_t bw_tmp = 0;
+    lv_fs_res_t res = file_p->drv->write_cb(file_p->drv, file_p->file_d, buf, btw, &bw_tmp);
+    if(bw != NULL) *bw = bw_tmp;
+
+    return res;
+}

@@ -1,0 +1,49 @@
+HAL_StatusTypeDef HAL_DMA2D_CLUTLoading_Suspend(DMA2D_HandleTypeDef *hdma2d, uint32_t LayerIdx)
+{
+  uint32_t tickstart = 0;
+  __IO uint32_t * reg =  &(hdma2d->Instance->BGPFCCR); /* by default, point at background register */
+  uint32_t mask       = DMA2D_BGPFCCR_START;           /* by default, set to background constant   */
+  
+
+  /* Suspend the CLUT loading */
+  SET_BIT(hdma2d->Instance->CR, DMA2D_CR_SUSP); 
+  
+  /* If foreground CLUT loading is considered, update local variables */ 
+  if(LayerIdx == 1)
+  {
+    reg  = &(hdma2d->Instance->FGPFCCR);
+  }   
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+  
+  /* Check if the CLUT loading is suspended */
+  while (((hdma2d->Instance->CR & DMA2D_CR_SUSP) != DMA2D_CR_SUSP) \
+    && ((*reg & mask) == mask))
+  {
+    if((HAL_GetTick() - tickstart ) > DMA2D_TIMEOUT_SUSPEND)
+    {
+      /* Update error code */
+      hdma2d->ErrorCode |= HAL_DMA2D_ERROR_TIMEOUT;
+      
+      /* Change the DMA2D state */
+      hdma2d->State = HAL_DMA2D_STATE_TIMEOUT;
+      
+      return HAL_TIMEOUT;
+    }
+  }
+  
+   /* Check whether or not a transfer is actually suspended and change the DMA2D state accordingly */
+  if ((*reg & mask) != RESET)
+  {    
+    hdma2d->State = HAL_DMA2D_STATE_SUSPEND;
+  }
+  else
+  {
+    /* Make sure SUSP bit is cleared since it is meaningless 
+       when no tranfer is on-going */
+    CLEAR_BIT(hdma2d->Instance->CR, DMA2D_CR_SUSP);
+  }  
+
+  return HAL_OK;
+}

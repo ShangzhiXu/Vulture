@@ -1,0 +1,167 @@
+tcp_output_segment(struct tcp_seg *seg, struct tcp_pcb *pcb, struct netif *netif)
+{
+  err_t err;
+  u16_t len;
+  u32_t *opts;
+#if TCP_CHECKSUM_ON_COPY
+  int seg_chksum_was_swapped = 0;
+#endif
+
+  LWIP_ASSERT("tcp_output_segment: invalid seg", seg != NULL);
+  LWIP_ASSERT("tcp_output_segment: invalid pcb", pcb != NULL);
+  LWIP_ASSERT("tcp_output_segment: invalid netif", netif != NULL);
+
+  if (tcp_output_segment_busy(seg)) {
+    /* This should not happen: rexmit functions should have checked this.
+       However, since this function modifies p->len, we must not continue in this case. */
+    LWIP_DEBUGF(TCP_RTO_DEBUG | LWIP_DBG_LEVEL_SERIOUS, ("tcp_output_segment: segment busy\n"));
+    return ERR_OK;
+  }
+
+  /* The TCP header has already been constructed, but the ackno and
+   wnd fields remain. */
+  seg->tcphdr->ackno = lwip_htonl(pcb->rcv_nxt);
+
+  /* advertise our receive window size in this TCP segment */
+#if LWIP_WND_SCALE
+  if (seg->flags & TF_SEG_OPTS_WND_SCALE) {
+    /* The Window field in a SYN segment itself (the only type where we send
+       the window scale option) is never scaled. */
+    seg->tcphdr->wnd = lwip_htons(TCPWND_MIN16(pcb->rcv_ann_wnd));
+  } else
+#endif /* LWIP_WND_SCALE */
+  {
+    seg->tcphdr->wnd = lwip_htons(TCPWND_MIN16(RCV_WND_SCALE(pcb, pcb->rcv_ann_wnd)));
+  }
+
+  pcb->rcv_ann_right_edge = pcb->rcv_nxt + pcb->rcv_ann_wnd;
+
+  /* Add any requested options.  NB MSS option is only set on SYN
+     packets, so ignore it here */
+  /* cast through void* to get rid of alignment warnings */
+  opts = (u32_t *)(void *)(seg->tcphdr + 1);
+  if (seg->flags & TF_SEG_OPTS_MSS) {
+    u16_t mss;
+#if TCP_CALCULATE_EFF_SEND_MSS
+    mss = tcp_eff_send_mss_netif(TCP_MSS, netif, &pcb->remote_ip);
+#else /* TCP_CALCULATE_EFF_SEND_MSS */
+    mss = TCP_MSS;
+#endif /* TCP_CALCULATE_EFF_SEND_MSS */
+    *opts = TCP_BUILD_MSS_OPTION(mss);
+    opts += 1;
+  }
+#if LWIP_TCP_TIMESTAMPS
+  pcb->ts_lastacksent = pcb->rcv_nxt;
+
+  if (seg->flags & TF_SEG_OPTS_TS) {
+    tcp_build_timestamp_option(pcb, opts);
+    opts += 3;
+  }
+#endif
+#if LWIP_WND_SCALE
+  if (seg->flags & TF_SEG_OPTS_WND_SCALE) {
+    tcp_build_wnd_scale_option(opts);
+    opts += 1;
+  }
+#endif
+#if LWIP_TCP_SACK_OUT
+  if (seg->flags & TF_SEG_OPTS_SACK_PERM) {
+    /* Pad with two NOP options to make everything nicely aligned
+     * NOTE: When we send both timestamp and SACK_PERM options,
+     * we could use the first two NOPs before the timestamp to store SACK_PERM option,
+     * but that would complicate the code.
+     */
+    *(opts++) = PP_HTONL(0x01010402);
+  }
+#endif
+
+  /* Set retransmission timer running if it is not currently enabled
+     This must be set before checking the route. */
+  if (pcb->rtime < 0) {
+    pcb->rtime = 0;
+  }
+
+  if (pcb->rttest == 0) {
+    pcb->rttest = tcp_ticks;
+    pcb->rtseq = lwip_ntohl(seg->tcphdr->seqno);
+
+    LWIP_DEBUGF(TCP_RTO_DEBUG, ("tcp_output_segment: rtseq %"U32_F"\n", pcb->rtseq));
+  }
+  LWIP_DEBUGF(TCP_OUTPUT_DEBUG, ("tcp_output_segment: %"U32_F":%"U32_F"\n",
+                                 lwip_htonl(seg->tcphdr->seqno), lwip_htonl(seg->tcphdr->seqno) +
+                                 seg->len));
+
+  len = (u16_t)((u8_t *)seg->tcphdr - (u8_t *)seg->p->payload);
+  if (len == 0) {
+    /** Exclude retransmitted segments from this count. */
+    MIB2_STATS_INC(mib2.tcpoutsegs);
+  }
+
+  seg->p->len -= len;
+  seg->p->tot_len -= len;
+
+  seg->p->payload = seg->tcphdr;
+
+  seg->tcphdr->chksum = 0;
+
+#ifdef LWIP_HOOK_TCP_OUT_ADD_TCPOPTS
+  opts = LWIP_HOOK_TCP_OUT_ADD_TCPOPTS(seg->p, seg->tcphdr, pcb, opts);
+#endif
+  LWIP_ASSERT("options not filled", (u8_t *)opts == ((u8_t *)(seg->tcphdr + 1)) + LWIP_TCP_OPT_LENGTH_SEGMENT(seg->flags, pcb));
+
+#if CHECKSUM_GEN_TCP
+  IF__NETIF_CHECKSUM_ENABLED(netif, NETIF_CHECKSUM_GEN_TCP) {
+#if TCP_CHECKSUM_ON_COPY
+    u32_t acc;
+#if TCP_CHECKSUM_ON_COPY_SANITY_CHECK
+    u16_t chksum_slow = ip_chksum_pseudo(seg->p, IP_PROTO_TCP,
+                                         seg->p->tot_len, &pcb->local_ip, &pcb->remote_ip);
+#endif /* TCP_CHECKSUM_ON_COPY_SANITY_CHECK */
+    if ((seg->flags & TF_SEG_DATA_CHECKSUMMED) == 0) {
+      LWIP_ASSERT("data included but not checksummed",
+                  seg->p->tot_len == TCPH_HDRLEN_BYTES(seg->tcphdr));
+    }
+
+    /* rebuild TCP header checksum (TCP header changes for retransmissions!) */
+    acc = ip_chksum_pseudo_partial(seg->p, IP_PROTO_TCP,
+                                   seg->p->tot_len, TCPH_HDRLEN_BYTES(seg->tcphdr), &pcb->local_ip, &pcb->remote_ip);
+    /* add payload checksum */
+    if (seg->chksum_swapped) {
+      seg_chksum_was_swapped = 1;
+      seg->chksum = SWAP_BYTES_IN_WORD(seg->chksum);
+      seg->chksum_swapped = 0;
+    }
+    acc = (u16_t)~acc + seg->chksum;
+    seg->tcphdr->chksum = (u16_t)~FOLD_U32T(acc);
+#if TCP_CHECKSUM_ON_COPY_SANITY_CHECK
+    if (chksum_slow != seg->tcphdr->chksum) {
+      TCP_CHECKSUM_ON_COPY_SANITY_CHECK_FAIL(
+        ("tcp_output_segment: calculated checksum is %"X16_F" instead of %"X16_F"\n",
+         seg->tcphdr->chksum, chksum_slow));
+      seg->tcphdr->chksum = chksum_slow;
+    }
+#endif /* TCP_CHECKSUM_ON_COPY_SANITY_CHECK */
+#else /* TCP_CHECKSUM_ON_COPY */
+    seg->tcphdr->chksum = ip_chksum_pseudo(seg->p, IP_PROTO_TCP,
+                                           seg->p->tot_len, &pcb->local_ip, &pcb->remote_ip);
+#endif /* TCP_CHECKSUM_ON_COPY */
+  }
+#endif /* CHECKSUM_GEN_TCP */
+  TCP_STATS_INC(tcp.xmit);
+
+  NETIF_SET_HINTS(netif, &(pcb->netif_hints));
+  err = ip_output_if(seg->p, &pcb->local_ip, &pcb->remote_ip, pcb->ttl,
+                     pcb->tos, IP_PROTO_TCP, netif);
+  NETIF_RESET_HINTS(netif);
+
+#if TCP_CHECKSUM_ON_COPY
+  if (seg_chksum_was_swapped) {
+    /* if data is added to this segment later, chksum needs to be swapped,
+       so restore this now */
+    seg->chksum = SWAP_BYTES_IN_WORD(seg->chksum);
+    seg->chksum_swapped = 1;
+  }
+#endif
+
+  return err;
+}

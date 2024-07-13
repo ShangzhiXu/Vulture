@@ -1,0 +1,29 @@
+static HAL_StatusTypeDef SMARTCARD_WaitOnFlagUntilTimeout(SMARTCARD_HandleTypeDef *hsmartcard, uint32_t Flag, FlagStatus Status, uint32_t Tickstart, uint32_t Timeout)
+{
+  /* Wait until flag is set */
+  while((__HAL_SMARTCARD_GET_FLAG(hsmartcard, Flag) ? SET : RESET) == Status)
+  {
+    /* Check for the Timeout */
+    if(Timeout != HAL_MAX_DELAY)
+    {
+      if((Timeout == 0) || ((HAL_GetTick()-Tickstart) > Timeout))
+      {
+        /* Disable TXE, RXNE, PE and ERR (Frame error, noise error, overrun error) interrupts for the interrupt process */
+#if defined(USART_CR1_FIFOEN)
+        CLEAR_BIT(hsmartcard->Instance->CR1, (USART_CR1_RXNEIE_RXFNEIE | USART_CR1_PEIE | USART_CR1_TXEIE_TXFNFIE));
+#else
+        CLEAR_BIT(hsmartcard->Instance->CR1, (USART_CR1_RXNEIE | USART_CR1_PEIE | USART_CR1_TXEIE));
+#endif
+        CLEAR_BIT(hsmartcard->Instance->CR3, USART_CR3_EIE);
+        
+        hsmartcard->gState  = HAL_SMARTCARD_STATE_READY;
+        hsmartcard->RxState = HAL_SMARTCARD_STATE_READY;
+        
+        /* Process Unlocked */
+        __HAL_UNLOCK(hsmartcard);
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+  return HAL_OK;
+}

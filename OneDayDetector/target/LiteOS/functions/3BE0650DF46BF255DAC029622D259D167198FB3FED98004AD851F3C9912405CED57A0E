@@ -1,0 +1,24 @@
+bridgeif_find_dst_ports(bridgeif_private_t *br, struct eth_addr *dst_addr)
+{
+  int i;
+  BRIDGEIF_DECL_PROTECT(lev);
+  BRIDGEIF_READ_PROTECT(lev);
+  /* first check for static entries */
+  for (i = 0; i < br->max_fdbs_entries; i++) {
+    if (br->fdbs[i].used) {
+      if (!memcmp(&br->fdbs[i].addr, dst_addr, sizeof(struct eth_addr))) {
+        bridgeif_portmask_t ret = br->fdbs[i].dst_ports;
+        BRIDGEIF_READ_UNPROTECT(lev);
+        return ret;
+      }
+    }
+  }
+  if (dst_addr->addr[0] & 1) {
+    /* no match found: flood remaining group address */
+    BRIDGEIF_READ_UNPROTECT(lev);
+    return BR_FLOOD;
+  }
+  BRIDGEIF_READ_UNPROTECT(lev);
+  /* no match found: check dynamic fdb for port or fall back to flooding */
+  return bridgeif_fdb_get_dst_ports(br->fdbd, dst_addr);
+}

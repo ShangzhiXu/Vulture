@@ -1,0 +1,59 @@
+int tlv_parse(uint8_t *buffer,
+              size_t bufferLen,
+              lwm2m_data_t **dataP)
+{
+    lwm2m_data_type_t type;
+    uint16_t id;
+    size_t dataIndex;
+    size_t dataLen;
+    int index = 0;
+    int result;
+    int size = 0;
+
+    LOG_ARG("bufferLen: %d", bufferLen);
+
+    *dataP = NULL;
+
+    while (0 != (result = lwm2m_decode_TLV((uint8_t *)buffer + index, bufferLen - index, &type, &id, &dataIndex, &dataLen)))
+    {
+        lwm2m_data_t *newTlvP;
+
+        newTlvP = lwm2m_data_new(size + 1);
+        if (size >= 1)
+        {
+            if (newTlvP == NULL)
+            {
+                lwm2m_data_free(size, *dataP);
+                return 0;
+            }
+            else
+            {
+                memcpy(newTlvP, *dataP, size * sizeof(lwm2m_data_t));
+                lwm2m_free(*dataP);
+            }
+        }
+        *dataP = newTlvP;
+
+        (*dataP)[size].type = type;
+        (*dataP)[size].id = id;
+        if (type == LWM2M_TYPE_OBJECT_INSTANCE || type == LWM2M_TYPE_MULTIPLE_RESOURCE)
+        {
+            (*dataP)[size].value.asChildren.count = tlv_parse(buffer + index + dataIndex,
+                                                    dataLen,
+                                                    &((*dataP)[size].value.asChildren.array));
+            if ((*dataP)[size].value.asChildren.count == 0)
+            {
+                lwm2m_data_free(size + 1, *dataP);
+                return 0;
+            }
+        }
+        else
+        {
+            lwm2m_data_encode_opaque(buffer + index + dataIndex, dataLen, (*dataP) + size);
+        }
+        size++;
+        index += result;
+    }
+
+    return size;
+}

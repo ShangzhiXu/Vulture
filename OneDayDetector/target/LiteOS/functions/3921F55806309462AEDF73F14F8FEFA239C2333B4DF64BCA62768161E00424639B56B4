@@ -1,0 +1,108 @@
+uint32_t LL_DMA_DeInit(DMA_TypeDef *DMAx, uint32_t Stream)
+{
+  DMA_Stream_TypeDef *tmp = (DMA_Stream_TypeDef *)DMA1_Stream0;
+  ErrorStatus status = SUCCESS;
+
+  /* Check the DMA Instance DMAx and Stream parameters*/
+  assert_param(IS_LL_DMA_ALL_STREAM_INSTANCE(DMAx, Stream));
+
+  if (Stream == LL_DMA_STREAM_ALL)
+  {
+    if (DMAx == DMA1)
+    {
+      /* Force reset of DMA clock */
+      LL_AHB1_GRP1_ForceReset(LL_AHB1_GRP1_PERIPH_DMA1);
+
+      /* Release reset of DMA clock */
+      LL_AHB1_GRP1_ReleaseReset(LL_AHB1_GRP1_PERIPH_DMA1);
+    }
+    else if (DMAx == DMA2)
+    {
+      /* Force reset of DMA clock */
+      LL_AHB1_GRP1_ForceReset(LL_AHB1_GRP1_PERIPH_DMA2);
+
+      /* Release reset of DMA clock */
+      LL_AHB1_GRP1_ReleaseReset(LL_AHB1_GRP1_PERIPH_DMA2);
+    }
+    else
+    {
+      status = ERROR;
+    }
+  }
+  else
+  {
+    /* Disable the selected Stream */
+    LL_DMA_DisableStream(DMAx,Stream);
+
+    /* Get the DMA Stream Instance */
+    tmp = (DMA_Stream_TypeDef *)(__LL_DMA_GET_STREAM_INSTANCE(DMAx, Stream));
+
+    /* Reset DMAx_Streamy configuration register */
+    LL_DMA_WriteReg(tmp, CR, 0U);
+
+    /* Reset DMAx_Streamy remaining bytes register */
+    LL_DMA_WriteReg(tmp, NDTR, 0U);
+
+    /* Reset DMAx_Streamy peripheral address register */
+    LL_DMA_WriteReg(tmp, PAR, 0U);
+
+    /* Reset DMAx_Streamy memory address register */
+    LL_DMA_WriteReg(tmp, M0AR, 0U);
+
+    /* Reset DMAx_Streamy memory address register */
+    LL_DMA_WriteReg(tmp, M1AR, 0U);
+
+    /* Reset DMAx_Streamy FIFO control register */
+    LL_DMA_WriteReg(tmp, FCR, 0x00000021U);
+
+    /* Reset Channel register field for DMAx Stream*/
+    LL_DMA_SetChannelSelection(DMAx, Stream, LL_DMA_CHANNEL_0);
+
+    if(Stream == LL_DMA_STREAM_0)
+    {
+       /* Reset the Stream0 pending flags */
+       DMAx->LIFCR = 0x0000003FU;
+    }
+    else if(Stream == LL_DMA_STREAM_1)
+    {
+       /* Reset the Stream1 pending flags */
+       DMAx->LIFCR = 0x00000F40U;
+    }
+    else if(Stream == LL_DMA_STREAM_2)
+    {
+       /* Reset the Stream2 pending flags */
+       DMAx->LIFCR = 0x003F0000U;
+    }
+    else if(Stream == LL_DMA_STREAM_3)
+    {
+       /* Reset the Stream3 pending flags */
+       DMAx->LIFCR = 0x0F400000U;
+    }
+    else if(Stream == LL_DMA_STREAM_4)
+    {
+       /* Reset the Stream4 pending flags */
+       DMAx->HIFCR = 0x0000003FU;
+    }
+    else if(Stream == LL_DMA_STREAM_5)
+    {
+       /* Reset the Stream5 pending flags */
+       DMAx->HIFCR = 0x00000F40U;
+    }
+    else if(Stream == LL_DMA_STREAM_6)
+    {
+       /* Reset the Stream6 pending flags */
+       DMAx->HIFCR = 0x003F0000U;
+    }
+    else if(Stream == LL_DMA_STREAM_7)
+    {
+       /* Reset the Stream7 pending flags */
+       DMAx->HIFCR = 0x0F400000U;
+    }
+    else
+    {
+      status = ERROR;
+    }
+  }
+
+  return status;
+}

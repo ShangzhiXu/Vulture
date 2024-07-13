@@ -1,0 +1,34 @@
+LITE_OS_SEC_TEXT_MINOR STATIC INT32 SensorSwitch(const SensorItem *item)
+{
+    INT32 ret = LOS_OK;
+    SensorType *sensorInterface = g_sensorScbTable[ScbTableIndex(item->tag)].sensorInterface;
+    if (sensorInterface == NULL) {
+        PRINT_ERR("sensor_switch, TAG:%d SensorType is null\n", item->tag);
+        return LOS_NOK;
+    }
+
+    switch (UpdateScbPeriod(sensorInterface, item)) {
+        case SENSOR_ATTACH_NONE:  // no item is working,sensor would be turn off
+            if ((sensorInterface->sensorOp == NULL) || (sensorInterface->sensorOp->Close == NULL)) {
+                break;
+            }
+            ret = sensorInterface->sensorOp->Close(sensorInterface);
+            if (!ret) {
+                sensorInterface->sensorStat &= ~SENSOR_STAT_OPEN;
+            }
+            break;
+        case SENSOR_ATTACH_CHANGE:  // sensor would be turn on,or change period
+            sensorInterface->interval = sensorInterface->openParam.period;
+            if ((sensorInterface->sensorOp == NULL) || (sensorInterface->sensorOp->Open == NULL)) {
+                break;
+            }
+            ret = sensorInterface->sensorOp->Open(sensorInterface, &sensorInterface->openParam);
+            if (!ret) {
+                sensorInterface->sensorStat |= SENSOR_STAT_OPEN;
+            }
+            break;
+        default:  // sensor is on ,and period no change
+            break;
+    }
+    return ret;
+}

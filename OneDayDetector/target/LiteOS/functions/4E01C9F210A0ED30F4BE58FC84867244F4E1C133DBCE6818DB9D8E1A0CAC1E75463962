@@ -1,0 +1,39 @@
+VOID OsSlabMemInit(VOID *pool, UINT32 size)
+{
+    struct LosSlabControlHeader *slabMemHead = OsSlabCtrlHdrGet(pool);
+
+    (VOID)memset_s(slabMemHead, sizeof(struct LosSlabControlHeader), 0,
+                   sizeof(struct LosSlabControlHeader));
+    /*
+     * Since if the size is not enough to create a SLAB pool, the memory pool
+     * still works. We choose not treat that as failure.
+     */
+    if (size < SLAB_BASIC_NEED_SIZE) {
+        PRINT_INFO("bad input size\n");
+        return;
+    }
+
+#ifdef LOSCFG_KERNEL_MEM_SLAB_AUTO_EXPANSION_MODE
+    if (!OsSlabMemBucketInit(pool, size)) {
+        PRINT_INFO("slab bucket init failed\n");
+    }
+#else
+    UINT32 idx, blkSz, blkCnt;
+
+    for (idx = 0; idx < SLAB_MEM_COUNT; idx++) {
+        blkSz = (SLAB_MEM_CALSS_STEP_SIZE << idx);
+        blkCnt = g_slabAlloctorSizeCfg[idx] / blkSz;
+        slabMemHead->slabClass[idx].blkSz = blkSz;
+        slabMemHead->slabClass[idx].blkCnt = blkCnt;
+        slabMemHead->slabClass[idx].blkUsedCnt = 0;
+        slabMemHead->slabClass[idx].alloc =
+            OsSlabAllocatorNew(pool, blkSz + sizeof(OsSlabBlockNode), (UINT32)sizeof(CHAR *), blkCnt);
+        if (slabMemHead->slabClass[idx].alloc == NULL) {
+            PRINT_ERR("slab alloc failed\n");
+        }
+    }
+
+    /* for multi pool, cfg size should reset */
+    OsSlabSizeReset();
+#endif
+}

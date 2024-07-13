@@ -1,0 +1,21 @@
+smtp_is_response(struct smtp_session *s)
+{
+  char digits[4];
+  long num;
+
+  if (s->p == NULL) {
+    return 0;
+  }
+  /* copy three digits and convert them to int */
+  if (pbuf_copy_partial(s->p, digits, 3, 0) != 3) {
+    /* pbuf was too short */
+    return 0;
+  }
+  digits[3] = 0;
+  num = strtol(digits, NULL, 10);
+  if ((num <= 0) || (num >= 1000)) {
+    /* failed to find response code at start of line */
+    return 0;
+  }
+  return (u16_t)num;
+}

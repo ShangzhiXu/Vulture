@@ -1,0 +1,47 @@
+static int pk_get_rsapubkey( unsigned char **p,
+                             const unsigned char *end,
+                             mbedtls_rsa_context *rsa )
+{
+    int ret;
+    size_t len;
+
+    if( ( ret = mbedtls_asn1_get_tag( p, end, &len,
+            MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ) ) != 0 )
+        return( MBEDTLS_ERR_PK_INVALID_PUBKEY + ret );
+
+    if( *p + len != end )
+        return( MBEDTLS_ERR_PK_INVALID_PUBKEY +
+                MBEDTLS_ERR_ASN1_LENGTH_MISMATCH );
+
+    /* Import N */
+    if( ( ret = mbedtls_asn1_get_tag( p, end, &len, MBEDTLS_ASN1_INTEGER ) ) != 0 )
+        return( MBEDTLS_ERR_PK_INVALID_PUBKEY + ret );
+
+    if( ( ret = mbedtls_rsa_import_raw( rsa, *p, len, NULL, 0, NULL, 0,
+                                        NULL, 0, NULL, 0 ) ) != 0 )
+        return( MBEDTLS_ERR_PK_INVALID_PUBKEY );
+
+    *p += len;
+
+    /* Import E */
+    if( ( ret = mbedtls_asn1_get_tag( p, end, &len, MBEDTLS_ASN1_INTEGER ) ) != 0 )
+        return( MBEDTLS_ERR_PK_INVALID_PUBKEY + ret );
+
+    if( ( ret = mbedtls_rsa_import_raw( rsa, NULL, 0, NULL, 0, NULL, 0,
+                                        NULL, 0, *p, len ) ) != 0 )
+        return( MBEDTLS_ERR_PK_INVALID_PUBKEY );
+
+    *p += len;
+
+    if( mbedtls_rsa_complete( rsa ) != 0 ||
+        mbedtls_rsa_check_pubkey( rsa ) != 0 )
+    {
+        return( MBEDTLS_ERR_PK_INVALID_PUBKEY );
+    }
+
+    if( *p != end )
+        return( MBEDTLS_ERR_PK_INVALID_PUBKEY +
+                MBEDTLS_ERR_ASN1_LENGTH_MISMATCH );
+
+    return( 0 );
+}

@@ -1,0 +1,19 @@
+static HAL_StatusTypeDef SAI_Disable(SAI_HandleTypeDef *hsai)
+{
+  uint32_t tickstart = HAL_GetTick();
+  HAL_StatusTypeDef status = HAL_OK;
+  
+  __HAL_SAI_DISABLE(hsai);
+  while((hsai->Instance->CR1 & SAI_xCR1_SAIEN) != RESET)
+  {
+    /* Check for the Timeout */
+    if((HAL_GetTick() - tickstart) > SAI_DEFAULT_TIMEOUT)
+    {
+      /* Update error code */
+      hsai->ErrorCode |= HAL_SAI_ERROR_TIMEOUT;
+      
+      return HAL_TIMEOUT;
+    }
+  }
+  return status;
+}

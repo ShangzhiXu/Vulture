@@ -1,0 +1,25 @@
+void fatfs_demo(void)
+{
+    int8_t drive;
+    int ret;
+
+    drive = hal_fatfs_init(0);
+    if (drive < 0) {
+        FS_LOG_ERR("fatfs_init failed.");
+        return;
+    }
+
+    ret = sprintf_s(fatfs_file_name, sizeof(fatfs_file_name), "%s/%d:/%s", FATFS_PATH, (uint8_t)drive, LOS_FILE);
+    if (ret <= 0) {
+        FS_LOG_ERR("sprintf_s file name failed.");
+    }
+
+    ret = sprintf_s(fatfs_dir_name, sizeof(fatfs_dir_name), "%s/%d:/%s", FATFS_PATH, (uint8_t)drive, LOS_DIR);
+    if (ret <= 0) {
+        FS_LOG_ERR("sprintf_s dir name failed.");
+    }
+
+    los_vfs_io(fatfs_file_name, fatfs_dir_name);
+
+    fatfs_unmount("/fatfs/", drive);
+}

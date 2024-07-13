@@ -1,0 +1,22 @@
+UINTPTR  CalculateTargetAddress(UINTPTR bl)
+{
+    UINTPTR target = 0;
+    STATIC UINTPTR tmpBL = 0;
+
+    if ((((*(UINT16 *)(bl - BLX_CMD_OFFSET)) & HIGH_8_BITS_MASK) == BLX_INX)) {
+        if (tmpBL != 0) {
+            target = LoopUntilEntry (tmpBL);
+            tmpBL = bl - BLX_CMD_OFFSET;
+            return target;
+        }
+        tmpBL = bl - BLX_CMD_OFFSET;
+        return LoopUntilEntry(tmpBL);
+    } else if ((*(UINT32 *)(bl - BL_CMD_OFFSET) & BL_INS) == BL_INS) {
+        tmpBL = bl - BL_CMD_OFFSET;
+        CalculateBLTargetAddress (tmpBL);
+
+        return CalculateBLTargetAddress (tmpBL);
+    }
+
+    return 0;
+}

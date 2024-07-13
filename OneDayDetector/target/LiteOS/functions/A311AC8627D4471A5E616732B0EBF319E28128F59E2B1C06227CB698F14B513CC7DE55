@@ -1,0 +1,54 @@
+HAL_StatusTypeDef USB_HC_Halt(USB_OTG_GlobalTypeDef *USBx , uint8_t hc_num)
+{
+  uint32_t count = 0;
+  
+  /* Check for space in the request queue to issue the halt. */
+  if (((USBx_HC(hc_num)->HCCHAR) & (HCCHAR_CTRL << 18)) || ((USBx_HC(hc_num)->HCCHAR) & (HCCHAR_BULK << 18)))
+  {
+    USBx_HC(hc_num)->HCCHAR |= USB_OTG_HCCHAR_CHDIS;
+    
+    if ((USBx->HNPTXSTS & 0xFFFF) == 0)
+    {
+      USBx_HC(hc_num)->HCCHAR &= ~USB_OTG_HCCHAR_CHENA;
+      USBx_HC(hc_num)->HCCHAR |= USB_OTG_HCCHAR_CHENA;
+      USBx_HC(hc_num)->HCCHAR &= ~USB_OTG_HCCHAR_EPDIR;
+      do
+      {
+        if (++count > 1000)
+        {
+          break;
+        }
+      } 
+      while ((USBx_HC(hc_num)->HCCHAR & USB_OTG_HCCHAR_CHENA) == USB_OTG_HCCHAR_CHENA);
+    }
+    else
+    {
+      USBx_HC(hc_num)->HCCHAR |= USB_OTG_HCCHAR_CHENA;
+    }
+  }
+  else
+  {
+    USBx_HC(hc_num)->HCCHAR |= USB_OTG_HCCHAR_CHDIS;
+    
+    if ((USBx_HOST->HPTXSTS & 0xFFFF) == 0)
+    {
+      USBx_HC(hc_num)->HCCHAR &= ~USB_OTG_HCCHAR_CHENA;
+      USBx_HC(hc_num)->HCCHAR |= USB_OTG_HCCHAR_CHENA;
+      USBx_HC(hc_num)->HCCHAR &= ~USB_OTG_HCCHAR_EPDIR;
+      do
+      {
+        if (++count > 1000)
+        {
+          break;
+        }
+      } 
+      while ((USBx_HC(hc_num)->HCCHAR & USB_OTG_HCCHAR_CHENA) == USB_OTG_HCCHAR_CHENA);
+    }
+    else
+    {
+       USBx_HC(hc_num)->HCCHAR |= USB_OTG_HCCHAR_CHENA; 
+    }
+  }
+  
+  return HAL_OK;
+}

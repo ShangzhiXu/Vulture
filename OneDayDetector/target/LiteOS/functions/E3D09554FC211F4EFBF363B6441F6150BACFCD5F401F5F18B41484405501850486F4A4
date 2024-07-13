@@ -1,0 +1,16 @@
+tcp_close(struct tcp_pcb *pcb)
+{
+  LWIP_ASSERT_CORE_LOCKED();
+
+  LWIP_ERROR("tcp_close: invalid pcb", pcb != NULL, return ERR_ARG);
+  LWIP_DEBUGF(TCP_DEBUG, ("tcp_close: closing in "));
+
+  tcp_debug_print_state(pcb->state);
+
+  if (pcb->state != LISTEN) {
+    /* Set a flag not to receive any more data... */
+    tcp_set_flags(pcb, TF_RXCLOSED);
+  }
+  /* ... and close */
+  return tcp_close_shutdown(pcb, 1);
+}

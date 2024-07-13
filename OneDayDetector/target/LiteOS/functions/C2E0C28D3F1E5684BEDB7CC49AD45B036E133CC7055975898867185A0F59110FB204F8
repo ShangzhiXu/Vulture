@@ -1,0 +1,23 @@
+static int eckey_verify_rs_wrap( void *ctx, mbedtls_md_type_t md_alg,
+                       const unsigned char *hash, size_t hash_len,
+                       const unsigned char *sig, size_t sig_len,
+                       void *rs_ctx )
+{
+    int ret;
+    eckey_restart_ctx *rs = rs_ctx;
+
+    /* Should never happen */
+    if( rs == NULL )
+        return( MBEDTLS_ERR_PK_BAD_INPUT_DATA );
+
+    /* set up our own sub-context if needed (that is, on first run) */
+    if( rs->ecdsa_ctx.grp.pbits == 0 )
+        MBEDTLS_MPI_CHK( mbedtls_ecdsa_from_keypair( &rs->ecdsa_ctx, ctx ) );
+
+    MBEDTLS_MPI_CHK( ecdsa_verify_rs_wrap( &rs->ecdsa_ctx,
+                                           md_alg, hash, hash_len,
+                                           sig, sig_len, &rs->ecdsa_rs ) );
+
+cleanup:
+    return( ret );
+}

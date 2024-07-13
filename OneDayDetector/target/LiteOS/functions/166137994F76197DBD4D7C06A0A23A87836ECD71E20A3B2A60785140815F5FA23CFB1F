@@ -1,0 +1,141 @@
+HAL_StatusTypeDef HAL_DSI_ConfigVideoMode(DSI_HandleTypeDef *hdsi, DSI_VidCfgTypeDef *VidCfg)
+{
+  /* Process locked */
+  __HAL_LOCK(hdsi);
+
+  /* Check the parameters */
+  assert_param(IS_DSI_COLOR_CODING(VidCfg->ColorCoding));
+  assert_param(IS_DSI_VIDEO_MODE_TYPE(VidCfg->Mode));
+  assert_param(IS_DSI_LP_COMMAND(VidCfg->LPCommandEnable));
+  assert_param(IS_DSI_LP_HFP(VidCfg->LPHorizontalFrontPorchEnable));
+  assert_param(IS_DSI_LP_HBP(VidCfg->LPHorizontalBackPorchEnable));
+  assert_param(IS_DSI_LP_VACTIVE(VidCfg->LPVerticalActiveEnable));
+  assert_param(IS_DSI_LP_VFP(VidCfg->LPVerticalFrontPorchEnable));
+  assert_param(IS_DSI_LP_VBP(VidCfg->LPVerticalBackPorchEnable));
+  assert_param(IS_DSI_LP_VSYNC(VidCfg->LPVerticalSyncActiveEnable));
+  assert_param(IS_DSI_FBTAA(VidCfg->FrameBTAAcknowledgeEnable));
+  assert_param(IS_DSI_DE_POLARITY(VidCfg->DEPolarity));
+  assert_param(IS_DSI_VSYNC_POLARITY(VidCfg->VSPolarity));
+  assert_param(IS_DSI_HSYNC_POLARITY(VidCfg->HSPolarity));
+  /* Check the LooselyPacked variant only in 18-bit mode */
+  if (VidCfg->ColorCoding == DSI_RGB666)
+  {
+    assert_param(IS_DSI_LOOSELY_PACKED(VidCfg->LooselyPacked));
+  }
+
+  /* Select video mode by resetting CMDM and DSIM bits */
+  hdsi->Instance->MCR &= ~DSI_MCR_CMDM;
+  hdsi->Instance->WCFGR &= ~DSI_WCFGR_DSIM;
+
+  /* Configure the video mode transmission type */
+  hdsi->Instance->VMCR &= ~DSI_VMCR_VMT;
+  hdsi->Instance->VMCR |= VidCfg->Mode;
+
+  /* Configure the video packet size */
+  hdsi->Instance->VPCR &= ~DSI_VPCR_VPSIZE;
+  hdsi->Instance->VPCR |= VidCfg->PacketSize;
+
+  /* Set the chunks number to be transmitted through the DSI link */
+  hdsi->Instance->VCCR &= ~DSI_VCCR_NUMC;
+  hdsi->Instance->VCCR |= VidCfg->NumberOfChunks;
+
+  /* Set the size of the null packet */
+  hdsi->Instance->VNPCR &= ~DSI_VNPCR_NPSIZE;
+  hdsi->Instance->VNPCR |= VidCfg->NullPacketSize;
+
+  /* Select the virtual channel for the LTDC interface traffic */
+  hdsi->Instance->LVCIDR &= ~DSI_LVCIDR_VCID;
+  hdsi->Instance->LVCIDR |= VidCfg->VirtualChannelID;
+
+  /* Configure the polarity of control signals */
+  hdsi->Instance->LPCR &= ~(DSI_LPCR_DEP | DSI_LPCR_VSP | DSI_LPCR_HSP);
+  hdsi->Instance->LPCR |= (VidCfg->DEPolarity | VidCfg->VSPolarity | VidCfg->HSPolarity);
+
+  /* Select the color coding for the host */
+  hdsi->Instance->LCOLCR &= ~DSI_LCOLCR_COLC;
+  hdsi->Instance->LCOLCR |= VidCfg->ColorCoding;
+
+  /* Select the color coding for the wrapper */
+  hdsi->Instance->WCFGR &= ~DSI_WCFGR_COLMUX;
+  hdsi->Instance->WCFGR |= ((VidCfg->ColorCoding) << 1U);
+
+  /* Enable/disable the loosely packed variant to 18-bit configuration */
+  if (VidCfg->ColorCoding == DSI_RGB666)
+  {
+    hdsi->Instance->LCOLCR &= ~DSI_LCOLCR_LPE;
+    hdsi->Instance->LCOLCR |= VidCfg->LooselyPacked;
+  }
+
+  /* Set the Horizontal Synchronization Active (HSA) in lane byte clock cycles */
+  hdsi->Instance->VHSACR &= ~DSI_VHSACR_HSA;
+  hdsi->Instance->VHSACR |= VidCfg->HorizontalSyncActive;
+
+  /* Set the Horizontal Back Porch (HBP) in lane byte clock cycles */
+  hdsi->Instance->VHBPCR &= ~DSI_VHBPCR_HBP;
+  hdsi->Instance->VHBPCR |= VidCfg->HorizontalBackPorch;
+
+  /* Set the total line time (HLINE=HSA+HBP+HACT+HFP) in lane byte clock cycles */
+  hdsi->Instance->VLCR &= ~DSI_VLCR_HLINE;
+  hdsi->Instance->VLCR |= VidCfg->HorizontalLine;
+
+  /* Set the Vertical Synchronization Active (VSA) */
+  hdsi->Instance->VVSACR &= ~DSI_VVSACR_VSA;
+  hdsi->Instance->VVSACR |= VidCfg->VerticalSyncActive;
+
+  /* Set the Vertical Back Porch (VBP)*/
+  hdsi->Instance->VVBPCR &= ~DSI_VVBPCR_VBP;
+  hdsi->Instance->VVBPCR |= VidCfg->VerticalBackPorch;
+
+  /* Set the Vertical Front Porch (VFP)*/
+  hdsi->Instance->VVFPCR &= ~DSI_VVFPCR_VFP;
+  hdsi->Instance->VVFPCR |= VidCfg->VerticalFrontPorch;
+
+  /* Set the Vertical Active period*/
+  hdsi->Instance->VVACR &= ~DSI_VVACR_VA;
+  hdsi->Instance->VVACR |= VidCfg->VerticalActive;
+
+  /* Configure the command transmission mode */
+  hdsi->Instance->VMCR &= ~DSI_VMCR_LPCE;
+  hdsi->Instance->VMCR |= VidCfg->LPCommandEnable;
+
+  /* Low power largest packet size */
+  hdsi->Instance->LPMCR &= ~DSI_LPMCR_LPSIZE;
+  hdsi->Instance->LPMCR |= ((VidCfg->LPLargestPacketSize) << 16U);
+
+  /* Low power VACT largest packet size */
+  hdsi->Instance->LPMCR &= ~DSI_LPMCR_VLPSIZE;
+  hdsi->Instance->LPMCR |= VidCfg->LPVACTLargestPacketSize;
+
+  /* Enable LP transition in HFP period */
+  hdsi->Instance->VMCR &= ~DSI_VMCR_LPHFPE;
+  hdsi->Instance->VMCR |= VidCfg->LPHorizontalFrontPorchEnable;
+
+  /* Enable LP transition in HBP period */
+  hdsi->Instance->VMCR &= ~DSI_VMCR_LPHBPE;
+  hdsi->Instance->VMCR |= VidCfg->LPHorizontalBackPorchEnable;
+
+  /* Enable LP transition in VACT period */
+  hdsi->Instance->VMCR &= ~DSI_VMCR_LPVAE;
+  hdsi->Instance->VMCR |= VidCfg->LPVerticalActiveEnable;
+
+  /* Enable LP transition in VFP period */
+  hdsi->Instance->VMCR &= ~DSI_VMCR_LPVFPE;
+  hdsi->Instance->VMCR |= VidCfg->LPVerticalFrontPorchEnable;
+
+  /* Enable LP transition in VBP period */
+  hdsi->Instance->VMCR &= ~DSI_VMCR_LPVBPE;
+  hdsi->Instance->VMCR |= VidCfg->LPVerticalBackPorchEnable;
+
+  /* Enable LP transition in vertical sync period */
+  hdsi->Instance->VMCR &= ~DSI_VMCR_LPVSAE;
+  hdsi->Instance->VMCR |= VidCfg->LPVerticalSyncActiveEnable;
+
+  /* Enable the request for an acknowledge response at the end of a frame */
+  hdsi->Instance->VMCR &= ~DSI_VMCR_FBTAAE;
+  hdsi->Instance->VMCR |= VidCfg->FrameBTAAcknowledgeEnable;
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hdsi);
+
+  return HAL_OK;
+}

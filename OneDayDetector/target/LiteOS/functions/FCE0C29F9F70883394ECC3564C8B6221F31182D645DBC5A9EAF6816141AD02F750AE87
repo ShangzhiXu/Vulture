@@ -1,0 +1,15 @@
+__STATIC_INLINE uint32_t LL_ADC_REG_GetTriggerSource(ADC_TypeDef *ADCx)
+{
+  register uint32_t TriggerSource = READ_BIT(ADCx->CR2, ADC_CR2_EXTSEL | ADC_CR2_EXTEN);
+  
+  /* Value for shift of {0; 4; 8; 12} depending on value of bitfield          */
+  /* corresponding to ADC_CR2_EXTEN {0; 1; 2; 3}.                             */
+  register uint32_t ShiftExten = ((TriggerSource & ADC_CR2_EXTEN) >> (ADC_REG_TRIG_EXTEN_BITOFFSET_POS - 2U));
+  
+  /* Set bitfield corresponding to ADC_CR2_EXTEN and ADC_CR2_EXTSEL           */
+  /* to match with triggers literals definition.                              */
+  return ((TriggerSource
+           & (ADC_REG_TRIG_SOURCE_MASK << ShiftExten) & ADC_CR2_EXTSEL)
+          | ((ADC_REG_TRIG_EDGE_MASK << ShiftExten) & ADC_CR2_EXTEN)
+         );
+}

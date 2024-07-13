@@ -1,0 +1,10 @@
+  uint8_t       ASPECT_RATIO;
+  uint8_t       DSI_LANES;
+  uint16_t      HACT;
+  uint16_t      HBP;
+  uint16_t      HFP;
+  uint16_t      HSYNC;
+  uint16_t      VACT;
+  uint16_t      VBP;
+  uint16_t      VFP;
+  uint16_t      VSYNC;

@@ -1,0 +1,52 @@
+pbuf_copy(struct pbuf *p_to, const struct pbuf *p_from)
+{
+  size_t offset_to = 0, offset_from = 0, len;
+
+  LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_copy(%p, %p)\n",
+              (const void *)p_to, (const void *)p_from));
+
+  /* is the target big enough to hold the source? */
+  LWIP_ERROR("pbuf_copy: target not big enough to hold source", ((p_to != NULL) &&
+             (p_from != NULL) && (p_to->tot_len >= p_from->tot_len)), return ERR_ARG;);
+
+  /* iterate through pbuf chain */
+  do {
+    /* copy one part of the original chain */
+    if ((p_to->len - offset_to) >= (p_from->len - offset_from)) {
+      /* complete current p_from fits into current p_to */
+      len = p_from->len - offset_from;
+    } else {
+      /* current p_from does not fit into current p_to */
+      len = p_to->len - offset_to;
+    }
+    MEMCPY((u8_t *)p_to->payload + offset_to, (u8_t *)p_from->payload + offset_from, len);
+    offset_to += len;
+    offset_from += len;
+    LWIP_ASSERT("offset_to <= p_to->len", offset_to <= p_to->len);
+    LWIP_ASSERT("offset_from <= p_from->len", offset_from <= p_from->len);
+    if (offset_from >= p_from->len) {
+      /* on to next p_from (if any) */
+      offset_from = 0;
+      p_from = p_from->next;
+    }
+    if (offset_to == p_to->len) {
+      /* on to next p_to (if any) */
+      offset_to = 0;
+      p_to = p_to->next;
+      LWIP_ERROR("p_to != NULL", (p_to != NULL) || (p_from == NULL), return ERR_ARG;);
+    }
+
+    if ((p_from != NULL) && (p_from->len == p_from->tot_len)) {
+      /* don't copy more than one packet! */
+      LWIP_ERROR("pbuf_copy() does not allow packet queues!",
+                 (p_from->next == NULL), return ERR_VAL;);
+    }
+    if ((p_to != NULL) && (p_to->len == p_to->tot_len)) {
+      /* don't copy more than one packet! */
+      LWIP_ERROR("pbuf_copy() does not allow packet queues!",
+                 (p_to->next == NULL), return ERR_VAL;);
+    }
+  } while (p_from);
+  LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_copy: end of chain reached.\n"));
+  return ERR_OK;
+}

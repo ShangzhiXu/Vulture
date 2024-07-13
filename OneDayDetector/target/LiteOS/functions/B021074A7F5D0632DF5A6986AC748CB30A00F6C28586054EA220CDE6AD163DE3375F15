@@ -1,0 +1,54 @@
+lv_obj_t * lv_btnmatrix_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+    LV_LOG_TRACE("button matrix create started");
+
+    /*Create the ancestor object*/
+    lv_obj_t * btnm = lv_obj_create(par, copy);
+    LV_ASSERT_MEM(btnm);
+    if(btnm == NULL) return NULL;
+
+    if(ancestor_signal == NULL) ancestor_signal = lv_obj_get_signal_cb(btnm);
+
+    /*Allocate the object type specific extended data*/
+    lv_btnmatrix_ext_t * ext = lv_obj_allocate_ext_attr(btnm, sizeof(lv_btnmatrix_ext_t));
+    LV_ASSERT_MEM(ext);
+    if(ext == NULL) {
+        lv_obj_del(btnm);
+        return NULL;
+    }
+
+    ext->btn_cnt        = 0;
+    ext->btn_id_pr      = LV_BTNMATRIX_BTN_NONE;
+    ext->btn_id_focused = LV_BTNMATRIX_BTN_NONE;
+    ext->btn_id_act     = LV_BTNMATRIX_BTN_NONE;
+    ext->button_areas   = NULL;
+    ext->ctrl_bits      = NULL;
+    ext->map_p          = NULL;
+    ext->recolor        = 0;
+    ext->one_check      = 0;
+    lv_style_list_init(&ext->style_btn);
+    ext->style_btn.ignore_trans = 1;
+
+    if(ancestor_design_f == NULL) ancestor_design_f = lv_obj_get_design_cb(btnm);
+
+    lv_obj_set_signal_cb(btnm, lv_btnmatrix_signal);
+    lv_obj_set_design_cb(btnm, lv_btnmatrix_design);
+
+    /*Init the new button matrix object*/
+    if(copy == NULL) {
+        lv_btnmatrix_set_map(btnm, lv_btnmatrix_def_map);
+        lv_obj_set_size(btnm, LV_DPI * 2, LV_DPI * 1);
+        lv_theme_apply(btnm, LV_THEME_BTNMATRIX);
+    }
+    /*Copy an existing object*/
+    else {
+        lv_btnmatrix_ext_t * copy_ext = lv_obj_get_ext_attr(copy);
+        lv_btnmatrix_set_map(btnm, copy_ext->map_p);
+        lv_btnmatrix_set_ctrl_map(btnm, copy_ext->ctrl_bits);
+        lv_style_list_copy(&ext->style_btn, &copy_ext->style_btn);
+    }
+
+    LV_LOG_INFO("button matrix created");
+
+    return btnm;
+}

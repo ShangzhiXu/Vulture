@@ -1,0 +1,46 @@
+void output_buffer(FILE *stream,
+                   uint8_t *buffer,
+                   int length,
+                   int indent)
+{
+    int i;
+
+    if (length == 0) {
+        fprintf(stream, "\n");
+    }
+
+    if (buffer == NULL) {
+        return;
+    }
+
+    i = 0;
+    while (i < length) {
+        uint8_t array[16];
+        int j;
+
+        print_indent(stream, indent);
+        memcpy(array, buffer + i, 16);
+        for (j = 0 ; j < 16 && i + j < length; j++) {
+            fprintf(stream, "%02X ", array[j]);
+            if (j % 4 == 3) fprintf(stream, " ");
+        }
+
+        if (length > 16) {
+            while (j < 16) {
+                fprintf(stream, "   ");
+                if (j % 4 == 3) fprintf(stream, " ");
+                j++;
+            }
+        }
+        fprintf(stream, " ");
+        for (j = 0 ; j < 16 && i + j < length; j++) {
+            if (isprint(array[j])) {
+                fprintf(stream, "%c", array[j]);
+            } else {
+                fprintf(stream, ".");
+            }
+        }
+        fprintf(stream, "\n");
+        i += 16;
+    }
+}

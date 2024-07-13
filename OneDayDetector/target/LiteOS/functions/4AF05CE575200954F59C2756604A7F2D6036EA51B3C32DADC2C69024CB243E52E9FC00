@@ -1,0 +1,38 @@
+static void trinkle(unsigned char *head, size_t width, cmpfun cmp, size_t pp[2], int pshift, int trusty, size_t lp[])
+{
+	unsigned char *stepson,
+	              *rt, *lf;
+	size_t p[2];
+	unsigned char *ar[14 * sizeof(size_t) + 1];
+	int i = 1;
+	int trail;
+
+	p[0] = pp[0];
+	p[1] = pp[1];
+
+	ar[0] = head;
+	while(p[0] != 1 || p[1] != 0) {
+		stepson = head - lp[pshift];
+		if((*cmp)(stepson, ar[0]) <= 0) {
+			break;
+		}
+		if(!trusty && pshift > 1) {
+			rt = head - width;
+			lf = head - width - lp[pshift - 2];
+			if((*cmp)(rt, stepson) >= 0 || (*cmp)(lf, stepson) >= 0) {
+				break;
+			}
+		}
+
+		ar[i++] = stepson;
+		head = stepson;
+		trail = pntz(p);
+		shr(p, trail);
+		pshift += trail;
+		trusty = 0;
+	}
+	if(!trusty) {
+		cycle(width, ar, i);
+		sift(head, width, cmp, pshift, lp);
+	}
+}

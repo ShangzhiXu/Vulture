@@ -1,0 +1,37 @@
+int32_t nb_recv_timeout(int32_t id, uint8_t *buf, uint32_t len, char *ipaddr, int *port, int32_t timeout)
+{
+    int rlen = 0;
+    int ret;
+    QUEUE_BUFF qbuf;
+    UINT32 qlen = sizeof(QUEUE_BUFF);
+
+    if (id >= MAX_SOCK_NUM) {
+        AT_LOG("link id %ld invalid", id);
+        return AT_FAILED;
+    }
+
+    ret = LOS_QueueReadCopy(at.linkid[id].qid, &qbuf, &qlen, timeout);
+    if (ret != LOS_OK) {
+        return AT_TIMEOUT;
+    }
+
+    if ((sockinfo[id].remoteip[0] == '\0') || (sockinfo[id].remoteport == 0)) {
+        AT_LOG("update ip and port for link %ld", id);
+        strncpy(sockinfo[id].remoteip, qbuf.ipaddr, sizeof(sockinfo[id].remoteip));
+        sockinfo[id].remoteip[sizeof(sockinfo[id].remoteip) - 1] = '\0';
+        sockinfo[id].remoteport = qbuf.port;
+    }
+
+    if (ipaddr != NULL) {
+        memcpy(ipaddr, qbuf.ipaddr, strlen(qbuf.ipaddr));
+        *port = qbuf.port;
+    }
+
+    rlen = MIN(qbuf.len, len);
+
+    if (rlen) {
+        memcpy(buf, qbuf.addr, rlen);
+        at_free(qbuf.addr);
+    }
+    return rlen;
+}

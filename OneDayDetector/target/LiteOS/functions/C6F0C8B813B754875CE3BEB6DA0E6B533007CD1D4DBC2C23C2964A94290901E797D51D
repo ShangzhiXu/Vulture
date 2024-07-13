@@ -1,0 +1,54 @@
+HAL_StatusTypeDef HAL_RNG_Init(RNG_HandleTypeDef *hrng)
+{
+  /* Check the RNG handle allocation */
+  if (hrng == NULL)
+  {
+    return HAL_ERROR;
+  }
+  /* Check the parameters */
+  assert_param(IS_RNG_ALL_INSTANCE(hrng->Instance));
+
+#if (USE_HAL_RNG_REGISTER_CALLBACKS == 1)
+  if (hrng->State == HAL_RNG_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hrng->Lock = HAL_UNLOCKED;
+
+    hrng->ReadyDataCallback  = HAL_RNG_ReadyDataCallback;  /* Legacy weak ReadyDataCallback  */
+    hrng->ErrorCallback      = HAL_RNG_ErrorCallback;      /* Legacy weak ErrorCallback      */
+
+    if (hrng->MspInitCallback == NULL)
+    {
+      hrng->MspInitCallback = HAL_RNG_MspInit; /* Legacy weak MspInit  */
+    }
+
+    /* Init the low level hardware */
+    hrng->MspInitCallback(hrng);
+  }
+#else
+  if (hrng->State == HAL_RNG_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hrng->Lock = HAL_UNLOCKED;
+
+    /* Init the low level hardware */
+    HAL_RNG_MspInit(hrng);
+  }
+#endif /* USE_HAL_RNG_REGISTER_CALLBACKS */
+
+  /* Change RNG peripheral state */
+  hrng->State = HAL_RNG_STATE_BUSY;
+
+
+  /* Enable the RNG Peripheral */
+  __HAL_RNG_ENABLE(hrng);
+
+  /* Initialize the RNG state */
+  hrng->State = HAL_RNG_STATE_READY;
+
+  /* Initialise the error code */
+  hrng->ErrorCode = HAL_RNG_ERROR_NONE;
+
+  /* Return function status */
+  return HAL_OK;
+}

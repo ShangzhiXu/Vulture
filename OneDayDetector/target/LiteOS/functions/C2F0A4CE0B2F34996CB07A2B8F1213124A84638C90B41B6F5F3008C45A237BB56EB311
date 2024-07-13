@@ -1,0 +1,45 @@
+void HAL_DAC_IRQHandler(DAC_HandleTypeDef* hdac)
+{
+  if(__HAL_DAC_GET_IT_SOURCE(hdac, DAC_IT_DMAUDR1))
+  { 
+    /* Check underrun channel 1 flag */
+    if(__HAL_DAC_GET_FLAG(hdac, DAC_FLAG_DMAUDR1))
+    {
+      /* Change DAC state to error state */
+      hdac->State = HAL_DAC_STATE_ERROR;
+    
+      /* Set DAC error code to channel1 DMA underrun error */
+      hdac->ErrorCode |= HAL_DAC_ERROR_DMAUNDERRUNCH1;
+    
+      /* Clear the underrun flag */
+      __HAL_DAC_CLEAR_FLAG(hdac,DAC_FLAG_DMAUDR1);
+    
+      /* Disable the selected DAC channel1 DMA request */
+      hdac->Instance->CR &= ~DAC_CR_DMAEN1;
+    
+      /* Error callback */ 
+      HAL_DAC_DMAUnderrunCallbackCh1(hdac);
+    }
+  }
+  if(__HAL_DAC_GET_IT_SOURCE(hdac, DAC_IT_DMAUDR2))
+  {
+    /* Check underrun channel 2 flag */
+    if(__HAL_DAC_GET_FLAG(hdac, DAC_FLAG_DMAUDR2))
+    { 
+      /* Change DAC state to error state */
+      hdac->State = HAL_DAC_STATE_ERROR;
+    
+      /* Set DAC error code to channel2 DMA underrun error */
+      hdac->ErrorCode |= HAL_DAC_ERROR_DMAUNDERRUNCH2;
+    
+      /* Clear the underrun flag */
+      __HAL_DAC_CLEAR_FLAG(hdac,DAC_FLAG_DMAUDR2);
+    
+      /* Disable the selected DAC channel1 DMA request */
+      hdac->Instance->CR &= ~DAC_CR_DMAEN2;
+    
+      /* Error callback */ 
+      HAL_DACEx_DMAUnderrunCallbackCh2(hdac);
+    }
+  }
+}

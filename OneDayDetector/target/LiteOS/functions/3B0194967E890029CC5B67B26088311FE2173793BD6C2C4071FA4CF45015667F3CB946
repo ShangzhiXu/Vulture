@@ -1,0 +1,42 @@
+static uint8_t prv_firmware_write(uint16_t instanceId,
+                                  int numData,
+                                  lwm2m_data_t *dataArray,
+                                  lwm2m_object_t *objectP)
+{
+    int i;
+    uint8_t result;
+
+    // this is a single instance object
+    if (instanceId != 0) {
+        return COAP_404_NOT_FOUND;
+    }
+
+    i = 0;
+    do {
+        switch (dataArray[i].id) {
+        case RES_M_PACKAGE_URI: { // URL for download the firmware
+            int ret;
+            if ((dataArray[i].type != LWM2M_TYPE_STRING) || (dataArray[i].value.asBuffer.buffer == NULL)) {
+                ATINY_LOG(LOG_ERR, "type ERR %d", dataArray[i].type);
+                result = COAP_400_BAD_REQUEST;
+                break;
+            }
+#ifdef CONFIG_FEATURE_FOTA
+            ret = atiny_fota_manager_start_download(atiny_fota_manager_get_instance(), \
+                (const char *)(dataArray[i].value.asBuffer.buffer), dataArray[i].value.asBuffer.length);
+#else
+            ret = ATINY_ERR;
+#endif
+            result = ((ret == ATINY_OK) ? COAP_204_CHANGED : COAP_405_METHOD_NOT_ALLOWED);
+            break;
+        }
+
+        default:
+            result = COAP_405_METHOD_NOT_ALLOWED;
+        }
+        i++;
+    }
+    while ((i < numData) && (result == COAP_204_CHANGED));
+
+    return result;
+}

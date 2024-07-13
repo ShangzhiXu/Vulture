@@ -1,0 +1,22 @@
+int SecVsnprintfImpl(char *string, size_t count, const char *format, va_list argList)
+{
+    SecPrintfStream str;
+    int retVal;
+
+    str.count = (int)count; /* The count include \0 character, must be greater than zero */
+    str.cur = string;
+
+    retVal = SecOutputS(&str, format, argList);
+    if (retVal >= 0) {
+        if (SecPutZeroChar(&str) == 0) {
+            return retVal;
+        }
+    }
+    if (str.count < 0) {
+        /* The buffer was too small, then truncate */
+        string[count - 1] = '\0';
+        return SECUREC_PRINTF_TRUNCATE;
+    }
+    string[0] = '\0'; /* Empty the dest string */
+    return -1;
+}

@@ -1,0 +1,35 @@
+static int32_t nb_handle_data_ind(const char *buf)
+{
+    int32_t sockid;
+    int32_t data_len;
+    const char *p1, *p2;
+    int link_idx;
+
+    p2 = strstr(buf, AT_DATAF_PREFIX);
+    if (p2 == NULL) {
+        return AT_FAILED;
+    }
+    p2 += strlen(AT_DATAF_PREFIX);
+
+    p1 = strstr(p2, ",");
+    if (p1 == NULL) {
+        return AT_FAILED;
+    }
+    sockid = chartoint(p2);
+    data_len = chartoint(p1 + 1);
+    link_idx = nb_sock_to_idx(sockid);
+    if (link_idx >= MAX_SOCK_NUM) {
+        AT_LOG("invalid sock id %ld", sockid);
+        return AT_OK;
+    }
+
+    if (nb_cmd_rcv_data(sockid, data_len) != AT_OK) {
+        g_data_ind_info.data_len = (uint32_t)data_len;
+        g_data_ind_info.link_idx = link_idx;
+        g_data_ind_info.valid_flag = true;
+    } else {
+        g_data_ind_info.valid_flag = false;
+    }
+
+    return AT_OK;
+}

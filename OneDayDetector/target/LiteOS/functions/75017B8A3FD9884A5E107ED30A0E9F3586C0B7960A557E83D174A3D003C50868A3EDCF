@@ -1,0 +1,54 @@
+HAL_StatusTypeDef HAL_SMARTCARD_Receive_DMA(SMARTCARD_HandleTypeDef *hsc, uint8_t *pData, uint16_t Size)
+{
+  uint32_t *tmp = 0;
+  uint32_t tmp_state = 0;
+  
+  tmp_state = hsc->State;
+  if((tmp_state == HAL_SMARTCARD_STATE_READY) || (tmp_state == HAL_SMARTCARD_STATE_BUSY_TX))
+  {
+    if((pData == NULL) || (Size == 0))
+    {
+      return HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hsc);
+
+    hsc->pRxBuffPtr = pData;
+    hsc->RxXferSize = Size;
+
+    hsc->ErrorCode = HAL_SMARTCARD_ERROR_NONE;
+    /* Check if a non-blocking transmit process is ongoing or not */
+    if(hsc->State == HAL_SMARTCARD_STATE_BUSY_TX) 
+    {
+      hsc->State = HAL_SMARTCARD_STATE_BUSY_TX_RX;
+    }
+    else
+    {
+      hsc->State = HAL_SMARTCARD_STATE_BUSY_RX;
+    }
+
+    /* Set the SMARTCARD DMA transfer complete callback */
+    hsc->hdmarx->XferCpltCallback = SMARTCARD_DMAReceiveCplt;
+
+    /* Set the DMA error callback */
+    hsc->hdmarx->XferErrorCallback = SMARTCARD_DMAError;
+
+    /* Enable the DMA channel */
+    tmp = (uint32_t*)&pData;
+    HAL_DMA_Start_IT(hsc->hdmarx, (uint32_t)&hsc->Instance->DR, *(uint32_t*)tmp, Size);
+
+    /* Enable the DMA transfer for the receiver request by setting the DMAR bit 
+    in the SMARTCARD CR3 register */
+    SET_BIT(hsc->Instance->CR3,USART_CR3_DMAR);
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hsc);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

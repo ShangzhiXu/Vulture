@@ -1,0 +1,51 @@
+ppp_close(ppp_pcb *pcb, u8_t nocarrier)
+{
+  LWIP_ASSERT_CORE_LOCKED();
+
+  pcb->err_code = PPPERR_USER;
+
+  /* holdoff phase, cancel the reconnection */
+  if (pcb->phase == PPP_PHASE_HOLDOFF) {
+    sys_untimeout(ppp_do_connect, pcb);
+    new_phase(pcb, PPP_PHASE_DEAD);
+  }
+
+  /* dead phase, nothing to do, call the status callback to be consistent */
+  if (pcb->phase == PPP_PHASE_DEAD) {
+    pcb->link_status_cb(pcb, pcb->err_code, pcb->ctx_cb);
+    return ERR_OK;
+  }
+
+  /* Already terminating, nothing to do */
+  if (pcb->phase >= PPP_PHASE_TERMINATE) {
+    return ERR_INPROGRESS;
+  }
+
+  /* LCP not open, close link protocol */
+  if (pcb->phase < PPP_PHASE_ESTABLISH) {
+    new_phase(pcb, PPP_PHASE_DISCONNECT);
+    ppp_link_terminated(pcb);
+    return ERR_OK;
+  }
+
+  /*
+   * Only accept carrier lost signal on the stable running phase in order
+   * to prevent changing the PPP phase FSM in transition phases.
+   *
+   * Always using nocarrier = 0 is still recommended, this is going to
+   * take a little longer time, but is a safer choice from FSM point of view.
+   */
+  if (nocarrier && pcb->phase == PPP_PHASE_RUNNING) {
+    PPPDEBUG(LOG_DEBUG, ("ppp_close[%d]: carrier lost -> lcp_lowerdown\n", pcb->netif->num));
+    lcp_lowerdown(pcb);
+    /* forced link termination, this will force link protocol to disconnect. */
+    link_terminated(pcb);
+    return ERR_OK;
+  }
+
+  /* Disconnect */
+  PPPDEBUG(LOG_DEBUG, ("ppp_close[%d]: kill_link -> lcp_close\n", pcb->netif->num));
+  /* LCP soft close request. */
+  lcp_close(pcb, "User request");
+  return ERR_OK;
+}

@@ -1,0 +1,21 @@
+__STATIC_INLINE void LL_ADC_SetAnalogWDThresholds(ADC_TypeDef *ADCx, uint32_t AWDy, uint32_t AWDThresholdsHighLow, uint32_t AWDThresholdValue)
+{
+  /* Set bits with content of parameter "AWDThresholdValue" with bits         */
+  /* position in register and register position depending on parameters       */
+  /* "AWDThresholdsHighLow" and "AWDy".                                       */
+  /* Parameters "AWDy" and "AWDThresholdValue" are used with masks because    */
+  /* containing other bits reserved for other purpose.                        */
+#if defined(CORE_CM0PLUS)
+  register uint32_t *preg = __ADC_PTR_REG_OFFSET(ADCx->TR1, ((AWDy & ADC_AWD_TRX_REGOFFSET_MASK) >> ADC_AWD_TRX_REGOFFSET_POS));
+  
+  MODIFY_REG(*preg,
+             AWDThresholdsHighLow,
+             AWDThresholdValue << ((AWDThresholdsHighLow & ADC_AWD_TRX_BIT_HIGH_MASK) >> ADC_AWD_TRX_BIT_HIGH_SHIFT4));
+#else
+  register uint32_t *preg = __ADC_PTR_REG_OFFSET(ADCx->TR1, __ADC_MASK_SHIFT(AWDy, ADC_AWD_TRX_REGOFFSET_MASK));
+  
+  MODIFY_REG(*preg,
+             AWDThresholdsHighLow,
+             AWDThresholdValue << POSITION_VAL(AWDThresholdsHighLow));
+#endif
+}

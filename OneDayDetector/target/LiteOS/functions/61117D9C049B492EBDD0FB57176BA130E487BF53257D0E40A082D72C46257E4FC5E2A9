@@ -1,0 +1,49 @@
+altcp_mbedtls_lower_recv_process(struct altcp_pcb *conn, altcp_mbedtls_state_t *state)
+{
+  if (!(state->flags & ALTCP_MBEDTLS_FLAGS_HANDSHAKE_DONE)) {
+    /* handle connection setup (handshake not done) */
+    int ret = mbedtls_ssl_handshake(&state->ssl_context);
+    /* try to send data... */
+    altcp_output(conn->inner_conn);
+    if (state->bio_bytes_read) {
+      /* acknowledge all bytes read */
+      altcp_mbedtls_lower_recved(conn->inner_conn, state->bio_bytes_read);
+      state->bio_bytes_read = 0;
+    }
+
+    if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
+      /* handshake not done, wait for more recv calls */
+      LWIP_ASSERT("in this state, the rx chain should be empty", state->rx == NULL);
+      return ERR_OK;
+    }
+    if (ret != 0) {
+      LWIP_DEBUGF(ALTCP_MBEDTLS_DEBUG, ("mbedtls_ssl_handshake failed: %d\n", ret));
+      /* handshake failed, connection has to be closed */
+      if (conn->err) {
+        conn->err(conn->arg, ERR_CLSD);
+      }
+
+      if (altcp_close(conn) != ERR_OK) {
+        altcp_abort(conn);
+      }
+      return ERR_OK;
+    }
+    /* If we come here, handshake succeeded. */
+    LWIP_ASSERT("state", state->bio_bytes_read == 0);
+    LWIP_ASSERT("state", state->bio_bytes_appl == 0);
+    state->flags |= ALTCP_MBEDTLS_FLAGS_HANDSHAKE_DONE;
+    /* issue "connect" callback" to upper connection (this can only happen for active open) */
+    if (conn->connected) {
+      err_t err;
+      err = conn->connected(conn->arg, conn, ERR_OK);
+      if (err != ERR_OK) {
+        return err;
+      }
+    }
+    if (state->rx == NULL) {
+      return ERR_OK;
+    }
+  }
+  /* handle application data */
+  return altcp_mbedtls_handle_rx_appldata(conn, state);
+}

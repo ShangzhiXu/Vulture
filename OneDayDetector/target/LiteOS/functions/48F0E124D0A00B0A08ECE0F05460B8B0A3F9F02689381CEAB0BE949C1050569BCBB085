@@ -1,0 +1,40 @@
+static void ccp_datainput(ppp_pcb *pcb, u_char *pkt, int len) {
+    fsm *f;
+#if MPPE_SUPPORT
+    ccp_options *go = &pcb->ccp_gotoptions;
+#endif /* MPPE_SUPPORT */
+    LWIP_UNUSED_ARG(pkt);
+    LWIP_UNUSED_ARG(len);
+
+    f = &pcb->ccp_fsm;
+    if (f->state == PPP_FSM_OPENED) {
+	if (ccp_fatal_error(pcb)) {
+	    /*
+	     * Disable compression by taking CCP down.
+	     */
+	    ppp_error("Lost compression sync: disabling compression");
+	    ccp_close(pcb, "Lost compression sync");
+#if MPPE_SUPPORT
+	    /*
+	     * If we were doing MPPE, we must also take the link down.
+	     */
+	    if (go->mppe) {
+		ppp_error("Too many MPPE errors, closing LCP");
+		lcp_close(pcb, "Too many MPPE errors");
+	    }
+#endif /* MPPE_SUPPORT */
+	} else {
+	    /*
+	     * Send a reset-request to reset the peer's compressor.
+	     * We don't do that if we are still waiting for an
+	     * acknowledgement to a previous reset-request.
+	     */
+	    if (!(pcb->ccp_localstate & RACK_PENDING)) {
+		fsm_sdata(f, CCP_RESETREQ, f->reqid = ++f->id, NULL, 0);
+		TIMEOUT(ccp_rack_timeout, f, RACKTIMEOUT);
+		pcb->ccp_localstate |= RACK_PENDING;
+	    } else
+		pcb->ccp_localstate |= RREQ_REPEAT;
+	}
+    }
+}

@@ -1,0 +1,55 @@
+VOID LOS_PowerMgrInit(const PowerMgrParameter *para)
+{
+    const PowerMgrRunOps *runOps = NULL;
+    const PowerMgrDeepSleepOps *deepSleepOps = NULL;
+    (void)deepSleepOps;
+    if (para != NULL) {
+        runOps = &para->runOps;
+#ifdef LOSCFG_KERNEL_DEEPSLEEP
+        deepSleepOps = &para->deepSleepOps;
+#endif
+        g_pmMgr.minSleepTicks = para->config.minLightSleepTicks;
+        g_pmMgr.maxSleepCount = para->config.maxDeepSleepTicks;
+        g_pmMgr.minDeepSleepTicks = para->config.minDeepSleepTicks;
+    }
+
+    LOS_AtomicSet(&g_pmMgr.resumeSleepCores, 0);
+
+    LOS_SpinInit(&g_pmMgr.lock);
+    LOS_AtomicSet(&g_pmMgr.freeLock, LOCK_OFF);
+
+    // verify and assign input operators.
+    if (runOps != NULL) {
+        ASSIGN_MEMBER(&g_pmRunOps, runOps, changeFreq);
+        ASSIGN_MEMBER(&g_pmRunOps, runOps, enterLightSleep);
+#ifdef LOSCFG_KERNEL_DEEPSLEEP
+        ASSIGN_MEMBER_NOT_NULL(&g_pmRunOps, runOps, enterDeepSleep);
+        ASSIGN_MEMBER_NOT_NULL(&g_pmRunOps, runOps, setWakeUpTimer);
+        ASSIGN_MEMBER_NOT_NULL(&g_pmRunOps, runOps, withdrawWakeUpTimer);
+#else
+        ASSIGN_MEMBER(&g_pmRunOps, runOps, enterDeepSleep);
+        ASSIGN_MEMBER(&g_pmRunOps, runOps, setWakeUpTimer);
+        ASSIGN_MEMBER(&g_pmRunOps, runOps, withdrawWakeUpTimer);
+#endif
+        ASSIGN_MEMBER_NOT_NULL(&g_pmRunOps, runOps, getSleepTime);
+        ASSIGN_MEMBER_NOT_NULL(&g_pmRunOps, runOps, selectSleepMode);
+        ASSIGN_MEMBER(&g_pmRunOps, runOps, preConfig);
+        ASSIGN_MEMBER(&g_pmRunOps, runOps, postConfig);
+    }
+
+#ifdef LOSCFG_KERNEL_DEEPSLEEP
+    if (deepSleepOps != NULL) {
+        ASSIGN_MEMBER(&g_deepSleepOps, deepSleepOps, couldDeepSleep);
+        ASSIGN_MEMBER(&g_deepSleepOps, deepSleepOps, systemWakeup);
+        ASSIGN_MEMBER(&g_deepSleepOps, deepSleepOps, suspendPreConfig);
+        ASSIGN_MEMBER(&g_deepSleepOps, deepSleepOps, suspendDevice);
+        ASSIGN_MEMBER(&g_deepSleepOps, deepSleepOps, rollback);
+        ASSIGN_MEMBER(&g_deepSleepOps, deepSleepOps, resumeDevice);
+        ASSIGN_MEMBER(&g_deepSleepOps, deepSleepOps, resumePostConfig);
+        ASSIGN_MEMBER(&g_deepSleepOps, deepSleepOps, resumeCallBack);
+        ASSIGN_MEMBER(&g_deepSleepOps, deepSleepOps, otherCoreResume);
+    }
+#endif
+    // Register PowerMgr to Low-Power Framework.
+    LOS_LowpowerInit(&g_pmOps);
+}

@@ -1,0 +1,23 @@
+mqtt_request_time_elapsed(struct mqtt_request_t **tail, u8_t t)
+{
+  struct mqtt_request_t *r;
+  LWIP_ASSERT("mqtt_request_time_elapsed: tail != NULL", tail != NULL);
+  r = *tail;
+  while (t > 0 && r != NULL) {
+    if (t >= r->timeout_diff) {
+      t -= (u8_t)r->timeout_diff;
+      /* Unchain */
+      *tail = r->next;
+      /* Notify upper layer about timeout */
+      if (r->cb != NULL) {
+        r->cb(r->arg, ERR_TIMEOUT);
+      }
+      mqtt_delete_request(r);
+      /* Tail might be be modified in callback, so re-read it in every iteration */
+      r = *(struct mqtt_request_t *const volatile *)tail;
+    } else {
+      r->timeout_diff -= t;
+      t = 0;
+    }
+  }
+}

@@ -1,0 +1,5 @@
+#define QCMD(cmd, type)  (((cmd) << SUBCMDSHIFT) | ((type) & SUBCMDMASK))
+#define btodb(num) ((num) >> 10)
+#define dbtob(num) ((num) << 10)
+#define dqoff(UID)      ((long long)(UID) * sizeof (struct dqblk))
+#define fs_to_dq_blocks(num, blksize) (((num) * (blksize)) / 1024)

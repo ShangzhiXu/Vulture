@@ -1,0 +1,105 @@
+lwiperf_tcp_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
+{
+  u8_t tmp;
+  u16_t tot_len;
+  u32_t packet_idx;
+  struct pbuf *q;
+  lwiperf_state_tcp_t *conn = (lwiperf_state_tcp_t *)arg;
+
+  LWIP_ASSERT("pcb mismatch", conn->conn_pcb == tpcb);
+  LWIP_UNUSED_ARG(tpcb);
+
+  if (err != ERR_OK) {
+    lwiperf_tcp_close(conn, LWIPERF_TCP_ABORTED_REMOTE);
+    return ERR_OK;
+  }
+  if (p == NULL) {
+    /* connection closed -> test done */
+    if (conn->settings.flags & PP_HTONL(LWIPERF_FLAGS_ANSWER_TEST)) {
+      if ((conn->settings.flags & PP_HTONL(LWIPERF_FLAGS_ANSWER_NOW)) == 0) {
+        /* client requested transmission after end of test */
+        lwiperf_tx_start_passive(conn);
+      }
+    }
+    lwiperf_tcp_close(conn, LWIPERF_TCP_DONE_SERVER);
+    return ERR_OK;
+  }
+  tot_len = p->tot_len;
+
+  conn->poll_count = 0;
+
+  if ((!conn->have_settings_buf) || ((conn->bytes_transferred - 24) % (1024 * 128) == 0)) {
+    /* wait for 24-byte header */
+    if (p->tot_len < sizeof(lwiperf_settings_t)) {
+      lwiperf_tcp_close(conn, LWIPERF_TCP_ABORTED_LOCAL_DATAERROR);
+      pbuf_free(p);
+      return ERR_OK;
+    }
+    if (!conn->have_settings_buf) {
+      if (pbuf_copy_partial(p, &conn->settings, sizeof(lwiperf_settings_t), 0) != sizeof(lwiperf_settings_t)) {
+        lwiperf_tcp_close(conn, LWIPERF_TCP_ABORTED_LOCAL);
+        pbuf_free(p);
+        return ERR_OK;
+      }
+      conn->have_settings_buf = 1;
+      if (conn->settings.flags & PP_HTONL(LWIPERF_FLAGS_ANSWER_TEST)) {
+        if (conn->settings.flags & PP_HTONL(LWIPERF_FLAGS_ANSWER_NOW)) {
+          /* client requested parallel transmission test */
+          err_t err2 = lwiperf_tx_start_passive(conn);
+          if (err2 != ERR_OK) {
+            lwiperf_tcp_close(conn, LWIPERF_TCP_ABORTED_LOCAL_TXERROR);
+            pbuf_free(p);
+            return ERR_OK;
+          }
+        }
+      }
+    } else {
+      if (conn->settings.flags & PP_HTONL(LWIPERF_FLAGS_ANSWER_TEST)) {
+        if (pbuf_memcmp(p, 0, &conn->settings, sizeof(lwiperf_settings_t)) != 0) {
+          lwiperf_tcp_close(conn, LWIPERF_TCP_ABORTED_LOCAL_DATAERROR);
+          pbuf_free(p);
+          return ERR_OK;
+        }
+      }
+    }
+    conn->bytes_transferred += sizeof(lwiperf_settings_t);
+    if (conn->bytes_transferred <= 24) {
+      conn->time_started = sys_now();
+      tcp_recved(tpcb, p->tot_len);
+      pbuf_free(p);
+      return ERR_OK;
+    }
+    conn->next_num = 4; /* 24 bytes received... */
+    tmp = pbuf_remove_header(p, 24);
+    LWIP_ASSERT("pbuf_remove_header failed", tmp == 0);
+    LWIP_UNUSED_ARG(tmp); /* for LWIP_NOASSERT */
+  }
+
+  packet_idx = 0;
+  for (q = p; q != NULL; q = q->next) {
+#if LWIPERF_CHECK_RX_DATA
+    const u8_t *payload = (const u8_t *)q->payload;
+    u16_t i;
+    for (i = 0; i < q->len; i++) {
+      u8_t val = payload[i];
+      u8_t num = val - '0';
+      if (num == conn->next_num) {
+        conn->next_num++;
+        if (conn->next_num == 10) {
+          conn->next_num = 0;
+        }
+      } else {
+        lwiperf_tcp_close(conn, LWIPERF_TCP_ABORTED_LOCAL_DATAERROR);
+        pbuf_free(p);
+        return ERR_OK;
+      }
+    }
+#endif
+    packet_idx += q->len;
+  }
+  LWIP_ASSERT("count mismatch", packet_idx == p->tot_len);
+  conn->bytes_transferred += packet_idx;
+  tcp_recved(tpcb, tot_len);
+  pbuf_free(p);
+  return ERR_OK;
+}

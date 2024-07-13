@@ -1,0 +1,135 @@
+ErrorStatus LL_USART_Init(USART_TypeDef *USARTx, LL_USART_InitTypeDef *USART_InitStruct)
+{
+  ErrorStatus status = ERROR;
+  uint32_t periphclk = LL_RCC_PERIPH_FREQUENCY_NO;
+  LL_RCC_ClocksTypeDef rcc_clocks;
+
+  /* Check the parameters */
+  assert_param(IS_UART_INSTANCE(USARTx));
+  assert_param(IS_LL_USART_BAUDRATE(USART_InitStruct->BaudRate));
+  assert_param(IS_LL_USART_DATAWIDTH(USART_InitStruct->DataWidth));
+  assert_param(IS_LL_USART_STOPBITS(USART_InitStruct->StopBits));
+  assert_param(IS_LL_USART_PARITY(USART_InitStruct->Parity));
+  assert_param(IS_LL_USART_DIRECTION(USART_InitStruct->TransferDirection));
+  assert_param(IS_LL_USART_HWCONTROL(USART_InitStruct->HardwareFlowControl));
+  assert_param(IS_LL_USART_OVERSAMPLING(USART_InitStruct->OverSampling));
+
+  /* USART needs to be in disabled state, in order to be able to configure some bits in
+     CRx registers */
+  if (LL_USART_IsEnabled(USARTx) == 0U)
+  {
+    /*---------------------------- USART CR1 Configuration -----------------------
+     * Configure USARTx CR1 (USART Word Length, Parity, Mode and Oversampling bits) with parameters:
+     * - DataWidth:          USART_CR1_M bits according to USART_InitStruct->DataWidth value
+     * - Parity:             USART_CR1_PCE, USART_CR1_PS bits according to USART_InitStruct->Parity value
+     * - TransferDirection:  USART_CR1_TE, USART_CR1_RE bits according to USART_InitStruct->TransferDirection value
+     * - Oversampling:       USART_CR1_OVER8 bit according to USART_InitStruct->OverSampling value.
+     */
+    MODIFY_REG(USARTx->CR1,
+               (USART_CR1_M | USART_CR1_PCE | USART_CR1_PS |
+                USART_CR1_TE | USART_CR1_RE | USART_CR1_OVER8),
+               (USART_InitStruct->DataWidth | USART_InitStruct->Parity |
+                USART_InitStruct->TransferDirection | USART_InitStruct->OverSampling));
+
+    /*---------------------------- USART CR2 Configuration -----------------------
+     * Configure USARTx CR2 (Stop bits) with parameters:
+     * - Stop Bits:          USART_CR2_STOP bits according to USART_InitStruct->StopBits value.
+     * - CLKEN, CPOL, CPHA and LBCL bits are to be configured using LL_USART_ClockInit().
+     */
+    LL_USART_SetStopBitsLength(USARTx, USART_InitStruct->StopBits);
+
+    /*---------------------------- USART CR3 Configuration -----------------------
+     * Configure USARTx CR3 (Hardware Flow Control) with parameters:
+     * - HardwareFlowControl: USART_CR3_RTSE, USART_CR3_CTSE bits according to USART_InitStruct->HardwareFlowControl value.
+     */
+    LL_USART_SetHWFlowCtrl(USARTx, USART_InitStruct->HardwareFlowControl);
+
+    /*---------------------------- USART BRR Configuration -----------------------
+     * Retrieve Clock frequency used for USART Peripheral
+     */
+    LL_RCC_GetSystemClocksFreq(&rcc_clocks);
+    if (USARTx == USART1)
+    {
+      periphclk = rcc_clocks.PCLK2_Frequency;
+    }
+    else if (USARTx == USART2)
+    {
+      periphclk = rcc_clocks.PCLK1_Frequency;
+    }
+#if defined(USART3)
+    else if (USARTx == USART3)
+    {
+      periphclk = rcc_clocks.PCLK1_Frequency;
+    }
+#endif /* USART3 */
+#if defined(USART6)
+    else if (USARTx == USART6)
+    {
+      periphclk = rcc_clocks.PCLK2_Frequency;
+    }
+#endif /* USART6 */
+#if defined(UART4)
+    else if (USARTx == UART4)
+    {
+      periphclk = rcc_clocks.PCLK1_Frequency;
+    }
+#endif /* UART4 */
+#if defined(UART5)
+    else if (USARTx == UART5)
+    {
+      periphclk = rcc_clocks.PCLK1_Frequency;
+    }
+#endif /* UART5 */
+#if defined(UART7)
+    else if (USARTx == UART7)
+    {
+      periphclk = rcc_clocks.PCLK1_Frequency;
+    }
+#endif /* UART7 */
+#if defined(UART8)
+    else if (USARTx == UART8)
+    {
+      periphclk = rcc_clocks.PCLK1_Frequency;
+    }
+#endif /* UART8 */
+#if defined(UART9)
+    else if (USARTx == UART9)
+    {
+      periphclk = rcc_clocks.PCLK2_Frequency;
+    }
+#endif /* UART9 */
+#if defined(UART10)
+    else if (USARTx == UART10)
+    {
+      periphclk = rcc_clocks.PCLK2_Frequency;
+    }
+#endif /* UART10 */
+    else
+    {
+      /* Nothing to do, as error code is already assigned to ERROR value */
+    }
+
+    /* Configure the USART Baud Rate :
+       - valid baud rate value (different from 0) is required
+       - Peripheral clock as returned by RCC service, should be valid (different from 0).
+    */
+    if ((periphclk != LL_RCC_PERIPH_FREQUENCY_NO)
+        && (USART_InitStruct->BaudRate != 0U))
+    {
+      status = SUCCESS;
+      LL_USART_SetBaudRate(USARTx,
+                           periphclk,
+                           USART_InitStruct->OverSampling,
+                           USART_InitStruct->BaudRate);
+
+      /* Check BRR is greater than or equal to 16d */
+      assert_param(IS_LL_USART_BRR_MIN(USARTx->BRR));
+
+      /* Check BRR is greater than or equal to 16d */
+      assert_param(IS_LL_USART_BRR_MAX(USARTx->BRR));
+    }
+  }
+  /* Endif (=> USART not in Disabled state => return ERROR) */
+
+  return (status);
+}

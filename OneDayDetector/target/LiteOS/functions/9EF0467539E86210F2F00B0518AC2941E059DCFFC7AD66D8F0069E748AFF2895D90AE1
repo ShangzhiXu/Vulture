@@ -1,0 +1,30 @@
+int atiny_net_recv(void *ctx, unsigned char *buf, size_t len)
+{
+    int ret = -1;
+    int fd = ((atiny_net_context *)ctx)->fd;
+#if defined(WITH_LINUX) || defined(LOSCFG_COMPONENTS_NET_LWIP)
+    ret = recv(fd, buf, len, 0);
+#elif defined(LOSCFG_COMPONNETS_NET_AT)
+    ret = at_api_recv(fd, buf, len);
+#elif defined(WITH_WIZNET)
+    ret = wiznet_recv(fd, buf, len);
+#else
+    (void)fd; /* clear unuse warning */
+#endif
+
+#if defined(WITH_LINUX) || defined(LOSCFG_COMPONENTS_NET_LWIP)
+    if (ret < 0) {
+        if ((errno == EAGAIN) || (errno == EWOULDBLOCK) || (errno == EINTR)) {
+            SOCKET_LOG("no data available for now");
+            return 0;
+        } else {
+            SOCKET_LOG("error accured when recv: 0x%x", errno);
+            return -1;
+        }
+    } else if (ret == 0) {
+        SOCKET_LOG("socket was closed by peer");
+        return -1;
+    }
+#endif
+    return ret;
+}

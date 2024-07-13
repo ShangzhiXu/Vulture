@@ -1,0 +1,25 @@
+static void SPI_TxISR(SPI_HandleTypeDef *hspi)
+{
+  /* Transmit data in 8 Bit mode */
+  if(hspi->Init.DataSize == SPI_DATASIZE_8BIT)
+  {
+    hspi->Instance->DR = (*hspi->pTxBuffPtr++);
+  }
+  /* Transmit data in 16 Bit mode */
+  else
+  {
+    hspi->Instance->DR = *((uint16_t*)hspi->pTxBuffPtr);
+    hspi->pTxBuffPtr+=2;
+  }
+  hspi->TxXferCount--;
+
+  if(hspi->TxXferCount == 0)
+  {
+    if(hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+    {
+      /* calculate and transfer CRC on Tx line */
+      SET_BIT(hspi->Instance->CR1, SPI_CR1_CRCNEXT);
+    }
+    SPI_TxCloseIRQHandler(hspi);
+  }
+}

@@ -1,0 +1,28 @@
+uint32_t LL_RCC_GetCECClockFreq(uint32_t CECxSource)
+{
+  uint32_t cec_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_CEC_CLKSOURCE(CECxSource));
+
+  /* CECCLK clock frequency */
+  switch (LL_RCC_GetCECClockSource(CECxSource))
+  {
+    case LL_RCC_CEC_CLKSOURCE_HSI_DIV244:   /* HSI / 244 clock used as CEC clock source */
+      if (LL_RCC_HSI_IsReady())
+      {
+        cec_frequency = HSI_VALUE / 244U;
+      }
+      break;
+
+    case LL_RCC_CEC_CLKSOURCE_LSE:          /* LSE clock used as CEC clock source */
+    default:
+      if (LL_RCC_LSE_IsReady())
+      {
+        cec_frequency = LSE_VALUE;
+      }
+      break;
+  }
+
+  return cec_frequency;
+}

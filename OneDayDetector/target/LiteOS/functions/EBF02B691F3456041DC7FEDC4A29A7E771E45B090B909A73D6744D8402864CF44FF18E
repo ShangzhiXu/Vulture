@@ -1,0 +1,49 @@
+HAL_StatusTypeDef HAL_DMA2D_CLUTLoading_Abort(DMA2D_HandleTypeDef *hdma2d, uint32_t LayerIdx)
+{
+  uint32_t tickstart  = 0;
+  __IO uint32_t * reg =  &(hdma2d->Instance->BGPFCCR); /* by default, point at background register */
+  uint32_t mask       = DMA2D_BGPFCCR_START;           /* by default, set to background constant   */
+  
+
+  /* Abort the CLUT loading */
+  SET_BIT(hdma2d->Instance->CR, DMA2D_CR_ABORT);
+  
+  /* If foreground CLUT loading is considered, update local variables */ 
+  if(LayerIdx == 1)
+  {
+    reg  = &(hdma2d->Instance->FGPFCCR);
+  }
+
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+ 
+  /* Check if the CLUT loading is aborted */          
+  while((*reg & mask) != RESET)
+  {
+    if((HAL_GetTick() - tickstart ) > DMA2D_TIMEOUT_ABORT)
+    {
+      /* Update error code */
+      hdma2d->ErrorCode |= HAL_DMA2D_ERROR_TIMEOUT;
+      
+      /* Change the DMA2D state */
+      hdma2d->State = HAL_DMA2D_STATE_TIMEOUT;
+      
+      /* Process Unlocked */
+      __HAL_UNLOCK(hdma2d);
+      
+      return HAL_TIMEOUT;
+    }
+  }
+
+  /* Disable the CLUT Transfer Complete, Transfer Error, Configuration Error and CLUT Access Error interrupts */
+  __HAL_DMA2D_DISABLE_IT(hdma2d, DMA2D_IT_CTC | DMA2D_IT_TE | DMA2D_IT_CE |DMA2D_IT_CAE);      
+   
+  /* Change the DMA2D state*/
+  hdma2d->State = HAL_DMA2D_STATE_READY;
+     
+  /* Process Unlocked */
+  __HAL_UNLOCK(hdma2d);
+
+  return HAL_OK;
+}

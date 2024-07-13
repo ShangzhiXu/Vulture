@@ -1,0 +1,24 @@
+mld6_remove_group(struct netif *netif, struct mld_group *group)
+{
+  err_t err = ERR_OK;
+
+  /* Is it the first group? */
+  if (netif_mld6_data(netif) == group) {
+    netif_set_client_data(netif, LWIP_NETIF_CLIENT_DATA_INDEX_MLD6, group->next);
+  } else {
+    /* look for group further down the list */
+    struct mld_group *tmpGroup;
+    for (tmpGroup = netif_mld6_data(netif); tmpGroup != NULL; tmpGroup = tmpGroup->next) {
+      if (tmpGroup->next == group) {
+        tmpGroup->next = group->next;
+        break;
+      }
+    }
+    /* Group not find group */
+    if (tmpGroup == NULL) {
+      err = ERR_ARG;
+    }
+  }
+
+  return err;
+}

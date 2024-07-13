@@ -1,0 +1,43 @@
+HAL_StatusTypeDef HAL_CEC_Init(CEC_HandleTypeDef *hcec)
+{
+  /* Check the CEC handle allocation */
+  if(hcec == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */ 
+  assert_param(IS_CEC_ALL_INSTANCE(hcec->Instance));
+  assert_param(IS_CEC_BIT_TIMING_ERROR_MODE(hcec->Init.TimingErrorFree));
+  assert_param(IS_CEC_BIT_PERIOD_ERROR_MODE(hcec->Init.PeriodErrorFree));
+  assert_param(IS_CEC_ADDRESS(hcec->Init.InitiatorAddress));
+
+  if(hcec->State == HAL_CEC_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hcec->Lock = HAL_UNLOCKED;
+    /* Init the low level hardware : GPIO, CLOCK */
+    HAL_CEC_MspInit(hcec);
+  }
+  
+  hcec->State = HAL_CEC_STATE_BUSY;
+  
+  /* Disable the Peripheral */
+  __HAL_CEC_DISABLE(hcec);
+  
+  /* Write to CEC Control Register */
+  MODIFY_REG(hcec->Instance->CFGR, CEC_CFGR_FIELDS, hcec->Init.TimingErrorFree|hcec->Init.PeriodErrorFree);
+  
+  /* Write to CEC Own Address Register */
+  MODIFY_REG(hcec->Instance->OAR, CEC_OAR_OA, hcec->Init.InitiatorAddress);
+  
+  /* Configure the prescaler to generate the required 50 microseconds time base.*/
+  MODIFY_REG(hcec->Instance->PRES, CEC_PRES_PRES, 50*(HAL_RCC_GetPCLK1Freq()/1000000)-1);
+  
+  /* Enable the Peripheral */
+  __HAL_CEC_ENABLE(hcec);
+
+  hcec->State = HAL_CEC_STATE_READY;
+  
+  return HAL_OK;
+}

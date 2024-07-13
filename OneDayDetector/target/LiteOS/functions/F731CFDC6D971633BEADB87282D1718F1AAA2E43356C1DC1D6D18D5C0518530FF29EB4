@@ -1,0 +1,140 @@
+int mbedtls_rsa_rsaes_oaep_decrypt( mbedtls_rsa_context *ctx,
+                            int (*f_rng)(void *, unsigned char *, size_t),
+                            void *p_rng,
+                            int mode,
+                            const unsigned char *label, size_t label_len,
+                            size_t *olen,
+                            const unsigned char *input,
+                            unsigned char *output,
+                            size_t output_max_len )
+{
+    int ret;
+    size_t ilen, i, pad_len;
+    unsigned char *p, bad, pad_done;
+    unsigned char buf[MBEDTLS_MPI_MAX_SIZE];
+    unsigned char lhash[MBEDTLS_MD_MAX_SIZE];
+    unsigned int hlen;
+    const mbedtls_md_info_t *md_info;
+    mbedtls_md_context_t md_ctx;
+
+    RSA_VALIDATE_RET( ctx != NULL );
+    RSA_VALIDATE_RET( mode == MBEDTLS_RSA_PRIVATE ||
+                      mode == MBEDTLS_RSA_PUBLIC );
+    RSA_VALIDATE_RET( output_max_len == 0 || output != NULL );
+    RSA_VALIDATE_RET( label_len == 0 || label != NULL );
+    RSA_VALIDATE_RET( input != NULL );
+    RSA_VALIDATE_RET( olen != NULL );
+
+    /*
+     * Parameters sanity checks
+     */
+    if( mode == MBEDTLS_RSA_PRIVATE && ctx->padding != MBEDTLS_RSA_PKCS_V21 )
+        return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+
+    ilen = ctx->len;
+
+    if( ilen < 16 || ilen > sizeof( buf ) )
+        return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+
+    md_info = mbedtls_md_info_from_type( (mbedtls_md_type_t) ctx->hash_id );
+    if( md_info == NULL )
+        return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+
+    hlen = mbedtls_md_get_size( md_info );
+
+    // checking for integer underflow
+    if( 2 * hlen + 2 > ilen )
+        return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+
+    /*
+     * RSA operation
+     */
+    ret = ( mode == MBEDTLS_RSA_PUBLIC )
+          ? mbedtls_rsa_public(  ctx, input, buf )
+          : mbedtls_rsa_private( ctx, f_rng, p_rng, input, buf );
+
+    if( ret != 0 )
+        goto cleanup;
+
+    /*
+     * Unmask data and generate lHash
+     */
+    mbedtls_md_init( &md_ctx );
+    if( ( ret = mbedtls_md_setup( &md_ctx, md_info, 0 ) ) != 0 )
+    {
+        mbedtls_md_free( &md_ctx );
+        goto cleanup;
+    }
+
+    /* seed: Apply seedMask to maskedSeed */
+    if( ( ret = mgf_mask( buf + 1, hlen, buf + hlen + 1, ilen - hlen - 1,
+                          &md_ctx ) ) != 0 ||
+    /* DB: Apply dbMask to maskedDB */
+        ( ret = mgf_mask( buf + hlen + 1, ilen - hlen - 1, buf + 1, hlen,
+                          &md_ctx ) ) != 0 )
+    {
+        mbedtls_md_free( &md_ctx );
+        goto cleanup;
+    }
+
+    mbedtls_md_free( &md_ctx );
+
+    /* Generate lHash */
+    if( ( ret = mbedtls_md( md_info, label, label_len, lhash ) ) != 0 )
+        goto cleanup;
+
+    /*
+     * Check contents, in "constant-time"
+     */
+    p = buf;
+    bad = 0;
+
+    bad |= *p++; /* First byte must be 0 */
+
+    p += hlen; /* Skip seed */
+
+    /* Check lHash */
+    for( i = 0; i < hlen; i++ )
+        bad |= lhash[i] ^ *p++;
+
+    /* Get zero-padding len, but always read till end of buffer
+     * (minus one, for the 01 byte) */
+    pad_len = 0;
+    pad_done = 0;
+    for( i = 0; i < ilen - 2 * hlen - 2; i++ )
+    {
+        pad_done |= p[i];
+        pad_len += ((pad_done | (unsigned char)-pad_done) >> 7) ^ 1;
+    }
+
+    p += pad_len;
+    bad |= *p++ ^ 0x01;
+
+    /*
+     * The only information "leaked" is whether the padding was correct or not
+     * (eg, no data is copied if it was not correct). This meets the
+     * recommendations in PKCS#1 v2.2: an opponent cannot distinguish between
+     * the different error conditions.
+     */
+    if( bad != 0 )
+    {
+        ret = MBEDTLS_ERR_RSA_INVALID_PADDING;
+        goto cleanup;
+    }
+
+    if( ilen - ( p - buf ) > output_max_len )
+    {
+        ret = MBEDTLS_ERR_RSA_OUTPUT_TOO_LARGE;
+        goto cleanup;
+    }
+
+    *olen = ilen - (p - buf);
+    memcpy( output, p, *olen );
+    ret = 0;
+
+cleanup:
+    mbedtls_platform_zeroize( buf, sizeof( buf ) );
+    mbedtls_platform_zeroize( lhash, sizeof( lhash ) );
+
+    return( ret );
+}

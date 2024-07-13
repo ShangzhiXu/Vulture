@@ -1,0 +1,89 @@
+HAL_StatusTypeDef HAL_SPDIFRX_Init(SPDIFRX_HandleTypeDef *hspdif)
+{
+  uint32_t tmpreg;
+
+  /* Check the SPDIFRX handle allocation */
+  if(hspdif == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the SPDIFRX parameters */
+  assert_param(IS_STEREO_MODE(hspdif->Init.StereoMode));
+  assert_param(IS_SPDIFRX_INPUT_SELECT(hspdif->Init.InputSelection));
+  assert_param(IS_SPDIFRX_MAX_RETRIES(hspdif->Init.Retries));
+  assert_param(IS_SPDIFRX_WAIT_FOR_ACTIVITY(hspdif->Init.WaitForActivity));
+  assert_param(IS_SPDIFRX_CHANNEL(hspdif->Init.ChannelSelection));
+  assert_param(IS_SPDIFRX_DATA_FORMAT(hspdif->Init.DataFormat));
+  assert_param(IS_PREAMBLE_TYPE_MASK(hspdif->Init.PreambleTypeMask));
+  assert_param(IS_CHANNEL_STATUS_MASK(hspdif->Init.ChannelStatusMask));
+  assert_param(IS_VALIDITY_MASK(hspdif->Init.ValidityBitMask));
+  assert_param(IS_PARITY_ERROR_MASK(hspdif->Init.ParityErrorMask));
+
+#if (USE_HAL_SPDIFRX_REGISTER_CALLBACKS == 1)
+  if(hspdif->State == HAL_SPDIFRX_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hspdif->Lock = HAL_UNLOCKED;
+
+    hspdif->RxHalfCpltCallback  = HAL_SPDIFRX_RxHalfCpltCallback; /* Legacy weak RxHalfCpltCallback */
+    hspdif->RxCpltCallback      = HAL_SPDIFRX_RxCpltCallback;     /* Legacy weak RxCpltCallback     */
+    hspdif->CxHalfCpltCallback  = HAL_SPDIFRX_CxHalfCpltCallback; /* Legacy weak CxHalfCpltCallback */
+    hspdif->CxCpltCallback      = HAL_SPDIFRX_CxCpltCallback;     /* Legacy weak CxCpltCallback     */
+    hspdif->ErrorCallback       = HAL_SPDIFRX_ErrorCallback;      /* Legacy weak ErrorCallback      */
+
+    if(hspdif->MspInitCallback == NULL)
+    {
+      hspdif->MspInitCallback = HAL_SPDIFRX_MspInit; /* Legacy weak MspInit  */
+    }
+
+    /* Init the low level hardware */
+    hspdif->MspInitCallback(hspdif);
+  }
+#else
+  if(hspdif->State == HAL_SPDIFRX_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hspdif->Lock = HAL_UNLOCKED;
+    /* Init the low level hardware : GPIO, CLOCK, CORTEX...etc */
+    HAL_SPDIFRX_MspInit(hspdif);
+  }
+#endif /* USE_HAL_SPDIFRX_REGISTER_CALLBACKS */
+
+  /* SPDIFRX peripheral state is BUSY */
+  hspdif->State = HAL_SPDIFRX_STATE_BUSY;
+
+  /* Disable SPDIFRX interface (IDLE State) */
+  __HAL_SPDIFRX_IDLE(hspdif);
+
+  /* Reset the old SPDIFRX CR configuration */
+  tmpreg = hspdif->Instance->CR;
+
+  tmpreg &= ~(SPDIFRX_CR_RXSTEO  | SPDIFRX_CR_DRFMT  | SPDIFRX_CR_PMSK |
+              SPDIFRX_CR_VMSK | SPDIFRX_CR_CUMSK | SPDIFRX_CR_PTMSK  |
+              SPDIFRX_CR_CHSEL | SPDIFRX_CR_NBTR | SPDIFRX_CR_WFA |
+              SPDIFRX_CR_INSEL);
+
+  /* Sets the new configuration of the SPDIFRX peripheral */
+  tmpreg |= (hspdif->Init.StereoMode |
+             hspdif->Init.InputSelection |
+             hspdif->Init.Retries |
+             hspdif->Init.WaitForActivity |
+             hspdif->Init.ChannelSelection |
+             hspdif->Init.DataFormat |
+             hspdif->Init.PreambleTypeMask |
+             hspdif->Init.ChannelStatusMask |
+             hspdif->Init.ValidityBitMask |
+             hspdif->Init.ParityErrorMask
+             );
+
+
+  hspdif->Instance->CR = tmpreg;
+
+  hspdif->ErrorCode = HAL_SPDIFRX_ERROR_NONE;
+
+  /* SPDIFRX peripheral state is READY*/
+  hspdif->State = HAL_SPDIFRX_STATE_READY;
+
+  return HAL_OK;
+}

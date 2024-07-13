@@ -1,0 +1,52 @@
+int mbedtls_dhm_calc_secret( mbedtls_dhm_context *ctx,
+                     unsigned char *output, size_t output_size, size_t *olen,
+                     int (*f_rng)(void *, unsigned char *, size_t),
+                     void *p_rng )
+{
+    int ret;
+    mbedtls_mpi GYb;
+    DHM_VALIDATE_RET( ctx != NULL );
+    DHM_VALIDATE_RET( output != NULL );
+    DHM_VALIDATE_RET( olen != NULL );
+
+    if( output_size < ctx->len )
+        return( MBEDTLS_ERR_DHM_BAD_INPUT_DATA );
+
+    if( ( ret = dhm_check_range( &ctx->GY, &ctx->P ) ) != 0 )
+        return( ret );
+
+    mbedtls_mpi_init( &GYb );
+
+    /* Blind peer's value */
+    if( f_rng != NULL )
+    {
+        MBEDTLS_MPI_CHK( dhm_update_blinding( ctx, f_rng, p_rng ) );
+        MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( &GYb, &ctx->GY, &ctx->Vi ) );
+        MBEDTLS_MPI_CHK( mbedtls_mpi_mod_mpi( &GYb, &GYb, &ctx->P ) );
+    }
+    else
+        MBEDTLS_MPI_CHK( mbedtls_mpi_copy( &GYb, &ctx->GY ) );
+
+    /* Do modular exponentiation */
+    MBEDTLS_MPI_CHK( mbedtls_mpi_exp_mod( &ctx->K, &GYb, &ctx->X,
+                          &ctx->P, &ctx->RP ) );
+
+    /* Unblind secret value */
+    if( f_rng != NULL )
+    {
+        MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( &ctx->K, &ctx->K, &ctx->Vf ) );
+        MBEDTLS_MPI_CHK( mbedtls_mpi_mod_mpi( &ctx->K, &ctx->K, &ctx->P ) );
+    }
+
+    *olen = mbedtls_mpi_size( &ctx->K );
+
+    MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary( &ctx->K, output, *olen ) );
+
+cleanup:
+    mbedtls_mpi_free( &GYb );
+
+    if( ret != 0 )
+        return( MBEDTLS_ERR_DHM_CALC_SECRET_FAILED + ret );
+
+    return( 0 );
+}

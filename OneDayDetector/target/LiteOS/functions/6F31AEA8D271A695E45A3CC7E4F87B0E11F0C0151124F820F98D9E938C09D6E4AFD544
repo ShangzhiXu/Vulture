@@ -1,0 +1,89 @@
+static int ccp_nakci(fsm *f, u_char *p, int len, int treat_as_reject) {
+    ppp_pcb *pcb = f->pcb;
+    ccp_options *go = &pcb->ccp_gotoptions;
+    ccp_options no;		/* options we've seen already */
+    ccp_options try_;		/* options to ask for next time */
+    LWIP_UNUSED_ARG(treat_as_reject);
+#if !MPPE_SUPPORT && !DEFLATE_SUPPORT && !BSDCOMPRESS_SUPPORT
+    LWIP_UNUSED_ARG(p);
+    LWIP_UNUSED_ARG(len);
+#endif /* !MPPE_SUPPORT && !DEFLATE_SUPPORT && !BSDCOMPRESS_SUPPORT */
+
+    memset(&no, 0, sizeof(no));
+    try_ = *go;
+
+#if MPPE_SUPPORT
+    if (go->mppe && len >= CILEN_MPPE
+	&& p[0] == CI_MPPE && p[1] == CILEN_MPPE) {
+	no.mppe = 1;
+	/*
+	 * Peer wants us to use a different strength or other setting.
+	 * Fail if we aren't willing to use his suggestion.
+	 */
+	MPPE_CI_TO_OPTS(&p[2], try_.mppe);
+	if ((try_.mppe & MPPE_OPT_STATEFUL) && pcb->settings.refuse_mppe_stateful) {
+	    ppp_error("Refusing MPPE stateful mode offered by peer");
+	    try_.mppe = 0;
+	} else if (((go->mppe | MPPE_OPT_STATEFUL) & try_.mppe) != try_.mppe) {
+	    /* Peer must have set options we didn't request (suggest) */
+	    try_.mppe = 0;
+	}
+
+	if (!try_.mppe) {
+	    ppp_error("MPPE required but peer negotiation failed");
+	    lcp_close(pcb, "MPPE required but peer negotiation failed");
+	}
+    }
+#endif /* MPPE_SUPPORT */
+#if DEFLATE_SUPPORT
+    if (go->deflate && len >= CILEN_DEFLATE
+	&& p[0] == (go->deflate_correct? CI_DEFLATE: CI_DEFLATE_DRAFT)
+	&& p[1] == CILEN_DEFLATE) {
+	no.deflate = 1;
+	/*
+	 * Peer wants us to use a different code size or something.
+	 * Stop asking for Deflate if we don't understand his suggestion.
+	 */
+	if (DEFLATE_METHOD(p[2]) != DEFLATE_METHOD_VAL
+	    || DEFLATE_SIZE(p[2]) < DEFLATE_MIN_WORKS
+	    || p[3] != DEFLATE_CHK_SEQUENCE)
+	    try_.deflate = 0;
+	else if (DEFLATE_SIZE(p[2]) < go->deflate_size)
+	    try_.deflate_size = DEFLATE_SIZE(p[2]);
+	p += CILEN_DEFLATE;
+	len -= CILEN_DEFLATE;
+	if (go->deflate_correct && go->deflate_draft
+	    && len >= CILEN_DEFLATE && p[0] == CI_DEFLATE_DRAFT
+	    && p[1] == CILEN_DEFLATE) {
+	    p += CILEN_DEFLATE;
+	    len -= CILEN_DEFLATE;
+	}
+    }
+#endif /* DEFLATE_SUPPORT */
+#if BSDCOMPRESS_SUPPORT
+    if (go->bsd_compress && len >= CILEN_BSD_COMPRESS
+	&& p[0] == CI_BSD_COMPRESS && p[1] == CILEN_BSD_COMPRESS) {
+	no.bsd_compress = 1;
+	/*
+	 * Peer wants us to use a different number of bits
+	 * or a different version.
+	 */
+	if (BSD_VERSION(p[2]) != BSD_CURRENT_VERSION)
+	    try_.bsd_compress = 0;
+	else if (BSD_NBITS(p[2]) < go->bsd_bits)
+	    try_.bsd_bits = BSD_NBITS(p[2]);
+	p += CILEN_BSD_COMPRESS;
+	len -= CILEN_BSD_COMPRESS;
+    }
+#endif /* BSDCOMPRESS_SUPPORT */
+
+    /*
+     * Predictor-1 and 2 have no options, so they can't be Naked.
+     *
+     * There may be remaining options but we ignore them.
+     */
+
+    if (f->state != PPP_FSM_OPENED)
+	*go = try_;
+    return 1;
+}

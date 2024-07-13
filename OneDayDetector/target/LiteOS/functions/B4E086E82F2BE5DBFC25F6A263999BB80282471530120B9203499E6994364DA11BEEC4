@@ -1,0 +1,29 @@
+static void QSPI_DMAAbortCplt(DMA_HandleTypeDef *hdma)   
+{
+  QSPI_HandleTypeDef* hqspi = ( QSPI_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+
+  hqspi->RxXferCount = 0;
+  hqspi->TxXferCount = 0;
+
+  if(hqspi->State == HAL_QSPI_STATE_ABORT)
+  {
+    /* DMA Abort called by QSPI abort */
+    /* Clear interrupt */
+    __HAL_QSPI_CLEAR_FLAG(hqspi, QSPI_FLAG_TC);
+    
+    /* Enable the QSPI Transfer Complete Interrupt */
+    __HAL_QSPI_ENABLE_IT(hqspi, QSPI_IT_TC);
+    
+    /* Configure QSPI: CR register with Abort request */
+    SET_BIT(hqspi->Instance->CR, QUADSPI_CR_ABORT);
+  }
+  else
+  {
+    /* DMA Abort called due to a transfer error interrupt */
+    /* Change state of QSPI */
+    hqspi->State = HAL_QSPI_STATE_READY;
+
+    /* Error callback */
+    HAL_QSPI_ErrorCallback(hqspi);
+  }
+}

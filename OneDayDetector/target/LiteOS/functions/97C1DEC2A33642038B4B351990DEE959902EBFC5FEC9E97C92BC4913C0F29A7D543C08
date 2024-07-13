@@ -1,0 +1,202 @@
+HAL_StatusTypeDef HAL_DFSDM_ChannelInit(DFSDM_Channel_HandleTypeDef *hdfsdm_channel)
+{
+#if defined(DFSDM2_Channel0)
+  __IO uint32_t*               channelCounterPtr;
+  DFSDM_Channel_HandleTypeDef  **channelHandleTable;
+  DFSDM_Channel_TypeDef*       channel0Instance;
+#endif /* defined(DFSDM2_Channel0) */
+  
+  /* Check DFSDM Channel handle */
+  if(hdfsdm_channel == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check parameters */
+  assert_param(IS_DFSDM_CHANNEL_ALL_INSTANCE(hdfsdm_channel->Instance));
+  assert_param(IS_FUNCTIONAL_STATE(hdfsdm_channel->Init.OutputClock.Activation));
+  assert_param(IS_DFSDM_CHANNEL_INPUT(hdfsdm_channel->Init.Input.Multiplexer));
+  assert_param(IS_DFSDM_CHANNEL_DATA_PACKING(hdfsdm_channel->Init.Input.DataPacking));
+  assert_param(IS_DFSDM_CHANNEL_INPUT_PINS(hdfsdm_channel->Init.Input.Pins));
+  assert_param(IS_DFSDM_CHANNEL_SERIAL_INTERFACE_TYPE(hdfsdm_channel->Init.SerialInterface.Type));
+  assert_param(IS_DFSDM_CHANNEL_SPI_CLOCK(hdfsdm_channel->Init.SerialInterface.SpiClock));
+  assert_param(IS_DFSDM_CHANNEL_FILTER_ORDER(hdfsdm_channel->Init.Awd.FilterOrder));
+  assert_param(IS_DFSDM_CHANNEL_FILTER_OVS_RATIO(hdfsdm_channel->Init.Awd.Oversampling));
+  assert_param(IS_DFSDM_CHANNEL_OFFSET(hdfsdm_channel->Init.Offset));
+  assert_param(IS_DFSDM_CHANNEL_RIGHT_BIT_SHIFT(hdfsdm_channel->Init.RightBitShift));
+  
+#if defined(DFSDM2_Channel0)
+  /* Get channel counter, channel handle table and channel 0 instance */
+  if(IS_DFSDM1_CHANNEL_INSTANCE(hdfsdm_channel->Instance))
+  {
+    channelCounterPtr  = &v_dfsdm1ChannelCounter;
+    channelHandleTable =  a_dfsdm1ChannelHandle;
+    channel0Instance   = DFSDM1_Channel0;
+  }
+  else
+  {
+    channelCounterPtr  = &v_dfsdm2ChannelCounter;
+    channelHandleTable = a_dfsdm2ChannelHandle;
+    channel0Instance   = DFSDM2_Channel0;
+  }
+  
+  /* Check that channel has not been already initialized */
+  if(channelHandleTable[DFSDM_GetChannelFromInstance(hdfsdm_channel->Instance)] != NULL)
+  {
+    return HAL_ERROR;
+  }
+  
+#if (USE_HAL_DFSDM_REGISTER_CALLBACKS == 1)
+  /* Reset callback pointers to the weak predefined callbacks */
+  hdfsdm_channel->CkabCallback = HAL_DFSDM_ChannelCkabCallback;
+  hdfsdm_channel->ScdCallback  = HAL_DFSDM_ChannelScdCallback;
+
+  /* Call MSP init function */
+  if(hdfsdm_channel->MspInitCallback == NULL)
+  {
+    hdfsdm_channel->MspInitCallback = HAL_DFSDM_ChannelMspInit;
+  }
+  hdfsdm_channel->MspInitCallback(hdfsdm_channel);
+#else
+  /* Call MSP init function */
+  HAL_DFSDM_ChannelMspInit(hdfsdm_channel);
+#endif
+  
+  /* Update the channel counter */
+  (*channelCounterPtr)++;
+  
+  /* Configure output serial clock and enable global DFSDM interface only for first channel */
+  if(*channelCounterPtr == 1U)
+  {
+    assert_param(IS_DFSDM_CHANNEL_OUTPUT_CLOCK(hdfsdm_channel->Init.OutputClock.Selection));
+    /* Set the output serial clock source */
+    channel0Instance->CHCFGR1 &= ~(DFSDM_CHCFGR1_CKOUTSRC);
+    channel0Instance->CHCFGR1 |= hdfsdm_channel->Init.OutputClock.Selection;
+    
+    /* Reset clock divider */
+    channel0Instance->CHCFGR1 &= ~(DFSDM_CHCFGR1_CKOUTDIV);
+    if(hdfsdm_channel->Init.OutputClock.Activation == ENABLE)
+    {
+      assert_param(IS_DFSDM_CHANNEL_OUTPUT_CLOCK_DIVIDER(hdfsdm_channel->Init.OutputClock.Divider));
+      /* Set the output clock divider */
+      channel0Instance->CHCFGR1 |= (uint32_t) ((hdfsdm_channel->Init.OutputClock.Divider - 1U) << 
+                                               DFSDM_CHCFGR1_CKOUTDIV_Pos);
+    }
+    
+    /* enable the DFSDM global interface */
+    channel0Instance->CHCFGR1 |= DFSDM_CHCFGR1_DFSDMEN;
+  }
+  
+  /* Set channel input parameters */
+  hdfsdm_channel->Instance->CHCFGR1 &= ~(DFSDM_CHCFGR1_DATPACK | DFSDM_CHCFGR1_DATMPX | 
+                                         DFSDM_CHCFGR1_CHINSEL);
+  hdfsdm_channel->Instance->CHCFGR1 |= (hdfsdm_channel->Init.Input.Multiplexer | 
+                                        hdfsdm_channel->Init.Input.DataPacking | 
+                                        hdfsdm_channel->Init.Input.Pins);
+  
+  /* Set serial interface parameters */
+  hdfsdm_channel->Instance->CHCFGR1 &= ~(DFSDM_CHCFGR1_SITP | DFSDM_CHCFGR1_SPICKSEL);
+  hdfsdm_channel->Instance->CHCFGR1 |= (hdfsdm_channel->Init.SerialInterface.Type | 
+                                        hdfsdm_channel->Init.SerialInterface.SpiClock);
+  
+  /* Set analog watchdog parameters */
+  hdfsdm_channel->Instance->CHAWSCDR &= ~(DFSDM_CHAWSCDR_AWFORD | DFSDM_CHAWSCDR_AWFOSR);
+  hdfsdm_channel->Instance->CHAWSCDR |= (hdfsdm_channel->Init.Awd.FilterOrder | 
+                                       ((hdfsdm_channel->Init.Awd.Oversampling - 1U) << DFSDM_CHAWSCDR_AWFOSR_Pos));
+
+  /* Set channel offset and right bit shift */
+  hdfsdm_channel->Instance->CHCFGR2 &= ~(DFSDM_CHCFGR2_OFFSET | DFSDM_CHCFGR2_DTRBS);
+  hdfsdm_channel->Instance->CHCFGR2 |= (((uint32_t) hdfsdm_channel->Init.Offset << DFSDM_CHCFGR2_OFFSET_Pos) | 
+                                        (hdfsdm_channel->Init.RightBitShift << DFSDM_CHCFGR2_DTRBS_Pos));
+
+  /* Enable DFSDM channel */
+  hdfsdm_channel->Instance->CHCFGR1 |= DFSDM_CHCFGR1_CHEN;
+  
+  /* Set DFSDM Channel to ready state */
+  hdfsdm_channel->State = HAL_DFSDM_CHANNEL_STATE_READY;
+
+  /* Store channel handle in DFSDM channel handle table */
+  channelHandleTable[DFSDM_GetChannelFromInstance(hdfsdm_channel->Instance)] = hdfsdm_channel;
+  
+#else
+  /* Check that channel has not been already initialized */
+  if(a_dfsdm1ChannelHandle[DFSDM_GetChannelFromInstance(hdfsdm_channel->Instance)] != NULL)
+  {
+    return HAL_ERROR;
+  }
+  
+#if (USE_HAL_DFSDM_REGISTER_CALLBACKS == 1)
+  /* Reset callback pointers to the weak predefined callbacks */
+  hdfsdm_channel->CkabCallback = HAL_DFSDM_ChannelCkabCallback;
+  hdfsdm_channel->ScdCallback  = HAL_DFSDM_ChannelScdCallback;
+
+  /* Call MSP init function */
+  if(hdfsdm_channel->MspInitCallback == NULL)
+  {
+    hdfsdm_channel->MspInitCallback = HAL_DFSDM_ChannelMspInit;
+  }
+  hdfsdm_channel->MspInitCallback(hdfsdm_channel);
+#else
+  /* Call MSP init function */
+  HAL_DFSDM_ChannelMspInit(hdfsdm_channel);
+#endif
+  
+  /* Update the channel counter */
+  v_dfsdm1ChannelCounter++;
+  
+  /* Configure output serial clock and enable global DFSDM interface only for first channel */
+  if(v_dfsdm1ChannelCounter == 1U)
+  {
+    assert_param(IS_DFSDM_CHANNEL_OUTPUT_CLOCK(hdfsdm_channel->Init.OutputClock.Selection));
+    /* Set the output serial clock source */
+    DFSDM1_Channel0->CHCFGR1 &= ~(DFSDM_CHCFGR1_CKOUTSRC);
+    DFSDM1_Channel0->CHCFGR1 |= hdfsdm_channel->Init.OutputClock.Selection;
+    
+    /* Reset clock divider */
+    DFSDM1_Channel0->CHCFGR1 &= ~(DFSDM_CHCFGR1_CKOUTDIV);
+    if(hdfsdm_channel->Init.OutputClock.Activation == ENABLE)
+    {
+      assert_param(IS_DFSDM_CHANNEL_OUTPUT_CLOCK_DIVIDER(hdfsdm_channel->Init.OutputClock.Divider));
+      /* Set the output clock divider */
+      DFSDM1_Channel0->CHCFGR1 |= (uint32_t) ((hdfsdm_channel->Init.OutputClock.Divider - 1U) << 
+                                             DFSDM_CHCFGR1_CKOUTDIV_Pos);
+    }
+    
+    /* enable the DFSDM global interface */
+    DFSDM1_Channel0->CHCFGR1 |= DFSDM_CHCFGR1_DFSDMEN;
+  }
+  
+  /* Set channel input parameters */
+  hdfsdm_channel->Instance->CHCFGR1 &= ~(DFSDM_CHCFGR1_DATPACK | DFSDM_CHCFGR1_DATMPX | 
+                                         DFSDM_CHCFGR1_CHINSEL);
+  hdfsdm_channel->Instance->CHCFGR1 |= (hdfsdm_channel->Init.Input.Multiplexer | 
+                                        hdfsdm_channel->Init.Input.DataPacking | 
+                                        hdfsdm_channel->Init.Input.Pins);
+  
+  /* Set serial interface parameters */
+  hdfsdm_channel->Instance->CHCFGR1 &= ~(DFSDM_CHCFGR1_SITP | DFSDM_CHCFGR1_SPICKSEL);
+  hdfsdm_channel->Instance->CHCFGR1 |= (hdfsdm_channel->Init.SerialInterface.Type | 
+                                        hdfsdm_channel->Init.SerialInterface.SpiClock);
+  
+  /* Set analog watchdog parameters */
+  hdfsdm_channel->Instance->CHAWSCDR &= ~(DFSDM_CHAWSCDR_AWFORD | DFSDM_CHAWSCDR_AWFOSR);
+  hdfsdm_channel->Instance->CHAWSCDR |= (hdfsdm_channel->Init.Awd.FilterOrder | 
+                                       ((hdfsdm_channel->Init.Awd.Oversampling - 1U) << DFSDM_CHAWSCDR_AWFOSR_Pos));
+
+  /* Set channel offset and right bit shift */
+  hdfsdm_channel->Instance->CHCFGR2 &= ~(DFSDM_CHCFGR2_OFFSET | DFSDM_CHCFGR2_DTRBS);
+  hdfsdm_channel->Instance->CHCFGR2 |= (((uint32_t) hdfsdm_channel->Init.Offset << DFSDM_CHCFGR2_OFFSET_Pos) | 
+                                        (hdfsdm_channel->Init.RightBitShift << DFSDM_CHCFGR2_DTRBS_Pos));
+
+  /* Enable DFSDM channel */
+  hdfsdm_channel->Instance->CHCFGR1 |= DFSDM_CHCFGR1_CHEN;
+  
+  /* Set DFSDM Channel to ready state */
+  hdfsdm_channel->State = HAL_DFSDM_CHANNEL_STATE_READY;
+
+  /* Store channel handle in DFSDM channel handle table */
+  a_dfsdm1ChannelHandle[DFSDM_GetChannelFromInstance(hdfsdm_channel->Instance)] = hdfsdm_channel;
+#endif /* DFSDM2_Channel0 */
+  
+  return HAL_OK;
+}

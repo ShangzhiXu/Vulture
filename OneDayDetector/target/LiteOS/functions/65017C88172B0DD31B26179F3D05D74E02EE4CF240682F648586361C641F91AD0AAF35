@@ -1,0 +1,32 @@
+static void SPIx_Init(void)
+{
+  if(HAL_SPI_GetState(&hnucleo_Spi) == HAL_SPI_STATE_RESET)
+  {
+    /* SPI Config */
+    hnucleo_Spi.Instance = NUCLEO_SPIx;
+      /* SPI baudrate is set to 12 MHz maximum (PCLK1/SPI_BaudRatePrescaler = 48/4 = 12 MHz) 
+       to verify these constraints:
+          - ST7735 LCD SPI interface max baudrate is 15MHz for write and 6.66MHz for read
+            Since the provided driver doesn't use read capability from LCD, only constraint 
+            on write baudrate is considered.
+          - SD card SPI interface max baudrate is 25MHz for write/read
+          - PCLK1 max frequency is 48 MHz 
+       */ 
+    hnucleo_Spi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+    hnucleo_Spi.Init.Direction = SPI_DIRECTION_2LINES;
+    hnucleo_Spi.Init.CLKPhase = SPI_PHASE_2EDGE;
+    hnucleo_Spi.Init.CLKPolarity = SPI_POLARITY_HIGH;
+    hnucleo_Spi.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+    hnucleo_Spi.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
+    hnucleo_Spi.Init.CRCPolynomial = 7;
+    hnucleo_Spi.Init.DataSize = SPI_DATASIZE_8BIT;
+    hnucleo_Spi.Init.FirstBit = SPI_FIRSTBIT_MSB;
+    hnucleo_Spi.Init.NSS = SPI_NSS_SOFT;
+    hnucleo_Spi.Init.TIMode = SPI_TIMODE_DISABLE;
+    hnucleo_Spi.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
+    hnucleo_Spi.Init.Mode = SPI_MODE_MASTER;
+
+    SPIx_MspInit();
+    HAL_SPI_Init(&hnucleo_Spi);
+  }
+}

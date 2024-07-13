@@ -1,0 +1,22 @@
+int MQTTSerialize_zero(unsigned char *buf, int buflen, unsigned char packettype)
+{
+    MQTTHeader header = {0};
+    int rc = -1;
+    unsigned char *ptr = buf;
+
+    FUNC_ENTRY;
+    if (buflen < 2)
+    {
+        rc = MQTTPACKET_BUFFER_TOO_SHORT;
+        goto exit;
+    }
+    header.byte = 0;
+    header.bits.type = packettype;
+    writeChar(&ptr, header.byte); /* write header */
+
+    ptr += MQTTPacket_encode(ptr, 0); /* write remaining length */
+    rc = ptr - buf;
+exit:
+    FUNC_EXIT_RC(rc);
+    return rc;
+}

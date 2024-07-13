@@ -1,0 +1,70 @@
+int32_t at_struct_deinit(at_task *at)
+{
+    int32_t ret = AT_OK;
+
+    if (at == NULL) {
+        AT_LOG("invaild param!");
+        return AT_FAILED;
+    }
+
+    LOS_MuxPend(at->cmd_mux, LOS_WAIT_FOREVER);
+    at_listner_list_destroy(at);
+    LOS_MuxPost(at->cmd_mux);
+
+    if (LOS_SemDelete(at->recv_sem) != LOS_OK) {
+        AT_LOG("delete at.recv_sem failed!");
+        ret = AT_FAILED;
+    }
+
+    if (LOS_MuxDelete(at->cmd_mux) != LOS_OK) {
+        AT_LOG("delete at.cmd_mux failed!");
+        ret = AT_FAILED;
+    }
+
+    if (LOS_SemDelete(at->resp_sem) != LOS_OK) {
+        AT_LOG("delete at.resp_sem failed!");
+        ret = AT_FAILED;
+    }
+
+    if (at->trx_mux_flag) {
+        (void)LOS_MuxDelete(at->trx_mux);
+        at->trx_mux_flag = false;
+    }
+
+    if (at->rid_flag) {
+        (VOID)LOS_QueueDelete(at->rid);
+        at->rid_flag = false;
+    }
+
+    if (at->recv_buf) {
+        at_free(at->recv_buf);
+        at->recv_buf = NULL;
+    }
+
+    if (at->cmdresp != NULL) {
+        at_free(at->cmdresp);
+        at->cmdresp = NULL;
+    }
+
+    if (at->userdata != NULL) {
+        at_free(at->userdata);
+        at->userdata = NULL;
+    }
+
+    if (at->saveddata != NULL) {
+        at_free(at->saveddata);
+        at->saveddata = NULL;
+    }
+
+    if (at->linkid != NULL) {
+        at_free(at->linkid);
+        at->linkid = NULL;
+    }
+
+    at->tsk_hdl = 0xFFFF;
+    at->head = NULL;
+    at->mux_mode = AT_MUXMODE_SINGLE;
+    at->timeout = 0;
+
+    return ret;
+}

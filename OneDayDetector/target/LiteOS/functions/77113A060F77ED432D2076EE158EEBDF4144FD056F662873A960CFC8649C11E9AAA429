@@ -1,0 +1,57 @@
+HAL_StatusTypeDef HAL_MMC_Init(MMC_HandleTypeDef *hmmc)
+{
+  /* Check the MMC handle allocation */
+  if(hmmc == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_SDMMC_ALL_INSTANCE(hmmc->Instance));
+  assert_param(IS_SDMMC_CLOCK_EDGE(hmmc->Init.ClockEdge));
+  assert_param(IS_SDMMC_CLOCK_BYPASS(hmmc->Init.ClockBypass));
+  assert_param(IS_SDMMC_CLOCK_POWER_SAVE(hmmc->Init.ClockPowerSave));
+  assert_param(IS_SDMMC_BUS_WIDE(hmmc->Init.BusWide));
+  assert_param(IS_SDMMC_HARDWARE_FLOW_CONTROL(hmmc->Init.HardwareFlowControl));
+  assert_param(IS_SDMMC_CLKDIV(hmmc->Init.ClockDiv));
+
+  if(hmmc->State == HAL_MMC_STATE_RESET)
+  {
+    /* Allocate lock resource and initialize it */
+    hmmc->Lock = HAL_UNLOCKED;
+#if (USE_HAL_MMC_REGISTER_CALLBACKS == 1)
+    /* Reset Callback pointers in HAL_MMC_STATE_RESET only */
+    hmmc->TxCpltCallback    = HAL_MMC_TxCpltCallback;
+    hmmc->RxCpltCallback    = HAL_MMC_RxCpltCallback;
+    hmmc->ErrorCallback     = HAL_MMC_ErrorCallback;
+    hmmc->AbortCpltCallback = HAL_MMC_AbortCallback;
+
+    if(hmmc->MspInitCallback == NULL)
+    {
+      hmmc->MspInitCallback = HAL_MMC_MspInit;
+    }
+
+    /* Init the low level hardware */
+    hmmc->MspInitCallback(hmmc);
+#else
+    /* Init the low level hardware : GPIO, CLOCK, CORTEX...etc */
+    HAL_MMC_MspInit(hmmc);
+#endif	
+  }
+
+  hmmc->State = HAL_MMC_STATE_BUSY;
+
+  /* Initialize the Card parameters */
+  HAL_MMC_InitCard(hmmc);
+
+  /* Initialize the error code */
+  hmmc->ErrorCode = HAL_DMA_ERROR_NONE;
+  
+  /* Initialize the MMC operation */
+  hmmc->Context = MMC_CONTEXT_NONE;
+                                                                                     
+  /* Initialize the MMC state */
+  hmmc->State = HAL_MMC_STATE_READY;
+
+  return HAL_OK;
+}

@@ -1,0 +1,42 @@
+int32_t at_write(int8_t *cmd, int8_t *suffix, int8_t *buf, int32_t len)
+{
+    const char *suffix_array[1];
+    at_listener listener;
+    int ret = AT_FAILED;
+
+    memset(&listener, 0, sizeof(listener));
+    listener.cmd_info.suffix_num = 1;
+    suffix_array[0] = ">";
+    listener.cmd_info.suffix = suffix_array;
+
+    LOS_MuxPend(at.trx_mux, LOS_WAIT_FOREVER);
+
+    LOS_MuxPend(at.cmd_mux, LOS_WAIT_FOREVER);
+    at_listener_list_add(&listener);
+    at_transmit((uint8_t *)cmd, strlen((char *)cmd), 1);
+    LOS_MuxPost(at.cmd_mux);
+
+    (void)LOS_SemPend(at.resp_sem, 200);
+
+    LOS_MuxPend(at.cmd_mux, LOS_WAIT_FOREVER);
+    suffix_array[0] = (char *)suffix;
+    at_listner_list_del(&listener);
+    at_listener_list_add(&listener);
+    at_transmit((uint8_t *)buf, len, 0);
+    LOS_MuxPost(at.cmd_mux);
+
+    ret = LOS_SemPend(at.resp_sem, at.timeout);
+
+    LOS_MuxPend(at.cmd_mux, LOS_WAIT_FOREVER);
+    at_listner_list_del(&listener);
+    LOS_MuxPost(at.cmd_mux);
+
+    LOS_MuxPost(at.trx_mux);
+    write_at_task_msg(AT_SENT_DONE);
+
+    if (ret != LOS_OK) {
+        AT_LOG("LOS_SemPend for listener.resp_sem failed(ret = %x)!", ret);
+        return AT_FAILED;
+    }
+    return len;
+}

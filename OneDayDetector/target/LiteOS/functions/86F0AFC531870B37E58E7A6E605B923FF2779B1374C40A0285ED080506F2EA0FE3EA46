@@ -1,0 +1,46 @@
+static cJSON *get_item_from_pointer(cJSON * const object, const char * pointer, const cJSON_bool case_sensitive)
+{
+    cJSON *current_element = object;
+
+    if (pointer == NULL)
+    {
+        return NULL;
+    }
+
+    /* follow path of the pointer */
+    while ((pointer[0] == '/') && (current_element != NULL))
+    {
+        pointer++;
+        if (cJSON_IsArray(current_element))
+        {
+            size_t index = 0;
+            if (!decode_array_index_from_pointer((const unsigned char*)pointer, &index))
+            {
+                return NULL;
+            }
+
+            current_element = get_array_item(current_element, index);
+        }
+        else if (cJSON_IsObject(current_element))
+        {
+            current_element = current_element->child;
+            /* GetObjectItem. */
+            while ((current_element != NULL) && !compare_pointers((unsigned char*)current_element->string, (const unsigned char*)pointer, case_sensitive))
+            {
+                current_element = current_element->next;
+            }
+        }
+        else
+        {
+            return NULL;
+        }
+
+        /* skip to the next path token or end of string */
+        while ((pointer[0] != '\0') && (pointer[0] != '/'))
+        {
+            pointer++;
+        }
+    }
+
+    return current_element;
+}

@@ -1,0 +1,40 @@
+LITE_OS_SEC_TEXT UINT32 LOS_MuxDelete(UINT32 muxHandle)
+{
+    UINT32 intSave;
+    LosMuxCB *muxDeleted = NULL;
+    UINT32 errNo;
+    UINT32 errLine;
+
+    if (GET_MUX_INDEX(muxHandle) >= (UINT32)LOSCFG_BASE_IPC_MUX_LIMIT) {
+        OS_GOTO_ERR_HANDLER(LOS_ERRNO_MUX_INVALID);
+    }
+
+    muxDeleted = GET_MUX(muxHandle);
+
+    LOS_TRACE(MUX_DELETE, muxHandle, muxDeleted->muxStat, muxDeleted->muxCount,
+        ((muxDeleted->owner == NULL) ? 0xFFFFFFFF : muxDeleted->owner->taskId));
+
+    SCHEDULER_LOCK(intSave);
+    if ((muxDeleted->muxId != muxHandle) || (muxDeleted->muxStat == OS_MUX_UNUSED)) {
+        SCHEDULER_UNLOCK(intSave);
+        OS_GOTO_ERR_HANDLER(LOS_ERRNO_MUX_INVALID);
+    }
+
+    if (!LOS_ListEmpty(&muxDeleted->muxList) || muxDeleted->muxCount) {
+        SCHEDULER_UNLOCK(intSave);
+        OS_GOTO_ERR_HANDLER(LOS_ERRNO_MUX_PENDED);
+    }
+
+    LOS_ListTailInsert(&g_unusedMuxList, &muxDeleted->muxList);
+    muxDeleted->muxStat = OS_MUX_UNUSED;
+    muxDeleted->muxId = SET_MUX_ID(GET_MUX_COUNT(muxDeleted->muxId) + 1, GET_MUX_INDEX(muxDeleted->muxId));
+
+    OsMuxDbgUpdateHook(muxDeleted->muxId, NULL);
+
+    SCHEDULER_UNLOCK(intSave);
+
+    return LOS_OK;
+
+ERR_HANDLER:
+    OS_RETURN_ERROR_P2(errLine, errNo);
+}

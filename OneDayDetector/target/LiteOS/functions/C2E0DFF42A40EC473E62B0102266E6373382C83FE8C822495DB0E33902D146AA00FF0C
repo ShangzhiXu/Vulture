@@ -1,0 +1,27 @@
+INT32 OsAtomicBitsetFindClearAndSet(struct AtomicBitset *set)
+{
+    UINT32 idx;
+    UINT32 numWords = (set->numBits + LOW_BITS_MASK) / NUM_BITS_IN_ONE_BYTE;
+    UINT32 *wordPtr = set->words;
+    UINT32 tmpWord;
+    UINT32 count = 0;
+
+    for (idx = 0; idx < numWords; idx++, wordPtr++) {
+        if (*wordPtr == 0xFFFFFFFF) {
+            continue;
+        }
+
+        tmpWord = ~(*wordPtr);
+
+        while (tmpWord) {
+            tmpWord = tmpWord >> 1U;
+            count++;
+        }
+
+        *wordPtr |= (1U << (count - 1));
+
+        return (INT32)(idx * NUM_BITS_IN_ONE_BYTE + count - 1);
+    }
+
+    return -1;
+}

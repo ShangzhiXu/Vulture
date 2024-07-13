@@ -1,0 +1,35 @@
+int read_resp(uint8_t *buf, recv_buff *recv_buf)
+{
+    uint32_t len = 0;
+    uint32_t tmp_len;
+
+    at_config *at_user_conf = at_get_config();
+
+    if (buf == NULL) {
+        return -1;
+    }
+
+    if (buff_full == 1) {
+        AT_LOG("buf maybe full,buff_full is %d", buff_full);
+    }
+
+    if (recv_buf->end == recv_buf->ori) {
+        len = 0;
+        goto END;
+    }
+
+    if (recv_buf->end > recv_buf->ori) {
+        len = recv_buf->end - recv_buf->ori;
+        (void)memcpy_s(buf, len, &at.recv_buf[recv_buf->ori], len);
+    } else {
+        tmp_len = at_user_conf->user_buf_len - recv_buf->ori;
+        (void)memcpy_s(buf, tmp_len, &at.recv_buf[recv_buf->ori], tmp_len);
+        (void)memcpy_s(buf + tmp_len, recv_buf->end, at.recv_buf, recv_buf->end);
+        len = recv_buf->end + tmp_len;
+    }
+
+    ri = recv_buf->end;
+
+END:
+    return len;
+}

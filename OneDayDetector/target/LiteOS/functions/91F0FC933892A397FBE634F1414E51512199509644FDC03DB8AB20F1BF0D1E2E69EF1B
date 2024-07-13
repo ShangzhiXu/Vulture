@@ -1,0 +1,32 @@
+LITE_OS_SEC_TEXT_INIT UINT32 LOS_MemInit(VOID *pool, UINT32 size)
+{
+    UINT32 intSave;
+
+    if ((pool == NULL) || (size < OS_MEM_MIN_POOL_SIZE)) {
+        return LOS_NOK;
+    }
+
+    if (!IS_ALIGNED(size, OS_MEM_ALIGN_SIZE) || !IS_ALIGNED(pool, OS_MEM_ALIGN_SIZE)) {
+        PRINT_WARN("pool [%p, %p) size 0x%x should be aligned with OS_MEM_ALIGN_SIZE\n",
+                   pool, (UINTPTR)pool + size, size);
+        size = OS_MEM_ALIGN(size, OS_MEM_ALIGN_SIZE) - OS_MEM_ALIGN_SIZE;
+    }
+
+    MEM_LOCK(intSave);
+    if (OsMemMulPoolInit(pool, size)) {
+        MEM_UNLOCK(intSave);
+        return LOS_NOK;
+    }
+
+    if (OsMemInit(pool, size) != LOS_OK) {
+        (VOID)OsMemMulPoolDeinit(pool);
+        MEM_UNLOCK(intSave);
+        return LOS_NOK;
+    }
+
+    OsSlabMemInit(pool, size);
+    MEM_UNLOCK(intSave);
+
+    LOS_TRACE(MEM_INFO_REQ, pool);
+    return LOS_OK;
+}

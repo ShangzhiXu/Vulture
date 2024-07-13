@@ -1,0 +1,20 @@
+STATIC INLINE VOID OsMemSetMagicNumAndTaskID(LosMemDynNode *node)
+{
+#if defined(LOSCFG_MEM_DEBUG) || defined(LOSCFG_MEM_TASK_STAT)
+    LosTaskCB *runTask = OsCurrTaskGet();
+
+    OS_MEM_SET_MAGIC(node->selfNode.magic);
+
+    /*
+     * If the operation occurred before task initialization(runTask was not assigned)
+     * or in interrupt, make the value of taskid of node to  (TASK_NUM - 1) which is
+     * the id of the extra task. We can record those memory use with that.
+     */
+    if ((runTask != NULL) && OS_INT_INACTIVE) {
+        OS_MEM_TASKID_SET(node, runTask->taskId);
+    } else {
+        /* If the task mode does not initialize, the field is the 0xffffffff */
+        OS_MEM_TASKID_SET(node, TASK_NUM - 1);
+    }
+#endif
+}

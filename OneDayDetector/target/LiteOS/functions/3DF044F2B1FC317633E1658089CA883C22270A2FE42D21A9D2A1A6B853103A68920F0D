@@ -1,0 +1,35 @@
+void print_dir(const char *name, int level)
+{
+    if (level <= 1) {
+        printf("%s\n", name);
+    } else if (level > 10) {
+        return;
+    }
+
+    struct dir *dir = los_opendir(name);
+    if (dir == NULL) {
+        FS_LOG_ERR("los_opendir %s failed", name);
+        return;
+    }
+
+    while (1) {
+        struct dirent *dirent = los_readdir(dir);
+        if ((dirent == NULL) || (dirent->name[0] == 0)) {
+            break;
+        }
+
+        if ((dirent->type == VFS_TYPE_DIR) && (strcmp(dirent->name, ".")) && (strcmp(dirent->name, ".."))) {
+            char tmp_path[LOS_MAX_DIR_NAME_LEN + 2];
+            printf("|%*s%s/\n", level * 4, "--->", dirent->name);
+            snprintf(tmp_path, sizeof(tmp_path), "%s/%s", name, dirent->name);
+            print_dir(tmp_path, level + 1);
+        } else {
+            printf("|%*s%s\n", level * 4, "--->", dirent->name);
+        }
+    }
+
+    if (los_closedir(dir) < 0) {
+        FS_LOG_ERR("los_closedir %s failed", name);
+        return;
+    }
+}

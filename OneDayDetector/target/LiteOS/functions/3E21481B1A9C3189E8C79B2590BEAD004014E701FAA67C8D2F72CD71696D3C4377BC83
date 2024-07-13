@@ -1,0 +1,49 @@
+static void lv_cont_layout_col(lv_obj_t * cont)
+{
+    lv_coord_t left = lv_obj_get_style_pad_left(cont, LV_CONT_PART_MAIN);
+    lv_coord_t right = lv_obj_get_style_pad_right(cont, LV_CONT_PART_MAIN);
+    lv_coord_t top = lv_obj_get_style_pad_top(cont, LV_CONT_PART_MAIN);
+    lv_coord_t inner = lv_obj_get_style_pad_inner(cont, LV_CONT_PART_MAIN);
+
+    lv_layout_t type = lv_cont_get_layout(cont);
+    lv_obj_t * child;
+
+    /*Adjust margin and get the alignment type*/
+    lv_align_t align;
+    lv_coord_t hpad_corr;
+
+    switch(type) {
+        case LV_LAYOUT_COLUMN_LEFT:
+            hpad_corr = left;
+            align     = LV_ALIGN_IN_TOP_LEFT;
+            break;
+        case LV_LAYOUT_COLUMN_MID:
+            hpad_corr = 0;
+            align     = LV_ALIGN_IN_TOP_MID;
+            break;
+        case LV_LAYOUT_COLUMN_RIGHT:
+            hpad_corr = -right;
+            align     = LV_ALIGN_IN_TOP_RIGHT;
+            break;
+        default:
+            hpad_corr = 0;
+            align     = LV_ALIGN_IN_TOP_LEFT;
+            break;
+    }
+
+    /* Disable child change action because the children will be moved a lot
+     * an unnecessary child change signals could be sent*/
+    lv_obj_add_protect(cont, LV_PROTECT_CHILD_CHG);
+    /* Align the children */
+    lv_coord_t last_cord = top;
+    _LV_LL_READ_BACK(cont->child_ll, child) {
+        if(lv_obj_get_hidden(child) != false || lv_obj_is_protected(child, LV_PROTECT_POS) != false) continue;
+        lv_style_int_t mtop = lv_obj_get_style_margin_top(child, LV_OBJ_PART_MAIN);
+        lv_style_int_t mbottom = lv_obj_get_style_margin_bottom(child, LV_OBJ_PART_MAIN);
+        lv_style_int_t mleft = lv_obj_get_style_margin_left(child, LV_OBJ_PART_MAIN);
+        lv_obj_align(child, cont, align, hpad_corr + mleft, last_cord + mtop);
+        last_cord += lv_obj_get_height(child) + inner + mtop + mbottom;
+    }
+
+    lv_obj_clear_protect(cont, LV_PROTECT_CHILD_CHG);
+}

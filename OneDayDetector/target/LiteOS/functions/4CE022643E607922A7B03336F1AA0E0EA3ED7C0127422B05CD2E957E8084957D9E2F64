@@ -1,0 +1,29 @@
+int MQTTSerialize_connack(unsigned char *buf, int buflen, unsigned char connack_rc, unsigned char sessionPresent)
+{
+    MQTTHeader header = {0};
+    int rc = 0;
+    unsigned char *ptr = buf;
+    MQTTConnackFlags flags = {0};
+
+    FUNC_ENTRY;
+    if (buflen < 2)
+    {
+        rc = MQTTPACKET_BUFFER_TOO_SHORT;
+        goto exit;
+    }
+    header.byte = 0;
+    header.bits.type = CONNACK;
+    writeChar(&ptr, header.byte); /* write header */
+
+    ptr += MQTTPacket_encode(ptr, 2); /* write remaining length */
+
+    flags.all = 0;
+    flags.bits.sessionpresent = sessionPresent;
+    writeChar(&ptr, flags.all);
+    writeChar(&ptr, connack_rc);
+
+    rc = ptr - buf;
+exit:
+    FUNC_EXIT_RC(rc);
+    return rc;
+}

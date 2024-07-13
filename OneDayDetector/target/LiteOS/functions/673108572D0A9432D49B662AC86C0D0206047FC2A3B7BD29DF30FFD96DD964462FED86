@@ -1,0 +1,41 @@
+static void draw_day_names(lv_obj_t * calendar, const lv_area_t * mask)
+{
+    lv_style_int_t date_top = lv_obj_get_style_pad_top(calendar, LV_CALENDAR_PART_DATE);
+    lv_style_int_t date_bottom = lv_obj_get_style_pad_bottom(calendar, LV_CALENDAR_PART_DATE);
+    lv_style_int_t date_left = lv_obj_get_style_pad_left(calendar, LV_CALENDAR_PART_DATE);
+    lv_style_int_t date_right = lv_obj_get_style_pad_right(calendar, LV_CALENDAR_PART_DATE);
+    lv_style_int_t date_inner = lv_obj_get_style_pad_inner(calendar, LV_CALENDAR_PART_DATE);
+
+    lv_coord_t days_w      = lv_obj_get_width(calendar) - date_left - date_right;
+    lv_coord_t box_w      = (days_w - date_inner * 6) / 7;
+    lv_coord_t days_y1 = calendar->coords.y1 + date_top + get_header_height(calendar) + get_day_names_height(calendar);
+    lv_coord_t days_h = calendar->coords.y2 - days_y1 - date_bottom;
+    lv_coord_t box_h      = (days_h - 5 * date_inner) / 6;
+    lv_coord_t box_size = LV_MATH_MIN(box_w, box_h);
+
+    lv_style_int_t left = lv_obj_get_style_pad_left(calendar, LV_CALENDAR_PART_DAY_NAMES);
+    lv_style_int_t right = lv_obj_get_style_pad_right(calendar, LV_CALENDAR_PART_DAY_NAMES);
+    lv_style_int_t top = lv_obj_get_style_pad_top(calendar, LV_CALENDAR_PART_DAY_NAMES);
+    const lv_font_t * font = lv_obj_get_style_text_font(calendar, LV_CALENDAR_PART_DAY_NAMES);
+
+    lv_coord_t w = lv_obj_get_width(calendar) - left - right;
+
+    lv_coord_t label_w = w / 6;
+
+    lv_area_t label_area;
+    label_area.y1 = calendar->coords.y1 + get_header_height(calendar) + top;
+    label_area.y2 = label_area.y1 + lv_font_get_line_height(font);
+
+    lv_draw_label_dsc_t label_dsc;
+    lv_draw_label_dsc_init(&label_dsc);
+    lv_obj_init_draw_label_dsc(calendar, LV_CALENDAR_PART_DAY_NAMES, &label_dsc);
+    label_dsc.flag = LV_TXT_FLAG_CENTER;
+
+    uint32_t i;
+    for(i = 0; i < 7; i++) {
+        label_area.x1 = calendar->coords.x1 + ((w - box_size) * i) / 6  + box_size / 2 - label_w / 2 + left;
+        label_area.x2 = label_area.x1 + label_w - 1;
+
+        lv_draw_label(&label_area, mask, &label_dsc, get_day_name(calendar, i), NULL);
+    }
+}

@@ -1,0 +1,17 @@
+LITE_OS_SEC_TEXT STATIC VOID OsMuxPostOpSub(LosTaskCB *runTask, MuxBaseCB *muxPosted)
+{
+    LosTaskCB *pendedTask = NULL;
+    UINT16 bitMapPri;
+
+    if (!LOS_ListEmpty(&muxPosted->muxList)) {
+        bitMapPri = LOS_HighBitGet(runTask->priBitMap);
+        LOS_DL_LIST_FOR_EACH_ENTRY(pendedTask, (&muxPosted->muxList), LosTaskCB, pendList) {
+            if (bitMapPri != pendedTask->priority) {
+                LOS_BitmapClr(&runTask->priBitMap, pendedTask->priority);
+            }
+        }
+    }
+    bitMapPri = LOS_LowBitGet(runTask->priBitMap);
+    LOS_BitmapClr(&runTask->priBitMap, bitMapPri);
+    OsTaskPriModify(muxPosted->owner, bitMapPri);
+}

@@ -1,0 +1,41 @@
+HAL_StatusTypeDef HAL_PCCARD_Init(PCCARD_HandleTypeDef *hpccard, FSMC_NAND_PCC_TimingTypeDef *ComSpaceTiming, FSMC_NAND_PCC_TimingTypeDef *AttSpaceTiming, FSMC_NAND_PCC_TimingTypeDef *IOSpaceTiming)
+{
+  /* Check the PCCARD controller state */
+  if(hpccard == NULL)
+  {
+     return HAL_ERROR;
+  }
+  
+  if(hpccard->State == HAL_PCCARD_STATE_RESET)
+  {  
+    /* Allocate lock resource and initialize it */
+    hpccard->Lock = HAL_UNLOCKED;
+    
+    /* Initialize the low level hardware (MSP) */
+    HAL_PCCARD_MspInit(hpccard);
+  }
+  
+  /* Initialize the PCCARD state */
+  hpccard->State = HAL_PCCARD_STATE_BUSY;    
+
+  /* Initialize PCCARD control Interface */
+  FSMC_PCCARD_Init(hpccard->Instance, &(hpccard->Init));
+  
+  /* Init PCCARD common space timing Interface */
+  FSMC_PCCARD_CommonSpace_Timing_Init(hpccard->Instance, ComSpaceTiming);
+  
+  /* Init PCCARD attribute space timing Interface */  
+  FSMC_PCCARD_AttributeSpace_Timing_Init(hpccard->Instance, AttSpaceTiming);
+  
+  /* Init PCCARD IO space timing Interface */  
+  FSMC_PCCARD_IOSpace_Timing_Init(hpccard->Instance, IOSpaceTiming);
+  
+  /* Enable the PCCARD device */
+  __FSMC_PCCARD_ENABLE(hpccard->Instance); 
+  
+  /* Update the PCCARD state */
+  hpccard->State = HAL_PCCARD_STATE_READY;  
+  
+  return HAL_OK;
+
+}

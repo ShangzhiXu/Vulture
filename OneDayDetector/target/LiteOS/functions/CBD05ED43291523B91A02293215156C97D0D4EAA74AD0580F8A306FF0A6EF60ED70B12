@@ -1,0 +1,21 @@
+osStatus osSemaphoreDelete(osSemaphoreId semaphore_id)
+{
+    LosSemCB *semCB = (LosSemCB *)semaphore_id;
+    UINT32 ret;
+
+    if (semCB == NULL) {
+        return osErrorParameter;
+    }
+    if (OS_INT_ACTIVE) {
+        return osErrorISR;
+    }
+
+    ret = LOS_SemDelete(semCB->semId);
+    if (ret == LOS_OK) {
+        return osOK;
+    } else if (ret == LOS_ERRNO_SEM_INVALID) {
+        return osErrorParameter;
+    } else {
+        return osErrorResource;
+    }
+}

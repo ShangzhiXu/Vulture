@@ -1,0 +1,30 @@
+mqtt_tcp_connect_cb(void *arg, struct altcp_pcb *tpcb, err_t err)
+{
+  mqtt_client_t *client = (mqtt_client_t *)arg;
+
+  if (err != ERR_OK) {
+    LWIP_DEBUGF(MQTT_DEBUG_WARN, ("mqtt_tcp_connect_cb: TCP connect error %d\n", err));
+    return err;
+  }
+
+  /* Initiate receiver state */
+  client->msg_idx = 0;
+
+  /* Setup TCP callbacks */
+  altcp_recv(tpcb, mqtt_tcp_recv_cb);
+  altcp_sent(tpcb, mqtt_tcp_sent_cb);
+  altcp_poll(tpcb, mqtt_tcp_poll_cb, 2);
+
+  LWIP_DEBUGF(MQTT_DEBUG_TRACE, ("mqtt_tcp_connect_cb: TCP connection established to server\n"));
+  /* Enter MQTT connect state */
+  client->conn_state = MQTT_CONNECTING;
+
+  /* Start cyclic timer */
+  sys_timeout(MQTT_CYCLIC_TIMER_INTERVAL * 1000, mqtt_cyclic_timer, client);
+  client->cyclic_tick = 0;
+
+  /* Start transmission from output queue, connect message is the first one out*/
+  mqtt_output_send(&client->output, client->conn);
+
+  return ERR_OK;
+}

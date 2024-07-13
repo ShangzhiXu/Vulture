@@ -1,0 +1,17 @@
+static struct num normalize(double x)
+{
+	uint64_t ix = ASUINT64(x);
+	int e = ix>>52;
+	int sign = e & 0x800;
+	e &= 0x7ff;
+	if (!e) {
+		ix = ASUINT64(x*0x1p63);
+		e = ix>>52 & 0x7ff;
+		e = e ? e-63 : 0x800;
+	}
+	ix &= (1ull<<52)-1;
+	ix |= 1ull<<52;
+	ix <<= 1;
+	e -= 0x3ff + 52 + 1;
+	return (struct num){ix,e,sign};
+}

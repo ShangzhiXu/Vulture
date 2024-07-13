@@ -1,0 +1,23 @@
+nd6_adjust_mld_membership(struct netif *netif, s8_t addr_idx, u8_t new_state)
+{
+  u8_t old_state, old_member, new_member;
+
+  old_state = netif_ip6_addr_state(netif, addr_idx);
+
+  /* Determine whether we were, and should be, a member of the solicited-node
+   * multicast group for this address. For tentative addresses, the group is
+   * not joined until the address enters the TENTATIVE_1 (or VALID) state. */
+  old_member = (old_state != IP6_ADDR_INVALID && old_state != IP6_ADDR_DUPLICATED && old_state != IP6_ADDR_TENTATIVE);
+  new_member = (new_state != IP6_ADDR_INVALID && new_state != IP6_ADDR_DUPLICATED && new_state != IP6_ADDR_TENTATIVE);
+
+  if (old_member != new_member) {
+    ip6_addr_set_solicitednode(&multicast_address, netif_ip6_addr(netif, addr_idx)->addr[3]);
+    ip6_addr_assign_zone(&multicast_address, IP6_MULTICAST, netif);
+
+    if (new_member) {
+      mld6_joingroup_netif(netif, &multicast_address);
+    } else {
+      mld6_leavegroup_netif(netif, &multicast_address);
+    }
+  }
+}

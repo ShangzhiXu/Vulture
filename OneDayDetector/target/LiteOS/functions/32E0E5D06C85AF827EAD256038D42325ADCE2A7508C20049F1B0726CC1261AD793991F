@@ -1,0 +1,28 @@
+uint32_t osThreadGetStackSpace(osThreadId_t thread_id)
+{
+    LosTaskCB *taskCB = (LosTaskCB *)thread_id;
+    UINT32 intSave;
+    UINT32 count = 0;
+    UINT32 *topOfStack = NULL;
+
+    if ((taskCB == NULL) || OS_INT_ACTIVE) {
+        return 0;
+    }
+
+    intSave = LOS_IntLock();
+    if ((taskCB->taskStatus) & OS_TASK_STATUS_UNUSED) {
+        LOS_IntRestore(intSave);
+        return 0;
+    }
+
+    /* first 4 bytes is OS_TASK_MAGIC_WORD, skip */
+    topOfStack = (UINT32 *)(UINTPTR)taskCB->topOfStack + 1;
+    while (*topOfStack == (UINT32)OS_STACK_INIT) {
+        ++topOfStack;
+        ++count;
+    }
+    LOS_IntRestore(intSave);
+    count *= sizeof(UINT32);
+
+    return (uint32_t)count;
+}

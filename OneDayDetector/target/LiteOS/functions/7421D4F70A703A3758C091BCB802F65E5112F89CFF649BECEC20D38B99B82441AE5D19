@@ -1,0 +1,74 @@
+uint32_t LL_RCC_GetSDMMCClockFreq(uint32_t SDMMCxSource)
+{
+  uint32_t sdmmc_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_SDMMC_CLKSOURCE(SDMMCxSource));
+
+  if (SDMMCxSource == LL_RCC_SDMMC1_CLKSOURCE)
+  {
+    /* SDMMC1CLK clock frequency */
+    switch (LL_RCC_GetSDMMCClockSource(SDMMCxSource))
+    {
+      case LL_RCC_SDMMC1_CLKSOURCE_PLL48CLK:        /* PLL48 clock used as SDMMC1 clock source */
+        switch (LL_RCC_GetCK48MClockSource(LL_RCC_CK48M_CLKSOURCE))
+        {
+          case LL_RCC_CK48M_CLKSOURCE_PLL:         /* PLL clock used as 48Mhz domain clock */
+            if (LL_RCC_PLL_IsReady())
+            {
+              sdmmc_frequency = RCC_PLL_GetFreqDomain_48M();
+            }
+          break;
+
+          case LL_RCC_CK48M_CLKSOURCE_PLLSAI:      /* PLLSAI clock used as 48Mhz domain clock */
+          default:
+            if (LL_RCC_PLLSAI_IsReady())
+            {
+              sdmmc_frequency = RCC_PLLSAI_GetFreqDomain_48M();
+            }
+            break;
+        }
+        break;
+
+      case LL_RCC_SDMMC1_CLKSOURCE_SYSCLK:        /* PLL clock used as SDMMC1 clock source */
+      default:
+      sdmmc_frequency = RCC_GetSystemClockFreq();
+      break;
+    }
+  }
+#if defined(SDMMC2)
+  else
+  {
+     /* SDMMC2CLK clock frequency */
+     switch (LL_RCC_GetSDMMCClockSource(SDMMCxSource))
+     {
+       case LL_RCC_SDMMC2_CLKSOURCE_PLL48CLK:        /* PLL48 clock used as SDMMC2 clock source */
+         switch (LL_RCC_GetCK48MClockSource(LL_RCC_CK48M_CLKSOURCE))
+         {
+           case LL_RCC_CK48M_CLKSOURCE_PLL:         /* PLL clock used as 48Mhz domain clock */
+             if (LL_RCC_PLL_IsReady())
+             {
+               sdmmc_frequency = RCC_PLL_GetFreqDomain_48M();
+             }
+           break;
+
+           case LL_RCC_CK48M_CLKSOURCE_PLLSAI:      /* PLLSAI clock used as 48Mhz domain clock */
+           default:
+             if (LL_RCC_PLLSAI_IsReady())
+             {
+               sdmmc_frequency = RCC_PLLSAI_GetFreqDomain_48M();
+             }
+             break;
+         }
+         break;
+
+       case LL_RCC_SDMMC2_CLKSOURCE_SYSCLK:        /* PLL clock used as SDMMC2 clock source */
+       default:
+       sdmmc_frequency = RCC_GetSystemClockFreq();
+       break;
+     }
+  }
+#endif /* SDMMC2 */
+
+  return sdmmc_frequency;
+}

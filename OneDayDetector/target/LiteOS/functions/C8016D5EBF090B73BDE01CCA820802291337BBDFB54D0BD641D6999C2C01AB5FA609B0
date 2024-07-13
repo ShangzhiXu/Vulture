@@ -1,0 +1,44 @@
+int mbedtls_ssl_get_max_out_record_payload( const mbedtls_ssl_context *ssl )
+{
+    size_t max_len = MBEDTLS_SSL_OUT_CONTENT_LEN;
+
+#if !defined(MBEDTLS_SSL_MAX_FRAGMENT_LENGTH) && \
+    !defined(MBEDTLS_SSL_PROTO_DTLS)
+    (void) ssl;
+#endif
+
+#if defined(MBEDTLS_SSL_MAX_FRAGMENT_LENGTH)
+    const size_t mfl = mbedtls_ssl_get_max_frag_len( ssl );
+
+    if( max_len > mfl )
+        max_len = mfl;
+#endif
+
+#if defined(MBEDTLS_SSL_PROTO_DTLS)
+    if( ssl_get_current_mtu( ssl ) != 0 )
+    {
+        const size_t mtu = ssl_get_current_mtu( ssl );
+        const int ret = mbedtls_ssl_get_record_expansion( ssl );
+        const size_t overhead = (size_t) ret;
+
+        if( ret < 0 )
+            return( ret );
+
+        if( mtu <= overhead )
+        {
+            MBEDTLS_SSL_DEBUG_MSG( 1, ( "MTU too low for record expansion" ) );
+            return( MBEDTLS_ERR_SSL_FEATURE_UNAVAILABLE );
+        }
+
+        if( max_len > mtu - overhead )
+            max_len = mtu - overhead;
+    }
+#endif /* MBEDTLS_SSL_PROTO_DTLS */
+
+#if !defined(MBEDTLS_SSL_MAX_FRAGMENT_LENGTH) &&        \
+    !defined(MBEDTLS_SSL_PROTO_DTLS)
+    ((void) ssl);
+#endif
+
+    return( (int) max_len );
+}

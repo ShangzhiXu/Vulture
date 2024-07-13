@@ -1,0 +1,47 @@
+LITE_OS_SEC_TEXT UINT32 OsQueueMailFree(UINT32 queueId, VOID *mailPool, VOID *mailMem)
+{
+    VOID *mem = NULL;
+    LosQueueCB *queueCB = NULL;
+    LosTaskCB *resumedTask = NULL;
+    UINT32 intSave;
+
+    if (GET_QUEUE_INDEX(queueId) >= LOSCFG_BASE_IPC_QUEUE_LIMIT) {
+        return LOS_ERRNO_QUEUE_MAIL_HANDLE_INVALID;
+    }
+
+    if (mailPool == NULL) {
+        return LOS_ERRNO_QUEUE_MAIL_PTR_INVALID;
+    }
+
+    queueCB = GET_QUEUE_HANDLE(queueId);
+
+    OsQueueDbgTimeUpdateHook(queueId);
+
+    SCHEDULER_LOCK(intSave);
+
+    if (LOS_MemboxFree(mailPool, mailMem)) {
+        SCHEDULER_UNLOCK(intSave);
+        return LOS_ERRNO_QUEUE_MAIL_FREE_ERROR;
+    }
+
+    if ((queueCB->queueId != queueId) || (queueCB->queueState == OS_QUEUE_UNUSED)) {
+        SCHEDULER_UNLOCK(intSave);
+        return LOS_ERRNO_QUEUE_NOT_CREATE;
+    }
+
+    OsQueueDbgTimeUpdateHook(queueId);
+
+    if (!LOS_ListEmpty(&queueCB->memList)) {
+        resumedTask = OS_TCB_FROM_PENDLIST(LOS_DL_LIST_FIRST(&queueCB->memList));
+        OsTaskWake(resumedTask, OS_TASK_STATUS_PEND);
+        mem = LOS_MemboxAlloc(mailPool);
+        /* At the state of LOS_IntLock, the allocation can not be failed after releasing succefully. */
+        resumedTask->msg = mem;
+        SCHEDULER_UNLOCK(intSave);
+        LOS_MpSchedule(OS_MP_CPU_ALL);
+        LOS_Schedule();
+    } else {
+        SCHEDULER_UNLOCK(intSave);
+    }
+    return LOS_OK;
+}

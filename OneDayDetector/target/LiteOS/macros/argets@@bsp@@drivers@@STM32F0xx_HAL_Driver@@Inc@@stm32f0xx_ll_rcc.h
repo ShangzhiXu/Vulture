@@ -1,0 +1,8 @@
+#define LL_RCC_ReadReg(__REG__) READ_REG(RCC->__REG__)
+#define LL_RCC_WriteReg(__REG__, __VALUE__) WRITE_REG(RCC->__REG__, (__VALUE__))
+#define __LL_RCC_CALC_HCLK_FREQ(__SYSCLKFREQ__, __AHBPRESCALER__) ((__SYSCLKFREQ__) >> AHBPrescTable[((__AHBPRESCALER__) & RCC_CFGR_HPRE) >>  RCC_CFGR_HPRE_Pos])
+#define __LL_RCC_CALC_PCLK1_FREQ(__HCLKFREQ__, __APB1PRESCALER__) ((__HCLKFREQ__) >> APBPrescTable[(__APB1PRESCALER__) >>  RCC_CFGR_PPRE_Pos])
+#define __LL_RCC_CALC_PLLCLK_FREQ(__INPUTFREQ__, __PLLMUL__, __PLLPREDIV__) \
+          (((__INPUTFREQ__) / ((((__PLLPREDIV__) & RCC_CFGR2_PREDIV) + 1U))) * ((((__PLLMUL__) & RCC_CFGR_PLLMUL) >> RCC_POSITION_PLLMUL) + 2U))
+#define __LL_RCC_CALC_PLLCLK_FREQ(__INPUTFREQ__, __PLLMUL__) \
+          ((__INPUTFREQ__) * ((((__PLLMUL__) & RCC_CFGR_PLLMUL) >> RCC_POSITION_PLLMUL) + 2U))

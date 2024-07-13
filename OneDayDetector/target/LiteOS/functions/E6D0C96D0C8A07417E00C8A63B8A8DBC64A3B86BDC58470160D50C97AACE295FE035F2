@@ -1,0 +1,19 @@
+static int ecjpake_ecp_add3( mbedtls_ecp_group *grp, mbedtls_ecp_point *R,
+                             const mbedtls_ecp_point *A,
+                             const mbedtls_ecp_point *B,
+                             const mbedtls_ecp_point *C )
+{
+    int ret;
+    mbedtls_mpi one;
+
+    mbedtls_mpi_init( &one );
+
+    MBEDTLS_MPI_CHK( mbedtls_mpi_lset( &one, 1 ) );
+    MBEDTLS_MPI_CHK( mbedtls_ecp_muladd( grp, R, &one, A, &one, B ) );
+    MBEDTLS_MPI_CHK( mbedtls_ecp_muladd( grp, R, &one, R, &one, C ) );
+
+cleanup:
+    mbedtls_mpi_free( &one );
+
+    return( ret );
+}

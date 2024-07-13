@@ -1,0 +1,25 @@
+void lv_dropdown_get_selected_str(const lv_obj_t * ddlist, char * buf, uint16_t buf_size)
+{
+    LV_ASSERT_OBJ(ddlist, LV_OBJX_NAME);
+
+    lv_dropdown_ext_t * ext = lv_obj_get_ext_attr(ddlist);
+
+    uint16_t i;
+    uint16_t line        = 0;
+    size_t txt_len     = strlen(ext->options);
+
+    for(i = 0; i < txt_len && line != ext->sel_opt_id_orig; i++) {
+        if(ext->options[i] == '\n') line++;
+    }
+
+    uint16_t c;
+    for(c = 0; i < txt_len && ext->options[i] != '\n'; c++, i++) {
+        if(buf_size && c >= buf_size - 1) {
+            LV_LOG_WARN("lv_dropdown_get_selected_str: the buffer was too small")
+            break;
+        }
+        buf[c] = ext->options[i];
+    }
+
+    buf[c] = '\0';
+}

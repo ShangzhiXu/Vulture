@@ -1,0 +1,25 @@
+LITE_OS_SEC_TEXT_INIT UINT32 OsQueueInit(VOID)
+{
+    LosQueueCB *queueNode = NULL;
+    UINT32 index;
+    UINT32 size;
+
+    size = LOSCFG_BASE_IPC_QUEUE_LIMIT * sizeof(LosQueueCB);
+    /* system resident memory, don't free */
+    g_allQueue = (LosQueueCB *)LOS_MemAlloc(m_aucSysMem0, size);
+    if (g_allQueue == NULL) {
+        return LOS_ERRNO_QUEUE_NO_MEMORY;
+    }
+    (VOID)memset_s(g_allQueue, size, 0, size);
+    LOS_ListInit(&g_freeQueueList);
+    for (index = 0; index < LOSCFG_BASE_IPC_QUEUE_LIMIT; index++) {
+        queueNode = ((LosQueueCB *)g_allQueue) + index;
+        queueNode->queueId = index;
+        LOS_ListTailInsert(&g_freeQueueList, &queueNode->readWriteList[OS_QUEUE_WRITE]);
+    }
+
+    if (OsQueueDbgInitHook() != LOS_OK) {
+        return LOS_ERRNO_QUEUE_NO_MEMORY;
+    }
+    return LOS_OK;
+}

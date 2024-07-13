@@ -1,0 +1,16 @@
+STATIC INLINE BOOL OsPreemptable(VOID)
+{
+    /*
+     * Unlike OsPreemptableInSched, the int may be not disabled when OsPreemptable
+     * is called, needs manually disable interrupt, to prevent current task from
+     * being migrated to another core, and get the wrong preemptable status.
+     */
+    UINT32 intSave = LOS_IntLock();
+    BOOL preemptable = (OsPercpuGet()->taskLockCnt == 0);
+    if (!preemptable) {
+        /* Set schedule flag if preemption is disabled */
+        OsPercpuGet()->schedFlag = INT_PEND_RESCH;
+    }
+    LOS_IntRestore(intSave);
+    return preemptable;
+}

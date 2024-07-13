@@ -1,0 +1,30 @@
+udp_Table_get_cell_value(const u32_t *column, const u32_t *row_oid, u8_t row_oid_len, union snmp_variant_value *value, u32_t *value_len)
+{
+  ip4_addr_t ip;
+  u16_t port;
+  struct udp_pcb *pcb;
+
+  /* check if incoming OID length and if values are in plausible range */
+  if (!snmp_oid_in_range(row_oid, row_oid_len, udp_Table_oid_ranges, LWIP_ARRAYSIZE(udp_Table_oid_ranges))) {
+    return SNMP_ERR_NOSUCHINSTANCE;
+  }
+
+  /* get IP and port from incoming OID */
+  snmp_oid_to_ip4(&row_oid[0], &ip); /* we know it succeeds because of oid_in_range check above */
+  port = (u16_t)row_oid[4];
+
+  /* find udp_pcb with requested ip and port*/
+  pcb = udp_pcbs;
+  while (pcb != NULL) {
+    if (IP_IS_V4_VAL(pcb->local_ip)) {
+      if (ip4_addr_cmp(&ip, ip_2_ip4(&pcb->local_ip)) && (port == pcb->local_port)) {
+        /* fill in object properties */
+        return udp_Table_get_cell_value_core(pcb, column, value, value_len);
+      }
+    }
+    pcb = pcb->next;
+  }
+
+  /* not found */
+  return SNMP_ERR_NOSUCHINSTANCE;
+}

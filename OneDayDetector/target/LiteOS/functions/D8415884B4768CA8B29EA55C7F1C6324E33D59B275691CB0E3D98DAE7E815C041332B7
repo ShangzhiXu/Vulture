@@ -1,0 +1,53 @@
+int checkConnectPackets(MQTTPacket_connectData *before, MQTTPacket_connectData *after)
+{
+    int rc = 0;
+    int start_failures = failures;
+
+    assert("struct_ids should be the same",
+           memcmp(before->struct_id, after->struct_id, 4) == 0, "struct_ids were different %.4s\n", after->struct_id);
+
+    assert("struct_versions should be the same",
+           before->struct_version == after->struct_version, "struct_versions were different\n", rc);
+
+    assert("MQTT versions should be the same",
+           before->MQTTVersion == after->MQTTVersion, "MQTT versions were different\n", rc);
+
+    assert("ClientIDs should be the same",
+           checkMQTTStrings(before->clientID, after->clientID), "ClientIDs were different\n", rc);
+
+    assert("keepAliveIntervals should be the same",
+           before->keepAliveInterval == after->keepAliveInterval, "keepAliveIntervals were different %d\n", after->keepAliveInterval);
+
+    assert("cleansessions should be the same",
+           before->cleansession == after->cleansession, "cleansessions were different\n", rc);
+
+    assert("willFlags should be the same",
+           before->willFlag == after->willFlag, "willFlags were different\n", rc);
+
+    if (before->willFlag)
+    {
+        assert("will struct_ids should be the same",
+               memcmp(before->will.struct_id, after->will.struct_id, 4) == 0, "will struct_ids were different %.4s\n", after->struct_id);
+
+        assert("will struct_versions should be the same",
+               before->will.struct_version == after->will.struct_version, "will struct_versions were different\n", rc);
+
+        assert("topic names should be the same",
+               checkMQTTStrings(before->will.topicName, after->will.topicName), "topic names were different\n", rc);
+
+        assert("messages should be the same",
+               checkMQTTStrings(before->will.message, after->will.message), "messages were different\n", rc);
+
+        assert("retained flags should be the same",
+               before->will.retained == after->will.retained, "retained flags were different\n", rc);
+
+        assert("will qos should be the same",
+               before->will.qos == after->will.qos, "will qos were different\n", rc);
+    }
+
+    assert("usernames should be the same",
+           checkMQTTStrings(before->clientID, after->clientID), "usernames were different\n", rc);
+    assert("passwords should be the same",
+           checkMQTTStrings(before->password, after->password), "passwords were different\n", rc);
+    return failures == start_failures;
+}

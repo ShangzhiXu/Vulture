@@ -1,0 +1,27 @@
+static HAL_StatusTypeDef DSI_ShortWrite(DSI_HandleTypeDef *hdsi,
+                                        uint32_t ChannelID,
+                                        uint32_t Mode,
+                                        uint32_t Param1,
+                                        uint32_t Param2)
+{
+  uint32_t tickstart;
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  /* Wait for Command FIFO Empty */
+  while((hdsi->Instance->GPSR & DSI_GPSR_CMDFE) == 0U)
+  {
+    /* Check for the Timeout */
+    if((HAL_GetTick() - tickstart ) > DSI_TIMEOUT_VALUE)
+    {
+      return HAL_TIMEOUT;
+    }
+  }
+
+  /* Configure the packet to send a short DCS command with 0 or 1 parameter */
+  /* Update the DSI packet header with new information */
+  hdsi->Instance->GHCR = (Mode | (ChannelID << 6U) | (Param1 << 8U) | (Param2 << 16U));
+
+  return HAL_OK;
+}

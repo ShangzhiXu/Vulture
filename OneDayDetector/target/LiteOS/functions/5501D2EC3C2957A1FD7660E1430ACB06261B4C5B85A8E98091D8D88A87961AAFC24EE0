@@ -1,0 +1,39 @@
+int mbedtls_cipher_update_ad( mbedtls_cipher_context_t *ctx,
+                      const unsigned char *ad, size_t ad_len )
+{
+    CIPHER_VALIDATE_RET( ctx != NULL );
+    CIPHER_VALIDATE_RET( ad_len == 0 || ad != NULL );
+    if( ctx->cipher_info == NULL )
+        return( MBEDTLS_ERR_CIPHER_BAD_INPUT_DATA );
+
+#if defined(MBEDTLS_GCM_C)
+    if( MBEDTLS_MODE_GCM == ctx->cipher_info->mode )
+    {
+        return( mbedtls_gcm_starts( (mbedtls_gcm_context *) ctx->cipher_ctx, ctx->operation,
+                                    ctx->iv, ctx->iv_size, ad, ad_len ) );
+    }
+#endif
+
+#if defined(MBEDTLS_CHACHAPOLY_C)
+    if (MBEDTLS_CIPHER_CHACHA20_POLY1305 == ctx->cipher_info->type )
+    {
+        int result;
+        mbedtls_chachapoly_mode_t mode;
+
+        mode = ( ctx->operation == MBEDTLS_ENCRYPT )
+                ? MBEDTLS_CHACHAPOLY_ENCRYPT
+                : MBEDTLS_CHACHAPOLY_DECRYPT;
+
+        result = mbedtls_chachapoly_starts( (mbedtls_chachapoly_context*) ctx->cipher_ctx,
+                                                        ctx->iv,
+                                                        mode );
+        if ( result != 0 )
+            return( result );
+
+        return( mbedtls_chachapoly_update_aad( (mbedtls_chachapoly_context*) ctx->cipher_ctx,
+                                               ad, ad_len ) );
+    }
+#endif
+
+    return( 0 );
+}

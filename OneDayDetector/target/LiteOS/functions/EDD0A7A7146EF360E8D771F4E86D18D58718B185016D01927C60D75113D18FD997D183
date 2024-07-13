@@ -1,0 +1,22 @@
+uint8_t ft6x06_TS_DetectTouch(uint16_t DeviceAddr)
+{
+  volatile uint8_t nbTouch = 0;
+
+  /* Read register FT6206_TD_STAT_REG to check number of touches detection */
+  nbTouch = TS_IO_Read(DeviceAddr, FT6206_TD_STAT_REG);
+  nbTouch &= FT6206_TD_STAT_MASK;
+
+  if(nbTouch > FT6206_MAX_DETECTABLE_TOUCH)
+  {
+    /* If invalid number of touch detected, set it to zero */
+    nbTouch = 0;
+  }
+
+  /* Update ft6x06 driver internal global : current number of active touches */
+  ft6x06_handle.currActiveTouchNb = nbTouch;
+
+  /* Reset current active touch index on which to work on */
+  ft6x06_handle.currActiveTouchIdx = 0;
+
+  return(nbTouch);
+}

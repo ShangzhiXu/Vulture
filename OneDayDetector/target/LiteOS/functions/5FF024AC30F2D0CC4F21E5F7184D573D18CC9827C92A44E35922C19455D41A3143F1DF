@@ -1,0 +1,35 @@
+dhcp_network_changed(struct netif *netif)
+{
+  struct dhcp *dhcp = netif_dhcp_data(netif);
+
+  if (!dhcp) {
+    return;
+  }
+  switch (dhcp->state) {
+    case DHCP_STATE_REBINDING:
+    case DHCP_STATE_RENEWING:
+    case DHCP_STATE_BOUND:
+    case DHCP_STATE_REBOOTING:
+      dhcp->tries = 0;
+      dhcp_reboot(netif);
+      break;
+    case DHCP_STATE_OFF:
+      /* stay off */
+      break;
+    default:
+      LWIP_ASSERT("invalid dhcp->state", dhcp->state <= DHCP_STATE_BACKING_OFF);
+      /* INIT/REQUESTING/CHECKING/BACKING_OFF restart with new 'rid' because the
+         state changes, SELECTING: continue with current 'rid' as we stay in the
+         same state */
+#if LWIP_DHCP_AUTOIP_COOP
+      if (dhcp->autoip_coop_state == DHCP_AUTOIP_COOP_STATE_ON) {
+        autoip_stop(netif);
+        dhcp->autoip_coop_state = DHCP_AUTOIP_COOP_STATE_OFF;
+      }
+#endif /* LWIP_DHCP_AUTOIP_COOP */
+      /* ensure we start with short timeouts, even if already discovering */
+      dhcp->tries = 0;
+      dhcp_discover(netif);
+      break;
+  }
+}

@@ -1,0 +1,24 @@
+altcp_mbedtls_recved(struct altcp_pcb *conn, u16_t len)
+{
+  u16_t lower_recved;
+  altcp_mbedtls_state_t *state;
+  if (conn == NULL) {
+    return;
+  }
+  state = (altcp_mbedtls_state_t *)conn->state;
+  if (state == NULL) {
+    return;
+  }
+  if (!(state->flags & ALTCP_MBEDTLS_FLAGS_HANDSHAKE_DONE)) {
+    return;
+  }
+  lower_recved = len;
+  if (lower_recved > state->rx_passed_unrecved) {
+    LWIP_DEBUGF(ALTCP_MBEDTLS_DEBUG, ("bogus recved count (len > state->rx_passed_unrecved / %d / %d)",
+                                      len, state->rx_passed_unrecved));
+    lower_recved = (u16_t)state->rx_passed_unrecved;
+  }
+  state->rx_passed_unrecved -= lower_recved;
+
+  altcp_recved(conn->inner_conn, lower_recved);
+}

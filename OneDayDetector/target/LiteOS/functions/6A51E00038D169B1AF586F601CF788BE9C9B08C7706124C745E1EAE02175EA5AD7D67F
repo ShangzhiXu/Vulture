@@ -1,0 +1,228 @@
+static int apply_patch(cJSON *object, const cJSON *patch, const cJSON_bool case_sensitive)
+{
+    cJSON *path = NULL;
+    cJSON *value = NULL;
+    cJSON *parent = NULL;
+    enum patch_operation opcode = INVALID;
+    unsigned char *parent_pointer = NULL;
+    unsigned char *child_pointer = NULL;
+    int status = 0;
+
+    path = get_object_item(patch, "path", case_sensitive);
+    if (!cJSON_IsString(path))
+    {
+        /* malformed patch. */
+        status = 2;
+        goto cleanup;
+    }
+
+    opcode = decode_patch_operation(patch, case_sensitive);
+    if (opcode == INVALID)
+    {
+        status = 3;
+        goto cleanup;
+    }
+    else if (opcode == TEST)
+    {
+        /* compare value: {...} with the given path */
+        status = !compare_json(get_item_from_pointer(object, path->valuestring, case_sensitive), get_object_item(patch, "value", case_sensitive), case_sensitive);
+        goto cleanup;
+    }
+
+    /* special case for replacing the root */
+    if (path->valuestring[0] == '\0')
+    {
+        if (opcode == REMOVE)
+        {
+            static const cJSON invalid = { NULL, NULL, NULL, cJSON_Invalid, NULL, 0, 0, NULL};
+
+            overwrite_item(object, invalid);
+
+            status = 0;
+            goto cleanup;
+        }
+
+        if ((opcode == REPLACE) || (opcode == ADD))
+        {
+            value = get_object_item(patch, "value", case_sensitive);
+            if (value == NULL)
+            {
+                /* missing "value" for add/replace. */
+                status = 7;
+                goto cleanup;
+            }
+
+            value = cJSON_Duplicate(value, 1);
+            if (value == NULL)
+            {
+                /* out of memory for add/replace. */
+                status = 8;
+                goto cleanup;
+            }
+
+            overwrite_item(object, *value);
+
+            /* delete the duplicated value */
+            cJSON_free(value);
+            value = NULL;
+
+            /* the string "value" isn't needed */
+            if (object->string != NULL)
+            {
+                cJSON_free(object->string);
+                object->string = NULL;
+            }
+
+            status = 0;
+            goto cleanup;
+        }
+    }
+
+    if ((opcode == REMOVE) || (opcode == REPLACE))
+    {
+        /* Get rid of old. */
+        cJSON *old_item = detach_path(object, (unsigned char*)path->valuestring, case_sensitive);
+        if (old_item == NULL)
+        {
+            status = 13;
+            goto cleanup;
+        }
+        cJSON_Delete(old_item);
+        if (opcode == REMOVE)
+        {
+            /* For Remove, this job is done. */
+            status = 0;
+            goto cleanup;
+        }
+    }
+
+    /* Copy/Move uses "from". */
+    if ((opcode == MOVE) || (opcode == COPY))
+    {
+        cJSON *from = get_object_item(patch, "from", case_sensitive);
+        if (from == NULL)
+        {
+            /* missing "from" for copy/move. */
+            status = 4;
+            goto cleanup;
+        }
+
+        if (opcode == MOVE)
+        {
+            value = detach_path(object, (unsigned char*)from->valuestring, case_sensitive);
+        }
+        if (opcode == COPY)
+        {
+            value = get_item_from_pointer(object, from->valuestring, case_sensitive);
+        }
+        if (value == NULL)
+        {
+            /* missing "from" for copy/move. */
+            status = 5;
+            goto cleanup;
+        }
+        if (opcode == COPY)
+        {
+            value = cJSON_Duplicate(value, 1);
+        }
+        if (value == NULL)
+        {
+            /* out of memory for copy/move. */
+            status = 6;
+            goto cleanup;
+        }
+    }
+    else /* Add/Replace uses "value". */
+    {
+        value = get_object_item(patch, "value", case_sensitive);
+        if (value == NULL)
+        {
+            /* missing "value" for add/replace. */
+            status = 7;
+            goto cleanup;
+        }
+        value = cJSON_Duplicate(value, 1);
+        if (value == NULL)
+        {
+            /* out of memory for add/replace. */
+            status = 8;
+            goto cleanup;
+        }
+    }
+
+    /* Now, just add "value" to "path". */
+
+    /* split pointer in parent and child */
+    parent_pointer = cJSONUtils_strdup((unsigned char*)path->valuestring);
+    child_pointer = (unsigned char*)strrchr((char*)parent_pointer, '/');
+    if (child_pointer != NULL)
+    {
+        child_pointer[0] = '\0';
+        child_pointer++;
+    }
+    parent = get_item_from_pointer(object, (char*)parent_pointer, case_sensitive);
+    decode_pointer_inplace(child_pointer);
+
+    /* add, remove, replace, move, copy, test. */
+    if ((parent == NULL) || (child_pointer == NULL))
+    {
+        /* Couldn't find object to add to. */
+        status = 9;
+        goto cleanup;
+    }
+    else if (cJSON_IsArray(parent))
+    {
+        if (strcmp((char*)child_pointer, "-") == 0)
+        {
+            cJSON_AddItemToArray(parent, value);
+            value = NULL;
+        }
+        else
+        {
+            size_t index = 0;
+            if (!decode_array_index_from_pointer(child_pointer, &index))
+            {
+                status = 11;
+                goto cleanup;
+            }
+
+            if (!insert_item_in_array(parent, index, value))
+            {
+                status = 10;
+                goto cleanup;
+            }
+            value = NULL;
+        }
+    }
+    else if (cJSON_IsObject(parent))
+    {
+        if (case_sensitive)
+        {
+            cJSON_DeleteItemFromObjectCaseSensitive(parent, (char*)child_pointer);
+        }
+        else
+        {
+            cJSON_DeleteItemFromObject(parent, (char*)child_pointer);
+        }
+        cJSON_AddItemToObject(parent, (char*)child_pointer, value);
+        value = NULL;
+    }
+    else /* parent is not an object */
+    {
+        /* Couldn't find object to add to. */
+        status = 9;
+        goto cleanup;
+    }
+
+cleanup:
+    if (value != NULL)
+    {
+        cJSON_Delete(value);
+    }
+    if (parent_pointer != NULL)
+    {
+        cJSON_free(parent_pointer);
+    }
+
+    return status;
+}

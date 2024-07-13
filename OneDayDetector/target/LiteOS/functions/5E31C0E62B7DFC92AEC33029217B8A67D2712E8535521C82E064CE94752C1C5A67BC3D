@@ -1,0 +1,80 @@
+HAL_StatusTypeDef HAL_QSPI_MemoryMapped(QSPI_HandleTypeDef *hqspi, QSPI_CommandTypeDef *cmd, QSPI_MemoryMappedTypeDef *cfg)
+{
+  HAL_StatusTypeDef status = HAL_ERROR;
+  uint32_t tickstart = HAL_GetTick();
+  
+  /* Check the parameters */
+  assert_param(IS_QSPI_INSTRUCTION_MODE(cmd->InstructionMode));
+  if (cmd->InstructionMode != QSPI_INSTRUCTION_NONE)
+  {
+  assert_param(IS_QSPI_INSTRUCTION(cmd->Instruction));
+  }
+
+  assert_param(IS_QSPI_ADDRESS_MODE(cmd->AddressMode));
+  if (cmd->AddressMode != QSPI_ADDRESS_NONE)
+  {
+    assert_param(IS_QSPI_ADDRESS_SIZE(cmd->AddressSize));
+  }
+
+  assert_param(IS_QSPI_ALTERNATE_BYTES_MODE(cmd->AlternateByteMode));
+  if (cmd->AlternateByteMode != QSPI_ALTERNATE_BYTES_NONE)
+  {
+    assert_param(IS_QSPI_ALTERNATE_BYTES_SIZE(cmd->AlternateBytesSize));
+  }
+
+  assert_param(IS_QSPI_DUMMY_CYCLES(cmd->DummyCycles));
+  assert_param(IS_QSPI_DATA_MODE(cmd->DataMode));
+
+  assert_param(IS_QSPI_DDR_MODE(cmd->DdrMode));
+  assert_param(IS_QSPI_DDR_HHC(cmd->DdrHoldHalfCycle));
+  assert_param(IS_QSPI_SIOO_MODE(cmd->SIOOMode));
+
+  assert_param(IS_QSPI_TIMEOUT_ACTIVATION(cfg->TimeOutActivation));
+  
+  /* Process locked */
+  __HAL_LOCK(hqspi);
+  
+  if(hqspi->State == HAL_QSPI_STATE_READY)
+  {
+    hqspi->ErrorCode = HAL_QSPI_ERROR_NONE;
+    
+    /* Update state */
+    hqspi->State = HAL_QSPI_STATE_BUSY_MEM_MAPPED;
+    
+    /* Wait till BUSY flag reset */
+    status = QSPI_WaitFlagStateUntilTimeout(hqspi, QSPI_FLAG_BUSY, RESET, tickstart, hqspi->Timeout);
+    
+    if (status == HAL_OK)
+    {
+      /* Configure QSPI: CR register with timeout counter enable */
+    MODIFY_REG(hqspi->Instance->CR, QUADSPI_CR_TCEN, cfg->TimeOutActivation);
+
+    if (cfg->TimeOutActivation == QSPI_TIMEOUT_COUNTER_ENABLE)
+      {
+        assert_param(IS_QSPI_TIMEOUT_PERIOD(cfg->TimeOutPeriod));
+        
+        /* Configure QSPI: LPTR register with the low-power timeout value */
+        WRITE_REG(hqspi->Instance->LPTR, cfg->TimeOutPeriod);
+        
+        /* Clear interrupt */
+        __HAL_QSPI_CLEAR_FLAG(hqspi, QSPI_FLAG_TO);
+
+        /* Enable the QSPI TimeOut Interrupt */
+        __HAL_QSPI_ENABLE_IT(hqspi, QSPI_IT_TO);
+      }
+      
+      /* Call the configuration function */
+      QSPI_Config(hqspi, cmd, QSPI_FUNCTIONAL_MODE_MEMORY_MAPPED);
+    }
+  }
+  else
+  {
+    status = HAL_BUSY;   
+  }
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hqspi);
+  
+  /* Return function status */
+  return status;  
+}

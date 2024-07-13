@@ -1,0 +1,74 @@
+void HAL_I2C_ER_IRQHandler(I2C_HandleTypeDef *hi2c)
+{
+  uint32_t tmp1 = 0, tmp2 = 0, tmp3 = 0;
+
+  tmp1 = __HAL_I2C_GET_FLAG(hi2c, I2C_FLAG_BERR);
+  tmp2 = __HAL_I2C_GET_IT_SOURCE(hi2c, I2C_IT_ERR);
+  /* I2C Bus error interrupt occurred ----------------------------------------*/
+  if((tmp1 == SET) && (tmp2 == SET))
+  {
+    hi2c->ErrorCode |= HAL_I2C_ERROR_BERR;
+
+    /* Clear BERR flag */
+    __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_BERR);
+    
+    /* Workaround: Start cannot be generated after a misplaced Stop */
+    SET_BIT(hi2c->Instance->CR1, I2C_CR1_SWRST);
+  }
+
+  tmp1 = __HAL_I2C_GET_FLAG(hi2c, I2C_FLAG_ARLO);
+  tmp2 = __HAL_I2C_GET_IT_SOURCE(hi2c, I2C_IT_ERR);
+  /* I2C Arbitration Loss error interrupt occurred ---------------------------*/
+  if((tmp1 == SET) && (tmp2 == SET))
+  {
+    hi2c->ErrorCode |= HAL_I2C_ERROR_ARLO;
+
+    /* Clear ARLO flag */
+    __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_ARLO);
+  }
+
+  tmp1 = __HAL_I2C_GET_FLAG(hi2c, I2C_FLAG_AF);
+  tmp2 = __HAL_I2C_GET_IT_SOURCE(hi2c, I2C_IT_ERR);
+  /* I2C Acknowledge failure error interrupt occurred ------------------------*/
+  if((tmp1 == SET) && (tmp2 == SET))
+  {
+    tmp1 = hi2c->Mode;
+    tmp2 = hi2c->XferCount;
+    tmp3 = hi2c->State;
+    if((tmp1 == HAL_I2C_MODE_SLAVE) && (tmp2 == 0) && \
+       (tmp3 == HAL_I2C_STATE_BUSY_TX))
+    {
+      I2C_Slave_AF(hi2c);
+    }
+    else
+    {
+      hi2c->ErrorCode |= HAL_I2C_ERROR_AF;
+  
+      /* Generate Stop */
+      SET_BIT(hi2c->Instance->CR1,I2C_CR1_STOP);
+  
+      /* Clear AF flag */
+      __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_AF);
+    }
+  }
+
+  tmp1 = __HAL_I2C_GET_FLAG(hi2c, I2C_FLAG_OVR);
+  tmp2 = __HAL_I2C_GET_IT_SOURCE(hi2c, I2C_IT_ERR);
+  /* I2C Over-Run/Under-Run interrupt occurred -------------------------------*/
+  if((tmp1 == SET) && (tmp2 == SET))
+  {
+    hi2c->ErrorCode |= HAL_I2C_ERROR_OVR;
+    /* Clear OVR flag */
+    __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_OVR);
+  }
+
+  if(hi2c->ErrorCode != HAL_I2C_ERROR_NONE)
+  {
+    hi2c->State = HAL_I2C_STATE_READY;
+    
+    /* Disable Pos bit in I2C CR1 when error occured in Master/Mem Receive IT Process */
+    CLEAR_BIT(hi2c->Instance->CR1, I2C_CR1_POS);
+    
+    HAL_I2C_ErrorCallback(hi2c);
+  }
+}

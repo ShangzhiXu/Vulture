@@ -1,0 +1,215 @@
+mdns_handle_question(struct mdns_packet *pkt)
+{
+  struct mdns_service *service;
+  struct mdns_outpacket reply;
+  int replies = 0;
+  int i;
+  err_t res;
+  struct mdns_host *mdns = NETIF_TO_HOST(pkt->netif);
+
+  if (mdns->probing_state != MDNS_PROBING_COMPLETE) {
+    /* Don't answer questions until we've verified our domains via probing */
+    /* @todo we should check incoming questions during probing for tiebreaking */
+    return;
+  }
+
+  mdns_init_outpacket(&reply, pkt);
+
+  while (pkt->questions_left) {
+    struct mdns_question q;
+
+    res = mdns_read_question(pkt, &q);
+    if (res != ERR_OK) {
+      LWIP_DEBUGF(MDNS_DEBUG, ("MDNS: Failed to parse question, skipping query packet\n"));
+      return;
+    }
+
+    LWIP_DEBUGF(MDNS_DEBUG, ("MDNS: Query for domain "));
+    mdns_domain_debug_print(&q.info.domain);
+    LWIP_DEBUGF(MDNS_DEBUG, (" type %d class %d\n", q.info.type, q.info.klass));
+
+    if (q.unicast) {
+      /* Reply unicast if any question is unicast */
+      reply.unicast_reply = 1;
+    }
+
+    reply.host_replies |= check_host(pkt->netif, &q.info, &reply.host_reverse_v6_replies);
+    replies |= reply.host_replies;
+
+    for (i = 0; i < MDNS_MAX_SERVICES; i++) {
+      service = mdns->services[i];
+      if (!service) {
+        continue;
+      }
+      reply.serv_replies[i] |= check_service(service, &q.info);
+      replies |= reply.serv_replies[i];
+    }
+
+    if (replies && reply.legacy_query) {
+      /* Add question to reply packet (legacy packet only has 1 question) */
+      res = mdns_add_question(&reply, &q.info.domain, q.info.type, q.info.klass, 0);
+      reply.questions = 1;
+      if (res != ERR_OK) {
+        goto cleanup;
+      }
+    }
+  }
+
+  /* Handle known answers */
+  while (pkt->answers_left) {
+    struct mdns_answer ans;
+    u8_t rev_v6;
+    int match;
+
+    res = mdns_read_answer(pkt, &ans);
+    if (res != ERR_OK) {
+      LWIP_DEBUGF(MDNS_DEBUG, ("MDNS: Failed to parse answer, skipping query packet\n"));
+      goto cleanup;
+    }
+
+    LWIP_DEBUGF(MDNS_DEBUG, ("MDNS: Known answer for domain "));
+    mdns_domain_debug_print(&ans.info.domain);
+    LWIP_DEBUGF(MDNS_DEBUG, (" type %d class %d\n", ans.info.type, ans.info.klass));
+
+
+    if (ans.info.type == DNS_RRTYPE_ANY || ans.info.klass == DNS_RRCLASS_ANY) {
+      /* Skip known answers for ANY type & class */
+      continue;
+    }
+
+    rev_v6 = 0;
+    match = reply.host_replies & check_host(pkt->netif, &ans.info, &rev_v6);
+    if (match && (ans.ttl > (mdns->dns_ttl / 2))) {
+      /* The RR in the known answer matches an RR we are planning to send,
+       * and the TTL is less than half gone.
+       * If the payload matches we should not send that answer.
+       */
+      if (ans.info.type == DNS_RRTYPE_PTR) {
+        /* Read domain and compare */
+        struct mdns_domain known_ans, my_ans;
+        u16_t len;
+        len = mdns_readname(pkt->pbuf, ans.rd_offset, &known_ans);
+        res = mdns_build_host_domain(&my_ans, mdns);
+        if (len != MDNS_READNAME_ERROR && res == ERR_OK && mdns_domain_eq(&known_ans, &my_ans)) {
+#if LWIP_IPV4
+          if (match & REPLY_HOST_PTR_V4) {
+            LWIP_DEBUGF(MDNS_DEBUG, ("MDNS: Skipping known answer: v4 PTR\n"));
+            reply.host_replies &= ~REPLY_HOST_PTR_V4;
+          }
+#endif
+#if LWIP_IPV6
+          if (match & REPLY_HOST_PTR_V6) {
+            LWIP_DEBUGF(MDNS_DEBUG, ("MDNS: Skipping known answer: v6 PTR\n"));
+            reply.host_reverse_v6_replies &= ~rev_v6;
+            if (reply.host_reverse_v6_replies == 0) {
+              reply.host_replies &= ~REPLY_HOST_PTR_V6;
+            }
+          }
+#endif
+        }
+      } else if (match & REPLY_HOST_A) {
+#if LWIP_IPV4
+        if (ans.rd_length == sizeof(ip4_addr_t) &&
+            pbuf_memcmp(pkt->pbuf, ans.rd_offset, netif_ip4_addr(pkt->netif), ans.rd_length) == 0) {
+          LWIP_DEBUGF(MDNS_DEBUG, ("MDNS: Skipping known answer: A\n"));
+          reply.host_replies &= ~REPLY_HOST_A;
+        }
+#endif
+      } else if (match & REPLY_HOST_AAAA) {
+#if LWIP_IPV6
+        if (ans.rd_length == sizeof(ip6_addr_p_t) &&
+            /* TODO this clears all AAAA responses if first addr is set as known */
+            pbuf_memcmp(pkt->pbuf, ans.rd_offset, netif_ip6_addr(pkt->netif, 0), ans.rd_length) == 0) {
+          LWIP_DEBUGF(MDNS_DEBUG, ("MDNS: Skipping known answer: AAAA\n"));
+          reply.host_replies &= ~REPLY_HOST_AAAA;
+        }
+#endif
+      }
+    }
+
+    for (i = 0; i < MDNS_MAX_SERVICES; i++) {
+      service = mdns->services[i];
+      if (!service) {
+        continue;
+      }
+      match = reply.serv_replies[i] & check_service(service, &ans.info);
+      if (match && (ans.ttl > (service->dns_ttl / 2))) {
+        /* The RR in the known answer matches an RR we are planning to send,
+         * and the TTL is less than half gone.
+         * If the payload matches we should not send that answer.
+         */
+        if (ans.info.type == DNS_RRTYPE_PTR) {
+          /* Read domain and compare */
+          struct mdns_domain known_ans, my_ans;
+          u16_t len;
+          len = mdns_readname(pkt->pbuf, ans.rd_offset, &known_ans);
+          if (len != MDNS_READNAME_ERROR) {
+            if (match & REPLY_SERVICE_TYPE_PTR) {
+              res = mdns_build_service_domain(&my_ans, service, 0);
+              if (res == ERR_OK && mdns_domain_eq(&known_ans, &my_ans)) {
+                LWIP_DEBUGF(MDNS_DEBUG, ("MDNS: Skipping known answer: service type PTR\n"));
+                reply.serv_replies[i] &= ~REPLY_SERVICE_TYPE_PTR;
+              }
+            }
+            if (match & REPLY_SERVICE_NAME_PTR) {
+              res = mdns_build_service_domain(&my_ans, service, 1);
+              if (res == ERR_OK && mdns_domain_eq(&known_ans, &my_ans)) {
+                LWIP_DEBUGF(MDNS_DEBUG, ("MDNS: Skipping known answer: service name PTR\n"));
+                reply.serv_replies[i] &= ~REPLY_SERVICE_NAME_PTR;
+              }
+            }
+          }
+        } else if (match & REPLY_SERVICE_SRV) {
+          /* Read and compare to my SRV record */
+          u16_t field16, len, read_pos;
+          struct mdns_domain known_ans, my_ans;
+          read_pos = ans.rd_offset;
+          do {
+            /* Check priority field */
+            len = pbuf_copy_partial(pkt->pbuf, &field16, sizeof(field16), read_pos);
+            if (len != sizeof(field16) || lwip_ntohs(field16) != SRV_PRIORITY) {
+              break;
+            }
+            read_pos += len;
+            /* Check weight field */
+            len = pbuf_copy_partial(pkt->pbuf, &field16, sizeof(field16), read_pos);
+            if (len != sizeof(field16) || lwip_ntohs(field16) != SRV_WEIGHT) {
+              break;
+            }
+            read_pos += len;
+            /* Check port field */
+            len = pbuf_copy_partial(pkt->pbuf, &field16, sizeof(field16), read_pos);
+            if (len != sizeof(field16) || lwip_ntohs(field16) != service->port) {
+              break;
+            }
+            read_pos += len;
+            /* Check host field */
+            len = mdns_readname(pkt->pbuf, read_pos, &known_ans);
+            mdns_build_host_domain(&my_ans, mdns);
+            if (len == MDNS_READNAME_ERROR || !mdns_domain_eq(&known_ans, &my_ans)) {
+              break;
+            }
+            LWIP_DEBUGF(MDNS_DEBUG, ("MDNS: Skipping known answer: SRV\n"));
+            reply.serv_replies[i] &= ~REPLY_SERVICE_SRV;
+          } while (0);
+        } else if (match & REPLY_SERVICE_TXT) {
+          mdns_prepare_txtdata(service);
+          if (service->txtdata.length == ans.rd_length &&
+              pbuf_memcmp(pkt->pbuf, ans.rd_offset, service->txtdata.name, ans.rd_length) == 0) {
+            LWIP_DEBUGF(MDNS_DEBUG, ("MDNS: Skipping known answer: TXT\n"));
+            reply.serv_replies[i] &= ~REPLY_SERVICE_TXT;
+          }
+        }
+      }
+    }
+  }
+
+  mdns_send_outpacket(&reply, DNS_FLAG1_RESPONSE | DNS_FLAG1_AUTHORATIVE);
+
+cleanup:
+  if (reply.pbuf) {
+    /* This should only happen if we fail to alloc/write question for legacy query */
+    pbuf_free(reply.pbuf);
+    reply.pbuf = NULL;
+  }
+}

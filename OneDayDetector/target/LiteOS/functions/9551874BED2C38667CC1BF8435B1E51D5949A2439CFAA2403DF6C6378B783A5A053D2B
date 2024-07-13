@@ -1,0 +1,115 @@
+bool _lv_img_buf_transform_anti_alias(lv_img_transform_dsc_t * dsc)
+{
+    const uint8_t * src_u8 = dsc->cfg.src;
+
+    /*Get the fractional part of the source pixel*/
+    int xs_fract = dsc->tmp.xs & 0xff;
+    int ys_fract = dsc->tmp.ys & 0xff;
+    int32_t xn;      /*x neightboor*/
+    lv_opa_t xr; /*x mix ratio*/
+
+    if(xs_fract < 0x70) {
+        xn = - 1;
+        if(dsc->tmp.xs_int + xn < 0) xn = 0;
+        xr = xs_fract + 0x80;
+    }
+    else if(xs_fract > 0x90) {
+        xn =  1;
+        if(dsc->tmp.xs_int + xn >= dsc->cfg.src_w) xn = 0;
+        xr = (0xFF - xs_fract) + 0x80;
+    }
+    else {
+        xn = 0;
+        xr = 0xFF;
+    }
+
+    int32_t yn;      /*x neightboor*/
+    lv_opa_t yr; /*x mix ratio*/
+
+    if(ys_fract < 0x70) {
+        yn = - 1;
+        if(dsc->tmp.ys_int + yn < 0) yn = 0;
+
+        yr = ys_fract + 0x80;
+    }
+    else if(ys_fract > 0x90) {
+        yn =  1;
+        if(dsc->tmp.ys_int + yn >= dsc->cfg.src_h) yn = 0;
+
+        yr = (0xFF - ys_fract) + 0x80;
+    }
+    else {
+        yn = 0;
+        yr = 0xFF;
+    }
+
+    lv_color_t c00 = dsc->res.color;
+    lv_color_t c01;
+    lv_color_t c10;
+    lv_color_t c11;
+
+    lv_opa_t a00 = dsc->res.opa;
+    lv_opa_t a10 = 0;
+    lv_opa_t a01 = 0;
+    lv_opa_t a11 = 0;
+
+    if(dsc->tmp.native_color) {
+        _lv_memcpy_small(&c01, &src_u8[dsc->tmp.pxi + dsc->tmp.px_size * xn], sizeof(lv_color_t));
+        _lv_memcpy_small(&c10, &src_u8[dsc->tmp.pxi + dsc->cfg.src_w * dsc->tmp.px_size * yn], sizeof(lv_color_t));
+        _lv_memcpy_small(&c11, &src_u8[dsc->tmp.pxi + dsc->cfg.src_w * dsc->tmp.px_size * yn + dsc->tmp.px_size * xn],
+                         sizeof(lv_color_t));
+        if(dsc->tmp.has_alpha) {
+            a10 = src_u8[dsc->tmp.pxi + dsc->tmp.px_size * xn + dsc->tmp.px_size - 1];
+            a01 = src_u8[dsc->tmp.pxi + dsc->cfg.src_w * dsc->tmp.px_size * yn + dsc->tmp.px_size - 1];
+            a11 = src_u8[dsc->tmp.pxi + dsc->cfg.src_w * dsc->tmp.px_size * yn + dsc->tmp.px_size * xn + dsc->tmp.px_size - 1];
+        }
+    }
+    else {
+        c01 = lv_img_buf_get_px_color(&dsc->tmp.img_dsc, dsc->tmp.xs_int + xn, dsc->tmp.ys_int, dsc->cfg.color);
+        c10 = lv_img_buf_get_px_color(&dsc->tmp.img_dsc, dsc->tmp.xs_int, dsc->tmp.ys_int + yn, dsc->cfg.color);
+        c11 = lv_img_buf_get_px_color(&dsc->tmp.img_dsc, dsc->tmp.xs_int + xn, dsc->tmp.ys_int + yn, dsc->cfg.color);
+
+        if(dsc->tmp.has_alpha) {
+            a10 = lv_img_buf_get_px_alpha(&dsc->tmp.img_dsc, dsc->tmp.xs_int + xn, dsc->tmp.ys_int);
+            a01 = lv_img_buf_get_px_alpha(&dsc->tmp.img_dsc, dsc->tmp.xs_int, dsc->tmp.ys_int + yn);
+            a11 = lv_img_buf_get_px_alpha(&dsc->tmp.img_dsc, dsc->tmp.xs_int + xn, dsc->tmp.ys_int + yn);
+        }
+    }
+
+    lv_opa_t xr0 = xr;
+    lv_opa_t xr1 = xr;
+    if(dsc->tmp.has_alpha) {
+        lv_opa_t a0 = (a00 * xr + (a10 * (255 - xr))) >> 8;
+        lv_opa_t a1 = (a01 * xr + (a11 * (255 - xr))) >> 8;
+        dsc->res.opa = (a0 * yr + (a1 * (255 - yr))) >> 8;
+
+        if(a0 <= LV_OPA_MIN && a1 <= LV_OPA_MIN) return false;
+        if(a0 <= LV_OPA_MIN) yr = LV_OPA_TRANSP;
+        if(a1 <= LV_OPA_MIN) yr = LV_OPA_COVER;
+        if(a00 <= LV_OPA_MIN) xr0 = LV_OPA_TRANSP;
+        if(a10 <= LV_OPA_MIN) xr0 = LV_OPA_COVER;
+        if(a01 <= LV_OPA_MIN) xr1 = LV_OPA_TRANSP;
+        if(a11 <= LV_OPA_MIN) xr1 = LV_OPA_COVER;
+    }
+    else {
+        xr0 = xr;
+        xr1 = xr;
+        dsc->res.opa = LV_OPA_COVER;
+    }
+
+    lv_color_t c0;
+    if(xr0 == LV_OPA_TRANSP) c0 = c01;
+    else if(xr0 == LV_OPA_COVER) c0 = c00;
+    else c0 = lv_color_mix(c00, c01, xr0);
+
+    lv_color_t c1;
+    if(xr1 == LV_OPA_TRANSP) c1 = c11;
+    else if(xr1 == LV_OPA_COVER) c1 = c10;
+    else c1 = lv_color_mix(c10, c11, xr1);
+
+    if(yr == LV_OPA_TRANSP) dsc->res.color = c1;
+    else if(yr == LV_OPA_COVER) dsc->res.color = c0;
+    else dsc->res.color = lv_color_mix(c0, c1, yr);
+
+    return true;
+}

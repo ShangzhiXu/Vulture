@@ -1,0 +1,49 @@
+STATIC INT32 OsPrintMatchList(UINT32 count, const CHAR *strPath, const CHAR *nameLooking, UINT32 printLen)
+{
+    UINT32 timesPrint = 0;
+    UINT32 lineCap;
+    INT32 ret;
+    DIR *openDir = NULL;
+    struct dirent *readDir = NULL;
+    CHAR formatChar[10] = {0}; /* 10:for formatChar length */
+
+    printLen = (printLen > (DEFAULT_SCREEN_WIDTH - 2)) ? (DEFAULT_SCREEN_WIDTH - 2) : printLen; /* 2:revered 2 bytes */
+    lineCap = DEFAULT_SCREEN_WIDTH / (printLen + 2); /* 2:DEFAULT_SCREEN_WIDTH revered 2 bytes */
+    if (snprintf_s(formatChar, sizeof(formatChar), 7, "%%-%us  ", printLen) < 0) { /* 7:format-len */
+        return (INT32)OS_ERROR;
+    }
+
+    if (count > (lineCap * DEFAULT_SCREEN_HEIGHT)) {
+        ret = OsSurePrintAll(count);
+        if (ret != YES) {
+            return ret;
+        }
+    }
+    openDir = opendir(strPath);
+    if (openDir == NULL) {
+        return (INT32)OS_ERROR;
+    }
+
+    PRINTK("\n");
+    for (readDir = readdir(openDir); readDir != NULL; readDir = readdir(openDir)) {
+        if (strncmp(nameLooking, readDir->d_name, strlen(nameLooking)) != 0) {
+            continue;
+        }
+        PRINTK(formatChar, readDir->d_name);
+        timesPrint++;
+        ret = OsShowPageControl(timesPrint, lineCap, count);
+        if (ret != YES) {
+            if (closedir(openDir) < 0) {
+                return (INT32)OS_ERROR;
+            }
+            return ret;
+        }
+    }
+
+    PRINTK("\n");
+    if (closedir(openDir) < 0) {
+        return (INT32)OS_ERROR;
+    }
+
+    return LOS_OK;
+}

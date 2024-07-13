@@ -1,0 +1,41 @@
+static uint8_t prv_set_tlv(lwm2m_data_t *dataP, acc_ctrl_oi_t *accCtrlOiP)
+{
+    switch (dataP->id) {
+    case RES_M_OBJECT_ID: {
+        lwm2m_data_encode_int(accCtrlOiP->objectId, dataP);
+        return COAP_205_CONTENT;
+    }
+    case RES_M_OBJECT_INSTANCE_ID: {
+        lwm2m_data_encode_int(accCtrlOiP->objectInstId, dataP);
+        return COAP_205_CONTENT;
+    }
+    case RES_O_ACL: {
+        int ri;
+        acc_ctrl_ri_t *accCtrlRiP;
+        for (accCtrlRiP = accCtrlOiP->accCtrlValList, ri = 0; accCtrlRiP != NULL;
+             accCtrlRiP = accCtrlRiP->next, ri++);
+
+        if (ri == 0) { // no values!
+            return COAP_404_NOT_FOUND;
+        } else {
+            lwm2m_data_t *subTlvP = lwm2m_data_new(ri);
+            if (subTlvP == NULL) {
+                return COAP_500_INTERNAL_SERVER_ERROR;
+            }
+            for (accCtrlRiP = accCtrlOiP->accCtrlValList, ri = 0; accCtrlRiP != NULL;
+                 accCtrlRiP = accCtrlRiP->next, ri++) {
+                subTlvP[ri].id = accCtrlRiP->resInstId;
+                lwm2m_data_encode_int(accCtrlRiP->accCtrlValue, &subTlvP[ri]);
+            }
+            lwm2m_data_encode_instances(subTlvP, ri, dataP);
+            return COAP_205_CONTENT;
+        }
+    }
+    case RES_M_ACCESS_CONTROL_OWNER: {
+        lwm2m_data_encode_int(accCtrlOiP->accCtrlOwner, dataP);
+        return COAP_205_CONTENT;
+    }
+    default:
+        return COAP_404_NOT_FOUND ;
+    }
+}

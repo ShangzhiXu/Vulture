@@ -1,0 +1,78 @@
+static uint32_t HASH_Write_Block_Data(HASH_HandleTypeDef *hhash)
+{
+  uint32_t inputaddr;
+  uint32_t buffercounter;
+  uint32_t inputcounter;
+  uint32_t ret = HASH_DIGEST_CALCULATION_NOT_STARTED;
+
+  /* If there are more than 64 bytes remaining to be entered */
+  if(hhash->HashInCount > 64U)
+  {
+    inputaddr = (uint32_t)hhash->pHashInBuffPtr;
+    /* Write the Input block in the Data IN register
+      (16 32-bit words, or 64 bytes are entered) */
+    for(buffercounter = 0U; buffercounter < 64U; buffercounter+=4U)
+    {
+      HASH->DIN = *(uint32_t*)inputaddr;
+      inputaddr+=4U;
+    }
+    /* If this is the start of input data entering, an additional word
+      must be entered to start up the HASH processing */
+    if(hhash->HashITCounter == 2U)
+    {
+      HASH->DIN = *(uint32_t*)inputaddr;
+      if(hhash->HashInCount >= 68U)
+      {
+        /* There are still data waiting to be entered in the IP.
+           Decrement buffer counter and set pointer to the proper
+           memory location for the next data entering round. */
+        hhash->HashInCount -= 68U;
+        hhash->pHashInBuffPtr+= 68U;
+      }
+      else
+      {
+        /* All the input buffer has been fed to the HW. */
+        hhash->HashInCount = 0U;
+      }
+    }
+    else
+    {
+      /* 64 bytes have been entered and there are still some remaining:
+         Decrement buffer counter and set pointer to the proper
+        memory location for the next data entering round.*/
+      hhash->HashInCount -= 64U;
+      hhash->pHashInBuffPtr+= 64U;
+    }
+  }
+  else
+  {
+    /* 64 or less bytes remain to be entered. This is the last
+      data entering round. */
+
+    /* Get the buffer address */
+    inputaddr = (uint32_t)hhash->pHashInBuffPtr;
+    /* Get the buffer counter */
+    inputcounter = hhash->HashInCount;
+    /* Disable Interrupts */
+    __HAL_HASH_DISABLE_IT(HASH_IT_DINI);
+
+    /* Write the Input block in the Data IN register */
+    for(buffercounter = 0U; buffercounter < ((inputcounter+3U)/4U); buffercounter++)
+    {
+      HASH->DIN = *(uint32_t*)inputaddr;
+      inputaddr+=4U;
+    }
+    /* Start the Digest calculation */
+    __HAL_HASH_START_DIGEST();
+    /* Return indication that digest calculation has started:
+       this return value triggers the call to Input data transfer
+       complete call back as well as the proper transition from
+       one step to another in HMAC mode. */
+    ret = HASH_DIGEST_CALCULATION_STARTED;
+    /* Reset buffer counter */
+    hhash->HashInCount = 0;
+  }
+
+  /* Return whether or digest calculation has started */
+  return ret;
+}

@@ -1,0 +1,43 @@
+uint32_t HAL_CRC_Accumulate(CRC_HandleTypeDef *hcrc, uint32_t pBuffer[], uint32_t BufferLength)
+{
+  uint32_t index = 0; /* CRC input data buffer index */
+  uint32_t temp = 0;  /* CRC output (read from hcrc->Instance->DR register) */
+
+  /* Process locked */
+  __HAL_LOCK(hcrc);
+
+  /* Change CRC peripheral state */
+  hcrc->State = HAL_CRC_STATE_BUSY;
+
+  switch (hcrc->InputDataFormat)
+  {
+    case CRC_INPUTDATA_FORMAT_WORDS:
+      /* Enter Data to the CRC calculator */
+      for(index = 0; index < BufferLength; index++)
+      {
+        hcrc->Instance->DR = pBuffer[index];
+      }
+      temp = hcrc->Instance->DR;
+      break;
+
+    case CRC_INPUTDATA_FORMAT_BYTES:
+      temp = CRC_Handle_8(hcrc, (uint8_t*)pBuffer, BufferLength);
+      break;
+
+    case CRC_INPUTDATA_FORMAT_HALFWORDS:
+      temp = CRC_Handle_16(hcrc, (uint16_t*)pBuffer, BufferLength);
+      break;
+
+    default:
+      break;
+  }
+
+  /* Change CRC peripheral state */
+  hcrc->State = HAL_CRC_STATE_READY;
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hcrc);
+
+  /* Return the CRC computed value */
+  return temp;
+}

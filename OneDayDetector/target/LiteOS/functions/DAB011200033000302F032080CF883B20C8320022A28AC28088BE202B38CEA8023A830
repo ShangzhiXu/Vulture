@@ -1,0 +1,13 @@
+LITE_OS_SEC_ALW_INLINE STATIC INLINE VOID LOS_SpinLock(SPIN_LOCK_S *lock)
+{
+    /*
+     * disable the scheduler, so it won't do schedule until
+     * scheduler is reenabled. The LOS_TaskUnlock should not
+     * be directly called along this critic area.
+     */
+    LOS_TaskLock();
+
+    LOCKDEP_CHECK_IN(lock);
+    ArchSpinLock(&lock->rawLock);
+    LOCKDEP_RECORD(lock);
+}

@@ -1,0 +1,24 @@
+static s16_t snmpengine_scalars_get_value(const struct snmp_scalar_array_node_def *node, void *value)
+{
+  const char *engineid;
+  u8_t engineid_len;
+
+  switch (node->oid) {
+    case 1: /* snmpEngineID */
+      snmpv3_get_engine_id(&engineid, &engineid_len);
+      MEMCPY(value, engineid, engineid_len);
+      return engineid_len;
+    case 2: /* snmpEngineBoots */
+      *(s32_t *)value = snmpv3_get_engine_boots_internal();
+      return sizeof(s32_t);
+    case 3: /* snmpEngineTime */
+      *(s32_t *)value = snmpv3_get_engine_time_internal();
+      return sizeof(s32_t);
+    case 4: /* snmpEngineMaxMessageSize */
+      *(s32_t *)value = SNMP_FRAMEWORKMIB_SNMPENGINEMAXMESSAGESIZE;
+      return sizeof(s32_t);
+    default:
+      LWIP_DEBUGF(SNMP_MIB_DEBUG, ("snmpengine_scalars_get_value(): unknown id: %"S32_F"\n", node->oid));
+      return 0;
+  }
+}

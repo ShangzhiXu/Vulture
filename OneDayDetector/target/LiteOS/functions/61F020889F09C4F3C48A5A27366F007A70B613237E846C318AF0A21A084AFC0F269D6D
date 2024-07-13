@@ -1,0 +1,31 @@
+uint32_t _lv_txt_ap_calc_bytes_cnt(const char * txt)
+{
+    uint32_t txt_length = 0;
+    uint32_t chars_cnt = 0;
+    uint32_t current_ap_idx = 0;
+    uint32_t i, j;
+    uint32_t ch_enc;
+
+    txt_length = _lv_txt_get_encoded_length(txt);
+
+    i = 0;
+    j = 0;
+    while(i < txt_length) {
+        ch_enc = _lv_txt_encoded_next(txt, &j);
+        current_ap_idx = lv_ap_get_char_index(ch_enc);
+
+        if(current_ap_idx != LV_UNDEF_ARABIC_PERSIAN_CHARS)
+            ch_enc = ap_chars_map[current_ap_idx].char_end_form;
+
+        if(ch_enc <= 0x7F)
+            chars_cnt++;
+        else if(ch_enc <= 0x7FFF)
+            chars_cnt += 2;
+        else
+            chars_cnt += 3;
+
+        i++;
+    }
+
+    return chars_cnt + 1;
+}

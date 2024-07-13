@@ -1,0 +1,25 @@
+BOOL OsHeapInit(VOID *pool, UINT32 size)
+{
+    struct LosHeapNode *node = NULL;
+    struct LosHeapManager *heapMan = HEAP_CAST(struct LosHeapManager *, pool);
+
+    if ((heapMan == NULL) || (size <= (sizeof(struct LosHeapNode) + sizeof(struct LosHeapManager)))) {
+        return FALSE;
+    }
+
+    (VOID)memset_s(pool, size, 0, size);
+
+    heapMan->size = size - sizeof(struct LosHeapManager);
+
+    node = heapMan->head = (struct LosHeapNode *)((UINT8*)pool + sizeof(struct LosHeapManager));
+
+    heapMan->tail = node;
+
+    node->used = 0;
+    node->prev = NULL;
+    node->size = heapMan->size - sizeof(struct LosHeapNode);
+
+    OsHeapStatInit(heapMan, size);
+
+    return TRUE;
+}

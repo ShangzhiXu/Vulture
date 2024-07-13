@@ -1,0 +1,49 @@
+STATIC UINT32 OsSemInfoOutput(size_t semId)
+{
+    UINT32 loop, semCnt, intSave;
+    LosSemCB *semCB = NULL;
+    LosSemCB semNode = {0};
+
+    if (semId == OS_ALL_SEM_MASK) {
+        for (loop = 0, semCnt = 0; loop < LOSCFG_BASE_IPC_SEM_LIMIT; loop++) {
+            semCB = GET_SEM(loop);
+            SCHEDULER_LOCK(intSave);
+            if (semCB->semStat == OS_SEM_USED) {
+                (VOID)memcpy_s(&semNode, sizeof(LosSemCB), semCB, sizeof(LosSemCB));
+                SCHEDULER_UNLOCK(intSave);
+                semCnt++;
+                PRINTK("\r\n   SemID       Count\n   ----------  -----\n");
+                PRINTK("   0x%08x  %u\n", semNode.semId, semNode.semCount);
+                continue;
+            }
+            SCHEDULER_UNLOCK(intSave);
+        }
+        PRINTK("   SemUsingNum    :  %u\n\n", semCnt);
+        return LOS_OK;
+    } else {
+        if (GET_SEM_INDEX(semId) >= LOSCFG_BASE_IPC_SEM_LIMIT) {
+            PRINTK("\nInvalid semaphore id!\n");
+            return OS_ERROR;
+        }
+
+        semCB = GET_SEM(semId);
+        SCHEDULER_LOCK(intSave);
+        (VOID)memcpy_s(&semNode, sizeof(LosSemCB), semCB, sizeof(LosSemCB));
+        SCHEDULER_UNLOCK(intSave);
+        if ((semNode.semId != semId) || (semNode.semStat != OS_SEM_USED)) {
+            PRINTK("\nThe semaphore is not in use!\n");
+            return LOS_OK;
+        }
+
+        PRINTK("\r\n   SemID       Count\n   ----------  -----\n");
+        PRINTK("   0x%08x      0x%u\n", semNode.semId, semNode.semCount);
+
+        if (LOS_ListEmpty(&semNode.semList)) {
+            PRINTK("No task is pended on this semaphore!\n");
+            return LOS_OK;
+        } else {
+            OsSemPendedTaskNamePrint(semCB);
+        }
+    }
+    return LOS_OK;
+}

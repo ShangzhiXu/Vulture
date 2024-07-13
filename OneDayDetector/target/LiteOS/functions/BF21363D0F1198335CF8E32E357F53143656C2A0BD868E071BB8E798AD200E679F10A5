@@ -1,0 +1,82 @@
+void HAL_RTCEx_TamperTimeStampIRQHandler(RTC_HandleTypeDef *hrtc)
+{
+  if(__HAL_RTC_TIMESTAMP_GET_IT(hrtc, RTC_IT_TS))
+  {
+    /* Get the status of the Interrupt */
+    if((uint32_t)(hrtc->Instance->CR & RTC_IT_TS) != (uint32_t)RESET)
+    {
+      /* TIMESTAMP callback */
+#if (USE_HAL_RTC_REGISTER_CALLBACKS == 1)
+      hrtc->TimeStampEventCallback(hrtc);
+#else
+      HAL_RTCEx_TimeStampEventCallback(hrtc);
+#endif /* USE_HAL_RTC_REGISTER_CALLBACKS */
+
+      /* Clear the TIMESTAMP interrupt pending bit */
+      __HAL_RTC_TIMESTAMP_CLEAR_FLAG(hrtc,RTC_FLAG_TSF);
+    }
+  }
+
+  /* Get the status of the Interrupt */
+  if(__HAL_RTC_TAMPER_GET_FLAG(hrtc, RTC_FLAG_TAMP1F)== SET)
+  {
+    /* Get the TAMPER Interrupt enable bit and pending bit */
+    if((((hrtc->Instance->TAMPCR & RTC_TAMPCR_TAMPIE)) != (uint32_t)RESET) || \
+       (((hrtc->Instance->TAMPCR & RTC_TAMPCR_TAMP1IE)) != (uint32_t)RESET))
+    {
+      /* Tamper callback */
+#if (USE_HAL_RTC_REGISTER_CALLBACKS == 1)
+      hrtc->Tamper1EventCallback(hrtc);
+#else
+      HAL_RTCEx_Tamper1EventCallback(hrtc);
+#endif /* USE_HAL_RTC_REGISTER_CALLBACKS */
+
+      /* Clear the Tamper interrupt pending bit */
+      __HAL_RTC_TAMPER_CLEAR_FLAG(hrtc,RTC_FLAG_TAMP1F);
+    }
+  }
+
+  /* Get the status of the Interrupt */
+  if(__HAL_RTC_TAMPER_GET_FLAG(hrtc, RTC_FLAG_TAMP2F)== SET)
+  {
+    /* Get the TAMPER Interrupt enable bit and pending bit */
+    if((((hrtc->Instance->TAMPCR & RTC_TAMPCR_TAMPIE)) != (uint32_t)RESET) || \
+       (((hrtc->Instance->TAMPCR & RTC_TAMPCR_TAMP2IE)) != (uint32_t)RESET))
+    {
+      /* Tamper callback */
+#if (USE_HAL_RTC_REGISTER_CALLBACKS == 1)
+      hrtc->Tamper2EventCallback(hrtc);
+#else
+      HAL_RTCEx_Tamper2EventCallback(hrtc);
+#endif /* USE_HAL_RTC_REGISTER_CALLBACKS */
+
+      /* Clear the Tamper interrupt pending bit */
+      __HAL_RTC_TAMPER_CLEAR_FLAG(hrtc, RTC_FLAG_TAMP2F);
+    }
+  }
+
+  /* Get the status of the Interrupt */
+  if(__HAL_RTC_TAMPER_GET_FLAG(hrtc, RTC_FLAG_TAMP3F)== SET)
+  {
+    /* Get the TAMPER Interrupt enable bit and pending bit */
+    if((((hrtc->Instance->TAMPCR & RTC_TAMPCR_TAMPIE)) != (uint32_t)RESET) || \
+       (((hrtc->Instance->TAMPCR & RTC_TAMPCR_TAMP3IE)) != (uint32_t)RESET))
+    {
+      /* Tamper callback */
+#if (USE_HAL_RTC_REGISTER_CALLBACKS == 1)
+      hrtc->Tamper3EventCallback(hrtc);
+#else
+      HAL_RTCEx_Tamper3EventCallback(hrtc);
+#endif /* USE_HAL_RTC_REGISTER_CALLBACKS */
+
+      /* Clear the Tamper interrupt pending bit */
+      __HAL_RTC_TAMPER_CLEAR_FLAG(hrtc, RTC_FLAG_TAMP3F);
+    }
+  }
+
+  /* Clear the EXTI's Flag for RTC TimeStamp and Tamper */
+  __HAL_RTC_TAMPER_TIMESTAMP_EXTI_CLEAR_FLAG();
+
+  /* Change RTC state */
+  hrtc->State = HAL_RTC_STATE_READY;
+}

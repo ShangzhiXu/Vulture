@@ -1,0 +1,53 @@
+HAL_StatusTypeDef HAL_SAI_Transmit_IT(SAI_HandleTypeDef *hsai, uint8_t *pData, uint16_t Size)
+{
+  if((pData == NULL) || (Size == 0))
+  {
+    return  HAL_ERROR;
+  }
+
+  if(hsai->State == HAL_SAI_STATE_READY)
+  {
+    /* Process Locked */
+    __HAL_LOCK(hsai);
+
+    hsai->pBuffPtr = pData;
+    hsai->XferSize = Size;
+    hsai->XferCount = Size;
+    hsai->ErrorCode = HAL_SAI_ERROR_NONE;
+    hsai->State = HAL_SAI_STATE_BUSY_TX;
+
+    if((hsai->Init.DataSize == SAI_DATASIZE_8) && (hsai->Init.CompandingMode == SAI_NOCOMPANDING))
+    {
+      hsai->InterruptServiceRoutine = SAI_Transmit_IT8Bit;
+    }
+    else if(hsai->Init.DataSize <= SAI_DATASIZE_16)
+    {
+      hsai->InterruptServiceRoutine = SAI_Transmit_IT16Bit;
+    }
+    else
+    {
+      hsai->InterruptServiceRoutine = SAI_Transmit_IT32Bit;
+    }
+
+    /* Fill the fifo before starting the communication */
+    SAI_FillFifo(hsai);
+
+    /* Enable FRQ and OVRUDR interrupts */
+    __HAL_SAI_ENABLE_IT(hsai, SAI_InterruptFlag(hsai, SAI_MODE_IT));
+
+    /* Check if the SAI is already enabled */
+    if((hsai->Instance->CR1 & SAI_xCR1_SAIEN) == RESET)
+    {
+      /* Enable SAI peripheral */
+      __HAL_SAI_ENABLE(hsai);
+    }
+    /* Process Unlocked */
+    __HAL_UNLOCK(hsai);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

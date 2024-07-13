@@ -1,0 +1,17 @@
+dhcp6_option_optionrequest(u16_t options_out_len, u8_t *options, const u16_t *req_options,
+                           u16_t num_req_options, u16_t max_len)
+{
+  size_t i;
+  u16_t ret;
+
+  LWIP_ASSERT("dhcp6_option_optionrequest: options_out_len + sizeof(struct dhcp6_msg) + addlen <= max_len",
+    sizeof(struct dhcp6_msg) + options_out_len + 4U + (2U * num_req_options) <= max_len);
+  LWIP_UNUSED_ARG(max_len);
+
+  ret = dhcp6_option_short(options_out_len, options, DHCP6_OPTION_ORO);
+  ret = dhcp6_option_short(ret, options, 2 * num_req_options);
+  for (i = 0; i < num_req_options; i++) {
+    ret = dhcp6_option_short(ret, options, req_options[i]);
+  }
+  return ret;
+}

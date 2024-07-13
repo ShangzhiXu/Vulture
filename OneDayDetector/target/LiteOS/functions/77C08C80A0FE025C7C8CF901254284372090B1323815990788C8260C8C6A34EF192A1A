@@ -1,0 +1,18 @@
+eth_mac_irq()
+{
+  /* Service MAC IRQ here */
+
+  /* Allocate pbuf from pool (avoid using heap in interrupts) */
+  struct pbuf* p = pbuf_alloc(PBUF_RAW, eth_data_count, PBUF_POOL);
+
+  if(p != NULL) {
+    /* Copy ethernet frame into pbuf */
+    pbuf_take(p, eth_data, eth_data_count);
+
+    /* Put in a queue which is processed in main loop */
+    if(!queue_try_put(&queue, p)) {
+      /* queue is full -> packet loss */
+      pbuf_free(p);
+    }
+  }
+}

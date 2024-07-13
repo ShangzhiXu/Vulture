@@ -1,0 +1,61 @@
+HAL_StatusTypeDef HAL_SD_Abort_IT(SD_HandleTypeDef *hsd)
+{
+  HAL_SD_CardStateTypeDef CardState;
+    
+  /* DIsable All interrupts */
+  __HAL_SD_DISABLE_IT(hsd, SDMMC_IT_DATAEND | SDMMC_IT_DCRCFAIL | SDMMC_IT_DTIMEOUT|\
+                           SDMMC_IT_TXUNDERR| SDMMC_IT_RXOVERR);
+  
+  /* Clear All flags */
+  __HAL_SD_CLEAR_FLAG(hsd, SDMMC_STATIC_FLAGS);
+  
+  if((hsd->hdmatx != NULL) || (hsd->hdmarx != NULL))
+  {
+    /* Disable the SD DMA request */
+    hsd->Instance->DCTRL &= (uint32_t)~((uint32_t)SDMMC_DCTRL_DMAEN);
+    
+    /* Abort the SD DMA Tx Stream */
+    if(hsd->hdmatx != NULL)
+    {
+      hsd->hdmatx->XferAbortCallback =  SD_DMATxAbort;
+      if(HAL_DMA_Abort_IT(hsd->hdmatx) != HAL_OK)
+      {
+        hsd->hdmatx = NULL;
+      }
+    }
+    /* Abort the SD DMA Rx Stream */
+    if(hsd->hdmarx != NULL)
+    {
+      hsd->hdmarx->XferAbortCallback =  SD_DMARxAbort;
+      if(HAL_DMA_Abort_IT(hsd->hdmarx) != HAL_OK)
+      {
+        hsd->hdmarx = NULL;
+      }
+    }
+  }
+  
+  /* No transfer ongoing on both DMA channels*/
+  if((hsd->hdmatx == NULL) && (hsd->hdmarx == NULL))
+  {
+    CardState = HAL_SD_GetCardState(hsd);
+    hsd->State = HAL_SD_STATE_READY;
+    if((CardState == HAL_SD_CARD_RECEIVING) || (CardState == HAL_SD_CARD_SENDING))
+    {
+      hsd->ErrorCode = SDMMC_CmdStopTransfer(hsd->Instance);
+    }
+    if(hsd->ErrorCode != HAL_SD_ERROR_NONE)
+    {
+      return HAL_ERROR;
+    }
+    else
+    {
+#if (USE_HAL_SD_REGISTER_CALLBACKS == 1)
+      hsd->AbortCpltCallback(hsd);
+#else
+      HAL_SD_AbortCallback(hsd);
+#endif
+    }
+  }
+  
+  return HAL_OK;
+}

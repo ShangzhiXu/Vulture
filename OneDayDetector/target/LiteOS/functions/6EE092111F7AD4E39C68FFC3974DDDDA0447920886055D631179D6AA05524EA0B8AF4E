@@ -1,0 +1,25 @@
+static void SMARTCARD_DMAReceiveCplt(DMA_HandleTypeDef *hdma)
+{
+  SMARTCARD_HandleTypeDef* hsc = ( SMARTCARD_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+
+  hsc->RxXferCount = 0U;
+
+  /* Disable RXNE, PE and ERR (Frame error, noise error, overrun error) interrupts */
+  CLEAR_BIT(hsc->Instance->CR1, (USART_CR1_RXNEIE | USART_CR1_PEIE));
+  CLEAR_BIT(hsc->Instance->CR3, USART_CR3_EIE);
+
+  /* Disable the DMA transfer for the receiver request by setting the DMAR bit
+     in the USART CR3 register */
+  CLEAR_BIT(hsc->Instance->CR3, USART_CR3_DMAR);
+
+  /* At end of Rx process, restore hsc->RxState to Ready */
+  hsc->RxState = HAL_SMARTCARD_STATE_READY;
+
+#if (USE_HAL_SMARTCARD_REGISTER_CALLBACKS == 1)
+  /* Call registered Rx complete callback */
+  hsc->RxCpltCallback(hsc);
+#else
+  /* Call legacy weak Rx complete callback */
+  HAL_SMARTCARD_RxCpltCallback(hsc);
+#endif /* USE_HAL_SMARTCARD_REGISTER_CALLBACK */
+}

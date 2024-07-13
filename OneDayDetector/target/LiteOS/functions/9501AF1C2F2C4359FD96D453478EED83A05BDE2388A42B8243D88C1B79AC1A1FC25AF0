@@ -1,0 +1,47 @@
+int mbedtls_rsa_export_raw( const mbedtls_rsa_context *ctx,
+                            unsigned char *N, size_t N_len,
+                            unsigned char *P, size_t P_len,
+                            unsigned char *Q, size_t Q_len,
+                            unsigned char *D, size_t D_len,
+                            unsigned char *E, size_t E_len )
+{
+    int ret = 0;
+    int is_priv;
+    RSA_VALIDATE_RET( ctx != NULL );
+
+    /* Check if key is private or public */
+    is_priv =
+        mbedtls_mpi_cmp_int( &ctx->N, 0 ) != 0 &&
+        mbedtls_mpi_cmp_int( &ctx->P, 0 ) != 0 &&
+        mbedtls_mpi_cmp_int( &ctx->Q, 0 ) != 0 &&
+        mbedtls_mpi_cmp_int( &ctx->D, 0 ) != 0 &&
+        mbedtls_mpi_cmp_int( &ctx->E, 0 ) != 0;
+
+    if( !is_priv )
+    {
+        /* If we're trying to export private parameters for a public key,
+         * something must be wrong. */
+        if( P != NULL || Q != NULL || D != NULL )
+            return( MBEDTLS_ERR_RSA_BAD_INPUT_DATA );
+
+    }
+
+    if( N != NULL )
+        MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary( &ctx->N, N, N_len ) );
+
+    if( P != NULL )
+        MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary( &ctx->P, P, P_len ) );
+
+    if( Q != NULL )
+        MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary( &ctx->Q, Q, Q_len ) );
+
+    if( D != NULL )
+        MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary( &ctx->D, D, D_len ) );
+
+    if( E != NULL )
+        MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary( &ctx->E, E, E_len ) );
+
+cleanup:
+
+    return( ret );
+}

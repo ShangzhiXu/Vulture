@@ -1,0 +1,34 @@
+HAL_StatusTypeDef HAL_SMARTCARD_DeInit(SMARTCARD_HandleTypeDef *hsmartcard)
+{
+  /* Check the SMARTCARD handle allocation */
+  if(hsmartcard == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the USART/UART associated to the SMARTCARD handle */
+  assert_param(IS_SMARTCARD_INSTANCE(hsmartcard->Instance));
+
+  hsmartcard->gState = HAL_SMARTCARD_STATE_BUSY;
+
+  /* Disable the Peripheral */
+  CLEAR_BIT(hsmartcard->Instance->CR1, USART_CR1_UE);
+
+  WRITE_REG(hsmartcard->Instance->CR1, 0x0);
+  WRITE_REG(hsmartcard->Instance->CR2, 0x0);
+  WRITE_REG(hsmartcard->Instance->CR3, 0x0);
+  WRITE_REG(hsmartcard->Instance->RTOR, 0x0);
+  WRITE_REG(hsmartcard->Instance->GTPR, 0x0);
+
+  /* DeInit the low level hardware */
+  HAL_SMARTCARD_MspDeInit(hsmartcard);
+
+  hsmartcard->ErrorCode = HAL_SMARTCARD_ERROR_NONE;
+  hsmartcard->gState    = HAL_SMARTCARD_STATE_RESET;
+  hsmartcard->RxState   = HAL_SMARTCARD_STATE_RESET;
+
+  /* Process Unlock */
+  __HAL_UNLOCK(hsmartcard);
+
+  return HAL_OK;
+}

@@ -1,0 +1,16 @@
+altcp_mbedtls_lower_connected(void *arg, struct altcp_pcb *inner_conn, err_t err)
+{
+  struct altcp_pcb *conn = (struct altcp_pcb *)arg;
+  LWIP_UNUSED_ARG(inner_conn); /* for LWIP_NOASSERT */
+  if (conn && conn->state) {
+    LWIP_ASSERT("pcb mismatch", conn->inner_conn == inner_conn);
+    /* upper connected is called when handshake is done */
+    if (err != ERR_OK) {
+      if (conn->connected) {
+        return conn->connected(conn->arg, conn, err);
+      }
+    }
+    return altcp_mbedtls_lower_recv_process(conn, (altcp_mbedtls_state_t *)conn->state);
+  }
+  return ERR_VAL;
+}

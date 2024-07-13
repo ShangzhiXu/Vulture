@@ -1,0 +1,52 @@
+int los_nb_init(const int8_t *host, const int8_t *port, sec_param_s *psk)
+{
+    int ret;
+    int timecnt = 0;
+
+    /* when used nb with agenttiny */
+    /* the following para is replaced by call nb_int() */
+    at_config at_user_conf = {
+        .name = AT_MODU_NAME,
+        .usart_port = AT_USART_PORT,
+        .buardrate = AT_BUARDRATE,
+        .linkid_num = AT_MAX_LINK_NUM,
+        .user_buf_len = MAX_AT_USERDATA_LEN,
+        .cmd_begin = AT_CMD_BEGIN,
+        .line_end = AT_LINE_END,
+        .mux_mode = 1, // support multi connection mode
+        .timeout = AT_CMD_TIMEOUT, // ms
+    };
+
+    at.init(&at_user_conf);
+
+    nb_reboot();
+    if (psk != NULL) {
+        if (psk->setpsk) {
+            nb_send_psk(psk->pskid, psk->psk);
+        } else {
+            nb_set_no_encrypt();
+        }
+    }
+
+    while (1) {
+        ret = nb_hw_detect();
+        printf("call nb_hw_detect,ret is %d\n", ret);
+        if (ret == AT_OK) {
+            break;
+        }
+    }
+    while (timecnt < 120) {
+        ret = nb_get_netstat();
+        nb_check_csq();
+        if (ret != AT_FAILED) {
+            ret = nb_query_ip();
+            break;
+        }
+        timecnt++;
+    }
+    if (ret != AT_FAILED) {
+        nb_query_ip();
+    }
+    ret = nb_set_cdpserver((char *)host, (char *)port);
+    return ret;
+}

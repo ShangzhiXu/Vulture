@@ -1,0 +1,15 @@
+void HAL_HASH_IRQHandler(HASH_HandleTypeDef *hhash)
+{
+  hhash->Status = HASH_IT(hhash);
+  if (hhash->Status != HAL_OK)
+  {
+    hhash->ErrorCode |= HAL_HASH_ERROR_IT;
+#if (USE_HAL_HASH_REGISTER_CALLBACKS == 1)
+    hhash->ErrorCallback(hhash);
+#else
+    HAL_HASH_ErrorCallback(hhash);
+#endif /* USE_HAL_HASH_REGISTER_CALLBACKS */
+    /* After error handling by code user, reset HASH handle HAL status */
+    hhash->Status = HAL_OK;
+  }
+}

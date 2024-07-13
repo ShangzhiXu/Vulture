@@ -1,0 +1,31 @@
+snmp_netconn_thread(void *arg)
+{
+  struct netconn *conn;
+  struct netbuf *buf;
+  err_t err;
+  LWIP_UNUSED_ARG(arg);
+
+  /* Bind to SNMP port with default IP address */
+#if LWIP_IPV6
+  conn = netconn_new(NETCONN_UDP_IPV6);
+  netconn_bind(conn, IP6_ADDR_ANY, LWIP_IANA_PORT_SNMP);
+#else /* LWIP_IPV6 */
+  conn = netconn_new(NETCONN_UDP);
+  netconn_bind(conn, IP4_ADDR_ANY, LWIP_IANA_PORT_SNMP);
+#endif /* LWIP_IPV6 */
+  LWIP_ERROR("snmp_netconn: invalid conn", (conn != NULL), return;);
+
+  snmp_traps_handle = conn;
+
+  do {
+    err = netconn_recv(conn, &buf);
+
+    if (err == ERR_OK) {
+      snmp_receive(conn, buf->p, &buf->addr, buf->port);
+    }
+
+    if (buf != NULL) {
+      netbuf_delete(buf);
+    }
+  } while (1);
+}

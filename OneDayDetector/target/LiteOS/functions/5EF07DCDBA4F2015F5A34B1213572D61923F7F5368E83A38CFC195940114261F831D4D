@@ -1,0 +1,49 @@
+static int write_and_get_response( mbedtls_net_context *sock_fd, unsigned char *buf, size_t len )
+{
+    int ret;
+    unsigned char data[128];
+    char code[4];
+    size_t i, idx = 0;
+
+    mbedtls_printf("\n%s", buf);
+    if( len && ( ret = mbedtls_net_send( sock_fd, buf, len ) ) <= 0 )
+    {
+        mbedtls_printf( " failed\n  ! mbedtls_net_send returned %d\n\n", ret );
+            return -1;
+    }
+
+    do
+    {
+        len = sizeof( data ) - 1;
+        memset( data, 0, sizeof( data ) );
+        ret = mbedtls_net_recv( sock_fd, data, len );
+
+        if( ret <= 0 )
+        {
+            mbedtls_printf( "failed\n  ! mbedtls_net_recv returned %d\n\n", ret );
+            return -1;
+        }
+
+        data[len] = '\0';
+        mbedtls_printf("\n%s", data);
+        len = ret;
+        for( i = 0; i < len; i++ )
+        {
+            if( data[i] != '\n' )
+            {
+                if( idx < 4 )
+                    code[ idx++ ] = data[i];
+                continue;
+            }
+
+            if( idx == 4 && code[0] >= '0' && code[0] <= '9' && code[3] == ' ' )
+            {
+                code[3] = '\0';
+                return atoi( code );
+            }
+
+            idx = 0;
+        }
+    }
+    while( 1 );
+}

@@ -1,0 +1,51 @@
+HAL_StatusTypeDef HAL_FLASH_Program_IT(uint32_t TypeProgram, uint32_t Address, uint64_t Data)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  /* Check the parameters */
+  assert_param(IS_FLASH_TYPEPROGRAM(TypeProgram));
+
+  /* Process Locked */
+  __HAL_LOCK(&pFlash);
+
+  pFlash.ErrorCode = HAL_FLASH_ERROR_NONE;
+
+  /* Deactivate the data cache if they are activated to avoid data misbehavior */
+  if(READ_BIT(FLASH->ACR, FLASH_ACR_DCEN) != RESET)
+  {
+    /* Disable data cache  */
+    __HAL_FLASH_DATA_CACHE_DISABLE();
+    pFlash.CacheToReactivate = FLASH_CACHE_DCACHE_ENABLED;
+  }
+  else
+  {
+    pFlash.CacheToReactivate = FLASH_CACHE_DISABLED;
+  }
+
+  /* Set internal variables used by the IRQ handler */
+  if(TypeProgram == FLASH_TYPEPROGRAM_FAST_AND_LAST)
+  {
+    pFlash.ProcedureOnGoing = FLASH_PROC_PROGRAM_LAST;
+  }
+  else
+  {
+    pFlash.ProcedureOnGoing = FLASH_PROC_PROGRAM;
+  }
+  pFlash.Address = Address;
+    
+  /* Enable End of Operation and Error interrupts */
+  __HAL_FLASH_ENABLE_IT(FLASH_IT_EOP | FLASH_IT_OPERR);
+
+  if(TypeProgram == FLASH_TYPEPROGRAM_DOUBLEWORD)
+  {
+    /* Program double-word (64-bit) at a specified address */
+    FLASH_Program_DoubleWord(Address, Data);
+  }
+  else if((TypeProgram == FLASH_TYPEPROGRAM_FAST) || (TypeProgram == FLASH_TYPEPROGRAM_FAST_AND_LAST))
+  {
+    /* Fast program a 32 row double-word (64-bit) at a specified address */
+    FLASH_Program_Fast(Address, (uint32_t)Data);
+  }
+
+  return status;  
+}

@@ -1,0 +1,25 @@
+static HAL_StatusTypeDef RTC_WriteTimeCounter(RTC_HandleTypeDef* hrtc, uint32_t TimeCounter)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  
+  /* Set Initialization mode */
+  if(RTC_EnterInitMode(hrtc) != HAL_OK)
+  {
+    status = HAL_ERROR;
+  } 
+  else
+  {
+    /* Set RTC COUNTER MSB word */
+    WRITE_REG(hrtc->Instance->CNTH, (TimeCounter >> 16));
+    /* Set RTC COUNTER LSB word */
+    WRITE_REG(hrtc->Instance->CNTL, (TimeCounter & RTC_CNTL_RTC_CNT));
+    
+    /* Wait for synchro */
+    if(RTC_ExitInitMode(hrtc) != HAL_OK)
+    {       
+      status = HAL_ERROR;
+    }
+  }
+
+  return status;
+}

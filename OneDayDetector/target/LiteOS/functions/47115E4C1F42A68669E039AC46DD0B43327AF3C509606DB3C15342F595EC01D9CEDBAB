@@ -1,0 +1,94 @@
+HAL_StatusTypeDef HAL_DMA_PollForTransfer(DMA_HandleTypeDef *hdma, uint32_t CompleteLevel, uint32_t Timeout)
+{
+  uint32_t temp;
+  uint32_t tickstart = 0U;
+  
+  if(HAL_DMA_STATE_BUSY != hdma->State)
+  {
+    /* no transfer ongoing */
+    hdma->ErrorCode = HAL_DMA_ERROR_NO_XFER;
+    __HAL_UNLOCK(hdma);
+    return HAL_ERROR;
+  }
+  
+  /* Polling mode not supported in circular mode */
+  if (RESET != (hdma->Instance->CCR & DMA_CCR_CIRC))
+  {
+    hdma->ErrorCode = HAL_DMA_ERROR_NOT_SUPPORTED;
+    return HAL_ERROR;
+  }
+  
+  /* Get the level transfer complete flag */
+  if(HAL_DMA_FULL_TRANSFER == CompleteLevel)
+  {
+    /* Transfer Complete flag */
+    temp = DMA_FLAG_TC1 << hdma->ChannelIndex;
+  }
+  else
+  {
+    /* Half Transfer Complete flag */
+    temp = DMA_FLAG_HT1 << hdma->ChannelIndex;
+  }
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  while(RESET == (hdma->DmaBaseAddress->ISR & temp))
+  {
+    if(RESET != (hdma->DmaBaseAddress->ISR & (DMA_FLAG_TE1 << hdma->ChannelIndex)))
+    {      
+      /* When a DMA transfer error occurs */
+      /* A hardware clear of its EN bits is performed */
+      /* Clear all flags */
+      hdma->DmaBaseAddress->IFCR = DMA_FLAG_GL1 << hdma->ChannelIndex;
+      
+      /* Update error code */
+      hdma->ErrorCode = HAL_DMA_ERROR_TE;
+
+      /* Change the DMA state */
+      hdma->State= HAL_DMA_STATE_READY;       
+      
+      /* Process Unlocked */
+      __HAL_UNLOCK(hdma);
+      
+      return HAL_ERROR;      
+    }      
+    /* Check for the Timeout */
+    if(Timeout != HAL_MAX_DELAY)
+    {
+      if((Timeout == 0U) || ((HAL_GetTick() - tickstart) > Timeout))
+      {
+        /* Update error code */
+        hdma->ErrorCode = HAL_DMA_ERROR_TIMEOUT;
+        
+        /* Change the DMA state */
+        hdma->State = HAL_DMA_STATE_READY;
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(hdma);
+
+        return HAL_ERROR;
+      }
+    }
+  }
+
+  if(HAL_DMA_FULL_TRANSFER == CompleteLevel)
+  {
+    /* Clear the transfer complete flag */
+    hdma->DmaBaseAddress->IFCR = DMA_FLAG_TC1 << hdma->ChannelIndex;
+
+    /* The selected Channelx EN bit is cleared (DMA is disabled and 
+    all transfers are complete) */
+    hdma->State = HAL_DMA_STATE_READY;
+  }
+  else
+  { 
+    /* Clear the half transfer complete flag */
+    hdma->DmaBaseAddress->IFCR = DMA_FLAG_HT1 << hdma->ChannelIndex;
+  }
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hdma);  
+
+  return HAL_OK;
+}

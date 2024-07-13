@@ -1,0 +1,103 @@
+static void lcp_addci(fsm *f, u_char *ucp, int *lenp) {
+    ppp_pcb *pcb = f->pcb;
+    lcp_options *go = &pcb->lcp_gotoptions;
+    u_char *start_ucp = ucp;
+
+#define ADDCIVOID(opt, neg) \
+    if (neg) { \
+	PUTCHAR(opt, ucp); \
+	PUTCHAR(CILEN_VOID, ucp); \
+    }
+#define ADDCISHORT(opt, neg, val) \
+    if (neg) { \
+	PUTCHAR(opt, ucp); \
+	PUTCHAR(CILEN_SHORT, ucp); \
+	PUTSHORT(val, ucp); \
+    }
+#if CHAP_SUPPORT
+#define ADDCICHAP(opt, neg, val) \
+    if (neg) { \
+	PUTCHAR((opt), ucp); \
+	PUTCHAR(CILEN_CHAP, ucp); \
+	PUTSHORT(PPP_CHAP, ucp); \
+	PUTCHAR((CHAP_DIGEST(val)), ucp); \
+    }
+#endif /* CHAP_SUPPORT */
+#define ADDCILONG(opt, neg, val) \
+    if (neg) { \
+	PUTCHAR(opt, ucp); \
+	PUTCHAR(CILEN_LONG, ucp); \
+	PUTLONG(val, ucp); \
+    }
+#if LQR_SUPPORT
+#define ADDCILQR(opt, neg, val) \
+    if (neg) { \
+	PUTCHAR(opt, ucp); \
+	PUTCHAR(CILEN_LQR, ucp); \
+	PUTSHORT(PPP_LQR, ucp); \
+	PUTLONG(val, ucp); \
+    }
+#endif /* LQR_SUPPORT */
+#define ADDCICHAR(opt, neg, val) \
+    if (neg) { \
+	PUTCHAR(opt, ucp); \
+	PUTCHAR(CILEN_CHAR, ucp); \
+	PUTCHAR(val, ucp); \
+    }
+#define ADDCIENDP(opt, neg, class, val, len) \
+    if (neg) { \
+	int i; \
+	PUTCHAR(opt, ucp); \
+	PUTCHAR(CILEN_CHAR + len, ucp); \
+	PUTCHAR(class, ucp); \
+	for (i = 0; i < len; ++i) \
+	    PUTCHAR(val[i], ucp); \
+    }
+
+    ADDCISHORT(CI_MRU, go->neg_mru && go->mru != PPP_DEFMRU, go->mru);
+    ADDCILONG(CI_ASYNCMAP, go->neg_asyncmap && go->asyncmap != 0xFFFFFFFF,
+	      go->asyncmap);
+#if EAP_SUPPORT
+    ADDCISHORT(CI_AUTHTYPE, go->neg_eap, PPP_EAP);
+#endif /* EAP_SUPPORT */
+#if CHAP_SUPPORT /* cannot be improved, embedding a directive within macro arguments is not portable */
+#if EAP_SUPPORT
+    ADDCICHAP(CI_AUTHTYPE, !go->neg_eap && go->neg_chap, go->chap_mdtype);
+#endif /* EAP_SUPPORT */
+#if !EAP_SUPPORT
+    ADDCICHAP(CI_AUTHTYPE, go->neg_chap, go->chap_mdtype);
+#endif /* !EAP_SUPPORT */
+#endif /* CHAP_SUPPORT */
+#if PAP_SUPPORT /* cannot be improved, embedding a directive within macro arguments is not portable */
+#if EAP_SUPPORT && CHAP_SUPPORT
+    ADDCISHORT(CI_AUTHTYPE, !go->neg_eap && !go->neg_chap && go->neg_upap, PPP_PAP);
+#endif /* EAP_SUPPORT && CHAP_SUPPORT */
+#if EAP_SUPPORT && !CHAP_SUPPORT
+    ADDCISHORT(CI_AUTHTYPE, !go->neg_eap && go->neg_upap, PPP_PAP);
+#endif /* EAP_SUPPORT && !CHAP_SUPPORT */
+#if !EAP_SUPPORT && CHAP_SUPPORT
+    ADDCISHORT(CI_AUTHTYPE, !go->neg_chap && go->neg_upap, PPP_PAP);
+#endif /* !EAP_SUPPORT && CHAP_SUPPORT */
+#if !EAP_SUPPORT && !CHAP_SUPPORT
+    ADDCISHORT(CI_AUTHTYPE, go->neg_upap, PPP_PAP);
+#endif /* !EAP_SUPPORT && !CHAP_SUPPORT */
+#endif /* PAP_SUPPORT */
+#if LQR_SUPPORT
+    ADDCILQR(CI_QUALITY, go->neg_lqr, go->lqr_period);
+#endif /* LQR_SUPPORT */
+    ADDCICHAR(CI_CALLBACK, go->neg_cbcp, CBCP_OPT);
+    ADDCILONG(CI_MAGICNUMBER, go->neg_magicnumber, go->magicnumber);
+    ADDCIVOID(CI_PCOMPRESSION, go->neg_pcompression);
+    ADDCIVOID(CI_ACCOMPRESSION, go->neg_accompression);
+#ifdef HAVE_MULTILINK
+    ADDCISHORT(CI_MRRU, go->neg_mrru, go->mrru);
+#endif
+    ADDCIVOID(CI_SSNHF, go->neg_ssnhf);
+    ADDCIENDP(CI_EPDISC, go->neg_endpoint, go->endpoint.class_,
+	      go->endpoint.value, go->endpoint.length);
+
+    if (ucp - start_ucp != *lenp) {
+	/* this should never happen, because peer_mtu should be 1500 */
+	ppp_error("Bug in lcp_addci: wrong length");
+    }
+}

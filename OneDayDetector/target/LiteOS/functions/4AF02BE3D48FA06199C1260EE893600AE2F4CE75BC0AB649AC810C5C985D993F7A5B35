@@ -1,0 +1,22 @@
+int  atiny_mqtt_init(const mqtt_param_s *params, mqtt_client_s **phandle)
+{
+    cJSON_InitHooks(NULL);
+    if ((params == NULL) || (phandle == NULL)
+        || (params->info.security_type > MQTT_SECURITY_TYPE_CA)
+        || (mqtt_check_param(params) != ATINY_OK)) {
+        ATINY_LOG(LOG_FATAL, "Invalid args");
+        return ATINY_ARG_INVALID;
+    }
+    if (g_mqtt_client.init_flag) {
+        ATINY_LOG(LOG_FATAL, "mqtt reinit");
+        return ATINY_ERR;
+    }
+    memset(&g_mqtt_client, 0, sizeof(g_mqtt_client));
+    if (ATINY_OK != mqtt_dup_param(&(g_mqtt_client.params), params)) {
+        return ATINY_MALLOC_FAILED;
+    }
+    flash_manager_init(mqtt_cmd_ioctl);
+    *phandle = &g_mqtt_client;
+    g_mqtt_client.init_flag = true;
+    return ATINY_OK;
+}

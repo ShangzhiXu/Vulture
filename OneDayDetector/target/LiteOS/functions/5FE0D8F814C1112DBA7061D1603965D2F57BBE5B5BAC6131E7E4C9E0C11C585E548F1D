@@ -1,0 +1,21 @@
+UINT32 OsMpInit(VOID)
+{
+    UINT16 swtmrId;
+    UINT32 ret;
+
+    ret = LOS_SwtmrCreate(OS_MP_GC_PERIOD, LOS_SWTMR_MODE_PERIOD,
+                          (SWTMR_PROC_FUNC)OsMpCollectTasks, &swtmrId, 0);
+    if (ret != LOS_OK) {
+        PRINT_ERR("Swtmr Create failed err:0x%x\n", ret);
+        return ret;
+    }
+    ret = LOS_SwtmrStart(swtmrId);
+    if (ret != LOS_OK) {
+        PRINT_ERR("Swtmr Start failed err:0x%x\n", ret);
+        return ret;
+    }
+#ifdef LOSCFG_KERNEL_SMP_CALL
+    OsMpFuncCallInit();
+#endif
+    return LOS_OK;
+}

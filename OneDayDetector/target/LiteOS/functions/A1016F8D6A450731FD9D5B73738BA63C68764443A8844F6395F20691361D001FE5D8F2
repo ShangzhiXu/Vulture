@@ -1,0 +1,46 @@
+static int ecjpake_hash( const mbedtls_md_info_t *md_info,
+                         const mbedtls_ecp_group *grp,
+                         const int pf,
+                         const mbedtls_ecp_point *G,
+                         const mbedtls_ecp_point *V,
+                         const mbedtls_ecp_point *X,
+                         const char *id,
+                         mbedtls_mpi *h )
+{
+    int ret;
+    unsigned char buf[ECJPAKE_HASH_BUF_LEN];
+    unsigned char *p = buf;
+    const unsigned char *end = buf + sizeof( buf );
+    const size_t id_len = strlen( id );
+    unsigned char hash[MBEDTLS_MD_MAX_SIZE];
+
+    /* Write things to temporary buffer */
+    MBEDTLS_MPI_CHK( ecjpake_write_len_point( &p, end, grp, pf, G ) );
+    MBEDTLS_MPI_CHK( ecjpake_write_len_point( &p, end, grp, pf, V ) );
+    MBEDTLS_MPI_CHK( ecjpake_write_len_point( &p, end, grp, pf, X ) );
+
+    if( end - p < 4 )
+        return( MBEDTLS_ERR_ECP_BUFFER_TOO_SMALL );
+
+    *p++ = (unsigned char)( ( id_len >> 24 ) & 0xFF );
+    *p++ = (unsigned char)( ( id_len >> 16 ) & 0xFF );
+    *p++ = (unsigned char)( ( id_len >>  8 ) & 0xFF );
+    *p++ = (unsigned char)( ( id_len       ) & 0xFF );
+
+    if( end < p || (size_t)( end - p ) < id_len )
+        return( MBEDTLS_ERR_ECP_BUFFER_TOO_SMALL );
+
+    memcpy( p, id, id_len );
+    p += id_len;
+
+    /* Compute hash */
+    MBEDTLS_MPI_CHK( mbedtls_md( md_info, buf, p - buf, hash ) );
+
+    /* Turn it into an integer mod n */
+    MBEDTLS_MPI_CHK( mbedtls_mpi_read_binary( h, hash,
+                                        mbedtls_md_get_size( md_info ) ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_mod_mpi( h, h, &grp->N ) );
+
+cleanup:
+    return( ret );
+}

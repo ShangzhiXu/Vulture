@@ -1,0 +1,18 @@
+altcp_new_ip_type(altcp_allocator_t *allocator, u8_t ip_type)
+{
+  struct altcp_pcb *conn;
+  if (allocator == NULL) {
+    /* no allocator given, create a simple TCP connection */
+    return altcp_tcp_new_ip_type(ip_type);
+  }
+  if (allocator->alloc == NULL) {
+    /* illegal allocator */
+    return NULL;
+  }
+  conn = allocator->alloc(allocator->arg, ip_type);
+  if (conn == NULL) {
+    /* allocation failed */
+    return NULL;
+  }
+  return conn;
+}

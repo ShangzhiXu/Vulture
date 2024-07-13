@@ -1,0 +1,53 @@
+lv_obj_t * lv_linemeter_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+    LV_LOG_TRACE("line meter create started");
+
+    /*Create the ancestor of line meter*/
+    lv_obj_t * linemeter = lv_obj_create(par, copy);
+    LV_ASSERT_MEM(linemeter);
+    if(linemeter == NULL) return NULL;
+
+    if(ancestor_signal == NULL) ancestor_signal = lv_obj_get_signal_cb(linemeter);
+
+    /*Allocate the line meter type specific extended data*/
+    lv_linemeter_ext_t * ext = lv_obj_allocate_ext_attr(linemeter, sizeof(lv_linemeter_ext_t));
+    LV_ASSERT_MEM(ext);
+    if(ext == NULL) {
+        lv_obj_del(linemeter);
+        return NULL;
+    }
+
+    /*Initialize the allocated 'ext' */
+    ext->min_value   = 0;
+    ext->max_value   = 100;
+    ext->cur_value   = 0;
+    ext->line_cnt    = 18;
+    ext->scale_angle = 240;
+    ext->angle_ofs = 0;
+
+    /*The signal and design functions are not copied so set them here*/
+    lv_obj_set_signal_cb(linemeter, lv_linemeter_signal);
+    lv_obj_set_design_cb(linemeter, lv_linemeter_design);
+
+    /*Init the new line meter line meter*/
+    if(copy == NULL) {
+        lv_obj_set_size(linemeter, 3 * LV_DPI / 2, 3 * LV_DPI / 2);
+        lv_theme_apply(linemeter, LV_THEME_LINEMETER);
+    }
+    /*Copy an existing line meter*/
+    else {
+        lv_linemeter_ext_t * copy_ext = lv_obj_get_ext_attr(copy);
+        ext->scale_angle           = copy_ext->scale_angle;
+        ext->line_cnt              = copy_ext->line_cnt;
+        ext->min_value             = copy_ext->min_value;
+        ext->max_value             = copy_ext->max_value;
+        ext->cur_value             = copy_ext->cur_value;
+
+        /*Refresh the style with new signal function*/
+        lv_obj_refresh_style(linemeter, LV_STYLE_PROP_ALL);
+    }
+
+    LV_LOG_INFO("line meter created");
+
+    return linemeter;
+}

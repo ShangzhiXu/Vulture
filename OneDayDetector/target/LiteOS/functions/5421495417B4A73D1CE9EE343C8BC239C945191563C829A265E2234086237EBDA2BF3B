@@ -1,0 +1,38 @@
+STATIC UINT32 MmuSetSecondPage(MMU_PARAM *para, UINT32 itemStart, UINT32 itemEnd)
+{
+    UINT32 intSave;
+    UINT32 itemTemp = itemStart;
+    UINT32 pageStart, pageEnd, pageSize;
+
+    if (para->stPage == NULL) {
+        return LOS_NOK;
+    }
+    if ((para->startAddr < para->stPage->page_addr) ||
+        (para->endAddr > (para->stPage->page_length + para->stPage->page_addr))) {
+        PRINT_ERR("addr input not belongs to this second page \n"
+                  "para->startAddr:0x%x, para->stPage->page_addr:0x%x\n",
+                  para->startAddr, para->stPage->page_addr);
+        PRINT_ERR("para->endAddr:0x%x, (para->stPage->page_length + para->stPage->page_addr):0x%x\n",
+                  para->endAddr, para->stPage->page_length + para->stPage->page_addr);
+        return LOS_NOK;
+    }
+    while (itemTemp <= itemEnd) {
+        if (((*(UINTPTR *)(UINTPTR)itemTemp) & ITEM_TYPE_MASK) != MMU_FIRST_LEVEL_PAGE_TABLE_ID) {
+            PRINT_ERR("not all mem belongs to second page(4K or 64K every item), mmu table ID:%u \n",
+                      ((*(UINT32 *)(UINTPTR)itemTemp) & ITEM_TYPE_MASK));
+            return LOS_NOK;
+        }
+        itemTemp += sizeof(UINTPTR);
+    }
+
+    intSave = LOS_IntLock();
+    DisableAPCheck();
+    MmuSetMemPage(para);
+    EnableAPCheck();
+    LOS_IntRestore(intSave);
+    pageStart = MMU_GET_SECOND_TABLE_ADDR(para->startAddr);
+    pageSize = (para->stPage->page_type == MMU_SECOND_LEVEL_BIG_PAGE_TABLE_ID) ? MMU_64K : MMU_4K;
+    pageEnd = MMU_GET_SECOND_TABLE_ADDR(para->endAddr - 1 + pageSize);
+    dma_cache_clean(pageStart, pageEnd);
+    return LOS_OK;
+}

@@ -1,0 +1,32 @@
+lwip_listen(int s, int backlog)
+{
+  struct lwip_sock *sock;
+  err_t err;
+
+  LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_listen(%d, backlog=%d)\n", s, backlog));
+
+  sock = get_socket(s);
+  if (!sock) {
+    return -1;
+  }
+
+  /* limit the "backlog" parameter to fit in an u8_t */
+  backlog = LWIP_MIN(LWIP_MAX(backlog, 0), 0xff);
+
+  err = netconn_listen_with_backlog(sock->conn, (u8_t)backlog);
+
+  if (err != ERR_OK) {
+    LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_listen(%d) failed, err=%d\n", s, err));
+    if (NETCONNTYPE_GROUP(netconn_type(sock->conn)) != NETCONN_TCP) {
+      sock_set_errno(sock, EOPNOTSUPP);
+    } else {
+      sock_set_errno(sock, err_to_errno(err));
+    }
+    done_socket(sock);
+    return -1;
+  }
+
+  sock_set_errno(sock, 0);
+  done_socket(sock);
+  return 0;
+}

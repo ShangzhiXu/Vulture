@@ -1,0 +1,53 @@
+HAL_StatusTypeDef HAL_NOR_Read_ID(NOR_HandleTypeDef *hnor, NOR_IDTypeDef *pNOR_ID)
+{
+  uint32_t deviceaddress = 0;
+  
+  /* Process Locked */
+  __HAL_LOCK(hnor);
+  
+  /* Check the NOR controller state */
+  if(hnor->State == HAL_NOR_STATE_BUSY)
+  {
+     return HAL_BUSY;
+  }
+  
+  /* Select the NOR device address */
+  if (hnor->Init.NSBank == FSMC_NORSRAM_BANK1)
+  {
+    deviceaddress = NOR_MEMORY_ADRESS1;
+  }
+  else if (hnor->Init.NSBank == FSMC_NORSRAM_BANK2)
+  {
+    deviceaddress = NOR_MEMORY_ADRESS2;
+  }
+  else if (hnor->Init.NSBank == FSMC_NORSRAM_BANK3)
+  {
+    deviceaddress = NOR_MEMORY_ADRESS3;
+  }
+  else /* FSMC_NORSRAM_BANK4 */
+  {
+    deviceaddress = NOR_MEMORY_ADRESS4;
+  }  
+    
+  /* Update the NOR controller state */
+  hnor->State = HAL_NOR_STATE_BUSY;
+  
+  /* Send read ID command */
+  NOR_WRITE(NOR_ADDR_SHIFT(deviceaddress, uwNORMemoryDataWidth, NOR_CMD_ADDRESS_FIRST), NOR_CMD_DATA_FIRST);
+  NOR_WRITE(NOR_ADDR_SHIFT(deviceaddress, uwNORMemoryDataWidth, NOR_CMD_ADDRESS_SECOND), NOR_CMD_DATA_SECOND);
+  NOR_WRITE(NOR_ADDR_SHIFT(deviceaddress, uwNORMemoryDataWidth, NOR_CMD_ADDRESS_THIRD), NOR_CMD_DATA_AUTO_SELECT);
+
+  /* Read the NOR IDs */
+  pNOR_ID->Manufacturer_Code = *(__IO uint16_t *) NOR_ADDR_SHIFT(deviceaddress, uwNORMemoryDataWidth, MC_ADDRESS);
+  pNOR_ID->Device_Code1      = *(__IO uint16_t *) NOR_ADDR_SHIFT(deviceaddress, uwNORMemoryDataWidth, DEVICE_CODE1_ADDR);
+  pNOR_ID->Device_Code2      = *(__IO uint16_t *) NOR_ADDR_SHIFT(deviceaddress, uwNORMemoryDataWidth, DEVICE_CODE2_ADDR);
+  pNOR_ID->Device_Code3      = *(__IO uint16_t *) NOR_ADDR_SHIFT(deviceaddress, uwNORMemoryDataWidth, DEVICE_CODE3_ADDR);
+  
+  /* Check the NOR controller state */
+  hnor->State = HAL_NOR_STATE_READY;
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hnor);   
+  
+  return HAL_OK;
+}

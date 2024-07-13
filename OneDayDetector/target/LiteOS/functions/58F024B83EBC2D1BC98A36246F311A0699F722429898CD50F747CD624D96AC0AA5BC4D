@@ -1,0 +1,27 @@
+void lv_textarea_set_text_align(lv_obj_t * ta, lv_label_align_t align)
+{
+    LV_ASSERT_OBJ(ta, LV_OBJX_NAME);
+
+    lv_textarea_ext_t * ext = lv_obj_get_ext_attr(ta);
+    lv_obj_t * label  = lv_textarea_get_label(ta);
+    if(!ext->one_line) {
+        lv_label_set_align(label, align);
+    }
+    else {
+        /*Normal left align. Just let the text expand*/
+        if(align == LV_LABEL_ALIGN_LEFT) {
+            lv_label_set_long_mode(label, LV_LABEL_LONG_EXPAND);
+            lv_page_set_scrllable_fit2(ta, LV_FIT_MAX, LV_FIT_PARENT);
+            lv_label_set_align(label, align);
+        }
+        /*Else use fix label width equal to the Text area width*/
+        else {
+            lv_label_set_long_mode(label, LV_LABEL_LONG_CROP);
+            lv_obj_set_width(label, lv_page_get_width_fit(ta));
+            lv_label_set_align(label, align);
+            lv_page_set_scrllable_fit2(ta, LV_FIT_PARENT, LV_FIT_PARENT);
+        }
+    }
+
+    refr_cursor_area(ta);
+}

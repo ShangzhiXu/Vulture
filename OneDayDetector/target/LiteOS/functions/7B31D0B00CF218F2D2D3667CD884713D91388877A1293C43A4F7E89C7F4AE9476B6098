@@ -1,0 +1,54 @@
+mqtt_sub_unsub(mqtt_client_t *client, const char *topic, u8_t qos, mqtt_request_cb_t cb, void *arg, u8_t sub)
+{
+  size_t topic_strlen;
+  size_t total_len;
+  u16_t topic_len;
+  u16_t remaining_length;
+  u16_t pkt_id;
+  struct mqtt_request_t *r;
+
+  LWIP_ASSERT_CORE_LOCKED();
+  LWIP_ASSERT("mqtt_sub_unsub: client != NULL", client);
+  LWIP_ASSERT("mqtt_sub_unsub: topic != NULL", topic);
+
+  topic_strlen = strlen(topic);
+  LWIP_ERROR("mqtt_sub_unsub: topic length overflow", (topic_strlen <= (0xFFFF - 2)), return ERR_ARG);
+  topic_len = (u16_t)topic_strlen;
+  /* Topic string, pkt_id, qos for subscribe */
+  total_len =  topic_len + 2 + 2 + (sub != 0);
+  LWIP_ERROR("mqtt_sub_unsub: total length overflow", (total_len <= 0xFFFF), return ERR_ARG);
+  remaining_length = (u16_t)total_len;
+
+  LWIP_ASSERT("mqtt_sub_unsub: qos < 3", qos < 3);
+  if (client->conn_state == TCP_DISCONNECTED) {
+    LWIP_DEBUGF(MQTT_DEBUG_WARN, ("mqtt_sub_unsub: Can not (un)subscribe in disconnected state\n"));
+    return ERR_CONN;
+  }
+
+  pkt_id = msg_generate_packet_id(client);
+  r = mqtt_create_request(client->req_list, LWIP_ARRAYSIZE(client->req_list), pkt_id, cb, arg);
+  if (r == NULL) {
+    return ERR_MEM;
+  }
+
+  if (mqtt_output_check_space(&client->output, remaining_length) == 0) {
+    mqtt_delete_request(r);
+    return ERR_MEM;
+  }
+
+  LWIP_DEBUGF(MQTT_DEBUG_TRACE, ("mqtt_sub_unsub: Client (un)subscribe to topic \"%s\", id: %d\n", topic, pkt_id));
+
+  mqtt_output_append_fixed_header(&client->output, sub ? MQTT_MSG_TYPE_SUBSCRIBE : MQTT_MSG_TYPE_UNSUBSCRIBE, 0, 1, 0, remaining_length);
+  /* Packet id */
+  mqtt_output_append_u16(&client->output, pkt_id);
+  /* Topic */
+  mqtt_output_append_string(&client->output, topic, topic_len);
+  /* QoS */
+  if (sub != 0) {
+    mqtt_output_append_u8(&client->output, LWIP_MIN(qos, 2));
+  }
+
+  mqtt_append_request(&client->pend_req_queue, r);
+  mqtt_output_send(&client->output, client->conn);
+  return ERR_OK;
+}

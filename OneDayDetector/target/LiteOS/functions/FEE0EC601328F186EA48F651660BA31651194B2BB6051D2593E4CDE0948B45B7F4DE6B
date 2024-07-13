@@ -1,0 +1,23 @@
+HAL_StatusTypeDef HAL_SPDIFRX_DMAStop(SPDIFRX_HandleTypeDef *hspdif)
+{
+  /* Process Locked */
+  __HAL_LOCK(hspdif);
+
+  /* Disable the SPDIFRX DMA requests */
+  hspdif->Instance->CR &= (uint16_t)(~SPDIFRX_CR_RXDMAEN);
+  hspdif->Instance->CR &= (uint16_t)(~SPDIFRX_CR_CBDMAEN);
+
+  /* Disable the SPDIFRX DMA channel */
+  __HAL_DMA_DISABLE(hspdif->hdmaDrRx);
+  __HAL_DMA_DISABLE(hspdif->hdmaCsRx);
+
+  /* Disable SPDIFRX peripheral */
+  __HAL_SPDIFRX_IDLE(hspdif);
+
+  hspdif->State = HAL_SPDIFRX_STATE_READY;
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(hspdif);
+
+  return HAL_OK;
+}

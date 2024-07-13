@@ -1,0 +1,66 @@
+lv_obj_t * lv_bar_create(lv_obj_t * par, const lv_obj_t * copy)
+{
+    LV_LOG_TRACE("lv_bar create started");
+
+    /*Create the ancestor basic object*/
+    lv_obj_t * bar = lv_obj_create(par, copy);
+    LV_ASSERT_MEM(bar);
+    if(bar == NULL) return NULL;
+
+    if(ancestor_signal == NULL) ancestor_signal = lv_obj_get_signal_cb(bar);
+    if(ancestor_design_f == NULL) ancestor_design_f = lv_obj_get_design_cb(bar);
+
+    /*Allocate the object type specific extended data*/
+    lv_bar_ext_t * ext = lv_obj_allocate_ext_attr(bar, sizeof(lv_bar_ext_t));
+    LV_ASSERT_MEM(ext);
+    if(ext == NULL) {
+        lv_obj_del(bar);
+        return NULL;
+    }
+
+    ext->min_value = 0;
+    ext->start_value = 0;
+    ext->max_value = 100;
+    ext->cur_value = 0;
+#if LV_USE_ANIMATION
+    ext->anim_time  = 200;
+    lv_bar_init_anim(bar, &ext->cur_value_anim);
+    lv_bar_init_anim(bar, &ext->start_value_anim);
+#endif
+    ext->type         = LV_BAR_TYPE_NORMAL;
+
+    lv_style_list_init(&ext->style_indic);
+
+    lv_obj_set_signal_cb(bar, lv_bar_signal);
+    lv_obj_set_design_cb(bar, lv_bar_design);
+
+
+    /*Init the new  bar object*/
+    if(copy == NULL) {
+
+        lv_obj_set_click(bar, false);
+        lv_obj_set_size(bar, LV_DPI * 2, LV_DPI / 10);
+        lv_bar_set_value(bar, ext->cur_value, false);
+
+        lv_theme_apply(bar, LV_THEME_BAR);
+    }
+    else {
+        lv_bar_ext_t * ext_copy = lv_obj_get_ext_attr(copy);
+        ext->min_value          = ext_copy->min_value;
+        ext->start_value        = ext_copy->start_value;
+        ext->max_value          = ext_copy->max_value;
+        ext->cur_value          = ext_copy->cur_value;
+        ext->type                = ext_copy->type;
+
+        lv_style_list_copy(&ext->style_indic, &ext_copy->style_indic);
+
+        /*Refresh the style with new signal function*/
+        lv_obj_refresh_style(bar, LV_STYLE_PROP_ALL);
+
+        lv_bar_set_value(bar, ext->cur_value, LV_ANIM_OFF);
+    }
+
+    LV_LOG_INFO("bar created");
+
+    return bar;
+}

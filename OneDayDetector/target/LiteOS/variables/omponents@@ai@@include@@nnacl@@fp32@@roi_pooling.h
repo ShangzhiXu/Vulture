@@ -1,0 +1,16 @@
+  int in_strides_[DIMENSION_4D];
+  int input_c_;
+  int input_h_;
+  int input_n_;
+  int input_w_;
+  int ndim_;
+  OpParameter op_parameter_;
+  int out_strides_[DIMENSION_4D];
+  int output_c_;
+  int output_h_;
+  int output_n_;
+  int output_w_;
+  int pooledH_;
+  int pooledW_;
+  float scale_;
+  int thread_num_;

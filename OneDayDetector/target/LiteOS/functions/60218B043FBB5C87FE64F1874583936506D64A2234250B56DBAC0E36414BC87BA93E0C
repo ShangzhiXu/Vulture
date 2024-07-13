@@ -1,0 +1,72 @@
+static void SPI_DMAReceiveCplt(DMA_HandleTypeDef *hdma)
+{
+  __IO uint16_t tmpreg = 0;
+  SPI_HandleTypeDef* hspi = ( SPI_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+
+  /* DMA Normal mode */
+  if((hdma->Instance->CCR & DMA_CIRCULAR) == 0)
+  {
+    /* Disable Rx DMA Request */
+    CLEAR_BIT(hspi->Instance->CR2, SPI_CR2_RXDMAEN);
+
+    /* Disable Tx DMA Request (done by default to handle the case Master RX direction 2 lines) */
+    CLEAR_BIT(hspi->Instance->CR2, SPI_CR2_TXDMAEN);
+
+    /* CRC Calculation handling */
+    if(hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+    {
+      /* Wait until RXNE flag is set (CRC ready) */
+      if(SPI_WaitOnFlagUntilTimeout(hspi, SPI_FLAG_RXNE, RESET, SPI_TIMEOUT_VALUE) != HAL_OK)
+      {
+        SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_FLAG);
+      }
+
+      /* Read CRC */
+      tmpreg = hspi->Instance->DR;
+      UNUSED(tmpreg);
+
+      /* Wait until RXNE flag is reset */
+      if(SPI_WaitOnFlagUntilTimeout(hspi, SPI_FLAG_RXNE, SET, SPI_TIMEOUT_VALUE) != HAL_OK)
+      {
+        SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_FLAG);
+      }
+
+      /* Check if CRC error occurred */
+      if(__HAL_SPI_GET_FLAG(hspi, SPI_FLAG_CRCERR) != RESET)
+      {
+        /* Check if CRC error is valid or not (workaround to be applied or not) */
+        if (SPI_ISCRCErrorValid(hspi) == SPI_VALID_CRC_ERROR) 
+        {
+          SET_BIT(hspi->ErrorCode, HAL_SPI_ERROR_CRC);
+          
+          /* Reset CRC Calculation */
+          SPI_RESET_CRC(hspi);
+        }
+        __HAL_SPI_CLEAR_CRCERRFLAG(hspi);
+      }
+    }
+
+    if((hspi->Init.Mode == SPI_MODE_MASTER)&&((hspi->Init.Direction == SPI_DIRECTION_1LINE)||(hspi->Init.Direction == SPI_DIRECTION_2LINES_RXONLY)))
+    {
+      /* Disable SPI peripheral */
+      __HAL_SPI_DISABLE(hspi);
+    }
+
+    hspi->RxXferCount = 0;
+    hspi->State = HAL_SPI_STATE_READY;
+
+    /* Check if Errors has been detected during transfer */
+    if(hspi->ErrorCode != HAL_SPI_ERROR_NONE)
+    {
+      HAL_SPI_ErrorCallback(hspi);
+    }
+    else
+    {
+      HAL_SPI_RxCpltCallback(hspi);
+    }
+  }
+  else
+  {
+    HAL_SPI_RxCpltCallback(hspi);
+  }
+}

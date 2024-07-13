@@ -1,0 +1,55 @@
+static void JPEG_DMAInCpltCallback(DMA_HandleTypeDef *hdma)
+{
+  JPEG_HandleTypeDef *hjpeg = (JPEG_HandleTypeDef *)((DMA_HandleTypeDef *)hdma)->Parent;
+
+  /* Disable The JPEG IT so the DMA Input Callback can not be interrupted by the JPEG EOC IT or JPEG HPD IT */
+  __HAL_JPEG_DISABLE_IT(hjpeg, JPEG_INTERRUPT_MASK);
+
+  if ((hjpeg->Context & (JPEG_CONTEXT_METHOD_MASK | JPEG_CONTEXT_ENDING_DMA)) ==
+      JPEG_CONTEXT_DMA) /* Check if context method is DMA and we are not in ending DMA stage */
+  {
+    JPEG_DISABLE_DMA(hjpeg, JPEG_DMA_IDMA);
+
+    hjpeg->JpegInCount = hjpeg->InDataLength - ((hdma->Instance->NDTR & DMA_SxNDT) << 2);
+
+    /*Call HAL_JPEG_GetDataCallback to get new data */
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+    hjpeg->GetDataCallback(hjpeg, hjpeg->JpegInCount);
+#else
+    HAL_JPEG_GetDataCallback(hjpeg, hjpeg->JpegInCount);
+#endif /* USE_HAL_JPEG_REGISTER_CALLBACKS */
+
+    if (hjpeg->InDataLength >= 4UL)
+    {
+      /*JPEG Input DMA transfer data number must be multiple of 32 bits word
+        as the destination is a 32 bits (4 bytes) register */
+      hjpeg->InDataLength = hjpeg->InDataLength - (hjpeg->InDataLength % 4UL);
+    }
+    else if (hjpeg->InDataLength > 0UL)
+    {
+      /*Transfer last data word (i.e last 4 bytes)*/
+      hjpeg->InDataLength = 4;
+    }
+
+    if (((hjpeg->Context &  JPEG_CONTEXT_PAUSE_INPUT) == 0UL) && (hjpeg->InDataLength > 0UL))
+    {
+      /* Start DMA FIFO In transfer */
+      if (HAL_DMA_Start_IT(hjpeg->hdmain, (uint32_t)hjpeg->pJpegInBuffPtr, (uint32_t)&hjpeg->Instance->DIR,
+                           hjpeg->InDataLength >> 2) != HAL_OK)
+      {
+        hjpeg->ErrorCode |= HAL_JPEG_ERROR_DMA;
+        hjpeg->State = HAL_JPEG_STATE_ERROR;
+#if (USE_HAL_JPEG_REGISTER_CALLBACKS == 1)
+        hjpeg->ErrorCallback(hjpeg);
+#else
+        HAL_JPEG_ErrorCallback(hjpeg);
+#endif /* USE_HAL_JPEG_REGISTER_CALLBACKS */
+        return;
+      }
+      JPEG_ENABLE_DMA(hjpeg, JPEG_DMA_IDMA);
+    }
+
+    /* JPEG Conversion still on going : Enable the JPEG IT */
+    __HAL_JPEG_ENABLE_IT(hjpeg, JPEG_IT_EOC | JPEG_IT_HPD);
+  }
+}

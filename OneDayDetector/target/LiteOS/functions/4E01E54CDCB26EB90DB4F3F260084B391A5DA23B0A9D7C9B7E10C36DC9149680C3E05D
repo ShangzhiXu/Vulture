@@ -1,0 +1,62 @@
+static void fsm_rconfreq(fsm *f, u_char id, u_char *inp, int len) {
+    int code, reject_if_disagree;
+
+    switch( f->state ){
+    case PPP_FSM_CLOSED:
+	/* Go away, we're closed */
+	fsm_sdata(f, TERMACK, id, NULL, 0);
+	return;
+    case PPP_FSM_CLOSING:
+    case PPP_FSM_STOPPING:
+	return;
+
+    case PPP_FSM_OPENED:
+	/* Go down and restart negotiation */
+	if( f->callbacks->down )
+	    (*f->callbacks->down)(f);	/* Inform upper layers */
+	fsm_sconfreq(f, 0);		/* Send initial Configure-Request */
+	f->state = PPP_FSM_REQSENT;
+	break;
+
+    case PPP_FSM_STOPPED:
+	/* Negotiation started by our peer */
+	fsm_sconfreq(f, 0);		/* Send initial Configure-Request */
+	f->state = PPP_FSM_REQSENT;
+	break;
+    default:
+	break;
+    }
+
+    /*
+     * Pass the requested configuration options
+     * to protocol-specific code for checking.
+     */
+    if (f->callbacks->reqci){		/* Check CI */
+	reject_if_disagree = (f->nakloops >= f->maxnakloops);
+	code = (*f->callbacks->reqci)(f, inp, &len, reject_if_disagree);
+    } else if (len)
+	code = CONFREJ;			/* Reject all CI */
+    else
+	code = CONFACK;
+
+    /* send the Ack, Nak or Rej to the peer */
+    fsm_sdata(f, code, id, inp, len);
+
+    if (code == CONFACK) {
+	if (f->state == PPP_FSM_ACKRCVD) {
+	    UNTIMEOUT(fsm_timeout, f);	/* Cancel timeout */
+	    f->state = PPP_FSM_OPENED;
+	    if (f->callbacks->up)
+		(*f->callbacks->up)(f);	/* Inform upper layers */
+	} else
+	    f->state = PPP_FSM_ACKSENT;
+	f->nakloops = 0;
+
+    } else {
+	/* we sent CONFACK or CONFREJ */
+	if (f->state != PPP_FSM_ACKRCVD)
+	    f->state = PPP_FSM_REQSENT;
+	if( code == CONFNAK )
+	    ++f->nakloops;
+    }
+}

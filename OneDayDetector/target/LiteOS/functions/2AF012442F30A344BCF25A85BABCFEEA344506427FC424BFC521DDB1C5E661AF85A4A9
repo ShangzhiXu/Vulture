@@ -1,0 +1,23 @@
+lwip_socket_drop_registered_memberships(int s)
+{
+  struct lwip_sock *sock = get_socket(s);
+  int i;
+
+  if (!sock) {
+    return;
+  }
+
+  for (i = 0; i < LWIP_SOCKET_MAX_MEMBERSHIPS; i++) {
+    if (socket_ipv4_multicast_memberships[i].sock == sock) {
+      ip_addr_t multi_addr, if_addr;
+      ip_addr_copy_from_ip4(multi_addr, socket_ipv4_multicast_memberships[i].multi_addr);
+      ip_addr_copy_from_ip4(if_addr, socket_ipv4_multicast_memberships[i].if_addr);
+      socket_ipv4_multicast_memberships[i].sock = NULL;
+      ip4_addr_set_zero(&socket_ipv4_multicast_memberships[i].if_addr);
+      ip4_addr_set_zero(&socket_ipv4_multicast_memberships[i].multi_addr);
+
+      netconn_join_leave_group(sock->conn, &multi_addr, &if_addr, NETCONN_LEAVE);
+    }
+  }
+  done_socket(sock);
+}

@@ -1,0 +1,35 @@
+mdns_announce(struct netif *netif, const ip_addr_t *destination)
+{
+  struct mdns_outpacket announce;
+  int i;
+  struct mdns_host *mdns = NETIF_TO_HOST(netif);
+
+  memset(&announce, 0, sizeof(announce));
+  announce.netif = netif;
+  announce.cache_flush = 1;
+#if LWIP_IPV4
+  if (!ip4_addr_isany_val(*netif_ip4_addr(netif))) {
+    announce.host_replies = REPLY_HOST_A | REPLY_HOST_PTR_V4;
+  }
+#endif
+#if LWIP_IPV6
+  for (i = 0; i < LWIP_IPV6_NUM_ADDRESSES; i++) {
+    if (ip6_addr_isvalid(netif_ip6_addr_state(netif, i))) {
+      announce.host_replies |= REPLY_HOST_AAAA | REPLY_HOST_PTR_V6;
+      announce.host_reverse_v6_replies |= (1 << i);
+    }
+  }
+#endif
+
+  for (i = 0; i < MDNS_MAX_SERVICES; i++) {
+    struct mdns_service *serv = mdns->services[i];
+    if (serv) {
+      announce.serv_replies[i] = REPLY_SERVICE_TYPE_PTR | REPLY_SERVICE_NAME_PTR |
+                                 REPLY_SERVICE_SRV | REPLY_SERVICE_TXT;
+    }
+  }
+
+  announce.dest_port = LWIP_IANA_PORT_MDNS;
+  SMEMCPY(&announce.dest_addr, destination, sizeof(announce.dest_addr));
+  mdns_send_outpacket(&announce, DNS_FLAG1_RESPONSE | DNS_FLAG1_AUTHORATIVE);
+}

@@ -1,0 +1,46 @@
+static bool anim_ready_handler(lv_anim_t * a)
+{
+    /*In the end of a forward anim decrement repeat cnt.*/
+    if(a->playback_now == 0 && a->repeat_cnt > 0 && a->repeat_cnt != LV_ANIM_REPEAT_INFINITE) {
+        a->repeat_cnt--;
+    }
+
+    /*Delete the animation if
+     * - no repeat left and no play back (simple one shot animation)
+     * - no repeat, play back is enabled and play back is ready */
+    if(a->repeat_cnt == 0 && ((a->playback_time == 0) || (a->playback_time && a->playback_now == 1))) {
+
+        /*Create copy from the animation and delete the animation from the list.
+         * This way the `ready_cb` will see the animations like it's animation is ready deleted*/
+        lv_anim_t a_tmp;
+        _lv_memcpy(&a_tmp, a, sizeof(lv_anim_t));
+        _lv_ll_remove(&LV_GC_ROOT(_lv_anim_ll), a);
+        lv_mem_free(a);
+        /*Flag that the list has changed */
+        anim_mark_list_change();
+
+        /* Call the callback function at the end*/
+        if(a_tmp.ready_cb != NULL) a_tmp.ready_cb(&a_tmp);
+    }
+    /*If the animation is not deleted then restart it*/
+    else {
+        a->act_time = -a->repeat_delay; /*Restart the animation*/
+        /*Swap the start and end values in play back mode*/
+        if(a->playback_time != 0) {
+            /*If now turning back use the 'playback_pause*/
+            if(a->playback_now == 0) a->act_time = -a->playback_delay;
+
+            /*Toggle the play back state*/
+            a->playback_now = a->playback_now == 0 ? 1 : 0;
+            /*Swap the start and end values*/
+            int32_t tmp;
+            tmp      = a->start;
+            a->start = a->end;
+            a->end   = tmp;
+
+            a->time = a->playback_now == 0 ? a->time_orig : a->playback_time;
+        }
+    }
+
+    return anim_list_changed;
+}

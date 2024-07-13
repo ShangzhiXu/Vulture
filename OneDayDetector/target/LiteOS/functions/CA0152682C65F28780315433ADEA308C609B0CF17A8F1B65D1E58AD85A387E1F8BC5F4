@@ -1,0 +1,28 @@
+pppapi_pppol2tp_create(struct netif *pppif, struct netif *netif, ip_addr_t *ipaddr, u16_t port,
+                        const u8_t *secret, u8_t secret_len,
+                        ppp_link_status_cb_fn link_status_cb, void *ctx_cb)
+{
+  ppp_pcb* result;
+  PPPAPI_VAR_DECLARE(msg);
+  PPPAPI_VAR_ALLOC_RETURN_NULL(msg);
+#if !PPPOL2TP_AUTH_SUPPORT
+  LWIP_UNUSED_ARG(secret);
+  LWIP_UNUSED_ARG(secret_len);
+#endif /* !PPPOL2TP_AUTH_SUPPORT */
+
+  PPPAPI_VAR_REF(msg).msg.ppp = NULL;
+  PPPAPI_VAR_REF(msg).msg.msg.l2tpcreate.pppif = pppif;
+  PPPAPI_VAR_REF(msg).msg.msg.l2tpcreate.netif = netif;
+  PPPAPI_VAR_REF(msg).msg.msg.l2tpcreate.ipaddr = PPPAPI_VAR_REF(ipaddr);
+  PPPAPI_VAR_REF(msg).msg.msg.l2tpcreate.port = port;
+#if PPPOL2TP_AUTH_SUPPORT
+  PPPAPI_VAR_REF(msg).msg.msg.l2tpcreate.secret = secret;
+  PPPAPI_VAR_REF(msg).msg.msg.l2tpcreate.secret_len = secret_len;
+#endif /* PPPOL2TP_AUTH_SUPPORT */
+  PPPAPI_VAR_REF(msg).msg.msg.l2tpcreate.link_status_cb = link_status_cb;
+  PPPAPI_VAR_REF(msg).msg.msg.l2tpcreate.ctx_cb = ctx_cb;
+  tcpip_api_call(pppapi_do_pppol2tp_create, &PPPAPI_VAR_REF(msg).call);
+  result = PPPAPI_VAR_REF(msg).msg.ppp;
+  PPPAPI_VAR_FREE(msg);
+  return result;
+}

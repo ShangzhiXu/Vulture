@@ -1,0 +1,52 @@
+HAL_StatusTypeDef HAL_SMARTCARD_Transmit_IT(SMARTCARD_HandleTypeDef *hsmartcard, uint8_t *pData, uint16_t Size)
+{
+  /* Check that a Tx process is not already ongoing */
+  if (hsmartcard->gState == HAL_SMARTCARD_STATE_READY)
+  {
+    if ((pData == NULL) || (Size == 0U))
+    {
+      return HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hsmartcard);
+
+    hsmartcard->ErrorCode = HAL_SMARTCARD_ERROR_NONE;
+    hsmartcard->gState = HAL_SMARTCARD_STATE_BUSY_TX;
+
+    hsmartcard->pTxBuffPtr  = pData;
+    hsmartcard->TxXferSize  = Size;
+    hsmartcard->TxXferCount = Size;
+    hsmartcard->TxISR       = NULL;
+
+    /* Disable the Peripheral first to update mode for TX master */
+    CLEAR_BIT(hsmartcard->Instance->CR1, USART_CR1_UE);
+
+    /* Disable Rx, enable Tx */
+    CLEAR_BIT(hsmartcard->Instance->CR1, USART_CR1_RE);
+    SET_BIT(hsmartcard->Instance->RQR, (uint16_t)SMARTCARD_RXDATA_FLUSH_REQUEST);
+    SET_BIT(hsmartcard->Instance->CR1, USART_CR1_TE);
+
+    /* Enable the Peripheral */
+    SET_BIT(hsmartcard->Instance->CR1, USART_CR1_UE);
+
+    /* Configure Tx interrupt processing */
+    /* Set the Tx ISR function pointer */
+    hsmartcard->TxISR = SMARTCARD_TxISR;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hsmartcard);
+
+    /* Enable the SMARTCARD Error Interrupt: (Frame error) */
+    SET_BIT(hsmartcard->Instance->CR3, USART_CR3_EIE);
+
+    /* Enable the SMARTCARD Transmit Data Register Empty Interrupt */
+    SET_BIT(hsmartcard->Instance->CR1, USART_CR1_TXEIE);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

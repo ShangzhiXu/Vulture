@@ -1,0 +1,29 @@
+HAL_StatusTypeDef HAL_CRC_DeInit(CRC_HandleTypeDef *hcrc)
+{
+  /* Check the CRC handle allocation */
+  if(hcrc == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  /* Check the parameters */
+  assert_param(IS_CRC_ALL_INSTANCE(hcrc->Instance));
+
+  /* Change CRC peripheral state */
+  hcrc->State = HAL_CRC_STATE_BUSY;
+
+  /* DeInit the low level hardware */
+  HAL_CRC_MspDeInit(hcrc);
+
+  /* Resets the CRC calculation unit and sets the data register to 0xFFFF FFFF */
+  __HAL_CRC_DR_RESET(hcrc);
+
+  /* Change CRC peripheral state */
+  hcrc->State = HAL_CRC_STATE_RESET;
+
+  /* Release Lock */
+  __HAL_UNLOCK(hcrc);
+
+  /* Return function status */
+  return HAL_OK;
+}

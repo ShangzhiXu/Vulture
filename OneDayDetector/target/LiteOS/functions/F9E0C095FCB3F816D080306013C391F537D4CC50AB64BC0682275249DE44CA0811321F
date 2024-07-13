@@ -1,0 +1,36 @@
+tcp_timewait_input(struct tcp_pcb *pcb)
+{
+  /* RFC 1337: in TIME_WAIT, ignore RST and ACK FINs + any 'acceptable' segments */
+  /* RFC 793 3.9 Event Processing - Segment Arrives:
+   * - first check sequence number - we skip that one in TIME_WAIT (always
+   *   acceptable since we only send ACKs)
+   * - second check the RST bit (... return) */
+  if (flags & TCP_RST) {
+    return;
+  }
+
+  LWIP_ASSERT("tcp_timewait_input: invalid pcb", pcb != NULL);
+
+  /* - fourth, check the SYN bit, */
+  if (flags & TCP_SYN) {
+    /* If an incoming segment is not acceptable, an acknowledgment
+       should be sent in reply */
+    if (TCP_SEQ_BETWEEN(seqno, pcb->rcv_nxt, pcb->rcv_nxt + pcb->rcv_wnd)) {
+      /* If the SYN is in the window it is an error, send a reset */
+      tcp_rst(pcb, ackno, seqno + tcplen, ip_current_dest_addr(),
+              ip_current_src_addr(), tcphdr->dest, tcphdr->src);
+      return;
+    }
+  } else if (flags & TCP_FIN) {
+    /* - eighth, check the FIN bit: Remain in the TIME-WAIT state.
+         Restart the 2 MSL time-wait timeout.*/
+    pcb->tmr = tcp_ticks;
+  }
+
+  if ((tcplen > 0)) {
+    /* Acknowledge data, FIN or out-of-window SYN */
+    tcp_ack_now(pcb);
+    tcp_output(pcb);
+  }
+  return;
+}

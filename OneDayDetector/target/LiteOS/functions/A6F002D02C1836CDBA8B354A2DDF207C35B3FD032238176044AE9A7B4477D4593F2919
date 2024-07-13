@@ -1,0 +1,41 @@
+STATIC UINT32 ShellMsgNameGetAndExec(CmdParsed *cmdParsed, const CHAR *output, UINT32 len)
+{
+    UINT32 loop;
+    UINT32 ret;
+    const CHAR *tmpStr = NULL;
+    BOOL quotes = FALSE;
+    CHAR *msgName = (CHAR *)LOS_MemAlloc(m_aucSysMem0, len + 1);
+    if (msgName == NULL) {
+        PRINTK("malloc failure in %s[%d]\n", __FUNCTION__, __LINE__);
+        return OS_INVALID;
+    }
+    /* Scan the 'output' string for command */
+    /* Notice: Command string must not have any special name */
+    for (tmpStr = output, loop = 0; (*tmpStr != '\0') && (loop < len);) {
+        /* If reach a double quotes, switch the quotes matching status */
+        if (*tmpStr == '\"') {
+            SWITCH_QUOTES_STATUS(quotes);
+            /* Ignore the double quote CHARactor itself */
+            tmpStr++;
+            continue;
+        }
+        /* If detected a space which the quotes matching status is false */
+        /* which said has detected the first space for separator, finish this scan operation */
+        if ((*tmpStr == ' ') && (QUOTES_STATUS_CLOSE(quotes))) {
+            break;
+        }
+        msgName[loop] = *tmpStr++;
+        loop++;
+    }
+    msgName[loop] = '\0';
+    /* Scan the command list to check whether the command can be found */
+    ret = ShellMsgTypeGet(cmdParsed, msgName);
+    PRINTK("\n");
+    if (ret != LOS_OK) {
+        PRINTK("%s:command not found", msgName);
+    } else {
+        (VOID)OsCmdExec(cmdParsed, (CHAR *)output);
+    }
+    (VOID)LOS_MemFree(m_aucSysMem0, msgName);
+    return ret;
+}

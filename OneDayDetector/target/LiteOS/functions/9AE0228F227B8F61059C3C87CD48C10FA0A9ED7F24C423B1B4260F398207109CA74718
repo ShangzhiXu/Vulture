@@ -1,0 +1,46 @@
+static uint32_t I2C_Configure_Speed(I2C_HandleTypeDef *hi2c, uint32_t I2CClkSrcFreq)
+{
+  uint32_t tmp1 = 0;
+  
+  /* Clock Standard Mode */
+  if(hi2c->Init.ClockSpeed <= I2C_STANDARD_MODE_MAX_CLK)
+  {
+    /* Calculate Value to be set in CCR register */
+    tmp1 = (I2CClkSrcFreq/(hi2c->Init.ClockSpeed << 1));
+    
+    /* The minimum allowed value set in CCR register is 0x04 for Standard Mode */
+    if( (tmp1 & I2C_CCR_CCR) < 4 )
+    {
+      return 4;
+    }
+    else
+    {
+      return tmp1;
+    }
+  }
+  else
+  {
+    /* Clock Fast Mode */
+    tmp1 = I2C_CCR_FS;
+    
+    /* Duty Cylce tLow/tHigh = 2 */
+    if(hi2c->Init.DutyCycle == I2C_DUTYCYCLE_2)
+    {
+      tmp1 |= (I2CClkSrcFreq/(hi2c->Init.ClockSpeed * 3)) | I2C_DUTYCYCLE_2; 
+    }
+    else /* Duty Cylce tLow/tHigh = 16/9 */
+    {
+      tmp1 |= (I2CClkSrcFreq/(hi2c->Init.ClockSpeed * 25)) | I2C_DUTYCYCLE_16_9;
+    }
+
+    /* The minimum allowed value set in CCR register is 0x01 for Fast Mode */
+    if( (tmp1 & I2C_CCR_CCR) < 1 )
+    {
+      return 1;
+    }
+    else
+    {
+      return tmp1;
+    }
+  }
+}

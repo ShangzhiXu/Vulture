@@ -1,0 +1,16 @@
+STATIC INLINE INT64 ArchAtomic64Add(Atomic64 *v, INT64 addVal)
+{
+    INT64 val;
+    UINT32 status;
+
+    do {
+        __asm__ __volatile__("ldxr   %1, %2\n"
+                             "add   %1, %1, %3\n"
+                             "stxr   %w0, %1, %2"
+                             : "=&r"(status), "=&r"(val), "+Q"(*v)
+                             : "r"(addVal)
+                             : "cc");
+    } while (__builtin_expect(status != 0, 0));
+
+    return val;
+}

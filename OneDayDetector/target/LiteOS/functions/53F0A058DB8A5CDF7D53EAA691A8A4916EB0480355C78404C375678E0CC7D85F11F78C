@@ -1,0 +1,28 @@
+static void lwm2m_delayBsRetry(lwm2m_context_t *contextP)
+{
+    uint32_t delayBase;
+    uint32_t delayInterval;
+    uint32_t cnt = contextP->bsCtrl.cnt;
+    uint32_t expireTime;
+
+    if (contextP->bsCtrl.state == STATE_REGISTER_REQUIRED)
+    {
+        delayBase = FACTORY_BS_DELAY_BASE;
+        delayInterval = FACTORY_BS_DELAY_INTERVAL;
+    }
+    else
+    {
+        delayBase = CLIENT_INITIATED_BS_DELAY_BASE;
+        delayInterval = CLIENT_INITIATED_BS_DELAY_INTERVAL;
+        if ((contextP->bsCtrl.bsType == BOOTSTRAP_SEQUENCE) && (cnt > 0))
+        {
+            cnt--;
+        }
+    }
+
+    expireTime = delayBase + delayInterval * cnt;
+    if (expireTime > 0)
+    {
+        lwm2m_delay(expireTime);
+    }
+}

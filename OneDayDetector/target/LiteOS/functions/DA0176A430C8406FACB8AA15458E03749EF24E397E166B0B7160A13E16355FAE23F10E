@@ -1,0 +1,38 @@
+http_parse_response_status(struct pbuf *p, u16_t *http_version, u16_t *http_status, u16_t *http_status_str_offset)
+{
+  u16_t end1 = pbuf_memfind(p, "\r\n", 2, 0);
+  if (end1 != 0xFFFF) {
+    /* get parts of first line */
+    u16_t space1, space2;
+    space1 = pbuf_memfind(p, " ", 1, 0);
+    if (space1 != 0xFFFF) {
+      if ((pbuf_memcmp(p, 0, "HTTP/", 5) == 0)  && (pbuf_get_at(p, 6) == '.')) {
+        char status_num[10];
+        size_t status_num_len;
+        /* parse http version */
+        u16_t version = pbuf_get_at(p, 5) - '0';
+        version <<= 8;
+        version |= pbuf_get_at(p, 7) - '0';
+        *http_version = version;
+
+        /* parse http status number */
+        space2 = pbuf_memfind(p, " ", 1, space1 + 1);
+        if (space2 != 0xFFFF) {
+          *http_status_str_offset = space2 + 1;
+          status_num_len = space2 - space1 - 1;
+        } else {
+          status_num_len = end1 - space1 - 1;
+        }
+        memset(status_num, 0, sizeof(status_num));
+        if (pbuf_copy_partial(p, status_num, (u16_t)status_num_len, space1 + 1) == status_num_len) {
+          int status = atoi(status_num);
+          if ((status > 0) && (status <= 0xFFFF)) {
+            *http_status = (u16_t)status;
+            return ERR_OK;
+          }
+        }
+      }
+    }
+  }
+  return ERR_VAL;
+}

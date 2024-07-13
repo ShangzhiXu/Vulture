@@ -1,0 +1,28 @@
+static void OSPI_DMAAbortCplt(DMA_HandleTypeDef *hdma)   
+{
+  OSPI_HandleTypeDef* hospi = ( OSPI_HandleTypeDef* )((DMA_HandleTypeDef* )hdma)->Parent;
+  hospi->XferCount = 0;
+
+  /* Check the state */
+  if (hospi->State == HAL_OSPI_STATE_ABORT)
+  {
+    /* DMA abort called by OctoSPI abort */
+    /* Clear transfer complete flag */
+    __HAL_OSPI_CLEAR_FLAG(hospi, HAL_OSPI_FLAG_TC);
+     
+    /* Enable the transfer complete interrupts */
+    __HAL_OSPI_ENABLE_IT(hospi, HAL_OSPI_IT_TC);
+
+    /* Perform an abort of the OctoSPI */
+    SET_BIT(hospi->Instance->CR, OCTOSPI_CR_ABORT);
+  }
+  else
+  {
+    /* DMA abort called due to a transfer error interrupt */
+    /* Update state */
+    hospi->State = HAL_OSPI_STATE_READY;
+    
+    /* Error callback */
+    HAL_OSPI_ErrorCallback(hospi);
+  }
+}

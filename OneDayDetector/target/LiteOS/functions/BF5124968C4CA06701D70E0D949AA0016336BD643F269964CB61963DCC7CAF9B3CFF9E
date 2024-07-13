@@ -1,0 +1,122 @@
+int atiny_mqtt_bind(const mqtt_device_info_s *device_info, mqtt_client_s *handle)
+{
+    Network n;
+    MQTTClient *client = NULL;
+    mqtt_param_s *params;
+    int rc;
+    int32_t conn_failed_cnt = 0;
+    MQTTPacket_connectData data = MQTTPacket_connectData_initializer;
+    Timer timer;
+    int result = ATINY_ERR;
+
+    if (handle == NULL) {
+        ATINY_LOG(LOG_FATAL, "handle null");
+        return ATINY_ARG_INVALID;
+    }
+
+    if ((device_info == NULL) || (mqtt_check_device_info(device_info) != ATINY_OK)) {
+        ATINY_LOG(LOG_FATAL, "parameter invalid");
+        result = ATINY_ARG_INVALID;
+        goto atiny_bind_quit;
+    }
+
+    dtls_init();
+
+    client = &(handle->client);
+    params = &(handle->params);
+
+    rc = mqtt_dup_device_info(&(handle->device_info), device_info);
+    if (rc != ATINY_OK) {
+        goto atiny_bind_quit;
+    }
+
+    mqtt_read_flash_info(handle);
+    NetworkInit(&n, mqtt_get_security_info);
+
+    memset(client, 0x0, sizeof(MQTTClient));
+    rc = MQTTClientInit(client, &n, MQTT_COMMAND_TIMEOUT_MS, g_mqtt_sendbuf, MQTT_SENDBUF_SIZE, g_mqtt_readbuf, MQTT_READBUF_SIZE);
+    if (rc != MQTT_SUCCESS) {
+        ATINY_LOG(LOG_FATAL, "MQTTClientInit fail,rc %d", rc);
+        goto atiny_bind_quit;
+    }
+
+    data.willFlag = 0;
+    data.MQTTVersion = MQTT_VERSION_3_1_1;
+    data.keepAliveInterval = MQTT_KEEPALIVE_INTERVAL_S;
+    data.cleansession = true;
+
+    while (true) {
+        if (conn_failed_cnt > 0) {
+            ATINY_LOG(LOG_INFO, "reconnect delay : %d", conn_failed_cnt);
+            (void)LOS_TaskDelay(MQTT_CONN_FAILED_BASE_DELAY << conn_failed_cnt);
+        }
+        rc = NetworkConnect(&n, params->server_ip, atoi(params->server_port));
+        if (rc != 0) {
+            ATINY_LOG(LOG_ERR, "NetworkConnect fail: %d", rc);
+            mqtt_inc_fail_cnt(&conn_failed_cnt);
+            continue;
+        }
+
+        if (mqtt_get_connection_info(handle, &data) != ATINY_OK) {
+            mqtt_destroy_data_connection_info(&data);
+            mqtt_proc_connect_err(client, &n, &conn_failed_cnt);
+            continue;
+        }
+
+        rc = MQTTConnect(client, &data);
+        mqtt_destroy_data_connection_info(&data);
+        ATINY_LOG(LOG_DEBUG, "CONNACK : %d", rc);
+        if (rc != MQTT_SUCCESS) {
+            /* receive connection nack value */
+            if (rc != MQTT_SUCCESS) {
+                mqtt_proc_connect_nack(handle);
+            }
+            ATINY_LOG(LOG_ERR, "MQTTConnect failed %d", rc);
+            mqtt_proc_connect_err(client, &n, &conn_failed_cnt);
+            continue;
+        }
+
+        if (ATINY_OK != mqtt_subscribe_topic(handle)) {
+            ATINY_LOG(LOG_ERR, "mqtt_subscribe_topic failed");
+            mqtt_proc_connect_err(client, &n, &conn_failed_cnt);
+            continue;
+        }
+
+        conn_failed_cnt = 0;
+        if (!mqtt_is_connectting_with_deviceid(handle)) {
+            TimerInit(&timer);
+            TimerCountdownMS(&timer, MQTT_WRITE_FOR_SECRET_TIMEOUT);
+        }
+        while (rc >= 0 && MQTTIsConnected(client)) {
+            rc = MQTTYield(client, MQTT_EVENTS_HANDLE_PERIOD_MS);
+
+            /* receive secret info */
+            if (handle->dynamic_info.connection_update_flag) {
+                ATINY_LOG(LOG_INFO, "recv secret info");
+                ATINY_LOG(LOG_DEBUG, "secret info deviceid %s", handle->dynamic_info.save_info.deviceid);
+                handle->dynamic_info.connection_update_flag = false;
+                handle->dynamic_info.state = MQTT_CONNECT_WITH_DEVICE_ID;
+                break;
+            }
+
+            /* wait secret info timeout. */
+            if (!mqtt_is_connectting_with_deviceid(handle) && (TimerIsExpired(&timer))) {
+                if (handle->dynamic_info.has_device_id) {
+                    handle->dynamic_info.state = MQTT_CONNECT_WITH_DEVICE_ID;
+                }
+                break;
+            }
+        }
+        mqtt_disconnect(client, &n);
+    }
+    result = ATINY_OK;
+atiny_bind_quit:
+    mqtt_free_dynamic_info(handle);
+    mqtt_free_params(&(handle->params));
+    (void)atiny_task_mutex_lock(&client->mutex);
+    mqtt_free_device_info(&(handle->device_info));
+    (void)atiny_task_mutex_unlock(&client->mutex);
+    MQTTClientDeInit(client);
+    handle->init_flag = false;
+    return result;
+}

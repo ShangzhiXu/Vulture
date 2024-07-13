@@ -1,0 +1,33 @@
+static LONG WINAPI exception_filter(EXCEPTION_POINTERS *exception_pointers) {
+    EXCEPTION_RECORD * const exception_record =
+        exception_pointers->ExceptionRecord;
+    const DWORD code = exception_record->ExceptionCode;
+    unsigned int i;
+    for (i = 0; i < ARRAY_LENGTH(exception_codes); i++) {
+        const ExceptionCodeInfo * const code_info = &exception_codes[i];
+        if (code == code_info->code) {
+            static int shown_debug_message = 0;
+            fflush(stdout);
+            print_error("%s occurred at 0x%08x.\n", code_info->description,
+                        exception_record->ExceptionAddress);
+            if (!shown_debug_message) {
+                print_error(
+                    "\n"
+                    "To debug in Visual Studio...\n"
+                    "1. Select menu item File->Open Project\n"
+                    "2. Change 'Files of type' to 'Executable Files'\n"
+                    "3. Open this executable.\n"
+                    "4. Select menu item Debug->Start\n"
+                    "\n"
+                    "Alternatively, set the environment variable \n"
+                    "UNIT_TESTING_DEBUG to 1 and rebuild this executable, \n"
+                    "then click 'Debug' in the popup dialog box.\n"
+                    "\n");
+                shown_debug_message = 1;
+            }
+            exit_test(0);
+            return EXCEPTION_EXECUTE_HANDLER;
+        }
+    }
+    return EXCEPTION_CONTINUE_SEARCH;
+}

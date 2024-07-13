@@ -1,0 +1,75 @@
+HAL_StatusTypeDef HAL_I2S_Receive_DMA(I2S_HandleTypeDef *hi2s, uint16_t *pData, uint16_t Size)
+{
+  if((pData == NULL) || (Size == 0))
+  {
+    return  HAL_ERROR;
+  }
+
+  /* Process Locked */
+  __HAL_LOCK(hi2s);
+
+  if(hi2s->State == HAL_I2S_STATE_READY)
+  {
+    hi2s->pRxBuffPtr = pData;
+    hi2s->State = HAL_I2S_STATE_BUSY_RX;
+    hi2s->ErrorCode = HAL_I2S_ERROR_NONE;
+
+    if(((hi2s->Instance->I2SCFGR & (SPI_I2SCFGR_DATLEN | SPI_I2SCFGR_CHLEN)) == I2S_DATAFORMAT_24B)||\
+      ((hi2s->Instance->I2SCFGR & (SPI_I2SCFGR_DATLEN | SPI_I2SCFGR_CHLEN)) == I2S_DATAFORMAT_32B))
+    {
+      hi2s->RxXferSize = (Size << 1);
+      hi2s->RxXferCount = (Size << 1);
+    }
+    else
+    {
+      hi2s->RxXferSize = Size;
+      hi2s->RxXferCount = Size;
+    }
+    
+    
+    /* Set the I2S Rx DMA Half transfert complete callback */
+    hi2s->hdmarx->XferHalfCpltCallback = I2S_DMARxHalfCplt;
+    
+    /* Set the I2S Rx DMA transfert complete callback */
+    hi2s->hdmarx->XferCpltCallback = I2S_DMARxCplt;
+    
+    /* Set the DMA error callback */
+    hi2s->hdmarx->XferErrorCallback = I2S_DMAError;
+    
+    /* Check if Master Receiver mode is selected */
+    if((hi2s->Instance->I2SCFGR & SPI_I2SCFGR_I2SCFG) == I2S_MODE_MASTER_RX)
+    {
+      /* Clear the Overrun Flag by a read operation to the SPI_DR register followed by a read
+      access to the SPI_SR register. */ 
+      __HAL_I2S_CLEAR_OVRFLAG(hi2s);
+    }
+    
+    /* Enable the Rx DMA Channel */
+    HAL_DMA_Start_IT(hi2s->hdmarx, (uint32_t)&hi2s->Instance->DR, (uint32_t)hi2s->pRxBuffPtr, hi2s->RxXferSize);
+    
+    /* Check if the I2S is already enabled */ 
+    if(HAL_IS_BIT_CLR(hi2s->Instance->I2SCFGR, SPI_I2SCFGR_I2SE))
+    {
+      /* Enable I2S peripheral */
+      __HAL_I2S_ENABLE(hi2s);
+    }
+
+     /* Check if the I2S Rx request is already enabled */ 
+    if(HAL_IS_BIT_CLR(hi2s->Instance->CR2, SPI_CR2_RXDMAEN))
+    {
+      /* Enable Rx DMA Request */  
+      SET_BIT(hi2s->Instance->CR2, SPI_CR2_RXDMAEN);
+    }
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2s);
+
+    return HAL_OK;
+  }
+  else
+  {
+    /* Process Unlocked */
+    __HAL_UNLOCK(hi2s);
+    return HAL_BUSY;
+  }
+}

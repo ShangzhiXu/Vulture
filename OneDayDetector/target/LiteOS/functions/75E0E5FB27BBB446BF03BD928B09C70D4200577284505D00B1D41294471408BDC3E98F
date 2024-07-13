@@ -1,0 +1,36 @@
+HAL_StatusTypeDef HAL_IRDA_Receive_IT(IRDA_HandleTypeDef *hirda, uint8_t *pData, uint16_t Size)
+{
+  /* Check that a Rx process is not already ongoing */
+  if (hirda->RxState == HAL_IRDA_STATE_READY)
+  {
+    if ((pData == NULL) || (Size == 0U))
+    {
+      return HAL_ERROR;
+    }
+
+    /* Process Locked */
+    __HAL_LOCK(hirda);
+
+    hirda->pRxBuffPtr = pData;
+    hirda->RxXferSize = Size;
+    hirda->RxXferCount = Size;
+
+    hirda->ErrorCode = HAL_IRDA_ERROR_NONE;
+    hirda->RxState = HAL_IRDA_STATE_BUSY_RX;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hirda);
+
+    /* Enable the IRDA Parity Error and Data Register Not Empty Interrupts */
+    SET_BIT(hirda->Instance->CR1, USART_CR1_PEIE | USART_CR1_RXNEIE);
+
+    /* Enable the IRDA Error Interrupt: (Frame error, Noise error, Overrun error) */
+    SET_BIT(hirda->Instance->CR3, USART_CR3_EIE);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

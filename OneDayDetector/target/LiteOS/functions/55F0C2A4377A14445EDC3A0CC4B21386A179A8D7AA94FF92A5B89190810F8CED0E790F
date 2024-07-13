@@ -1,0 +1,55 @@
+HAL_StatusTypeDef HAL_DSI_EnterULPMData(DSI_HandleTypeDef *hdsi)
+{
+  uint32_t tickstart;
+
+  /* Process locked */
+  __HAL_LOCK(hdsi);
+
+  /* ULPS Request on Data Lanes */
+  hdsi->Instance->PUCR |= DSI_PUCR_URDL;
+
+  /* Get tick */
+  tickstart = HAL_GetTick();
+
+  /* Wait until the D-PHY active lanes enter into ULPM */
+  if((hdsi->Instance->PCONFR & DSI_PCONFR_NL) == DSI_ONE_DATA_LANE)
+  {
+    while((hdsi->Instance->PSR & DSI_PSR_UAN0) != RESET)
+    {
+      /* Check for the Timeout */
+      if((HAL_GetTick() - tickstart ) > DSI_TIMEOUT_VALUE)
+      {
+        /* Process Unlocked */
+        __HAL_UNLOCK(hdsi);
+
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+  else if ((hdsi->Instance->PCONFR & DSI_PCONFR_NL) == DSI_TWO_DATA_LANES)
+  {
+    while((hdsi->Instance->PSR & (DSI_PSR_UAN0 | DSI_PSR_UAN1)) != RESET)
+    {
+      /* Check for the Timeout */
+      if((HAL_GetTick() - tickstart ) > DSI_TIMEOUT_VALUE)
+      {
+        /* Process Unlocked */
+        __HAL_UNLOCK(hdsi);
+
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+  else
+  {
+    /* Process unlocked */
+    __HAL_UNLOCK(hdsi);
+
+    return HAL_ERROR;
+  }
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hdsi);
+
+  return HAL_OK;
+}

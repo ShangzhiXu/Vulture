@@ -1,0 +1,42 @@
+HAL_StatusTypeDef HAL_DMA_RegisterCallback(DMA_HandleTypeDef *hdma, HAL_DMA_CallbackIDTypeDef CallbackID, void (* pCallback)( DMA_HandleTypeDef * _hdma))
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  
+  /* Process locked */
+  __HAL_LOCK(hdma);
+  
+  if(HAL_DMA_STATE_READY == hdma->State)
+  {
+    switch (CallbackID)
+    {
+     case  HAL_DMA_XFER_CPLT_CB_ID:
+           hdma->XferCpltCallback = pCallback;
+           break;
+       
+     case  HAL_DMA_XFER_HALFCPLT_CB_ID:
+           hdma->XferHalfCpltCallback = pCallback;
+           break;         
+
+     case  HAL_DMA_XFER_ERROR_CB_ID:
+           hdma->XferErrorCallback = pCallback;
+           break;         
+           
+     case  HAL_DMA_XFER_ABORT_CB_ID:
+           hdma->XferAbortCallback = pCallback;
+           break; 
+           
+     default:
+           status = HAL_ERROR;
+           break;                                                            
+    }
+  }
+  else
+  {
+    status = HAL_ERROR;
+  } 
+  
+  /* Release Lock */
+  __HAL_UNLOCK(hdma);
+  
+  return status;
+}

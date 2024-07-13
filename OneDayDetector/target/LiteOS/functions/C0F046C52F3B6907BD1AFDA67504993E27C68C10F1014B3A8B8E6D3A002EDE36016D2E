@@ -1,0 +1,42 @@
+static void SPI_2linesRxISR_8BIT(struct __SPI_HandleTypeDef *hspi)
+{
+  /* Receive data in packing mode */
+  if (hspi->RxXferCount > 1U)
+  {
+    *((uint16_t *)hspi->pRxBuffPtr) = hspi->Instance->DR;
+    hspi->pRxBuffPtr += sizeof(uint16_t);
+    hspi->RxXferCount -= 2U;
+    if (hspi->RxXferCount == 1U)
+    {
+      /* Set RX Fifo threshold according the reception data length: 8bit */
+      SET_BIT(hspi->Instance->CR2, SPI_RXFIFO_THRESHOLD);
+    }
+  }
+  /* Receive data in 8 Bit mode */
+  else
+  {
+    *hspi->pRxBuffPtr++ = *((__IO uint8_t *)&hspi->Instance->DR);
+    hspi->RxXferCount--;
+  }
+
+  /* Check end of the reception */
+  if (hspi->RxXferCount == 0U)
+  {
+#if (USE_SPI_CRC != 0U)
+    if (hspi->Init.CRCCalculation == SPI_CRCCALCULATION_ENABLE)
+    {
+      SET_BIT(hspi->Instance->CR2, SPI_RXFIFO_THRESHOLD);
+      hspi->RxISR =  SPI_2linesRxISR_8BITCRC;
+      return;
+    }
+#endif /* USE_SPI_CRC */
+
+    /* Disable RXNE  and ERR interrupt */
+    __HAL_SPI_DISABLE_IT(hspi, (SPI_IT_RXNE | SPI_IT_ERR));
+
+    if (hspi->TxXferCount == 0U)
+    {
+      SPI_CloseRxTx_ISR(hspi);
+    }
+  }
+}

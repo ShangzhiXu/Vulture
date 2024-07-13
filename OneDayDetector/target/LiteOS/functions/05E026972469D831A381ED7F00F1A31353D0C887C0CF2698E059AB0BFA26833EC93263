@@ -1,0 +1,22 @@
+int flag_write(flag_type_e flag_type, const void *buf, int32_t len)
+{
+    uint8_t flag_buf[FLASH_FLAG_SIZE];
+
+    if ((buf == NULL) || (len < 0) || (len > FLASH_UNIT_SIZE) ||
+        (g_flag_op.func_flag_read(flag_buf, FLASH_FLAG_SIZE) != 0)) {
+        return -1;
+    }
+
+    switch (flag_type) {
+        case FLAG_BOOTLOADER:
+            memcpy(flag_buf, buf, len);
+            break;
+        case FLAG_APP:
+            memcpy(flag_buf + FLASH_UNIT_SIZE, buf, len);
+            break;
+        default:
+            break;
+    }
+
+    return g_flag_op.func_flag_write(flag_buf, FLASH_FLAG_SIZE);
+}

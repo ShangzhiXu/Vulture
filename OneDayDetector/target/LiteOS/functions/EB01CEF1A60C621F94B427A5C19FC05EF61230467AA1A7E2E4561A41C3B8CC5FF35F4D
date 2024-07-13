@@ -1,0 +1,77 @@
+void UnityAssertEqualStringArray(UNITY_INTERNAL_PTR expected,
+                                 const char** actual,
+                                 const UNITY_UINT32 num_elements,
+                                 const char* msg,
+                                 const UNITY_LINE_TYPE lineNumber,
+                                 const UNITY_FLAGS_T flags)
+{
+    UNITY_UINT32 i = 0;
+    UNITY_UINT32 j = 0;
+    const char* expd = NULL;
+    const char* act = NULL;
+
+    RETURN_IF_FAIL_OR_IGNORE;
+
+    /* if no elements, it's an error */
+    if (num_elements == 0)
+    {
+        UnityPrintPointlessAndBail();
+    }
+
+    if ((const void*)expected == (const void*)actual)
+    {
+        return; /* Both are NULL or same pointer */
+    }
+
+    if (UnityIsOneArrayNull((UNITY_INTERNAL_PTR)expected, (UNITY_INTERNAL_PTR)actual, lineNumber, msg))
+    {
+        UNITY_FAIL_AND_BAIL;
+    }
+
+    if (flags != UNITY_ARRAY_TO_ARRAY)
+    {
+        expd = (const char*)expected;
+    }
+
+    do
+    {
+        act = actual[j];
+        if (flags == UNITY_ARRAY_TO_ARRAY)
+        {
+            expd = ((const char* const*)expected)[j];
+        }
+
+        /* if both pointers not null compare the strings */
+        if (expd && act)
+        {
+            for (i = 0; expd[i] || act[i]; i++)
+            {
+                if (expd[i] != act[i])
+                {
+                    Unity.CurrentTestFailed = 1;
+                    break;
+                }
+            }
+        }
+        else
+        { /* handle case of one pointers being null (if both null, test should pass) */
+            if (expd != act)
+            {
+                Unity.CurrentTestFailed = 1;
+            }
+        }
+
+        if (Unity.CurrentTestFailed)
+        {
+            UnityTestResultsFailBegin(lineNumber);
+            if (num_elements > 1)
+            {
+                UnityPrint(UnityStrElement);
+                UnityPrintNumberUnsigned(j);
+            }
+            UnityPrintExpectedAndActualStrings(expd, act);
+            UnityAddMsgIfSpecified(msg);
+            UNITY_FAIL_AND_BAIL;
+        }
+    } while (++j < num_elements);
+}

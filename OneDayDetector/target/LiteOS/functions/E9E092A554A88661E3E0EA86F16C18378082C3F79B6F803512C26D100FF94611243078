@@ -1,0 +1,31 @@
+void tinydir_close(tinydir_dir *dir)
+{
+	if (dir == NULL)
+	{
+		return;
+	}
+
+	memset(dir->path, 0, sizeof(dir->path));
+	dir->has_next = 0;
+	dir->n_files = 0;
+	_TINYDIR_FREE(dir->_files);
+	dir->_files = NULL;
+#ifdef _MSC_VER
+	if (dir->_h != INVALID_HANDLE_VALUE)
+	{
+		FindClose(dir->_h);
+	}
+	dir->_h = INVALID_HANDLE_VALUE;
+#else
+	if (dir->_d)
+	{
+		_tinydir_closedir(dir->_d);
+	}
+	dir->_d = NULL;
+	dir->_e = NULL;
+#ifndef _TINYDIR_USE_READDIR
+	_TINYDIR_FREE(dir->_ep);
+	dir->_ep = NULL;
+#endif
+#endif
+}

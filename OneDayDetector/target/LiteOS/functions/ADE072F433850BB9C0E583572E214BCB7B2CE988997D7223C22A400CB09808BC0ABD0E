@@ -1,0 +1,30 @@
+static FRESULT change_bitmap (
+	FATFS* fs,	/* Filesystem object */
+	DWORD clst,	/* Cluster number to change from */
+	DWORD ncl,	/* Number of clusters to be changed */
+	int bv		/* bit value to be set (0 or 1) */
+)
+{
+	BYTE bm;
+	UINT i;
+	DWORD sect;
+
+
+	clst -= 2;	/* The first bit corresponds to cluster #2 */
+	sect = fs->database + clst / 8 / SS(fs);	/* Sector address (assuming bitmap is located top of the cluster heap) */
+	i = clst / 8 % SS(fs);						/* Byte offset in the sector */
+	bm = 1 << (clst % 8);						/* Bit mask in the byte */
+	for (;;) {
+		if (move_window(fs, sect++) != FR_OK) return FR_DISK_ERR;
+		do {
+			do {
+				if (bv == (int)((fs->win[i] & bm) != 0)) return FR_INT_ERR;	/* Is the bit expected value? */
+				fs->win[i] ^= bm;	/* Flip the bit */
+				fs->wflag = 1;
+				if (--ncl == 0) return FR_OK;	/* All bits processed? */
+			} while (bm <<= 1);		/* Next bit */
+			bm = 1;
+		} while (++i < SS(fs));		/* Next byte */
+		i = 0;
+	}
+}

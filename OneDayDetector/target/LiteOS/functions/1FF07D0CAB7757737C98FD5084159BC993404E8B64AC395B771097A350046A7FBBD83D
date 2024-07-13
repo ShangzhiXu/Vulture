@@ -1,0 +1,53 @@
+HAL_StatusTypeDef HAL_UART_Transmit_IT(UART_HandleTypeDef *huart, uint8_t *pData, uint16_t Size)
+{
+  /* Check that a Tx process is not already ongoing */
+  if (huart->gState == HAL_UART_STATE_READY)
+  {
+    if ((pData == NULL) || (Size == 0U))
+    {
+      return HAL_ERROR;
+    }
+
+    /* In case of 9bits/No Parity transfer, pData buffer provided as input parameter
+       should be aligned on a u16 frontier, as data to be filled into TDR will be
+       handled through a u16 cast. */
+    if ((huart->Init.WordLength == UART_WORDLENGTH_9B) && (huart->Init.Parity == UART_PARITY_NONE))
+    {
+      if ((((uint32_t)pData) & 1U) != 0U)
+      {
+        return  HAL_ERROR;
+      }
+    }
+
+    __HAL_LOCK(huart);
+
+    huart->pTxBuffPtr  = pData;
+    huart->TxXferSize  = Size;
+    huart->TxXferCount = Size;
+    huart->TxISR       = NULL;
+
+    huart->ErrorCode = HAL_UART_ERROR_NONE;
+    huart->gState = HAL_UART_STATE_BUSY_TX;
+
+    /* Set the Tx ISR function pointer according to the data word length */
+    if ((huart->Init.WordLength == UART_WORDLENGTH_9B) && (huart->Init.Parity == UART_PARITY_NONE))
+    {
+      huart->TxISR = UART_TxISR_16BIT;
+    }
+    else
+    {
+      huart->TxISR = UART_TxISR_8BIT;
+    }
+
+    __HAL_UNLOCK(huart);
+
+    /* Enable the Transmit Data Register Empty interrupt */
+    SET_BIT(huart->Instance->CR1, USART_CR1_TXEIE);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}

@@ -1,0 +1,10 @@
+mem_free(void *rmem)
+{
+  LWIP_ASSERT("rmem != NULL", (rmem != NULL));
+  LWIP_ASSERT("rmem == MEM_ALIGN(rmem)", (rmem == LWIP_MEM_ALIGN(rmem)));
+#if LWIP_STATS && MEM_STATS
+  rmem = (u8_t *)rmem - MEM_LIBC_STATSHELPER_SIZE;
+  MEM_STATS_DEC_USED_LOCKED(used, *(mem_size_t *)rmem);
+#endif
+  mem_clib_free(rmem);
+}

@@ -1,0 +1,85 @@
+void LL_DMA2D_ConfigLayer(DMA2D_TypeDef *DMA2Dx, LL_DMA2D_LayerCfgTypeDef *DMA2D_LayerCfg, uint32_t LayerIdx)
+{
+  /* Check the parameters */
+  assert_param(IS_LL_DMA2D_OFFSET(DMA2D_LayerCfg->LineOffset));
+  assert_param(IS_LL_DMA2D_LCMODE(DMA2D_LayerCfg->ColorMode));
+  assert_param(IS_LL_DMA2D_CLUTCMODE(DMA2D_LayerCfg->CLUTColorMode));
+  assert_param(IS_LL_DMA2D_CLUTSIZE(DMA2D_LayerCfg->CLUTSize));
+  assert_param(IS_LL_DMA2D_ALPHAMODE(DMA2D_LayerCfg->AlphaMode));
+  assert_param(IS_LL_DMA2D_GREEN(DMA2D_LayerCfg->Green));
+  assert_param(IS_LL_DMA2D_RED(DMA2D_LayerCfg->Red));
+  assert_param(IS_LL_DMA2D_BLUE(DMA2D_LayerCfg->Blue));
+  assert_param(IS_LL_DMA2D_ALPHA(DMA2D_LayerCfg->Alpha));
+#if defined(DMA2D_ALPHA_INV_RB_SWAP_SUPPORT)
+  assert_param(IS_LL_DMA2D_ALPHAINV(DMA2D_LayerCfg->AlphaInversionMode));
+  assert_param(IS_LL_DMA2D_RBSWAP(DMA2D_LayerCfg->RBSwapMode));
+#endif /* DMA2D_ALPHA_INV_RB_SWAP_SUPPORT */
+
+
+  if (LayerIdx == 0U)
+  {
+    /* Configure the background memory address */
+    LL_DMA2D_BGND_SetMemAddr(DMA2Dx, DMA2D_LayerCfg->MemoryAddress);
+
+    /* Configure the background line offset */
+    LL_DMA2D_BGND_SetLineOffset(DMA2Dx, DMA2D_LayerCfg->LineOffset);
+
+#if defined(DMA2D_ALPHA_INV_RB_SWAP_SUPPORT)
+    /* Configure the background Alpha value, Alpha mode, RB swap, Alpha inversion
+       CLUT size, CLUT Color mode and Color mode */
+    MODIFY_REG(DMA2Dx->BGPFCCR, \
+               (DMA2D_BGPFCCR_ALPHA | DMA2D_BGPFCCR_RBS | DMA2D_BGPFCCR_AI | DMA2D_BGPFCCR_AM | \
+                DMA2D_BGPFCCR_CS | DMA2D_BGPFCCR_CCM | DMA2D_BGPFCCR_CM), \
+               ((DMA2D_LayerCfg->Alpha << DMA2D_BGPFCCR_ALPHA_Pos) | DMA2D_LayerCfg->RBSwapMode | \
+                DMA2D_LayerCfg->AlphaInversionMode | DMA2D_LayerCfg->AlphaMode | \
+                (DMA2D_LayerCfg->CLUTSize << DMA2D_BGPFCCR_CS_Pos) | DMA2D_LayerCfg->CLUTColorMode | \
+                DMA2D_LayerCfg->ColorMode));
+#else
+    /* Configure the background Alpha value, Alpha mode, CLUT size, CLUT Color mode and Color mode */
+    MODIFY_REG(DMA2Dx->BGPFCCR, \
+               (DMA2D_BGPFCCR_ALPHA | DMA2D_BGPFCCR_AM | DMA2D_BGPFCCR_CS | DMA2D_BGPFCCR_CCM | DMA2D_BGPFCCR_CM), \
+               ((DMA2D_LayerCfg->Alpha << DMA2D_BGPFCCR_ALPHA_Pos) | DMA2D_LayerCfg->AlphaMode | \
+                (DMA2D_LayerCfg->CLUTSize << DMA2D_BGPFCCR_CS_Pos) | DMA2D_LayerCfg->CLUTColorMode | \
+                DMA2D_LayerCfg->ColorMode));
+#endif /* DMA2D_ALPHA_INV_RB_SWAP_SUPPORT */
+
+    /* Configure the background color */
+    LL_DMA2D_BGND_SetColor(DMA2Dx, DMA2D_LayerCfg->Red, DMA2D_LayerCfg->Green, DMA2D_LayerCfg->Blue);
+
+    /* Configure the background CLUT memory address */
+    LL_DMA2D_BGND_SetCLUTMemAddr(DMA2Dx, DMA2D_LayerCfg->CLUTMemoryAddress);
+  }
+  else
+  {
+    /* Configure the foreground memory address */
+    LL_DMA2D_FGND_SetMemAddr(DMA2Dx, DMA2D_LayerCfg->MemoryAddress);
+
+    /* Configure the foreground line offset */
+    LL_DMA2D_FGND_SetLineOffset(DMA2Dx, DMA2D_LayerCfg->LineOffset);
+
+#if defined(DMA2D_ALPHA_INV_RB_SWAP_SUPPORT)
+    /* Configure the foreground Alpha value, Alpha mode, RB swap, Alpha inversion
+       CLUT size, CLUT Color mode and Color mode */
+    MODIFY_REG(DMA2Dx->FGPFCCR, \
+               (DMA2D_FGPFCCR_ALPHA | DMA2D_FGPFCCR_RBS | DMA2D_FGPFCCR_AI | DMA2D_FGPFCCR_AM | \
+                DMA2D_FGPFCCR_CS | DMA2D_FGPFCCR_CCM | DMA2D_FGPFCCR_CM), \
+               ((DMA2D_LayerCfg->Alpha << DMA2D_FGPFCCR_ALPHA_Pos) | DMA2D_LayerCfg->RBSwapMode | \
+                DMA2D_LayerCfg->AlphaInversionMode | DMA2D_LayerCfg->AlphaMode | \
+                (DMA2D_LayerCfg->CLUTSize << DMA2D_FGPFCCR_CS_Pos) | DMA2D_LayerCfg->CLUTColorMode | \
+                DMA2D_LayerCfg->ColorMode));
+#else
+    /* Configure the foreground Alpha value, Alpha mode, CLUT size, CLUT Color mode and Color mode */
+    MODIFY_REG(DMA2Dx->FGPFCCR, \
+               (DMA2D_FGPFCCR_ALPHA | DMA2D_FGPFCCR_AM | DMA2D_FGPFCCR_CS | DMA2D_FGPFCCR_CCM | DMA2D_FGPFCCR_CM), \
+               ((DMA2D_LayerCfg->Alpha << DMA2D_FGPFCCR_ALPHA_Pos) | DMA2D_LayerCfg->AlphaMode | \
+                (DMA2D_LayerCfg->CLUTSize << DMA2D_FGPFCCR_CS_Pos) | DMA2D_LayerCfg->CLUTColorMode | \
+                DMA2D_LayerCfg->ColorMode));
+#endif /* DMA2D_ALPHA_INV_RB_SWAP_SUPPORT */
+
+    /* Configure the foreground color */
+    LL_DMA2D_FGND_SetColor(DMA2Dx, DMA2D_LayerCfg->Red, DMA2D_LayerCfg->Green, DMA2D_LayerCfg->Blue);
+
+    /* Configure the foreground CLUT memory address */
+    LL_DMA2D_FGND_SetCLUTMemAddr(DMA2Dx, DMA2D_LayerCfg->CLUTMemoryAddress);
+  }
+}

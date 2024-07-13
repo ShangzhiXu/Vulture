@@ -1,0 +1,31 @@
+STATIC VOID SortQueueIndexArray(UINT32 *indexArray, UINT32 count)
+{
+    LosQueueCB queueNode = {0};
+    QueueDebugCB queueDebugNode = {0};
+    UINT32 index, intSave;
+    SortParam queueSortParam;
+    queueSortParam.buf = (CHAR *)g_queueDebugArray;
+    queueSortParam.ctrlBlockSize = sizeof(QueueDebugCB);
+    queueSortParam.ctrlBlockCnt = LOSCFG_BASE_IPC_QUEUE_LIMIT;
+    queueSortParam.sortElemOff = OFFSET_OF_FIELD(QueueDebugCB, lastAccessTime);
+
+    if (count > 0) {
+        SCHEDULER_LOCK(intSave);
+        OsArraySort(indexArray, 0, count - 1, &queueSortParam, QueueCompareValue);
+        SCHEDULER_UNLOCK(intSave);
+        for (index = 0; index < count; index++) {
+            SCHEDULER_LOCK(intSave);
+            (VOID)memcpy_s(&queueNode, sizeof(LosQueueCB),
+                           GET_QUEUE_HANDLE(indexArray[index]), sizeof(LosQueueCB));
+            (VOID)memcpy_s(&queueDebugNode, sizeof(QueueDebugCB),
+                           &g_queueDebugArray[indexArray[index]], sizeof(QueueDebugCB));
+            SCHEDULER_UNLOCK(intSave);
+            if (queueNode.queueState == OS_QUEUE_UNUSED) {
+                continue;
+            }
+            OsQueueInfoOutPut(&queueNode);
+            OsQueueOpsOutput(&queueDebugNode);
+        }
+    }
+    (VOID)LOS_MemFree((VOID *)OS_SYS_MEM_ADDR, indexArray);
+}

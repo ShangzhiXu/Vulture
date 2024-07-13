@@ -1,0 +1,25 @@
+LITE_OS_SEC_TEXT_MINOR VOID LOS_MakeImage(RUNSTOP_PARAM_S *runstopParam)
+{
+    UINT32 ret;
+    size_t imgSize;
+
+    if (runstopParam == NULL) {
+        return;
+    }
+    OsRunstopParamInit(runstopParam);
+
+    ret = OsWaitImagingDone(g_runstopParam.uwWowFlashAddr, &imgSize);
+    if (ret == WAKEUP_FROM_SUSPEND) {
+        if (g_runstopParam.pfWakeupCallback != NULL) {
+            g_runstopParam.pfWakeupCallback();
+        }
+        OsCarryLeftScatter();
+        PRINT_INFO("Resume ok!\n");
+    } else if (ret == FLASH_IMG_SUCCESS) {
+        if (g_runstopParam.pfImageDoneCallback != NULL) {
+            g_runstopParam.pfImageDoneCallback();
+        }
+
+        PRINT_INFO("Flash ok! Image length 0x%x\n", imgSize);
+    }
+}

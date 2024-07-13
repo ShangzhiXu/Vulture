@@ -1,0 +1,24 @@
+lwiperf_tcp_close(lwiperf_state_tcp_t *conn, enum lwiperf_report_type report_type)
+{
+  err_t err;
+
+  lwiperf_list_remove(&conn->base);
+  lwip_tcp_conn_report(conn, report_type);
+  if (conn->conn_pcb != NULL) {
+    tcp_arg(conn->conn_pcb, NULL);
+    tcp_poll(conn->conn_pcb, NULL, 0);
+    tcp_sent(conn->conn_pcb, NULL);
+    tcp_recv(conn->conn_pcb, NULL);
+    tcp_err(conn->conn_pcb, NULL);
+    err = tcp_close(conn->conn_pcb);
+    if (err != ERR_OK) {
+      /* don't want to wait for free memory here... */
+      tcp_abort(conn->conn_pcb);
+    }
+  } else {
+    /* no conn pcb, this is the listener pcb */
+    err = tcp_close(conn->server_pcb);
+    LWIP_ASSERT("error", err == ERR_OK);
+  }
+  LWIPERF_FREE(lwiperf_state_tcp_t, conn);
+}

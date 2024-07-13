@@ -1,0 +1,94 @@
+HAL_StatusTypeDef HAL_SMBUS_RegisterCallback(SMBUS_HandleTypeDef *hsmbus, HAL_SMBUS_CallbackIDTypeDef CallbackID, pSMBUS_CallbackTypeDef pCallback)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+
+  if (pCallback == NULL)
+  {
+    /* Update the error code */
+    hsmbus->ErrorCode |= HAL_SMBUS_ERROR_INVALID_CALLBACK;
+
+    return HAL_ERROR;
+  }
+
+  /* Process locked */
+  __HAL_LOCK(hsmbus);
+
+  if (HAL_SMBUS_STATE_READY == hsmbus->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_SMBUS_MASTER_TX_COMPLETE_CB_ID :
+        hsmbus->MasterTxCpltCallback = pCallback;
+        break;
+
+      case HAL_SMBUS_MASTER_RX_COMPLETE_CB_ID :
+        hsmbus->MasterRxCpltCallback = pCallback;
+        break;
+
+      case HAL_SMBUS_SLAVE_TX_COMPLETE_CB_ID :
+        hsmbus->SlaveTxCpltCallback = pCallback;
+        break;
+
+      case HAL_SMBUS_SLAVE_RX_COMPLETE_CB_ID :
+        hsmbus->SlaveRxCpltCallback = pCallback;
+        break;
+
+      case HAL_SMBUS_LISTEN_COMPLETE_CB_ID :
+        hsmbus->ListenCpltCallback = pCallback;
+        break;
+
+      case HAL_SMBUS_ERROR_CB_ID :
+        hsmbus->ErrorCallback = pCallback;
+        break;
+
+      case HAL_SMBUS_MSPINIT_CB_ID :
+        hsmbus->MspInitCallback = pCallback;
+        break;
+
+      case HAL_SMBUS_MSPDEINIT_CB_ID :
+        hsmbus->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hsmbus->ErrorCode |= HAL_SMBUS_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else if (HAL_SMBUS_STATE_RESET == hsmbus->State)
+  {
+    switch (CallbackID)
+    {
+      case HAL_SMBUS_MSPINIT_CB_ID :
+        hsmbus->MspInitCallback = pCallback;
+        break;
+
+      case HAL_SMBUS_MSPDEINIT_CB_ID :
+        hsmbus->MspDeInitCallback = pCallback;
+        break;
+
+      default :
+        /* Update the error code */
+        hsmbus->ErrorCode |= HAL_SMBUS_ERROR_INVALID_CALLBACK;
+
+        /* Return error status */
+        status =  HAL_ERROR;
+        break;
+    }
+  }
+  else
+  {
+    /* Update the error code */
+    hsmbus->ErrorCode |= HAL_SMBUS_ERROR_INVALID_CALLBACK;
+
+    /* Return error status */
+    status =  HAL_ERROR;
+  }
+
+  /* Release Lock */
+  __HAL_UNLOCK(hsmbus);
+  return status;
+}

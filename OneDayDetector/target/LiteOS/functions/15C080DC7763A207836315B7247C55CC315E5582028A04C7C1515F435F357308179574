@@ -1,0 +1,17 @@
+nd6_get_destination_mtu(const ip6_addr_t *ip6addr, struct netif *netif)
+{
+  s16_t i;
+
+  i = nd6_find_destination_cache_entry(ip6addr);
+  if (i >= 0) {
+    if (destination_cache[i].pmtu > 0) {
+      return destination_cache[i].pmtu;
+    }
+  }
+
+  if (netif != NULL) {
+    return netif_mtu6(netif);
+  }
+
+  return 1280; /* Minimum MTU */
+}

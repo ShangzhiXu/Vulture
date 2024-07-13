@@ -1,0 +1,21 @@
+int los_sync(int fd)
+{
+    struct file *file;
+    int ret = -1;
+
+    file = los_attach_file(fd);
+
+    if (file == NULL) {
+        return ret;
+    }
+
+    if (file->f_fops->sync != NULL) {
+        ret = file->f_fops->sync(file);
+    } else {
+        VFS_ERRNO_SET(ENOTSUP);
+    }
+
+    los_detach_file(file);
+
+    return ret;
+}

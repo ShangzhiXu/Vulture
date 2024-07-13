@@ -1,0 +1,4 @@
+#define ECDH_VALIDATE( cond )        \
+    MBEDTLS_INTERNAL_VALIDATE( cond )
+#define ECDH_VALIDATE_RET( cond )    \
+    MBEDTLS_INTERNAL_VALIDATE_RET( cond, MBEDTLS_ERR_ECP_BAD_INPUT_DATA )

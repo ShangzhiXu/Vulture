@@ -1,0 +1,18 @@
+STATIC VOID OsChangeFreq(VOID)
+{
+    UINT32 freq;
+    BOOL ret;
+
+    do {
+        ret = LOS_AtomicCmpXchg32bits(&g_pmMgr.freeLock, LOCK_ON, LOCK_OFF);
+        if (ret) {
+            return;
+        }
+        freq = (UINT32)g_pmMgr.freqPending;
+        if (freq != (UINT32)g_pmMgr.freq) {
+            g_pmRunOps.changeFreq(freq);
+            LOS_AtomicSet(&g_pmMgr.freq, (INT32)freq);
+        }
+        LOS_AtomicSet(&g_pmMgr.freeLock, LOCK_OFF);
+    } while (FreqHigher(g_pmMgr.freqPending, freq));
+}

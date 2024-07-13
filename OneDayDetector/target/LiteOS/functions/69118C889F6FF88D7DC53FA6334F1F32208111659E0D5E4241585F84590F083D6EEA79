@@ -1,0 +1,108 @@
+HAL_StatusTypeDef HASH_Accumulate_IT(HASH_HandleTypeDef *hhash, uint8_t *pInBuffer, uint32_t Size, uint32_t Algorithm)
+{
+  HAL_HASH_StateTypeDef State_tmp = hhash->State;
+  __IO uint32_t inputaddr = (uint32_t) pInBuffer;
+  uint32_t SizeVar = Size;
+
+  /* Make sure the input buffer size (in bytes) is a multiple of 4 */
+  if ((Size % 4U) != 0U)
+  {
+    return  HAL_ERROR;
+  }
+
+  /* Initiate HASH processing in case of start or resumption */
+  if((State_tmp == HAL_HASH_STATE_READY) || (State_tmp == HAL_HASH_STATE_SUSPENDED))
+  {
+    /* Check input parameters */
+    if ((pInBuffer == NULL) || (Size == 0U))
+    {
+      hhash->State = HAL_HASH_STATE_READY;
+      return  HAL_ERROR;
+    }
+
+     /* Process Locked */
+    __HAL_LOCK(hhash);
+
+    /* If resuming the HASH processing */
+    if (hhash->State == HAL_HASH_STATE_SUSPENDED)
+    {
+      /* Change the HASH state */
+      hhash->State = HAL_HASH_STATE_BUSY;
+    }
+    else
+    {
+      /* Change the HASH state */
+      hhash->State = HAL_HASH_STATE_BUSY;
+
+      /* Check if initialization phase has already be performed */
+      if(hhash->Phase == HAL_HASH_PHASE_READY)
+      {
+        /* Select the HASH algorithm, clear HMAC mode and long key selection bit, reset the HASH processor core */
+        MODIFY_REG(HASH->CR, HASH_CR_LKEY|HASH_CR_ALGO|HASH_CR_MODE|HASH_CR_INIT, Algorithm | HASH_CR_INIT);
+        hhash->HashITCounter = 1;
+      }
+      else
+      {
+         hhash->HashITCounter = 3; /* 'cruise-speed' reached during a previous buffer processing */
+      }
+
+      /* Set the phase */
+      hhash->Phase = HAL_HASH_PHASE_PROCESS;
+
+      /* If DINIS is equal to 0 (for example if an incomplete block has been previously
+       fed to the Peripheral), the DINIE interruption won't be triggered when DINIE is set.
+       Therefore, first words are manually entered until DINIS raises, or until there
+       is not more data to enter. */
+      while((!(__HAL_HASH_GET_FLAG(HASH_FLAG_DINIS))) && (SizeVar > 0U))
+      {
+
+        /* Write input data 4 bytes at a time */
+        HASH->DIN = *(uint32_t*)inputaddr;
+        inputaddr+=4U;
+        SizeVar-=4U;
+      }
+
+      /* If DINIS is still not set or if all the data have been fed, stop here */
+      if ((!(__HAL_HASH_GET_FLAG(HASH_FLAG_DINIS))) || (SizeVar == 0U))
+      {
+        /* Change the HASH state */
+        hhash->State = HAL_HASH_STATE_READY;
+
+        /* Process Unlock */
+        __HAL_UNLOCK(hhash);
+
+        /* Return function status */
+        return HAL_OK;
+      }
+
+      /* otherwise, carry on in interrupt-mode */
+      hhash->HashInCount = SizeVar;               /* Counter used to keep track of number of data
+                                                  to be fed to the Peripheral */
+      hhash->pHashInBuffPtr = (uint8_t *)inputaddr;       /* Points at data which will be fed to the Peripheral at
+                                                  the next interruption */
+     /* In case of suspension, hhash->HashInCount and hhash->pHashInBuffPtr contain
+        the information describing where the HASH process is stopped.
+        These variables are used later on to resume the HASH processing at the
+        correct location. */
+
+    }
+
+    /* Set multi buffers accumulation flag */
+    hhash->Accumulation = 1U;
+
+    /* Process Unlock */
+    __HAL_UNLOCK(hhash);
+
+    /* Enable Data Input interrupt */
+    __HAL_HASH_ENABLE_IT(HASH_IT_DINI);
+
+    /* Return function status */
+    return HAL_OK;
+
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+
+}

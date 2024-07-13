@@ -1,0 +1,29 @@
+HAL_StatusTypeDef HAL_COMP_DeInit(COMP_HandleTypeDef *hcomp)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  
+  /* Check the COMP handle allocation and lock status */
+  if((hcomp == NULL) || (__HAL_COMP_IS_LOCKED(hcomp)))
+  {
+    status = HAL_ERROR;
+  }
+  else
+  {
+    /* Check the parameter */
+    assert_param(IS_COMP_ALL_INSTANCE(hcomp->Instance));
+    
+    /* Set COMP_CSR register to reset value */
+    WRITE_REG(hcomp->Instance->CSR, 0x00000000U);
+    
+    /* DeInit the low level hardware: SYSCFG, GPIO, CLOCK and NVIC */
+    HAL_COMP_MspDeInit(hcomp);
+    
+    /* Set HAL COMP handle state */
+    hcomp->State = HAL_COMP_STATE_RESET;
+    
+    /* Release Lock */
+    __HAL_UNLOCK(hcomp);
+  }
+  
+  return status;
+}

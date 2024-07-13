@@ -1,0 +1,45 @@
+LITE_OS_SEC_TEXT STATIC UINT32 OsEventWrite(PEVENT_CB_S eventCB, UINT32 events, BOOL once)
+{
+    LosTaskCB *resumedTask = NULL;
+    LosTaskCB *nextTask = NULL;
+    UINT32 intSave;
+    UINT8 exitFlag = 0;
+
+    if (eventCB == NULL) {
+        return LOS_ERRNO_EVENT_PTR_NULL;
+    }
+
+    if (events & LOS_ERRTYPE_ERROR) {
+        return LOS_ERRNO_EVENT_SETBIT_INVALID;
+    }
+
+    LOS_TRACE(EVENT_WRITE, (UINTPTR)eventCB, eventCB->uwEventID, events);
+
+    SCHEDULER_LOCK(intSave);
+
+    eventCB->uwEventID |= events;
+    if (!LOS_ListEmpty(&eventCB->stEventList)) {
+        for (resumedTask = LOS_DL_LIST_ENTRY((&eventCB->stEventList)->pstNext, LosTaskCB, pendList);
+             &resumedTask->pendList != &eventCB->stEventList;) {
+            nextTask = LOS_DL_LIST_ENTRY(resumedTask->pendList.pstNext, LosTaskCB, pendList);
+            if (((resumedTask->eventMode & LOS_WAITMODE_OR) && ((resumedTask->eventMask & events) != 0)) ||
+                ((resumedTask->eventMode & LOS_WAITMODE_AND) &&
+                 ((resumedTask->eventMask & eventCB->uwEventID) == resumedTask->eventMask))) {
+                exitFlag = 1;
+                OsTaskWake(resumedTask, OS_TASK_STATUS_PEND);
+            }
+            if (once == TRUE) {
+                break;
+            }
+            resumedTask = nextTask;
+        }
+    }
+
+    SCHEDULER_UNLOCK(intSave);
+
+    if (exitFlag == 1) {
+        LOS_MpSchedule(OS_MP_CPU_ALL);
+        LOS_Schedule();
+    }
+    return LOS_OK;
+}

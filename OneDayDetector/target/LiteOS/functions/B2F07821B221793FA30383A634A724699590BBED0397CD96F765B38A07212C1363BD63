@@ -1,0 +1,48 @@
+static void DrawChar(uint16_t Xpos, uint16_t Ypos, const uint8_t *c)
+{
+  uint32_t i = 0, j = 0;
+  uint16_t height, width;
+  uint8_t  offset;
+  uint8_t  *pchar;
+  uint32_t line;
+
+  height = DrawProp[ActiveLayer].pFont->Height;
+  width  = DrawProp[ActiveLayer].pFont->Width;
+
+  offset =  8 *((width + 7)/8) -  width ;
+
+  for(i = 0; i < height; i++)
+  {
+    pchar = ((uint8_t *)c + (width + 7)/8 * i);
+
+    switch(((width + 7)/8))
+    {
+
+    case 1:
+      line =  pchar[0];
+      break;
+
+    case 2:
+      line =  (pchar[0]<< 8) | pchar[1];
+      break;
+
+    case 3:
+    default:
+      line =  (pchar[0]<< 16) | (pchar[1]<< 8) | pchar[2];
+      break;
+    }
+
+    for (j = 0; j < width; j++)
+    {
+      if(line & (1 << (width- j + offset- 1)))
+      {
+        BSP_LCD_DrawPixel((Xpos + j), Ypos, DrawProp[ActiveLayer].TextColor);
+      }
+      else
+      {
+        BSP_LCD_DrawPixel((Xpos + j), Ypos, DrawProp[ActiveLayer].BackColor);
+      }
+    }
+    Ypos++;
+  }
+}

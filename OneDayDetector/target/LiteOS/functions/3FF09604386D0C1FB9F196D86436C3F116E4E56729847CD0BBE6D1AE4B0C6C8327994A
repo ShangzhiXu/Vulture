@@ -1,0 +1,26 @@
+static void eap_lowerdown(ppp_pcb *pcb) {
+
+	if (eap_client_active(pcb) && pcb->settings.eap_req_time > 0) {
+		UNTIMEOUT(eap_client_timeout, pcb);
+	}
+#if PPP_SERVER
+	if (eap_server_active(pcb)) {
+		if (pcb->settings.eap_timeout_time > 0) {
+			UNTIMEOUT(eap_server_timeout, pcb);
+		}
+	} else {
+		if ((pcb->eap.es_server.ea_state == eapOpen ||
+		    pcb->eap.es_server.ea_state == eapSRP4) &&
+		    pcb->eap.es_rechallenge > 0) {
+			UNTIMEOUT(eap_rechallenge, (void *)pcb);
+		}
+		if (pcb->eap.es_server.ea_state == eapOpen &&
+		    pcb->eap.es_lwrechallenge > 0) {
+			UNTIMEOUT(srp_lwrechallenge, (void *)pcb);
+		}
+	}
+
+	pcb->eap.es_client.ea_state = pcb->eap.es_server.ea_state = eapInitial;
+	pcb->eap.es_client.ea_requests = pcb->eap.es_server.ea_requests = 0;
+#endif /* PPP_SERVER */
+}

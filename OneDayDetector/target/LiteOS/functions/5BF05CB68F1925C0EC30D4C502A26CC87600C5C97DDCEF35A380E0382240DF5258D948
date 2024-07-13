@@ -1,0 +1,31 @@
+VOID HalIrqInitPercpu(VOID)
+{
+    INT32 idx;
+    UINT32 cpu = ArchCurrCpuid();
+
+    /* GICR init */
+    GicrSetWaker(cpu);
+    GicrSetGroup(cpu);
+    GicWaitForRwp(GICR_CTLR(cpu));
+
+    /* GICR: clear and mask sgi/ppi */
+    GIC_REG_32(GICR_ICENABLER0(cpu)) = 0xffffffff;
+    GIC_REG_32(GICR_ICPENDR0(cpu)) = 0xffffffff;
+
+    GIC_REG_32(GICR_ISENABLER0(cpu)) = 0xffffffff;
+
+    for (idx = 0; idx < GIC_MIN_SPI_NUM; idx += 1) {
+        GicrSetPmr(idx, MIN_INTERRUPT_PRIORITY);
+    }
+
+    GicWaitForRwp(GICR_CTLR(cpu));
+
+    /* GICC init */
+    GiccInitPercpu();
+
+#ifdef LOSCFG_KERNEL_SMP
+    /* unmask ipi interrupts */
+    HalIrqUnmask(LOS_MP_IPI_WAKEUP);
+    HalIrqUnmask(LOS_MP_IPI_HALT);
+#endif
+}

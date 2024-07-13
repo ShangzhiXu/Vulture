@@ -1,0 +1,52 @@
+double exp2(double x)
+{
+	uint32_t abstop;
+	uint64_t ki, idx, top, sbits;
+	double_t kd, r, r2, scale, tail, tmp;
+
+	abstop = top12(x) & 0x7ff;
+	if (predict_false(abstop - top12(0x1p-54) >= top12(512.0) - top12(0x1p-54))) {
+		if (abstop - top12(0x1p-54) >= 0x80000000)
+			/* Avoid spurious underflow for tiny x.  */
+			/* Note: 0 is common input.  */
+			return WANT_ROUNDING ? 1.0 + x : 1.0;
+		if (abstop >= top12(1024.0)) {
+			if (asuint64(x) == asuint64(-INFINITY))
+				return 0.0;
+			if (abstop >= top12(INFINITY))
+				return 1.0 + x;
+			if (!(asuint64(x) >> 63))
+				return __math_oflow(0);
+			else if (asuint64(x) >= asuint64(-1075.0))
+				return __math_uflow(0);
+		}
+		if (2 * asuint64(x) > 2 * asuint64(928.0))
+			/* Large x is special cased below.  */
+			abstop = 0;
+	}
+
+	/* exp2(x) = 2^(k/N) * 2^r, with 2^r in [2^(-1/2N),2^(1/2N)].  */
+	/* x = k/N + r, with int k and r in [-1/2N, 1/2N].  */
+	kd = eval_as_double(x + Shift);
+	ki = asuint64(kd); /* k.  */
+	kd -= Shift; /* k/N for int k.  */
+	r = x - kd;
+	/* 2^(k/N) ~= scale * (1 + tail).  */
+	idx = 2 * (ki % N);
+	top = ki << (52 - EXP_TABLE_BITS);
+	tail = asdouble(T[idx]);
+	/* This is only a valid scale when -1023*N < k < 1024*N.  */
+	sbits = T[idx + 1] + top;
+	/* exp2(x) = 2^(k/N) * 2^r ~= scale + scale * (tail + 2^r - 1).  */
+	/* Evaluation is optimized assuming superscalar pipelined execution.  */
+	r2 = r * r;
+	/* Without fma the worst case error is 0.5/N ulp larger.  */
+	/* Worst case error is less than 0.5+0.86/N+(abs poly error * 2^53) ulp.  */
+	tmp = tail + r * C1 + r2 * (C2 + r * C3) + r2 * r2 * (C4 + r * C5);
+	if (predict_false(abstop == 0))
+		return specialcase(tmp, sbits, ki);
+	scale = asdouble(sbits);
+	/* Note: tmp == 0 or |tmp| > 2^-65 and scale > 2^-928, so there
+	   is no spurious underflow here even without fma.  */
+	return eval_as_double(scale + scale * tmp);
+}

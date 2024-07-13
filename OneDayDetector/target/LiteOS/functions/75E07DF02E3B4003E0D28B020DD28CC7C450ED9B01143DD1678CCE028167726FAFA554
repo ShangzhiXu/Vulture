@@ -1,0 +1,18 @@
+nd6_get_router(const ip6_addr_t *router_addr, struct netif *netif)
+{
+  s8_t i;
+
+  IP6_ADDR_ZONECHECK_NETIF(router_addr, netif);
+
+  /* Look for router. */
+  for (i = 0; i < LWIP_ND6_NUM_ROUTERS; i++) {
+    if ((default_router_list[i].neighbor_entry != NULL) &&
+        ((netif != NULL) ? netif == default_router_list[i].neighbor_entry->netif : 1) &&
+        ip6_addr_cmp(router_addr, &(default_router_list[i].neighbor_entry->next_hop_address))) {
+      return i;
+    }
+  }
+
+  /* router not found. */
+  return -1;
+}

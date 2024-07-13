@@ -1,0 +1,27 @@
+VOID OsMpCollectTasks(VOID)
+{
+    LosTaskCB *taskCB = NULL;
+    UINT32 taskId = 0;
+    UINT32 ret;
+
+    /* recursive checking all the available task */
+    for (; taskId <= g_taskMaxNum; taskId++) {
+        taskCB = &g_taskCBArray[taskId];
+
+        if ((taskCB->taskStatus & OS_TASK_STATUS_UNUSED) ||
+            (taskCB->taskStatus & OS_TASK_STATUS_RUNNING)) {
+            continue;
+        }
+
+        /*
+         * though task status is not atomic, this check may success but not accomplish
+         * the deletion; this deletion will be handled until the next run.
+         */
+        if (taskCB->signal & SIGNAL_KILL) {
+            ret = LOS_TaskDelete(taskId);
+            if (ret != LOS_OK) {
+                PRINT_WARN("GC collect task failed err:0x%x\n", ret);
+            }
+        }
+    }
+}

@@ -1,0 +1,58 @@
+HAL_StatusTypeDef HAL_ADC_AnalogWDGConfig(ADC_HandleTypeDef* hadc, ADC_AnalogWDGConfTypeDef* AnalogWDGConfig)
+{
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+  assert_param(IS_ADC_ANALOG_WATCHDOG_MODE(AnalogWDGConfig->WatchdogMode));
+  assert_param(IS_FUNCTIONAL_STATE(AnalogWDGConfig->ITMode));
+  assert_param(IS_ADC_RANGE(AnalogWDGConfig->HighThreshold));
+  assert_param(IS_ADC_RANGE(AnalogWDGConfig->LowThreshold));
+  
+  if((AnalogWDGConfig->WatchdogMode == ADC_ANALOGWATCHDOG_SINGLE_REG)     ||
+     (AnalogWDGConfig->WatchdogMode == ADC_ANALOGWATCHDOG_SINGLE_INJEC)   ||
+     (AnalogWDGConfig->WatchdogMode == ADC_ANALOGWATCHDOG_SINGLE_REGINJEC)  )
+  {
+    assert_param(IS_ADC_CHANNEL(AnalogWDGConfig->Channel));
+  }
+  
+  /* Process locked */
+  __HAL_LOCK(hadc);
+  
+  /* Analog watchdog configuration */
+
+  /* Configure ADC Analog watchdog interrupt */
+  if(AnalogWDGConfig->ITMode == ENABLE)
+  {
+    /* Enable the ADC Analog watchdog interrupt */
+    __HAL_ADC_ENABLE_IT(hadc, ADC_IT_AWD);
+  }
+  else
+  {
+    /* Disable the ADC Analog watchdog interrupt */
+    __HAL_ADC_DISABLE_IT(hadc, ADC_IT_AWD);
+  }
+  
+  /* Configuration of analog watchdog:                                        */
+  /*  - Set the analog watchdog enable mode: regular and/or injected groups,  */
+  /*    one or all channels.                                                  */
+  /*  - Set the Analog watchdog channel (is not used if watchdog              */
+  /*    mode "all channels": ADC_CFGR_AWD1SGL=0).                             */
+  MODIFY_REG(hadc->Instance->CR1            ,
+             ADC_CR1_AWDSGL |
+             ADC_CR1_JAWDEN |
+             ADC_CR1_AWDEN  |
+             ADC_CR1_AWDCH                  ,
+             AnalogWDGConfig->WatchdogMode |
+             AnalogWDGConfig->Channel        );
+  
+  /* Set the high threshold */
+  WRITE_REG(hadc->Instance->HTR, AnalogWDGConfig->HighThreshold);
+  
+  /* Set the low threshold */
+  WRITE_REG(hadc->Instance->LTR, AnalogWDGConfig->LowThreshold);
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+  
+  /* Return function status */
+  return HAL_OK;
+}

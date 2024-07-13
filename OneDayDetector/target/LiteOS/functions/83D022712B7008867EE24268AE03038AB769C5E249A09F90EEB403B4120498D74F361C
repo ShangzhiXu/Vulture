@@ -1,0 +1,19 @@
+HAL_StatusTypeDef LCD_WaitForSynchro(LCD_HandleTypeDef *hlcd)
+{
+  uint32_t tickstart = 0x00;
+
+  /* Get timeout */
+  tickstart = HAL_GetTick();
+
+  /* Loop until FCRSF flag is set */
+  while(__HAL_LCD_GET_FLAG(hlcd, LCD_FLAG_FCRSF) == RESET)
+  {
+    if((HAL_GetTick() - tickstart ) > LCD_TIMEOUT_VALUE)
+    {
+      hlcd->ErrorCode = HAL_LCD_ERROR_FCRSF;
+      return HAL_TIMEOUT;
+    }
+  }
+
+  return HAL_OK;
+}

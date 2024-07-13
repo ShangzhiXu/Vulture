@@ -1,0 +1,17 @@
+UINT32 OsShellCmdSwtmrCntGet(VOID)
+{
+    UINT32 loop;
+    UINT32 swtmrCnt = 0;
+    UINT32 intSave;
+    LosSwtmrCB *swtmrCB = NULL;
+
+    intSave = LOS_IntLock();
+    swtmrCB = g_swtmrCBArray;
+    for (loop = 0; loop < LOSCFG_BASE_CORE_SWTMR_LIMIT; loop++, swtmrCB++) {
+        if (swtmrCB->state != OS_SWTMR_STATUS_UNUSED) {
+            swtmrCnt++;
+        }
+    }
+    LOS_IntRestore(intSave);
+    return swtmrCnt;
+}

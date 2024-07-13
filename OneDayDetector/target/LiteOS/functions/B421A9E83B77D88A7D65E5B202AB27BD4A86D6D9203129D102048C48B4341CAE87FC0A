@@ -1,0 +1,76 @@
+HAL_StatusTypeDef HAL_QSPI_Transmit(QSPI_HandleTypeDef *hqspi, uint8_t *pData, uint32_t Timeout)
+{
+  HAL_StatusTypeDef status = HAL_OK;
+  uint32_t tickstart = HAL_GetTick();
+  __IO uint32_t *data_reg = &hqspi->Instance->DR;
+
+  /* Process locked */
+  __HAL_LOCK(hqspi);
+
+  if(hqspi->State == HAL_QSPI_STATE_READY)
+  {
+    hqspi->ErrorCode = HAL_QSPI_ERROR_NONE;
+    
+    if(pData != NULL )
+    {
+      /* Update state */
+      hqspi->State = HAL_QSPI_STATE_BUSY_INDIRECT_TX;
+      
+      /* Configure counters and size of the handle */
+      hqspi->TxXferCount = READ_REG(hqspi->Instance->DLR) + 1;
+      hqspi->TxXferSize = READ_REG(hqspi->Instance->DLR) + 1;
+      hqspi->pTxBuffPtr = pData;
+    
+      /* Configure QSPI: CCR register with functional as indirect write */
+      MODIFY_REG(hqspi->Instance->CCR, QUADSPI_CCR_FMODE, QSPI_FUNCTIONAL_MODE_INDIRECT_WRITE);
+
+      while(hqspi->TxXferCount > 0)
+      {
+        /* Wait until FT flag is set to send data */
+        status = QSPI_WaitFlagStateUntilTimeout(hqspi, QSPI_FLAG_FT, SET, tickstart, Timeout);
+
+        if (status != HAL_OK)
+        { 
+          break;
+        }
+
+        *(__IO uint8_t *)((__IO void *)data_reg) = *hqspi->pTxBuffPtr++;
+        hqspi->TxXferCount--;
+      }
+    
+      if (status == HAL_OK)
+      {
+        /* Wait until TC flag is set to go back in idle state */
+        status = QSPI_WaitFlagStateUntilTimeout(hqspi, QSPI_FLAG_TC, SET, tickstart, Timeout);
+
+        if (status == HAL_OK)
+        {
+          /* Clear Transfer Complete bit */
+          __HAL_QSPI_CLEAR_FLAG(hqspi, QSPI_FLAG_TC);
+          
+#if defined(STM32L471xx) || defined(STM32L475xx) || defined(STM32L476xx) || defined(STM32L485xx) || defined(STM32L486xx)
+          /* Clear Busy bit */
+          status = HAL_QSPI_Abort(hqspi);
+#endif
+        }
+      }
+    
+      /* Update QSPI state */
+      hqspi->State = HAL_QSPI_STATE_READY;    
+    }
+    else
+    {
+      hqspi->ErrorCode |= HAL_QSPI_ERROR_INVALID_PARAM;
+      status = HAL_ERROR;
+    }
+  }
+  else
+  {
+    status = HAL_BUSY;
+  }
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hqspi);
+
+  return status;
+}

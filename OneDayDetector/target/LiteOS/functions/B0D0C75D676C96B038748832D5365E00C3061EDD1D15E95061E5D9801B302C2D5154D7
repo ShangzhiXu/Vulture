@@ -1,0 +1,24 @@
+static void des3_set2key( uint32_t esk[96],
+                          uint32_t dsk[96],
+                          const unsigned char key[MBEDTLS_DES_KEY_SIZE*2] )
+{
+    int i;
+
+    mbedtls_des_setkey( esk, key );
+    mbedtls_des_setkey( dsk + 32, key + 8 );
+
+    for( i = 0; i < 32; i += 2 )
+    {
+        dsk[i     ] = esk[30 - i];
+        dsk[i +  1] = esk[31 - i];
+
+        esk[i + 32] = dsk[62 - i];
+        esk[i + 33] = dsk[63 - i];
+
+        esk[i + 64] = esk[i    ];
+        esk[i + 65] = esk[i + 1];
+
+        dsk[i + 64] = dsk[i    ];
+        dsk[i + 65] = dsk[i + 1];
+    }
+}

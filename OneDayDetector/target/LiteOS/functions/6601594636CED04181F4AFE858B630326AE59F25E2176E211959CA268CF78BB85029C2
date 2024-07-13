@@ -1,0 +1,54 @@
+int32_t sota_process(void *arg, const int8_t *buf, int32_t buflen)
+{
+    char sbuf[64] = {0};
+    const uint8_t *pbuf = NULL;
+    int ret = SOTA_OK;
+    ota_pcp_head_s *phead;
+    unsigned char msg_code;
+
+    phead = (ota_pcp_head_s *)buf;
+    msg_code = phead->msg_code;
+
+    if (phead->data_len > 0) {
+        pbuf = (uint8_t *)buf + VER_LEN / 2;
+    }
+
+    SOTA_LOG("process sota msg %d", msg_code);
+
+    switch (msg_code) {
+        case MSG_GET_VER: {
+            char ver_ret[VER_LEN + 1] = {0};
+            (void)g_flash_op.get_ver(ver_ret + 1, VER_LEN);
+            (void)ver_to_hex(ver_ret, (VER_LEN + 1), (char *)sbuf);
+            (void)sota_at_send(MSG_GET_VER, (char *)sbuf, (VER_LEN + 1) * 2);
+            ret = SOTA_OK;
+            break;
+        }
+        case MSG_NOTIFY_NEW_VER: {
+            if (phead->data_len > sizeof(ota_ver_notify_t)) {
+                ret = sota_new_ver_process(phead, pbuf);
+            } else {
+                ret = SOTA_INVALID_PACKET;
+            }
+            break;
+        }
+        case MSG_GET_BLOCK: {
+            if (phead->data_len > 0) {
+                ret = sota_data_block_process(phead, pbuf);
+            } else {
+                ret = SOTA_INVALID_PACKET;
+            }
+            break;
+        }
+        case MSG_EXC_UPDATE: {
+            ret = sota_update_exc_process(phead, pbuf);
+            break;
+        }
+        default: {
+            SOTA_LOG("Rx invalid packet");
+            ret = SOTA_INVALID_PACKET;
+            break;
+        }
+    }
+    return ret;
+}

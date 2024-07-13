@@ -1,0 +1,32 @@
+int atiny_net_send(void *ctx, const unsigned char *buf, size_t len)
+{
+    int ret = -1;
+    int fd = ((atiny_net_context *)ctx)->fd;
+
+    if (fd < 0) {
+        SOCKET_LOG("ilegal socket(%d)", fd);
+        return -1;
+    }
+
+#if defined(WITH_LINUX) || defined(LOSCFG_COMPONENTS_NET_LWIP)
+    ret = send(fd, buf, len, 0);
+#elif defined(LOSCFG_COMPONNETS_NET_AT)
+    ret = at_api_send(fd, buf, len);
+#elif defined(WITH_WIZNET)
+    ret = wiznet_send(fd, buf, len);
+#else
+#endif
+
+#if defined(WITH_LINUX) || defined(LOSCFG_COMPONENTS_NET_LWIP)
+    if (ret < 0) {
+        /* no data available for now */
+        if ((errno == EAGAIN) || (errno == EWOULDBLOCK) || (errno == EINTR)) {
+            return 0;
+        } else {
+            SOCKET_LOG("error accured when send: 0x%x", errno);
+            return -1;
+        }
+    }
+#endif
+    return ret;
+}

@@ -1,0 +1,48 @@
+mqtt_cyclic_timer(void *arg)
+{
+  u8_t restart_timer = 1;
+  mqtt_client_t *client = (mqtt_client_t *)arg;
+  LWIP_ASSERT("mqtt_cyclic_timer: client != NULL", client != NULL);
+
+  if (client->conn_state == MQTT_CONNECTING) {
+    client->cyclic_tick++;
+    if ((client->cyclic_tick * MQTT_CYCLIC_TIMER_INTERVAL) >= MQTT_CONNECT_TIMOUT) {
+      LWIP_DEBUGF(MQTT_DEBUG_TRACE, ("mqtt_cyclic_timer: CONNECT attempt to server timed out\n"));
+      /* Disconnect TCP */
+      mqtt_close(client, MQTT_CONNECT_TIMEOUT);
+      restart_timer = 0;
+    }
+  } else if (client->conn_state == MQTT_CONNECTED) {
+    /* Handle timeout for pending requests */
+    mqtt_request_time_elapsed(&client->pend_req_queue, MQTT_CYCLIC_TIMER_INTERVAL);
+
+    /* keep_alive > 0 means keep alive functionality shall be used */
+    if (client->keep_alive > 0) {
+
+      client->server_watchdog++;
+      /* If reception from server has been idle for 1.5*keep_alive time, server is considered unresponsive */
+      if ((client->server_watchdog * MQTT_CYCLIC_TIMER_INTERVAL) > (client->keep_alive + client->keep_alive / 2)) {
+        LWIP_DEBUGF(MQTT_DEBUG_WARN, ("mqtt_cyclic_timer: Server incoming keep-alive timeout\n"));
+        mqtt_close(client, MQTT_CONNECT_TIMEOUT);
+        restart_timer = 0;
+      }
+
+      /* If time for a keep alive message to be sent, transmission has been idle for keep_alive time */
+      if ((client->cyclic_tick * MQTT_CYCLIC_TIMER_INTERVAL) >= client->keep_alive) {
+        LWIP_DEBUGF(MQTT_DEBUG_TRACE, ("mqtt_cyclic_timer: Sending keep-alive message to server\n"));
+        if (mqtt_output_check_space(&client->output, 0) != 0) {
+          mqtt_output_append_fixed_header(&client->output, MQTT_MSG_TYPE_PINGREQ, 0, 0, 0, 0);
+          client->cyclic_tick = 0;
+        }
+      } else {
+        client->cyclic_tick++;
+      }
+    }
+  } else {
+    LWIP_DEBUGF(MQTT_DEBUG_WARN, ("mqtt_cyclic_timer: Timer should not be running in state %d\n", client->conn_state));
+    restart_timer = 0;
+  }
+  if (restart_timer) {
+    sys_timeout(MQTT_CYCLIC_TIMER_INTERVAL * 1000, mqtt_cyclic_timer, arg);
+  }
+}

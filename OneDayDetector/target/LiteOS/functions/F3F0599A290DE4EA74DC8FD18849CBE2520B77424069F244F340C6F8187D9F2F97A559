@@ -1,0 +1,39 @@
+static int thread_create( mbedtls_net_context *client_fd )
+{
+    int ret, i;
+
+    /*
+     * Find in-active or finished thread slot
+     */
+    for( i = 0; i < MAX_NUM_THREADS; i++ )
+    {
+        if( threads[i].active == 0 )
+            break;
+
+        if( threads[i].data.thread_complete == 1 )
+        {
+            mbedtls_printf( "  [ main ]  Cleaning up thread %d\n", i );
+            pthread_join(threads[i].thread, NULL );
+            memset( &threads[i], 0, sizeof(pthread_info_t) );
+            break;
+        }
+    }
+
+    if( i == MAX_NUM_THREADS )
+        return( -1 );
+
+    /*
+     * Fill thread-info for thread
+     */
+    memcpy( &threads[i].data, &base_info, sizeof(base_info) );
+    threads[i].active = 1;
+    memcpy( &threads[i].data.client_fd, client_fd, sizeof( mbedtls_net_context ) );
+
+    if( ( ret = pthread_create( &threads[i].thread, NULL, handle_ssl_connection,
+                                &threads[i].data ) ) != 0 )
+    {
+        return( ret );
+    }
+
+    return( 0 );
+}

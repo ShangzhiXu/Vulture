@@ -1,0 +1,24 @@
+size_t _tinydir_dirent_buf_size(_TINYDIR_DIR *dirp)
+{
+	long name_max;
+	size_t name_end;
+	/* parameter may be unused */
+	(void)dirp;
+
+#if defined _TINYDIR_USE_FPATHCONF
+	name_max = fpathconf(dirfd(dirp), _PC_NAME_MAX);
+	if (name_max == -1)
+#if defined(NAME_MAX)
+		name_max = (NAME_MAX > 255) ? NAME_MAX : 255;
+#else
+		return (size_t)(-1);
+#endif
+#elif defined(NAME_MAX)
+ 	name_max = (NAME_MAX > 255) ? NAME_MAX : 255;
+#else
+#error "buffer size for readdir_r cannot be determined"
+#endif
+	name_end = (size_t)offsetof(struct _tinydir_dirent, d_name) + name_max + 1;
+	return (name_end > sizeof(struct _tinydir_dirent) ?
+		name_end : sizeof(struct _tinydir_dirent));
+}

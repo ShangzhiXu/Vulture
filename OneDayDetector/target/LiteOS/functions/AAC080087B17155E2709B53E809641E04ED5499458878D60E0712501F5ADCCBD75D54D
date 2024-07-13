@@ -1,0 +1,13 @@
+STATIC INLINE VOID ArchAtomic64Set(Atomic64 *v, INT64 setVal)
+{
+    INT64 tmp;
+    UINT32 status;
+
+    do {
+        __asm__ __volatile__("ldrexd   %1, %H1, [%2]\n"
+                             "strexd   %0, %3, %H3, [%2]"
+                             : "=&r"(status), "=&r"(tmp)
+                             : "r"(v), "r"(setVal)
+                             : "cc");
+    } while (__builtin_expect(status != 0, 0));
+}

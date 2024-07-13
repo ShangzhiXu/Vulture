@@ -1,0 +1,62 @@
+static void do_test(const char *test_name)
+{
+    char *expected = NULL;
+    char *actual = NULL;
+    cJSON *tree = NULL;
+
+    size_t test_name_length = 0;
+    /* path of the test input */
+    char *test_path = NULL;
+    /* path of the expected output */
+    char *expected_path = NULL;
+
+    test_name_length = strlen(test_name);
+
+    /* allocate file paths */
+#define TEST_DIR_PATH "inputs/"
+    test_path = (char*)malloc(sizeof(TEST_DIR_PATH) + test_name_length);
+    TEST_ASSERT_NOT_NULL_MESSAGE(test_path, "Failed to allocate test_path buffer.");
+    expected_path = (char*)malloc(sizeof(TEST_DIR_PATH) + test_name_length + sizeof(".expected"));
+    TEST_ASSERT_NOT_NULL_MESSAGE(expected_path, "Failed to allocate expected_path buffer.");
+
+    /* create file paths */
+    sprintf(test_path, TEST_DIR_PATH"%s", test_name);
+    sprintf(expected_path, TEST_DIR_PATH"%s.expected", test_name);
+
+    /* read expected output */
+    expected = read_file(expected_path);
+    TEST_ASSERT_NOT_NULL_MESSAGE(expected, "Failed to read expected output.");
+
+    /* read and parse test */
+    tree = parse_file(test_path);
+    TEST_ASSERT_NOT_NULL_MESSAGE(tree, "Failed to read of parse test.");
+
+    /* print the parsed tree */
+    actual = cJSON_Print(tree);
+    TEST_ASSERT_NOT_NULL_MESSAGE(actual, "Failed to print tree back to JSON.");
+
+
+    TEST_ASSERT_EQUAL_STRING(expected, actual);
+
+    /* cleanup resources */
+    if (expected != NULL)
+    {
+        free(expected);
+    }
+    if (tree != NULL)
+    {
+        cJSON_Delete(tree);
+    }
+    if (actual != NULL)
+    {
+        free(actual);
+    }
+    if (test_path != NULL)
+    {
+        free(test_path);
+    }
+    if (expected_path != NULL)
+    {
+        free(expected_path);
+    }
+}

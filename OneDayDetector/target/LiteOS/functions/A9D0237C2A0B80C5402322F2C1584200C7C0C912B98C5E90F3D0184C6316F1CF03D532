@@ -1,0 +1,17 @@
+void BSP_LCD_SetBrightness(uint8_t BrightnessValue)
+{
+#if defined(USE_LCD_HDMI)  
+  if(ADV7533_ID == adv7533_drv.ReadID(ADV7533_CEC_DSI_I2C_ADDR))
+  {
+    return ; /* Not supported for HDMI display */
+  }
+  else
+#endif /* USE_LCD_HDMI */    
+  {
+    /* Send Display on DCS command to display */
+    HAL_DSI_ShortWrite(&hdsi_discovery, 
+                       LCD_OTM8009A_ID, 
+                       DSI_DCS_SHORT_PKT_WRITE_P1, 
+                       OTM8009A_CMD_WRDISBV, (uint16_t)(BrightnessValue * 255)/100);
+  }  
+}

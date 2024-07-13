@@ -1,0 +1,18 @@
+static int prv_spi_flash_write_page(const uint8_t *buf, uint32_t addr, int32_t len)
+{
+    int ret = 0;
+
+    if (len == 0) {
+        return 0;
+    }
+
+    prv_spi_flash_write_enable(); // Write enable
+
+    QSPI_Send_CMD(QSPI_FLASH_PageProgram, addr, 0, QSPI_INSTRUCTION_1_LINE, QSPI_ADDRESS_1_LINE, QSPI_ADDRESS_24_BITS,
+        QSPI_DATA_1_LINE);
+    QSPI_Transmit((const int8_t *)buf, len);
+
+    prv_spi_flash_wait_write_end(); // Waiting for Writing to End
+
+    return ret;
+}

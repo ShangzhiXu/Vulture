@@ -1,0 +1,12 @@
+    uint8_t *buff;
+    pack_checksum_s *checksum;
+    uint32_t checksum_len;
+    uint8_t *checksum_pos;
+    pack_hardware_s *hardware;
+    pack_hardware_s *hardware;
+    uint16_t head_len;
+    ota_key_s key;
+    ota_key_s key;
+    void *param;
+    uint16_t stored_len;
+    head_update_check update_check;

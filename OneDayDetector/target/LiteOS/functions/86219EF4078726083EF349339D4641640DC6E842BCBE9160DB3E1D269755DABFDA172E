@@ -1,0 +1,75 @@
+UINT32 Example_List(VOID)
+{
+    UINT32 ret;
+
+    /* init */
+    printf("Kernel list demo begin.\n");
+    printf("Init list......\n");
+    LOS_DL_LIST *head;
+    head = (LOS_DL_LIST *)LOS_MemAlloc(m_aucSysMem0, sizeof(LOS_DL_LIST));
+    if (head == NULL) {
+        printf("Malloc failed.\n");
+        return LOS_NOK;
+    }
+
+    LOS_ListInit(head);
+    if (!LOS_ListEmpty(head)) {
+        printf("Init list failed.\n");
+        return LOS_NOK;
+    }
+
+    /* tail insert node */
+    printf("Node add and tail add......\n");
+
+    LOS_DL_LIST *node1 = (LOS_DL_LIST *)LOS_MemAlloc(m_aucSysMem0, sizeof(LOS_DL_LIST));
+    if (node1 == NULL) {
+        printf("Malloc failed\n");
+        return LOS_NOK;
+    }
+
+    LOS_DL_LIST *node2 = (LOS_DL_LIST *)LOS_MemAlloc(m_aucSysMem0, sizeof(LOS_DL_LIST));
+    if (node2 == NULL) {
+        printf("Malloc failed.\n");
+        LOS_MemFree(m_aucSysMem0, node1);
+        return LOS_NOK;
+    }
+
+    LOS_DL_LIST *tail = (LOS_DL_LIST *)LOS_MemAlloc(m_aucSysMem0, sizeof(LOS_DL_LIST));
+    if (tail == NULL) {
+        printf("Malloc failed.\n");
+        LOS_MemFree(m_aucSysMem0, node1);
+        LOS_MemFree(m_aucSysMem0, node2);
+        return LOS_NOK;
+    }
+
+    LOS_ListAdd(head, node1);
+    LOS_ListAdd(node1, node2);
+    if ((node1->pstPrev == head) || (node2->pstPrev == node1)) {
+        printf("Add node ok.\n");
+    }
+
+    LOS_ListTailInsert(head, tail);
+    if (tail->pstPrev == node2) {
+        printf("Add tail ok.\n");
+    }
+
+    /* delete node */
+    printf("Delete node......\n");
+    LOS_ListDelete(node1);
+    LOS_MemFree(m_aucSysMem0, node1);
+    if (head->pstNext == node2) {
+        printf("Delete node ok.\n");
+        ret = LOS_InspectStatusSetById(LOS_INSPECT_LIST, LOS_INSPECT_STU_SUCCESS);
+        if (ret != LOS_OK) {
+            printf("Set Inspect Status Err.\n");
+        }
+    } else {
+        printf("Delete node failed.\n");
+        ret = LOS_InspectStatusSetById(LOS_INSPECT_LIST, LOS_INSPECT_STU_ERROR);
+        if (ret != LOS_OK) {
+            printf("Set Inspect Status Err.\n");
+        }
+    }
+
+    return LOS_OK;
+}

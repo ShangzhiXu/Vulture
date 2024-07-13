@@ -1,0 +1,130 @@
+uint32_t LL_RCC_GetSAIClockFreq(uint32_t SAIxSource)
+{
+  uint32_t sai_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_SAI_CLKSOURCE(SAIxSource));
+
+#if defined(RCC_DCKCFGR_SAI1SRC)
+  if ((SAIxSource == LL_RCC_SAI1_CLKSOURCE) || (SAIxSource == LL_RCC_SAI2_CLKSOURCE))
+  {
+    /* SAI1CLK clock frequency */
+    switch (LL_RCC_GetSAIClockSource(SAIxSource))
+    {
+      case LL_RCC_SAI1_CLKSOURCE_PLLSAI:     /* PLLSAI clock used as SAI1 clock source */
+      case LL_RCC_SAI2_CLKSOURCE_PLLSAI:     /* PLLSAI clock used as SAI2 clock source */
+        if (LL_RCC_PLLSAI_IsReady())
+        {
+          sai_frequency = RCC_PLLSAI_GetFreqDomain_SAI();
+        }
+        break;
+
+      case LL_RCC_SAI1_CLKSOURCE_PLLI2S:     /* PLLI2S clock used as SAI1 clock source */
+      case LL_RCC_SAI2_CLKSOURCE_PLLI2S:     /* PLLI2S clock used as SAI2 clock source */
+        if (LL_RCC_PLLI2S_IsReady())
+        {
+          sai_frequency = RCC_PLLI2S_GetFreqDomain_SAI();
+        }
+        break;
+
+      case LL_RCC_SAI1_CLKSOURCE_PLL:        /* PLL clock used as SAI1 clock source */
+      case LL_RCC_SAI2_CLKSOURCE_PLL:        /* PLL clock used as SAI2 clock source */
+        if (LL_RCC_PLL_IsReady())
+        {
+          sai_frequency = RCC_PLL_GetFreqDomain_SAI();
+        }
+        break;
+
+      case LL_RCC_SAI2_CLKSOURCE_PLLSRC:
+        switch (LL_RCC_PLL_GetMainSource())
+        {
+           case LL_RCC_PLLSOURCE_HSE:        /* HSE clock used as SAI2 clock source */
+             if (LL_RCC_HSE_IsReady())
+             {
+               sai_frequency = HSE_VALUE;
+             }
+             break;
+
+           case LL_RCC_PLLSOURCE_HSI:        /* HSI clock used as SAI2 clock source */
+           default:
+             if (LL_RCC_HSI_IsReady())
+             {
+               sai_frequency = HSI_VALUE;
+             }
+             break;
+        }
+        break;
+
+      case LL_RCC_SAI1_CLKSOURCE_PIN:        /* External input clock used as SAI1 clock source */
+      default:
+        sai_frequency = EXTERNAL_CLOCK_VALUE;
+        break;
+    }
+  }
+#endif /* RCC_DCKCFGR_SAI1SRC */
+#if defined(RCC_DCKCFGR_SAI1ASRC)
+  if ((SAIxSource == LL_RCC_SAI1_A_CLKSOURCE) || (SAIxSource == LL_RCC_SAI1_B_CLKSOURCE))
+  {
+    /* SAI1CLK clock frequency */
+    switch (LL_RCC_GetSAIClockSource(SAIxSource))
+    {
+#if defined(RCC_PLLSAI_SUPPORT)
+      case LL_RCC_SAI1_A_CLKSOURCE_PLLSAI:     /* PLLSAI clock used as SAI1 Block A clock source */
+      case LL_RCC_SAI1_B_CLKSOURCE_PLLSAI:     /* PLLSAI clock used as SAI1 Block B clock source */
+        if (LL_RCC_PLLSAI_IsReady())
+        {
+          sai_frequency = RCC_PLLSAI_GetFreqDomain_SAI();
+        }
+        break;
+#endif /* RCC_PLLSAI_SUPPORT */
+
+      case LL_RCC_SAI1_A_CLKSOURCE_PLLI2S:     /* PLLI2S clock used as SAI1 Block A clock source */
+      case LL_RCC_SAI1_B_CLKSOURCE_PLLI2S:     /* PLLI2S clock used as SAI1 Block B clock source */
+        if (LL_RCC_PLLI2S_IsReady())
+        {
+          sai_frequency = RCC_PLLI2S_GetFreqDomain_SAI();
+        }
+        break;
+
+#if defined(RCC_SAI1A_PLLSOURCE_SUPPORT)
+      case LL_RCC_SAI1_A_CLKSOURCE_PLL:        /* PLL clock used as SAI1 Block A clock source */
+      case LL_RCC_SAI1_B_CLKSOURCE_PLL:        /* PLL clock used as SAI1 Block B clock source */
+        if (LL_RCC_PLL_IsReady())
+        {
+          sai_frequency = RCC_PLL_GetFreqDomain_SAI();
+        }
+        break;
+
+      case LL_RCC_SAI1_A_CLKSOURCE_PLLSRC:
+      case LL_RCC_SAI1_B_CLKSOURCE_PLLSRC:
+        switch (LL_RCC_PLL_GetMainSource())
+        {
+           case LL_RCC_PLLSOURCE_HSE:          /* HSE clock used as SAI1 Block A or B clock source */
+             if (LL_RCC_HSE_IsReady())
+             {
+               sai_frequency = HSE_VALUE;
+             }
+             break;
+
+           case LL_RCC_PLLSOURCE_HSI:          /* HSI clock used as SAI1 Block A or B clock source */
+           default:
+             if (LL_RCC_HSI_IsReady())
+             {
+               sai_frequency = HSI_VALUE;
+             }
+             break;
+        }
+        break;
+#endif /* RCC_SAI1A_PLLSOURCE_SUPPORT */
+
+      case LL_RCC_SAI1_A_CLKSOURCE_PIN:        /* External input clock used as SAI1 Block A clock source */
+      case LL_RCC_SAI1_B_CLKSOURCE_PIN:        /* External input clock used as SAI1 Block B clock source */
+      default:
+        sai_frequency = EXTERNAL_CLOCK_VALUE;
+        break;
+    }
+  }
+#endif /* RCC_DCKCFGR_SAI1ASRC */
+
+  return sai_frequency;
+}

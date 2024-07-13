@@ -1,0 +1,22 @@
+int vsnprintf_truncated_s(char *strDest, size_t destMax, const char *format, va_list argList)
+{
+    int retVal;
+
+    if (SECUREC_VSPRINTF_PARAM_ERROR(format, strDest, destMax, SECUREC_STRING_MAX_LEN)) {
+        SECUREC_VSPRINTF_CLEAR_DEST(strDest, destMax, SECUREC_STRING_MAX_LEN);
+        SECUREC_ERROR_INVALID_PARAMTER("vsnprintf_truncated_s");
+        return -1;
+    }
+
+    retVal = SecVsnprintfImpl(strDest, destMax, format, argList);
+    if (retVal < 0) {
+        if (retVal == SECUREC_PRINTF_TRUNCATE) {
+            return (int)(destMax - 1);  /* To skip error handler,  return strlen(strDest) */
+        }
+        strDest[0] = '\0';      /* Empty the dest strDest */
+        SECUREC_ERROR_INVALID_PARAMTER("vsnprintf_truncated_s");
+        return -1;
+    }
+
+    return retVal;
+}

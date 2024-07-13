@@ -1,0 +1,32 @@
+static void remove_always_return_values(ListNode * const map_head,
+                                        const size_t number_of_symbol_names) {
+    ListNode *current;
+    assert_true(map_head);
+    assert_true(number_of_symbol_names);
+    current = map_head->next;
+    while (current != map_head) {
+        SymbolMapValue * const value = (SymbolMapValue*)current->value;
+        ListNode * const next = current->next;
+        ListNode *child_list;
+        assert_true(value);
+        child_list = &value->symbol_values_list_head;
+
+        if (!list_empty(child_list)) {
+            if (number_of_symbol_names == 1) {
+                ListNode * const child_node = child_list->next;
+                // If this item has been returned more than once, free it.
+                if (child_node->refcount < -1) {
+                    list_remove_free(child_node, free_value, NULL);
+                }
+            } else {
+                remove_always_return_values(child_list,
+                                            number_of_symbol_names - 1);
+            }
+        }
+
+        if (list_empty(child_list)) {
+            list_remove_free(current, free_value, NULL);
+        }
+        current = next;
+    }
+}

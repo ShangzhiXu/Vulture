@@ -1,0 +1,51 @@
+SECUREC_INLINE int SecInputNumber(SecFileStream *stream, SecScanSpec *spec)
+{
+    /* Character already read */
+    if (spec->ch == SECUREC_CHAR('+') || spec->ch == SECUREC_CHAR('-')) {
+        if (spec->ch == SECUREC_CHAR('-')) {
+            spec->negative = 1;
+#if SECUREC_IN_KERNEL
+            /* In kernel Refuse to enter negative number */
+            if (SECUREC_CONVERT_IS_UNSIGNED(spec->oriConvChr)) {
+                return -1;
+            }
+#endif
+        }
+        SECUREC_FILED_WIDTH_DEC(spec); /* Do not need to check width here, must be greater than 0 */
+        spec->ch = SecGetChar(stream, &(spec->charCount)); /* Eat + or - */
+        spec->ch = SecGetChar(stream, &(spec->charCount)); /* Get next character, used for the '0' judgments */
+        SecUnGetChar(spec->ch, stream, &(spec->charCount)); /* Not sure if it was actually read, so push back */
+    }
+
+    if (spec->oriConvChr == 'i') {
+        spec->convChr = 'd'; /* The i could be d, o, or x, use d as default */
+    }
+
+    if (spec->ch == SECUREC_CHAR('0') && (spec->oriConvChr == 'x' || spec->oriConvChr == 'i') &&
+        SECUREC_FILED_WIDTH_ENOUGH(spec)) {
+        /* Input string begin with 0, may be 0x123  0X123  0123  0x  01  0yy  09  0  0ab 00 */
+        SECUREC_FILED_WIDTH_DEC(spec);
+        spec->ch = SecGetChar(stream, &(spec->charCount)); /* ch is '0' */
+
+        /* Read only '0' due to width limitation */
+        if (!SECUREC_FILED_WIDTH_ENOUGH(spec)) {
+            /* The number or number64 in spec has been set 0 */
+            return 0;
+        }
+
+        spec->ch = SecGetChar(stream, &(spec->charCount)); /* Get next char to check x or X, do not dec width */
+        if ((SecChar)spec->ch == SECUREC_CHAR('x') || (SecChar)spec->ch == SECUREC_CHAR('X')) {
+            spec->convChr = 'x';
+            SECUREC_FILED_WIDTH_DEC(spec); /* Make incorrect width for x or X */
+        } else {
+            if (spec->oriConvChr == 'i') {
+                spec->convChr = 'o';
+            }
+            /* For "0y" "08" "01" "0a" ... ,push the 'y' '8' '1' 'a'  back */
+            SecUnGetChar(spec->ch, stream, &(spec->charCount));
+            /* Since 0 has been read, it indicates that a valid character has been read */
+            spec->numberState = SECUREC_NUMBER_STATE_STARTED;
+        }
+    }
+    return SecInputNumberDigital(stream, spec);
+}

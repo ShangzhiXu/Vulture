@@ -1,0 +1,66 @@
+static inline double_t log_inline(uint64_t ix, double_t *tail)
+{
+	/* double_t for better performance on targets with FLT_EVAL_METHOD==2.  */
+	double_t z, r, y, invc, logc, logctail, kd, hi, t1, t2, lo, lo1, lo2, p;
+	uint64_t iz, tmp;
+	int k, i;
+
+	/* x = 2^k z; where z is in range [OFF,2*OFF) and exact.
+	   The range is split into N subintervals.
+	   The ith subinterval contains z and c is near its center.  */
+	tmp = ix - OFF;
+	i = (tmp >> (52 - POW_LOG_TABLE_BITS)) % N;
+	k = (int64_t)tmp >> 52; /* arithmetic shift */
+	iz = ix - (tmp & 0xfffULL << 52);
+	z = asdouble(iz);
+	kd = (double_t)k;
+
+	/* log(x) = k*Ln2 + log(c) + log1p(z/c-1).  */
+	invc = T[i].invc;
+	logc = T[i].logc;
+	logctail = T[i].logctail;
+
+	/* Note: 1/c is j/N or j/N/2 where j is an integer in [N,2N) and
+     |z/c - 1| < 1/N, so r = z/c - 1 is exactly representible.  */
+#if __FP_FAST_FMA
+	r = __builtin_fma(z, invc, -1.0);
+#else
+	/* Split z such that rhi, rlo and rhi*rhi are exact and |rlo| <= |r|.  */
+	double_t zhi = asdouble((iz + (1ULL << 31)) & (-1ULL << 32));
+	double_t zlo = z - zhi;
+	double_t rhi = zhi * invc - 1.0;
+	double_t rlo = zlo * invc;
+	r = rhi + rlo;
+#endif
+
+	/* k*Ln2 + log(c) + r.  */
+	t1 = kd * Ln2hi + logc;
+	t2 = t1 + r;
+	lo1 = kd * Ln2lo + logctail;
+	lo2 = t1 - t2 + r;
+
+	/* Evaluation is optimized assuming superscalar pipelined execution.  */
+	double_t ar, ar2, ar3, lo3, lo4;
+	ar = A[0] * r; /* A[0] = -0.5.  */
+	ar2 = r * ar;
+	ar3 = r * ar2;
+	/* k*Ln2 + log(c) + r + A[0]*r*r.  */
+#if __FP_FAST_FMA
+	hi = t2 + ar2;
+	lo3 = __builtin_fma(ar, r, -ar2);
+	lo4 = t2 - hi + ar2;
+#else
+	double_t arhi = A[0] * rhi;
+	double_t arhi2 = rhi * arhi;
+	hi = t2 + arhi2;
+	lo3 = rlo * (ar + arhi);
+	lo4 = t2 - hi + arhi2;
+#endif
+	/* p = log1p(r) - r - A[0]*r*r.  */
+	p = (ar3 * (A[1] + r * A[2] +
+		    ar2 * (A[3] + r * A[4] + ar2 * (A[5] + r * A[6]))));
+	lo = lo1 + lo2 + lo3 + lo4 + p;
+	y = hi + lo;
+	*tail = hi - y + lo;
+	return y;
+}

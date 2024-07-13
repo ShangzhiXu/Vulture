@@ -1,0 +1,15 @@
+uint8_t object_execute(lwm2m_context_t *contextP,
+                       lwm2m_uri_t *uriP,
+                       uint8_t *buffer,
+                       size_t length)
+{
+    lwm2m_object_t *targetP;
+
+    LOG_URI(uriP);
+    targetP = (lwm2m_object_t *)LWM2M_LIST_FIND(contextP->objectList, uriP->objectId);
+    if (NULL == targetP) return COAP_404_NOT_FOUND;
+    if (NULL == targetP->executeFunc) return COAP_405_METHOD_NOT_ALLOWED;
+    if (NULL == lwm2m_list_find(targetP->instanceList, uriP->instanceId)) return COAP_404_NOT_FOUND;
+
+    return targetP->executeFunc(uriP->instanceId, uriP->resourceId, buffer, length, targetP);
+}

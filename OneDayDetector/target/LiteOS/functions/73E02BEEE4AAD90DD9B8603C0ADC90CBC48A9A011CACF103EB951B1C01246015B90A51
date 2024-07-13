@@ -1,0 +1,29 @@
+int mbedtls_blowfish_crypt_ecb( mbedtls_blowfish_context *ctx,
+                    int mode,
+                    const unsigned char input[MBEDTLS_BLOWFISH_BLOCKSIZE],
+                    unsigned char output[MBEDTLS_BLOWFISH_BLOCKSIZE] )
+{
+    uint32_t X0, X1;
+    BLOWFISH_VALIDATE_RET( ctx != NULL );
+    BLOWFISH_VALIDATE_RET( mode == MBEDTLS_BLOWFISH_ENCRYPT ||
+                           mode == MBEDTLS_BLOWFISH_DECRYPT );
+    BLOWFISH_VALIDATE_RET( input  != NULL );
+    BLOWFISH_VALIDATE_RET( output != NULL );
+
+    GET_UINT32_BE( X0, input,  0 );
+    GET_UINT32_BE( X1, input,  4 );
+
+    if( mode == MBEDTLS_BLOWFISH_DECRYPT )
+    {
+        blowfish_dec( ctx, &X0, &X1 );
+    }
+    else /* MBEDTLS_BLOWFISH_ENCRYPT */
+    {
+        blowfish_enc( ctx, &X0, &X1 );
+    }
+
+    PUT_UINT32_BE( X0, output,  0 );
+    PUT_UINT32_BE( X1, output,  4 );
+
+    return( 0 );
+}

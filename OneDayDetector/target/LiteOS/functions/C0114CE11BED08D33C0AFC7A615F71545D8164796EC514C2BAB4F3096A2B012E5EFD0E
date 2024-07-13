@@ -1,0 +1,48 @@
+static void HCD_RXQLVL_IRQHandler(HCD_HandleTypeDef *hhcd)
+{
+  USB_OTG_GlobalTypeDef *USBx = hhcd->Instance;
+  uint32_t USBx_BASE = (uint32_t)USBx;
+  uint32_t pktsts;
+  uint32_t pktcnt;
+  uint32_t temp;
+  uint32_t tmpreg;
+  uint32_t ch_num;
+
+  temp = hhcd->Instance->GRXSTSP;
+  ch_num = temp & USB_OTG_GRXSTSP_EPNUM;
+  pktsts = (temp & USB_OTG_GRXSTSP_PKTSTS) >> 17;
+  pktcnt = (temp & USB_OTG_GRXSTSP_BCNT) >> 4;
+
+  switch (pktsts)
+  {
+    case GRXSTS_PKTSTS_IN:
+      /* Read the data into the host buffer. */
+      if ((pktcnt > 0U) && (hhcd->hc[ch_num].xfer_buff != (void *)0))
+      {
+        (void)USB_ReadPacket(hhcd->Instance, hhcd->hc[ch_num].xfer_buff, (uint16_t)pktcnt);
+
+        /*manage multiple Xfer */
+        hhcd->hc[ch_num].xfer_buff += pktcnt;
+        hhcd->hc[ch_num].xfer_count  += pktcnt;
+
+        if ((USBx_HC(ch_num)->HCTSIZ & USB_OTG_HCTSIZ_PKTCNT) > 0U)
+        {
+          /* re-activate the channel when more packets are expected */
+          tmpreg = USBx_HC(ch_num)->HCCHAR;
+          tmpreg &= ~USB_OTG_HCCHAR_CHDIS;
+          tmpreg |= USB_OTG_HCCHAR_CHENA;
+          USBx_HC(ch_num)->HCCHAR = tmpreg;
+          hhcd->hc[ch_num].toggle_in ^= 1U;
+        }
+      }
+      break;
+
+    case GRXSTS_PKTSTS_DATA_TOGGLE_ERR:
+      break;
+
+    case GRXSTS_PKTSTS_IN_XFER_COMP:
+    case GRXSTS_PKTSTS_CH_HALTED:
+    default:
+      break;
+  }
+}

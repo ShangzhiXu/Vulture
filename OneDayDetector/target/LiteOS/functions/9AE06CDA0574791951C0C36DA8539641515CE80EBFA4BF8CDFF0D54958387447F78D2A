@@ -1,0 +1,28 @@
+uint32_t LL_RCC_GetSPDIFRXClockFreq(uint32_t SPDIFRXxSource)
+{
+  uint32_t spdifrx_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_SPDIFRX_CLKSOURCE(SPDIFRXxSource));
+
+  /* SPDIFRX1CLK clock frequency */
+  switch (LL_RCC_GetSPDIFRXClockSource(SPDIFRXxSource))
+  {
+    case LL_RCC_SPDIFRX1_CLKSOURCE_PLLI2S:  /* SPDIFRX Clock is PLLI2S Osc. */
+      if (LL_RCC_PLLI2S_IsReady())
+      {
+        spdifrx_frequency = RCC_PLLI2S_GetFreqDomain_SPDIFRX();
+      }
+      break;
+
+    case LL_RCC_SPDIFRX1_CLKSOURCE_PLL:     /* SPDIFRX Clock is PLL Osc. */
+    default:
+      if (LL_RCC_PLL_IsReady())
+      {
+        spdifrx_frequency = RCC_PLL_GetFreqDomain_SPDIFRX();
+      }
+      break;
+  }
+
+  return spdifrx_frequency;
+}

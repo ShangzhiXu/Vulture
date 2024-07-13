@@ -1,0 +1,26 @@
+int32_t at_usart_init(void)
+{
+    UART_HandleTypeDef *usart = &at_usart;
+    at_config *at_user_conf = at_get_config();
+
+    at_usart_adapter(at_user_conf->usart_port);
+
+    usart->Instance = g_atUSART;
+    usart->Init.BaudRate = at_user_conf->buardrate;
+
+    usart->Init.WordLength = UART_WORDLENGTH_8B;
+    usart->Init.StopBits = UART_STOPBITS_1;
+    usart->Init.Parity = UART_PARITY_NONE;
+    usart->Init.HwFlowCtl = UART_HWCONTROL_NONE;
+    usart->Init.Mode = UART_MODE_RX | UART_MODE_TX;
+    if (HAL_UART_Init(usart) != HAL_OK) {
+        _Error_Handler(__FILE__, __LINE__);
+    }
+    HAL_NVIC_EnableIRQ(g_atIRQn);
+    __HAL_UART_CLEAR_FLAG(usart, UART_FLAG_TC);
+    LOS_HwiCreate(g_atIRQn + 16, 0, 0, at_irq_handler, 0);
+    __HAL_UART_ENABLE_IT(usart, UART_IT_IDLE);
+    __HAL_UART_ENABLE_IT(usart, UART_IT_RXNE);
+
+    return AT_OK;
+}

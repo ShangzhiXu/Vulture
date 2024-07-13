@@ -1,0 +1,33 @@
+ip_reass_enqueue_new_datagram(struct ip_hdr *fraghdr, int clen)
+{
+  struct ip_reassdata *ipr;
+#if ! IP_REASS_FREE_OLDEST
+  LWIP_UNUSED_ARG(clen);
+#endif
+
+  /* No matching previous fragment found, allocate a new reassdata struct */
+  ipr = (struct ip_reassdata *)memp_malloc(MEMP_REASSDATA);
+  if (ipr == NULL) {
+#if IP_REASS_FREE_OLDEST
+    if (ip_reass_remove_oldest_datagram(fraghdr, clen) >= clen) {
+      ipr = (struct ip_reassdata *)memp_malloc(MEMP_REASSDATA);
+    }
+    if (ipr == NULL)
+#endif /* IP_REASS_FREE_OLDEST */
+    {
+      IPFRAG_STATS_INC(ip_frag.memerr);
+      LWIP_DEBUGF(IP_REASS_DEBUG, ("Failed to alloc reassdata struct\n"));
+      return NULL;
+    }
+  }
+  memset(ipr, 0, sizeof(struct ip_reassdata));
+  ipr->timer = IP_REASS_MAXAGE;
+
+  /* enqueue the new structure to the front of the list */
+  ipr->next = reassdatagrams;
+  reassdatagrams = ipr;
+  /* copy the ip header for later tests and input */
+  /* @todo: no ip options supported? */
+  SMEMCPY(&(ipr->iphdr), fraghdr, IP_HLEN);
+  return ipr;
+}

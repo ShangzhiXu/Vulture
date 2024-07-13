@@ -1,0 +1,5 @@
+   compress_func func;
+   ush good_length; /* reduce lazy search above this match length */
+   ush max_chain;
+   ush max_lazy;    /* do not perform lazy search above this match length */
+   ush nice_length; /* quit search above this match length */

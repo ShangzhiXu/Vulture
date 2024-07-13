@@ -1,0 +1,36 @@
+uint32_t LL_RCC_GetLPUARTClockFreq(uint32_t LPUARTxSource)
+{
+  uint32_t lpuart_frequency = LL_RCC_PERIPH_FREQUENCY_NO;
+
+  /* Check parameter */
+  assert_param(IS_LL_RCC_LPUART_CLKSOURCE(LPUARTxSource));
+
+  /* LPUART1CLK clock frequency */
+  switch (LL_RCC_GetLPUARTClockSource(LPUARTxSource))
+  {
+    case LL_RCC_LPUART1_CLKSOURCE_SYSCLK: /* LPUART1 Clock is System Clock */
+      lpuart_frequency = RCC_GetSystemClockFreq();
+      break;
+
+    case LL_RCC_LPUART1_CLKSOURCE_HSI:    /* LPUART1 Clock is HSI Osc. */
+      if (LL_RCC_HSI_IsReady())
+      {
+        lpuart_frequency = HSI_VALUE;
+      }
+      break;
+
+    case LL_RCC_LPUART1_CLKSOURCE_LSE:    /* LPUART1 Clock is LSE Osc. */
+      if (LL_RCC_LSE_IsReady())
+      {
+        lpuart_frequency = LSE_VALUE;
+      }
+      break;
+
+    case LL_RCC_LPUART1_CLKSOURCE_PCLK1:  /* LPUART1 Clock is PCLK1 */
+    default:
+      lpuart_frequency = RCC_GetPCLK1ClockFreq(RCC_GetHCLKClockFreq(RCC_GetSystemClockFreq()));
+      break;
+  }
+
+  return lpuart_frequency;
+}

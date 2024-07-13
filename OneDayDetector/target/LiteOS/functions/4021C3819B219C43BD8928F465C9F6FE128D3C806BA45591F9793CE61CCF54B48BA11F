@@ -1,0 +1,73 @@
+static uint32_t MMC_InitCard(MMC_HandleTypeDef *hmmc)
+{
+  HAL_MMC_CardCSDTypeDef CSD;
+  uint32_t errorstate = HAL_MMC_ERROR_NONE;
+  uint16_t mmc_rca = 1;
+  
+  /* Check the power State */
+  if(SDMMC_GetPowerState(hmmc->Instance) == 0) 
+  {
+    /* Power off */
+    return HAL_MMC_ERROR_REQUEST_NOT_APPLICABLE;
+  }
+  
+  /* Send CMD2 ALL_SEND_CID */
+  errorstate = SDMMC_CmdSendCID(hmmc->Instance);
+  if(errorstate != HAL_MMC_ERROR_NONE)
+  {
+    return errorstate;
+  }
+  else
+  {
+    /* Get Card identification number data */
+    hmmc->CID[0] = SDMMC_GetResponse(hmmc->Instance, SDMMC_RESP1);
+    hmmc->CID[1] = SDMMC_GetResponse(hmmc->Instance, SDMMC_RESP2);
+    hmmc->CID[2] = SDMMC_GetResponse(hmmc->Instance, SDMMC_RESP3);
+    hmmc->CID[3] = SDMMC_GetResponse(hmmc->Instance, SDMMC_RESP4);
+  }
+  
+  /* Send CMD3 SET_REL_ADDR with argument 0 */
+  /* MMC Card publishes its RCA. */
+  errorstate = SDMMC_CmdSetRelAdd(hmmc->Instance, &mmc_rca);
+  if(errorstate != HAL_MMC_ERROR_NONE)
+  {
+    return errorstate;
+  }
+  
+  /* Get the MMC card RCA */
+  hmmc->MmcCard.RelCardAdd = mmc_rca;
+  
+  /* Send CMD9 SEND_CSD with argument as card's RCA */
+  errorstate = SDMMC_CmdSendCSD(hmmc->Instance, (uint32_t)(hmmc->MmcCard.RelCardAdd << 16U));
+  if(errorstate != HAL_MMC_ERROR_NONE)
+  {
+    return errorstate;
+  }
+  else
+  {
+    /* Get Card Specific Data */
+    hmmc->CSD[0U] = SDMMC_GetResponse(hmmc->Instance, SDMMC_RESP1);
+    hmmc->CSD[1U] = SDMMC_GetResponse(hmmc->Instance, SDMMC_RESP2);
+    hmmc->CSD[2U] = SDMMC_GetResponse(hmmc->Instance, SDMMC_RESP3);
+    hmmc->CSD[3U] = SDMMC_GetResponse(hmmc->Instance, SDMMC_RESP4);
+  }
+  
+  /* Get the Card Class */
+  hmmc->MmcCard.Class = (SDMMC_GetResponse(hmmc->Instance, SDMMC_RESP2) >> 20);
+  
+  /* Get CSD parameters */
+  HAL_MMC_GetCardCSD(hmmc, &CSD);
+
+  /* Select the Card */
+  errorstate = SDMMC_CmdSelDesel(hmmc->Instance, (uint32_t)(((uint32_t)hmmc->MmcCard.RelCardAdd) << 16));
+  if(errorstate != HAL_MMC_ERROR_NONE)
+  {
+    return errorstate;
+  }
+
+  /* Configure SDMMC peripheral interface */     
+  SDMMC_Init(hmmc->Instance, hmmc->Init);
+
+  /* All cards are initialized */
+  return HAL_MMC_ERROR_NONE;
+}

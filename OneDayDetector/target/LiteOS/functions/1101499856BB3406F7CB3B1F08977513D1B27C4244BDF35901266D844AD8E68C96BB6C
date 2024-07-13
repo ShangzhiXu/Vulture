@@ -1,0 +1,43 @@
+STATIC VOID OsVprintf(const CHAR *fmt, va_list ap, OutputType type)
+{
+    INT32 len;
+    const CHAR *errMsgMalloc = "OsVprintf, malloc failed!\n";
+    const CHAR *errMsgLen = "OsVprintf, length overflow!\n";
+    CHAR aBuf[SIZEBUF] = {0};
+    CHAR *bBuf = NULL;
+    UINT32 bufLen = SIZEBUF;
+
+    bBuf = aBuf;
+    len = vsnprintf_s(bBuf, bufLen, bufLen - 1, fmt, ap);
+    if ((len == -1) && (*bBuf == '\0')) {
+        /* parameter is illegal or some features in fmt dont support */
+        ErrorMsg();
+        return;
+    }
+
+    while (len == -1) {
+        /* bBuf is not enough */
+        OsVprintfFree(bBuf, bufLen);
+
+        bufLen = bufLen << 1;
+        if ((INT32)bufLen <= 0) {
+            UartPuts(errMsgLen, (UINT32)strlen(errMsgLen), UART_WITH_LOCK);
+            return;
+        }
+        bBuf = (CHAR *)LOS_MemAlloc(m_aucSysMem0, bufLen);
+        if (bBuf == NULL) {
+            UartPuts(errMsgMalloc, (UINT32)strlen(errMsgMalloc), UART_WITH_LOCK);
+            return;
+        }
+        len = vsnprintf_s(bBuf, bufLen, bufLen - 1, fmt, ap);
+        if (*bBuf == '\0') {
+            /* parameter is illegal or some features in fmt dont support */
+            (VOID)LOS_MemFree(m_aucSysMem0, bBuf);
+            ErrorMsg();
+            return;
+        }
+    }
+    *(bBuf + len) = '\0';
+    OutputControl(bBuf, len, type);
+    OsVprintfFree(bBuf, bufLen);
+}

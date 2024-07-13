@@ -1,0 +1,18 @@
+inet_chksum_pseudo_partial(struct pbuf *p, u8_t proto, u16_t proto_len,
+                           u16_t chksum_len, const ip4_addr_t *src, const ip4_addr_t *dest)
+{
+  u32_t acc;
+  u32_t addr;
+
+  addr = ip4_addr_get_u32(src);
+  acc = (addr & 0xffffUL);
+  acc = (u32_t)(acc + ((addr >> 16) & 0xffffUL));
+  addr = ip4_addr_get_u32(dest);
+  acc = (u32_t)(acc + (addr & 0xffffUL));
+  acc = (u32_t)(acc + ((addr >> 16) & 0xffffUL));
+  /* fold down to 16 bits */
+  acc = FOLD_U32T(acc);
+  acc = FOLD_U32T(acc);
+
+  return inet_cksum_pseudo_partial_base(p, proto, proto_len, chksum_len, acc);
+}

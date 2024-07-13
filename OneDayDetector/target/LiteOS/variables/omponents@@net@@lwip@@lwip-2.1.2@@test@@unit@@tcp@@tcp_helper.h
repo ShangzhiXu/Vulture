@@ -1,0 +1,13 @@
+  u32_t close_calls;
+  u8_t  copy_tx_packets;
+  u32_t err_calls;
+  char* expected_data;
+  u32_t expected_data_len;
+  err_t last_err;
+  u32_t num_tx_bytes;
+  u32_t num_tx_calls;
+  u32_t recv_calls;
+  u32_t recv_calls_after_close;
+  u32_t recved_bytes;
+  u32_t recved_bytes_after_close;
+  struct pbuf *tx_packets;

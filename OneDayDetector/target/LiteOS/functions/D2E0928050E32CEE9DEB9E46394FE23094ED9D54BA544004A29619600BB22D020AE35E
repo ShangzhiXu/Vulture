@@ -1,0 +1,21 @@
+altcp_proxyconnect_setup(struct altcp_proxyconnect_config *config, struct altcp_pcb *conn, struct altcp_pcb *inner_conn)
+{
+  altcp_proxyconnect_state_t *state;
+  if (!config) {
+    return ERR_ARG;
+  }
+  LWIP_ASSERT("invalid inner_conn", conn != inner_conn);
+
+  /* allocate proxyconnect context */
+  state = altcp_proxyconnect_state_alloc();
+  if (state == NULL) {
+    return ERR_MEM;
+  }
+  state->flags = 0;
+  state->conf = config;
+  altcp_proxyconnect_setup_callbacks(conn, inner_conn);
+  conn->inner_conn = inner_conn;
+  conn->fns = &altcp_proxyconnect_functions;
+  conn->state = state;
+  return ERR_OK;
+}

@@ -1,0 +1,21 @@
+int pthread_mutex_destroy(pthread_mutex_t *mutex)
+{
+    MuxBaseCB *muxDeleted = NULL;
+    UINT32 intSave;
+
+    if (mutex == NULL) {
+        return EINVAL;
+    }
+
+    muxDeleted = &mutex->stLock;
+
+    SCHEDULER_LOCK(intSave);
+    if (muxDeleted->muxCount != 0) {
+        SCHEDULER_UNLOCK(intSave);
+        return EBUSY;
+    }
+    (VOID)memset_s(mutex, sizeof(pthread_mutex_t), 0, sizeof(pthread_mutex_t));
+
+    SCHEDULER_UNLOCK(intSave);
+    return ENOERR;
+}

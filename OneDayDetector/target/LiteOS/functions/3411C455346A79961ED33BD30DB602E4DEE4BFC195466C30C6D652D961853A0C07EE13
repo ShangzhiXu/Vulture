@@ -1,0 +1,73 @@
+HAL_StatusTypeDef HAL_FLASHEx_OBProgram(FLASH_OBProgramInitTypeDef *pOBInit)
+{
+  HAL_StatusTypeDef status = HAL_ERROR;
+
+  /* Process Locked */
+  __HAL_LOCK(&pFlash);
+
+  /* Check the parameters */
+  assert_param(IS_OPTIONBYTE(pOBInit->OptionType));
+
+  /* Write protection configuration */
+  if((pOBInit->OptionType & OPTIONBYTE_WRP) == OPTIONBYTE_WRP)
+  {
+    assert_param(IS_WRPSTATE(pOBInit->WRPState));
+    if (pOBInit->WRPState == OB_WRPSTATE_ENABLE)
+    {
+      /* Enable of Write protection on the selected page */
+      status = FLASH_OB_EnableWRP(pOBInit->WRPPage);
+    }
+    else
+    {
+      /* Disable of Write protection on the selected page */
+      status = FLASH_OB_DisableWRP(pOBInit->WRPPage);
+    }
+    if (status != HAL_OK)
+    {
+      /* Process Unlocked */
+      __HAL_UNLOCK(&pFlash);
+      return status;
+    }
+  }
+
+  /* Read protection configuration */
+  if((pOBInit->OptionType & OPTIONBYTE_RDP) == OPTIONBYTE_RDP)
+  {
+    status = FLASH_OB_RDP_LevelConfig(pOBInit->RDPLevel);
+    if (status != HAL_OK)
+    {
+      /* Process Unlocked */
+      __HAL_UNLOCK(&pFlash);
+      return status;
+    }
+  }
+
+  /* USER configuration */
+  if((pOBInit->OptionType & OPTIONBYTE_USER) == OPTIONBYTE_USER)
+  {
+    status = FLASH_OB_UserConfig(pOBInit->USERConfig);
+    if (status != HAL_OK)
+    {
+      /* Process Unlocked */
+      __HAL_UNLOCK(&pFlash);
+      return status;
+    }
+  }
+
+  /* DATA configuration*/
+  if((pOBInit->OptionType & OPTIONBYTE_DATA) == OPTIONBYTE_DATA)
+  {
+    status = FLASH_OB_ProgramData(pOBInit->DATAAddress, pOBInit->DATAData);
+    if (status != HAL_OK)
+    {
+      /* Process Unlocked */
+      __HAL_UNLOCK(&pFlash);
+      return status;
+    }
+  }
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(&pFlash);
+
+  return status;
+}

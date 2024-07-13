@@ -1,0 +1,40 @@
+HAL_StatusTypeDef HAL_LTDC_SetWindowPosition(LTDC_HandleTypeDef *hltdc, uint32_t X0, uint32_t Y0, uint32_t LayerIdx)
+{
+  LTDC_LayerCfgTypeDef *pLayerCfg;
+
+  /* Check the parameters */
+  assert_param(IS_LTDC_LAYER(LayerIdx));
+  assert_param(IS_LTDC_CFBLL(X0));
+  assert_param(IS_LTDC_CFBLNBR(Y0));
+
+  /* Process locked */
+  __HAL_LOCK(hltdc);
+
+  /* Change LTDC peripheral state */
+  hltdc->State = HAL_LTDC_STATE_BUSY;
+
+  /* Get layer configuration from handle structure */
+  pLayerCfg = &hltdc->LayerCfg[LayerIdx];
+
+  /* update horizontal start/stop */
+  pLayerCfg->WindowX0 = X0;
+  pLayerCfg->WindowX1 = X0 + pLayerCfg->ImageWidth;
+
+  /* update vertical start/stop */
+  pLayerCfg->WindowY0 = Y0;
+  pLayerCfg->WindowY1 = Y0 + pLayerCfg->ImageHeight;
+
+  /* Set LTDC parameters */
+  LTDC_SetConfig(hltdc, pLayerCfg, LayerIdx);
+
+  /* Set the Immediate Reload type */
+  hltdc->Instance->SRCR = LTDC_SRCR_IMR;
+
+  /* Change the LTDC state*/
+  hltdc->State = HAL_LTDC_STATE_READY;
+
+  /* Process unlocked */
+  __HAL_UNLOCK(hltdc);
+
+  return HAL_OK;
+}

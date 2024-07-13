@@ -1,0 +1,31 @@
+static void I2C_DMAMasterReceiveCplt(DMA_HandleTypeDef *hdma)
+{
+  I2C_HandleTypeDef* hi2c = (I2C_HandleTypeDef*)((DMA_HandleTypeDef*)hdma)->Parent;
+
+  /* Disable Acknowledge */
+  CLEAR_BIT(hi2c->Instance->CR1, I2C_CR1_ACK);
+
+  /* Generate Stop */
+  SET_BIT(hi2c->Instance->CR1, I2C_CR1_STOP);
+
+  /* Disable Last DMA */
+  CLEAR_BIT(hi2c->Instance->CR2, I2C_CR2_LAST);
+
+  /* Disable DMA Request */
+  CLEAR_BIT(hi2c->Instance->CR2, I2C_CR2_DMAEN);
+
+  hi2c->XferCount = 0;
+
+  hi2c->State = HAL_I2C_STATE_READY;
+  hi2c->Mode = HAL_I2C_MODE_NONE;
+
+  /* Check if Errors has been detected during transfer */
+  if(hi2c->ErrorCode != HAL_I2C_ERROR_NONE)
+  {
+    HAL_I2C_ErrorCallback(hi2c);
+  }
+  else
+  {
+    HAL_I2C_MasterRxCpltCallback(hi2c);
+  }
+}

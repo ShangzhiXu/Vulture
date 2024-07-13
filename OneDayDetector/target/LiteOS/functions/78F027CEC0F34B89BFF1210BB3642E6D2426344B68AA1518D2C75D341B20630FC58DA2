@@ -1,0 +1,31 @@
+int mbedtls_entropy_update_seed_file( mbedtls_entropy_context *ctx, const char *path )
+{
+    int ret = 0;
+    FILE *f;
+    size_t n;
+    unsigned char buf[ MBEDTLS_ENTROPY_MAX_SEED_SIZE ];
+
+    if( ( f = fopen( path, "rb" ) ) == NULL )
+        return( MBEDTLS_ERR_ENTROPY_FILE_IO_ERROR );
+
+    fseek( f, 0, SEEK_END );
+    n = (size_t) ftell( f );
+    fseek( f, 0, SEEK_SET );
+
+    if( n > MBEDTLS_ENTROPY_MAX_SEED_SIZE )
+        n = MBEDTLS_ENTROPY_MAX_SEED_SIZE;
+
+    if( fread( buf, 1, n, f ) != n )
+        ret = MBEDTLS_ERR_ENTROPY_FILE_IO_ERROR;
+    else
+        ret = mbedtls_entropy_update_manual( ctx, buf, n );
+
+    fclose( f );
+
+    mbedtls_platform_zeroize( buf, sizeof( buf ) );
+
+    if( ret != 0 )
+        return( ret );
+
+    return( mbedtls_entropy_write_seed_file( ctx, path ) );
+}

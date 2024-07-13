@@ -1,0 +1,26 @@
+  uint32_t AcquisitionMode;         /*!< Acquisition mode
+  uint32_t CTPulseHighLength;       /*!< Charge-transfer high pulse length
+  uint32_t CTPulseLowLength;        /*!< Charge-transfer low pulse length
+  uint32_t ChannelIOs;              /*!< Channel IOs mask */
+  uint32_t ChannelIOs;  /*!< Channel IOs mask */
+  void (* ConvCpltCallback)(struct __TSC_HandleTypeDef *htsc);   /*!< TSC Conversion complete callback  */
+  void (* ErrorCallback)(struct __TSC_HandleTypeDef *htsc);      /*!< TSC Error callback                */
+  __IO uint32_t             ErrorCode;  /*!< TSC Error code             */
+  uint32_t IODefaultMode;           /*!< IO default mode
+  TSC_InitTypeDef           Init;       /*!< Initialization parameters  */
+  TSC_TypeDef               *Instance;  /*!< Register base address      */
+  HAL_LockTypeDef           Lock;       /*!< Lock feature               */
+  FunctionalState MaxCountInterrupt;/*!< Max count interrupt activation
+  uint32_t MaxCountValue;           /*!< Max count value
+  void (* MspDeInitCallback)(struct __TSC_HandleTypeDef *htsc);  /*!< TSC Msp DeInit callback           */
+  void (* MspInitCallback)(struct __TSC_HandleTypeDef *htsc);    /*!< TSC Msp Init callback             */
+  uint32_t PulseGeneratorPrescaler; /*!< Pulse generator prescaler
+  uint32_t SamplingIOs;             /*!< Sampling IOs mask */
+  uint32_t SamplingIOs; /*!< Sampling IOs mask */
+  uint32_t ShieldIOs;               /*!< Shield IOs mask */
+  uint32_t ShieldIOs;   /*!< Shield IOs mask */
+  FunctionalState SpreadSpectrum;   /*!< Spread spectrum activation
+  uint32_t SpreadSpectrumDeviation; /*!< Spread spectrum deviation
+  uint32_t SpreadSpectrumPrescaler; /*!< Spread spectrum prescaler
+  __IO HAL_TSC_StateTypeDef State;      /*!< Peripheral state           */
+  uint32_t SynchroPinPolarity;      /*!< Synchro pin polarity

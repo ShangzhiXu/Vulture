@@ -1,0 +1,12 @@
+tcp_backlog_delayed(struct tcp_pcb *pcb)
+{
+  LWIP_ASSERT("pcb != NULL", pcb != NULL);
+  LWIP_ASSERT_CORE_LOCKED();
+  if ((pcb->flags & TF_BACKLOGPEND) == 0) {
+    if (pcb->listener != NULL) {
+      pcb->listener->accepts_pending++;
+      LWIP_ASSERT("accepts_pending != 0", pcb->listener->accepts_pending != 0);
+      tcp_set_flags(pcb, TF_BACKLOGPEND);
+    }
+  }
+}

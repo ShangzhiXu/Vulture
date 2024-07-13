@@ -1,0 +1,80 @@
+int mbedtls_ssl_ticket_write( void *p_ticket,
+                              const mbedtls_ssl_session *session,
+                              unsigned char *start,
+                              const unsigned char *end,
+                              size_t *tlen,
+                              uint32_t *ticket_lifetime )
+{
+    int ret;
+    mbedtls_ssl_ticket_context *ctx = p_ticket;
+    mbedtls_ssl_ticket_key *key;
+    unsigned char *key_name = start;
+    unsigned char *iv = start + TICKET_KEY_NAME_BYTES;
+    unsigned char *state_len_bytes = iv + TICKET_IV_BYTES;
+    unsigned char *state = state_len_bytes + TICKET_CRYPT_LEN_BYTES;
+    unsigned char *tag;
+    size_t clear_len, ciph_len;
+
+    *tlen = 0;
+
+    if( ctx == NULL || ctx->f_rng == NULL )
+        return( MBEDTLS_ERR_SSL_BAD_INPUT_DATA );
+
+    /* We need at least 4 bytes for key_name, 12 for IV, 2 for len 16 for tag,
+     * in addition to session itself, that will be checked when writing it. */
+    MBEDTLS_SSL_CHK_BUF_PTR( start, end, TICKET_MIN_LEN );
+
+#if defined(MBEDTLS_THREADING_C)
+    if( ( ret = mbedtls_mutex_lock( &ctx->mutex ) ) != 0 )
+        return( ret );
+#endif
+
+    if( ( ret = ssl_ticket_update_keys( ctx ) ) != 0 )
+        goto cleanup;
+
+    key = &ctx->keys[ctx->active];
+
+    *ticket_lifetime = ctx->ticket_lifetime;
+
+    memcpy( key_name, key->name, TICKET_KEY_NAME_BYTES );
+
+    if( ( ret = ctx->f_rng( ctx->p_rng, iv, TICKET_IV_BYTES ) ) != 0 )
+        goto cleanup;
+
+    /* Dump session state */
+    if( ( ret = ssl_save_session( session,
+                                  state, end - state, &clear_len ) ) != 0 ||
+        (unsigned long) clear_len > 65535 )
+    {
+         goto cleanup;
+    }
+    state_len_bytes[0] = ( clear_len >> 8 ) & 0xff;
+    state_len_bytes[1] = ( clear_len      ) & 0xff;
+
+    /* Encrypt and authenticate */
+    tag = state + clear_len;
+    if( ( ret = mbedtls_cipher_auth_encrypt( &key->ctx,
+                    iv, TICKET_IV_BYTES,
+                    /* Additional data: key name, IV and length */
+                    key_name, TICKET_ADD_DATA_LEN,
+                    state, clear_len, state, &ciph_len,
+                    tag, TICKET_AUTH_TAG_BYTES ) ) != 0 )
+    {
+        goto cleanup;
+    }
+    if( ciph_len != clear_len )
+    {
+        ret = MBEDTLS_ERR_SSL_INTERNAL_ERROR;
+        goto cleanup;
+    }
+
+    *tlen = TICKET_MIN_LEN + ciph_len;
+
+cleanup:
+#if defined(MBEDTLS_THREADING_C)
+    if( mbedtls_mutex_unlock( &ctx->mutex ) != 0 )
+        return( MBEDTLS_ERR_THREADING_MUTEX_ERROR );
+#endif
+
+    return( ret );
+}

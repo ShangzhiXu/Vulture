@@ -1,0 +1,33 @@
+HAL_StatusTypeDef HAL_SDRAM_Write_8b(SDRAM_HandleTypeDef *hsdram, uint32_t *pAddress, uint8_t *pSrcBuffer, uint32_t BufferSize)
+{
+  __IO uint8_t *pSdramAddress = (uint8_t *)pAddress;
+  uint32_t tmp = 0U;
+  
+  /* Process Locked */
+  __HAL_LOCK(hsdram);
+  
+  /* Check the SDRAM controller state */
+  tmp = hsdram->State;
+  
+  if(tmp == HAL_SDRAM_STATE_BUSY)
+  {
+    return HAL_BUSY;
+  }
+  else if((tmp == HAL_SDRAM_STATE_PRECHARGED) || (tmp == HAL_SDRAM_STATE_WRITE_PROTECTED))
+  {
+    return  HAL_ERROR; 
+  }
+  
+  /* Write data to memory */
+  for(; BufferSize != 0U; BufferSize--)
+  {
+    *(__IO uint8_t *)pSdramAddress = *pSrcBuffer;
+    pSrcBuffer++;
+    pSdramAddress++;
+  }
+  
+  /* Process Unlocked */
+  __HAL_UNLOCK(hsdram);    
+  
+  return HAL_OK;   
+}

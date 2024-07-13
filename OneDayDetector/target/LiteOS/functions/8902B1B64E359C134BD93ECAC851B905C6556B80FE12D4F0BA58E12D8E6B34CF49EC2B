@@ -1,0 +1,419 @@
+HAL_StatusTypeDef HAL_ADCEx_InjectedConfigChannel(ADC_HandleTypeDef* hadc, ADC_InjectionConfTypeDef* sConfigInjected)
+{
+  HAL_StatusTypeDef tmp_hal_status = HAL_OK;
+  uint32_t tmpOffsetShifted;
+  uint32_t wait_loop_index = 0U;
+  
+  uint32_t tmp_JSQR_ContextQueueBeingBuilt = 0U;
+  
+  /* Check the parameters */
+  assert_param(IS_ADC_ALL_INSTANCE(hadc->Instance));
+  assert_param(IS_ADC_SAMPLE_TIME(sConfigInjected->InjectedSamplingTime));
+  assert_param(IS_ADC_SINGLE_DIFFERENTIAL(sConfigInjected->InjectedSingleDiff));
+  assert_param(IS_FUNCTIONAL_STATE(sConfigInjected->AutoInjectedConv));
+  assert_param(IS_FUNCTIONAL_STATE(sConfigInjected->QueueInjectedContext));
+  assert_param(IS_ADC_EXTTRIGINJEC_EDGE(sConfigInjected->ExternalTrigInjecConvEdge));
+  assert_param(IS_ADC_EXTTRIGINJEC(hadc, sConfigInjected->ExternalTrigInjecConv));
+  assert_param(IS_ADC_OFFSET_NUMBER(sConfigInjected->InjectedOffsetNumber));
+  assert_param(IS_ADC_RANGE(ADC_GET_RESOLUTION(hadc), sConfigInjected->InjectedOffset));
+  assert_param(IS_FUNCTIONAL_STATE(sConfigInjected->InjecOversamplingMode));
+  
+  if(hadc->Init.ScanConvMode != ADC_SCAN_DISABLE)
+  {
+    assert_param(IS_ADC_INJECTED_RANK(sConfigInjected->InjectedRank));
+    assert_param(IS_ADC_INJECTED_NB_CONV(sConfigInjected->InjectedNbrOfConversion));
+    assert_param(IS_FUNCTIONAL_STATE(sConfigInjected->InjectedDiscontinuousConvMode));
+  }
+  
+  
+  /* if JOVSE is set, the value of the OFFSETy_EN bit in ADCx_OFRy register is  
+     ignored (considered as reset) */
+  assert_param(!((sConfigInjected->InjectedOffsetNumber != ADC_OFFSET_NONE) && (sConfigInjected->InjecOversamplingMode == ENABLE))); 
+  
+  /* JDISCEN and JAUTO bits can't be set at the same time  */
+  assert_param(!((sConfigInjected->InjectedDiscontinuousConvMode == ENABLE) && (sConfigInjected->AutoInjectedConv == ENABLE))); 
+  
+  /*  DISCEN and JAUTO bits can't be set at the same time */
+  assert_param(!((hadc->Init.DiscontinuousConvMode == ENABLE) && (sConfigInjected->AutoInjectedConv == ENABLE)));  
+  
+  /* Verification of channel number */
+  if (sConfigInjected->InjectedSingleDiff != ADC_DIFFERENTIAL_ENDED)
+  {
+     assert_param(IS_ADC_CHANNEL(hadc, sConfigInjected->InjectedChannel));
+  }
+  else
+  {
+    assert_param(IS_ADC_DIFF_CHANNEL(hadc, sConfigInjected->InjectedChannel));
+  }
+  
+  /* Process locked */
+  __HAL_LOCK(hadc);
+  
+  /* Configuration of injected group sequencer:                               */
+  /* Hardware constraint: Must fully define injected context register JSQR    */
+  /* before make it entering into injected sequencer queue.                   */
+  /*                                                                          */
+  /* - if scan mode is disabled:                                              */
+  /*    * Injected channels sequence length is set to 0x00: 1 channel         */
+  /*      converted (channel on injected rank 1)                              */
+  /*      Parameter "InjectedNbrOfConversion" is discarded.                   */
+  /*    * Injected context register JSQR setting is simple: register is fully */
+  /*      defined on one call of this function (for injected rank 1) and can  */
+  /*      be entered into queue directly.                                     */
+  /* - if scan mode is enabled:                                               */
+  /*    * Injected channels sequence length is set to parameter               */
+  /*      "InjectedNbrOfConversion".                                          */
+  /*    * Injected context register JSQR setting more complex: register is    */
+  /*      fully defined over successive calls of this function, for each      */
+  /*      injected channel rank. It is entered into queue only when all       */
+  /*      injected ranks have been set.                                       */
+  /*   Note: Scan mode is not present by hardware on this device, but used    */
+  /*   by software for alignment over all STM32 devices.                      */
+  
+  if ((hadc->Init.ScanConvMode == ADC_SCAN_DISABLE)  ||
+      (sConfigInjected->InjectedNbrOfConversion == 1U)  )
+  {
+    /* Configuration of context register JSQR:                                */
+    /*  - number of ranks in injected group sequencer: fixed to 1st rank      */
+    /*    (scan mode disabled, only rank 1 used)                              */
+    /*  - external trigger to start conversion                                */
+    /*  - external trigger polarity                                           */
+    /*  - channel set to rank 1 (scan mode disabled, only rank 1 can be used) */
+    
+    if (sConfigInjected->InjectedRank == ADC_INJECTED_RANK_1)
+    {
+      /* Enable external trigger if trigger selection is different of         */
+      /* software start.                                                      */
+      /* Note: This configuration keeps the hardware feature of parameter     */
+      /*       ExternalTrigInjecConvEdge "trigger edge none" equivalent to    */
+      /*       software start.                                                */
+      if (sConfigInjected->ExternalTrigInjecConv != ADC_INJECTED_SOFTWARE_START)
+      {
+         tmp_JSQR_ContextQueueBeingBuilt = (  ADC_JSQR_RK(sConfigInjected->InjectedChannel, ADC_INJECTED_RANK_1)
+                                            | (sConfigInjected->ExternalTrigInjecConv & ADC_JSQR_JEXTSEL)
+                                            | sConfigInjected->ExternalTrigInjecConvEdge
+                                           );
+      }
+      else
+      {
+         tmp_JSQR_ContextQueueBeingBuilt = ( ADC_JSQR_RK(sConfigInjected->InjectedChannel, ADC_INJECTED_RANK_1) );
+      }
+      
+      MODIFY_REG(hadc->Instance->JSQR, ADC_JSQR_FIELDS, tmp_JSQR_ContextQueueBeingBuilt); 
+      /* For debug and informative reasons, hadc handle saves JSQR setting */
+      hadc->InjectionConfig.ContextQueue = tmp_JSQR_ContextQueueBeingBuilt;
+    
+    }
+  }
+  else
+  {
+    /* Case of scan mode enabled, several channels to set into injected group */
+    /* sequencer.                                                             */
+    /*                                                                        */
+    /* Procedure to define injected context register JSQR over successive     */
+    /* calls of this function, for each injected channel rank:                */
+    /* 1. Start new context and set parameters related to all injected        */
+    /*    channels: injected sequence length and trigger.                     */
+    
+    /* if hadc->InjectionConfig.ChannelCount is equal to 0, this is the first */
+    /*   call of the context under setting                                    */
+    if (hadc->InjectionConfig.ChannelCount == 0U) 
+    {
+      /* Initialize number of channels that will be configured on the context */
+      /*  being built                                                         */
+      hadc->InjectionConfig.ChannelCount = sConfigInjected->InjectedNbrOfConversion;
+      /* Handle hadc saves the context under build up over each HAL_ADCEx_InjectedConfigChannel()
+         call, this context will be written in JSQR register at the last call.
+         At this point, the context is merely reset  */
+       hadc->InjectionConfig.ContextQueue = 0x00000000U;
+      
+      /* Configuration of context register JSQR:                              */
+      /*  - number of ranks in injected group sequencer                       */
+      /*  - external trigger to start conversion                              */
+      /*  - external trigger polarity                                         */
+      
+      /* Enable external trigger if trigger selection is different of         */
+      /* software start.                                                      */
+      /* Note: This configuration keeps the hardware feature of parameter     */
+      /*       ExternalTrigInjecConvEdge "trigger edge none" equivalent to    */
+      /*       software start.                                                */
+      if (sConfigInjected->ExternalTrigInjecConv != ADC_INJECTED_SOFTWARE_START)
+      {
+         tmp_JSQR_ContextQueueBeingBuilt = (  (sConfigInjected->InjectedNbrOfConversion - 1U)
+                                            | (sConfigInjected->ExternalTrigInjecConv & ADC_JSQR_JEXTSEL)
+                                            | sConfigInjected->ExternalTrigInjecConvEdge
+                                           );
+      }
+      else
+      {
+        tmp_JSQR_ContextQueueBeingBuilt = ((sConfigInjected->InjectedNbrOfConversion - 1U) );
+      }
+      
+    }
+    
+    /* 2. Continue setting of context under definition with parameter       */
+    /*    related to each channel: channel rank sequence                    */
+    /* Clear the old JSQx bits for the selected rank */
+    tmp_JSQR_ContextQueueBeingBuilt &= ~ADC_JSQR_RK(ADC_SQR3_SQ10, sConfigInjected->InjectedRank);
+    
+    /* Set the JSQx bits for the selected rank */
+    tmp_JSQR_ContextQueueBeingBuilt |= ADC_JSQR_RK(sConfigInjected->InjectedChannel, sConfigInjected->InjectedRank);
+    
+    /* Decrease channel count  */
+    hadc->InjectionConfig.ChannelCount--;
+    
+    /* 3. tmp_JSQR_ContextQueueBeingBuilt is fully built for this HAL_ADCEx_InjectedConfigChannel()
+          call, aggregate the setting to those already built during the previous  
+          HAL_ADCEx_InjectedConfigChannel() calls (for the same context of course)  */
+    hadc->InjectionConfig.ContextQueue |= tmp_JSQR_ContextQueueBeingBuilt;
+    
+    /* 4. End of context setting: if this is the last channel set, then write context
+        into register JSQR and make it enter into queue                   */
+    if (hadc->InjectionConfig.ChannelCount == 0U)
+    {
+      MODIFY_REG(hadc->Instance->JSQR, ADC_JSQR_FIELDS, hadc->InjectionConfig.ContextQueue); 
+    }
+  }
+
+  /* Parameters update conditioned to ADC state:                              */
+  /* Parameters that can be updated when ADC is disabled or enabled without   */
+  /* conversion on going on injected group:                                   */
+  /*  - Injected context queue: Queue disable (active context is kept) or     */
+  /*    enable (context decremented, up to 2 contexts queued)                 */
+  /*  - Injected discontinuous mode: can be enabled only if auto-injected     */
+  /*    mode is disabled.                                                     */
+  if (ADC_IS_CONVERSION_ONGOING_INJECTED(hadc) == RESET)
+  {
+    /* If auto-injected mode is disabled: no constraint                       */
+    if (sConfigInjected->AutoInjectedConv == DISABLE)
+    {                               
+      MODIFY_REG(hadc->Instance->CFGR, ADC_CFGR_JQM | ADC_CFGR_JDISCEN, 
+                               ADC_CFGR_INJECT_CONTEXT_QUEUE(sConfigInjected->QueueInjectedContext)          | 
+                               ADC_CFGR_INJECT_DISCCONTINUOUS(sConfigInjected->InjectedDiscontinuousConvMode) );                          
+    }
+    /* If auto-injected mode is enabled: Injected discontinuous setting is    */
+    /* discarded.                                                             */
+    else
+    {
+            MODIFY_REG(hadc->Instance->CFGR, ADC_CFGR_JQM | ADC_CFGR_JDISCEN, 
+                               ADC_CFGR_INJECT_CONTEXT_QUEUE(sConfigInjected->QueueInjectedContext) );  
+    }
+
+  }
+  
+  /* Parameters update conditioned to ADC state:                              */
+  /* Parameters that can be updated when ADC is disabled or enabled without   */
+  /* conversion on going on regular and injected groups:                      */
+  /*  - Automatic injected conversion: can be enabled if injected group       */
+  /*    external triggers are disabled.                                       */
+  /*  - Channel sampling time                                                 */
+  /*  - Channel offset                                                        */
+  if (ADC_IS_CONVERSION_ONGOING_REGULAR_INJECTED(hadc) == RESET)
+  {
+    /* If injected group external triggers are disabled (set to injected      */
+    /* software start): no constraint                                         */
+    if ((sConfigInjected->ExternalTrigInjecConv == ADC_INJECTED_SOFTWARE_START)
+       || (sConfigInjected->ExternalTrigInjecConvEdge == ADC_EXTERNALTRIGINJECCONV_EDGE_NONE))
+    {
+         if (sConfigInjected->AutoInjectedConv == ENABLE)
+         {
+           SET_BIT(hadc->Instance->CFGR, ADC_CFGR_JAUTO);    
+         }
+         else
+         {
+           CLEAR_BIT(hadc->Instance->CFGR, ADC_CFGR_JAUTO);    
+         }                                                                                  
+    }
+    /* If Automatic injected conversion was intended to be set and could not  */
+    /* due to injected group external triggers enabled, error is reported.    */
+    else
+    {
+      if (sConfigInjected->AutoInjectedConv == ENABLE)
+      {
+        /* Update ADC state machine to error */
+        SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_CONFIG);
+        
+        tmp_hal_status = HAL_ERROR;
+      }
+      else
+      {
+        CLEAR_BIT(hadc->Instance->CFGR, ADC_CFGR_JAUTO); 
+      }
+    }
+    
+    if (sConfigInjected->InjecOversamplingMode == ENABLE)
+    {
+      assert_param(IS_ADC_OVERSAMPLING_RATIO(sConfigInjected->InjecOversampling.Ratio));
+      assert_param(IS_ADC_RIGHT_BIT_SHIFT(sConfigInjected->InjecOversampling.RightBitShift));
+      
+      /*  JOVSE must be reset in case of triggered regular mode  */
+      assert_param(!(READ_BIT(hadc->Instance->CFGR2, ADC_CFGR2_ROVSE|ADC_CFGR2_TROVS) == (ADC_CFGR2_ROVSE|ADC_CFGR2_TROVS)));
+      
+      /* Configuration of Injected Oversampler:                                 */
+      /*  - Oversampling Ratio                                                  */
+      /*  - Right bit shift                                                     */
+      
+      /* Enable OverSampling mode */
+       MODIFY_REG(hadc->Instance->CFGR2,
+                  ADC_CFGR2_JOVSE |
+                  ADC_CFGR2_OVSR  |
+                  ADC_CFGR2_OVSS,
+                  ADC_CFGR2_JOVSE                                  | 
+                  sConfigInjected->InjecOversampling.Ratio         |
+                  sConfigInjected->InjecOversampling.RightBitShift
+                 );
+    }
+    else
+    {
+      /* Disable Regular OverSampling */
+       CLEAR_BIT( hadc->Instance->CFGR2, ADC_CFGR2_JOVSE);
+    }
+    
+#if defined(ADC_SMPR1_SMPPLUS)
+      /* Manage specific case of sampling time 3.5 cycles replacing 2.5 cyles */
+      if(sConfigInjected->InjectedSamplingTime == ADC_SAMPLETIME_3CYCLES_5)
+      {
+        /* Set sampling time of the selected ADC channel */
+        LL_ADC_SetChannelSamplingTime(hadc->Instance, sConfigInjected->InjectedChannel, LL_ADC_SAMPLINGTIME_2CYCLES_5);
+        
+        /* Set ADC sampling time common configuration */
+        LL_ADC_SetSamplingTimeCommonConfig(hadc->Instance, LL_ADC_SAMPLINGTIME_COMMON_3C5_REPL_2C5);
+      }
+      else
+      {
+        /* Set sampling time of the selected ADC channel */
+        LL_ADC_SetChannelSamplingTime(hadc->Instance, sConfigInjected->InjectedChannel, sConfigInjected->InjectedSamplingTime);
+        
+        /* Set ADC sampling time common configuration */
+        LL_ADC_SetSamplingTimeCommonConfig(hadc->Instance, LL_ADC_SAMPLINGTIME_COMMON_DEFAULT);
+      }
+#else
+      /* Set sampling time of the selected ADC channel */
+      LL_ADC_SetChannelSamplingTime(hadc->Instance, sConfigInjected->InjectedChannel, sConfigInjected->InjectedSamplingTime);
+#endif
+    
+    /* Configure the offset: offset enable/disable, channel, offset value */
+    
+    /* Shift the offset with respect to the selected ADC resolution. */
+    /* Offset has to be left-aligned on bit 11, the LSB (right bits) are set to 0 */
+    tmpOffsetShifted = ADC_OFFSET_SHIFT_RESOLUTION(hadc, sConfigInjected->InjectedOffset);
+    
+    if(sConfigInjected->InjectedOffsetNumber != ADC_OFFSET_NONE)
+    {
+      /* Set ADC selected offset number */
+      LL_ADC_SetOffset(hadc->Instance, sConfigInjected->InjectedOffsetNumber, sConfigInjected->InjectedChannel, tmpOffsetShifted);
+       
+    }
+    else
+    {
+      /* Scan each offset register to check if the selected channel is targeted. */
+      /* If this is the case, the corresponding offset number is disabled.       */
+      if(__LL_ADC_CHANNEL_TO_DECIMAL_NB(LL_ADC_GetOffsetChannel(hadc->Instance, LL_ADC_OFFSET_1)) == __LL_ADC_CHANNEL_TO_DECIMAL_NB(sConfigInjected->InjectedChannel))
+      {
+       LL_ADC_SetOffsetState(hadc->Instance, LL_ADC_OFFSET_1, LL_ADC_OFFSET_DISABLE);
+      }
+      if(__LL_ADC_CHANNEL_TO_DECIMAL_NB(LL_ADC_GetOffsetChannel(hadc->Instance, LL_ADC_OFFSET_2)) == __LL_ADC_CHANNEL_TO_DECIMAL_NB(sConfigInjected->InjectedChannel))
+      {
+       LL_ADC_SetOffsetState(hadc->Instance, LL_ADC_OFFSET_2, LL_ADC_OFFSET_DISABLE);
+      }
+      if(__LL_ADC_CHANNEL_TO_DECIMAL_NB(LL_ADC_GetOffsetChannel(hadc->Instance, LL_ADC_OFFSET_3)) == __LL_ADC_CHANNEL_TO_DECIMAL_NB(sConfigInjected->InjectedChannel))
+      {
+       LL_ADC_SetOffsetState(hadc->Instance, LL_ADC_OFFSET_3, LL_ADC_OFFSET_DISABLE);
+      }
+      if(__LL_ADC_CHANNEL_TO_DECIMAL_NB(LL_ADC_GetOffsetChannel(hadc->Instance, LL_ADC_OFFSET_4)) == __LL_ADC_CHANNEL_TO_DECIMAL_NB(sConfigInjected->InjectedChannel))
+      {
+       LL_ADC_SetOffsetState(hadc->Instance, LL_ADC_OFFSET_4, LL_ADC_OFFSET_DISABLE);
+      }
+    }
+  
+  }
+  
+  /* Parameters update conditioned to ADC state:                              */
+  /* Parameters that can be updated only when ADC is disabled:                */
+  /*  - Single or differential mode                                           */
+  /*  - Internal measurement channels: Vbat/VrefInt/TempSensor                */
+  if (ADC_IS_ENABLE(hadc) == RESET)
+  {
+    /* Set mode single-ended or differential input of the selected ADC channel */
+    LL_ADC_SetChannelSingleDiff(hadc->Instance, sConfigInjected->InjectedChannel, sConfigInjected->InjectedSingleDiff);
+    
+    /* Configuration of differential mode */
+    if (sConfigInjected->InjectedSingleDiff == ADC_DIFFERENTIAL_ENDED)
+    {
+      /* Set sampling time of the selected ADC channel */
+      LL_ADC_SetChannelSamplingTime(hadc->Instance, __LL_ADC_DECIMAL_NB_TO_CHANNEL(__LL_ADC_CHANNEL_TO_DECIMAL_NB(sConfigInjected->InjectedChannel) + 1), sConfigInjected->InjectedSamplingTime);
+    }
+    
+    /* Management of internal measurement channels: Vbat/VrefInt/TempSensor   */
+    /* internal measurement paths enable: If internal channel selected,       */
+    /* enable dedicated internal buffers and path.                            */
+    /* Note: these internal measurement paths can be disabled using           */
+    /* HAL_ADC_DeInit().                                                      */
+
+    /* Configuration of common ADC parameters                                 */
+    /* If the requested internal measurement path has already been enabled,   */
+    /* bypass the configuration processing.                                   */
+      if (( (sConfigInjected->InjectedChannel == ADC_CHANNEL_TEMPSENSOR) &&
+            ((LL_ADC_GetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(hadc->Instance)) & LL_ADC_PATH_INTERNAL_TEMPSENSOR) == 0U)) ||
+          ( (sConfigInjected->InjectedChannel == ADC_CHANNEL_VBAT)       &&
+            ((LL_ADC_GetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(hadc->Instance)) & LL_ADC_PATH_INTERNAL_VBAT) == 0U))      ||
+          ( (sConfigInjected->InjectedChannel == ADC_CHANNEL_VREFINT)    &&
+            ((LL_ADC_GetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(hadc->Instance)) & LL_ADC_PATH_INTERNAL_VREFINT) == 0U))
+         )
+    {
+      /* Configuration of common ADC parameters (continuation)                */
+      /* Software is allowed to change common parameters only when all ADCs   */
+      /* of the common group are disabled.                                    */
+      if ((ADC_IS_ENABLE(hadc) == RESET)   &&
+         (ADC_ANY_OTHER_ENABLED(hadc) == RESET) )              
+      {
+        if (sConfigInjected->InjectedChannel == ADC_CHANNEL_TEMPSENSOR)
+        {
+          if (ADC_TEMPERATURE_SENSOR_INSTANCE(hadc)) 
+          {
+            LL_ADC_SetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(hadc->Instance), LL_ADC_PATH_INTERNAL_TEMPSENSOR | LL_ADC_GetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(hadc->Instance)));
+          
+            /* Delay for temperature sensor stabilization time */
+            /* Compute number of CPU cycles to wait for */
+            wait_loop_index = (LL_ADC_DELAY_TEMPSENSOR_STAB_US * (SystemCoreClock / 1000000));
+            while(wait_loop_index != 0)
+            {
+              wait_loop_index--;
+            }
+          }
+        }
+        else if (sConfigInjected->InjectedChannel == ADC_CHANNEL_VBAT)
+        { 
+          if (ADC_BATTERY_VOLTAGE_INSTANCE(hadc))
+          {
+            LL_ADC_SetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(hadc->Instance), LL_ADC_PATH_INTERNAL_VBAT | LL_ADC_GetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(hadc->Instance)));
+          }
+        }
+        else if (sConfigInjected->InjectedChannel == ADC_CHANNEL_VREFINT)
+        { 
+          if (ADC_VREFINT_INSTANCE(hadc))
+          {
+            LL_ADC_SetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(hadc->Instance), LL_ADC_PATH_INTERNAL_VREFINT | LL_ADC_GetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(hadc->Instance)));
+          }
+        }
+      }
+      /* If the requested internal measurement path has already been enabled  */
+      /* and other ADC of the common group are enabled, internal              */
+      /* measurement paths cannot be enabled.                                 */
+      else  
+      {
+        /* Update ADC state machine to error */
+        SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_CONFIG);
+        
+        tmp_hal_status = HAL_ERROR;
+      }
+    }
+    
+  }
+  
+  /* Process unlocked */
+  __HAL_UNLOCK(hadc);
+  
+  /* Return function status */
+  return tmp_hal_status;
+}

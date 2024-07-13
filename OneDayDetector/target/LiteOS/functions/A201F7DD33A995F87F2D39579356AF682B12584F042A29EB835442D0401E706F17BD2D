@@ -1,0 +1,49 @@
+HAL_StatusTypeDef HAL_I2S_Transmit_IT(I2S_HandleTypeDef *hi2s, uint16_t *pData, uint16_t Size)
+{
+  uint32_t tmpreg_cfgr;
+
+  if ((pData == NULL) || (Size == 0U))
+  {
+    return  HAL_ERROR;
+  }
+
+  /* Process Locked */
+  __HAL_LOCK(hi2s);
+
+  if (hi2s->State != HAL_I2S_STATE_READY)
+  {
+    __HAL_UNLOCK(hi2s);
+    return HAL_BUSY;
+  }
+
+  /* Set state and reset error code */
+  hi2s->State = HAL_I2S_STATE_BUSY_TX;
+  hi2s->ErrorCode = HAL_I2S_ERROR_NONE;
+  hi2s->pTxBuffPtr = pData;
+
+  tmpreg_cfgr = hi2s->Instance->I2SCFGR & (SPI_I2SCFGR_DATLEN | SPI_I2SCFGR_CHLEN);
+
+  if ((tmpreg_cfgr == I2S_DATAFORMAT_24B) || (tmpreg_cfgr == I2S_DATAFORMAT_32B))
+  {
+    hi2s->TxXferSize = (Size << 1U);
+    hi2s->TxXferCount = (Size << 1U);
+  }
+  else
+  {
+    hi2s->TxXferSize = Size;
+    hi2s->TxXferCount = Size;
+  }
+
+  /* Enable TXE and ERR interrupt */
+  __HAL_I2S_ENABLE_IT(hi2s, (I2S_IT_TXE | I2S_IT_ERR));
+
+  /* Check if the I2S is already enabled */
+  if ((hi2s->Instance->I2SCFGR & SPI_I2SCFGR_I2SE) != SPI_I2SCFGR_I2SE)
+  {
+    /* Enable I2S peripheral */
+    __HAL_I2S_ENABLE(hi2s);
+  }
+
+  __HAL_UNLOCK(hi2s);
+  return HAL_OK;
+}

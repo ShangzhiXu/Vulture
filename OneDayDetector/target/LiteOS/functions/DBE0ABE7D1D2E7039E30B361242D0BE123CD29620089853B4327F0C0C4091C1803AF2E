@@ -1,0 +1,28 @@
+UINT32 LOS_TraceStart(VOID)
+{
+    UINT32 intSave;
+    UINT32 ret = LOS_OK;
+
+    TRACE_LOCK(intSave);
+    if (g_traceState == TRACE_STARTED) {
+        goto START_END;
+    }
+
+    if (g_traceState == TRACE_UNINIT) {
+        TRACE_ERROR("trace not inited, be sure LOS_TraceInit excute success\n");
+        ret = LOS_ERRNO_TRACE_ERROR_STATUS;
+        goto START_END;
+    }
+
+    OsTraceNotifyStart();
+
+    g_enableTrace = TRUE;
+    g_traceState = TRACE_STARTED;
+
+    TRACE_UNLOCK(intSave);
+    LOS_TRACE(MEM_INFO_REQ, m_aucSysMem0);
+    return ret;
+START_END:
+    TRACE_UNLOCK(intSave);
+    return ret;
+}

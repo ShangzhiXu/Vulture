@@ -1,0 +1,27 @@
+static int pk_get_pk_alg( unsigned char **p,
+                          const unsigned char *end,
+                          mbedtls_pk_type_t *pk_alg, mbedtls_asn1_buf *params )
+{
+    int ret;
+    mbedtls_asn1_buf alg_oid;
+
+    memset( params, 0, sizeof(mbedtls_asn1_buf) );
+
+    if( ( ret = mbedtls_asn1_get_alg( p, end, &alg_oid, params ) ) != 0 )
+        return( MBEDTLS_ERR_PK_INVALID_ALG + ret );
+
+    if( mbedtls_oid_get_pk_alg( &alg_oid, pk_alg ) != 0 )
+        return( MBEDTLS_ERR_PK_UNKNOWN_PK_ALG );
+
+    /*
+     * No parameters with RSA (only for EC)
+     */
+    if( *pk_alg == MBEDTLS_PK_RSA &&
+            ( ( params->tag != MBEDTLS_ASN1_NULL && params->tag != 0 ) ||
+                params->len != 0 ) )
+    {
+        return( MBEDTLS_ERR_PK_INVALID_ALG );
+    }
+
+    return( 0 );
+}

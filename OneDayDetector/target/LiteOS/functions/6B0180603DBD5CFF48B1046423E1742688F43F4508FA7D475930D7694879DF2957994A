@@ -1,0 +1,53 @@
+int mbedtls_aria_crypt_ecb( mbedtls_aria_context *ctx,
+                            const unsigned char input[MBEDTLS_ARIA_BLOCKSIZE],
+                            unsigned char output[MBEDTLS_ARIA_BLOCKSIZE] )
+{
+    int i;
+
+    uint32_t a, b, c, d;
+    ARIA_VALIDATE_RET( ctx != NULL );
+    ARIA_VALIDATE_RET( input != NULL );
+    ARIA_VALIDATE_RET( output != NULL );
+
+    GET_UINT32_LE( a, input,  0 );
+    GET_UINT32_LE( b, input,  4 );
+    GET_UINT32_LE( c, input,  8 );
+    GET_UINT32_LE( d, input, 12 );
+
+    i = 0;
+    while( 1 )
+    {
+        a ^= ctx->rk[i][0];
+        b ^= ctx->rk[i][1];
+        c ^= ctx->rk[i][2];
+        d ^= ctx->rk[i][3];
+        i++;
+
+        aria_sl( &a, &b, &c, &d, aria_sb1, aria_sb2, aria_is1, aria_is2 );
+        aria_a( &a, &b, &c, &d );
+
+        a ^= ctx->rk[i][0];
+        b ^= ctx->rk[i][1];
+        c ^= ctx->rk[i][2];
+        d ^= ctx->rk[i][3];
+        i++;
+
+        aria_sl( &a, &b, &c, &d, aria_is1, aria_is2, aria_sb1, aria_sb2 );
+        if( i >= ctx->nr )
+            break;
+        aria_a( &a, &b, &c, &d );
+    }
+
+    /* final key mixing */
+    a ^= ctx->rk[i][0];
+    b ^= ctx->rk[i][1];
+    c ^= ctx->rk[i][2];
+    d ^= ctx->rk[i][3];
+
+    PUT_UINT32_LE( a, output,  0 );
+    PUT_UINT32_LE( b, output,  4 );
+    PUT_UINT32_LE( c, output,  8 );
+    PUT_UINT32_LE( d, output, 12 );
+
+    return( 0 );
+}

@@ -1,0 +1,28 @@
+static lv_design_res_t lv_gauge_design(lv_obj_t * gauge, const lv_area_t * clip_area, lv_design_mode_t mode)
+{
+    /*Return false if the object is not covers the mask_p area*/
+    if(mode == LV_DESIGN_COVER_CHK) {
+        return LV_DESIGN_RES_NOT_COVER;
+    }
+    /*Draw the object*/
+    else if(mode == LV_DESIGN_DRAW_MAIN) {
+        ancestor_design(gauge, clip_area, mode);
+
+        lv_gauge_ext_t * ext           = lv_obj_get_ext_attr(gauge);
+        lv_gauge_draw_labels(gauge, clip_area);
+
+        /*Add the strong lines*/
+        uint16_t line_cnt_tmp = ext->lmeter.line_cnt;
+        ext->lmeter.line_cnt         = ext->label_count;                 /*Only to labels*/
+        lv_linemeter_draw_scale(gauge, clip_area, LV_GAUGE_PART_MAJOR);
+        ext->lmeter.line_cnt = line_cnt_tmp; /*Restore the parameters*/
+
+        lv_gauge_draw_needle(gauge, clip_area);
+    }
+    /*Post draw when the children are drawn*/
+    else if(mode == LV_DESIGN_DRAW_POST) {
+        ancestor_design(gauge, clip_area, mode);
+    }
+
+    return LV_DESIGN_RES_OK;
+}

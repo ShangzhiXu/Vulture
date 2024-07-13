@@ -1,0 +1,26 @@
+static HAL_StatusTypeDef SMARTCARD_WaitOnFlagUntilTimeout(SMARTCARD_HandleTypeDef *hsc, uint32_t Flag, FlagStatus Status, uint32_t Tickstart, uint32_t Timeout)
+{
+  /* Wait until flag is set */
+  while((__HAL_SMARTCARD_GET_FLAG(hsc, Flag) ? SET : RESET) == Status)
+  {
+    /* Check for the Timeout */
+    if(Timeout != HAL_MAX_DELAY)
+    {
+      if((Timeout == 0U)||((HAL_GetTick() - Tickstart ) > Timeout))
+      {
+        /* Disable TXE and RXNE interrupts for the interrupt process */
+        CLEAR_BIT(hsc->Instance->CR1, USART_CR1_TXEIE);
+        CLEAR_BIT(hsc->Instance->CR1, USART_CR1_RXNEIE);
+
+        hsc->gState= HAL_SMARTCARD_STATE_READY;
+        hsc->RxState= HAL_SMARTCARD_STATE_READY;
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(hsc);
+
+        return HAL_TIMEOUT;
+      }
+    }
+  }
+  return HAL_OK;
+}

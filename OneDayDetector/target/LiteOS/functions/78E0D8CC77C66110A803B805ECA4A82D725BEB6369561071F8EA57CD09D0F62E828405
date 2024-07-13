@@ -1,0 +1,19 @@
+static err_t pppol2tp_xmit(pppol2tp_pcb *l2tp, struct pbuf *pb) {
+  u8_t *p;
+
+  /* make room for L2TP header - should not fail */
+  if (pbuf_add_header(pb, PPPOL2TP_OUTPUT_DATA_HEADER_LEN) != 0) {
+    /* bail out */
+    PPPDEBUG(LOG_ERR, ("pppol2tp: pppol2tp_pcb: could not allocate room for L2TP header\n"));
+    LINK_STATS_INC(link.lenerr);
+    pbuf_free(pb);
+    return ERR_BUF;
+  }
+
+  p = (u8_t*)pb->payload;
+  PUTSHORT(PPPOL2TP_HEADERFLAG_DATA_MANDATORY, p);
+  PUTSHORT(l2tp->source_tunnel_id, p); /* Tunnel Id */
+  PUTSHORT(l2tp->source_session_id, p); /* Session Id */
+
+  return pppol2tp_udp_send(l2tp, pb);
+}

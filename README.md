@@ -57,7 +57,7 @@ TPL construction is developed based on [Centris](https://github.com/WOOSEUNGHOON
 
 Please refer to [THIS](TPLFilter/src/patchcollector/README.md) for more information
 
-
+An example is added [HERE](TPLFilter/src/patchcollector/example.pdf)
 
 ##### TPL Reuse detection
 

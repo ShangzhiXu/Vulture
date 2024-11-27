@@ -64,7 +64,7 @@ An example is added [HERE](TPLFilter/src/patchcollector/example.pdf)
 ##### TPL Reuse detection
 
 1. You can now `cd ../TPLReuseDetector` and run `python3 Detector.py /path/of/the/target/software`. The reused TPLs and their version can be found at `res/result_your_software_name`
-2. Then you can run `python3 fp_eliminator.py res/result__your_software_name` to eliminate false positive. The final result can be found at `modified_result_without_funcyour_software_name`
+2. Then you can run `python3 fp_eliminator.py res/result_your_software_name_func` to eliminate false positive. The final result can be found at `modified_result_without_funcyour_software_name`
 
 
 

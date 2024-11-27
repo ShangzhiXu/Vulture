@@ -61,6 +61,7 @@ Please refer to [THIS](TPLFilter/src/patchcollector/README.md) for more informat
 
 An example is added [HERE](TPLFilter/src/patchcollector/example.pdf)
 
+You can put them into `OneDayDetector`, aligned_patch & aligned_cpe dir.
 ##### TPL Reuse detection
 
 1. You can now `cd ../TPLReuseDetector` and run `python3 Detector.py /path/of/the/target/software` （note that there is no "/" at the end of the path）. The reused TPLs and their version can be found at `res/result_your_software_name`
@@ -70,7 +71,7 @@ An example is added [HERE](TPLFilter/src/patchcollector/example.pdf)
 
 ##### 1-day Vulnerability Detection
 
-Just run `python3 VersionBasedDetection.py /path/of/the/target/software`  you'll get the result directly
+Just goto dir `OneDayDetector` run `python3 VersionBasedDetection.py /path/of/the/target/software`  you'll get the result directly
 
 The result will show which CVE might affect your software and what you have patched like the following
 

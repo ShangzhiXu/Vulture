@@ -51,7 +51,7 @@ TPL construction is developed based on [Centris](https://github.com/WOOSEUNGHOON
 
 1. Put the urls you collect above into `TPLFilter/src/osscollector/targetTPLs`
 2. `cd ../osscollector `and run `python3 OSS_Collector.py` to collect TPLs. You can run it with single process or using multiprocessing .
-3. Then `cd ../preprocessor` and run `python3 Preprocessor_lite.py` for redundant elimination.
+3. Then `cd ../preprocessor` and run `python3 Preprocessor.py` for redundant elimination.
 
 
 

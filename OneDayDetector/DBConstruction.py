@@ -11,7 +11,7 @@ from clang.cindex import Index, CursorKind
 Patched_file_path = ""
 Vulnerable_file_path = ""
 clangFormatPath = "/usr/bin/clang-format"
-ctagsPath = "/usr/local/bin/ctags"
+ctagsPath = "/usr/bin/ctags"
 CPE_FILE_PATH = "aligned_cpe"
 PATCHED_FILE_PATH  = "aligned_patch"
 

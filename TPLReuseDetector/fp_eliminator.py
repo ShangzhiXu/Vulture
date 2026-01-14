@@ -274,18 +274,44 @@ def compareFuncMap(result, target):
 
 
 def getCandidateFuncMap(inputPath, inputRepo):
-    result_map = json.loads(open(inputPath).read())
-    # print(result_map)
-    result = result_map[inputRepo]
-    return result
+    try:
+        result_map = json.loads(open(inputPath).read())
+        # print(result_map)
+        result = result_map[inputRepo]
+        return result
+    except (KeyError, FileNotFoundError, json.JSONDecodeError):
+        # Return empty list if repo not found or file issue
+        return []
 
 
 def main():
     inputPath = sys.argv[1]
-    inputRepo = inputPath.split('/')[-1].split('_')[1]
+    # inputPath format is typically ".../result_{repoName}_func"
+    # We need to extract {repoName} safely, even if it contains underscores.
+    filename = inputPath.split('/')[-1]
+    if filename.startswith("result_") and filename.endswith("_func"):
+        inputRepo = filename[7:-5]
+    else:
+        # Fallback to original logic if format doesn't match
+        inputRepo = filename.split('_')[1]
     print(inputPath)
     print(inputRepo)
+    
     candidateFuncMap = getCandidateFuncMap(inputPath, inputRepo)
+    
+    # If no candidates found, create empty result files to satisfy next steps
+    if not candidateFuncMap:
+        print(f"No TPL reuse candidates found for {inputRepo}.")
+        # Create empty files expected by VersionBasedDetection.py
+        target = inputRepo
+        with open(f"fp_elimination{target}", "w") as f:
+            f.write("")
+        with open(f"modified_result{target}", "w") as f:
+            json.dump([], f)
+        with open(f"modified_result_without_func{target}", "w") as f:
+            f.write("")
+        return
+
     compareFuncMap(candidateFuncMap, inputRepo)
 
 

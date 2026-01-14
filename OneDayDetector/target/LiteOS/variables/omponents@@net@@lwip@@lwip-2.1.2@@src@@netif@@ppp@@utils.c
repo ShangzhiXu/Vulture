@@ -1,2 +1,0 @@
-    int len;
-    char *ptr;

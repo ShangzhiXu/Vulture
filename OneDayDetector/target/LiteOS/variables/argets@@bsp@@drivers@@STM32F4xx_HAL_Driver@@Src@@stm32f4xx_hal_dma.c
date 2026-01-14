@@ -1,3 +1,0 @@
-  __IO uint32_t IFCR;  /*!< DMA interrupt flag clear register */
-  __IO uint32_t ISR;   /*!< DMA interrupt status register */
-  __IO uint32_t Reserved0;

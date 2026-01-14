@@ -1,2 +1,0 @@
-    int count;
-    char *cur;

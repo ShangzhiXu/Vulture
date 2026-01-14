@@ -9,7 +9,7 @@ from clang.cindex import Index, CursorKind
 import ItemSplit
 from ItemSplit import *
 
-ctagsPath = "/usr/local/bin/ctags"
+ctagsPath = "/usr/bin/ctags"
 
 punclist = ['+', '-', '*', '/', '%', '&', '|', '^', '&&', '||', '==', '!=', '>', '<', '>=', '<=', '+=', '-=', '*=',
             '/=']

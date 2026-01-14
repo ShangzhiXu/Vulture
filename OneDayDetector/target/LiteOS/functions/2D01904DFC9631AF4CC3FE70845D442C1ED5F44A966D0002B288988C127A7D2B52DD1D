@@ -1,0 +1,47 @@
+CURLcode Curl_open(struct Curl_easy **curl)
+{
+  CURLcode result;
+  struct Curl_easy *data;
+
+  /* Very simple start-up: alloc the struct, init it with zeroes and return */
+  data = calloc(1, sizeof(struct Curl_easy));
+  if(!data) {
+    /* this is a very serious error */
+    DEBUGF(fprintf(stderr, "Error: calloc of Curl_easy failed\n"));
+    return CURLE_OUT_OF_MEMORY;
+  }
+
+  data->magic = CURLEASY_MAGIC_NUMBER;
+
+  result = Curl_resolver_init(data, &data->state.resolver);
+  if(result) {
+    DEBUGF(fprintf(stderr, "Error: resolver_init failed\n"));
+    free(data);
+    return result;
+  }
+
+  result = Curl_init_userdefined(data);
+  if(!result) {
+    Curl_dyn_init(&data->state.headerb, CURL_MAX_HTTP_HEADER);
+    Curl_convert_init(data);
+    Curl_initinfo(data);
+
+    /* most recent connection is not yet defined */
+    data->state.lastconnect_id = -1;
+
+    data->progress.flags |= PGRS_HIDE;
+    data->state.current_speed = -1; /* init to negative == impossible */
+  }
+
+  if(result) {
+    Curl_resolver_cleanup(data->state.resolver);
+    Curl_dyn_free(&data->state.headerb);
+    Curl_freeset(data);
+    free(data);
+    data = NULL;
+  }
+  else
+    *curl = data;
+
+  return result;
+}

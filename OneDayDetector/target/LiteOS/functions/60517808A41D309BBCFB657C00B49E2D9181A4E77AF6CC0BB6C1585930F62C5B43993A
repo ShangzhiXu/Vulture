@@ -1,0 +1,143 @@
+struct Curl_easy *curl_easy_duphandle(struct Curl_easy *data)
+{
+  struct Curl_easy *outcurl = calloc(1, sizeof(struct Curl_easy));
+  if(!outcurl)
+    goto fail;
+
+  /*
+   * We setup a few buffers we need. We should probably make them
+   * get setup on-demand in the code, as that would probably decrease
+   * the likeliness of us forgetting to init a buffer here in the future.
+   */
+  outcurl->set.buffer_size = data->set.buffer_size;
+
+  /* copy all userdefined values */
+  if(dupset(outcurl, data))
+    goto fail;
+
+  Curl_dyn_init(&outcurl->state.headerb, CURL_MAX_HTTP_HEADER);
+
+  /* the connection cache is setup on demand */
+  outcurl->state.conn_cache = NULL;
+  outcurl->state.lastconnect_id = -1;
+  outcurl->state.recent_conn_id = -1;
+  outcurl->id = -1;
+
+  outcurl->progress.flags    = data->progress.flags;
+  outcurl->progress.callback = data->progress.callback;
+
+#ifndef CURL_DISABLE_COOKIES
+  if(data->cookies) {
+    /* If cookies are enabled in the parent handle, we enable them
+       in the clone as well! */
+    outcurl->cookies = Curl_cookie_init(data,
+                                        data->cookies->filename,
+                                        outcurl->cookies,
+                                        data->set.cookiesession);
+    if(!outcurl->cookies)
+      goto fail;
+  }
+
+  if(data->set.cookielist) {
+    outcurl->set.cookielist = Curl_slist_duplicate(data->set.cookielist);
+    if(!outcurl->set.cookielist)
+      goto fail;
+  }
+#endif
+
+  if(data->state.url) {
+    outcurl->state.url = strdup(data->state.url);
+    if(!outcurl->state.url)
+      goto fail;
+    outcurl->state.url_alloc = TRUE;
+  }
+
+  if(data->state.referer) {
+    outcurl->state.referer = strdup(data->state.referer);
+    if(!outcurl->state.referer)
+      goto fail;
+    outcurl->state.referer_alloc = TRUE;
+  }
+
+  /* Reinitialize an SSL engine for the new handle
+   * note: the engine name has already been copied by dupset */
+  if(outcurl->set.str[STRING_SSL_ENGINE]) {
+    if(Curl_ssl_set_engine(outcurl, outcurl->set.str[STRING_SSL_ENGINE]))
+      goto fail;
+  }
+
+#ifndef CURL_DISABLE_ALTSVC
+  if(data->asi) {
+    outcurl->asi = Curl_altsvc_init();
+    if(!outcurl->asi)
+      goto fail;
+    if(outcurl->set.str[STRING_ALTSVC])
+      (void)Curl_altsvc_load(outcurl->asi, outcurl->set.str[STRING_ALTSVC]);
+  }
+#endif
+#ifndef CURL_DISABLE_HSTS
+  if(data->hsts) {
+    outcurl->hsts = Curl_hsts_init();
+    if(!outcurl->hsts)
+      goto fail;
+    if(outcurl->set.str[STRING_HSTS])
+      (void)Curl_hsts_loadfile(outcurl,
+                               outcurl->hsts, outcurl->set.str[STRING_HSTS]);
+    (void)Curl_hsts_loadcb(outcurl, outcurl->hsts);
+  }
+#endif
+  /* Clone the resolver handle, if present, for the new handle */
+  if(Curl_resolver_duphandle(outcurl,
+                             &outcurl->state.async.resolver,
+                             data->state.async.resolver))
+    goto fail;
+
+#ifdef USE_ARES
+  {
+    CURLcode rc;
+
+    rc = Curl_set_dns_servers(outcurl, data->set.str[STRING_DNS_SERVERS]);
+    if(rc && rc != CURLE_NOT_BUILT_IN)
+      goto fail;
+
+    rc = Curl_set_dns_interface(outcurl, data->set.str[STRING_DNS_INTERFACE]);
+    if(rc && rc != CURLE_NOT_BUILT_IN)
+      goto fail;
+
+    rc = Curl_set_dns_local_ip4(outcurl, data->set.str[STRING_DNS_LOCAL_IP4]);
+    if(rc && rc != CURLE_NOT_BUILT_IN)
+      goto fail;
+
+    rc = Curl_set_dns_local_ip6(outcurl, data->set.str[STRING_DNS_LOCAL_IP6]);
+    if(rc && rc != CURLE_NOT_BUILT_IN)
+      goto fail;
+  }
+#endif /* USE_ARES */
+
+  Curl_initinfo(outcurl);
+
+  outcurl->magic = CURLEASY_MAGIC_NUMBER;
+
+  /* we reach this point and thus we are OK */
+
+  return outcurl;
+
+fail:
+
+  if(outcurl) {
+#ifndef CURL_DISABLE_COOKIES
+    curl_slist_free_all(outcurl->set.cookielist);
+    outcurl->set.cookielist = NULL;
+#endif
+    Curl_safefree(outcurl->state.buffer);
+    Curl_dyn_free(&outcurl->state.headerb);
+    Curl_safefree(outcurl->state.url);
+    Curl_safefree(outcurl->state.referer);
+    Curl_altsvc_cleanup(&outcurl->asi);
+    Curl_hsts_cleanup(&outcurl->hsts);
+    Curl_freeset(outcurl);
+    free(outcurl);
+  }
+
+  return NULL;
+}

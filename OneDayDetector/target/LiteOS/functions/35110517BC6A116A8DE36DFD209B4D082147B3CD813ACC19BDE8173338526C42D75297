@@ -1,0 +1,71 @@
+static CURLcode ftp_setup_connection(struct Curl_easy *data,
+                                     struct connectdata *conn)
+{
+  char *type;
+  struct FTP *ftp;
+  CURLcode result = CURLE_OK;
+  struct ftp_conn *ftpc = &conn->proto.ftpc;
+
+  ftp = calloc(sizeof(struct FTP), 1);
+  if(!ftp)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* clone connection related data that is FTP specific */
+  if(data->set.str[STRING_FTP_ACCOUNT]) {
+    ftpc->account = strdup(data->set.str[STRING_FTP_ACCOUNT]);
+    if(!ftpc->account) {
+      free(ftp);
+      return CURLE_OUT_OF_MEMORY;
+    }
+  }
+  if(data->set.str[STRING_FTP_ALTERNATIVE_TO_USER]) {
+    ftpc->alternative_to_user =
+      strdup(data->set.str[STRING_FTP_ALTERNATIVE_TO_USER]);
+    if(!ftpc->alternative_to_user) {
+      Curl_safefree(ftpc->account);
+      free(ftp);
+      return CURLE_OUT_OF_MEMORY;
+    }
+  }
+  data->req.p.ftp = ftp;
+
+  ftp->path = &data->state.up.path[1]; /* don't include the initial slash */
+
+  /* FTP URLs support an extension like ";type=<typecode>" that
+   * we'll try to get now! */
+  type = strstr(ftp->path, ";type=");
+
+  if(!type)
+    type = strstr(conn->host.rawalloc, ";type=");
+
+  if(type) {
+    char command;
+    *type = 0;                     /* it was in the middle of the hostname */
+    command = Curl_raw_toupper(type[6]);
+
+    switch(command) {
+    case 'A': /* ASCII mode */
+      data->state.prefer_ascii = TRUE;
+      break;
+
+    case 'D': /* directory mode */
+      data->state.list_only = TRUE;
+      break;
+
+    case 'I': /* binary mode */
+    default:
+      /* switch off ASCII */
+      data->state.prefer_ascii = FALSE;
+      break;
+    }
+  }
+
+  /* get some initial data into the ftp struct */
+  ftp->transfer = PPTRANSFER_BODY;
+  ftp->downloadsize = 0;
+  ftpc->known_filesize = -1; /* unknown size for now */
+  ftpc->use_ssl = data->set.use_ssl;
+  ftpc->ccc = data->set.ftp_ccc;
+
+  return result;
+}

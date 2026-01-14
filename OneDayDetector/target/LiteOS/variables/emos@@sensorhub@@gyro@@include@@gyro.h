@@ -1,1 +1,0 @@
-    UINT16 gyroTimerId;

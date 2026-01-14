@@ -1,0 +1,68 @@
+CURLcode Curl_build_unencoding_stack(struct Curl_easy *data,
+                                     const char *enclist, int is_transfer)
+{
+  struct SingleRequest *k = &data->req;
+  unsigned int order = is_transfer? 2: 1;
+
+  do {
+    const char *name;
+    size_t namelen;
+
+    /* Parse a single encoding name. */
+    while(ISBLANK(*enclist) || *enclist == ',')
+      enclist++;
+
+    name = enclist;
+
+    for(namelen = 0; *enclist && *enclist != ','; enclist++)
+      if(!ISSPACE(*enclist))
+        namelen = enclist - name + 1;
+
+    /* Special case: chunked encoding is handled at the reader level. */
+    if(is_transfer && namelen == 7 && strncasecompare(name, "chunked", 7)) {
+      k->chunk = TRUE;             /* chunks coming our way. */
+      Curl_httpchunk_init(data);   /* init our chunky engine. */
+    }
+    else if(namelen) {
+      const struct content_encoding *encoding = find_encoding(name, namelen);
+      struct contenc_writer *writer;
+
+      if(!k->writer_stack) {
+        k->writer_stack = new_unencoding_writer(data, &client_encoding,
+                                                NULL, 0);
+
+        if(!k->writer_stack)
+          return CURLE_OUT_OF_MEMORY;
+      }
+
+      if(!encoding)
+        encoding = &error_encoding;  /* Defer error at stack use. */
+
+      if(k->writer_stack_depth++ >= MAX_ENCODE_STACK) {
+        failf(data, "Reject response due to more than %u content encodings",
+              MAX_ENCODE_STACK);
+        return CURLE_BAD_CONTENT_ENCODING;
+      }
+      /* Stack the unencoding stage. */
+      if(order >= k->writer_stack->order) {
+        writer = new_unencoding_writer(data, encoding,
+                                       k->writer_stack, order);
+        if(!writer)
+          return CURLE_OUT_OF_MEMORY;
+        k->writer_stack = writer;
+      }
+      else {
+        struct contenc_writer *w = k->writer_stack;
+        while(w->downstream && order < w->downstream->order)
+          w = w->downstream;
+        writer = new_unencoding_writer(data, encoding,
+                                       w->downstream, order);
+        if(!writer)
+          return CURLE_OUT_OF_MEMORY;
+        w->downstream = writer;
+      }
+    }
+  } while(*enclist);
+
+  return CURLE_OK;
+}

@@ -1,0 +1,59 @@
+CURLcode Curl_getworkingpath(struct Curl_easy *data,
+                             char *homedir,  /* when SFTP is used */
+                             char **path) /* returns the  allocated
+                                             real path to work with */
+{
+  char *working_path;
+  size_t working_path_len;
+  struct dynbuf npath;
+  CURLcode result =
+    Curl_urldecode(data->state.up.path, 0, &working_path,
+                   &working_path_len, REJECT_ZERO);
+  if(result)
+    return result;
+
+  /* new path to switch to in case we need to */
+  Curl_dyn_init(&npath, MAX_SSHPATH_LEN);
+
+  /* Check for /~/, indicating relative to the user's home directory */
+  if((data->conn->handler->protocol & CURLPROTO_SCP) &&
+     (working_path_len > 3) && (!memcmp(working_path, "/~/", 3))) {
+    /* It is referenced to the home directory, so strip the leading '/~/' */
+    if(Curl_dyn_addn(&npath, &working_path[3], working_path_len - 3)) {
+      free(working_path);
+      return CURLE_OUT_OF_MEMORY;
+    }
+  }
+  else if((data->conn->handler->protocol & CURLPROTO_SFTP) &&
+          (working_path_len > 2) && !memcmp(working_path, "/~/", 3)) {
+    size_t len;
+    const char *p;
+    int copyfrom = 3;
+    if(Curl_dyn_add(&npath, homedir)) {
+      free(working_path);
+      return CURLE_OUT_OF_MEMORY;
+    }
+    /* Copy a separating '/' if homedir does not end with one */
+    len = Curl_dyn_len(&npath);
+    p = Curl_dyn_ptr(&npath);
+    if(len && (p[len-1] != '/'))
+      copyfrom = 2;
+
+    if(Curl_dyn_addn(&npath,
+                     &working_path[copyfrom], working_path_len - copyfrom)) {
+      free(working_path);
+      return CURLE_OUT_OF_MEMORY;
+    }
+  }
+
+  if(Curl_dyn_len(&npath)) {
+    free(working_path);
+
+    /* store the pointer for the caller to receive */
+    *path = Curl_dyn_ptr(&npath);
+  }
+  else
+    *path = working_path;
+
+  return CURLE_OK;
+}

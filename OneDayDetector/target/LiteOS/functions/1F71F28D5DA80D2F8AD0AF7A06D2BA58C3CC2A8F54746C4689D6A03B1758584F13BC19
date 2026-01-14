@@ -1,0 +1,182 @@
+static CURLcode servercert(struct Curl_easy *data,
+                           struct connectdata *conn,
+                           struct ssl_connect_data *connssl,
+                           bool strict)
+{
+  CURLcode result = CURLE_OK;
+  int rc;
+  long lerr;
+  X509 *issuer;
+  BIO *fp = NULL;
+  char error_buffer[256]="";
+  char buffer[2048];
+  const char *ptr;
+  BIO *mem = BIO_new(BIO_s_mem());
+  struct ssl_backend_data *backend = connssl->backend;
+
+  if(data->set.ssl.certinfo)
+    /* we've been asked to gather certificate info! */
+    (void)get_cert_chain(data, connssl);
+
+  backend->server_cert = SSL_get_peer_certificate(backend->handle);
+  if(!backend->server_cert) {
+    BIO_free(mem);
+    if(!strict)
+      return CURLE_OK;
+
+    failf(data, "SSL: couldn't get peer certificate!");
+    return CURLE_PEER_FAILED_VERIFICATION;
+  }
+
+  infof(data, "%s certificate:", SSL_IS_PROXY() ? "Proxy" : "Server");
+
+  rc = x509_name_oneline(X509_get_subject_name(backend->server_cert),
+                         buffer, sizeof(buffer));
+  infof(data, " subject: %s", rc?"[NONE]":buffer);
+
+#ifndef CURL_DISABLE_VERBOSE_STRINGS
+  {
+    long len;
+    ASN1_TIME_print(mem, X509_get0_notBefore(backend->server_cert));
+    len = BIO_get_mem_data(mem, (char **) &ptr);
+    infof(data, " start date: %.*s", (int)len, ptr);
+    (void)BIO_reset(mem);
+
+    ASN1_TIME_print(mem, X509_get0_notAfter(backend->server_cert));
+    len = BIO_get_mem_data(mem, (char **) &ptr);
+    infof(data, " expire date: %.*s", (int)len, ptr);
+    (void)BIO_reset(mem);
+  }
+#endif
+
+  BIO_free(mem);
+
+  if(SSL_CONN_CONFIG(verifyhost)) {
+    result = verifyhost(data, conn, backend->server_cert);
+    if(result) {
+      X509_free(backend->server_cert);
+      backend->server_cert = NULL;
+      return result;
+    }
+  }
+
+  rc = x509_name_oneline(X509_get_issuer_name(backend->server_cert),
+                         buffer, sizeof(buffer));
+  if(rc) {
+    if(strict)
+      failf(data, "SSL: couldn't get X509-issuer name!");
+    result = CURLE_PEER_FAILED_VERIFICATION;
+  }
+  else {
+    infof(data, " issuer: %s", buffer);
+
+    /* We could do all sorts of certificate verification stuff here before
+       deallocating the certificate. */
+
+    /* e.g. match issuer name with provided issuer certificate */
+    if(SSL_CONN_CONFIG(issuercert) || SSL_CONN_CONFIG(issuercert_blob)) {
+      if(SSL_CONN_CONFIG(issuercert_blob))
+        fp = BIO_new_mem_buf(SSL_CONN_CONFIG(issuercert_blob)->data,
+                             (int)SSL_CONN_CONFIG(issuercert_blob)->len);
+      else {
+        fp = BIO_new(BIO_s_file());
+        if(!fp) {
+          failf(data,
+                "BIO_new return NULL, " OSSL_PACKAGE
+                " error %s",
+                ossl_strerror(ERR_get_error(), error_buffer,
+                              sizeof(error_buffer)) );
+          X509_free(backend->server_cert);
+          backend->server_cert = NULL;
+          return CURLE_OUT_OF_MEMORY;
+        }
+
+        if(BIO_read_filename(fp, SSL_CONN_CONFIG(issuercert)) <= 0) {
+          if(strict)
+            failf(data, "SSL: Unable to open issuer cert (%s)",
+                  SSL_CONN_CONFIG(issuercert));
+          BIO_free(fp);
+          X509_free(backend->server_cert);
+          backend->server_cert = NULL;
+          return CURLE_SSL_ISSUER_ERROR;
+        }
+      }
+
+      issuer = PEM_read_bio_X509(fp, NULL, ZERO_NULL, NULL);
+      if(!issuer) {
+        if(strict)
+          failf(data, "SSL: Unable to read issuer cert (%s)",
+                SSL_CONN_CONFIG(issuercert));
+        BIO_free(fp);
+        X509_free(issuer);
+        X509_free(backend->server_cert);
+        backend->server_cert = NULL;
+        return CURLE_SSL_ISSUER_ERROR;
+      }
+
+      if(X509_check_issued(issuer, backend->server_cert) != X509_V_OK) {
+        if(strict)
+          failf(data, "SSL: Certificate issuer check failed (%s)",
+                SSL_CONN_CONFIG(issuercert));
+        BIO_free(fp);
+        X509_free(issuer);
+        X509_free(backend->server_cert);
+        backend->server_cert = NULL;
+        return CURLE_SSL_ISSUER_ERROR;
+      }
+
+      infof(data, " SSL certificate issuer check ok (%s)",
+            SSL_CONN_CONFIG(issuercert));
+      BIO_free(fp);
+      X509_free(issuer);
+    }
+
+    lerr = SSL_get_verify_result(backend->handle);
+    SSL_SET_OPTION_LVALUE(certverifyresult) = lerr;
+    if(lerr != X509_V_OK) {
+      if(SSL_CONN_CONFIG(verifypeer)) {
+        /* We probably never reach this, because SSL_connect() will fail
+           and we return earlier if verifypeer is set? */
+        if(strict)
+          failf(data, "SSL certificate verify result: %s (%ld)",
+                X509_verify_cert_error_string(lerr), lerr);
+        result = CURLE_PEER_FAILED_VERIFICATION;
+      }
+      else
+        infof(data, " SSL certificate verify result: %s (%ld),"
+              " continuing anyway.",
+              X509_verify_cert_error_string(lerr), lerr);
+    }
+    else
+      infof(data, " SSL certificate verify ok.");
+  }
+
+#if (OPENSSL_VERSION_NUMBER >= 0x0090808fL) && !defined(OPENSSL_NO_TLSEXT) && \
+    !defined(OPENSSL_NO_OCSP)
+  if(SSL_CONN_CONFIG(verifystatus)) {
+    result = verifystatus(data, connssl);
+    if(result) {
+      X509_free(backend->server_cert);
+      backend->server_cert = NULL;
+      return result;
+    }
+  }
+#endif
+
+  if(!strict)
+    /* when not strict, we don't bother about the verify cert problems */
+    result = CURLE_OK;
+
+  ptr = SSL_PINNED_PUB_KEY();
+  if(!result && ptr) {
+    result = pkp_pin_peer_pubkey(data, backend->server_cert, ptr);
+    if(result)
+      failf(data, "SSL: public key does not match pinned public key!");
+  }
+
+  X509_free(backend->server_cert);
+  backend->server_cert = NULL;
+  connssl->connecting_state = ssl_connect_done;
+
+  return result;
+}

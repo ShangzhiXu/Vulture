@@ -1,0 +1,93 @@
+static CURLcode override_login(struct Curl_easy *data,
+                               struct connectdata *conn,
+                               char **userp, char **passwdp, char **optionsp)
+{
+  bool user_changed = FALSE;
+  bool passwd_changed = FALSE;
+  CURLUcode uc;
+
+  if(data->set.use_netrc == CURL_NETRC_REQUIRED && conn->bits.user_passwd) {
+    /* ignore user+password in the URL */
+    if(*userp) {
+      Curl_safefree(*userp);
+      user_changed = TRUE;
+    }
+    if(*passwdp) {
+      Curl_safefree(*passwdp);
+      passwd_changed = TRUE;
+    }
+    conn->bits.user_passwd = FALSE; /* disable user+password */
+  }
+
+  if(data->set.str[STRING_USERNAME]) {
+    free(*userp);
+    *userp = strdup(data->set.str[STRING_USERNAME]);
+    if(!*userp)
+      return CURLE_OUT_OF_MEMORY;
+    conn->bits.user_passwd = TRUE; /* enable user+password */
+    user_changed = TRUE;
+  }
+
+  if(data->set.str[STRING_PASSWORD]) {
+    free(*passwdp);
+    *passwdp = strdup(data->set.str[STRING_PASSWORD]);
+    if(!*passwdp)
+      return CURLE_OUT_OF_MEMORY;
+    conn->bits.user_passwd = TRUE; /* enable user+password */
+    passwd_changed = TRUE;
+  }
+
+  if(data->set.str[STRING_OPTIONS]) {
+    free(*optionsp);
+    *optionsp = strdup(data->set.str[STRING_OPTIONS]);
+    if(!*optionsp)
+      return CURLE_OUT_OF_MEMORY;
+  }
+
+  conn->bits.netrc = FALSE;
+  if(data->set.use_netrc != CURL_NETRC_IGNORED &&
+      (!*userp || !**userp || !*passwdp || !**passwdp)) {
+    bool netrc_user_changed = FALSE;
+    bool netrc_passwd_changed = FALSE;
+    int ret;
+
+    ret = Curl_parsenetrc(conn->host.name,
+                          userp, passwdp,
+                          &netrc_user_changed, &netrc_passwd_changed,
+                          data->set.str[STRING_NETRC_FILE]);
+    if(ret > 0) {
+      infof(data, "Couldn't find host %s in the .netrc file; using defaults\n",
+            conn->host.name);
+    }
+    else if(ret < 0) {
+      return CURLE_OUT_OF_MEMORY;
+    }
+    else {
+      /* set bits.netrc TRUE to remember that we got the name from a .netrc
+         file, so that it is safe to use even if we followed a Location: to a
+         different host or similar. */
+      conn->bits.netrc = TRUE;
+      conn->bits.user_passwd = TRUE; /* enable user+password */
+
+      if(netrc_user_changed) {
+        user_changed = TRUE;
+      }
+      if(netrc_passwd_changed) {
+        passwd_changed = TRUE;
+      }
+    }
+  }
+
+  /* for updated strings, we update them in the URL */
+  if(user_changed) {
+    uc = curl_url_set(data->state.uh, CURLUPART_USER, *userp, 0);
+    if(uc)
+      return Curl_uc_to_curlcode(uc);
+  }
+  if(passwd_changed) {
+    uc = curl_url_set(data->state.uh, CURLUPART_PASSWORD, *passwdp, 0);
+    if(uc)
+      return Curl_uc_to_curlcode(uc);
+  }
+  return CURLE_OK;
+}

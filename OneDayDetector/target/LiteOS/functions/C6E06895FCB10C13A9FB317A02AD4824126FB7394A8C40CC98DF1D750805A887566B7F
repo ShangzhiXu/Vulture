@@ -1,0 +1,26 @@
+static CURLcode imap_state_starttls_resp(struct Curl_easy *data,
+                                         int imapcode,
+                                         imapstate instate)
+{
+  CURLcode result = CURLE_OK;
+  struct connectdata *conn = data->conn;
+
+  (void)instate; /* no use for this yet */
+
+  /* Pipelining in response is forbidden. */
+  if(data->conn->proto.imapc.pp.cache_size)
+    return CURLE_WEIRD_SERVER_REPLY;
+
+  if(imapcode != IMAP_RESP_OK) {
+    if(data->set.use_ssl != CURLUSESSL_TRY) {
+      failf(data, "STARTTLS denied");
+      result = CURLE_USE_SSL_FAILED;
+    }
+    else
+      result = imap_perform_authentication(data, conn);
+  }
+  else
+    result = imap_perform_upgrade_tls(data, conn);
+
+  return result;
+}

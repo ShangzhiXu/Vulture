@@ -1,0 +1,92 @@
+struct CookieInfo *Curl_cookie_init(struct Curl_easy *data,
+                                    const char *file,
+                                    struct CookieInfo *inc,
+                                    bool newsession)
+{
+  struct CookieInfo *c;
+  char *line = NULL;
+  FILE *handle = NULL;
+
+  if(!inc) {
+    /* we didn't get a struct, create one */
+    c = calloc(1, sizeof(struct CookieInfo));
+    if(!c)
+      return NULL; /* failed to get memory */
+    /*
+     * Initialize the next_expiration time to signal that we don't have enough
+     * information yet.
+     */
+    c->next_expiration = CURL_OFF_T_MAX;
+  }
+  else {
+    /* we got an already existing one, use that */
+    c = inc;
+  }
+  c->newsession = newsession; /* new session? */
+
+  if(data) {
+    FILE *fp = NULL;
+    if(file) {
+      if(!strcmp(file, "-"))
+        fp = stdin;
+      else {
+        fp = fopen(file, "rb");
+        if(!fp)
+          infof(data, "WARNING: failed to open cookie file \"%s\"", file);
+        else
+          handle = fp;
+      }
+    }
+
+    c->running = FALSE; /* this is not running, this is init */
+    if(fp) {
+      char *lineptr;
+      bool headerline;
+
+      line = malloc(MAX_COOKIE_LINE);
+      if(!line)
+        goto fail;
+      while(Curl_get_line(line, MAX_COOKIE_LINE, fp)) {
+        if(checkprefix("Set-Cookie:", line)) {
+          /* This is a cookie line, get it! */
+          lineptr = &line[11];
+          headerline = TRUE;
+        }
+        else {
+          lineptr = line;
+          headerline = FALSE;
+        }
+        while(*lineptr && ISBLANK(*lineptr))
+          lineptr++;
+
+        Curl_cookie_add(data, c, headerline, TRUE, lineptr, NULL, NULL, TRUE);
+      }
+      free(line); /* free the line buffer */
+
+      /*
+       * Remove expired cookies from the hash. We must make sure to run this
+       * after reading the file, and not on every cookie.
+       */
+      remove_expired(c);
+
+      if(handle)
+        fclose(handle);
+    }
+    data->state.cookie_engine = TRUE;
+    c->running = TRUE;          /* now, we're running */
+  }
+
+  return c;
+
+fail:
+  free(line);
+  /*
+   * Only clean up if we allocated it here, as the original could still be in
+   * use by a share handle.
+   */
+  if(!inc)
+    Curl_cookie_cleanup(c);
+  if(handle)
+    fclose(handle);
+  return NULL; /* out of memory */
+}

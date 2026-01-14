@@ -28,7 +28,7 @@ metaPath = "../TPLFilter/src/preprocessor/metaInfos/"
 aveFuncPath = metaPath + "aveFuncs"
 weightPath = metaPath + "weights/"
 funcDatePath = currentPath + "../TPLFilter/src/preprocessor/funcDate/"
-ctagsPath = "/usr/local/bin/ctags"
+ctagsPath = "/usr/bin/ctags"
 
 search_space = 0
 shouldMake = [resultPath]

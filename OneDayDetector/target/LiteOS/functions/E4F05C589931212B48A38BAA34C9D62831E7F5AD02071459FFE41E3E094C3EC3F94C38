@@ -1,0 +1,36 @@
+static CURLcode ftp_disconnect(struct Curl_easy *data,
+                               struct connectdata *conn,
+                               bool dead_connection)
+{
+  struct ftp_conn *ftpc = &conn->proto.ftpc;
+  struct pingpong *pp = &ftpc->pp;
+
+  /* We cannot send quit unconditionally. If this connection is stale or
+     bad in any way, sending quit and waiting around here will make the
+     disconnect wait in vain and cause more problems than we need to.
+
+     ftp_quit() will check the state of ftp->ctl_valid. If it's ok it
+     will try to send the QUIT command, otherwise it will just return.
+  */
+  if(dead_connection)
+    ftpc->ctl_valid = FALSE;
+
+  /* The FTP session may or may not have been allocated/setup at this point! */
+  (void)ftp_quit(data, conn); /* ignore errors on the QUIT */
+
+  if(ftpc->entrypath) {
+    if(data->state.most_recent_ftp_entrypath == ftpc->entrypath) {
+      data->state.most_recent_ftp_entrypath = NULL;
+    }
+    Curl_safefree(ftpc->entrypath);
+  }
+
+  freedirs(ftpc);
+  Curl_safefree(ftpc->account);
+  Curl_safefree(ftpc->alternative_to_user);
+  Curl_safefree(ftpc->prevpath);
+  Curl_safefree(ftpc->server_os);
+  Curl_pp_disconnect(pp);
+  Curl_sec_end(conn);
+  return CURLE_OK;
+}

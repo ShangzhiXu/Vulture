@@ -12,7 +12,7 @@ import re
 from ChunkExtraction import *
 
 savePath = "./target/"
-ctagsPath = "/usr/local/bin/ctags"
+ctagsPath = "/usr/bin/ctags"
 databasePath = "./aligned_patch/"
 versionDatabasePath = "./aligned_cpe/"
 
@@ -556,7 +556,7 @@ def getReuseInfo(repoName):
     reused_OSSes = []
     with open('../TPLReuseDetector/modified_result_without_func' + repoName, 'r') as f:
         for line in f.readlines():
-           if line.startswith("\t"):
+           if line.startswith("\t") or line.startswith(" "):
                 continue
            else:
                 reused_OSSes.append(line)

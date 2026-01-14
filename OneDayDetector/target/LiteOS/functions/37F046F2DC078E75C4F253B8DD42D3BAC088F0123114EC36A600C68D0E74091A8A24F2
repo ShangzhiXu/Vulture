@@ -1,0 +1,39 @@
+void Curl_http_method(struct Curl_easy *data, struct connectdata *conn,
+                      const char **method, Curl_HttpReq *reqp)
+{
+  Curl_HttpReq httpreq = (Curl_HttpReq)data->state.httpreq;
+  const char *request;
+  if((conn->handler->protocol&(PROTO_FAMILY_HTTP|CURLPROTO_FTP)) &&
+     data->set.upload)
+    httpreq = HTTPREQ_PUT;
+
+  /* Now set the 'request' pointer to the proper request string */
+  if(data->set.str[STRING_CUSTOMREQUEST])
+    request = data->set.str[STRING_CUSTOMREQUEST];
+  else {
+    if(data->req.no_body)
+      request = "HEAD";
+    else {
+      DEBUGASSERT((httpreq >= HTTPREQ_GET) && (httpreq <= HTTPREQ_HEAD));
+      switch(httpreq) {
+      case HTTPREQ_POST:
+      case HTTPREQ_POST_FORM:
+      case HTTPREQ_POST_MIME:
+        request = "POST";
+        break;
+      case HTTPREQ_PUT:
+        request = "PUT";
+        break;
+      default: /* this should never happen */
+      case HTTPREQ_GET:
+        request = "GET";
+        break;
+      case HTTPREQ_HEAD:
+        request = "HEAD";
+        break;
+      }
+    }
+  }
+  *method = request;
+  *reqp = httpreq;
+}

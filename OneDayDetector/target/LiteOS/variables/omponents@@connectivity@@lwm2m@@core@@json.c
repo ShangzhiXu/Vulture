@@ -1,4 +1,0 @@
-    uint16_t    ids[4];
-    _type       type;
-    uint8_t    *value;
-    size_t      valueLen;
